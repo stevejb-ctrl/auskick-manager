@@ -236,6 +236,8 @@ export function QuarterBreak({
                   const isSelected = selected === pid;
                   const zm = currentGameZoneMins[pid] ?? { back: 0, mid: 0, fwd: 0 };
                   const total = zm.back + zm.mid + zm.fwd || 1;
+                  const prevSlot = slotOf(pid, lineup);
+                  const moved = prevSlot && prevSlot !== slot;
                   return (
                     <li key={pid}>
                       <button
@@ -251,8 +253,20 @@ export function QuarterBreak({
                           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
                             {p.jersey_number}
                           </span>
-                          <span className="font-medium text-gray-800">
-                            {p.full_name}
+                          <span className="flex flex-col items-start">
+                            <span className="font-medium text-gray-800">
+                              {p.full_name}
+                            </span>
+                            {moved && prevSlot && (
+                              <span className="text-[10px] font-medium uppercase tracking-wide text-brand-600">
+                                {LABELS[prevSlot]} → {LABELS[slot]}
+                              </span>
+                            )}
+                            {!moved && prevSlot && (
+                              <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                                stays
+                              </span>
+                            )}
                           </span>
                         </span>
                         <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-gray-100" aria-hidden>
