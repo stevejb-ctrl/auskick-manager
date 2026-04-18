@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Game } from "@/lib/types";
 
@@ -43,18 +44,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const canEdit = role === "admin" || role === "game_manager";
   const canRun = canEdit;
 
-  const when = new Date(g.scheduled_at);
-  const dateStr = when.toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const timeStr = when.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
   return (
     <div className="space-y-6">
       <div>
@@ -73,7 +62,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               Round {g.round_number}
             </span>
           )}
-          <span className="text-xs text-gray-400">{dateStr} · {timeStr}</span>
+          <span className="text-xs text-gray-400">
+            <FormattedDateTime iso={g.scheduled_at} mode="long" />
+          </span>
         </div>
         <h2 className="mt-1 text-xl font-bold text-gray-900">vs {g.opponent}</h2>
         {g.location && <p className="mt-1 text-sm text-gray-500">{g.location}</p>}

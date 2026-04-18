@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LiveGame } from "@/components/live/LiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { replayGame, seasonZoneMinutes } from "@/lib/fairness";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
@@ -14,17 +15,6 @@ interface RunPageProps {
 }
 
 function GameHeader({ teamName, g }: { teamName: string; g: Game }) {
-  const when = new Date(g.scheduled_at);
-  const dateStr = when.toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const timeStr = when.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline gap-2">
@@ -34,7 +24,7 @@ function GameHeader({ teamName, g }: { teamName: string; g: Game }) {
           </span>
         )}
         <span className="text-xs text-gray-400">
-          {dateStr} · {timeStr}
+          <FormattedDateTime iso={g.scheduled_at} mode="long" />
         </span>
       </div>
       <h2 className="mt-1 text-xl font-bold text-gray-900">

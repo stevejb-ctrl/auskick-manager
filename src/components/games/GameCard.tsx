@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import type { Game } from "@/lib/types";
 
 interface GameCardProps {
@@ -9,17 +10,6 @@ interface GameCardProps {
 }
 
 export function GameCard({ teamId, game, availableCount, totalActive }: GameCardProps) {
-  const when = new Date(game.scheduled_at);
-  const dateStr = when.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-  const timeStr = when.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
   return (
     <Link
       href={`/teams/${teamId}/games/${game.id}`}
@@ -33,7 +23,9 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
                 Round {game.round_number}
               </span>
             )}
-            <span className="text-xs text-gray-400">{dateStr} · {timeStr}</span>
+            <span className="text-xs text-gray-400">
+              <FormattedDateTime iso={game.scheduled_at} mode="short" />
+            </span>
           </div>
           <h3 className="mt-1 truncate text-base font-semibold text-gray-900">
             vs {game.opponent}
