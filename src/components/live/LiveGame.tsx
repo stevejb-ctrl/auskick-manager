@@ -421,12 +421,10 @@ export function LiveGame({
       )}
 
       {(() => {
-        const suggestions = suggestSwaps(
-          lineup,
-          totalMsByPlayer,
-          swapCount,
-          injuredIds
-        );
+        const suggestions =
+          isPreGame || isFinished
+            ? []
+            : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds);
         const swapOffs = new Map<string, number>();
         const swapOns = new Map<string, number>();
         if (!selected) {
