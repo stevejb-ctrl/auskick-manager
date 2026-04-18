@@ -47,7 +47,7 @@ export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
         <li>All quarters, swaps, goals, and behinds will be wiped.</li>
         <li>The starting lineup will be cleared.</li>
         <li>Player zone minutes from this game will no longer count.</li>
-        <li>This can't be undone.</li>
+        <li>This can&apos;t be undone.</li>
       </ul>
       {error && (
         <p className="mt-2 rounded bg-red-100 px-2 py-1 text-xs text-red-800">

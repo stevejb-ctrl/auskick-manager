@@ -145,7 +145,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
       <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
-          Who's here today?
+          Who&apos;s here today?
         </h3>
         <AvailabilityList
           auth={auth}
