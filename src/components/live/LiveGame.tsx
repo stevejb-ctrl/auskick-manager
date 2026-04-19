@@ -24,6 +24,7 @@ import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
+import { SubDueModal } from "@/components/live/SubDueModal";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -123,6 +124,8 @@ export function LiveGame({
   const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
+  const [subModalOpen, setSubModalOpen] = useState(false);
+  const snoozeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const playersById = useMemo(
     () => new Map(squadPlayers.map((p) => [p.id, p])),
@@ -375,9 +378,42 @@ export function LiveGame({
   useEffect(() => {
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playBeep();
+      setSubModalOpen(true);
+      if (window.matchMedia("(hover: none)").matches) {
+        navigator.vibrate?.([200, 100, 200]);
+      }
+    }
+    if (subState !== "due") {
+      setSubModalOpen(false);
+      if (snoozeTimeoutRef.current !== null) {
+        clearTimeout(snoozeTimeoutRef.current);
+        snoozeTimeoutRef.current = null;
+      }
     }
     prevSubStateRef.current = subState;
   }, [subState]);
+
+  useEffect(() => {
+    return () => {
+      if (snoozeTimeoutRef.current !== null) clearTimeout(snoozeTimeoutRef.current);
+    };
+  }, []);
+
+  function handleSubModalAcknowledge() {
+    setSubModalOpen(false);
+  }
+
+  function handleSubModalSnooze() {
+    setSubModalOpen(false);
+    snoozeTimeoutRef.current = setTimeout(() => {
+      if (prevSubStateRef.current === "due") {
+        setSubModalOpen(true);
+        if (window.matchMedia("(hover: none)").matches) {
+          navigator.vibrate?.([200, 100, 200]);
+        }
+      }
+    }, 30000);
+  }
 
   if (!hydrated) return null;
 
@@ -395,10 +431,23 @@ export function LiveGame({
     );
   }
 
+  const suggestions =
+    isPreGame || isFinished
+      ? []
+      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones);
+
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
   return (
     <div className="space-y-3">
+      {subModalOpen && (
+        <SubDueModal
+          suggestions={suggestions}
+          playersById={playersById}
+          onAcknowledge={handleSubModalAcknowledge}
+          onSnooze={handleSubModalSnooze}
+        />
+      )}
       {trackScoring && (
         <ScoreBoard
           teamName={teamName}
@@ -443,10 +492,6 @@ export function LiveGame({
       )}
 
       {(() => {
-        const suggestions =
-          isPreGame || isFinished
-            ? []
-            : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones);
         const swapOffs = new Map<string, number>();
         const swapOns = new Map<string, number>();
         if (!selected) {
