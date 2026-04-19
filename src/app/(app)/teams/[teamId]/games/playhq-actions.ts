@@ -1,0 +1,150 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import {
+  fetchPlayhqTeamPage,
+  parsePlayhqUrl,
+  type PlayHQFixture,
+  type PlayHQTeamMeta,
+} from "@/lib/playhq";
+import type { ActionResult } from "@/lib/types";
+
+async function getAuthedAdmin(teamId: string) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, error: "Unauthenticated." };
+  const { data: membership } = await supabase
+    .from("team_memberships")
+    .select("role")
+    .eq("team_id", teamId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership || membership.role !== "admin") {
+    return { supabase, user, error: "Not authorised." };
+  }
+  return { supabase, user, error: null };
+}
+
+export async function previewPlayhqFixtures(
+  playhqUrl: string
+): Promise<
+  ActionResult & { meta?: PlayHQTeamMeta; fixtures?: PlayHQFixture[] }
+> {
+  const parsed = parsePlayhqUrl(playhqUrl);
+  if (!parsed.ok) return { success: false, error: parsed.reason };
+  try {
+    const { meta, fixtures } = await fetchPlayhqTeamPage(parsed.teamId);
+    return { success: true, meta, fixtures };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function importPlayhqFixtures(
+  teamId: string,
+  playhqUrl: string,
+  selectedExternalIds: string[]
+): Promise<
+  ActionResult & { imported: number; updated: number; skipped: number }
+> {
+  const { supabase, user, error } = await getAuthedAdmin(teamId);
+  if (error || !user) {
+    return {
+      success: false,
+      error: error ?? "Unauthenticated.",
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+    };
+  }
+
+  const parsed = parsePlayhqUrl(playhqUrl);
+  if (!parsed.ok) {
+    return {
+      success: false,
+      error: parsed.reason,
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+    };
+  }
+
+  let page: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
+  try {
+    page = await fetchPlayhqTeamPage(parsed.teamId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
+    return { success: false, error: msg, imported: 0, updated: 0, skipped: 0 };
+  }
+
+  const selected = new Set(selectedExternalIds);
+  const toImport = page.fixtures.filter((f) => selected.has(f.externalId));
+
+  const { data: existing } = await supabase
+    .from("games")
+    .select("id, external_id, opponent, scheduled_at, location, round_number")
+    .eq("team_id", teamId)
+    .eq("external_source", "playhq");
+  const existingByExt = new Map(
+    (existing ?? []).map((r) => [r.external_id as string, r])
+  );
+
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  const { data: team } = await supabase
+    .from("teams")
+    .select("age_group")
+    .eq("id", teamId)
+    .single();
+  const { AGE_GROUPS, ageGroupOf } = await import("@/lib/ageGroups");
+  const cfg = AGE_GROUPS[ageGroupOf(team?.age_group)];
+
+  for (const f of toImport) {
+    const existingRow = existingByExt.get(f.externalId);
+    if (existingRow) {
+      const patch: Record<string, unknown> = {};
+      if (existingRow.opponent !== f.opponent) patch.opponent = f.opponent;
+      if (existingRow.scheduled_at !== f.scheduledAt)
+        patch.scheduled_at = f.scheduledAt;
+      if ((existingRow.location ?? null) !== (f.venue ?? null))
+        patch.location = f.venue;
+      if ((existingRow.round_number ?? null) !== (f.round ?? null))
+        patch.round_number = f.round;
+      if (Object.keys(patch).length === 0) {
+        skipped++;
+        continue;
+      }
+      const { error: updateErr } = await supabase
+        .from("games")
+        .update(patch)
+        .eq("id", existingRow.id);
+      if (updateErr) continue;
+      updated++;
+    } else {
+      const { error: insertErr } = await supabase.from("games").insert({
+        team_id: teamId,
+        opponent: f.opponent,
+        scheduled_at: f.scheduledAt,
+        location: f.venue,
+        round_number: f.round,
+        notes: null,
+        on_field_size: cfg.defaultOnFieldSize,
+        sub_interval_seconds: cfg.subIntervalSeconds,
+        external_source: "playhq",
+        external_id: f.externalId,
+        created_by: user.id,
+      });
+      if (insertErr) continue;
+      imported++;
+    }
+  }
+
+  revalidatePath(`/teams/${teamId}/games`);
+  return { success: true, imported, updated, skipped };
+}
