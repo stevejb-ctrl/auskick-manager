@@ -14,6 +14,7 @@ export type ZoneMs = Record<Zone, number>;
 const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
 
 export interface LiveGameState {
+  activeGameId: string | null;
   lineup: Lineup;
   currentQuarter: number;
   quarterEnded: boolean;
@@ -57,6 +58,7 @@ function cloneLineup(l: Lineup): Lineup {
 }
 
 export const useLiveGame = create<LiveGameState>((set) => ({
+  activeGameId: null,
   lineup: emptyLineup(),
   currentQuarter: 0,
   quarterEnded: false,

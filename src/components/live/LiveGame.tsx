@@ -117,6 +117,8 @@ export function LiveGame({
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const setInjured = useLiveGame((s) => s.setInjured);
 
+  const activeGameId = useLiveGame((s) => s.activeGameId);
+
   const [hydrated, setHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +133,14 @@ export function LiveGame({
 
   useEffect(() => {
     if (!initialState.lineup) return;
+    if (activeGameId === gameId) {
+      // Same game already loaded — in-memory store is authoritative.
+      // Avoid overwriting with potentially stale server data (router cache).
+      setHydrated(true);
+      return;
+    }
     init({
+      activeGameId: gameId,
       lineup: initialState.lineup,
       currentQuarter: initialState.currentQuarter,
       quarterEnded: initialState.quarterEnded,
@@ -145,7 +154,7 @@ export function LiveGame({
       injuredIds: initialState.injuredIds,
     });
     setHydrated(true);
-  }, [init, initialState]);
+  }, [init, initialState, gameId, activeGameId]);
 
   function currentElapsedMs() {
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
