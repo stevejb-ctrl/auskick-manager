@@ -19,10 +19,25 @@ export interface Profile {
   updated_at: string;
 }
 
+export type AgeGroup =
+  | "U8"
+  | "U9"
+  | "U10"
+  | "U11"
+  | "U12"
+  | "U13"
+  | "U14"
+  | "U15"
+  | "U16"
+  | "U17";
+
+export type PositionModel = "zones3" | "positions5";
+
 export interface Team {
   id: string;
   name: string;
   track_scoring: boolean;
+  age_group: AgeGroup;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -77,7 +92,7 @@ export interface GameAvailability {
   updated_at: string;
 }
 
-export type Zone = "back" | "mid" | "fwd";
+export type Zone = "back" | "hback" | "mid" | "hfwd" | "fwd";
 
 export type GameEventType =
   | "lineup_set"
@@ -94,9 +109,28 @@ export type GameEventType =
 
 export interface Lineup {
   back: string[];
+  hback: string[];
   mid: string[];
+  hfwd: string[];
   fwd: string[];
   bench: string[];
+}
+
+// Normalise a lineup read from event metadata — legacy events only have
+// back/mid/fwd/bench. Ensures hback/hfwd are always present arrays.
+export function normalizeLineup(l: Partial<Lineup> | null | undefined): Lineup {
+  return {
+    back: l?.back ? [...l.back] : [],
+    hback: l?.hback ? [...l.hback] : [],
+    mid: l?.mid ? [...l.mid] : [],
+    hfwd: l?.hfwd ? [...l.hfwd] : [],
+    fwd: l?.fwd ? [...l.fwd] : [],
+    bench: l?.bench ? [...l.bench] : [],
+  };
+}
+
+export function emptyLineup(): Lineup {
+  return { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
 }
 
 export interface GameEvent {

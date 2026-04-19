@@ -24,8 +24,17 @@ import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
-import { suggestSwaps, type GameState, type PlayerZoneMinutes, type ZoneCaps } from "@/lib/fairness";
-import type { Player, Zone } from "@/lib/types";
+import {
+  ALL_ZONES,
+  emptyZoneMs,
+  suggestSwaps,
+  type GameState,
+  type PlayerZoneMinutes,
+  type ZoneCaps,
+  type ZoneMinutes,
+} from "@/lib/fairness";
+import type { Player, PositionModel, Zone } from "@/lib/types";
+import { positionsFor } from "@/lib/ageGroups";
 
 function playBeep() {
   try {
@@ -63,6 +72,7 @@ interface LiveGameProps {
   initialState: GameState;
   season: PlayerZoneMinutes;
   zoneCaps: ZoneCaps;
+  positionModel: PositionModel;
 }
 
 export function LiveGame({
@@ -76,7 +86,9 @@ export function LiveGame({
   initialState,
   season,
   zoneCaps,
+  positionModel,
 }: LiveGameProps) {
+  const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -325,19 +337,21 @@ export function LiveGame({
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
 
-  const zoneMsByPlayer: Record<string, { back: number; mid: number; fwd: number }> = {};
+  const zoneMsByPlayer: Record<string, ZoneMinutes> = {};
   for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
     zoneMsByPlayer[pid] = { ...zm };
   }
   for (const [pid, start] of Object.entries(stintStartMs)) {
     const z = stintZone[pid];
     if (!z) continue;
-    zoneMsByPlayer[pid] ??= { back: 0, mid: 0, fwd: 0 };
+    zoneMsByPlayer[pid] ??= emptyZoneMs();
     zoneMsByPlayer[pid][z] += Math.max(0, nowMs - start);
   }
   const totalMsByPlayer: Record<string, number> = {};
   for (const [pid, zm] of Object.entries(zoneMsByPlayer)) {
-    totalMsByPlayer[pid] = zm.back + zm.mid + zm.fwd;
+    let t = 0;
+    for (const z of ALL_ZONES) t += zm[z];
+    totalMsByPlayer[pid] = t;
   }
 
   const subIntervalMs = subIntervalSeconds * 1000;
@@ -371,6 +385,7 @@ export function LiveGame({
         players={squadPlayers}
         season={season}
         zoneCaps={zoneCaps}
+        positionModel={positionModel}
         onStarted={() => beginNextQuarter()}
       />
     );
@@ -427,7 +442,7 @@ export function LiveGame({
         const suggestions =
           isPreGame || isFinished
             ? []
-            : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds);
+            : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones);
         const swapOffs = new Map<string, number>();
         const swapOns = new Map<string, number>();
         if (!selected) {
@@ -446,6 +461,7 @@ export function LiveGame({
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
               zoneCaps={zoneCaps}
+              positionModel={positionModel}
             />
             <Bench
               playersById={playersById}
@@ -472,12 +488,8 @@ export function LiveGame({
             {!isFinished && (
               <InjuryMenu
                 players={squadPlayers.filter((p) => {
-                  return (
-                    lineup.back.includes(p.id) ||
-                    lineup.mid.includes(p.id) ||
-                    lineup.fwd.includes(p.id) ||
-                    lineup.bench.includes(p.id)
-                  );
+                  if (lineup.bench.includes(p.id)) return true;
+                  return ALL_ZONES.some((z) => lineup[z].includes(p.id));
                 })}
                 injuredIds={injuredIds}
                 onToggle={handleInjuryToggle}
@@ -487,12 +499,9 @@ export function LiveGame({
             {!isFinished && (
               <LateArrivalMenu
                 candidates={squadPlayers.filter((p) => {
-                  const inLineup =
-                    lineup.back.includes(p.id) ||
-                    lineup.mid.includes(p.id) ||
-                    lineup.fwd.includes(p.id) ||
-                    lineup.bench.includes(p.id);
-                  return !inLineup;
+                  const inBench = lineup.bench.includes(p.id);
+                  const inField = ALL_ZONES.some((z) => lineup[z].includes(p.id));
+                  return !inBench && !inField;
                 })}
                 onAdd={handleLateArrival}
                 pending={isPending}

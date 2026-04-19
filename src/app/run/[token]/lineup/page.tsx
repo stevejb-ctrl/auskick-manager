@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes, suggestStartingLineup, zoneCapsFor } from "@/lib/fairness";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +25,12 @@ export default async function LineupPage({ params }: LineupPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name")
+    .select("name, age_group")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
+  const ageGroup = ageGroupOf((teamRow as { age_group?: string } | null)?.age_group);
+  const positionModel = AGE_GROUPS[ageGroup].positionModel;
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -57,7 +60,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
     ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
-  const zoneCaps = zoneCapsFor(g.on_field_size);
+  const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
   const suggested = suggestStartingLineup(availablePlayers, season, 0, zoneCaps);
 
   return (
@@ -93,6 +96,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
           season={season}
           zoneCaps={zoneCaps}
           onFieldSize={g.on_field_size}
+          positionModel={positionModel}
         />
       )}
     </div>

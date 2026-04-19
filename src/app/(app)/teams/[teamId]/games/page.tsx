@@ -29,10 +29,11 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   const { data: team } = await supabase
     .from("teams")
-    .select("track_scoring")
+    .select("track_scoring, age_group")
     .eq("id", params.teamId)
     .single();
   const trackScoring = team?.track_scoring ?? false;
+  const ageGroup = (team?.age_group ?? "U10") as import("@/lib/types").AgeGroup;
 
   return (
     <div className="space-y-6">
@@ -43,7 +44,7 @@ export default async function GamesPage({ params }: GamesPageProps) {
       {isAdmin && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-semibold text-gray-800">Create game</h2>
-          <CreateGameForm teamId={params.teamId} />
+          <CreateGameForm teamId={params.teamId} ageGroup={ageGroup} />
         </div>
       )}
 

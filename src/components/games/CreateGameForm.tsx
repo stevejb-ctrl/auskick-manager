@@ -1,25 +1,47 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { createGame } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { AGE_GROUPS, positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { zoneCapsFor } from "@/lib/fairness";
+import type { AgeGroup } from "@/lib/types";
 
 interface CreateGameFormProps {
   teamId: string;
+  ageGroup: AgeGroup;
   onCancel?: () => void;
 }
 
-export function CreateGameForm({ teamId, onCancel }: CreateGameFormProps) {
+export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormProps) {
+  const cfg = AGE_GROUPS[ageGroup];
   const [opponent, setOpponent] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [location, setLocation] = useState("");
   const [round, setRound] = useState("");
   const [notes, setNotes] = useState("");
-  const [onFieldSize, setOnFieldSize] = useState(12);
+  const [onFieldSize, setOnFieldSize] = useState(cfg.defaultOnFieldSize);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const sizeOptions = useMemo(() => {
+    const out: { value: number; label: string }[] = [];
+    for (let s = cfg.maxOnFieldSize; s >= cfg.minOnFieldSize; s--) {
+      const caps = zoneCapsFor(s, cfg.positionModel);
+      const zones = positionsFor(cfg.positionModel);
+      const splits = zones.map((z) => `${caps[z]} ${ZONE_SHORT_LABELS[z]}`).join(" / ");
+      const tag =
+        s === cfg.defaultOnFieldSize
+          ? "full team"
+          : s < cfg.defaultOnFieldSize
+          ? "short-handed"
+          : "extras";
+      out.push({ value: s, label: `${s} — ${tag} (${splits})` });
+    }
+    return out;
+  }, [cfg]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,13 +138,14 @@ export function CreateGameForm({ teamId, onCancel }: CreateGameFormProps) {
           disabled={isPending}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
         >
-          <option value={12}>12 — full team (4 back / 4 mid / 4 fwd)</option>
-          <option value={11}>11 — short-handed (4 back / 4 mid / 3 fwd)</option>
-          <option value={10}>10 — short-handed (3 back / 4 mid / 3 fwd)</option>
-          <option value={9}>9 — short-handed (3 back / 3 mid / 3 fwd)</option>
+          {sizeOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
         <p className="text-xs text-gray-500">
-          Use when the opposition is short and both teams agree to play fewer.
+          {cfg.label} default is {cfg.defaultOnFieldSize}. Drop down when the opposition is short and both teams agree to play fewer.
         </p>
       </div>
 

@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { ActionResult } from "@/lib/types";
+import type { ActionResult, AgeGroup } from "@/lib/types";
 
 export async function createTeam(
   userId: string,
-  name: string
+  name: string,
+  ageGroup: AgeGroup = "U10"
 ): Promise<ActionResult & { teamId?: string }> {
   const supabase = createClient();
 
@@ -23,7 +24,7 @@ export async function createTeam(
   // policy before the handle_new_team trigger adds the membership row.
   const { error: insertError } = await supabase
     .from("teams")
-    .insert({ name, created_by: user.id });
+    .insert({ name, created_by: user.id, age_group: ageGroup });
 
   if (insertError) {
     return { success: false, error: insertError.message };

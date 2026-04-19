@@ -4,55 +4,90 @@
 // Inputs: an array of GameEvents (one team's whole season, or
 // a single game). Outputs: zone-minutes per player, suggested
 // starting lineups, suggested mid-game swaps.
+//
+// Zones may be 3 (back/mid/fwd — U8-U12) or 5 (adds hback/hfwd
+// for U13+). All per-zone records carry all 5 keys; unused zones
+// are simply zero. `zoneCaps` with 0 means "no slots" so the UI
+// skips that position.
 // ============================================================
 
-import type { GameEvent, Lineup, Player, Zone } from "@/lib/types";
+import {
+  emptyLineup,
+  normalizeLineup,
+  type GameEvent,
+  type Lineup,
+  type Player,
+  type PositionModel,
+  type Zone,
+} from "@/lib/types";
+import { positionsFor } from "@/lib/ageGroups";
 
-export type ZoneMinutes = { back: number; mid: number; fwd: number };
+export type ZoneMinutes = Record<Zone, number>;
 export type PlayerZoneMinutes = Record<string, ZoneMinutes>;
 
+export const ALL_ZONES: Zone[] = ["back", "hback", "mid", "hfwd", "fwd"];
+// Legacy export retained for 3-zone call sites that don't know the model.
 export const ZONES: Zone[] = ["back", "mid", "fwd"];
-const DEFAULT_PLAYERS_PER_ZONE = 4;
 
 export type ZoneCaps = Record<Zone, number>;
 
-// Distribute an on-field size across back/mid/fwd. Remainder fills
-// mid first, then back (so 11 = 4-4-3, 10 = 3-4-3, 9 = 3-3-3).
-export function zoneCapsFor(onFieldSize: number): ZoneCaps {
-  const size = Math.max(0, Math.min(12, Math.floor(onFieldSize)));
-  const base = Math.floor(size / 3);
-  const rem = size % 3;
-  const caps: ZoneCaps = { back: base, mid: base, fwd: base };
-  if (rem >= 1) caps.mid++;
-  if (rem >= 2) caps.back++;
+function emptyCaps(): ZoneCaps {
+  return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+}
+
+// Distribute an on-field size across the model's zones.
+// 3-zone: remainder fills mid first, then back (11 → 4-4-3, 10 → 3-4-3, 9 → 3-3-3).
+// 5-position: remainder fills mid first, then the half-lines, then back/fwd.
+export function zoneCapsFor(
+  onFieldSize: number,
+  model: PositionModel = "zones3"
+): ZoneCaps {
+  const zones = positionsFor(model);
+  const hardMax = model === "positions5" ? 18 : 12;
+  const size = Math.max(0, Math.min(hardMax, Math.floor(onFieldSize)));
+  const base = Math.floor(size / zones.length);
+  const rem = size % zones.length;
+  const caps = emptyCaps();
+  for (const z of zones) caps[z] = base;
+  // Fill remainder in this priority order. For 3-zone this collapses to
+  // [mid, back]; for 5-position [mid, hback, hfwd, back, fwd].
+  const priority: Zone[] =
+    model === "positions5"
+      ? ["mid", "hback", "hfwd", "back", "fwd"]
+      : ["mid", "back", "fwd"];
+  for (let i = 0; i < rem; i++) caps[priority[i]]++;
   return caps;
 }
 
-const DEFAULT_ZONE_CAPS: ZoneCaps = {
-  back: DEFAULT_PLAYERS_PER_ZONE,
-  mid: DEFAULT_PLAYERS_PER_ZONE,
-  fwd: DEFAULT_PLAYERS_PER_ZONE,
-};
-
 // ─── Helpers ──────────────────────────────────────────────────
 function emptyZM(): ZoneMinutes {
-  return { back: 0, mid: 0, fwd: 0 };
+  return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+}
+
+export function emptyZoneMs(): ZoneMinutes {
+  return emptyZM();
 }
 
 function zoneOf(lineup: Lineup, playerId: string): Zone | null {
-  if (lineup.back.includes(playerId)) return "back";
-  if (lineup.mid.includes(playerId)) return "mid";
-  if (lineup.fwd.includes(playerId)) return "fwd";
+  for (const z of ALL_ZONES) {
+    if (lineup[z].includes(playerId)) return z;
+  }
   return null;
 }
 
 function cloneLineup(l: Lineup): Lineup {
   return {
     back: [...l.back],
+    hback: [...l.hback],
     mid: [...l.mid],
+    hfwd: [...l.hfwd],
     fwd: [...l.fwd],
     bench: [...l.bench],
   };
+}
+
+function activeZones(caps: ZoneCaps): Zone[] {
+  return ALL_ZONES.filter((z) => caps[z] > 0);
 }
 
 // ─── Replay one game's events → per-player zone minutes ──────
@@ -68,15 +103,14 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
   };
 
   let lineup: Lineup | null = null;
-  // For each on-field player this quarter, the elapsed_ms at
-  // which their current zone-stint started.
   let stintStart: Record<string, number> = {};
+  let stintZ: Record<string, Zone> = {};
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
       elapsed_ms?: number;
       quarter?: number;
-      lineup?: Lineup;
+      lineup?: Partial<Lineup>;
       off_player_id?: string;
       on_player_id?: string;
       zone?: Zone;
@@ -84,12 +118,16 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
     const elapsed = meta.elapsed_ms ?? 0;
 
     if (ev.type === "lineup_set" && meta.lineup) {
-      lineup = cloneLineup(meta.lineup);
+      lineup = normalizeLineup(meta.lineup);
     } else if (ev.type === "quarter_start") {
       stintStart = {};
+      stintZ = {};
       if (lineup) {
-        for (const p of [...lineup.back, ...lineup.mid, ...lineup.fwd]) {
-          stintStart[p] = 0;
+        for (const z of ALL_ZONES) {
+          for (const p of lineup[z]) {
+            stintStart[p] = 0;
+            stintZ[p] = z;
+          }
         }
       }
     } else if (ev.type === "swap" && lineup && meta.on_player_id && meta.zone) {
@@ -97,23 +135,25 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
       const on = meta.on_player_id;
       const z = meta.zone;
       if (off) {
-        add(off, z, elapsed - (stintStart[off] ?? 0));
+        const sz = stintZ[off] ?? z;
+        add(off, sz, elapsed - (stintStart[off] ?? 0));
         delete stintStart[off];
+        delete stintZ[off];
         lineup[z] = lineup[z].map((p) => (p === off ? on : p));
         lineup.bench = [...lineup.bench.filter((p) => p !== on), off];
       } else {
-        // Fill event — add to zone from bench, no off stint to close.
         lineup[z] = [...lineup[z], on];
         lineup.bench = lineup.bench.filter((p) => p !== on);
       }
       stintStart[on] = elapsed;
+      stintZ[on] = z;
     } else if (ev.type === "quarter_end" && lineup) {
-      for (const z of ZONES) {
-        for (const p of lineup[z]) {
-          add(p, z, elapsed - (stintStart[p] ?? 0));
-        }
+      for (const [pid, start] of Object.entries(stintStart)) {
+        const z = stintZ[pid];
+        if (z) add(pid, z, elapsed - start);
       }
       stintStart = {};
+      stintZ = {};
     } else if (ev.type === "player_arrived" && lineup && ev.player_id) {
       if (!lineup.bench.includes(ev.player_id)) lineup.bench.push(ev.player_id);
     } else if (ev.type === "injury" && lineup && ev.player_id) {
@@ -122,8 +162,10 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
       if (injured) {
         const z = zoneOf(lineup, pid);
         if (z) {
-          add(pid, z, elapsed - (stintStart[pid] ?? 0));
+          const sz = stintZ[pid] ?? z;
+          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
           delete stintStart[pid];
+          delete stintZ[pid];
           lineup[z] = lineup[z].filter((p) => p !== pid);
           if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
         }
@@ -147,32 +189,30 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
     const game = gameZoneMinutes(gameEvents);
     for (const [pid, zm] of Object.entries(game)) {
       total[pid] ??= emptyZM();
-      total[pid].back += zm.back;
-      total[pid].mid += zm.mid;
-      total[pid].fwd += zm.fwd;
+      for (const z of ALL_ZONES) total[pid][z] += zm[z];
     }
   });
   return total;
 }
 
 // ─── Suggest a starting lineup ───────────────────────────────
-// Goal: give each available player minutes in zones they're
-// most owed. Greedy assignment: sort available by total season
-// minutes ascending (least-played first picks zone first).
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
   seed: number = 0,
-  zoneCaps: ZoneCaps = DEFAULT_ZONE_CAPS
+  zoneCaps: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 }
 ): Lineup {
-  const lineup: Lineup = { back: [], mid: [], fwd: [], bench: [] };
+  const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
+
+  const zones = activeZones(zoneCaps);
 
   const avgPerZone = (() => {
     const zm = Object.values(season);
-    if (zm.length === 0) return 0;
-    const total = zm.reduce((acc, p) => acc + p.back + p.mid + p.fwd, 0);
-    return total / (zm.length * 3);
+    if (zm.length === 0 || zones.length === 0) return 0;
+    let total = 0;
+    for (const p of zm) for (const z of zones) total += p[z];
+    return total / (zm.length * zones.length);
   })();
 
   const owed = (pid: string, z: Zone) => {
@@ -180,20 +220,21 @@ export function suggestStartingLineup(
     return Math.max(0, avgPerZone - played);
   };
 
-  // Shuffle first (random tie-break), then sort by total played — so players
-  // with equal minutes get a different order each quarter instead of the
-  // same jersey-number tail always landing in the same zone.
-  const shuffled = seededShuffle(availablePlayers, seed + 17);
-  const sortedPlayers = shuffled.sort((a, b) => {
-    const aTotal = (season[a.id]?.back ?? 0) + (season[a.id]?.mid ?? 0) + (season[a.id]?.fwd ?? 0);
-    const bTotal = (season[b.id]?.back ?? 0) + (season[b.id]?.mid ?? 0) + (season[b.id]?.fwd ?? 0);
-    return aTotal - bTotal;
-  });
+  const playedTotal = (pid: string) => {
+    let t = 0;
+    for (const z of zones) t += season[pid]?.[z] ?? 0;
+    return t;
+  };
 
-  const zoneFill: Record<Zone, number> = { back: 0, mid: 0, fwd: 0 };
+  const shuffled = seededShuffle(availablePlayers, seed + 17);
+  const sortedPlayers = shuffled.sort(
+    (a, b) => playedTotal(a.id) - playedTotal(b.id)
+  );
+
+  const zoneFill: ZoneCaps = emptyCaps();
 
   for (const p of sortedPlayers) {
-    const openZones = ZONES.filter((z) => zoneFill[z] < zoneCaps[z]);
+    const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
     if (openZones.length === 0) {
       lineup.bench.push(p.id);
       continue;
@@ -213,20 +254,13 @@ export function suggestStartingLineup(
 }
 
 // ─── Suggest the next swap during play ───────────────────────
-// For each zone: off = on-field player with most minutes this
-// season in that zone; on = bench player with least minutes in
-// that zone (and who's available). Pick the zone with the
-// biggest gap.
 export interface SwapSuggestion {
   off_player_id: string;
   on_player_id: string;
   zone: Zone;
-  gap: number; // minutes — how much fairness this swap corrects
+  gap: number;
 }
 
-// Seeded Fisher-Yates. Deterministic given the same seed so the live
-// SwapCard doesn't jitter between renders — the seed only advances
-// when a swap actually lands or a quarter begins.
 function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
   const a = [...arr];
   let s = (seed | 0) >>> 0;
@@ -238,15 +272,12 @@ function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
   return a;
 }
 
-// Suggest a batch of swaps — one for every fit bench player. The freshest
-// bench players come on for the most-tired field players. Each bench player
-// takes over the zone of whoever they replace. Missed prior games don't
-// factor in; only current-game minutes matter.
 export function suggestSwaps(
   lineup: Lineup,
   currentGameMs: Record<string, number> = {},
   tieBreak: number = 0,
-  injuredIds: readonly string[] = []
+  injuredIds: readonly string[] = [],
+  activeZoneList: Zone[] = ZONES
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const fitBench = lineup.bench.filter((p) => !injured.has(p));
@@ -254,28 +285,25 @@ export function suggestSwaps(
 
   const gameMin = (pid: string) => (currentGameMs[pid] ?? 0) / 60000;
 
-  // Shuffle then sort so ties resolve randomly per-cycle but stably mid-cycle.
-  const fieldByZone: Record<Zone, string[]> = {
-    back: seededShuffle(lineup.back.filter((p) => !injured.has(p)), tieBreak + 131),
-    mid: seededShuffle(lineup.mid.filter((p) => !injured.has(p)), tieBreak + 262),
-    fwd: seededShuffle(lineup.fwd.filter((p) => !injured.has(p)), tieBreak + 393),
-  };
-  for (const z of ZONES) {
-    fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a)); // most-played first
+  const fieldByZone = {} as Record<Zone, string[]>;
+  for (const z of ALL_ZONES) fieldByZone[z] = [];
+  for (const z of activeZoneList) {
+    fieldByZone[z] = seededShuffle(
+      lineup[z].filter((p) => !injured.has(p)),
+      tieBreak + 131 * (ALL_ZONES.indexOf(z) + 1)
+    );
+    fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a));
   }
   const benchSorted = seededShuffle(fitBench, tieBreak).sort(
-    (a, b) => gameMin(a) - gameMin(b) // freshest first
+    (a, b) => gameMin(a) - gameMin(b)
   );
 
-  // Round-robin across zones in a shuffled order so multi-sub batches
-  // spread across back/mid/fwd instead of draining one zone first.
-  const zoneOrder = seededShuffle(ZONES, tieBreak + 77);
-  const zoneCursor: Record<Zone, number> = { back: 0, mid: 0, fwd: 0 };
+  const zoneOrder = seededShuffle(activeZoneList, tieBreak + 77);
+  const zoneCursor = emptyCaps();
   const swaps: SwapSuggestion[] = [];
 
   for (let i = 0; i < benchSorted.length; i++) {
     const on = benchSorted[i];
-    // Walk the shuffled zone order starting at i, skipping exhausted zones.
     let pickZone: Zone | null = null;
     for (let k = 0; k < zoneOrder.length; k++) {
       const z = zoneOrder[(i + k) % zoneOrder.length];
@@ -299,22 +327,16 @@ export function suggestSwaps(
 }
 
 // ─── Replay events → current game state ─────────────────────
-// Used to hydrate the live game view from the event log.
 export interface GameState {
   lineup: Lineup | null;
-  currentQuarter: number; // 0 = not started, 1-4 = active quarter, 5 = finished
-  quarterEnded: boolean;  // true between quarters (after quarter_end, before next quarter_start)
+  currentQuarter: number;
+  quarterEnded: boolean;
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
   finalised: boolean;
-  // Per-player field time already locked in (closed stints), broken down by zone (ms).
-  basePlayedZoneMs: Record<string, { back: number; mid: number; fwd: number }>;
-  // For players currently on-field in the active quarter: the elapsed_ms
-  // at which their current stint started. Empty outside a running quarter.
+  basePlayedZoneMs: Record<string, ZoneMinutes>;
   stintStartMs: Record<string, number>;
-  // The zone each mid-stint player is currently in.
   stintZone: Record<string, Zone>;
-  // Player IDs currently marked injured (excluded from sub rotation).
   injuredIds: string[];
 }
 
@@ -336,13 +358,13 @@ export function replayGame(events: GameEvent[]): GameState {
   };
   const addPlayed = (pid: string, zone: Zone, ms: number) => {
     if (ms <= 0) return;
-    state.basePlayedZoneMs[pid] ??= { back: 0, mid: 0, fwd: 0 };
+    state.basePlayedZoneMs[pid] ??= emptyZM();
     state.basePlayedZoneMs[pid][zone] += ms;
   };
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
-      lineup?: Lineup;
+      lineup?: Partial<Lineup>;
       quarter?: number;
       off_player_id?: string;
       on_player_id?: string;
@@ -352,14 +374,14 @@ export function replayGame(events: GameEvent[]): GameState {
     const elapsed = meta.elapsed_ms ?? 0;
 
     if (ev.type === "lineup_set" && meta.lineup) {
-      state.lineup = cloneLineup(meta.lineup);
+      state.lineup = normalizeLineup(meta.lineup);
     } else if (ev.type === "quarter_start" && meta.quarter) {
       state.currentQuarter = meta.quarter;
       state.quarterEnded = false;
       state.stintStartMs = {};
       state.stintZone = {};
       if (state.lineup) {
-        for (const z of ZONES) {
+        for (const z of ALL_ZONES) {
           for (const p of state.lineup[z]) {
             state.stintStartMs[p] = 0;
             state.stintZone[p] = z;
@@ -433,17 +455,20 @@ export function replayGame(events: GameEvent[]): GameState {
     }
   }
 
+  // Ensure replayed lineup has all zone arrays normalised even if events
+  // never hydrated a lineup_set (defensive — shouldn't happen in practice).
+  if (state.lineup) state.lineup = normalizeLineup(state.lineup);
+
   return state;
 }
 
 // ─── Fairness score 0-100 ────────────────────────────────────
-// 100 = perfectly even distribution across zones & players.
-// 0 = one player hogs everything. Uses coefficient of variation
-// across all (player, zone) minute counts; lower CV → higher score.
 export function fairnessScore(season: PlayerZoneMinutes): number {
   const values: number[] = [];
   for (const zm of Object.values(season)) {
-    values.push(zm.back, zm.mid, zm.fwd);
+    for (const z of ALL_ZONES) {
+      if (zm[z] > 0) values.push(zm[z]);
+    }
   }
   if (values.length === 0) return 100;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -451,6 +476,5 @@ export function fairnessScore(season: PlayerZoneMinutes): number {
   const variance =
     values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length;
   const cv = Math.sqrt(variance) / mean;
-  // cv 0 → 100, cv 1+ → 0
   return Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
 }

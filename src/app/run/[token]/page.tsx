@@ -6,6 +6,7 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { replayGame, seasonZoneMinutes, zoneCapsFor } from "@/lib/fairness";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -56,11 +57,13 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, track_scoring")
+    .select("name, track_scoring, age_group")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
+  const ageGroup = ageGroupOf(teamRow?.age_group);
+  const positionModel = AGE_GROUPS[ageGroup].positionModel;
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -92,11 +95,14 @@ export default async function RunPage({ params }: RunPageProps) {
     const availableIds = new Set((gameAvail ?? []).map((a) => a.player_id));
     const inGameIds = new Set<string>();
     if (state.lineup) {
+      const l = state.lineup;
       for (const id of [
-        ...state.lineup.back,
-        ...state.lineup.mid,
-        ...state.lineup.fwd,
-        ...state.lineup.bench,
+        ...l.back,
+        ...l.hback,
+        ...l.mid,
+        ...l.hfwd,
+        ...l.fwd,
+        ...l.bench,
       ])
         inGameIds.add(id);
     }
@@ -124,7 +130,8 @@ export default async function RunPage({ params }: RunPageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
-          zoneCaps={zoneCapsFor(g.on_field_size)}
+          zoneCaps={zoneCapsFor(g.on_field_size, positionModel)}
+          positionModel={positionModel}
         />
       </div>
     );

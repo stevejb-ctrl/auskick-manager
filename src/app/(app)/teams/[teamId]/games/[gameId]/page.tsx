@@ -7,6 +7,7 @@ import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game } from "@/lib/types";
 
 interface GameDetailPageProps {
@@ -20,7 +21,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: game }, { data: membership }] = await Promise.all([
+  const [{ data: game }, { data: membership }, { data: team }] = await Promise.all([
     supabase
       .from("games")
       .select("*")
@@ -35,6 +36,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           .eq("user_id", user.id)
           .single()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("teams")
+      .select("age_group")
+      .eq("id", params.teamId)
+      .single(),
   ]);
 
   if (!game) notFound();
@@ -43,6 +49,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const role = membership?.role;
   const canEdit = role === "admin" || role === "game_manager";
   const canRun = canEdit;
+  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
+  const ageCfg = AGE_GROUPS[ageGroup];
 
   return (
     <div className="space-y-6">
@@ -68,11 +76,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         </div>
         <h2 className="mt-1 text-xl font-bold text-gray-900">vs {g.opponent}</h2>
         {g.location && <p className="mt-1 text-sm text-gray-500">{g.location}</p>}
-        {g.on_field_size < 12 && (
-          <p className="mt-1 text-sm font-medium text-amber-700">
-            Short-handed: {g.on_field_size} on field
-          </p>
-        )}
+        <p className="mt-1 text-xs text-gray-500">
+          {ageCfg.label} · {g.on_field_size} on field
+          {g.on_field_size < ageCfg.defaultOnFieldSize && (
+            <span className="ml-1 font-medium text-amber-700">(short-handed)</span>
+          )}
+        </p>
         {g.notes && (
           <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{g.notes}</p>
         )}

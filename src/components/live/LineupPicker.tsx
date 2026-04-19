@@ -5,8 +5,9 @@ import { startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/action
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import type { Lineup, Player, Zone } from "@/lib/types";
+import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { PlayerZoneMinutes, ZoneCaps } from "@/lib/fairness";
+import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 // Default full-game length for sub-interval calculation (4 × 10min quarters).
 const GAME_MINUTES = 40;
@@ -34,16 +35,10 @@ interface LineupPickerProps {
   season: PlayerZoneMinutes;
   zoneCaps: ZoneCaps;
   onFieldSize: number;
+  positionModel: PositionModel;
 }
 
 type Slot = Zone | "bench";
-const SLOTS: Slot[] = ["back", "mid", "fwd", "bench"];
-const ZONE_LABELS: Record<Slot, string> = {
-  back: "Back",
-  mid: "Mid",
-  fwd: "Fwd",
-  bench: "Bench",
-};
 
 export function LineupPicker({
   auth,
@@ -53,6 +48,7 @@ export function LineupPicker({
   season,
   zoneCaps,
   onFieldSize,
+  positionModel,
 }: LineupPickerProps) {
   const [lineup, setLineup] = useState<Lineup>(suggestedLineup);
   const [selected, setSelected] = useState<string | null>(null);
@@ -65,8 +61,12 @@ export function LineupPicker({
     [players]
   );
 
+  const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
+  const slotLabel = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT_LABELS[s]);
+
   function slotOf(pid: string): Slot | null {
-    for (const s of SLOTS) if (lineup[s].includes(pid)) return s;
+    for (const s of slots) if (lineup[s].includes(pid)) return s;
     return null;
   }
 
@@ -88,7 +88,9 @@ export function LineupPicker({
     setLineup((prev) => {
       const next: Lineup = {
         back: [...prev.back],
+        hback: [...prev.hback],
         mid: [...prev.mid],
+        hfwd: [...prev.hfwd],
         fwd: [...prev.fwd],
         bench: [...prev.bench],
       };
@@ -103,7 +105,7 @@ export function LineupPicker({
     setSelected(null);
   }
 
-  const onFieldCount = lineup.back.length + lineup.mid.length + lineup.fwd.length;
+  const onFieldCount = zones.reduce((n, z) => n + lineup[z].length, 0);
   const benchCount = lineup.bench.length;
   const totalCount = onFieldCount + benchCount;
   const suggestedMin = suggestedSubMinutes(benchCount, totalCount);
@@ -134,21 +136,21 @@ export function LineupPicker({
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
           Tap any two players to swap them between zones or bench.
-          {onFieldSize < 12 && ` Short-handed game — ${onFieldSize} on field.`}
+          {` ${onFieldSize} on field.`}
           {onFieldCount < effectiveOnFieldTarget &&
             ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {SLOTS.map((slot) => (
+        {slots.map((slot) => (
           <div
             key={slot}
             className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
           >
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800">
-                {ZONE_LABELS[slot]}
+                {slotLabel(slot)}
               </h3>
               <span className="text-xs text-gray-400">
                 {lineup[slot].length}

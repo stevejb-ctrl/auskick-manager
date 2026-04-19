@@ -4,13 +4,22 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
+  ALL_ZONES,
   fairnessScore,
   suggestStartingLineup,
   type PlayerZoneMinutes,
   type ZoneCaps,
+  type ZoneMinutes,
 } from "@/lib/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import type { Lineup, Player, Zone } from "@/lib/types";
+import {
+  emptyLineup,
+  type Lineup,
+  type Player,
+  type PositionModel,
+  type Zone,
+} from "@/lib/types";
+import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
@@ -18,17 +27,23 @@ interface QuarterBreakProps {
   players: Player[];
   season: PlayerZoneMinutes;
   zoneCaps: ZoneCaps;
+  positionModel: PositionModel;
   onStarted: () => void;
 }
 
 type Slot = Zone | "bench";
-const SLOTS: Slot[] = ["back", "mid", "fwd", "bench"];
-const LABELS: Record<Slot, string> = {
-  back: "Back",
-  mid: "Mid",
-  fwd: "Fwd",
-  bench: "Bench",
+
+const ZONE_BAR_COLOR: Record<Zone, string> = {
+  back: "bg-blue-400",
+  hback: "bg-sky-400",
+  mid: "bg-yellow-400",
+  hfwd: "bg-orange-400",
+  fwd: "bg-red-400",
 };
+
+function emptyZM(): ZoneMinutes {
+  return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+}
 
 export function QuarterBreak({
   auth,
@@ -36,6 +51,7 @@ export function QuarterBreak({
   players,
   season,
   zoneCaps,
+  positionModel,
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
@@ -43,32 +59,30 @@ export function QuarterBreak({
   const setLineup = useLiveGame((s) => s.setLineup);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
 
-  // Current game only (minutes). Used for the per-player bars so the
-  // quarter-break view matches the bars shown during live play.
+  const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
+  const slotLabel = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT_LABELS[s]);
+
   const currentGameZoneMins = useMemo(() => {
     const out: PlayerZoneMinutes = {};
     for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
-      out[pid] = {
-        back: zm.back / 60000,
-        mid: zm.mid / 60000,
-        fwd: zm.fwd / 60000,
-      };
+      const next = emptyZM();
+      for (const z of ALL_ZONES) next[z] = zm[z] / 60000;
+      out[pid] = next;
     }
     return out;
   }, [basePlayedZoneMs]);
 
-  // Season + current game (minutes). Used for fairness score and suggestions
-  // so rebalancing considers prior games too.
   const combinedZoneMins = useMemo(() => {
     const out: PlayerZoneMinutes = {};
     for (const [pid, zm] of Object.entries(season)) {
-      out[pid] = { back: zm.back, mid: zm.mid, fwd: zm.fwd };
+      const next = emptyZM();
+      for (const z of ALL_ZONES) next[z] = zm[z];
+      out[pid] = next;
     }
     for (const [pid, zm] of Object.entries(currentGameZoneMins)) {
-      out[pid] ??= { back: 0, mid: 0, fwd: 0 };
-      out[pid].back += zm.back;
-      out[pid].mid += zm.mid;
-      out[pid].fwd += zm.fwd;
+      out[pid] ??= emptyZM();
+      for (const z of ALL_ZONES) out[pid][z] += zm[z];
     }
     return out;
   }, [season, currentGameZoneMins]);
@@ -84,12 +98,8 @@ export function QuarterBreak({
     [players]
   );
   const availableForLineup = useMemo(() => {
-    const all = [
-      ...lineup.back,
-      ...lineup.mid,
-      ...lineup.fwd,
-      ...lineup.bench,
-    ];
+    const all: string[] = [...lineup.bench];
+    for (const z of ALL_ZONES) all.push(...lineup[z]);
     return all
       .map((id) => playersById.get(id))
       .filter((p): p is Player => !!p);
@@ -99,7 +109,7 @@ export function QuarterBreak({
   const nextQuarter = currentQuarter + 1;
 
   function slotOf(pid: string, l: Lineup): Slot | null {
-    for (const s of SLOTS) if (l[s].includes(pid)) return s;
+    for (const s of slots) if (l[s].includes(pid)) return s;
     return null;
   }
 
@@ -120,7 +130,9 @@ export function QuarterBreak({
       if (!sa || !sb) return prev;
       const next: Lineup = {
         back: [...prev.back],
+        hback: [...prev.hback],
         mid: [...prev.mid],
+        hfwd: [...prev.hfwd],
         fwd: [...prev.fwd],
         bench: [...prev.bench],
       };
@@ -156,7 +168,7 @@ export function QuarterBreak({
   }
 
   function lineupsEqual(a: Lineup, b: Lineup): boolean {
-    const keys: (keyof Lineup)[] = ["back", "mid", "fwd", "bench"];
+    const keys: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
     for (const k of keys) {
       if (a[k].length !== b[k].length) return false;
       const sa = [...a[k]].sort();
@@ -168,14 +180,16 @@ export function QuarterBreak({
 
   function handleStart() {
     setError(null);
+    // Normalise draft shape before sending (defensive — always full-zones).
+    const full: Lineup = { ...emptyLineup(), ...draft };
     startTransition(async () => {
-      if (!lineupsEqual(lineup, draft)) {
-        const r = await recordLineupSet(auth, gameId, draft);
+      if (!lineupsEqual(lineup, full)) {
+        const r = await recordLineupSet(auth, gameId, full);
         if (!r.success) {
           setError(r.error);
           return;
         }
-        setLineup(draft);
+        setLineup(full);
       }
       const result = await startQuarterAction(auth, gameId, nextQuarter);
       if (!result.success) {
@@ -222,14 +236,14 @@ export function QuarterBreak({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {SLOTS.map((slot) => (
+        {slots.map((slot) => (
           <div
             key={slot}
             className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
           >
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800">
-                {LABELS[slot]}
+                {slotLabel(slot)}
               </h3>
               <span className="text-xs text-gray-400">
                 {draft[slot].length}
@@ -244,8 +258,8 @@ export function QuarterBreak({
                   const p = playersById.get(pid);
                   if (!p) return null;
                   const isSelected = selected === pid;
-                  const zm = currentGameZoneMins[pid] ?? { back: 0, mid: 0, fwd: 0 };
-                  const total = zm.back + zm.mid + zm.fwd || 1;
+                  const zm = currentGameZoneMins[pid] ?? emptyZM();
+                  const total = zones.reduce((a, z) => a + zm[z], 0) || 1;
                   const prevSlot = slotOf(pid, lineup);
                   const moved = prevSlot && prevSlot !== slot;
                   return (
@@ -269,7 +283,7 @@ export function QuarterBreak({
                             </span>
                             {moved && prevSlot && (
                               <span className="text-[10px] font-medium uppercase tracking-wide text-brand-600">
-                                {LABELS[prevSlot]} → {LABELS[slot]}
+                                {slotLabel(prevSlot)} → {slotLabel(slot)}
                               </span>
                             )}
                             {!moved && prevSlot && (
@@ -280,9 +294,13 @@ export function QuarterBreak({
                           </span>
                         </span>
                         <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-gray-100" aria-hidden>
-                          <span style={{ width: `${(zm.back / total) * 100}%` }} className="bg-blue-400" />
-                          <span style={{ width: `${(zm.mid / total) * 100}%` }} className="bg-yellow-400" />
-                          <span style={{ width: `${(zm.fwd / total) * 100}%` }} className="bg-red-400" />
+                          {zones.map((z) => (
+                            <span
+                              key={z}
+                              style={{ width: `${(zm[z] / total) * 100}%` }}
+                              className={ZONE_BAR_COLOR[z]}
+                            />
+                          ))}
                         </span>
                       </button>
                     </li>

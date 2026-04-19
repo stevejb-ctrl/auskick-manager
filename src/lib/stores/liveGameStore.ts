@@ -2,38 +2,37 @@
 // if the GM reloads mid-quarter, they restart it.
 
 import { create } from "zustand";
-import type { Lineup, Zone } from "@/lib/types";
+import {
+  emptyLineup,
+  normalizeLineup,
+  type Lineup,
+  type Zone,
+} from "@/lib/types";
+import { ALL_ZONES } from "@/lib/fairness";
 
-export type ZoneMs = { back: number; mid: number; fwd: number };
-const emptyZoneMs = (): ZoneMs => ({ back: 0, mid: 0, fwd: 0 });
+export type ZoneMs = Record<Zone, number>;
+const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
 
 export interface LiveGameState {
   lineup: Lineup;
-  currentQuarter: number; // 0 = not started, 1-4 = in progress / just ended
-  quarterEnded: boolean;  // true between end of quarter N and start of quarter N+1
+  currentQuarter: number;
+  quarterEnded: boolean;
   finalised: boolean;
-  clockStartedAt: number | null; // epoch ms, null when paused
-  accumulatedMs: number; // ms elapsed in current quarter (excluding current run segment)
+  clockStartedAt: number | null;
+  accumulatedMs: number;
 
   selected: { kind: "field"; playerId: string; zone: Zone } | { kind: "bench"; playerId: string } | null;
 
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
 
-  // Per-player field time accumulation (closed stints, per zone).
   basePlayedZoneMs: Record<string, ZoneMs>;
-  // For on-field players mid-stint: when their stint started and in which zone.
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
 
-  // Advances on every swap + quarter transition. Used to seed suggestion
-  // tie-breaks so the UI doesn't pick the same zone/player every cycle.
   swapCount: number;
-
-  // Player IDs currently marked injured (excluded from sub rotation).
   injuredIds: string[];
 
-  // setters
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
   selectBench: (playerId: string) => void;
@@ -42,8 +41,8 @@ export interface LiveGameState {
   setLineup: (lineup: Lineup) => void;
   startClock: () => void;
   pauseClock: () => void;
-  beginNextQuarter: () => void; // called when starting Q1, or Q2 after a break, etc.
-  endCurrentQuarter: () => void; // called when ending a quarter (pauses clock, sets quarterEnded=true)
+  beginNextQuarter: () => void;
+  endCurrentQuarter: () => void;
   finaliseGame: () => void;
   incTeam: (kind: "goals" | "behinds") => void;
   incOpponent: (kind: "goals" | "behinds") => void;
@@ -51,8 +50,12 @@ export interface LiveGameState {
   setInjured: (playerId: string, injured: boolean) => void;
 }
 
+function cloneLineup(l: Lineup): Lineup {
+  return normalizeLineup(l);
+}
+
 export const useLiveGame = create<LiveGameState>((set) => ({
-  lineup: { back: [], mid: [], fwd: [], bench: [] },
+  lineup: emptyLineup(),
   currentQuarter: 0,
   quarterEnded: false,
   finalised: false,
@@ -76,12 +79,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
 
   applySwap: (off, on, zone) =>
     set((prev) => {
-      const lineup: Lineup = {
-        back: [...prev.lineup.back],
-        mid: [...prev.lineup.mid],
-        fwd: [...prev.lineup.fwd],
-        bench: [...prev.lineup.bench],
-      };
+      const lineup = cloneLineup(prev.lineup);
       const nowMs = clockElapsedMs(prev);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const stintStartMs = { ...prev.stintStartMs };
@@ -95,7 +93,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         lineup.bench = [...lineup.bench.filter((p) => p !== on), off];
         const offStart = stintStartMs[off] ?? nowMs;
         const offZone = stintZone[off] ?? zone;
-        basePlayedZoneMs[off] = { ...(basePlayedZoneMs[off] ?? emptyZoneMs()) };
+        basePlayedZoneMs[off] = { ...(basePlayedZoneMs[off] ?? newZoneMs()) };
         basePlayedZoneMs[off][offZone] += Math.max(0, nowMs - offStart);
         delete stintStartMs[off];
         delete stintZone[off];
@@ -114,12 +112,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
 
   setLineup: (lineup) =>
     set(() => ({
-      lineup: {
-        back: [...lineup.back],
-        mid: [...lineup.mid],
-        fwd: [...lineup.fwd],
-        bench: [...lineup.bench],
-      },
+      lineup: cloneLineup(lineup),
       selected: null,
     })),
 
@@ -143,7 +136,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
     set((prev) => {
       const stintStartMs: Record<string, number> = {};
       const stintZone: Record<string, Zone> = {};
-      for (const z of ["back", "mid", "fwd"] as Zone[]) {
+      for (const z of ALL_ZONES) {
         for (const p of prev.lineup[z]) {
           stintStartMs[p] = 0;
           stintZone[p] = z;
@@ -171,7 +164,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
       for (const [pid, start] of Object.entries(prev.stintStartMs)) {
         const z = prev.stintZone[pid];
         if (!z) continue;
-        basePlayedZoneMs[pid] = { ...(basePlayedZoneMs[pid] ?? emptyZoneMs()) };
+        basePlayedZoneMs[pid] = { ...(basePlayedZoneMs[pid] ?? newZoneMs()) };
         basePlayedZoneMs[pid][z] += Math.max(0, accumulated - start);
       }
       return {
@@ -209,28 +202,21 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         : prev.injuredIds.filter((p) => p !== playerId);
 
       if (!injured) {
-        // Un-marking: keep current lineup / stint state unchanged.
         return { injuredIds };
       }
 
-      // Marking injured: close stint + move to bench if on-field.
-      const lineup: Lineup = {
-        back: [...prev.lineup.back],
-        mid: [...prev.lineup.mid],
-        fwd: [...prev.lineup.fwd],
-        bench: [...prev.lineup.bench],
-      };
+      const lineup = cloneLineup(prev.lineup);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const stintStartMs = { ...prev.stintStartMs };
       const stintZone = { ...prev.stintZone };
-      const onFieldZone = (["back", "mid", "fwd"] as Zone[]).find((z) =>
+      const onFieldZone = ALL_ZONES.find((z) =>
         lineup[z].includes(playerId)
       );
       if (onFieldZone) {
         const nowMs = clockElapsedMs(prev);
         const start = stintStartMs[playerId] ?? nowMs;
         const z = stintZone[playerId] ?? onFieldZone;
-        basePlayedZoneMs[playerId] = { ...(basePlayedZoneMs[playerId] ?? emptyZoneMs()) };
+        basePlayedZoneMs[playerId] = { ...(basePlayedZoneMs[playerId] ?? newZoneMs()) };
         basePlayedZoneMs[playerId][z] += Math.max(0, nowMs - start);
         delete stintStartMs[playerId];
         delete stintZone[playerId];
@@ -249,14 +235,9 @@ export const useLiveGame = create<LiveGameState>((set) => ({
 
   addBenchPlayer: (playerId) =>
     set((prev) => {
-      if (
-        prev.lineup.bench.includes(playerId) ||
-        prev.lineup.back.includes(playerId) ||
-        prev.lineup.mid.includes(playerId) ||
-        prev.lineup.fwd.includes(playerId)
-      ) {
-        return prev;
-      }
+      const alreadyThere = prev.lineup.bench.includes(playerId) ||
+        ALL_ZONES.some((z) => prev.lineup[z].includes(playerId));
+      if (alreadyThere) return prev;
       return {
         lineup: {
           ...prev.lineup,

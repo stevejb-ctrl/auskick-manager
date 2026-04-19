@@ -1,8 +1,9 @@
 "use client";
 
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import type { Player, Zone } from "@/lib/types";
-import type { ZoneCaps } from "@/lib/fairness";
+import type { Player, PositionModel, Zone } from "@/lib/types";
+import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
+import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { PlayerTile } from "@/components/live/PlayerTile";
 
 interface FieldProps {
@@ -10,39 +11,55 @@ interface FieldProps {
   onTapField: (playerId: string, zone: Zone) => void;
   swapOffs?: Map<string, number>;
   totalMsByPlayer?: Record<string, number>;
-  zoneMsByPlayer?: Record<string, { back: number; mid: number; fwd: number }>;
+  zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
   zoneCaps: ZoneCaps;
+  positionModel: PositionModel;
 }
 
-const ZONES: { key: Zone; label: string; bg: string }[] = [
-  { key: "fwd", label: "Forward", bg: "bg-red-50 border-red-100" },
-  { key: "mid", label: "Midfield", bg: "bg-yellow-50 border-yellow-100" },
-  { key: "back", label: "Back", bg: "bg-blue-50 border-blue-100" },
-];
+const ZONE_BG: Record<Zone, string> = {
+  fwd: "bg-red-50 border-red-100",
+  hfwd: "bg-orange-50 border-orange-100",
+  mid: "bg-yellow-50 border-yellow-100",
+  hback: "bg-sky-50 border-sky-100",
+  back: "bg-blue-50 border-blue-100",
+};
 
-export function Field({ playersById, onTapField, swapOffs, totalMsByPlayer, zoneMsByPlayer, injuredIds, zoneCaps }: FieldProps) {
+export function Field({
+  playersById,
+  onTapField,
+  swapOffs,
+  totalMsByPlayer,
+  zoneMsByPlayer,
+  injuredIds,
+  zoneCaps,
+  positionModel,
+}: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
 
   const selectedZone = selected?.kind === "field" ? selected.zone : null;
+  // Render fwd → ... → back (attacking up the page).
+  const zones = positionsFor(positionModel).slice().reverse();
 
   return (
     <div className="space-y-2 rounded-lg border-2 border-green-200 bg-green-100/40 p-2">
-      {ZONES.map(({ key, label, bg }) => {
+      {zones.map((key) => {
         const ids = lineup[key];
+        const cap = zoneCaps[key] ?? 0;
+        if (cap === 0 && ids.length === 0) return null;
         const dimZone = selected?.kind === "bench" ? false : selectedZone !== null && selectedZone !== key;
         return (
           <div
             key={key}
-            className={`rounded-md border ${bg} p-2`}
+            className={`rounded-md border ${ZONE_BG[key]} p-2`}
           >
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              {label}
+              {ZONE_LABELS[key]}
             </p>
             <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: Math.max(zoneCaps[key], ids.length) }).map((_, idx) => {
+              {Array.from({ length: Math.max(cap, ids.length) }).map((_, idx) => {
                 const pid = ids[idx];
                 if (!pid) {
                   return (

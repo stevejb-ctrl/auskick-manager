@@ -9,6 +9,7 @@ import {
   suggestStartingLineup,
   zoneCapsFor,
 } from "@/lib/fairness";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, Player } from "@/lib/types";
 
 interface LivePageProps {
@@ -48,7 +49,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, track_scoring")
+      .select("name, track_scoring, age_group")
       .eq("id", params.teamId)
       .single(),
   ]);
@@ -56,6 +57,8 @@ export default async function LivePage({ params }: LivePageProps) {
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
+  const ageGroup = ageGroupOf(teamRow?.age_group);
+  const positionModel = AGE_GROUPS[ageGroup].positionModel;
 
   // Has the game already started? (any lineup_set event)
   const { data: thisGameEvents } = await supabase
@@ -65,7 +68,7 @@ export default async function LivePage({ params }: LivePageProps) {
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
-  const zoneCaps = zoneCapsFor(g.on_field_size);
+  const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
@@ -86,15 +89,16 @@ export default async function LivePage({ params }: LivePageProps) {
       ]);
     const allActive = (squadPlayers ?? []) as Player[];
     const availableIds = new Set((gameAvail ?? []).map((a) => a.player_id));
-    // Include any player who has been on the field/bench via events (late arrivals)
-    // even if their availability row is now unavailable.
     const inGameIds = new Set<string>();
     if (state.lineup) {
+      const l = state.lineup;
       for (const id of [
-        ...state.lineup.back,
-        ...state.lineup.mid,
-        ...state.lineup.fwd,
-        ...state.lineup.bench,
+        ...l.back,
+        ...l.hback,
+        ...l.mid,
+        ...l.hfwd,
+        ...l.fwd,
+        ...l.bench,
       ])
         inGameIds.add(id);
     }
@@ -132,6 +136,7 @@ export default async function LivePage({ params }: LivePageProps) {
           initialState={state}
           season={season}
           zoneCaps={zoneCaps}
+          positionModel={positionModel}
         />
       </div>
     );
@@ -196,6 +201,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           zoneCaps={zoneCaps}
           onFieldSize={g.on_field_size}
+          positionModel={positionModel}
         />
       )}
     </div>

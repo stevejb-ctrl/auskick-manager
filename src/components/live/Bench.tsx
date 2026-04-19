@@ -2,6 +2,7 @@
 
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Player } from "@/lib/types";
+import type { ZoneMinutes } from "@/lib/fairness";
 import { PlayerTile } from "@/components/live/PlayerTile";
 
 interface BenchProps {
@@ -9,7 +10,7 @@ interface BenchProps {
   onTapBench: (playerId: string) => void;
   swapOns?: Map<string, number>;
   totalMsByPlayer?: Record<string, number>;
-  zoneMsByPlayer?: Record<string, { back: number; mid: number; fwd: number }>;
+  zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
 }
 

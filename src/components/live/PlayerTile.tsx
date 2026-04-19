@@ -1,6 +1,7 @@
 "use client";
 
 import type { Player } from "@/lib/types";
+import type { ZoneMinutes } from "@/lib/fairness";
 
 export type SwapRole = { role: "off" | "on"; pair: number };
 
@@ -12,7 +13,7 @@ interface PlayerTileProps {
   swap?: SwapRole | null;
   compact?: boolean;
   totalMs?: number;
-  zoneMs?: { back: number; mid: number; fwd: number };
+  zoneMs?: ZoneMinutes;
   injured?: boolean;
 }
 
@@ -116,16 +117,19 @@ export function PlayerTile({
           {formatMinSec(totalMs)}
         </span>
       )}
-      {zoneMs && (zoneMs.back + zoneMs.mid + zoneMs.fwd > 0) && (() => {
-        const total = zoneMs.back + zoneMs.mid + zoneMs.fwd;
+      {zoneMs && (() => {
+        const total = zoneMs.back + zoneMs.hback + zoneMs.mid + zoneMs.hfwd + zoneMs.fwd;
+        if (total <= 0) return null;
         const pct = (v: number) => `${(v / total) * 100}%`;
         return (
           <span
             className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100"
-            aria-label={`Back ${formatMinSec(zoneMs.back)}, Mid ${formatMinSec(zoneMs.mid)}, Fwd ${formatMinSec(zoneMs.fwd)}`}
+            aria-label={`Back ${formatMinSec(zoneMs.back)}, HBack ${formatMinSec(zoneMs.hback)}, Mid ${formatMinSec(zoneMs.mid)}, HFwd ${formatMinSec(zoneMs.hfwd)}, Fwd ${formatMinSec(zoneMs.fwd)}`}
           >
             <span style={{ width: pct(zoneMs.back) }} className="bg-blue-400" />
+            <span style={{ width: pct(zoneMs.hback) }} className="bg-sky-400" />
             <span style={{ width: pct(zoneMs.mid) }} className="bg-yellow-400" />
+            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-orange-400" />
             <span style={{ width: pct(zoneMs.fwd) }} className="bg-red-400" />
           </span>
         );

@@ -5,11 +5,16 @@ import { createTeam } from "@/app/(app)/dashboard/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { AGE_GROUPS, AGE_GROUP_ORDER } from "@/lib/ageGroups";
+import type { AgeGroup } from "@/lib/types";
 
 export function CreateTeamForm({ userId }: { userId: string }) {
   const [name, setName] = useState("");
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>("U10");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const cfg = AGE_GROUPS[ageGroup];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +26,7 @@ export function CreateTeamForm({ userId }: { userId: string }) {
     }
 
     startTransition(async () => {
-      const result = await createTeam(userId, name.trim());
+      const result = await createTeam(userId, name.trim(), ageGroup);
       if (!result.success) {
         setError(result.error);
       }
@@ -29,24 +34,45 @@ export function CreateTeamForm({ userId }: { userId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-3">
-      <div className="flex-1 space-y-1">
-        <Label htmlFor="team-name" className="sr-only">
-          Team name
-        </Label>
-        <Input
-          id="team-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Kingsway Roos"
-          error={error ?? undefined}
-          disabled={isPending}
-        />
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1">
+          <Label htmlFor="team-name" className="sr-only">
+            Team name
+          </Label>
+          <Input
+            id="team-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Kingsway Roos"
+            error={error ?? undefined}
+            disabled={isPending}
+          />
+        </div>
+        <div className="w-32 space-y-1">
+          <Label htmlFor="team-age" className="sr-only">
+            Age group
+          </Label>
+          <select
+            id="team-age"
+            value={ageGroup}
+            onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
+            disabled={isPending}
+            className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+          >
+            {AGE_GROUP_ORDER.map((ag) => (
+              <option key={ag} value={ag}>
+                {AGE_GROUPS[ag].label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="submit" loading={isPending} disabled={!name.trim()}>
+          Create
+        </Button>
       </div>
-      <Button type="submit" loading={isPending} disabled={!name.trim()}>
-        Create
-      </Button>
+      <p className="text-xs text-gray-500">{cfg.notes}</p>
     </form>
   );
 }
