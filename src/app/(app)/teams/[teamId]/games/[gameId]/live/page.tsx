@@ -7,6 +7,7 @@ import {
   replayGame,
   seasonZoneMinutes,
   suggestStartingLineup,
+  zoneCapsFor,
 } from "@/lib/fairness";
 import type { Game, GameEvent, Player } from "@/lib/types";
 
@@ -63,6 +64,8 @@ export default async function LivePage({ params }: LivePageProps) {
     .eq("game_id", params.gameId)
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
+
+  const zoneCaps = zoneCapsFor(g.on_field_size);
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
@@ -128,6 +131,7 @@ export default async function LivePage({ params }: LivePageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
+          zoneCaps={zoneCaps}
         />
       </div>
     );
@@ -165,7 +169,7 @@ export default async function LivePage({ params }: LivePageProps) {
     : { data: [] as GameEvent[] };
 
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
-  const suggested = suggestStartingLineup(availablePlayers, season);
+  const suggested = suggestStartingLineup(availablePlayers, season, 0, zoneCaps);
 
   return (
     <div className="space-y-4">
@@ -190,6 +194,8 @@ export default async function LivePage({ params }: LivePageProps) {
           players={availablePlayers}
           suggestedLineup={suggested}
           season={season}
+          zoneCaps={zoneCaps}
+          onFieldSize={g.on_field_size}
         />
       )}
     </div>

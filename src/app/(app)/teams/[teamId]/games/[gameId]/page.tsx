@@ -68,6 +68,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         </div>
         <h2 className="mt-1 text-xl font-bold text-gray-900">vs {g.opponent}</h2>
         {g.location && <p className="mt-1 text-sm text-gray-500">{g.location}</p>}
+        {g.on_field_size < 12 && (
+          <p className="mt-1 text-sm font-medium text-amber-700">
+            Short-handed: {g.on_field_size} on field
+          </p>
+        )}
         {g.notes && (
           <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{g.notes}</p>
         )}

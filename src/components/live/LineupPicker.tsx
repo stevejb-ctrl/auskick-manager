@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import type { Lineup, Player, Zone } from "@/lib/types";
-import type { PlayerZoneMinutes } from "@/lib/fairness";
+import type { PlayerZoneMinutes, ZoneCaps } from "@/lib/fairness";
 
 // Default full-game length for sub-interval calculation (4 × 10min quarters).
 const GAME_MINUTES = 40;
@@ -32,6 +32,8 @@ interface LineupPickerProps {
   players: Player[];
   suggestedLineup: Lineup;
   season: PlayerZoneMinutes;
+  zoneCaps: ZoneCaps;
+  onFieldSize: number;
 }
 
 type Slot = Zone | "bench";
@@ -49,6 +51,8 @@ export function LineupPicker({
   players,
   suggestedLineup,
   season,
+  zoneCaps,
+  onFieldSize,
 }: LineupPickerProps) {
   const [lineup, setLineup] = useState<Lineup>(suggestedLineup);
   const [selected, setSelected] = useState<string | null>(null);
@@ -103,6 +107,8 @@ export function LineupPicker({
   const benchCount = lineup.bench.length;
   const totalCount = onFieldCount + benchCount;
   const suggestedMin = suggestedSubMinutes(benchCount, totalCount);
+  // Effective on-field count = min(configured size, available players).
+  const effectiveOnFieldTarget = Math.min(onFieldSize, totalCount);
   const effectiveSubMin = subMinInput === null
     ? suggestedMin
     : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
@@ -128,7 +134,9 @@ export function LineupPicker({
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
           Tap any two players to swap them between zones or bench.
-          {onFieldCount < 12 && ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
+          {onFieldSize < 12 && ` Short-handed game — ${onFieldSize} on field.`}
+          {onFieldCount < effectiveOnFieldTarget &&
+            ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
         </p>
       </div>
 
@@ -144,7 +152,7 @@ export function LineupPicker({
               </h3>
               <span className="text-xs text-gray-400">
                 {lineup[slot].length}
-                {slot !== "bench" && " / 4"}
+                {slot !== "bench" && ` / ${zoneCaps[slot]}`}
               </span>
             </div>
             {lineup[slot].length === 0 ? (

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LineupPicker } from "@/components/live/LineupPicker";
-import { seasonZoneMinutes, suggestStartingLineup } from "@/lib/fairness";
+import { seasonZoneMinutes, suggestStartingLineup, zoneCapsFor } from "@/lib/fairness";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,8 @@ export default async function LineupPage({ params }: LineupPageProps) {
     ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
-  const suggested = suggestStartingLineup(availablePlayers, season);
+  const zoneCaps = zoneCapsFor(g.on_field_size);
+  const suggested = suggestStartingLineup(availablePlayers, season, 0, zoneCaps);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
@@ -90,6 +91,8 @@ export default async function LineupPage({ params }: LineupPageProps) {
           players={availablePlayers}
           suggestedLineup={suggested}
           season={season}
+          zoneCaps={zoneCaps}
+          onFieldSize={g.on_field_size}
         />
       )}
     </div>

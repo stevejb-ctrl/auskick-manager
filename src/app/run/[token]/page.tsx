@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { LiveGame } from "@/components/live/LiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import { replayGame, seasonZoneMinutes } from "@/lib/fairness";
+import { replayGame, seasonZoneMinutes, zoneCapsFor } from "@/lib/fairness";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -124,6 +124,7 @@ export default async function RunPage({ params }: RunPageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
+          zoneCaps={zoneCapsFor(g.on_field_size)}
         />
       </div>
     );

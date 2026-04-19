@@ -35,6 +35,7 @@ export async function createGame(
     location: string | null;
     round_number: number | null;
     notes: string | null;
+    on_field_size?: number;
   }
 ): Promise<ActionResult & { gameId?: string }> {
   const { supabase, user, error } = await getAuthedAdmin(teamId);
@@ -56,6 +57,7 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
+      on_field_size: input.on_field_size ?? 12,
       created_by: user.id,
     })
     .select("id")

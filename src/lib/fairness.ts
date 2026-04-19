@@ -12,7 +12,27 @@ export type ZoneMinutes = { back: number; mid: number; fwd: number };
 export type PlayerZoneMinutes = Record<string, ZoneMinutes>;
 
 export const ZONES: Zone[] = ["back", "mid", "fwd"];
-const PLAYERS_PER_ZONE = 4;
+const DEFAULT_PLAYERS_PER_ZONE = 4;
+
+export type ZoneCaps = Record<Zone, number>;
+
+// Distribute an on-field size across back/mid/fwd. Remainder fills
+// mid first, then back (so 11 = 4-4-3, 10 = 3-4-3, 9 = 3-3-3).
+export function zoneCapsFor(onFieldSize: number): ZoneCaps {
+  const size = Math.max(0, Math.min(12, Math.floor(onFieldSize)));
+  const base = Math.floor(size / 3);
+  const rem = size % 3;
+  const caps: ZoneCaps = { back: base, mid: base, fwd: base };
+  if (rem >= 1) caps.mid++;
+  if (rem >= 2) caps.back++;
+  return caps;
+}
+
+const DEFAULT_ZONE_CAPS: ZoneCaps = {
+  back: DEFAULT_PLAYERS_PER_ZONE,
+  mid: DEFAULT_PLAYERS_PER_ZONE,
+  fwd: DEFAULT_PLAYERS_PER_ZONE,
+};
 
 // ─── Helpers ──────────────────────────────────────────────────
 function emptyZM(): ZoneMinutes {
@@ -142,7 +162,8 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
-  seed: number = 0
+  seed: number = 0,
+  zoneCaps: ZoneCaps = DEFAULT_ZONE_CAPS
 ): Lineup {
   const lineup: Lineup = { back: [], mid: [], fwd: [], bench: [] };
   if (availablePlayers.length === 0) return lineup;
@@ -172,7 +193,7 @@ export function suggestStartingLineup(
   const zoneFill: Record<Zone, number> = { back: 0, mid: 0, fwd: 0 };
 
   for (const p of sortedPlayers) {
-    const openZones = ZONES.filter((z) => zoneFill[z] < PLAYERS_PER_ZONE);
+    const openZones = ZONES.filter((z) => zoneFill[z] < zoneCaps[z]);
     if (openZones.length === 0) {
       lineup.bench.push(p.id);
       continue;

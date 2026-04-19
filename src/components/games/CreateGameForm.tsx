@@ -17,6 +17,7 @@ export function CreateGameForm({ teamId, onCancel }: CreateGameFormProps) {
   const [location, setLocation] = useState("");
   const [round, setRound] = useState("");
   const [notes, setNotes] = useState("");
+  const [onFieldSize, setOnFieldSize] = useState(12);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -46,6 +47,7 @@ export function CreateGameForm({ teamId, onCancel }: CreateGameFormProps) {
         location: location || null,
         round_number: roundNum,
         notes: notes || null,
+        on_field_size: onFieldSize,
       });
       if (result && !result.success) {
         setServerError(result.error);
@@ -103,6 +105,25 @@ export function CreateGameForm({ teamId, onCancel }: CreateGameFormProps) {
           placeholder="e.g. No. 1 Sportsground"
           disabled={isPending}
         />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="on-field-size">Players on field</Label>
+        <select
+          id="on-field-size"
+          value={onFieldSize}
+          onChange={(e) => setOnFieldSize(parseInt(e.target.value, 10))}
+          disabled={isPending}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+        >
+          <option value={12}>12 — full team (4 back / 4 mid / 4 fwd)</option>
+          <option value={11}>11 — short-handed (4 back / 4 mid / 3 fwd)</option>
+          <option value={10}>10 — short-handed (3 back / 4 mid / 3 fwd)</option>
+          <option value={9}>9 — short-handed (3 back / 3 mid / 3 fwd)</option>
+        </select>
+        <p className="text-xs text-gray-500">
+          Use when the opposition is short and both teams agree to play fewer.
+        </p>
       </div>
 
       <div className="space-y-1">

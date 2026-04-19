@@ -2,6 +2,7 @@
 
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Player, Zone } from "@/lib/types";
+import type { ZoneCaps } from "@/lib/fairness";
 import { PlayerTile } from "@/components/live/PlayerTile";
 
 interface FieldProps {
@@ -11,6 +12,7 @@ interface FieldProps {
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, { back: number; mid: number; fwd: number }>;
   injuredIds?: string[];
+  zoneCaps: ZoneCaps;
 }
 
 const ZONES: { key: Zone; label: string; bg: string }[] = [
@@ -19,7 +21,7 @@ const ZONES: { key: Zone; label: string; bg: string }[] = [
   { key: "back", label: "Back", bg: "bg-blue-50 border-blue-100" },
 ];
 
-export function Field({ playersById, onTapField, swapOffs, totalMsByPlayer, zoneMsByPlayer, injuredIds }: FieldProps) {
+export function Field({ playersById, onTapField, swapOffs, totalMsByPlayer, zoneMsByPlayer, injuredIds, zoneCaps }: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -40,7 +42,7 @@ export function Field({ playersById, onTapField, swapOffs, totalMsByPlayer, zone
               {label}
             </p>
             <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 4 }).map((_, idx) => {
+              {Array.from({ length: Math.max(zoneCaps[key], ids.length) }).map((_, idx) => {
                 const pid = ids[idx];
                 if (!pid) {
                   return (

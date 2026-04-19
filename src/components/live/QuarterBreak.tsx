@@ -7,6 +7,7 @@ import {
   fairnessScore,
   suggestStartingLineup,
   type PlayerZoneMinutes,
+  type ZoneCaps,
 } from "@/lib/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, Zone } from "@/lib/types";
@@ -16,6 +17,7 @@ interface QuarterBreakProps {
   gameId: string;
   players: Player[];
   season: PlayerZoneMinutes;
+  zoneCaps: ZoneCaps;
   onStarted: () => void;
 }
 
@@ -33,6 +35,7 @@ export function QuarterBreak({
   gameId,
   players,
   season,
+  zoneCaps,
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
@@ -137,9 +140,10 @@ export function QuarterBreak({
     return suggestStartingLineup(
       availableForLineup,
       combinedZoneMins,
-      currentQuarter * 1000 + availableForLineup.length
+      currentQuarter * 1000 + availableForLineup.length,
+      zoneCaps
     );
-  }, [availableForLineup, combinedZoneMins, currentQuarter, lineup]);
+  }, [availableForLineup, combinedZoneMins, currentQuarter, lineup, zoneCaps]);
 
   useEffect(() => {
     if (availableForLineup.length === 0) return;
@@ -229,7 +233,7 @@ export function QuarterBreak({
               </h3>
               <span className="text-xs text-gray-400">
                 {draft[slot].length}
-                {slot !== "bench" && " / 4"}
+                {slot !== "bench" && ` / ${zoneCaps[slot]}`}
               </span>
             </div>
             {draft[slot].length === 0 ? (

@@ -24,7 +24,7 @@ import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
-import { suggestSwaps, type GameState, type PlayerZoneMinutes } from "@/lib/fairness";
+import { suggestSwaps, type GameState, type PlayerZoneMinutes, type ZoneCaps } from "@/lib/fairness";
 import type { Player, Zone } from "@/lib/types";
 
 function playBeep() {
@@ -62,6 +62,7 @@ interface LiveGameProps {
   squadPlayers: Player[];
   initialState: GameState;
   season: PlayerZoneMinutes;
+  zoneCaps: ZoneCaps;
 }
 
 export function LiveGame({
@@ -74,6 +75,7 @@ export function LiveGame({
   squadPlayers,
   initialState,
   season,
+  zoneCaps,
 }: LiveGameProps) {
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
@@ -368,6 +370,7 @@ export function LiveGame({
         gameId={gameId}
         players={squadPlayers}
         season={season}
+        zoneCaps={zoneCaps}
         onStarted={() => beginNextQuarter()}
       />
     );
@@ -442,6 +445,7 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              zoneCaps={zoneCaps}
             />
             <Bench
               playersById={playersById}

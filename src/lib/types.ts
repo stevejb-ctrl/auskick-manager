@@ -62,6 +62,7 @@ export interface Game {
   status: GameStatus;
   sub_interval_seconds: number;
   share_token: string;
+  on_field_size: number;
   created_by: string;
   created_at: string;
   updated_at: string;
