@@ -105,6 +105,12 @@ export async function importPlayhqFixtures(
   const { AGE_GROUPS, ageGroupOf } = await import("@/lib/ageGroups");
   const cfg = AGE_GROUPS[ageGroupOf(team?.age_group)];
 
+  const { data: activePlayers } = await supabase
+    .from("players")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("is_active", true);
+
   for (const f of toImport) {
     const existingRow = existingByExt.get(f.externalId);
     if (existingRow) {
@@ -127,20 +133,34 @@ export async function importPlayhqFixtures(
       if (updateErr) continue;
       updated++;
     } else {
-      const { error: insertErr } = await supabase.from("games").insert({
-        team_id: teamId,
-        opponent: f.opponent,
-        scheduled_at: f.scheduledAt,
-        location: f.venue,
-        round_number: f.round,
-        notes: null,
-        on_field_size: cfg.defaultOnFieldSize,
-        sub_interval_seconds: cfg.subIntervalSeconds,
-        external_source: "playhq",
-        external_id: f.externalId,
-        created_by: user.id,
-      });
-      if (insertErr) continue;
+      const { data: newGame, error: insertErr } = await supabase
+        .from("games")
+        .insert({
+          team_id: teamId,
+          opponent: f.opponent,
+          scheduled_at: f.scheduledAt,
+          location: f.venue,
+          round_number: f.round,
+          notes: null,
+          on_field_size: cfg.defaultOnFieldSize,
+          sub_interval_seconds: cfg.subIntervalSeconds,
+          external_source: "playhq",
+          external_id: f.externalId,
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (insertErr || !newGame) continue;
+      if (activePlayers && activePlayers.length > 0) {
+        await supabase.from("game_availability").insert(
+          activePlayers.map((p) => ({
+            game_id: newGame.id,
+            player_id: p.id,
+            status: "available" as const,
+            updated_by: user.id,
+          }))
+        );
+      }
       imported++;
     }
   }
