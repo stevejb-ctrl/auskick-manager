@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
+import { DeleteGameButton } from "@/components/games/DeleteGameButton";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -96,6 +97,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             {role === "admin" && <ShareRunnerLink token={g.share_token} />}
             {role === "admin" && g.status !== "upcoming" && (
               <ResetGameButton teamId={params.teamId} gameId={params.gameId} />
+            )}
+            {role === "admin" && (
+              <DeleteGameButton teamId={params.teamId} gameId={params.gameId} />
             )}
           </div>
         )}

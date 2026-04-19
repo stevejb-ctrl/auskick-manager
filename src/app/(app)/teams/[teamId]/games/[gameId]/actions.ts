@@ -116,3 +116,37 @@ export async function resetGame(
   }
   return { success: true };
 }
+
+export async function deleteGame(
+  teamId: string,
+  gameId: string
+): Promise<ActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Unauthenticated." };
+
+  const { data: membership } = await supabase
+    .from("team_memberships")
+    .select("role")
+    .eq("team_id", teamId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership || membership.role !== "admin") {
+    return { success: false, error: "Only admins can delete games." };
+  }
+
+  const admin = createAdminClient();
+  await admin.from("game_events").delete().eq("game_id", gameId);
+  await admin.from("game_availability").delete().eq("game_id", gameId);
+  const { error: delError } = await admin
+    .from("games")
+    .delete()
+    .eq("id", gameId)
+    .eq("team_id", teamId);
+  if (delError) return { success: false, error: delError.message };
+
+  revalidatePath(`/teams/${teamId}/games`);
+  return { success: true };
+}
