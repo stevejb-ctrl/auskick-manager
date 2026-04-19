@@ -35,44 +35,38 @@ export function CreateTeamForm({ userId }: { userId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="flex gap-3">
-        <div className="flex-1 space-y-1">
-          <Label htmlFor="team-name" className="sr-only">
-            Team name
-          </Label>
-          <Input
-            id="team-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Kingsway Roos"
-            error={error ?? undefined}
-            disabled={isPending}
-          />
-        </div>
-        <div className="w-32 space-y-1">
-          <Label htmlFor="team-age" className="sr-only">
-            Age group
-          </Label>
-          <select
-            id="team-age"
-            value={ageGroup}
-            onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
-            disabled={isPending}
-            className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
-          >
-            {AGE_GROUP_ORDER.map((ag) => (
-              <option key={ag} value={ag}>
-                {AGE_GROUPS[ag].label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Button type="submit" loading={isPending} disabled={!name.trim()}>
-          Create
-        </Button>
+      <div className="space-y-1">
+        <Label htmlFor="team-name">Team name</Label>
+        <Input
+          id="team-name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Kingsway Roos"
+          error={error ?? undefined}
+          disabled={isPending}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="team-age">Age group</Label>
+        <select
+          id="team-age"
+          value={ageGroup}
+          onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
+          disabled={isPending}
+          className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+        >
+          {AGE_GROUP_ORDER.map((ag) => (
+            <option key={ag} value={ag}>
+              {AGE_GROUPS[ag].label}
+            </option>
+          ))}
+        </select>
       </div>
       <p className="text-xs text-gray-500">{cfg.notes}</p>
+      <Button type="submit" loading={isPending} disabled={!name.trim()}>
+        Create
+      </Button>
     </form>
   );
 }
