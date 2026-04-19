@@ -72,7 +72,7 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
         />
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1 space-y-1">
           <Label htmlFor="scheduled-at">Date &amp; time</Label>
           <Input
@@ -83,7 +83,7 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
             disabled={isPending}
           />
         </div>
-        <div className="w-24 space-y-1">
+        <div className="sm:w-24 space-y-1">
           <Label htmlFor="round">Round</Label>
           <Input
             id="round"
