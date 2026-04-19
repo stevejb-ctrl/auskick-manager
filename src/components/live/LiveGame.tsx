@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   clockElapsedMs,
+  QUARTER_MS,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import {
@@ -26,6 +27,7 @@ import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { SubDueModal } from "@/components/live/SubDueModal";
+import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -128,6 +130,8 @@ export function LiveGame({
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
   const [subModalOpen, setSubModalOpen] = useState(false);
   const snoozeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
+  const quarterEndTriggeredRef = useRef<number | null>(null);
 
   const playersById = useMemo(
     () => new Map(squadPlayers.map((p) => [p.id, p])),
@@ -337,12 +341,19 @@ export function LiveGame({
     });
   }
 
+  function handleQuarterEndConfirm() {
+    setShowQuarterEndModal(false);
+    handleEndQuarter();
+  }
+
   const running = clockStartedAt !== null;
   const isPreGame = currentQuarter === 0;
   const isFinished = finalised || (currentQuarter >= 4 && quarterEnded);
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
+  // Cap player-counter display at the quarter boundary so tiles freeze rather than running into overtime.
+  const displayNowMs = Math.min(nowMs, QUARTER_MS);
 
   const zoneMsByPlayer: Record<string, ZoneMinutes> = {};
   for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
@@ -352,7 +363,7 @@ export function LiveGame({
     const z = stintZone[pid];
     if (!z) continue;
     zoneMsByPlayer[pid] ??= emptyZoneMs();
-    zoneMsByPlayer[pid][z] += Math.max(0, nowMs - start);
+    zoneMsByPlayer[pid][z] += Math.max(0, displayNowMs - start);
   }
   const totalMsByPlayer: Record<string, number> = {};
   for (const [pid, zm] of Object.entries(zoneMsByPlayer)) {
@@ -414,6 +425,32 @@ export function LiveGame({
       }
     }, 30000);
   }
+
+  // Detect when the quarter clock hits the threshold; show modal once per quarter.
+  useEffect(() => {
+    if (quarterEnded || finalised || currentQuarter < 1) return;
+
+    function maybeTrigger() {
+      const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
+      if (elapsed >= QUARTER_MS && quarterEndTriggeredRef.current !== currentQuarter) {
+        quarterEndTriggeredRef.current = currentQuarter;
+        setShowQuarterEndModal(true);
+        if (window.matchMedia("(hover: none)").matches) {
+          navigator.vibrate?.([200, 100, 200]);
+        }
+      }
+    }
+
+    maybeTrigger();
+    if (clockStartedAt === null) return;
+    const id = setInterval(maybeTrigger, 500);
+    return () => clearInterval(id);
+  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter]);
+
+  // Dismiss the modal whenever the quarter is actually ended (manual or via modal).
+  useEffect(() => {
+    if (quarterEnded) setShowQuarterEndModal(false);
+  }, [quarterEnded]);
 
   if (!hydrated) return null;
 
@@ -617,6 +654,14 @@ export function LiveGame({
             setPendingSwap(null);
           }}
           onCancel={() => setPendingSwap(null)}
+        />
+      )}
+
+      {showQuarterEndModal && (
+        <QuarterEndModal
+          quarter={currentQuarter}
+          loading={isPending}
+          onConfirm={handleQuarterEndConfirm}
         />
       )}
     </div>
