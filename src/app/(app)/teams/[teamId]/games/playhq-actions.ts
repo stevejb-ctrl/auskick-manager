@@ -28,6 +28,14 @@ async function getAuthedAdmin(teamId: string) {
   return { supabase, user, error: null };
 }
 
+function futureFixtures(fixtures: PlayHQFixture[]): PlayHQFixture[] {
+  const now = Date.now();
+  return fixtures.filter((f) => {
+    const t = Date.parse(f.scheduledAt);
+    return Number.isFinite(t) && t > now;
+  });
+}
+
 export async function previewPlayhqFixtures(
   playhqUrl: string
 ): Promise<
@@ -37,7 +45,7 @@ export async function previewPlayhqFixtures(
   if (!parsed.ok) return { success: false, error: parsed.reason };
   try {
     const { meta, fixtures } = await fetchPlayhqTeamPage(parsed.teamId);
-    return { success: true, meta, fixtures };
+    return { success: true, meta, fixtures: futureFixtures(fixtures) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
     return { success: false, error: msg };
@@ -82,7 +90,14 @@ export async function importPlayhqFixtures(
   }
 
   const selected = new Set(selectedExternalIds);
-  const toImport = page.fixtures.filter((f) => selected.has(f.externalId));
+  const toImport = futureFixtures(page.fixtures).filter((f) =>
+    selected.has(f.externalId)
+  );
+
+  await supabase
+    .from("teams")
+    .update({ playhq_url: playhqUrl })
+    .eq("id", teamId);
 
   const { data: existing } = await supabase
     .from("games")

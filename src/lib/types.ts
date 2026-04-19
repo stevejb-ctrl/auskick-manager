@@ -38,6 +38,7 @@ export interface Team {
   name: string;
   track_scoring: boolean;
   age_group: AgeGroup;
+  playhq_url: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

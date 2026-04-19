@@ -30,7 +30,7 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   const { data: team } = await supabase
     .from("teams")
-    .select("track_scoring, age_group")
+    .select("track_scoring, age_group, playhq_url")
     .eq("id", params.teamId)
     .single();
   const trackScoring = team?.track_scoring ?? false;
@@ -61,6 +61,7 @@ export default async function GamesPage({ params }: GamesPageProps) {
             <ImportFixturesButton
               teamId={params.teamId}
               existingExternalIds={existingExternalIds}
+              initialUrl={(team as { playhq_url?: string | null } | null)?.playhq_url ?? ""}
             />
           </div>
           <CreateGameForm teamId={params.teamId} ageGroup={ageGroup} />

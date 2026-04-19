@@ -15,11 +15,16 @@ import type { PlayHQFixture, PlayHQTeamMeta } from "@/lib/playhq";
 interface Props {
   teamId: string;
   existingExternalIds: string[];
+  initialUrl?: string;
 }
 
-export function ImportFixturesButton({ teamId, existingExternalIds }: Props) {
+export function ImportFixturesButton({
+  teamId,
+  existingExternalIds,
+  initialUrl = "",
+}: Props) {
   const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [meta, setMeta] = useState<PlayHQTeamMeta | null>(null);
   const [fixtures, setFixtures] = useState<PlayHQFixture[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -32,7 +37,7 @@ export function ImportFixturesButton({ teamId, existingExternalIds }: Props) {
   const existingSet = new Set(existingExternalIds);
 
   function reset() {
-    setUrl("");
+    setUrl(initialUrl);
     setMeta(null);
     setFixtures([]);
     setSelected(new Set());
