@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
+import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -31,7 +32,8 @@ export default async function LivePage({ params }: LivePageProps) {
     .eq("user_id", user.id)
     .single();
 
-  const canRun = membership?.role === "admin" || membership?.role === "game_manager";
+  const isAdmin = membership?.role === "admin";
+  const canRun = isAdmin || membership?.role === "game_manager";
   if (!canRun) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -138,6 +140,11 @@ export default async function LivePage({ params }: LivePageProps) {
           zoneCaps={zoneCaps}
           positionModel={positionModel}
         />
+        {isAdmin && (
+          <div className="border-t border-gray-200 pt-4">
+            <ResetGameButton teamId={params.teamId} gameId={params.gameId} />
+          </div>
+        )}
       </div>
     );
   }

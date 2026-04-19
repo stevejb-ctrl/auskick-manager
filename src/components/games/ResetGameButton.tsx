@@ -33,7 +33,7 @@ export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
         onClick={() => setStage("confirm")}
         className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
       >
-        Reset game
+        Restart game
       </button>
     );
   }
@@ -41,7 +41,7 @@ export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
   return (
     <div className="w-full rounded-md border border-red-300 bg-red-50 p-3 text-sm">
       <p className="font-semibold text-red-900">
-        ⚠️ This will permanently delete everything that happened in this game.
+        ⚠️ Restarting will permanently delete everything that happened in this game.
       </p>
       <ul className="mt-2 list-disc pl-5 text-xs text-red-800">
         <li>All quarters, swaps, goals, and behinds will be wiped.</li>
@@ -81,7 +81,7 @@ export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
             disabled={isPending}
             className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
           >
-            {isPending ? "Resetting…" : "Yes, reset this game"}
+            {isPending ? "Restarting…" : "Yes, restart this game"}
           </button>
           <button
             type="button"
