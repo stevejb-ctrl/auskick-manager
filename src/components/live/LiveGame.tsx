@@ -104,6 +104,8 @@ export function LiveGame({
   const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   const incTeam = useLiveGame((s) => s.incTeam);
   const incOpponent = useLiveGame((s) => s.incOpponent);
+  const incPlayerScore = useLiveGame((s) => s.incPlayerScore);
+  const playerScores = useLiveGame((s) => s.playerScores);
   const startClock = useLiveGame((s) => s.startClock);
   const pauseClock = useLiveGame((s) => s.pauseClock);
   const beginNextQuarter = useLiveGame((s) => s.beginNextQuarter);
@@ -136,6 +138,7 @@ export function LiveGame({
       finalised: initialState.finalised,
       teamScore: initialState.teamScore,
       opponentScore: initialState.opponentScore,
+      playerScores: initialState.playerScores,
       basePlayedZoneMs: initialState.basePlayedZoneMs,
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
@@ -218,6 +221,7 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam(kind === "goal" ? "goals" : "behinds");
+    incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
     clearSelection();
     startTransition(async () => {
       const fn = kind === "goal" ? recordGoal : recordBehind;
@@ -462,6 +466,7 @@ export function LiveGame({
               injuredIds={injuredIds}
               zoneCaps={zoneCaps}
               positionModel={positionModel}
+              playerScores={playerScores}
             />
             <Bench
               playersById={playersById}
@@ -470,6 +475,7 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              playerScores={playerScores}
             />
             {!isPreGame && !isFinished && (
               <SwapCard
@@ -511,24 +517,41 @@ export function LiveGame({
         );
       })()}
 
-      {canScore && (
-        <div className="flex gap-2 rounded-md border border-brand-200 bg-brand-50 p-2">
-          <Button size="sm" onClick={() => handleScore("goal")} loading={isPending}>
-            + Goal
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => handleScore("behind")}
-            loading={isPending}
-          >
-            + Behind
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => clearSelection()}>
-            Cancel
-          </Button>
-        </div>
-      )}
+      {canScore && (() => {
+        const pid = selected && selected.kind === "field" ? selected.playerId : null;
+        const p = pid ? playersById.get(pid) : null;
+        return (
+          <div className="sticky bottom-2 z-10 rounded-lg border-2 border-brand-400 bg-white p-3 shadow-lg">
+            <p className="mb-2 text-center text-sm font-semibold text-gray-800">
+              Record score for{" "}
+              <span className="text-brand-700">
+                {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
+              </span>
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleScore("goal")}
+                disabled={isPending}
+                className="flex-1 rounded-md bg-green-600 py-3 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-700 disabled:opacity-60"
+              >
+                + GOAL
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScore("behind")}
+                disabled={isPending}
+                className="flex-1 rounded-md bg-amber-500 py-3 text-base font-bold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-60"
+              >
+                + BEHIND
+              </button>
+              <Button size="sm" variant="ghost" onClick={() => clearSelection()}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
 
       {selected && !canScore && (
         <p className="rounded-md bg-brand-50 px-3 py-2 text-xs text-brand-700">

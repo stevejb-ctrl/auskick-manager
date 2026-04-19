@@ -15,6 +15,7 @@ interface PlayerTileProps {
   totalMs?: number;
   zoneMs?: ZoneMinutes;
   injured?: boolean;
+  score?: { goals: number; behinds: number };
 }
 
 function formatMinSec(ms: number): string {
@@ -34,6 +35,7 @@ export function PlayerTile({
   totalMs,
   zoneMs,
   injured,
+  score,
 }: PlayerTileProps) {
   const showSwap = swap && !selected && !injured;
   const isOff = showSwap && swap.role === "off";
@@ -93,6 +95,14 @@ export function PlayerTile({
           aria-label="Injured"
         >
           INJ
+        </span>
+      )}
+      {score && (score.goals > 0 || score.behinds > 0) && (
+        <span
+          className="absolute -left-1 -top-1.5 rounded-full bg-gray-900 px-1.5 text-[10px] font-bold leading-tight text-white shadow ring-2 ring-white"
+          aria-label={`${score.goals} goals, ${score.behinds} behinds`}
+        >
+          {score.goals}.{score.behinds}
         </span>
       )}
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">

@@ -333,6 +333,7 @@ export interface GameState {
   quarterEnded: boolean;
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
+  playerScores: Record<string, { goals: number; behinds: number }>;
   finalised: boolean;
   basePlayedZoneMs: Record<string, ZoneMinutes>;
   stintStartMs: Record<string, number>;
@@ -350,6 +351,7 @@ export function replayGame(events: GameEvent[]): GameState {
     quarterEnded: false,
     teamScore: { goals: 0, behinds: 0 },
     opponentScore: { goals: 0, behinds: 0 },
+    playerScores: {},
     finalised: false,
     basePlayedZoneMs: {},
     stintStartMs: {},
@@ -444,8 +446,16 @@ export function replayGame(events: GameEvent[]): GameState {
       }
     } else if (ev.type === "goal") {
       state.teamScore.goals++;
+      if (ev.player_id) {
+        state.playerScores[ev.player_id] ??= { goals: 0, behinds: 0 };
+        state.playerScores[ev.player_id].goals++;
+      }
     } else if (ev.type === "behind") {
       state.teamScore.behinds++;
+      if (ev.player_id) {
+        state.playerScores[ev.player_id] ??= { goals: 0, behinds: 0 };
+        state.playerScores[ev.player_id].behinds++;
+      }
     } else if (ev.type === "opponent_goal") {
       state.opponentScore.goals++;
     } else if (ev.type === "opponent_behind") {

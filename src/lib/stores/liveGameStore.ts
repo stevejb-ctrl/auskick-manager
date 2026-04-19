@@ -25,6 +25,7 @@ export interface LiveGameState {
 
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
+  playerScores: Record<string, { goals: number; behinds: number }>;
 
   basePlayedZoneMs: Record<string, ZoneMs>;
   stintStartMs: Record<string, number>;
@@ -46,6 +47,7 @@ export interface LiveGameState {
   finaliseGame: () => void;
   incTeam: (kind: "goals" | "behinds") => void;
   incOpponent: (kind: "goals" | "behinds") => void;
+  incPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
 }
@@ -64,6 +66,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   selected: null,
   teamScore: { goals: 0, behinds: 0 },
   opponentScore: { goals: 0, behinds: 0 },
+  playerScores: {},
   basePlayedZoneMs: {},
   stintStartMs: {},
   stintZone: {},
@@ -190,6 +193,16 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         [kind]: prev.opponentScore[kind] + 1,
       },
     })),
+  incPlayerScore: (playerId, kind) =>
+    set((prev) => {
+      const cur = prev.playerScores[playerId] ?? { goals: 0, behinds: 0 };
+      return {
+        playerScores: {
+          ...prev.playerScores,
+          [playerId]: { ...cur, [kind]: cur[kind] + 1 },
+        },
+      };
+    }),
 
   setInjured: (playerId, injured) =>
     set((prev) => {

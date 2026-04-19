@@ -22,7 +22,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: game }, { data: membership }, { data: team }] = await Promise.all([
+  const [{ data: game }, { data: membership }, { data: team }, { data: scoringEvents }, { data: players }] = await Promise.all([
     supabase
       .from("games")
       .select("*")
@@ -42,6 +42,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .select("age_group")
       .eq("id", params.teamId)
       .single(),
+    supabase
+      .from("game_events")
+      .select("type, player_id")
+      .eq("game_id", params.gameId)
+      .in("type", ["goal", "behind"]),
+    supabase
+      .from("players")
+      .select("id, full_name, jersey_number")
+      .eq("team_id", params.teamId),
   ]);
 
   if (!game) notFound();
@@ -52,6 +61,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const canRun = canEdit;
   const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
   const ageCfg = AGE_GROUPS[ageGroup];
+
+  const tallies = new Map<string, { goals: number; behinds: number }>();
+  for (const ev of (scoringEvents ?? []) as { type: string; player_id: string | null }[]) {
+    if (!ev.player_id) continue;
+    const cur = tallies.get(ev.player_id) ?? { goals: 0, behinds: 0 };
+    if (ev.type === "goal") cur.goals++;
+    else if (ev.type === "behind") cur.behinds++;
+    tallies.set(ev.player_id, cur);
+  }
+  const playerById = new Map(
+    ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map((p) => [p.id, p])
+  );
+  const scorerRows = Array.from(tallies.entries())
+    .map(([pid, t]) => ({ player: playerById.get(pid), ...t }))
+    .filter((r) => r.player)
+    .sort((a, b) => b.goals - a.goals || b.behinds - a.behinds);
 
   return (
     <div className="space-y-6">
@@ -104,6 +129,36 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </div>
         )}
       </div>
+
+      {scorerRows.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-gray-800">Goal kickers</h3>
+          <ul className="mt-3 divide-y divide-gray-100">
+            {scorerRows.map((r) => (
+              <li
+                key={r.player!.id}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
+                    {r.player!.jersey_number}
+                  </span>
+                  <span className="font-medium text-gray-800">
+                    {r.player!.full_name}
+                  </span>
+                </span>
+                <span className="tabular-nums text-gray-600">
+                  <span className="font-semibold text-gray-900">{r.goals}</span> goals ·{" "}
+                  <span className="font-semibold text-gray-900">{r.behinds}</span> behinds
+                  <span className="ml-1 text-xs text-gray-400">
+                    ({r.goals * 6 + r.behinds} pts)
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Suspense
         fallback={

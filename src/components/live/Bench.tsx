@@ -12,9 +12,10 @@ interface BenchProps {
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
+  playerScores?: Record<string, { goals: number; behinds: number }>;
 }
 
-export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds }: BenchProps) {
+export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, playerScores }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -46,6 +47,7 @@ export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneM
                 totalMs={totalMsByPlayer?.[pid]}
                 zoneMs={zoneMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
+                score={playerScores?.[pid]}
               />
             );
           })}

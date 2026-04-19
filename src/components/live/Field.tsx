@@ -15,6 +15,7 @@ interface FieldProps {
   injuredIds?: string[];
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
+  playerScores?: Record<string, { goals: number; behinds: number }>;
 }
 
 const ZONE_BG: Record<Zone, string> = {
@@ -34,6 +35,7 @@ export function Field({
   injuredIds,
   zoneCaps,
   positionModel,
+  playerScores,
 }: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
@@ -88,6 +90,7 @@ export function Field({
                     totalMs={totalMsByPlayer?.[pid]}
                     zoneMs={zoneMsByPlayer?.[pid]}
                     injured={injuredSet.has(pid)}
+                    score={playerScores?.[pid]}
                   />
                 );
               })}
