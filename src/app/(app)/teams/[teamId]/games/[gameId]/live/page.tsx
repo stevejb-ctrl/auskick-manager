@@ -7,7 +7,6 @@ import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
   replayGame,
   seasonZoneMinutes,
-  suggestStartingLineup,
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -70,6 +69,7 @@ export default async function LivePage({ params }: LivePageProps) {
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
+  const ageCfg = AGE_GROUPS[ageGroup];
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
 
   if (hasStarted) {
@@ -181,7 +181,6 @@ export default async function LivePage({ params }: LivePageProps) {
     : { data: [] as GameEvent[] };
 
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
-  const suggested = suggestStartingLineup(availablePlayers, season, 0, zoneCaps);
 
   return (
     <div className="space-y-4">
@@ -204,10 +203,10 @@ export default async function LivePage({ params }: LivePageProps) {
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
           players={availablePlayers}
-          suggestedLineup={suggested}
           season={season}
-          zoneCaps={zoneCaps}
-          onFieldSize={g.on_field_size}
+          defaultOnFieldSize={g.on_field_size}
+          minOnFieldSize={ageCfg.minOnFieldSize}
+          maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
         />
       )}

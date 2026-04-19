@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { createGame } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { AGE_GROUPS, positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
-import { zoneCapsFor } from "@/lib/fairness";
+import { AGE_GROUPS } from "@/lib/ageGroups";
 import type { AgeGroup } from "@/lib/types";
 
 interface CreateGameFormProps {
@@ -22,26 +21,8 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
   const [location, setLocation] = useState("");
   const [round, setRound] = useState("");
   const [notes, setNotes] = useState("");
-  const [onFieldSize, setOnFieldSize] = useState(cfg.defaultOnFieldSize);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const sizeOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = [];
-    for (let s = cfg.maxOnFieldSize; s >= cfg.minOnFieldSize; s--) {
-      const caps = zoneCapsFor(s, cfg.positionModel);
-      const zones = positionsFor(cfg.positionModel);
-      const splits = zones.map((z) => `${caps[z]} ${ZONE_SHORT_LABELS[z]}`).join(" / ");
-      const tag =
-        s === cfg.defaultOnFieldSize
-          ? "full team"
-          : s < cfg.defaultOnFieldSize
-          ? "short-handed"
-          : "extras";
-      out.push({ value: s, label: `${s} — ${tag} (${splits})` });
-    }
-    return out;
-  }, [cfg]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +50,7 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
         location: location || null,
         round_number: roundNum,
         notes: notes || null,
-        on_field_size: onFieldSize,
+        on_field_size: cfg.defaultOnFieldSize,
       });
       if (result && !result.success) {
         setServerError(result.error);
@@ -127,26 +108,6 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
           placeholder="e.g. No. 1 Sportsground"
           disabled={isPending}
         />
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="on-field-size">Players on field</Label>
-        <select
-          id="on-field-size"
-          value={onFieldSize}
-          onChange={(e) => setOnFieldSize(parseInt(e.target.value, 10))}
-          disabled={isPending}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
-        >
-          {sizeOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-gray-500">
-          {cfg.label} default is {cfg.defaultOnFieldSize}. Drop down when the opposition is short and both teams agree to play fewer.
-        </p>
       </div>
 
       <div className="space-y-1">

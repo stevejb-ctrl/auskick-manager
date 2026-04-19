@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
-import type { PlayerZoneMinutes, ZoneCaps } from "@/lib/fairness";
+import {
+  suggestStartingLineup,
+  zoneCapsFor,
+  type PlayerZoneMinutes,
+} from "@/lib/fairness";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 // Default full-game length for sub-interval calculation (4 × 10min quarters).
@@ -31,10 +35,10 @@ interface LineupPickerProps {
   auth: import("@/lib/types").LiveAuth;
   gameId: string;
   players: Player[];
-  suggestedLineup: Lineup;
   season: PlayerZoneMinutes;
-  zoneCaps: ZoneCaps;
-  onFieldSize: number;
+  defaultOnFieldSize: number;
+  minOnFieldSize: number;
+  maxOnFieldSize: number;
   positionModel: PositionModel;
 }
 
@@ -44,17 +48,51 @@ export function LineupPicker({
   auth,
   gameId,
   players,
-  suggestedLineup,
   season,
-  zoneCaps,
-  onFieldSize,
+  defaultOnFieldSize,
+  minOnFieldSize,
+  maxOnFieldSize,
   positionModel,
 }: LineupPickerProps) {
-  const [lineup, setLineup] = useState<Lineup>(suggestedLineup);
+  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
+  const zoneCaps = useMemo(
+    () => zoneCapsFor(onFieldSize, positionModel),
+    [onFieldSize, positionModel]
+  );
+  const [lineup, setLineup] = useState<Lineup>(() =>
+    suggestStartingLineup(players, season, 0, zoneCaps)
+  );
+
+  function handleSizeChange(next: number) {
+    setOnFieldSize(next);
+    setLineup(
+      suggestStartingLineup(players, season, 0, zoneCapsFor(next, positionModel))
+    );
+  }
+
   const [selected, setSelected] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [subMinInput, setSubMinInput] = useState<string | null>(null);
+
+  const sizeOptions = useMemo(() => {
+    const out: { value: number; label: string }[] = [];
+    for (let s = maxOnFieldSize; s >= minOnFieldSize; s--) {
+      const caps = zoneCapsFor(s, positionModel);
+      const zs = positionsFor(positionModel);
+      const splits = zs
+        .map((z) => `${caps[z]} ${ZONE_SHORT_LABELS[z]}`)
+        .join(" / ");
+      const tag =
+        s === defaultOnFieldSize
+          ? "full team"
+          : s < defaultOnFieldSize
+          ? "short-handed"
+          : "extras";
+      out.push({ value: s, label: `${s} — ${tag} (${splits})` });
+    }
+    return out;
+  }, [defaultOnFieldSize, minOnFieldSize, maxOnFieldSize, positionModel]);
 
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -119,7 +157,7 @@ export function LineupPicker({
     setServerError(null);
     const subSeconds = Math.round(effectiveSubMin * 60);
     startTransition(async () => {
-      const result = await startGame(auth, gameId, lineup, subSeconds);
+      const result = await startGame(auth, gameId, lineup, subSeconds, onFieldSize);
       if (result && !result.success) {
         setServerError(result.error);
         return;
@@ -139,6 +177,28 @@ export function LineupPicker({
           {` ${onFieldSize} on field.`}
           {onFieldCount < effectiveOnFieldTarget &&
             ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <Label htmlFor="on-field-size" className="mb-1">
+          Players on field
+        </Label>
+        <select
+          id="on-field-size"
+          value={onFieldSize}
+          onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+          disabled={isPending}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+        >
+          {sizeOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Drop this when the opposition is short and both teams agree to play fewer. Changing it re-suggests the starting lineup.
         </p>
       </div>
 

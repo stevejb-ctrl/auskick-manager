@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LineupPicker } from "@/components/live/LineupPicker";
-import { seasonZoneMinutes, suggestStartingLineup, zoneCapsFor } from "@/lib/fairness";
+import { seasonZoneMinutes } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
@@ -30,7 +30,8 @@ export default async function LineupPage({ params }: LineupPageProps) {
     .single();
   const teamName = teamRow?.name ?? "Team";
   const ageGroup = ageGroupOf((teamRow as { age_group?: string } | null)?.age_group);
-  const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  const ageCfg = AGE_GROUPS[ageGroup];
+  const positionModel = ageCfg.positionModel;
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -60,8 +61,6 @@ export default async function LineupPage({ params }: LineupPageProps) {
     ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
-  const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
-  const suggested = suggestStartingLineup(availablePlayers, season, 0, zoneCaps);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
@@ -92,10 +91,10 @@ export default async function LineupPage({ params }: LineupPageProps) {
           auth={auth}
           gameId={g.id}
           players={availablePlayers}
-          suggestedLineup={suggested}
           season={season}
-          zoneCaps={zoneCaps}
-          onFieldSize={g.on_field_size}
+          defaultOnFieldSize={g.on_field_size}
+          minOnFieldSize={ageCfg.minOnFieldSize}
+          maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
         />
       )}

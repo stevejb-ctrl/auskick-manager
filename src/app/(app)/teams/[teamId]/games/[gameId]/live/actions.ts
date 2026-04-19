@@ -89,7 +89,8 @@ export async function startGame(
   auth: LiveAuth,
   gameId: string,
   lineup: Lineup,
-  subIntervalSeconds: number
+  subIntervalSeconds: number,
+  onFieldSize: number
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -107,6 +108,7 @@ export async function startGame(
     .update({
       status: "in_progress",
       sub_interval_seconds: subIntervalSeconds,
+      on_field_size: onFieldSize,
     })
     .eq("id", gameId);
 
