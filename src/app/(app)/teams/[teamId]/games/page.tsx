@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { CreateGameForm } from "@/components/games/CreateGameForm";
 import { GameList } from "@/components/games/GameList";
+import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -35,6 +36,18 @@ export default async function GamesPage({ params }: GamesPageProps) {
   const trackScoring = team?.track_scoring ?? false;
   const ageGroup = (team?.age_group ?? "U10") as import("@/lib/types").AgeGroup;
 
+  let existingExternalIds: string[] = [];
+  if (isAdmin) {
+    const { data: imported } = await supabase
+      .from("games")
+      .select("external_id")
+      .eq("team_id", params.teamId)
+      .eq("external_source", "playhq");
+    existingExternalIds = (imported ?? [])
+      .map((g) => g.external_id)
+      .filter((v): v is string => !!v);
+  }
+
   return (
     <div className="space-y-6">
       {isAdmin && (
@@ -43,7 +56,13 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
       {isAdmin && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold text-gray-800">Create game</h2>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-gray-800">Create game</h2>
+            <ImportFixturesButton
+              teamId={params.teamId}
+              existingExternalIds={existingExternalIds}
+            />
+          </div>
           <CreateGameForm teamId={params.teamId} ageGroup={ageGroup} />
         </div>
       )}

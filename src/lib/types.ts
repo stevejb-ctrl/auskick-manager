@@ -78,6 +78,8 @@ export interface Game {
   sub_interval_seconds: number;
   share_token: string;
   on_field_size: number;
+  external_source: string | null;
+  external_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
