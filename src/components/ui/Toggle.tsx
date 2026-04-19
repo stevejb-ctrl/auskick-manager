@@ -25,8 +25,8 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
     >
       <span
         className={[
-          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-6" : "translate-x-1",
+          "absolute h-4 w-4 rounded-full bg-white shadow transition-all duration-200",
+          checked ? "left-6" : "left-1",
         ].join(" ")}
       />
     </button>
