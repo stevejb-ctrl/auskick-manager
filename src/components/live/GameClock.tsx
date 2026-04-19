@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clockElapsedMs, formatClock, useLiveGame } from "@/lib/stores/liveGameStore";
-
-const QUARTER_MS = 12 * 60 * 1000;
+import { clockElapsedMs, formatClock, QUARTER_MS, useLiveGame } from "@/lib/stores/liveGameStore";
 
 export function GameClock() {
   const startedAt = useLiveGame((s) => s.clockStartedAt);

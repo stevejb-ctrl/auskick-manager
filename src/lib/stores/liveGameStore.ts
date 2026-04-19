@@ -2,6 +2,8 @@
 // if the GM reloads mid-quarter, they restart it.
 
 import { create } from "zustand";
+
+export const QUARTER_MS = 12 * 60 * 1000;
 import {
   emptyLineup,
   normalizeLineup,
