@@ -20,6 +20,7 @@ import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameClock } from "@/components/live/GameClock";
 import { SwapCard } from "@/components/live/SwapCard";
+import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
@@ -121,6 +122,7 @@ export function LiveGame({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
+  const [pendingSwap, setPendingSwap] = useState<{ off: string; on: string; zone: Zone } | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
 
@@ -172,7 +174,8 @@ export function LiveGame({
     // Empty slot was tapped.
     if (playerId === "") {
       if (selected?.kind === "bench") {
-        persistSwap("", selected.playerId, zone);
+        clearSelection();
+        setPendingSwap({ off: "", on: selected.playerId, zone });
       }
       return;
     }
@@ -186,9 +189,8 @@ export function LiveGame({
     }
     if (selected.kind === "bench") {
       // swap bench player ON → current field tile (same zone enforced: zone = tapped tile's zone)
-      const off = playerId;
-      const on = selected.playerId;
-      persistSwap(off, on, zone);
+      clearSelection();
+      setPendingSwap({ off: playerId, on: selected.playerId, zone });
       return;
     }
     // selected is a different field player — just re-select
@@ -206,10 +208,8 @@ export function LiveGame({
     }
     if (selected.kind === "field") {
       // swap off selected field player, on this bench player
-      const off = selected.playerId;
-      const on = playerId;
-      const zone = selected.zone;
-      persistSwap(off, on, zone);
+      clearSelection();
+      setPendingSwap({ off: selected.playerId, on: playerId, zone: selected.zone });
       return;
     }
     selectBench(playerId);
@@ -559,6 +559,20 @@ export function LiveGame({
             ? "Tap a bench player to swap them in, or tap the selected player again to cancel."
             : "Tap a field tile to swap this player in, or tap them again to cancel."}
         </p>
+      )}
+
+      {pendingSwap && (
+        <SwapConfirmDialog
+          off={pendingSwap.off}
+          on={pendingSwap.on}
+          zone={pendingSwap.zone}
+          playersById={playersById}
+          onConfirm={() => {
+            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone);
+            setPendingSwap(null);
+          }}
+          onCancel={() => setPendingSwap(null)}
+        />
       )}
     </div>
   );
