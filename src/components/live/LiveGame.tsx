@@ -14,6 +14,7 @@ import {
   recordBehind,
   recordGoal,
   recordOpponentScore,
+  recordFieldZoneSwap,
   recordSwap,
   startQuarter,
   undoLastScore,
@@ -143,6 +144,7 @@ export function LiveGame({
   const selectBench = useLiveGame((s) => s.selectBench);
   const clearSelection = useLiveGame((s) => s.clearSelection);
   const applySwap = useLiveGame((s) => s.applySwap);
+  const applyFieldZoneSwap = useLiveGame((s) => s.applyFieldZoneSwap);
   const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   const incTeam = useLiveGame((s) => s.incTeam);
   const incOpponent = useLiveGame((s) => s.incOpponent);
@@ -361,6 +363,26 @@ export function LiveGame({
     if (selected.kind === "bench") {
       clearSelection();
       setPendingSwap({ off: playerId, on: selected.playerId, zone });
+      return;
+    }
+    // Two different field players in different zones — swap their zones directly.
+    if (selected.zone !== zone) {
+      const pidA = selected.playerId;
+      const zoneA = selected.zone;
+      const quarter = Math.max(1, currentQuarter);
+      const elapsed_ms = currentElapsedMs();
+      applyFieldZoneSwap(pidA, zoneA, playerId, zone);
+      startTransition(async () => {
+        const result = await recordFieldZoneSwap(auth, gameId, {
+          player_a_id: pidA,
+          zone_a: zoneA,
+          player_b_id: playerId,
+          zone_b: zone,
+          quarter,
+          elapsed_ms,
+        });
+        if (!result.success) setError(result.error);
+      });
       return;
     }
     selectField(playerId, zone);

@@ -59,7 +59,6 @@ export function Field({
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
 
-  const selectedZone = selected?.kind === "field" ? selected.zone : null;
   // Render attacking up the page: fwd first → back last.
   const zones = positionsFor(positionModel).slice().reverse();
 
@@ -70,10 +69,14 @@ export function Field({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-field shadow-card">
-      {/* Soft oval highlight to suggest the pitch shape */}
+    <div
+      className="relative overflow-hidden bg-field shadow-card"
+      style={{ borderRadius: "50% / 15%" }}
+    >
+      {/* Oval pitch boundary marking */}
       <div
-        className="pointer-events-none absolute inset-x-6 inset-y-3 rounded-[50%] border border-white/10"
+        className="pointer-events-none absolute inset-x-5 inset-y-3 border border-white/10"
+        style={{ borderRadius: "50%" }}
         aria-hidden
       />
       {/* Centre circle */}
@@ -84,7 +87,7 @@ export function Field({
 
       {/* Vertical side labels — left and right — split evenly by side-group */}
       <div
-        className="pointer-events-none absolute inset-y-3 left-1 flex flex-col justify-around"
+        className="pointer-events-none absolute inset-y-6 left-1 flex flex-col justify-around"
         aria-hidden
       >
         {sideLabels.map((label) => (
@@ -98,7 +101,7 @@ export function Field({
         ))}
       </div>
       <div
-        className="pointer-events-none absolute inset-y-3 right-1 flex flex-col justify-around"
+        className="pointer-events-none absolute inset-y-6 right-1 flex flex-col justify-around"
         aria-hidden
       >
         {sideLabels.map((label) => (
@@ -113,16 +116,11 @@ export function Field({
       </div>
 
       {/* Zone rows */}
-      <div className="relative space-y-1.5 px-6 py-3">
+      <div className="relative space-y-1.5 px-8 py-6">
         {zones.map((key, idx) => {
           const ids = lineup[key];
           const cap = zoneCaps[key] ?? 0;
           if (cap === 0 && ids.length === 0) return null;
-          const dimZone =
-            selected?.kind === "bench"
-              ? false
-              : selectedZone !== null && selectedZone !== key;
-
           const prevGroup = idx > 0 ? sideGroupOf(zones[idx - 1]) : null;
           const currGroup = sideGroupOf(key);
           const showDivider = prevGroup !== null && prevGroup !== currGroup;
@@ -137,7 +135,7 @@ export function Field({
           return (
             <Fragment key={key}>
               {showDivider && (
-                <div className="relative -mx-6 h-px bg-white/30" aria-hidden />
+                <div className="relative -mx-8 h-px bg-white/30" aria-hidden />
               )}
               <div
                 className={`grid grid-cols-2 gap-1.5 ${zoneAccent}`}
@@ -160,6 +158,8 @@ export function Field({
                   if (!player) return null;
                   const isSelected =
                     selected?.kind === "field" && selected.playerId === pid;
+                  const dimmed =
+                    selected?.kind === "field" ? !isSelected : false;
                   return (
                     <PlayerTile
                       key={pid}
@@ -168,7 +168,7 @@ export function Field({
                       onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
                       onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                       selected={isSelected}
-                      dimmed={dimZone}
+                      dimmed={dimmed}
                       swap={
                         swapOffs?.has(pid)
                           ? { role: "off", pair: swapOffs.get(pid)!, totalPairs }

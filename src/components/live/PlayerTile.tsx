@@ -170,16 +170,6 @@ export function PlayerTile({
         </span>
       )}
 
-      {/* Top-right + chip — decorative affordance that the tile is interactive */}
-      {onClick && !injured && (
-        <span
-          className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-sm font-bold leading-none text-warm shadow-card ring-2 ring-surface"
-          aria-hidden
-        >
-          +
-        </span>
-      )}
-
       {/* Injury badge */}
       {injured && (
         <span

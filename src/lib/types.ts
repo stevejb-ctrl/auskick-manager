@@ -113,7 +113,8 @@ export type GameEventType =
   | "player_arrived"
   | "game_finalised"
   | "injury"
-  | "score_undo";
+  | "score_undo"
+  | "field_zone_swap";
 
 export interface Lineup {
   back: string[];

@@ -277,3 +277,21 @@ export async function undoLastScore(
     },
   });
 }
+
+export async function recordFieldZoneSwap(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_a_id: string;
+    zone_a: string;
+    player_b_id: string;
+    zone_b: string;
+    quarter: number;
+    elapsed_ms: number;
+  }
+): Promise<ActionResult> {
+  return insertEvent(auth, gameId, "field_zone_swap", {
+    player_id: input.player_a_id,
+    metadata: input,
+  });
+}

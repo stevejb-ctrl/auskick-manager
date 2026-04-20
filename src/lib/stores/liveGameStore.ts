@@ -56,6 +56,7 @@ export interface LiveGameState {
   selectBench: (playerId: string) => void;
   clearSelection: () => void;
   applySwap: (off: string, on: string, zone: Zone) => void;
+  applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
   setLineup: (lineup: Lineup) => void;
   startClock: () => void;
   pauseClock: () => void;
@@ -139,6 +140,31 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         stintZone,
         swapCount: prev.swapCount + 1,
       };
+    }),
+
+  applyFieldZoneSwap: (pidA, zoneA, pidB, zoneB) =>
+    set((prev) => {
+      const lineup = cloneLineup(prev.lineup);
+      const nowMs = clockElapsedMs(prev);
+      const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
+      const stintStartMs = { ...prev.stintStartMs };
+      const stintZone = { ...prev.stintZone };
+
+      lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
+      lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));
+
+      for (const [pid, fromZone, toZone] of [
+        [pidA, zoneA, zoneB],
+        [pidB, zoneB, zoneA],
+      ] as [string, Zone, Zone][]) {
+        const start = stintStartMs[pid] ?? nowMs;
+        basePlayedZoneMs[pid] = { ...(basePlayedZoneMs[pid] ?? newZoneMs()) };
+        basePlayedZoneMs[pid][fromZone] += Math.max(0, nowMs - start);
+        stintStartMs[pid] = nowMs;
+        stintZone[pid] = toZone;
+      }
+
+      return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone, swapCount: prev.swapCount + 1 };
     }),
 
   setLineup: (lineup) =>

@@ -213,6 +213,26 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         break;
       }
 
+      case "field_zone_swap": {
+        const pidA = ev.player_id;
+        const pidB = typeof meta.player_b_id === "string" ? meta.player_b_id : null;
+        const zoneA = ALL_ZONES.find((z) => z === meta.zone_a) ?? null;
+        const zoneB = ALL_ZONES.find((z) => z === meta.zone_b) ?? null;
+        if (pidA && pidB && zoneA && zoneB) {
+          closePeriod(elapsed);
+          periodStartMs = elapsed;
+          lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
+          lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));
+          const stintA = stints[pidA];
+          const stintB = stints[pidB];
+          addZoneMs(pidA, stintA?.zone ?? zoneA, elapsed - (stintA?.startMs ?? 0));
+          addZoneMs(pidB, stintB?.zone ?? zoneB, elapsed - (stintB?.startMs ?? 0));
+          stints[pidA] = { zone: zoneB, startMs: elapsed };
+          stints[pidB] = { zone: zoneA, startMs: elapsed };
+        }
+        break;
+      }
+
       case "score_undo": {
         const origType = typeof meta.original_type === "string" ? meta.original_type : "";
         const q = typeof meta.quarter === "number" ? meta.quarter : currentQuarter;
