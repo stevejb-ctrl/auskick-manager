@@ -25,6 +25,7 @@ import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { ScoreBoard } from "@/components/live/ScoreBoard";
+import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { SubDueModal } from "@/components/live/SubDueModal";
@@ -128,6 +129,10 @@ export function LiveGame({
 
   const activeGameId = useLiveGame((s) => s.activeGameId);
 
+  const walkthroughSteps = useMemo(() => buildWalkthroughSteps(trackScoring), [trackScoring]);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
+
   const [hydrated, setHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +149,23 @@ export function LiveGame({
     () => new Map(squadPlayers.map((p) => [p.id, p])),
     [squadPlayers]
   );
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem("gm-walkthrough-seen")) {
+      setWalkthroughOpen(true);
+    }
+  }, []);
+
+  function handleWalkthroughClose() {
+    localStorage.setItem("gm-walkthrough-seen", "1");
+    setWalkthroughOpen(false);
+    setWalkthroughSkipWelcome(false);
+  }
+
+  function handleOpenWalkthrough() {
+    setWalkthroughSkipWelcome(true);
+    setWalkthroughOpen(true);
+  }
 
   useEffect(() => {
     if (!initialState.lineup) return;
@@ -495,22 +517,33 @@ export function LiveGame({
 
   return (
     <div className="space-y-3">
-      {exitHref && (
-        <div className="flex justify-end">
-          <Link
-            href={exitHref}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handleOpenWalkthrough}
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-xs font-bold text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+          aria-label="Open walkthrough"
+        >
+          ?
+        </button>
+        {exitHref && (
+          <Link href={exitHref} className="text-xs text-gray-400 hover:text-gray-600">
             Exit game ✕
           </Link>
-        </div>
-      )}
+        )}
+      </div>
       {subModalOpen && (
         <SubDueModal
           suggestions={suggestions}
           playersById={playersById}
+          onApply={() => {
+            for (const s of suggestions) {
+              persistSwap(s.off_player_id, s.on_player_id, s.zone);
+            }
+          }}
           onAcknowledge={handleSubModalAcknowledge}
           onSnooze={handleSubModalSnooze}
+          pending={isPending}
         />
       )}
       {trackScoring && (
@@ -694,6 +727,14 @@ export function LiveGame({
           quarter={currentQuarter}
           loading={isPending}
           onConfirm={handleQuarterEndConfirm}
+        />
+      )}
+
+      {walkthroughOpen && (
+        <WalkthroughModal
+          steps={walkthroughSteps}
+          skipWelcome={walkthroughSkipWelcome}
+          onClose={handleWalkthroughClose}
         />
       )}
     </div>
