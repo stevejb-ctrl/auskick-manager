@@ -34,11 +34,15 @@ export async function GameList({ teamId }: GameListProps) {
     availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
   }
 
-  const now = Date.now();
-  const upcoming = all
-    .filter((g) => new Date(g.scheduled_at).getTime() >= now)
+  // Split by game status, not by date. In-progress games sit in the active
+  // list so the manager can still navigate to the live view.
+  const active = all
+    .filter((g) => g.status !== "completed")
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-  const past = all.filter((g) => new Date(g.scheduled_at).getTime() < now);
+
+  const completed = all
+    .filter((g) => g.status === "completed")
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
 
   if (all.length === 0) {
     return (
@@ -50,13 +54,13 @@ export async function GameList({ teamId }: GameListProps) {
 
   return (
     <div className="space-y-6">
-      {upcoming.length > 0 && (
+      {active.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
             Upcoming
           </h2>
           <div className="space-y-2">
-            {upcoming.map((game) => (
+            {active.map((game) => (
               <GameCard
                 key={game.id}
                 teamId={teamId}
@@ -69,13 +73,13 @@ export async function GameList({ teamId }: GameListProps) {
         </section>
       )}
 
-      {past.length > 0 && (
+      {completed.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Past
+            Completed
           </h2>
           <div className="space-y-2">
-            {past.map((game) => (
+            {completed.map((game) => (
               <GameCard
                 key={game.id}
                 teamId={teamId}
