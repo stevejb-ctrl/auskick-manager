@@ -10,6 +10,9 @@ interface GameCardProps {
 }
 
 export function GameCard({ teamId, game, availableCount, totalActive }: GameCardProps) {
+  const isLive = game.status === "in_progress";
+  const isDone = game.status === "completed";
+
   return (
     <Link
       href={`/teams/${teamId}/games/${game.id}`}
@@ -17,7 +20,7 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {game.round_number != null && (
               <span className="text-xs font-semibold uppercase tracking-wide text-brand-600">
                 Round {game.round_number}
@@ -26,6 +29,17 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
             <span className="text-xs text-gray-400">
               <FormattedDateTime iso={game.scheduled_at} mode="short" />
             </span>
+            {isLive && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Live
+              </span>
+            )}
+            {isDone && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                ✓ Done
+              </span>
+            )}
           </div>
           <h3 className="mt-1 truncate text-base font-semibold text-gray-900">
             vs {game.opponent}
@@ -34,13 +48,16 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
             <p className="mt-0.5 truncate text-sm text-gray-500">{game.location}</p>
           )}
         </div>
-        <div className="text-right">
-          <span className="text-lg font-bold tabular-nums text-brand-600">
-            {availableCount}
-          </span>
-          <span className="text-sm text-gray-400"> / {totalActive}</span>
-          <p className="text-xs text-gray-400">available</p>
-        </div>
+        {/* Only show availability count for upcoming/active games */}
+        {!isDone && (
+          <div className="shrink-0 text-right">
+            <span className="text-lg font-bold tabular-nums text-brand-600">
+              {availableCount}
+            </span>
+            <span className="text-sm text-gray-400"> / {totalActive}</span>
+            <p className="text-xs text-gray-400">available</p>
+          </div>
+        )}
       </div>
     </Link>
   );
