@@ -866,8 +866,11 @@ export function LiveGame({
       {canScore && (() => {
         const pid = selected && selected.kind === "field" ? selected.playerId : null;
         const p = pid ? playersById.get(pid) : null;
+        // `fixed` (not `sticky`) so the panel locks to the visual viewport
+        // even when the nearest scrolling ancestor differs between real
+        // mobile and desktop mobile-emulation.
         return (
-          <div className="sticky bottom-2 z-10 rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
+          <div className="fixed inset-x-2 bottom-2 z-40 mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
             <p className="mb-2 text-center text-sm font-semibold text-ink">
               Record score for{" "}
               <span className="text-brand-700">
