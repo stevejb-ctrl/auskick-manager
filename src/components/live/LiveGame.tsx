@@ -213,6 +213,11 @@ export function LiveGame({
 
     function createPlayer() {
       ytPlayerRef.current = new window.YT.Player(playerDiv, {
+        // Force a 1×1 iframe — the YT API defaults to 640×360, which
+        // otherwise bleeds past the viewport and inflates page scroll
+        // area by ~125 px wide × 192 px tall.
+        width: "1",
+        height: "1",
         videoId,
         playerVars: { autoplay: 0, controls: 0, fs: 0, rel: 0, playsinline: 1 },
         events: {
@@ -1070,7 +1075,7 @@ export function LiveGame({
       {songUrl && isYouTubeUrl(songUrl) && (
         <div
           ref={ytContainerRef}
-          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
           aria-hidden
         />
       )}
