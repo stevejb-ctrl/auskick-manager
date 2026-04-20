@@ -15,27 +15,52 @@ interface RunPageProps {
   params: { token: string };
 }
 
-function GameHeader({ teamName, g }: { teamName: string; g: Game }) {
+function GameHeader({
+  teamName,
+  g,
+  compact = false,
+}: {
+  teamName: string;
+  g: Game;
+  compact?: boolean;
+}) {
+  if (compact) {
+    // In-game: the scorebug already shows team names + quarter, so keep
+    // this to a single slim line of context on the warm background.
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-2 px-1 text-xs text-ink-mute">
+        {g.round_number != null && (
+          <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
+            R{g.round_number}
+          </span>
+        )}
+        <span>
+          <FormattedDateTime iso={g.scheduled_at} mode="long" />
+        </span>
+        {g.location && <span>· {g.location}</span>}
+      </div>
+    );
+  }
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div>
       <div className="flex items-baseline gap-2">
         {g.round_number != null && (
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
             Round {g.round_number}
           </span>
         )}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-ink-mute">
           <FormattedDateTime iso={g.scheduled_at} mode="long" />
         </span>
       </div>
-      <h2 className="mt-1 text-xl font-bold text-gray-900">
+      <h2 className="mt-0.5 text-base font-semibold text-ink">
         {teamName} vs {g.opponent}
       </h2>
       {g.location && (
-        <p className="mt-1 text-sm text-gray-500">{g.location}</p>
+        <p className="text-xs text-ink-mute">{g.location}</p>
       )}
       {g.notes && (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
+        <p className="mt-2 whitespace-pre-wrap text-sm text-ink-dim">
           {g.notes}
         </p>
       )}
@@ -79,39 +104,18 @@ export default async function RunPage({ params }: RunPageProps) {
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
-    const [{ data: squadPlayers }, { data: teamGames }, { data: gameAvail }] =
-      await Promise.all([
-        admin
-          .from("players")
-          .select("*")
-          .eq("team_id", g.team_id)
-          .eq("is_active", true)
-          .order("jersey_number"),
-        admin.from("games").select("id").eq("team_id", g.team_id),
-        admin
-          .from("game_availability")
-          .select("player_id, status")
-          .eq("game_id", g.id)
-          .eq("status", "available"),
-      ]);
-    const allActive = (squadPlayers ?? []) as Player[];
-    const availableIds = new Set((gameAvail ?? []).map((a) => a.player_id));
-    const inGameIds = new Set<string>();
-    if (state.lineup) {
-      const l = state.lineup;
-      for (const id of [
-        ...l.back,
-        ...l.hback,
-        ...l.mid,
-        ...l.hfwd,
-        ...l.fwd,
-        ...l.bench,
-      ])
-        inGameIds.add(id);
-    }
-    const allSquad = allActive.filter(
-      (p) => availableIds.has(p.id) || inGameIds.has(p.id)
-    );
+    const [{ data: squadPlayers }, { data: teamGames }] = await Promise.all([
+      admin
+        .from("players")
+        .select("*")
+        .eq("team_id", g.team_id)
+        .eq("is_active", true)
+        .order("jersey_number"),
+      admin.from("games").select("id").eq("team_id", g.team_id),
+    ]);
+    // Pass the full active squad — LateArrivalMenu needs non-available
+    // players as candidates, and LiveGame filters in-field/bench itself.
+    const allSquad = (squadPlayers ?? []) as Player[];
     const priorGameIds = (teamGames ?? [])
       .map((t) => t.id)
       .filter((id) => id !== g.id);
@@ -121,8 +125,8 @@ export default async function RunPage({ params }: RunPageProps) {
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
 
     return (
-      <div className="mx-auto max-w-2xl space-y-4 p-3">
-        <GameHeader teamName={teamName} g={g} />
+      <div className="mx-auto max-w-2xl space-y-3 p-3">
+        <GameHeader teamName={teamName} g={g} compact />
         <LiveGame
           auth={auth}
           gameId={g.id}
