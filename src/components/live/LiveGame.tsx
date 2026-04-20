@@ -176,17 +176,24 @@ export function LiveGame({
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
   const ytReadyRef = useRef(false);
+  // Stable container that React owns; the YT API manages a child element inside it
+  // so React never tries to reconcile the iframe the API creates.
+  const ytContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Load the YouTube IFrame API once if the song URL is a YouTube link.
   useEffect(() => {
     if (!songUrl || !isYouTubeUrl(songUrl)) return;
     const videoId = youtubeVideoId(songUrl);
-    if (!videoId) return;
+    if (!videoId || !ytContainerRef.current) return;
 
-    const ytDivId = `yt-song-${gameId}`;
+    // Create a plain div for the YT API to replace with an iframe.
+    // Using document.createElement keeps this element outside React's vdom,
+    // preventing the "insertBefore" crash when React reconciles the tree.
+    const playerDiv = document.createElement("div");
+    ytContainerRef.current.appendChild(playerDiv);
 
     function createPlayer() {
-      ytPlayerRef.current = new window.YT.Player(ytDivId, {
+      ytPlayerRef.current = new window.YT.Player(playerDiv, {
         videoId,
         playerVars: { autoplay: 0, controls: 0, fs: 0, rel: 0, playsinline: 1 },
         events: {
@@ -211,6 +218,7 @@ export function LiveGame({
       ytPlayerRef.current?.destroy();
       ytPlayerRef.current = null;
       ytReadyRef.current = false;
+      playerDiv.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songUrl, gameId]);
@@ -895,10 +903,10 @@ export function LiveGame({
         );
       })()}
 
-      {/* Hidden YouTube IFrame player — used for goal song playback */}
+      {/* Hidden YouTube IFrame container — the API appends its own child here */}
       {songUrl && isYouTubeUrl(songUrl) && (
         <div
-          id={`yt-song-${gameId}`}
+          ref={ytContainerRef}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
           aria-hidden
         />
