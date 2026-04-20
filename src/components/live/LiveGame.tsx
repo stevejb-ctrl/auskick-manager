@@ -866,37 +866,48 @@ export function LiveGame({
       {canScore && (() => {
         const pid = selected && selected.kind === "field" ? selected.playerId : null;
         const p = pid ? playersById.get(pid) : null;
-        // `fixed` (not `sticky`) so the panel locks to the visual viewport
-        // even when the nearest scrolling ancestor differs between real
-        // mobile and desktop mobile-emulation.
+        // Full-width fixed wrapper pins to the visual viewport regardless of
+        // any ancestor with transform/filter; the inner card is
+        // width-constrained and centered so it can't overflow horizontally.
         return (
-          <div className="fixed inset-x-2 bottom-2 z-40 mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-            <p className="mb-2 text-center text-sm font-semibold text-ink">
-              Record score for{" "}
-              <span className="text-brand-700">
-                {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
-              </span>
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleScore("goal")}
-                disabled={isPending}
-                className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-              >
-                + Goal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleScore("behind")}
-                disabled={isPending}
-                className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
-              >
-                + Behind
-              </button>
-              <Button size="sm" variant="ghost" onClick={() => clearSelection()}>
-                Cancel
-              </Button>
+          <div
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-2 pt-2"
+            style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
+              <div className="mb-2 flex items-center gap-2">
+                <p className="flex-1 truncate text-sm font-semibold text-ink">
+                  Record score for{" "}
+                  <span className="text-brand-700">
+                    {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => clearSelection()}
+                  className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute hover:text-ink-dim"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleScore("goal")}
+                  disabled={isPending}
+                  className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                >
+                  + Goal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScore("behind")}
+                  disabled={isPending}
+                  className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
+                >
+                  + Behind
+                </button>
+              </div>
             </div>
           </div>
         );
