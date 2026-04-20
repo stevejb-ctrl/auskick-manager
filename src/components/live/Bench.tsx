@@ -18,7 +18,18 @@ interface BenchProps {
   playerScores?: Record<string, { goals: number; behinds: number }>;
 }
 
-export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, lockedIds, zoneLockedPlayers, onLongPress, playerScores }: BenchProps) {
+export function Bench({
+  playersById,
+  onTapBench,
+  swapOns,
+  totalMsByPlayer,
+  zoneMsByPlayer,
+  injuredIds,
+  lockedIds,
+  zoneLockedPlayers,
+  onLongPress,
+  playerScores,
+}: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
@@ -27,14 +38,14 @@ export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneM
   const benchActive = selected?.kind === "field";
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
-      <p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+    <div className="rounded-md border border-hairline bg-surface p-2 shadow-card">
+      <p className="mb-1.5 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
         Bench ({lineup.bench.length})
       </p>
       {lineup.bench.length === 0 ? (
-        <p className="px-1 py-2 text-xs text-gray-400">Nobody on the bench</p>
+        <p className="px-1 py-2 text-xs text-ink-mute">Nobody on the bench</p>
       ) : (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {lineup.bench.map((pid) => {
             const p = playersById.get(pid);
             if (!p) return null;
@@ -44,6 +55,7 @@ export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneM
               <PlayerTile
                 key={pid}
                 player={p}
+                currentZone={null}
                 onClick={injuredSet.has(pid) ? undefined : () => onTapBench(pid)}
                 onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                 selected={isSelected}

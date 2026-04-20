@@ -20,15 +20,14 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
-import { GameClock } from "@/components/live/GameClock";
+import { GameHeader } from "@/components/live/GameHeader";
+import { NextSubBar } from "@/components/live/NextSubBar";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
-import { ScoreBoard } from "@/components/live/ScoreBoard";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
-import { SubDueModal } from "@/components/live/SubDueModal";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { LockModal } from "@/components/live/LockModal";
 import {
@@ -166,7 +165,6 @@ export function LiveGame({
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
   const [subModalOpen, setSubModalOpen] = useState(false);
-  const snoozeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
@@ -561,17 +559,12 @@ export function LiveGame({
     }
     if (subState !== "due") {
       setSubModalOpen(false);
-      if (snoozeTimeoutRef.current !== null) {
-        clearTimeout(snoozeTimeoutRef.current);
-        snoozeTimeoutRef.current = null;
-      }
     }
     prevSubStateRef.current = subState;
   }, [subState]);
 
   useEffect(() => {
     return () => {
-      if (snoozeTimeoutRef.current !== null) clearTimeout(snoozeTimeoutRef.current);
       if (songTimerRef.current !== null) {
         clearTimeout(songTimerRef.current);
         songTimerRef.current = null;
@@ -583,18 +576,6 @@ export function LiveGame({
 
   function handleSubModalAcknowledge() {
     setSubModalOpen(false);
-  }
-
-  function handleSubModalSnooze() {
-    setSubModalOpen(false);
-    snoozeTimeoutRef.current = setTimeout(() => {
-      if (prevSubStateRef.current === "due") {
-        setSubModalOpen(true);
-        if (window.matchMedia("(hover: none)").matches) {
-          navigator.vibrate?.([200, 100, 200]);
-        }
-      }
-    }, 30000);
   }
 
   // Detect when the quarter clock hits the threshold; show modal once per quarter.
@@ -652,77 +633,73 @@ export function LiveGame({
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
+  function handleClockTap() {
+    if (isPreGame || isFinished) return;
+    if (running) handlePause();
+    else handleResume();
+  }
+
   return (
     <div className="space-y-3">
+      {/* Top utility row: walkthrough + exit */}
       <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={handleOpenWalkthrough}
-          className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-xs font-bold text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
           aria-label="Open walkthrough"
         >
           ?
         </button>
         {exitHref && (
-          <Link href={exitHref} className="text-xs text-gray-400 hover:text-gray-600">
-            Exit game ✕
+          <Link href={exitHref} className="font-mono text-[11px] text-ink-mute hover:text-ink-dim">
+            Exit ✕
           </Link>
         )}
       </div>
-      {subModalOpen && (
-        <SubDueModal
-          suggestions={suggestions}
-          playersById={playersById}
-          onApply={() => {
-            for (const s of suggestions) {
-              persistSwap(s.off_player_id, s.on_player_id, s.zone);
-            }
-          }}
-          onApplyOne={(s) => persistSwap(s.off_player_id, s.on_player_id, s.zone)}
-          onAcknowledge={handleSubModalAcknowledge}
-          onSnooze={handleSubModalSnooze}
-          pending={isPending}
-        />
+
+      {/* Unified header — teams + scores + clock pill */}
+      <GameHeader
+        teamName={teamName}
+        opponentName={opponentName}
+        trackScoring={trackScoring}
+        onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
+        onClockTap={handleClockTap}
+        running={running}
+        isPreGame={isPreGame}
+        isFinished={isFinished}
+      />
+
+      {/* Primary game-state action (Start Q1 / End Q / Full time) */}
+      {isPreGame && (
+        <Button className="w-full" onClick={handleStartFirstQuarter} loading={isPending}>
+          Start Q1
+        </Button>
       )}
-      {trackScoring && (
-        <ScoreBoard
-          teamName={teamName}
-          opponentName={opponentName}
-          onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
-        />
+      {!isPreGame && !isFinished && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={handleEndQuarter} loading={isPending}>
+            End Q{currentQuarter}
+          </Button>
+        </div>
+      )}
+      {isFinished && (
+        <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+          Full time
+        </p>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-        <GameClock />
-        <div className="mt-2 flex justify-center gap-2">
-          {isPreGame && (
-            <Button size="sm" onClick={handleStartFirstQuarter} loading={isPending}>
-              Start Q1
-            </Button>
-          )}
-          {!isPreGame && !isFinished && !running && (
-            <Button size="sm" onClick={handleResume}>
-              Resume
-            </Button>
-          )}
-          {running && (
-            <Button size="sm" variant="secondary" onClick={handlePause}>
-              Pause
-            </Button>
-          )}
-          {!isPreGame && !isFinished && (
-            <Button size="sm" variant="ghost" onClick={handleEndQuarter} loading={isPending}>
-              End Q{currentQuarter}
-            </Button>
-          )}
-          {isFinished && (
-            <span className="text-sm font-semibold text-gray-500">Full time</span>
-          )}
-        </div>
-      </div>
+      {/* Next-sub progress + X Next Up counter */}
+      {!isPreGame && !isFinished && (
+        <NextSubBar
+          msUntilDue={msUntilDue}
+          subIntervalMs={subIntervalMs}
+          suggestionCount={suggestions.length}
+        />
+      )}
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn" role="alert">
           {error}
         </p>
       )}
@@ -738,6 +715,24 @@ export function LiveGame({
         }
         return (
           <>
+            {/* Suggested-swaps card, collapsible, sits above the field */}
+            {!isPreGame && !isFinished && (
+              <SwapCard
+                suggestions={suggestions}
+                playersById={playersById}
+                pending={isPending}
+                subState={subState}
+                forceOpen={subModalOpen}
+                onApply={() => {
+                  for (const s of suggestions) {
+                    persistSwap(s.off_player_id, s.on_player_id, s.zone);
+                  }
+                  handleSubModalAcknowledge();
+                }}
+                onApplyOne={(s) => persistSwap(s.off_player_id, s.on_player_id, s.zone)}
+              />
+            )}
+
             <Field
               playersById={playersById}
               onTapField={handleTapField}
@@ -764,20 +759,6 @@ export function LiveGame({
               onLongPress={handleLongPress}
               playerScores={playerScores}
             />
-            {!isPreGame && !isFinished && (
-              <SwapCard
-                suggestions={suggestions}
-                playersById={playersById}
-                pending={isPending}
-                subState={subState}
-                msUntilDue={msUntilDue}
-                onApply={() => {
-                  for (const s of suggestions) {
-                    persistSwap(s.off_player_id, s.on_player_id, s.zone);
-                  }
-                }}
-              />
-            )}
             {!isFinished && (
               <InjuryMenu
                 players={squadPlayers.filter((p) => {
@@ -808,8 +789,8 @@ export function LiveGame({
         const pid = selected && selected.kind === "field" ? selected.playerId : null;
         const p = pid ? playersById.get(pid) : null;
         return (
-          <div className="sticky bottom-2 z-10 rounded-lg border-2 border-brand-400 bg-white p-3 shadow-lg">
-            <p className="mb-2 text-center text-sm font-semibold text-gray-800">
+          <div className="sticky bottom-2 z-10 rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
+            <p className="mb-2 text-center text-sm font-semibold text-ink">
               Record score for{" "}
               <span className="text-brand-700">
                 {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
@@ -820,17 +801,17 @@ export function LiveGame({
                 type="button"
                 onClick={() => handleScore("goal")}
                 disabled={isPending}
-                className="flex-1 rounded-md bg-green-600 py-3 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-700 disabled:opacity-60"
+                className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
               >
-                + GOAL
+                + Goal
               </button>
               <button
                 type="button"
                 onClick={() => handleScore("behind")}
                 disabled={isPending}
-                className="flex-1 rounded-md bg-amber-500 py-3 text-base font-bold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-60"
+                className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
               >
-                + BEHIND
+                + Behind
               </button>
               <Button size="sm" variant="ghost" onClick={() => clearSelection()}>
                 Cancel
@@ -841,7 +822,7 @@ export function LiveGame({
       })()}
 
       {selected && !canScore && (
-        <p className="rounded-md bg-brand-50 px-3 py-2 text-xs text-brand-700">
+        <p className="rounded-sm bg-brand-50 px-3 py-2 text-xs text-brand-800">
           {selected.kind === "field"
             ? "Tap a bench player to swap them in, or tap the selected player again to cancel."
             : "Tap a field tile to swap this player in, or tap them again to cancel."}
