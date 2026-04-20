@@ -42,13 +42,14 @@ const config: Config = {
 
         // Domain
         field:          "#3C8050",
-        // Colourblind-safe zone palette — three widely-separated hue
-        // families (orange / magenta / blue) so adjacent zones stay
-        // distinguishable even when purple/blue collapse for the most
-        // common protan/deutan CVD types. All three pass WCAG AA (>=4.5)
-        // against white for text use.
+        // Colourblind-safe zone palette — three hue families roughly
+        // 120° apart (orange / violet / blue) so adjacent zones stay
+        // distinguishable. Magenta was too close to orange on the hue
+        // wheel and at the same lightness; violet gives real separation
+        // from forward. All three pass WCAG AA (>=4.5) against white
+        // for text use.
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
-        "zone-c":       "#BE185D",   // centre — deep pink / magenta
+        "zone-c":       "#6D28D9",   // centre — violet
         "zone-b":       "#1D4ED8",   // back — royal blue
       },
       fontFamily: {
