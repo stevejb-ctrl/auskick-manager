@@ -115,8 +115,11 @@ export function Field({
         ))}
       </div>
 
-      {/* Zone rows */}
-      <div className="relative space-y-1.5 px-8 py-6">
+      {/* Zone rows — generous horizontal padding pulls corner tiles away
+          from the oval's inward curve so floating badges (score chip,
+          swap header) never get clipped. Vertical padding clears the
+          top/bottom arcs as well. */}
+      <div className="relative space-y-2 px-10 py-9">
         {zones.map((key, idx) => {
           const ids = lineup[key];
           const cap = zoneCaps[key] ?? 0;
@@ -135,10 +138,10 @@ export function Field({
           return (
             <Fragment key={key}>
               {showDivider && (
-                <div className="relative -mx-8 h-px bg-white/30" aria-hidden />
+                <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
               )}
               <div
-                className={`grid grid-cols-2 gap-1.5 ${zoneAccent}`}
+                className={`grid grid-cols-2 gap-2 ${zoneAccent}`}
               >
                 {Array.from({ length: Math.max(cap, ids.length) }).map((_, slot) => {
                   const pid = ids[slot];

@@ -180,7 +180,7 @@ export function PlayerTile({
         </span>
       )}
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-2">
+      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
 
       {/* Injury badge */}
       {injured && (
