@@ -14,6 +14,7 @@ interface FieldProps {
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
   lockedIds?: string[];
+  zoneLockedPlayers?: Record<string, Zone>;
   onLongPress?: (playerId: string) => void;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
@@ -36,6 +37,7 @@ export function Field({
   zoneMsByPlayer,
   injuredIds,
   lockedIds,
+  zoneLockedPlayers,
   onLongPress,
   zoneCaps,
   positionModel,
@@ -96,7 +98,7 @@ export function Field({
                     totalMs={totalMsByPlayer?.[pid]}
                     zoneMs={zoneMsByPlayer?.[pid]}
                     injured={injuredSet.has(pid)}
-                    locked={lockedSet.has(pid)}
+                    lockMode={lockedSet.has(pid) ? "field" : zoneLockedPlayers?.[pid] ? "zone" : null}
                     score={playerScores?.[pid]}
                   />
                 );

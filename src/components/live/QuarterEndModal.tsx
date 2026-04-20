@@ -21,7 +21,7 @@ export function QuarterEndModal({ quarter, loading, onConfirm }: QuarterEndModal
       </p>
       <div className="mt-4">
         <Button className="w-full" size="lg" onClick={onConfirm} loading={loading}>
-          {isLastQuarter ? "End game" : `Start Q${quarter + 1}`}
+          {isLastQuarter ? "End game" : `Select team for Q${quarter + 1}`}
         </Button>
       </div>
     </Modal>

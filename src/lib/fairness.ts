@@ -308,7 +308,9 @@ export function suggestSwaps(
   lockedIds: readonly string[] = [],
   /** Zone-level ms this game per player. Used to prefer sending incoming players
    *  to zones they haven't played yet, promoting position diversity mid-game. */
-  currentGameZoneMs: Record<string, ZoneMinutes> = {}
+  currentGameZoneMs: Record<string, ZoneMinutes> = {},
+  /** Zone-locked players: can sub on/off but must always return to this zone. */
+  zoneLockedPlayers: Record<string, Zone> = {}
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
@@ -338,28 +340,37 @@ export function suggestSwaps(
 
   for (let i = 0; i < benchSorted.length; i++) {
     const on = benchSorted[i];
+    const forcedZone = zoneLockedPlayers[on] as Zone | undefined;
     let pickZone: Zone | null = null;
 
-    // First pass: prefer a zone this player hasn't played yet this game.
-    for (let k = 0; k < zoneOrder.length; k++) {
-      const z = zoneOrder[(i + k) % zoneOrder.length];
-      if (!hasPlayedZone(on, z) && fieldByZone[z][zoneCursor[z]]) {
-        pickZone = z;
-        break;
+    if (forcedZone) {
+      // Zone-locked: must come on in their locked zone only.
+      if (fieldByZone[forcedZone]?.[zoneCursor[forcedZone]]) {
+        pickZone = forcedZone;
       }
-    }
-    // Fallback: any zone with an available player to rotate off.
-    if (!pickZone) {
+      if (!pickZone) continue; // no one to rotate out of that zone right now
+    } else {
+      // First pass: prefer a zone this player hasn't played yet this game.
       for (let k = 0; k < zoneOrder.length; k++) {
         const z = zoneOrder[(i + k) % zoneOrder.length];
-        if (fieldByZone[z][zoneCursor[z]]) {
+        if (!hasPlayedZone(on, z) && fieldByZone[z][zoneCursor[z]]) {
           pickZone = z;
           break;
         }
       }
+      // Fallback: any zone with an available player to rotate off.
+      if (!pickZone) {
+        for (let k = 0; k < zoneOrder.length; k++) {
+          const z = zoneOrder[(i + k) % zoneOrder.length];
+          if (fieldByZone[z][zoneCursor[z]]) {
+            pickZone = z;
+            break;
+          }
+        }
+      }
+      if (!pickZone) break; // no field players available at all — done
     }
 
-    if (!pickZone) break;
     const off = fieldByZone[pickZone][zoneCursor[pickZone]];
     zoneCursor[pickZone]++;
     swaps.push({

@@ -30,6 +30,7 @@ import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
+import { LockModal } from "@/components/live/LockModal";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -126,6 +127,9 @@ export function LiveGame({
   const setInjured = useLiveGame((s) => s.setInjured);
   const lockedIds = useLiveGame((s) => s.lockedIds);
   const setLocked = useLiveGame((s) => s.setLocked);
+  const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
+  const setZoneLocked = useLiveGame((s) => s.setZoneLocked);
+  const lastStintZone = useLiveGame((s) => s.lastStintZone);
 
   const activeGameId = useLiveGame((s) => s.activeGameId);
 
@@ -144,6 +148,7 @@ export function LiveGame({
   const snoozeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
+  const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
 
   const playersById = useMemo(
     () => new Map(squadPlayers.map((p) => [p.id, p])),
@@ -519,13 +524,15 @@ export function LiveGame({
   }
 
   function handleLongPress(playerId: string) {
-    setLocked(playerId, !lockedIds.includes(playerId));
+    // Zone from current stint (on field) or last stint (on bench)
+    const zone = stintZone[playerId] ?? lastStintZone[playerId] ?? null;
+    setLockModal({ playerId, zone });
   }
 
   const suggestions =
     isPreGame || isFinished
       ? []
-      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds, zoneMsByPlayer);
+      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds, zoneMsByPlayer, zoneLockedPlayers);
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
@@ -555,6 +562,7 @@ export function LiveGame({
               persistSwap(s.off_player_id, s.on_player_id, s.zone);
             }
           }}
+          onApplyOne={(s) => persistSwap(s.off_player_id, s.on_player_id, s.zone)}
           onAcknowledge={handleSubModalAcknowledge}
           onSnooze={handleSubModalSnooze}
           pending={isPending}
@@ -605,11 +613,11 @@ export function LiveGame({
 
       {(() => {
         const swapOffs = new Map<string, number>();
-        const swapOns = new Map<string, number>();
+        const swapOns = new Map<string, { pair: number; zone: Zone }>();
         if (!selected) {
           suggestions.forEach((s, i) => {
             if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
-            swapOns.set(s.on_player_id, i + 1);
+            swapOns.set(s.on_player_id, { pair: i + 1, zone: s.zone });
           });
         }
         return (
@@ -622,6 +630,7 @@ export function LiveGame({
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
               lockedIds={lockedIds}
+              zoneLockedPlayers={zoneLockedPlayers}
               onLongPress={handleLongPress}
               zoneCaps={zoneCaps}
               positionModel={positionModel}
@@ -635,6 +644,7 @@ export function LiveGame({
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
               lockedIds={lockedIds}
+              zoneLockedPlayers={zoneLockedPlayers}
               onLongPress={handleLongPress}
               playerScores={playerScores}
             />
@@ -751,6 +761,35 @@ export function LiveGame({
           onClose={handleWalkthroughClose}
         />
       )}
+
+      {lockModal && (() => {
+        const p = playersById.get(lockModal.playerId);
+        if (!p) return null;
+        const isFieldLocked = lockedIds.includes(lockModal.playerId);
+        const isZoneLocked = !!zoneLockedPlayers[lockModal.playerId];
+        const currentLock: "field" | "zone" | null = isFieldLocked ? "field" : isZoneLocked ? "zone" : null;
+        return (
+          <LockModal
+            player={p}
+            currentLock={currentLock}
+            currentZone={lockModal.zone}
+            onLockField={() => {
+              setLocked(lockModal.playerId, true);
+              setLockModal(null);
+            }}
+            onLockZone={() => {
+              if (lockModal.zone) setZoneLocked(lockModal.playerId, lockModal.zone);
+              setLockModal(null);
+            }}
+            onUnlock={() => {
+              setLocked(lockModal.playerId, false);
+              setZoneLocked(lockModal.playerId, null);
+              setLockModal(null);
+            }}
+            onClose={() => setLockModal(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

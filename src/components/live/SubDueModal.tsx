@@ -19,6 +19,7 @@ interface SubDueModalProps {
   suggestions: SwapSuggestion[];
   playersById: Map<string, Player>;
   onApply: () => void;
+  onApplyOne: (s: SwapSuggestion) => void;
   onAcknowledge: () => void;
   onSnooze: () => void;
   pending?: boolean;
@@ -28,6 +29,7 @@ export function SubDueModal({
   suggestions,
   playersById,
   onApply,
+  onApplyOne,
   onAcknowledge,
   onSnooze,
   pending,
@@ -61,24 +63,36 @@ export function SubDueModal({
               {valid.map(({ s, off, on }) => (
                 <li
                   key={s.on_player_id}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                  className="rounded-lg border border-gray-200 bg-gray-50 text-sm"
                 >
-                  <span className="flex-1 tabular-nums">
-                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-                      <span className="text-[11px]">↑</span>
-                      {first(on.full_name)} #{on.jersey_number}
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <span className="flex-1 tabular-nums">
+                      <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                        <span className="text-[11px]">↑</span>
+                        {first(on.full_name)} #{on.jersey_number}
+                      </span>
+                      <span className="mx-1 text-gray-400">→</span>
+                      <span className="text-gray-600">{ZONE_LABELS[s.zone] ?? s.zone}</span>
                     </span>
-                    <span className="mx-1 text-gray-400">→</span>
-                    <span className="text-gray-600">{ZONE_LABELS[s.zone] ?? s.zone}</span>
-                  </span>
-                  <span className="text-gray-300">|</span>
-                  <span className="flex-1 tabular-nums text-right">
-                    <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
-                      <span className="text-[11px]">↓</span>
-                      {first(off.full_name)} #{off.jersey_number}
+                    <span className="text-gray-300">|</span>
+                    <span className="flex-1 tabular-nums text-right">
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+                        <span className="text-[11px]">↓</span>
+                        {first(off.full_name)} #{off.jersey_number}
+                      </span>
+                      <span className="ml-1 text-gray-500">bench</span>
                     </span>
-                    <span className="ml-1 text-gray-500">bench</span>
-                  </span>
+                  </div>
+                  <div className="border-t border-gray-100 px-3 py-1.5">
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => { onApplyOne(s); }}
+                      className="w-full rounded-md bg-amber-100 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 disabled:opacity-60"
+                    >
+                      Apply this sub
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -60,6 +60,8 @@ export function QuarterBreak({
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
   const lastStintMs = useLiveGame((s) => s.lastStintMs);
   const lastStintZone = useLiveGame((s) => s.lastStintZone);
+  const lockedIds = useLiveGame((s) => s.lockedIds);
+  const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
@@ -154,12 +156,22 @@ export function QuarterBreak({
   const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
+    // Recent arrivals: short last stint
     for (const [pid, dur] of Object.entries(lastStintMs)) {
       const z = lastStintZone[pid];
       if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
     }
+    // Field-locked: always stay in their last zone (never go to bench)
+    for (const pid of lockedIds) {
+      const z = lastStintZone[pid];
+      if (z) pins[pid] = z;
+    }
+    // Zone-locked: prefer their locked zone at quarter breaks
+    for (const [pid, z] of Object.entries(zoneLockedPlayers)) {
+      pins[pid] = z;
+    }
     return pins;
-  }, [lastStintMs, lastStintZone]);
+  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
 
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;

@@ -1,23 +1,24 @@
 "use client";
 
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import type { Player } from "@/lib/types";
+import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { PlayerTile } from "@/components/live/PlayerTile";
 
 interface BenchProps {
   playersById: Map<string, Player>;
   onTapBench: (playerId: string) => void;
-  swapOns?: Map<string, number>;
+  swapOns?: Map<string, { pair: number; zone: Zone }>;
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
   lockedIds?: string[];
+  zoneLockedPlayers?: Record<string, Zone>;
   onLongPress?: (playerId: string) => void;
   playerScores?: Record<string, { goals: number; behinds: number }>;
 }
 
-export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, lockedIds, onLongPress, playerScores }: BenchProps) {
+export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, lockedIds, zoneLockedPlayers, onLongPress, playerScores }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
@@ -47,11 +48,14 @@ export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneM
                 onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                 selected={isSelected}
                 dimmed={!benchActive && selected !== null}
-                swap={swapOns?.has(pid) ? { role: "on", pair: swapOns.get(pid)! } : null}
+                swap={(() => {
+                  const info = swapOns?.get(pid);
+                  return info ? { role: "on", pair: info.pair, zone: info.zone } : null;
+                })()}
                 totalMs={totalMsByPlayer?.[pid]}
                 zoneMs={zoneMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
-                locked={lockedSet.has(pid)}
+                lockMode={lockedSet.has(pid) ? "field" : zoneLockedPlayers?.[pid] ? "zone" : null}
                 score={playerScores?.[pid]}
               />
             );
