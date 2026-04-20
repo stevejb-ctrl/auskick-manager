@@ -99,6 +99,8 @@ interface LiveGameProps {
   songUrl?: string | null;
   /** Seconds into the song to start playback from (default 0). */
   songStartSeconds?: number;
+  /** How many seconds to play the song for after each goal (default 15). */
+  songDurationSeconds?: number;
 }
 
 export function LiveGame({
@@ -116,6 +118,7 @@ export function LiveGame({
   exitHref,
   songUrl,
   songStartSeconds = 0,
+  songDurationSeconds = 15,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -169,7 +172,7 @@ export function LiveGame({
   const quarterEndTriggeredRef = useRef<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
 
-  // Team song — play 15 s from the configured start point on each goal
+  // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
@@ -240,7 +243,7 @@ export function LiveGame({
         songTimerRef.current = setTimeout(() => {
           ytPlayerRef.current?.pauseVideo();
           songTimerRef.current = null;
-        }, 15_000);
+        }, songDurationSeconds * 1000);
       } else {
         // HTML5 Audio path (uploaded file)
         const audio = songAudioRef.current ?? new Audio(songUrl);
@@ -250,7 +253,7 @@ export function LiveGame({
         songTimerRef.current = setTimeout(() => {
           audio.pause();
           songTimerRef.current = null;
-        }, 15_000);
+        }, songDurationSeconds * 1000);
       }
     } catch {
       // ignore any audio API errors

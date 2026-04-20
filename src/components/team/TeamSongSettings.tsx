@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import {
   saveSong,
   saveSongUrl,
-  updateSongStart,
+  updateSongTiming,
   deleteSong,
 } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
@@ -13,6 +13,7 @@ interface TeamSongSettingsProps {
   teamId: string;
   currentSongUrl: string | null;
   currentStartSeconds: number;
+  currentDurationSeconds: number;
   isAdmin: boolean;
 }
 
@@ -26,6 +27,7 @@ export function TeamSongSettings({
   teamId,
   currentSongUrl,
   currentStartSeconds,
+  currentDurationSeconds,
   isAdmin,
 }: TeamSongSettingsProps) {
   const [isPending, startTransition] = useTransition();
@@ -33,6 +35,7 @@ export function TeamSongSettings({
   const [success, setSuccess] = useState<string | null>(null);
   const [songUrl, setSongUrl] = useState<string | null>(currentSongUrl);
   const [startSecs, setStartSecs] = useState(currentStartSeconds);
+  const [durationSecs, setDurationSecs] = useState(currentDurationSeconds);
 
   // URL input form state
   const [urlInput, setUrlInput] = useState(currentSongUrl ?? "");
@@ -77,7 +80,7 @@ export function TeamSongSettings({
     setTimeout(() => {
       audio.pause();
       setPreviewPlaying(false);
-    }, 15_000);
+    }, durationSecs * 1000);
   }
 
   // ── Save URL form ─────────────────────────────────────────────────────────
@@ -88,7 +91,7 @@ export function TeamSongSettings({
     const trimmed = urlInput.trim();
     if (!trimmed) return;
     startTransition(async () => {
-      const result = await saveSongUrl(teamId, trimmed, startSecs);
+      const result = await saveSongUrl(teamId, trimmed, startSecs, durationSecs);
       if (!result.success) {
         setError(result.error ?? null);
       } else {
@@ -107,6 +110,7 @@ export function TeamSongSettings({
     setError(null);
     const fd = new FormData(e.currentTarget);
     fd.set("start_seconds", String(startSecs));
+    fd.set("duration_seconds", String(durationSecs));
     startTransition(async () => {
       const result = await saveSong(teamId, fd);
       if (!result.success) {
@@ -122,15 +126,15 @@ export function TeamSongSettings({
     });
   }
 
-  // ── Update start time only ────────────────────────────────────────────────
+  // ── Update timing only (start + duration, no re-upload) ──────────────────
 
-  function handleUpdateStart(e: React.FormEvent<HTMLFormElement>) {
+  function handleUpdateTiming(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await updateSongStart(teamId, startSecs);
+      const result = await updateSongTiming(teamId, startSecs, durationSecs);
       if (!result.success) setError(result.error ?? null);
-      else flash("Start time updated!");
+      else flash("Timing updated!");
     });
   }
 
@@ -163,7 +167,7 @@ export function TeamSongSettings({
         <h2 className="mb-1 text-base font-semibold text-gray-900">Team song</h2>
         {songUrl ? (
           <p className="text-sm text-gray-500">
-            A team song is configured (start: {formatSeconds(startSecs)}).
+            A team song is configured (start: {formatSeconds(startSecs)}, plays for {durationSecs}s).
           </p>
         ) : (
           <p className="text-sm text-gray-400">No team song set up yet.</p>
@@ -181,7 +185,7 @@ export function TeamSongSettings({
         <div>
           <h2 className="text-base font-semibold text-gray-900">Team song</h2>
           <p className="mt-0.5 text-sm text-gray-500">
-            Plays for 15 seconds from the start point whenever a goal is scored.
+            Plays for {durationSecs} seconds from the start point whenever a goal is scored.
           </p>
         </div>
         <span className="text-2xl" aria-hidden>🎵</span>
@@ -240,12 +244,37 @@ export function TeamSongSettings({
               >
                 {isCurrentYouTube
                   ? showYtPreview ? "⏹ Hide preview" : "▶ Preview"
-                  : previewPlaying ? "⏹ Stop" : "▶ Preview 15s"}
+                  : previewPlaying ? "⏹ Stop" : `▶ Preview ${durationSecs}s`}
               </button>
             )}
           </div>
           <p className="mt-1 text-xs text-gray-400">
             Seconds into the song to start playing from (e.g. the chorus).
+          </p>
+        </div>
+
+        {/* Play duration */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Play for how long
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={5}
+              max={120}
+              step={5}
+              value={durationSecs}
+              onChange={(e) =>
+                setDurationSecs(Math.min(120, Math.max(5, parseInt(e.target.value) || 15)))
+              }
+              className="w-24 rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              aria-label="Duration seconds"
+            />
+            <span className="text-sm text-gray-500">{durationSecs} seconds</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            How many seconds of the song to play after each goal (5–120 s).
           </p>
         </div>
 
@@ -272,13 +301,13 @@ export function TeamSongSettings({
           </button>
           {songUrl && (
             <>
-              <form onSubmit={handleUpdateStart}>
+              <form onSubmit={handleUpdateTiming}>
                 <button
                   type="submit"
                   disabled={isPending}
                   className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
                 >
-                  {isPending ? "Saving…" : "Save start time only"}
+                  {isPending ? "Saving…" : "Save timing only"}
                 </button>
               </form>
               <button

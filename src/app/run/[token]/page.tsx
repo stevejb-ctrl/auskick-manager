@@ -57,7 +57,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, track_scoring, age_group, song_url, song_start_seconds")
+    .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
@@ -66,6 +66,7 @@ export default async function RunPage({ params }: RunPageProps) {
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
   const songUrl = teamRow?.song_url ?? null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
+  const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -136,6 +137,7 @@ export default async function RunPage({ params }: RunPageProps) {
           positionModel={positionModel}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
+          songDurationSeconds={songDurationSeconds}
         />
       </div>
     );

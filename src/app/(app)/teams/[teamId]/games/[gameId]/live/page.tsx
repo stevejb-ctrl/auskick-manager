@@ -49,7 +49,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, track_scoring, age_group, song_url, song_start_seconds")
+      .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds")
       .eq("id", params.teamId)
       .single(),
   ]);
@@ -60,6 +60,7 @@ export default async function LivePage({ params }: LivePageProps) {
   const ageGroup = ageGroupOf(teamRow?.age_group);
   const songUrl = teamRow?.song_url ?? null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
+  const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
 
   // Has the game already started? (any lineup_set event)
@@ -136,6 +137,7 @@ export default async function LivePage({ params }: LivePageProps) {
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
+          songDurationSeconds={songDurationSeconds}
         />
         {isAdmin && (
           <div className="border-t border-gray-200 pt-4">

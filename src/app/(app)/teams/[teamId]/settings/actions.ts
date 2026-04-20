@@ -66,6 +66,10 @@ export async function saveSong(
     0,
     parseInt((formData.get("start_seconds") as string | null) ?? "0", 10) || 0
   );
+  const durationSeconds = Math.min(
+    120,
+    Math.max(5, parseInt((formData.get("duration_seconds") as string | null) ?? "15", 10) || 15)
+  );
 
   if (!file || file.size === 0) return { success: false, error: "No file selected." };
   if (file.size > MAX_BYTES) return { success: false, error: "File too large (max 20 MB)." };
@@ -109,7 +113,7 @@ export async function saveSong(
   // Persist to teams table
   const { error: updateError } = await supabase
     .from("teams")
-    .update({ song_url: publicUrl, song_start_seconds: startSeconds })
+    .update({ song_url: publicUrl, song_start_seconds: startSeconds, song_duration_seconds: durationSeconds })
     .eq("id", teamId);
 
   if (updateError) return { success: false, error: updateError.message };
@@ -125,7 +129,8 @@ export async function saveSong(
 export async function saveSongUrl(
   teamId: string,
   url: string,
-  startSeconds: number
+  startSeconds: number,
+  durationSeconds: number
 ): Promise<ActionResult & { song_url?: string }> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
@@ -137,7 +142,11 @@ export async function saveSongUrl(
 
   const { error: updateError } = await supabase
     .from("teams")
-    .update({ song_url: trimmed, song_start_seconds: Math.max(0, startSeconds) })
+    .update({
+      song_url: trimmed,
+      song_start_seconds: Math.max(0, startSeconds),
+      song_duration_seconds: Math.min(120, Math.max(5, durationSeconds)),
+    })
     .eq("id", teamId);
 
   if (updateError) return { success: false, error: updateError.message };
@@ -146,17 +155,21 @@ export async function saveSongUrl(
   return { success: true, song_url: trimmed };
 }
 
-/** Update only the song start time (no re-upload needed). */
-export async function updateSongStart(
+/** Update song timing (start + duration) without re-uploading the file or URL. */
+export async function updateSongTiming(
   teamId: string,
-  startSeconds: number
+  startSeconds: number,
+  durationSeconds: number
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
   const { error: updateError } = await supabase
     .from("teams")
-    .update({ song_start_seconds: Math.max(0, startSeconds) })
+    .update({
+      song_start_seconds: Math.max(0, startSeconds),
+      song_duration_seconds: Math.min(120, Math.max(5, durationSeconds)),
+    })
     .eq("id", teamId);
 
   if (updateError) return { success: false, error: updateError.message };
