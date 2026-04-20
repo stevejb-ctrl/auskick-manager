@@ -17,41 +17,42 @@ export function ScoreBoard({ teamName, opponentName, onOpponent }: ScoreBoardPro
   const opp = useLiveGame((s) => s.opponentScore);
 
   return (
-    <div className="flex items-stretch gap-2 rounded-lg border border-gray-200 bg-white p-2 text-sm shadow-sm">
+    <div className="flex items-stretch gap-2 rounded-md border border-hairline bg-surface p-2 text-sm shadow-card">
       <div className="flex-1 text-center">
-        <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {teamName}
         </p>
-        <p className="tabular-nums text-gray-900">
+        <p className="nums font-mono text-ink">
           <span className="text-lg font-bold">{team.goals}</span>
-          <span className="text-lg font-bold">.</span>
+          <span className="text-lg font-bold text-ink-mute">.</span>
           <span className="text-lg font-bold">{team.behinds}</span>
-          <span className="text-lg font-bold ml-1">{points(team)}</span>
+          <span className="ml-1 text-lg font-bold">{points(team)}</span>
         </p>
       </div>
+      <div className="w-px self-stretch bg-hairline" aria-hidden />
       <div className="flex-1 text-center">
-        <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {opponentName}
         </p>
-        <p className="tabular-nums text-gray-900">
+        <p className="nums font-mono text-ink">
           <span className="text-lg font-bold">{opp.goals}</span>
-          <span className="text-lg font-bold">.</span>
+          <span className="text-lg font-bold text-ink-mute">.</span>
           <span className="text-lg font-bold">{opp.behinds}</span>
-          <span className="text-lg font-bold ml-1">{points(opp)}</span>
+          <span className="ml-1 text-lg font-bold">{points(opp)}</span>
         </p>
         {onOpponent && (
           <div className="mt-1 flex justify-center gap-1">
             <button
               type="button"
               onClick={() => onOpponent("goal")}
-              className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-200"
+              className="rounded-xs bg-surface-alt px-2 py-0.5 text-[11px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink"
             >
               +G
             </button>
             <button
               type="button"
               onClick={() => onOpponent("behind")}
-              className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-200"
+              className="rounded-xs bg-surface-alt px-2 py-0.5 text-[11px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink"
             >
               +B
             </button>

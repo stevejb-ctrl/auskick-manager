@@ -21,12 +21,12 @@ export function GameClock() {
 
   return (
     <div className="flex items-baseline justify-center gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
         {quarter === 0 ? "Pre-game" : quarter > 4 ? "Full time" : `Q${quarter}`}
       </span>
       <span
-        className={`text-4xl font-bold tabular-nums ${
-          overtime ? "text-red-600" : "text-gray-900"
+        className={`nums font-mono text-4xl font-bold tracking-tightest ${
+          overtime ? "text-warn" : "text-ink"
         }`}
       >
         {formatClock(remaining)}
