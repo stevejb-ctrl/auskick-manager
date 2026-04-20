@@ -178,6 +178,29 @@ export async function updateSongTiming(
   return { success: true };
 }
 
+/** Rename the team. Admin only. */
+export async function renameTeam(
+  teamId: string,
+  newName: string
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const trimmed = newName.trim();
+  if (trimmed.length === 0) return { success: false, error: "Name can't be empty." };
+  if (trimmed.length > 80) return { success: false, error: "Name is too long (80 chars max)." };
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ name: trimmed })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
+}
+
 /** Remove the team song entirely. */
 export async function deleteSong(teamId: string): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);

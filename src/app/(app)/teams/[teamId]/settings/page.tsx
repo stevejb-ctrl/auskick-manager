@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
+import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 
 interface SettingsPageProps {
   params: { teamId: string };
@@ -40,6 +41,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   return (
     <div className="space-y-6">
+      <TeamNameSettings
+        teamId={params.teamId}
+        currentName={team.name}
+        isAdmin={isAdmin}
+      />
       <TeamSongSettings
         teamId={params.teamId}
         currentSongUrl={songData?.song_url ?? null}
