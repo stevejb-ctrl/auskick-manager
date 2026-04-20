@@ -341,6 +341,8 @@ export interface GameState {
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
   injuredIds: string[];
+  /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
+  quarterStartedAt: string | null;
 }
 
 export function replayGame(events: GameEvent[]): GameState {
@@ -359,7 +361,9 @@ export function replayGame(events: GameEvent[]): GameState {
     stintStartMs: {},
     stintZone: {},
     injuredIds: [],
+    quarterStartedAt: null,
   };
+  let quarterStartedAt: string | null = null;
   const addPlayed = (pid: string, zone: Zone, ms: number) => {
     if (ms <= 0) return;
     state.basePlayedZoneMs[pid] ??= emptyZM();
@@ -382,6 +386,7 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "quarter_start" && meta.quarter) {
       state.currentQuarter = meta.quarter;
       state.quarterEnded = false;
+      quarterStartedAt = ev.created_at;
       state.stintStartMs = {};
       state.stintZone = {};
       if (state.lineup) {
@@ -394,6 +399,7 @@ export function replayGame(events: GameEvent[]): GameState {
       }
     } else if (ev.type === "quarter_end") {
       state.quarterEnded = true;
+      quarterStartedAt = null;
       for (const [pid, start] of Object.entries(state.stintStartMs)) {
         const z = state.stintZone[pid];
         if (z) addPlayed(pid, z, elapsed - start);
@@ -467,9 +473,8 @@ export function replayGame(events: GameEvent[]): GameState {
     }
   }
 
-  // Ensure replayed lineup has all zone arrays normalised even if events
-  // never hydrated a lineup_set (defensive — shouldn't happen in practice).
   if (state.lineup) state.lineup = normalizeLineup(state.lineup);
+  state.quarterStartedAt = quarterStartedAt;
 
   return state;
 }
