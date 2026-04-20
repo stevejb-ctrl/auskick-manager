@@ -17,7 +17,7 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-warm">
+    <div>
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <span className="text-lg font-semibold text-brand-700">
@@ -31,7 +31,7 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
+      <main className="px-4 py-4">{children}</main>
     </div>
   );
 }

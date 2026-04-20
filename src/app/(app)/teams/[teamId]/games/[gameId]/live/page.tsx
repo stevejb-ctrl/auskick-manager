@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
+import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
   replayGame,
@@ -135,7 +136,8 @@ export default async function LivePage({ params }: LivePageProps) {
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
+        <GameInfoHeader teamName={teamName} g={g} compact />
         <LiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
@@ -154,8 +156,11 @@ export default async function LivePage({ params }: LivePageProps) {
           songDurationSeconds={songDurationSeconds}
         />
         {isAdmin && (
-          <div className="border-t border-gray-200 pt-4">
-            <ResetGameButton teamId={params.teamId} gameId={params.gameId} />
+          <div className="border-t border-hairline pt-4">
+            <ResetGameButton
+              auth={{ kind: "team", teamId: params.teamId }}
+              gameId={params.gameId}
+            />
           </div>
         )}
       </div>

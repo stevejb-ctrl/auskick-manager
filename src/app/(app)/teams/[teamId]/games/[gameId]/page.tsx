@@ -121,7 +121,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             </Link>
             {role === "admin" && <ShareRunnerLink token={g.share_token} />}
             {role === "admin" && g.status !== "upcoming" && (
-              <ResetGameButton teamId={params.teamId} gameId={params.gameId} />
+              <ResetGameButton auth={{ kind: "team", teamId: params.teamId }} gameId={params.gameId} />
             )}
             {role === "admin" && (
               <DeleteGameButton teamId={params.teamId} gameId={params.gameId} />

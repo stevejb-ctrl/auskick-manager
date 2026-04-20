@@ -205,26 +205,45 @@ export async function removeFillIn(
 }
 
 export async function resetGame(
-  teamId: string,
+  auth: LiveAuth,
   gameId: string
 ): Promise<ActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: "Unauthenticated." };
+  const admin = createAdminClient();
 
-  const { data: membership } = await supabase
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", teamId)
-    .eq("user_id", user.id)
-    .single();
-  if (!membership || membership.role !== "admin") {
-    return { success: false, error: "Only admins can reset games." };
+  // Resolve team id + authorise. Token bearers are trusted for live-game
+  // ops including reset (same level as scoring / late arrivals). Team
+  // callers must be a team admin (game_managers can run the game but not
+  // destroy its history).
+  let teamId: string;
+  if (auth.kind === "token") {
+    const { data: game } = await admin
+      .from("games")
+      .select("id, team_id, share_token")
+      .eq("id", gameId)
+      .maybeSingle();
+    if (!game || game.share_token !== auth.token) {
+      return { success: false, error: "Invalid share link." };
+    }
+    teamId = game.team_id;
+  } else {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthenticated." };
+
+    const { data: membership } = await supabase
+      .from("team_memberships")
+      .select("role")
+      .eq("team_id", auth.teamId)
+      .eq("user_id", user.id)
+      .single();
+    if (!membership || membership.role !== "admin") {
+      return { success: false, error: "Only admins can reset games." };
+    }
+    teamId = auth.teamId;
   }
 
-  const admin = createAdminClient();
   const { error: delError } = await admin
     .from("game_events")
     .delete()

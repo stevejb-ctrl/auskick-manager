@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LiveGame } from "@/components/live/LiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
-import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { GameInfoHeader } from "@/components/games/GameInfoHeader";
+import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { replayGame, seasonZoneMinutes, zoneCapsFor } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -13,59 +14,6 @@ export const dynamic = "force-dynamic";
 
 interface RunPageProps {
   params: { token: string };
-}
-
-function GameHeader({
-  teamName,
-  g,
-  compact = false,
-}: {
-  teamName: string;
-  g: Game;
-  compact?: boolean;
-}) {
-  if (compact) {
-    // In-game: the scorebug already shows team names + quarter, so keep
-    // this to a single slim line of context on the warm background.
-    return (
-      <div className="flex flex-wrap items-baseline gap-x-2 px-1 text-xs text-ink-mute">
-        {g.round_number != null && (
-          <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
-            R{g.round_number}
-          </span>
-        )}
-        <span>
-          <FormattedDateTime iso={g.scheduled_at} mode="long" />
-        </span>
-        {g.location && <span>· {g.location}</span>}
-      </div>
-    );
-  }
-  return (
-    <div>
-      <div className="flex items-baseline gap-2">
-        {g.round_number != null && (
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-            Round {g.round_number}
-          </span>
-        )}
-        <span className="text-xs text-ink-mute">
-          <FormattedDateTime iso={g.scheduled_at} mode="long" />
-        </span>
-      </div>
-      <h2 className="mt-0.5 text-base font-semibold text-ink">
-        {teamName} vs {g.opponent}
-      </h2>
-      {g.location && (
-        <p className="text-xs text-ink-mute">{g.location}</p>
-      )}
-      {g.notes && (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-ink-dim">
-          {g.notes}
-        </p>
-      )}
-    </div>
-  );
 }
 
 export default async function RunPage({ params }: RunPageProps) {
@@ -126,7 +74,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
     return (
       <div className="mx-auto max-w-2xl space-y-3 p-3">
-        <GameHeader teamName={teamName} g={g} compact />
+        <GameInfoHeader teamName={teamName} g={g} compact />
         <LiveGame
           auth={auth}
           gameId={g.id}
@@ -143,13 +91,16 @@ export default async function RunPage({ params }: RunPageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
         />
+        <div className="border-t border-hairline pt-4">
+          <ResetGameButton auth={auth} gameId={g.id} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
-      <GameHeader teamName={teamName} g={g} />
+      <GameInfoHeader teamName={teamName} g={g} />
 
       <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">

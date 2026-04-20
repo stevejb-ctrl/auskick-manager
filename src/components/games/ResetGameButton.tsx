@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import type { LiveAuth } from "@/lib/types";
 
 interface ResetGameButtonProps {
-  teamId: string;
+  auth: LiveAuth;
   gameId: string;
 }
 
-export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
+export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
   const [stage, setStage] = useState<"idle" | "confirm" | "final">("idle");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function ResetGameButton({ teamId, gameId }: ResetGameButtonProps) {
   function handleReset() {
     setError(null);
     startTransition(async () => {
-      const result = await resetGame(teamId, gameId);
+      const result = await resetGame(auth, gameId);
       if (!result.success) {
         setError(result.error);
         setStage("idle");
