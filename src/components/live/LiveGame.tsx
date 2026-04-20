@@ -16,6 +16,7 @@ import {
   recordOpponentScore,
   recordSwap,
   startQuarter,
+  undoLastScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
@@ -29,6 +30,7 @@ import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/Walkt
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
+import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
 import {
   ALL_ZONES,
@@ -103,6 +105,14 @@ interface LiveGameProps {
   songDurationSeconds?: number;
 }
 
+type LastScore = {
+  kind: "goal" | "behind";
+  forTeam: "us" | "opponent";
+  playerId: string | null;
+  playerName: string | null;
+  quarter: number;
+};
+
 export function LiveGame({
   auth,
   gameId,
@@ -137,6 +147,9 @@ export function LiveGame({
   const incTeam = useLiveGame((s) => s.incTeam);
   const incOpponent = useLiveGame((s) => s.incOpponent);
   const incPlayerScore = useLiveGame((s) => s.incPlayerScore);
+  const undoTeamScore = useLiveGame((s) => s.undoTeamScore);
+  const undoOpponentScore = useLiveGame((s) => s.undoOpponentScore);
+  const undoPlayerScore = useLiveGame((s) => s.undoPlayerScore);
   const playerScores = useLiveGame((s) => s.playerScores);
   const startClock = useLiveGame((s) => s.startClock);
   const pauseClock = useLiveGame((s) => s.pauseClock);
@@ -172,28 +185,23 @@ export function LiveGame({
   const quarterEndTriggeredRef = useRef<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
 
+  // Undo-score state
+  const [lastScore, setLastScore] = useState<LastScore | null>(null);
+  const [undoToastVisible, setUndoToastVisible] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
   const ytReadyRef = useRef(false);
-  // Stable container that React owns; the YT API manages a child element inside it
-  // so React never tries to reconcile the iframe the API creates.
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Load the YouTube IFrame API once if the song URL is a YouTube link.
-  // NOTE: depends on `hydrated` because the container div only enters the DOM after
-  // the hydration guard clears. Without this dep the effect would fire when the
-  // component still returns null, find ytContainerRef.current === null, bail out
-  // early, and never re-run because songUrl/gameId don't change on the second render.
   useEffect(() => {
     if (!hydrated || !songUrl || !isYouTubeUrl(songUrl)) return;
     const videoId = youtubeVideoId(songUrl);
     if (!videoId || !ytContainerRef.current) return;
 
-    // Create a plain div for the YT API to replace with an iframe.
-    // Using document.createElement keeps this element outside React's vdom,
-    // preventing the "insertBefore" crash when React reconciles the tree.
     const playerDiv = document.createElement("div");
     ytContainerRef.current.appendChild(playerDiv);
 
@@ -210,7 +218,6 @@ export function LiveGame({
     if (window.YT?.Player) {
       createPlayer();
     } else {
-      // Queue the callback; the script fires it once loaded.
       window.onYouTubeIframeAPIReady = createPlayer;
       if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
         const tag = document.createElement("script");
@@ -236,7 +243,6 @@ export function LiveGame({
         songTimerRef.current = null;
       }
       if (isYouTubeUrl(songUrl)) {
-        // YouTube IFrame path
         if (!ytReadyRef.current || !ytPlayerRef.current) return;
         ytPlayerRef.current.seekTo(songStartSeconds, true);
         ytPlayerRef.current.playVideo();
@@ -245,11 +251,10 @@ export function LiveGame({
           songTimerRef.current = null;
         }, songDurationSeconds * 1000);
       } else {
-        // HTML5 Audio path (uploaded file)
         const audio = songAudioRef.current ?? new Audio(songUrl);
         songAudioRef.current = audio;
         audio.currentTime = songStartSeconds;
-        audio.play().catch(() => {}); // silently ignore autoplay policy blocks
+        audio.play().catch(() => {});
         songTimerRef.current = setTimeout(() => {
           audio.pause();
           songTimerRef.current = null;
@@ -285,12 +290,9 @@ export function LiveGame({
   useEffect(() => {
     if (!initialState.lineup) return;
     if (activeGameId === gameId) {
-      // Same game already loaded — in-memory store is authoritative.
-      // Avoid overwriting with potentially stale server data (router cache).
       setHydrated(true);
       return;
     }
-    // Reconstruct running clock for an active quarter from the quarter_start wall time.
     let clockStartedAt: number | null = null;
     let accumulatedMs = 0;
     if (
@@ -325,14 +327,12 @@ export function LiveGame({
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
   }
 
-  // Re-render every 500ms while the clock is running so the sub timer updates.
   useEffect(() => {
     if (clockStartedAt === null) return;
     const id = setInterval(() => setTick((t) => t + 1), 500);
     return () => clearInterval(id);
   }, [clockStartedAt]);
 
-  // When a new quarter begins, reset the sub timer base to now.
   useEffect(() => {
     if (currentQuarter >= 1 && !quarterEnded && !finalised) {
       setSubBaseMs(clockElapsedMs({ clockStartedAt, accumulatedMs }));
@@ -343,7 +343,6 @@ export function LiveGame({
   }, [currentQuarter, quarterEnded, finalised]);
 
   function handleTapField(playerId: string, zone: Zone) {
-    // Empty slot was tapped.
     if (playerId === "") {
       if (selected?.kind === "bench") {
         clearSelection();
@@ -360,12 +359,10 @@ export function LiveGame({
       return;
     }
     if (selected.kind === "bench") {
-      // swap bench player ON → current field tile (same zone enforced: zone = tapped tile's zone)
       clearSelection();
       setPendingSwap({ off: playerId, on: selected.playerId, zone });
       return;
     }
-    // selected is a different field player — just re-select
     selectField(playerId, zone);
   }
 
@@ -379,7 +376,6 @@ export function LiveGame({
       return;
     }
     if (selected.kind === "field") {
-      // swap off selected field player, on this bench player
       clearSelection();
       setPendingSwap({ off: selected.playerId, on: playerId, zone: selected.zone });
       return;
@@ -387,15 +383,30 @@ export function LiveGame({
     selectBench(playerId);
   }
 
+  function startUndoToast(score: LastScore) {
+    if (undoTimerRef.current !== null) clearTimeout(undoTimerRef.current);
+    setLastScore(score);
+    setUndoToastVisible(true);
+    undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
+  }
+
   function handleScore(kind: "goal" | "behind") {
     if (!selected || selected.kind !== "field") return;
     const playerId = selected.playerId;
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
+    const p = playersById.get(playerId);
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
     clearSelection();
     if (kind === "goal") playSong();
+    startUndoToast({
+      kind,
+      forTeam: "us",
+      playerId,
+      playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
+      quarter,
+    });
     startTransition(async () => {
       const fn = kind === "goal" ? recordGoal : recordBehind;
       const result = await fn(auth, gameId, {
@@ -442,6 +453,7 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
+    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
     startTransition(async () => {
       const result = await recordOpponentScore(auth, gameId, {
         kind,
@@ -452,13 +464,44 @@ export function LiveGame({
     });
   }
 
+  function handleUndo() {
+    if (!lastScore) return;
+    const { kind, forTeam, playerId, quarter } = lastScore;
+
+    if (forTeam === "us") {
+      undoTeamScore(kind === "goal" ? "goals" : "behinds");
+      if (playerId) undoPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
+    } else {
+      undoOpponentScore(kind === "goal" ? "goals" : "behinds");
+    }
+
+    setLastScore(null);
+    setUndoToastVisible(false);
+    if (undoTimerRef.current !== null) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+
+    const serverKind: "goal" | "behind" | "opponent_goal" | "opponent_behind" =
+      forTeam === "us"
+        ? kind
+        : kind === "goal" ? "opponent_goal" : "opponent_behind";
+
+    startTransition(async () => {
+      const result = await undoLastScore(auth, gameId, {
+        kind: serverKind,
+        quarter,
+        playerId: playerId ?? null,
+      });
+      if (!result.success) setError(result.error);
+    });
+  }
+
   function persistSwap(off: string, on: string, zone: Zone) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
-    // Reset sub timer on every applied swap.
     setSubBaseMs(elapsed_ms);
-    // Optimistic client update, then persist event.
     applySwap(off, on, zone);
     startTransition(async () => {
       const result = await recordSwap(auth, gameId, {
@@ -470,8 +513,6 @@ export function LiveGame({
       });
       if (!result.success) {
         setError(result.error);
-        // NB: event failed; client state is now out of sync with server.
-        // Simplest recovery: reload the page.
       }
     });
   }
@@ -518,7 +559,6 @@ export function LiveGame({
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
-  // Cap player-counter display at the quarter boundary so tiles freeze rather than running into overtime.
   const displayNowMs = Math.min(nowMs, QUARTER_MS);
 
   const zoneMsByPlayer: Record<string, ZoneMinutes> = {};
@@ -568,6 +608,10 @@ export function LiveGame({
 
   useEffect(() => {
     return () => {
+      if (undoTimerRef.current !== null) {
+        clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = null;
+      }
       if (songTimerRef.current !== null) {
         clearTimeout(songTimerRef.current);
         songTimerRef.current = null;
@@ -581,7 +625,6 @@ export function LiveGame({
     setSubModalOpen(false);
   }
 
-  // Detect when the quarter clock hits the threshold; show modal once per quarter.
   useEffect(() => {
     if (quarterEnded || finalised || currentQuarter < 1) return;
 
@@ -602,7 +645,6 @@ export function LiveGame({
     return () => clearInterval(id);
   }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter]);
 
-  // Dismiss the modal whenever the quarter is actually ended (manual or via modal).
   useEffect(() => {
     if (quarterEnded) setShowQuarterEndModal(false);
   }, [quarterEnded]);
@@ -624,7 +666,6 @@ export function LiveGame({
   }
 
   function handleLongPress(playerId: string) {
-    // Zone from current stint (on field) or last stint (on bench)
     const zone = stintZone[playerId] ?? lastStintZone[playerId] ?? null;
     setLockModal({ playerId, zone });
   }
@@ -673,18 +714,36 @@ export function LiveGame({
         isFinished={isFinished}
       />
 
-      {/* Primary game-state action (Start Q1 / End Q / Full time) */}
+      {/* Undo last score — toast (8 s) then persistent chip */}
+      {lastScore && !isPreGame && !isFinished && (
+        <div
+          className={`flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
+            undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+          }`}
+        >
+          <span className={`text-xs ${undoToastVisible ? "text-warm/80" : "text-ink-dim"}`}>
+            {undoToastVisible
+              ? `${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
+              : "Undo last score"}
+          </span>
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={isPending}
+            className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
+              undoToastVisible ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"
+            }`}
+          >
+            Undo
+          </button>
+        </div>
+      )}
+
+      {/* Start Q1 */}
       {isPreGame && (
         <Button className="w-full" onClick={handleStartFirstQuarter} loading={isPending}>
           Start Q1
         </Button>
-      )}
-      {!isPreGame && !isFinished && (
-        <div className="flex justify-end">
-          <Button size="sm" variant="ghost" onClick={handleEndQuarter} loading={isPending}>
-            End Q{currentQuarter}
-          </Button>
-        </div>
       )}
       {isFinished && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
@@ -692,12 +751,11 @@ export function LiveGame({
         </p>
       )}
 
-      {/* Next-sub progress + X Next Up counter */}
+      {/* Next-sub progress */}
       {!isPreGame && !isFinished && (
         <NextSubBar
           msUntilDue={msUntilDue}
           subIntervalMs={subIntervalMs}
-          suggestionCount={suggestions.length}
         />
       )}
 
@@ -716,9 +774,9 @@ export function LiveGame({
             swapOns.set(s.on_player_id, { pair: i + 1, zone: s.zone });
           });
         }
+        const totalPairs = suggestions.length;
         return (
           <>
-            {/* Suggested-swaps card, collapsible, sits above the field */}
             {!isPreGame && !isFinished && (
               <SwapCard
                 suggestions={suggestions}
@@ -749,6 +807,7 @@ export function LiveGame({
               zoneCaps={zoneCaps}
               positionModel={positionModel}
               playerScores={playerScores}
+              totalPairs={totalPairs}
             />
             <Bench
               playersById={playersById}
@@ -761,6 +820,7 @@ export function LiveGame({
               zoneLockedPlayers={zoneLockedPlayers}
               onLongPress={handleLongPress}
               playerScores={playerScores}
+              totalPairs={totalPairs}
             />
             {!isFinished && (
               <InjuryMenu
@@ -854,6 +914,10 @@ export function LiveGame({
         />
       )}
 
+      {subModalOpen && (
+        <SubDueModal onAcknowledge={handleSubModalAcknowledge} />
+      )}
+
       {walkthroughOpen && (
         <WalkthroughModal
           steps={walkthroughSteps}
@@ -891,7 +955,6 @@ export function LiveGame({
         );
       })()}
 
-      {/* Hidden YouTube IFrame container — the API appends its own child here */}
       {songUrl && isYouTubeUrl(songUrl) && (
         <div
           ref={ytContainerRef}
