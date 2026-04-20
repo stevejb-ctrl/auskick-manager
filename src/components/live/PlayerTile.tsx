@@ -5,7 +5,13 @@ import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 
-export type SwapRole = { role: "off" | "on"; pair: number; zone?: Zone };
+export type SwapRole = {
+  role: "off" | "on";
+  pair: number;
+  zone?: Zone;
+  /** Total number of planned swaps this cycle — used to show/hide pair numbers. */
+  totalPairs?: number;
+};
 
 interface PlayerTileProps {
   player: Player;
@@ -19,7 +25,7 @@ interface PlayerTileProps {
   /** @deprecated kept for compatibility — ignored by the new layout. */
   compact?: boolean;
   totalMs?: number;
-  /** @deprecated kept for compatibility — the new design replaces the bar with a score chip. */
+  /** Zone-minute distribution for the current game — shown as a mini stacked bar at the tile bottom. */
   zoneMs?: ZoneMinutes;
   injured?: boolean;
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
@@ -34,19 +40,6 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-/**
- * Player tile — new Field Sunday layout:
- *
- *   [NEXT]                       [+]
- *         FWD              ← small zone chip, brand colour
- *        Indy              ← bold name
- *      #8 • 6:00           ← jersey + elapsed
- *       [2G · 1B]          ← dark score chip (only if scored)
- *
- * NEXT badge (dashed ochre, top-left) appears when the player is in the
- * "off" role of an engine-suggested swap. The + pill (top-right) is purely
- * a visual affordance hinting that the tile is tappable.
- */
 export function PlayerTile({
   player,
   currentZone,
@@ -56,6 +49,7 @@ export function PlayerTile({
   dimmed,
   swap,
   totalMs,
+  zoneMs,
   injured,
   lockMode,
   score,
@@ -92,8 +86,9 @@ export function PlayerTile({
   const showSwap = swap && !selected && !injured;
   const isOff = showSwap && swap.role === "off";
   const isOn = showSwap && swap.role === "on";
+  const showPairNumber = (swap?.totalPairs ?? 0) > 1;
 
-  // Zone-accent colour for the tiny zone chip at the top of the tile.
+  // Zone-accent colour for the zone chip and badges.
   const zoneAccent = currentZone
     ? currentZone === "fwd" || currentZone === "hfwd"
       ? "text-zone-f"
@@ -101,6 +96,14 @@ export function PlayerTile({
         ? "text-zone-c"
         : "text-zone-b"
     : "text-ink-dim";
+
+  // Accent class for the bench "→ ZONE" / "N → ZONE" chip, derived from target zone.
+  const swapZoneAccent =
+    swap?.zone === "fwd" || swap?.zone === "hfwd"
+      ? "border-zone-f/40 bg-zone-f/15 text-zone-f"
+      : swap?.zone === "mid"
+        ? "border-zone-c/40 bg-zone-c/15 text-zone-c"
+        : "border-zone-b/40 bg-zone-b/15 text-zone-b";
 
   const baseBg = selected
     ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
@@ -116,7 +119,6 @@ export function PlayerTile({
               ? "border-warn/50 bg-surface"
               : "border-hairline bg-surface hover:border-ink-mute";
 
-  // Display name: "First L" (e.g. "Indy M")
   const parts = player.full_name.trim().split(/\s+/);
   const firstName = parts[0] ?? "";
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
@@ -139,22 +141,32 @@ export function PlayerTile({
         !onClick && !onLongPress ? "cursor-default" : "",
       ].join(" ")}
     >
-      {/* NEXT chip — dashed ochre, top-left — means "coming off next swap" */}
+      {/* NEXT chip — dashed ochre, top-left — "coming off next swap"; shows pair number when multiple swaps */}
       {isOff && (
         <span
           className="absolute -left-1 -top-1.5 inline-flex items-center rounded-xs border border-dashed border-warn bg-warn-soft px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warn"
           aria-label={`Coming off next, pair ${swap.pair}`}
         >
-          NEXT
+          {showPairNumber ? `${swap.pair} NEXT` : "NEXT"}
         </span>
       )}
-      {/* ON chip — solid field green, top-left when not OFF */}
-      {isOn && (
+
+      {/* ON chip — bench target zone + optional pair number when multiple swaps */}
+      {isOn && swap?.zone && (
+        <span
+          className={`absolute -left-1 -top-1.5 inline-flex items-center rounded-xs border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none shadow-card ${swapZoneAccent}`}
+          aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
+        >
+          {showPairNumber ? `${swap.pair} → ${ZONE_SHORT[swap.zone]}` : `→ ${ZONE_SHORT[swap.zone]}`}
+        </span>
+      )}
+      {/* Fallback ON chip when zone is unknown */}
+      {isOn && !swap?.zone && (
         <span
           className="absolute -left-1 -top-1.5 inline-flex items-center gap-0.5 rounded-full bg-brand-600 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none text-white shadow-card"
           aria-label={`Going on, pair ${swap.pair}`}
         >
-          ON
+          {showPairNumber ? `${swap.pair} ON` : "ON"}
         </span>
       )}
 
@@ -210,7 +222,7 @@ export function PlayerTile({
         </span>
       )}
 
-      {/* Name — biggest text in the tile */}
+      {/* Name */}
       <span className="truncate text-sm font-bold leading-tight text-ink">
         {lastInitial ? `${firstName} ${lastInitial}` : firstName}
       </span>
@@ -226,7 +238,7 @@ export function PlayerTile({
         </span>
       )}
 
-      {/* Score chip — only shown if the player has scored */}
+      {/* Score chip */}
       {score && (score.goals > 0 || score.behinds > 0) && (
         <span
           className="nums mt-0.5 inline-flex items-center gap-1 rounded-xs bg-ink px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-micro text-warm"
@@ -237,6 +249,25 @@ export function PlayerTile({
           <span>{score.behinds}B</span>
         </span>
       )}
+
+      {/* Zone-minute stacked bar — shows current-game time distribution */}
+      {zoneMs && (() => {
+        const total = zoneMs.back + zoneMs.hback + zoneMs.mid + zoneMs.hfwd + zoneMs.fwd;
+        if (total <= 0) return null;
+        const pct = (v: number) => `${(v / total) * 100}%`;
+        return (
+          <span
+            className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
+            aria-label={`Back ${formatMinSec(zoneMs.back)}, Mid ${formatMinSec(zoneMs.mid)}, Fwd ${formatMinSec(zoneMs.fwd)}`}
+          >
+            <span style={{ width: pct(zoneMs.back) }} className="bg-zone-b" />
+            <span style={{ width: pct(zoneMs.hback) }} className="bg-zone-b/70" />
+            <span style={{ width: pct(zoneMs.mid) }} className="bg-zone-c" />
+            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-zone-f/70" />
+            <span style={{ width: pct(zoneMs.fwd) }} className="bg-zone-f" />
+          </span>
+        );
+      })()}
     </button>
   );
 }

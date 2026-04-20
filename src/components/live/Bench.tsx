@@ -16,6 +16,7 @@ interface BenchProps {
   zoneLockedPlayers?: Record<string, Zone>;
   onLongPress?: (playerId: string) => void;
   playerScores?: Record<string, { goals: number; behinds: number }>;
+  totalPairs?: number;
 }
 
 export function Bench({
@@ -29,6 +30,7 @@ export function Bench({
   zoneLockedPlayers,
   onLongPress,
   playerScores,
+  totalPairs,
 }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
@@ -62,7 +64,7 @@ export function Bench({
                 dimmed={!benchActive && selected !== null}
                 swap={(() => {
                   const info = swapOns?.get(pid);
-                  return info ? { role: "on", pair: info.pair, zone: info.zone } : null;
+                  return info ? { role: "on", pair: info.pair, zone: info.zone, totalPairs } : null;
                 })()}
                 totalMs={totalMsByPlayer?.[pid]}
                 zoneMs={zoneMsByPlayer?.[pid]}
