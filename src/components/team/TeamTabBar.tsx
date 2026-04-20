@@ -13,6 +13,7 @@ export function TeamTabBar({ teamId }: TeamTabBarProps) {
   const tabs = [
     { label: "Squad", href: `/teams/${teamId}/squad` },
     { label: "Games", href: `/teams/${teamId}/games` },
+    { label: "Stats", href: `/teams/${teamId}/stats` },
   ];
 
   return (
