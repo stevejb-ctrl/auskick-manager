@@ -137,9 +137,37 @@ export async function endQuarter(
   quarter: number,
   elapsedMs: number
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "quarter_end", {
+  const result = await insertEvent(auth, gameId, "quarter_end", {
     metadata: { quarter, elapsed_ms: elapsedMs },
   });
+  if (!result.success) return result;
+
+  // Q4 end finalises the match: append a game_finalised event (so the replay
+  // state reflects it) and flip the game row to "completed" so the dashboard
+  // and season stats pick it up.
+  if (quarter >= 4) {
+    const finaliseResult = await insertEvent(auth, gameId, "game_finalised", {
+      metadata: { quarter, elapsed_ms: elapsedMs },
+    });
+    if (!finaliseResult.success) return finaliseResult;
+
+    const w = await resolveWriter(auth, gameId);
+    if (w.error) return { success: false, error: w.error };
+    const { error: updateError } = await w.supabase
+      .from("games")
+      .update({ status: "completed" })
+      .eq("id", gameId);
+    if (updateError) return { success: false, error: updateError.message };
+
+    if (auth.kind === "team") {
+      revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
+      revalidatePath(`/teams/${w.teamId}/games`);
+      revalidatePath(`/teams/${w.teamId}/stats`);
+    } else {
+      revalidatePath(`/run/${auth.token}`, "layout");
+    }
+  }
+  return { success: true };
 }
 
 export async function addLateArrival(
