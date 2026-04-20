@@ -32,6 +32,7 @@ import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
+import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -348,6 +349,7 @@ export function LiveGame({
   }, [currentQuarter, quarterEnded, finalised]);
 
   function handleTapField(playerId: string, zone: Zone) {
+    if (isFinished) return;
     if (playerId === "") {
       if (selected?.kind === "bench") {
         clearSelection();
@@ -395,6 +397,7 @@ export function LiveGame({
   }
 
   function handleTapBench(playerId: string) {
+    if (isFinished) return;
     if (!selected) {
       selectBench(playerId);
       return;
@@ -1052,6 +1055,17 @@ export function LiveGame({
           />
         );
       })()}
+
+      {/* Full-time game summary */}
+      {isFinished && (
+        <GameSummaryCard
+          teamName={teamName}
+          opponentName={opponentName}
+          trackScoring={trackScoring}
+          playersById={playersById}
+          playerCount={squadPlayers.length}
+        />
+      )}
 
       {songUrl && isYouTubeUrl(songUrl) && (
         <div
