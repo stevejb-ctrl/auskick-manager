@@ -77,6 +77,16 @@ const config: Config = {
         base: "200ms",
         slow: "320ms",
       },
+      keyframes: {
+        slideUp: {
+          from: { transform: "translateY(72px)", opacity: "0" },
+          to:   { transform: "translateY(0)",    opacity: "1" },
+        },
+      },
+      animation: {
+        // Used by GameSummaryCard to announce itself at full time.
+        "slide-up": "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
+      },
       letterSpacing: {
         tightest: "-0.02em",
         micro: "0.16em",    // for MICRO caps labels
