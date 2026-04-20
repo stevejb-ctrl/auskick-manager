@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { useLiveGame, type ZoneMs } from "@/lib/stores/liveGameStore";
+import { ALL_ZONES } from "@/lib/fairness";
 import type { Player } from "@/lib/types";
 
 interface GameSummaryCardProps {
@@ -12,12 +13,61 @@ interface GameSummaryCardProps {
   playerCount: number;
 }
 
+const ZONE_ABBREV: Record<string, string> = {
+  back: "BCK",
+  hback: "H-BCK",
+  mid: "CEN",
+  hfwd: "H-FWD",
+  fwd: "FWD",
+};
+
 function pts(s: { goals: number; behinds: number }) {
   return s.goals * 6 + s.behinds;
 }
 
 function fmtScore(s: { goals: number; behinds: number }) {
   return `${s.goals}.${s.behinds} (${pts(s)})`;
+}
+
+function fmtMs(ms: number): string {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+interface PlayerStat {
+  id: string;
+  name: string;
+  number: number;
+  totalMs: number;
+  zones: { label: string; pct: number }[];
+}
+
+function buildPlayerStats(
+  basePlayedZoneMs: Record<string, ZoneMs>,
+  playersById: Map<string, Player>
+): PlayerStat[] {
+  const stats: PlayerStat[] = [];
+  for (const [id, zm] of Object.entries(basePlayedZoneMs)) {
+    const totalMs = ALL_ZONES.reduce((sum, z) => sum + zm[z], 0);
+    if (totalMs < 1000) continue; // skip players with negligible on-field time
+    const p = playersById.get(id);
+    const zones = ALL_ZONES.map((z) => ({
+      label: ZONE_ABBREV[z] ?? z,
+      pct: Math.round((zm[z] / totalMs) * 100),
+    }))
+      .filter((z) => z.pct >= 5)
+      .sort((a, b) => b.pct - a.pct);
+    stats.push({
+      id,
+      name: p ? p.full_name.split(" ")[0] : "Unknown",
+      number: p?.jersey_number ?? 0,
+      totalMs,
+      zones,
+    });
+  }
+  return stats.sort((a, b) => b.totalMs - a.totalMs);
 }
 
 function buildSummary(
@@ -29,7 +79,8 @@ function buildSummary(
   playerScores: Record<string, { goals: number; behinds: number }>,
   playersById: Map<string, Player>,
   playerCount: number,
-  swapCount: number
+  swapCount: number,
+  basePlayedZoneMs: Record<string, ZoneMs>
 ): string {
   const lines: string[] = [];
 
@@ -72,6 +123,15 @@ function buildSummary(
   if (swapCount > 0) stats.push(`${swapCount} subs`);
   lines.push(`\n👟 ${stats.join(" · ")}`);
 
+  const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
+  if (playerStats.length > 0) {
+    lines.push(`\n⏱ Game time`);
+    for (const ps of playerStats) {
+      const zoneStr = ps.zones.map((z) => `${z.label} ${z.pct}%`).join(" · ");
+      lines.push(`#${ps.number} ${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}`);
+    }
+  }
+
   return lines.join("\n");
 }
 
@@ -86,6 +146,7 @@ export function GameSummaryCard({
   const opponentScore = useLiveGame((s) => s.opponentScore);
   const playerScores = useLiveGame((s) => s.playerScores);
   const swapCount = useLiveGame((s) => s.swapCount);
+  const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
 
   const [copied, setCopied] = useState(false);
 
@@ -98,7 +159,8 @@ export function GameSummaryCard({
     playerScores,
     playersById,
     playerCount,
-    swapCount
+    swapCount,
+    basePlayedZoneMs
   );
 
   async function handleCopy() {
