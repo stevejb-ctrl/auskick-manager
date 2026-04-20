@@ -58,6 +58,8 @@ export function QuarterBreak({
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const setLineup = useLiveGame((s) => s.setLineup);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
+  const lastStintMs = useLiveGame((s) => s.lastStintMs);
+  const lastStintZone = useLiveGame((s) => s.lastStintZone);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
@@ -147,15 +149,29 @@ export function QuarterBreak({
     setSelected(null);
   }
 
+  // Players who came on shortly before the quarter break — keep them in their
+  // zone rather than moving them again immediately.
+  const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
+  const pinnedPositions = useMemo<Record<string, Zone>>(() => {
+    const pins: Record<string, Zone> = {};
+    for (const [pid, dur] of Object.entries(lastStintMs)) {
+      const z = lastStintZone[pid];
+      if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
+    }
+    return pins;
+  }, [lastStintMs, lastStintZone]);
+
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;
     return suggestStartingLineup(
       availableForLineup,
       combinedZoneMins,
       currentQuarter * 1000 + availableForLineup.length,
-      zoneCaps
+      zoneCaps,
+      currentGameZoneMins,
+      pinnedPositions
     );
-  }, [availableForLineup, combinedZoneMins, currentQuarter, lineup, zoneCaps]);
+  }, [availableForLineup, combinedZoneMins, currentQuarter, lineup, zoneCaps, currentGameZoneMins, pinnedPositions]);
 
   useEffect(() => {
     if (availableForLineup.length === 0) return;
