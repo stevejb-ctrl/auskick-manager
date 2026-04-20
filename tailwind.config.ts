@@ -42,12 +42,13 @@ const config: Config = {
 
         // Domain
         field:          "#3C8050",
-        // Colourblind-safe zone palette (Wong-inspired) — orange / violet /
-        // deep blue are distinguishable for protanopia, deuteranopia, and
-        // tritanopia, and each has distinct luminance against both the
-        // green field and white tiles.
+        // Colourblind-safe zone palette — three widely-separated hue
+        // families (orange / magenta / blue) so adjacent zones stay
+        // distinguishable even when purple/blue collapse for the most
+        // common protan/deutan CVD types. All three pass WCAG AA (>=4.5)
+        // against white for text use.
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
-        "zone-c":       "#7C3AED",   // centre — violet
+        "zone-c":       "#BE185D",   // centre — deep pink / magenta
         "zone-b":       "#1D4ED8",   // back — royal blue
       },
       fontFamily: {

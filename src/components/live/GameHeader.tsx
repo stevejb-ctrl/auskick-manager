@@ -65,16 +65,20 @@ export function GameHeader({
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-      {/* Left: home team */}
+      {/* Left: home team — total points dominate, like a broadcast scorebug */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
           {teamName}
         </p>
-        <p className="nums mt-0.5 font-mono leading-none text-ink">
-          <span className="text-[28px] font-bold tracking-tightest">{team.goals}</span>
-          <span className="text-[28px] font-bold tracking-tightest text-ink-mute">.</span>
-          <span className="text-[28px] font-bold tracking-tightest">{team.behinds}</span>
-          <span className="ml-1.5 text-sm font-semibold text-ink-dim">({points(team)})</span>
+        <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
+          <span className="text-sm font-semibold text-ink-dim">
+            {team.goals}
+            <span className="text-ink-mute">·</span>
+            {team.behinds}
+          </span>
+          <span className="text-[36px] font-bold tracking-tightest">
+            {points(team)}
+          </span>
         </p>
       </div>
 
@@ -99,16 +103,20 @@ export function GameHeader({
         </span>
       </button>
 
-      {/* Right: opponent */}
+      {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
           {opponentName}
         </p>
-        <p className="nums mt-0.5 font-mono leading-none text-ink">
-          <span className="text-[28px] font-bold tracking-tightest">{opp.goals}</span>
-          <span className="text-[28px] font-bold tracking-tightest text-ink-mute">.</span>
-          <span className="text-[28px] font-bold tracking-tightest">{opp.behinds}</span>
-          <span className="ml-1.5 text-sm font-semibold text-ink-dim">({points(opp)})</span>
+        <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
+          <span className="text-[36px] font-bold tracking-tightest">
+            {points(opp)}
+          </span>
+          <span className="text-sm font-semibold text-ink-dim">
+            {opp.goals}
+            <span className="text-ink-mute">·</span>
+            {opp.behinds}
+          </span>
         </p>
         {onOpponent && trackScoring && (
           <div className="mt-0.5 flex justify-end gap-1">

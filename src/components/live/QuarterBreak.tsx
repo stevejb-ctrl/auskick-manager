@@ -34,11 +34,11 @@ interface QuarterBreakProps {
 type Slot = Zone | "bench";
 
 const ZONE_BAR_COLOR: Record<Zone, string> = {
-  back: "bg-blue-400",
-  hback: "bg-sky-400",
-  mid: "bg-yellow-400",
-  hfwd: "bg-orange-400",
-  fwd: "bg-red-400",
+  back: "bg-zone-b",
+  hback: "bg-zone-b/70",
+  mid: "bg-zone-c",
+  hfwd: "bg-zone-f/70",
+  fwd: "bg-zone-f",
 };
 
 function emptyZM(): ZoneMinutes {
