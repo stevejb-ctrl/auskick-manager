@@ -64,8 +64,13 @@ export function QuarterBreak({
   const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
-  const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
-  const slotLabel = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT_LABELS[s]);
+  // Display FWD → CENTRE → BACK (top → bottom) to match the coach's field mental model.
+  const slots = useMemo<Slot[]>(() => [[...zones].reverse(), "bench"].flat() as Slot[], [zones]);
+  const slotLabel = (s: Slot) => {
+    if (s === "bench") return "Bench";
+    if (s === "mid") return "Centre";
+    return ZONE_SHORT_LABELS[s];
+  };
 
   const currentGameZoneMins = useMemo(() => {
     const out: PlayerZoneMinutes = {};
@@ -262,6 +267,12 @@ export function QuarterBreak({
           </span>
         </div>
       </div>
+
+      {availableForLineup.length > 0 && (
+        <p className="px-1 text-xs text-gray-500">
+          Tap any two players to swap them — even across zones or to the bench.
+        </p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((slot) => (

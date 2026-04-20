@@ -64,7 +64,7 @@ export function GameHeader({
   const stateIcon = isPreGame || isFinished ? null : running ? "⏸" : "▶";
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
       {/* Left: home team */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
@@ -83,7 +83,7 @@ export function GameHeader({
         type="button"
         onClick={onClockTap}
         disabled={isPreGame || isFinished || !onClockTap}
-        className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+        className="self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
         aria-label={running ? "Pause clock" : "Resume clock"}
       >
         <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">

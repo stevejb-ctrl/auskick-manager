@@ -20,6 +20,7 @@ interface FieldProps {
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   playerScores?: Record<string, { goals: number; behinds: number }>;
+  totalPairs?: number;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -51,6 +52,7 @@ export function Field({
   zoneCaps,
   positionModel,
   playerScores,
+  totalPairs,
 }: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
@@ -125,13 +127,20 @@ export function Field({
           const currGroup = sideGroupOf(key);
           const showDivider = prevGroup !== null && prevGroup !== currGroup;
 
+          const zoneAccent =
+            key === "fwd" || key === "hfwd"
+              ? "border-l-2 border-zone-f/50"
+              : key === "mid"
+                ? "border-l-2 border-zone-c/50"
+                : "border-l-2 border-zone-b/50";
+
           return (
             <Fragment key={key}>
               {showDivider && (
                 <div className="relative -mx-6 h-px bg-white/30" aria-hidden />
               )}
               <div
-                className={`grid gap-1.5 ${cap <= 2 ? "grid-cols-2" : "grid-cols-3"}`}
+                className={`grid grid-cols-2 gap-1.5 ${zoneAccent}`}
               >
                 {Array.from({ length: Math.max(cap, ids.length) }).map((_, slot) => {
                   const pid = ids[slot];
@@ -162,7 +171,7 @@ export function Field({
                       dimmed={dimZone}
                       swap={
                         swapOffs?.has(pid)
-                          ? { role: "off", pair: swapOffs.get(pid)! }
+                          ? { role: "off", pair: swapOffs.get(pid)!, totalPairs }
                           : null
                       }
                       totalMs={totalMsByPlayer?.[pid]}
