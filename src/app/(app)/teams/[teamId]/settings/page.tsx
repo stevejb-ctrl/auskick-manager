@@ -13,10 +13,15 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: team }, { data: membership }] = await Promise.all([
+  const [{ data: team }, { data: songData }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, song_url, song_start_seconds")
+      .select("id, name")
+      .eq("id", params.teamId)
+      .single(),
+    supabase
+      .from("teams")
+      .select("song_url, song_start_seconds")
       .eq("id", params.teamId)
       .single(),
     user
@@ -37,8 +42,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     <div className="space-y-6">
       <TeamSongSettings
         teamId={params.teamId}
-        currentSongUrl={team.song_url ?? null}
-        currentStartSeconds={team.song_start_seconds ?? 0}
+        currentSongUrl={songData?.song_url ?? null}
+        currentStartSeconds={songData?.song_start_seconds ?? 0}
         isAdmin={isAdmin}
       />
     </div>
