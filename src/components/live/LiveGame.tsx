@@ -81,6 +81,10 @@ interface LiveGameProps {
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   exitHref?: string;
+  /** Public URL of the team song audio file, if configured. */
+  songUrl?: string | null;
+  /** Seconds into the song to start playback from (default 0). */
+  songStartSeconds?: number;
 }
 
 export function LiveGame({
@@ -96,6 +100,8 @@ export function LiveGame({
   zoneCaps,
   positionModel,
   exitHref,
+  songUrl,
+  songStartSeconds = 0,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -149,6 +155,30 @@ export function LiveGame({
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
+
+  // Team song — play 15 s from the configured start point on each goal
+  const songAudioRef = useRef<HTMLAudioElement | null>(null);
+  const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function playSong() {
+    if (!songUrl) return;
+    try {
+      if (songTimerRef.current !== null) {
+        clearTimeout(songTimerRef.current);
+        songTimerRef.current = null;
+      }
+      const audio = songAudioRef.current ?? new Audio(songUrl);
+      songAudioRef.current = audio;
+      audio.currentTime = songStartSeconds;
+      audio.play().catch(() => {}); // silently ignore autoplay policy blocks
+      songTimerRef.current = setTimeout(() => {
+        audio.pause();
+        songTimerRef.current = null;
+      }, 15_000);
+    } catch {
+      // ignore any audio API errors
+    }
+  }
 
   const playersById = useMemo(
     () => new Map(squadPlayers.map((p) => [p.id, p])),
@@ -285,6 +315,7 @@ export function LiveGame({
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
     clearSelection();
+    if (kind === "goal") playSong();
     startTransition(async () => {
       const fn = kind === "goal" ? recordGoal : recordBehind;
       const result = await fn(auth, gameId, {
@@ -462,6 +493,8 @@ export function LiveGame({
   useEffect(() => {
     return () => {
       if (snoozeTimeoutRef.current !== null) clearTimeout(snoozeTimeoutRef.current);
+      if (songTimerRef.current !== null) clearTimeout(songTimerRef.current);
+      songAudioRef.current?.pause();
     };
   }, []);
 
