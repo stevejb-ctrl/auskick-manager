@@ -43,13 +43,14 @@ const config: Config = {
         // Domain
         field:          "#3C8050",
         // Colourblind-safe zone palette — three hue families roughly
-        // 120° apart (orange / violet / blue) so adjacent zones stay
-        // distinguishable. Magenta was too close to orange on the hue
-        // wheel and at the same lightness; violet gives real separation
-        // from forward. All three pass WCAG AA (>=4.5) against white
-        // for text use.
+        // 70–80° apart (orange / fuchsia / blue) so adjacent zones stay
+        // distinguishable. Violet (#6D28D9) was too close on the hue
+        // wheel to royal blue and collapsed into a single purple-ish
+        // family; fuchsia-700 is a warm purple that separates cleanly
+        // from both orange and blue. All three pass WCAG AA (>=4.5)
+        // against white for text use.
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
-        "zone-c":       "#6D28D9",   // centre — violet
+        "zone-c":       "#A21CAF",   // centre — fuchsia / warm purple
         "zone-b":       "#1D4ED8",   // back — royal blue
       },
       fontFamily: {
