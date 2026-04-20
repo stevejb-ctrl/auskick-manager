@@ -212,6 +212,37 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         }
         break;
       }
+
+      case "score_undo": {
+        const origType = typeof meta.original_type === "string" ? meta.original_type : "";
+        const q = typeof meta.quarter === "number" ? meta.quarter : currentQuarter;
+        const pid = ev.player_id;
+        if (origType === "goal") {
+          if (pid) playerGoals[pid] = Math.max(0, (playerGoals[pid] ?? 0) - 1);
+          if (teamScoreByQtr[q]) teamScoreByQtr[q].goals = Math.max(0, teamScoreByQtr[q].goals - 1);
+          // Remove last matching pending goal so it isn't assigned to a lineup period
+          for (let i = pendingGoals.length - 1; i >= 0; i--) {
+            if (pendingGoals[i].kind === "for" && pendingGoals[i].quarter === q) {
+              pendingGoals.splice(i, 1);
+              break;
+            }
+          }
+        } else if (origType === "behind") {
+          if (pid) playerBehinds[pid] = Math.max(0, (playerBehinds[pid] ?? 0) - 1);
+          if (teamScoreByQtr[q]) teamScoreByQtr[q].behinds = Math.max(0, teamScoreByQtr[q].behinds - 1);
+        } else if (origType === "opponent_goal") {
+          if (oppScoreByQtr[q]) oppScoreByQtr[q].goals = Math.max(0, oppScoreByQtr[q].goals - 1);
+          for (let i = pendingGoals.length - 1; i >= 0; i--) {
+            if (pendingGoals[i].kind === "against" && pendingGoals[i].quarter === q) {
+              pendingGoals.splice(i, 1);
+              break;
+            }
+          }
+        } else if (origType === "opponent_behind") {
+          if (oppScoreByQtr[q]) oppScoreByQtr[q].behinds = Math.max(0, oppScoreByQtr[q].behinds - 1);
+        }
+        break;
+      }
     }
   }
 

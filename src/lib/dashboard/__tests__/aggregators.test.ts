@@ -301,3 +301,54 @@ describe("replayGame — zone minutes", () => {
     expect(snap.oppScoreByQtr[1]?.goals).toBe(1);
   });
 });
+
+// ─── score_undo replay ───────────────────────────────────────────────────────
+
+describe("score_undo replay", () => {
+  it("undoes a team goal — decrements playerGoals and teamScoreByQtr", () => {
+    const events = [
+      ...buildSingleQtrEvents(),
+      makeEvent({
+        type: "score_undo",
+        player_id: "p1",
+        metadata: { original_type: "goal", quarter: 1 },
+      }),
+    ];
+    const snap = replayGame("g1", events);
+    expect(snap.playerGoals["p1"]).toBe(0);
+    expect(snap.teamScoreByQtr[1]?.goals).toBe(0);
+  });
+
+  it("undoes an opponent goal — decrements oppScoreByQtr", () => {
+    const events = [
+      ...buildSingleQtrEvents(),
+      makeEvent({
+        type: "score_undo",
+        player_id: null,
+        metadata: { original_type: "opponent_goal", quarter: 1 },
+      }),
+    ];
+    const snap = replayGame("g1", events);
+    expect(snap.oppScoreByQtr[1]?.goals).toBe(0);
+  });
+
+  it("does not go below zero", () => {
+    const events = [
+      ...buildSingleQtrEvents(),
+      makeEvent({
+        type: "score_undo",
+        player_id: "p1",
+        metadata: { original_type: "goal", quarter: 1 },
+      }),
+      // A second undo of the same type — should not go negative
+      makeEvent({
+        type: "score_undo",
+        player_id: "p1",
+        metadata: { original_type: "goal", quarter: 1 },
+      }),
+    ];
+    const snap = replayGame("g1", events);
+    expect(snap.playerGoals["p1"]).toBe(0);
+    expect(snap.teamScoreByQtr[1]?.goals).toBe(0);
+  });
+});

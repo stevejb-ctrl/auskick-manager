@@ -244,3 +244,36 @@ export async function recordSwap(
     metadata: input,
   });
 }
+
+export async function undoLastScore(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    kind: "goal" | "behind" | "opponent_goal" | "opponent_behind";
+    quarter: number;
+    playerId: string | null;
+  }
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { data: latest } = await w.supabase
+    .from("game_events")
+    .select("id")
+    .eq("game_id", gameId)
+    .eq("type", input.kind)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!latest) return { success: false, error: "No score event found to undo." };
+
+  return insertEvent(auth, gameId, "score_undo", {
+    player_id: input.playerId,
+    metadata: {
+      target_event_id: latest.id,
+      original_type: input.kind,
+      quarter: input.quarter,
+    },
+  });
+}

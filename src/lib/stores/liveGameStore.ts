@@ -65,6 +65,9 @@ export interface LiveGameState {
   incTeam: (kind: "goals" | "behinds") => void;
   incOpponent: (kind: "goals" | "behinds") => void;
   incPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
+  undoTeamScore: (kind: "goals" | "behinds") => void;
+  undoOpponentScore: (kind: "goals" | "behinds") => void;
+  undoPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
   setLocked: (playerId: string, locked: boolean) => void;
@@ -234,6 +237,25 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         playerScores: {
           ...prev.playerScores,
           [playerId]: { ...cur, [kind]: cur[kind] + 1 },
+        },
+      };
+    }),
+
+  undoTeamScore: (kind) =>
+    set((prev) => ({
+      teamScore: { ...prev.teamScore, [kind]: Math.max(0, prev.teamScore[kind] - 1) },
+    })),
+  undoOpponentScore: (kind) =>
+    set((prev) => ({
+      opponentScore: { ...prev.opponentScore, [kind]: Math.max(0, prev.opponentScore[kind] - 1) },
+    })),
+  undoPlayerScore: (playerId, kind) =>
+    set((prev) => {
+      const cur = prev.playerScores[playerId] ?? { goals: 0, behinds: 0 };
+      return {
+        playerScores: {
+          ...prev.playerScores,
+          [playerId]: { ...cur, [kind]: Math.max(0, cur[kind] - 1) },
         },
       };
     }),
