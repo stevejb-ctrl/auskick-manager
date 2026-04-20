@@ -23,9 +23,10 @@ export function ScoreBoard({ teamName, opponentName, onOpponent }: ScoreBoardPro
           {teamName}
         </p>
         <p className="tabular-nums text-gray-900">
-          <span className="text-lg font-bold">{team.goals}</span>.
+          <span className="text-lg font-bold">{team.goals}</span>
+          <span className="text-lg font-bold">.</span>
           <span className="text-lg font-bold">{team.behinds}</span>
-          <span className="ml-1 text-xs text-gray-400">({points(team)})</span>
+          <span className="text-lg font-bold ml-1">{points(team)}</span>
         </p>
       </div>
       <div className="flex-1 text-center">
@@ -33,9 +34,10 @@ export function ScoreBoard({ teamName, opponentName, onOpponent }: ScoreBoardPro
           {opponentName}
         </p>
         <p className="tabular-nums text-gray-900">
-          <span className="text-lg font-bold">{opp.goals}</span>.
+          <span className="text-lg font-bold">{opp.goals}</span>
+          <span className="text-lg font-bold">.</span>
           <span className="text-lg font-bold">{opp.behinds}</span>
-          <span className="ml-1 text-xs text-gray-400">({points(opp)})</span>
+          <span className="text-lg font-bold ml-1">{points(opp)}</span>
         </p>
         {onOpponent && (
           <div className="mt-1 flex justify-center gap-1">
