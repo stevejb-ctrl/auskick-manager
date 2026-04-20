@@ -1,10 +1,14 @@
 "use client";
 
 import { useRef } from "react";
-import type { Player } from "@/lib/types";
+import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 
-export type SwapRole = { role: "off" | "on"; pair: number };
+export type SwapRole = { role: "off" | "on"; pair: number; zone?: Zone };
+
+const ZONE_LABEL: Record<string, string> = {
+  back: "Back", hback: "HBack", mid: "Mid", hfwd: "HFwd", fwd: "Fwd",
+};
 
 interface PlayerTileProps {
   player: Player;
@@ -17,7 +21,8 @@ interface PlayerTileProps {
   totalMs?: number;
   zoneMs?: ZoneMinutes;
   injured?: boolean;
-  locked?: boolean;
+  /** "field" = never subbed; "zone" = can sub but only to their locked zone */
+  lockMode?: "field" | "zone" | null;
   score?: { goals: number; behinds: number };
 }
 
@@ -39,7 +44,7 @@ export function PlayerTile({
   totalMs,
   zoneMs,
   injured,
-  locked,
+  lockMode,
   score,
 }: PlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,9 +94,11 @@ export function PlayerTile({
         ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-300 shadow-sm"
         : injured
           ? "border-rose-300 bg-rose-50"
-          : locked
+          : lockMode === "field"
             ? "border-indigo-300 bg-indigo-50"
-            : "border-gray-200 bg-white hover:border-gray-300";
+            : lockMode === "zone"
+              ? "border-amber-300 bg-amber-50"
+              : "border-gray-200 bg-white hover:border-gray-300";
 
   return (
     <button
@@ -136,10 +143,10 @@ export function PlayerTile({
           INJ
         </span>
       )}
-      {locked && !injured && (
+      {lockMode && !injured && (
         <span
-          className="absolute left-1 top-1 rounded-sm bg-indigo-500 p-0.5 leading-none text-white"
-          aria-label="Locked"
+          className={`absolute left-1 top-1 rounded-sm p-0.5 leading-none text-white ${lockMode === "field" ? "bg-indigo-500" : "bg-amber-500"}`}
+          aria-label={lockMode === "field" ? "Field locked" : "Zone locked"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5">
             <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z" clipRule="evenodd" />
@@ -200,7 +207,7 @@ export function PlayerTile({
       )}
       {isOn && (
         <span className="mt-0.5 inline-block rounded-sm bg-emerald-500 px-1.5 text-[9px] font-bold uppercase tracking-wide text-white">
-          ON → field
+          ON → {swap?.zone ? ZONE_LABEL[swap.zone] ?? swap.zone : "field"}
         </span>
       )}
     </button>

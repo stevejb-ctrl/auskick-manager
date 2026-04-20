@@ -45,6 +45,11 @@ export interface LiveGameState {
   lastStintMs: Record<string, number>;
   /** Zone of each player's last on-field stint (parallel to lastStintMs). */
   lastStintZone: Record<string, Zone>;
+  /**
+   * Zone-locked players: can be subbed on/off but must always return to this zone.
+   * Mutually exclusive with lockedIds (field lock).
+   */
+  zoneLockedPlayers: Record<string, Zone>;
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -63,6 +68,8 @@ export interface LiveGameState {
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
   setLocked: (playerId: string, locked: boolean) => void;
+  /** Lock player to a specific zone (they can sub on/off but only to this zone). Pass null to clear. */
+  setZoneLocked: (playerId: string, zone: Zone | null) => void;
 }
 
 function cloneLineup(l: Lineup): Lineup {
@@ -89,6 +96,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   lockedIds: [],
   lastStintMs: {},
   lastStintZone: {},
+  zoneLockedPlayers: {},
 
   init: (state) => set((prev) => ({ ...prev, ...state })),
 
@@ -288,11 +296,30 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   setLocked: (playerId, locked) =>
     set((prev) => {
       const wasLocked = prev.lockedIds.includes(playerId);
-      if (locked === wasLocked) return prev;
+      const wasZoneLocked = !!prev.zoneLockedPlayers[playerId];
+      if (locked === wasLocked && !wasZoneLocked) return prev;
+      const zoneLockedPlayers = { ...prev.zoneLockedPlayers };
+      delete zoneLockedPlayers[playerId];
       return {
         lockedIds: locked
-          ? [...prev.lockedIds, playerId]
+          ? (wasLocked ? prev.lockedIds : [...prev.lockedIds, playerId])
           : prev.lockedIds.filter((p) => p !== playerId),
+        zoneLockedPlayers,
+      };
+    }),
+
+  setZoneLocked: (playerId, zone) =>
+    set((prev) => {
+      const zoneLockedPlayers = { ...prev.zoneLockedPlayers };
+      if (zone === null) {
+        delete zoneLockedPlayers[playerId];
+      } else {
+        zoneLockedPlayers[playerId] = zone;
+      }
+      // Zone lock and field lock are mutually exclusive
+      return {
+        zoneLockedPlayers,
+        lockedIds: prev.lockedIds.filter((p) => p !== playerId),
       };
     }),
 }));
