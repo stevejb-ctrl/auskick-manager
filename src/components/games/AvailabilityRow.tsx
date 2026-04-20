@@ -14,22 +14,25 @@ interface AvailabilityRowProps {
   canEdit: boolean;
 }
 
+// Two-state availability: anything that isn't explicitly "available" is shown
+// as "unavailable" (including the legacy "unknown" rows). Toggle flips between
+// the two.
 const nextStatus: Record<AvailabilityStatus, AvailabilityStatus> = {
   unknown: "available",
+  unavailable: "available",
   available: "unavailable",
-  unavailable: "unknown",
 };
 
 const statusStyles: Record<AvailabilityStatus, string> = {
   available: "bg-green-100 text-green-700 border-green-200",
-  unavailable: "bg-red-100 text-red-700 border-red-200",
+  unavailable: "bg-gray-100 text-gray-600 border-gray-200",
   unknown: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 const statusLabels: Record<AvailabilityStatus, string> = {
   available: "Available",
   unavailable: "Unavailable",
-  unknown: "Unknown",
+  unknown: "Unavailable",
 };
 
 export function AvailabilityRow({
