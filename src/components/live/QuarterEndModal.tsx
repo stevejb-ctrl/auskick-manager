@@ -13,10 +13,10 @@ export function QuarterEndModal({ quarter, loading, onConfirm }: QuarterEndModal
   const isLastQuarter = quarter >= 4;
   return (
     <Modal>
-      <h2 className="text-center text-lg font-bold text-gray-900">
+      <h2 className="text-center text-lg font-bold text-ink">
         Quarter {quarter} complete
       </h2>
-      <p className="mt-1 text-center text-sm text-gray-500">
+      <p className="mt-1 text-center text-sm text-ink-dim">
         {isLastQuarter ? "That's the final whistle!" : `Ready for Q${quarter + 1}?`}
       </p>
       <div className="mt-4">

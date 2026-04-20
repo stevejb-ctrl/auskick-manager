@@ -4,6 +4,13 @@
 
 @layer base {
   body {
-    @apply text-gray-900 bg-gray-50;
+    @apply bg-warm text-ink antialiased;
+  }
+
+  /* Tabular numerals everywhere a number is displayed — times, scores, minutes.
+     The live game reads these in 0.2s glances; digits must never jump width. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
   }
 }

@@ -80,25 +80,20 @@ export function PlayerTile({
   const isOff = showSwap && swap.role === "off";
   const isOn = showSwap && swap.role === "on";
 
-  const ringColor = isOff
-    ? "ring-amber-400"
-    : isOn
-      ? "ring-emerald-400"
-      : "ring-brand-400";
-
+  // Field Sunday palette: ochre for "coming off / next", field green for "going on".
   const baseBg = selected
-    ? `border-transparent bg-brand-50 ring-2 ${ringColor} shadow-md`
+    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
-      ? "border-amber-400 bg-amber-50 ring-2 ring-amber-300 shadow-sm"
+      ? "border-warn bg-warn-soft shadow-card"
       : isOn
-        ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-300 shadow-sm"
+        ? "border-brand-500 bg-brand-50 shadow-card"
         : injured
-          ? "border-rose-300 bg-rose-50"
+          ? "border-danger/40 bg-surface"
           : lockMode === "field"
-            ? "border-indigo-300 bg-indigo-50"
+            ? "border-brand-300 bg-surface"
             : lockMode === "zone"
-              ? "border-amber-300 bg-amber-50"
-              : "border-gray-200 bg-white hover:border-gray-300";
+              ? "border-warn/50 bg-surface"
+              : "border-hairline bg-surface hover:border-ink-mute";
 
   return (
     <button
@@ -109,7 +104,7 @@ export function PlayerTile({
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex w-full items-center justify-center rounded-md border text-center transition-all",
+        "relative flex w-full items-center justify-center rounded-md border text-center transition-all duration-fast ease-out-quart",
         compact ? "gap-1 px-2 py-1.5" : "flex-col gap-0.5 px-1 py-2",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
@@ -117,27 +112,29 @@ export function PlayerTile({
         !onClick && !onLongPress ? "cursor-default" : "",
       ].join(" ")}
     >
+      {/* "NEXT" chip — dashed ochre, top-left — signals this player is coming off next swap */}
       {isOff && (
         <span
-          className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center gap-0.5 rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white"
-          aria-label={`Coming off, pair ${swap.pair}`}
+          className="absolute -left-1 -top-1.5 inline-flex items-center gap-0.5 rounded-xs border border-dashed border-warn bg-warn-soft px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warn"
+          aria-label={`Coming off next, pair ${swap.pair}`}
         >
-          <span className="text-[11px] leading-none">↓</span>
-          <span className="tabular-nums">{swap.pair}</span>
+          <span>NEXT</span>
+          <span className="nums">{swap.pair}</span>
         </span>
       )}
+      {/* "ON" chip — solid field green, top-right */}
       {isOn && (
         <span
-          className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center gap-0.5 rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white"
+          className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center gap-0.5 rounded-full bg-brand-600 px-1 font-mono text-[10px] font-bold leading-none text-white shadow-card ring-2 ring-surface"
           aria-label={`Going on, pair ${swap.pair}`}
         >
           <span className="text-[11px] leading-none">↑</span>
-          <span className="tabular-nums">{swap.pair}</span>
+          <span className="nums">{swap.pair}</span>
         </span>
       )}
       {injured && (
         <span
-          className="absolute left-1 top-1 rounded-sm bg-rose-500 px-1 text-[9px] font-bold uppercase leading-none text-white"
+          className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
           aria-label="Injured"
         >
           INJ
@@ -145,7 +142,7 @@ export function PlayerTile({
       )}
       {lockMode && !injured && (
         <span
-          className={`absolute left-1 top-1 rounded-sm p-0.5 leading-none text-white ${lockMode === "field" ? "bg-indigo-500" : "bg-amber-500"}`}
+          className={`absolute left-1 top-1 rounded-xs p-0.5 leading-none text-white ${lockMode === "field" ? "bg-brand-600" : "bg-warn"}`}
           aria-label={lockMode === "field" ? "Field locked" : "Zone locked"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5">
@@ -155,20 +152,20 @@ export function PlayerTile({
       )}
       {score && (score.goals > 0 || score.behinds > 0) && (
         <span
-          className="absolute -left-1 -top-1.5 rounded-full bg-gray-900 px-1.5 text-[10px] font-bold leading-tight text-white shadow ring-2 ring-white"
+          className="nums absolute -left-1 -top-1.5 rounded-full bg-ink px-1.5 font-mono text-[10px] font-bold leading-tight text-warm shadow-card ring-2 ring-surface"
           aria-label={`${score.goals} goals, ${score.behinds} behinds`}
         >
           {score.goals}.{score.behinds}
         </span>
       )}
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
+      <span className="nums inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 font-mono text-xs font-bold text-brand-700">
         {player.jersey_number}
       </span>
       <span
         className={
           compact
-            ? "text-sm font-medium text-gray-800"
-            : "truncate text-xs font-medium text-gray-800"
+            ? "text-sm font-medium text-ink"
+            : "truncate text-xs font-medium text-ink"
         }
       >
         {(() => {
@@ -179,7 +176,7 @@ export function PlayerTile({
         })()}
       </span>
       {totalMs !== undefined && (
-        <span className="text-[10px] font-semibold tabular-nums text-gray-500">
+        <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
           {formatMinSec(totalMs)}
         </span>
       )}
@@ -189,24 +186,24 @@ export function PlayerTile({
         const pct = (v: number) => `${(v / total) * 100}%`;
         return (
           <span
-            className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100"
+            className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
             aria-label={`Back ${formatMinSec(zoneMs.back)}, HBack ${formatMinSec(zoneMs.hback)}, Mid ${formatMinSec(zoneMs.mid)}, HFwd ${formatMinSec(zoneMs.hfwd)}, Fwd ${formatMinSec(zoneMs.fwd)}`}
           >
-            <span style={{ width: pct(zoneMs.back) }} className="bg-blue-400" />
-            <span style={{ width: pct(zoneMs.hback) }} className="bg-sky-400" />
-            <span style={{ width: pct(zoneMs.mid) }} className="bg-yellow-400" />
-            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-orange-400" />
-            <span style={{ width: pct(zoneMs.fwd) }} className="bg-red-400" />
+            <span style={{ width: pct(zoneMs.back) }} className="bg-zone-b" />
+            <span style={{ width: pct(zoneMs.hback) }} className="bg-zone-b/70" />
+            <span style={{ width: pct(zoneMs.mid) }} className="bg-zone-c" />
+            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-zone-f/70" />
+            <span style={{ width: pct(zoneMs.fwd) }} className="bg-zone-f" />
           </span>
         );
       })()}
       {isOff && (
-        <span className="mt-0.5 inline-block rounded-sm bg-amber-500 px-1.5 text-[9px] font-bold uppercase tracking-wide text-white">
+        <span className="mt-0.5 inline-block rounded-xs bg-warn px-1.5 font-mono text-[9px] font-bold uppercase tracking-micro text-white">
           OFF → bench
         </span>
       )}
       {isOn && (
-        <span className="mt-0.5 inline-block rounded-sm bg-emerald-500 px-1.5 text-[9px] font-bold uppercase tracking-wide text-white">
+        <span className="mt-0.5 inline-block rounded-xs bg-brand-600 px-1.5 font-mono text-[9px] font-bold uppercase tracking-micro text-white">
           ON → {swap?.zone ? ZONE_LABEL[swap.zone] ?? swap.zone : "field"}
         </span>
       )}
