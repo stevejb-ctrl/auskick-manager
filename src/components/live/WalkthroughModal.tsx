@@ -83,7 +83,7 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
             Welcome to Game Manager
           </h2>
           <p className="mb-6 text-center text-sm leading-relaxed text-gray-500">
-            You're in charge of today's game. Would you like a quick walkthrough of how it works?
+            You&apos;re in charge of today&apos;s game. Would you like a quick walkthrough of how it works?
           </p>
           <div className="flex flex-col gap-2">
             <button
