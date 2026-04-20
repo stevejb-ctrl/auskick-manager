@@ -57,13 +57,15 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, track_scoring, age_group")
+    .select("name, track_scoring, age_group, song_url, song_start_seconds")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   const ageGroup = ageGroupOf(teamRow?.age_group);
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  const songUrl = teamRow?.song_url ?? null;
+  const songStartSeconds = teamRow?.song_start_seconds ?? 0;
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -132,6 +134,8 @@ export default async function RunPage({ params }: RunPageProps) {
           season={season}
           zoneCaps={zoneCapsFor(g.on_field_size, positionModel)}
           positionModel={positionModel}
+          songUrl={songUrl}
+          songStartSeconds={songStartSeconds}
         />
       </div>
     );

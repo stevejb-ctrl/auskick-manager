@@ -118,6 +118,34 @@ export async function saveSong(
   return { success: true, song_url: publicUrl };
 }
 
+/**
+ * Save a public URL (YouTube or direct audio) as the team song.
+ * No file is uploaded — the URL is stored directly in the teams table.
+ */
+export async function saveSongUrl(
+  teamId: string,
+  url: string,
+  startSeconds: number
+): Promise<ActionResult & { song_url?: string }> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("https://")) {
+    return { success: false, error: "URL must start with https://" };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ song_url: trimmed, song_start_seconds: Math.max(0, startSeconds) })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true, song_url: trimmed };
+}
+
 /** Update only the song start time (no re-upload needed). */
 export async function updateSongStart(
   teamId: string,
