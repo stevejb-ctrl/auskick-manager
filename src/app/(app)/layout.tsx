@@ -17,8 +17,8 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+    <div className="min-h-screen bg-warm">
+      <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <span className="text-lg font-semibold text-brand-700">
             Auskick Manager

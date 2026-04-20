@@ -64,7 +64,7 @@ export function GameHeader({
   const stateIcon = isPreGame || isFinished ? null : running ? "⏸" : "▶";
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
       {/* Left: home team — total points dominate, like a broadcast scorebug */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
