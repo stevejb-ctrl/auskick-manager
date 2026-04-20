@@ -128,21 +128,12 @@ export function Field({
           const currGroup = sideGroupOf(key);
           const showDivider = prevGroup !== null && prevGroup !== currGroup;
 
-          const zoneAccent =
-            key === "fwd" || key === "hfwd"
-              ? "border-l-2 border-zone-f/50"
-              : key === "mid"
-                ? "border-l-2 border-zone-c/50"
-                : "border-l-2 border-zone-b/50";
-
           return (
             <Fragment key={key}>
               {showDivider && (
                 <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
               )}
-              <div
-                className={`grid grid-cols-2 gap-2 ${zoneAccent}`}
-              >
+              <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: Math.max(cap, ids.length) }).map((_, slot) => {
                   const pid = ids[slot];
                   if (!pid) {
