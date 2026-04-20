@@ -5,7 +5,7 @@
  * (i.e. elapsed_ms=0 = quarter kick-off). The same convention the live
  * game store uses so swap/quarter_end metadata maps directly.
  */
-import { normalizeLineup, type GameEvent, type Lineup, type Zone } from "@/lib/types";
+import { FILL_IN_STATS_ID, normalizeLineup, type GameEvent, type Lineup, type Zone } from "@/lib/types";
 import { ALL_ZONES } from "@/lib/fairness";
 import { type GameSnapshot, type LineupPeriod, type ZoneMs, emptyZoneMs } from "./types";
 
@@ -289,6 +289,61 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     subsOut,
     teamScoreByQtr,
     oppScoreByQtr,
+    lineupPeriods,
+    playerIds,
+  };
+}
+
+/**
+ * Collapse every fill-in id in a snapshot to the synthetic FILL_IN_STATS_ID so
+ * casual day-of appearances aggregate into a single "Fill-In" row instead of
+ * polluting season stats with one entry per fill-in. Pure — returns a new
+ * snapshot and leaves the input untouched.
+ */
+export function bucketFillIns(
+  snapshot: GameSnapshot,
+  fillInIds: Set<string>
+): GameSnapshot {
+  if (fillInIds.size === 0) return snapshot;
+
+  const remap = (id: string) => (fillInIds.has(id) ? FILL_IN_STATS_ID : id);
+
+  function mergeNumberMap(src: Record<string, number>): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [id, v] of Object.entries(src)) {
+      const key = remap(id);
+      out[key] = (out[key] ?? 0) + v;
+    }
+    return out;
+  }
+
+  const playerZoneMs: Record<string, ZoneMs> = {};
+  for (const [id, zm] of Object.entries(snapshot.playerZoneMs)) {
+    const key = remap(id);
+    const target = (playerZoneMs[key] ??= emptyZoneMs());
+    for (const z of ALL_ZONES) target[z] += zm[z];
+  }
+
+  const lineupPeriods: LineupPeriod[] = snapshot.lineupPeriods.map((p) => ({
+    ...p,
+    zonePlayers: {
+      back: Array.from(new Set(p.zonePlayers.back.map(remap))),
+      hback: Array.from(new Set(p.zonePlayers.hback.map(remap))),
+      mid: Array.from(new Set(p.zonePlayers.mid.map(remap))),
+      hfwd: Array.from(new Set(p.zonePlayers.hfwd.map(remap))),
+      fwd: Array.from(new Set(p.zonePlayers.fwd.map(remap))),
+    },
+  }));
+
+  const playerIds = Array.from(new Set(snapshot.playerIds.map(remap)));
+
+  return {
+    ...snapshot,
+    playerZoneMs,
+    playerGoals: mergeNumberMap(snapshot.playerGoals),
+    playerBehinds: mergeNumberMap(snapshot.playerBehinds),
+    subsIn: mergeNumberMap(snapshot.subsIn),
+    subsOut: mergeNumberMap(snapshot.subsOut),
     lineupPeriods,
     playerIds,
   };

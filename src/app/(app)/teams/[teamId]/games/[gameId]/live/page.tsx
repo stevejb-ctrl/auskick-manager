@@ -9,7 +9,26 @@ import {
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { Game, GameEvent, Player } from "@/lib/types";
+import type { FillIn, Game, GameEvent, Player } from "@/lib/types";
+
+/**
+ * A fill-in player is stored in `game_fill_ins` but needs to look like a
+ * normal Player to the live UI (same id shape, same lookups). This projects
+ * one into that shape. Their ids stay unique UUIDs so game_events can
+ * reference them directly.
+ */
+function fillInToPlayer(f: FillIn, teamId: string): Player {
+  return {
+    id: f.id,
+    team_id: teamId,
+    full_name: f.full_name,
+    jersey_number: f.jersey_number ?? 0,
+    is_active: true,
+    created_by: f.created_by ?? "",
+    created_at: f.created_at,
+    updated_at: f.created_at,
+  };
+}
 
 interface LivePageProps {
   params: { teamId: string; gameId: string };
@@ -76,22 +95,37 @@ export default async function LivePage({ params }: LivePageProps) {
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
-    const [{ data: squadPlayers }, { data: teamGames }, { data: gameAvail }] =
-      await Promise.all([
-        supabase
-          .from("players")
-          .select("*")
-          .eq("team_id", params.teamId)
-          .eq("is_active", true)
-          .order("jersey_number"),
-        supabase.from("games").select("id").eq("team_id", params.teamId),
-        supabase
-          .from("game_availability")
-          .select("player_id, status")
-          .eq("game_id", params.gameId)
-          .eq("status", "available"),
-      ]);
-    const allActive = (squadPlayers ?? []) as Player[];
+    const [
+      { data: squadPlayers },
+      { data: teamGames },
+      { data: gameAvail },
+      { data: fillInRows },
+    ] = await Promise.all([
+      supabase
+        .from("players")
+        .select("*")
+        .eq("team_id", params.teamId)
+        .eq("is_active", true)
+        .order("jersey_number"),
+      supabase.from("games").select("id").eq("team_id", params.teamId),
+      supabase
+        .from("game_availability")
+        .select("player_id, status")
+        .eq("game_id", params.gameId)
+        .eq("status", "available"),
+      supabase
+        .from("game_fill_ins")
+        .select("*")
+        .eq("game_id", params.gameId)
+        .order("created_at"),
+    ]);
+    const fillInsForLive = ((fillInRows ?? []) as FillIn[]).map((f) =>
+      fillInToPlayer(f, params.teamId)
+    );
+    const allActive = [
+      ...((squadPlayers ?? []) as Player[]),
+      ...fillInsForLive,
+    ];
     const availableIds = new Set((gameAvail ?? []).map((a) => a.player_id));
     const inGameIds = new Set<string>();
     if (state.lineup) {
@@ -149,7 +183,12 @@ export default async function LivePage({ params }: LivePageProps) {
   }
 
   // Pre-kick-off: build picker data.
-  const [{ data: avail }, { data: players }, { data: teamGames }] = await Promise.all([
+  const [
+    { data: avail },
+    { data: players },
+    { data: teamGames },
+    { data: fillInRows },
+  ] = await Promise.all([
     supabase
       .from("game_availability")
       .select("player_id, status")
@@ -162,9 +201,20 @@ export default async function LivePage({ params }: LivePageProps) {
       .eq("is_active", true)
       .order("jersey_number"),
     supabase.from("games").select("id").eq("team_id", params.teamId),
+    supabase
+      .from("game_fill_ins")
+      .select("*")
+      .eq("game_id", params.gameId)
+      .order("created_at"),
   ]);
 
-  const allActive = (players ?? []) as Player[];
+  const fillInsForPicker = ((fillInRows ?? []) as FillIn[]).map((f) =>
+    fillInToPlayer(f, params.teamId)
+  );
+  const allActive = [
+    ...((players ?? []) as Player[]),
+    ...fillInsForPicker,
+  ];
   const availableIds = new Set((avail ?? []).map((a) => a.player_id));
   const availablePlayers = allActive.filter((p) => availableIds.has(p.id));
 
@@ -197,6 +247,7 @@ export default async function LivePage({ params }: LivePageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
+          backHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
       )}
     </div>

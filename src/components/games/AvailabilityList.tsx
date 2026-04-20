@@ -2,11 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   AvailabilityStatus,
+  FillIn,
   GameAvailability,
   LiveAuth,
   Player,
 } from "@/lib/types";
 import { AvailabilityRow } from "@/components/games/AvailabilityRow";
+import { AddFillInForm } from "@/components/games/AddFillInForm";
+import { FillInRow } from "@/components/games/FillInRow";
 
 interface AvailabilityListProps {
   auth: LiveAuth;
@@ -18,7 +21,7 @@ interface AvailabilityListProps {
 export async function AvailabilityList({ auth, teamId, gameId, canEdit }: AvailabilityListProps) {
   const supabase = auth.kind === "token" ? createAdminClient() : createClient();
 
-  const [{ data: players }, { data: availability }] = await Promise.all([
+  const [{ data: players }, { data: availability }, { data: fillInRows }] = await Promise.all([
     supabase
       .from("players")
       .select("*")
@@ -26,9 +29,15 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
       .eq("is_active", true)
       .order("jersey_number"),
     supabase.from("game_availability").select("*").eq("game_id", gameId),
+    supabase
+      .from("game_fill_ins")
+      .select("*")
+      .eq("game_id", gameId)
+      .order("created_at"),
   ]);
 
   const squad = (players ?? []) as Player[];
+  const fillIns = (fillInRows ?? []) as FillIn[];
   const availMap = new Map<string, AvailabilityStatus>();
   for (const row of (availability ?? []) as GameAvailability[]) {
     availMap.set(row.player_id, row.status);
@@ -36,13 +45,13 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
 
   let available = 0;
   let unavailable = 0;
-  let unknown = 0;
   for (const p of squad) {
     const s = availMap.get(p.id) ?? "unknown";
     if (s === "available") available++;
-    else if (s === "unavailable") unavailable++;
-    else unknown++;
+    else unavailable++;
   }
+  // Fill-ins are always available — addFillIn stamps an availability row for them.
+  available += fillIns.length;
 
   return (
     <div className="space-y-4">
@@ -50,16 +59,13 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
         <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-3 py-1 font-semibold text-green-700">
           {available} available
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-100 px-3 py-1 font-semibold text-red-700">
-          {unavailable} unavailable
-        </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-3 py-1 font-semibold text-gray-600">
-          {unknown} unknown
+          {unavailable} unavailable
         </span>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        {squad.length === 0 ? (
+        {squad.length === 0 && fillIns.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-gray-500">
             No active players in the squad.
           </p>
@@ -77,8 +83,20 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
                 canEdit={canEdit}
               />
             ))}
+            {fillIns.map((f) => (
+              <FillInRow
+                key={f.id}
+                auth={auth}
+                gameId={gameId}
+                fillInId={f.id}
+                fullName={f.full_name}
+                jerseyNumber={f.jersey_number}
+                canEdit={canEdit}
+              />
+            ))}
           </ul>
         )}
+        {canEdit && <AddFillInForm auth={auth} gameId={gameId} />}
       </div>
     </div>
   );

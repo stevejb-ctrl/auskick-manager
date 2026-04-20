@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { replayGame } from "@/lib/dashboard/eventReplay";
+import { bucketFillIns, replayGame } from "@/lib/dashboard/eventReplay";
+import { FILL_IN_STATS_ID, type Player } from "@/lib/types";
 import {
   deriveSeasons,
   filterBySeason,
@@ -90,13 +91,19 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   // Fetch events for all completed season games (one query)
   let snapshots: GameSnapshot[] = [];
+  const fillInIds = new Set<string>();
   if (seasonGames.length > 0) {
     const gameIds = seasonGames.map((g) => g.id);
-    const { data: eventsRaw } = await supabase
-      .from("game_events")
-      .select("*")
-      .in("game_id", gameIds)
-      .order("created_at");
+    const [{ data: eventsRaw }, { data: fillInRaw }] = await Promise.all([
+      supabase
+        .from("game_events")
+        .select("*")
+        .in("game_id", gameIds)
+        .order("created_at"),
+      supabase.from("game_fill_ins").select("id").in("game_id", gameIds),
+    ]);
+
+    for (const f of fillInRaw ?? []) fillInIds.add(f.id);
 
     if (eventsRaw && eventsRaw.length > 0) {
       // Group by game_id
@@ -107,7 +114,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         byGame.set(ev.game_id, arr);
       }
       snapshots = Array.from(byGame.entries()).map(([gid, evs]) =>
-        replayGame(gid, evs)
+        bucketFillIns(replayGame(gid, evs), fillInIds)
       );
     }
   }
@@ -124,13 +131,33 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     seasonGames.some((g) => g.id === a.game_id)
   );
 
-  // Build player name lookup
+  // Build player name lookup — add a synthetic entry for the fill-in bucket
+  // so downstream rows render as "Fill-In" rather than a bare UUID.
   const playerNames: Record<string, string> = Object.fromEntries(
     players.map((p) => [p.id, p.full_name])
   );
+  if (fillInIds.size > 0) playerNames[FILL_IN_STATS_ID] = "Fill-In";
+
+  // Synthetic Fill-In player so computePlayerStats finds a name/jersey for
+  // the bucketed id. is_active=false keeps it out of attendance %.
+  const playersWithFillIn = fillInIds.size > 0
+    ? [
+        ...players,
+        {
+          id: FILL_IN_STATS_ID,
+          team_id: params.teamId,
+          full_name: "Fill-In",
+          jersey_number: 0,
+          is_active: false,
+          created_by: "",
+          created_at: "",
+          updated_at: "",
+        } satisfies Player,
+      ]
+    : players;
 
   // Compute all sections
-  const playerStats = computePlayerStats(players, snapshots, seasonGames);
+  const playerStats = computePlayerStats(playersWithFillIn, snapshots, seasonGames);
   const combos = computeWinningCombinations(snapshots);
   const combosByZone = topCombosPerZone(combos);
   const chemistryPairs = computePlayerChemistry(snapshots);

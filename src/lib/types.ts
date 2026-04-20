@@ -68,6 +68,21 @@ export interface Player {
   updated_at: string;
 }
 
+// Per-game "fill in" — not on the permanent squad but added on the day.
+// Stats aggregation collapses every fill-in into a single synthetic row
+// (see FILL_IN_STATS_ID below) so they don't pollute season totals.
+export interface FillIn {
+  id: string;
+  game_id: string;
+  full_name: string;
+  jersey_number: number | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Synthetic player id used when aggregating fill-in stats across a season. */
+export const FILL_IN_STATS_ID = "__fill_in__";
+
 export type GameStatus = "upcoming" | "in_progress" | "completed";
 export type AvailabilityStatus = "available" | "unavailable" | "unknown";
 
@@ -226,6 +241,15 @@ export type Database = {
           created_at?: string;
         };
         Update: never;
+        Relationships: [];
+      };
+      game_fill_ins: {
+        Row: FillIn;
+        Insert: Omit<FillIn, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<FillIn, "id" | "game_id" | "created_at">>;
         Relationships: [];
       };
     };
