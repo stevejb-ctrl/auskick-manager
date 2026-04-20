@@ -73,7 +73,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
 
     return (
-      <div className="mx-auto max-w-2xl space-y-3 p-3">
+      <div className="space-y-3 p-3">
         <GameInfoHeader teamName={teamName} g={g} compact />
         <LiveGame
           auth={auth}
@@ -99,7 +99,7 @@ export default async function RunPage({ params }: RunPageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-3">
+    <div className="space-y-6 p-3">
       <GameInfoHeader teamName={teamName} g={g} />
 
       <section className="space-y-3">
