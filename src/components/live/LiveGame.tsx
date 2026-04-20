@@ -191,6 +191,10 @@ export function LiveGame({
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Swap-done toast — confirms that a substitution landed.
+  const [swapToast, setSwapToast] = useState<string | null>(null);
+  const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -371,6 +375,9 @@ export function LiveGame({
       const quarter = Math.max(1, currentQuarter);
       const elapsed_ms = currentElapsedMs();
       applyFieldZoneSwap(pidA, zoneA, playerId, zone);
+      showSwapToast(
+        `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
+      );
       startTransition(async () => {
         const result = await recordFieldZoneSwap(auth, gameId, {
           player_a_id: pidA,
@@ -409,6 +416,23 @@ export function LiveGame({
     setLastScore(score);
     setUndoToastVisible(true);
     undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
+  }
+
+  function shortName(playerId: string): string {
+    const p = playersById.get(playerId);
+    if (!p) return "Player";
+    const [first] = p.full_name.trim().split(/\s+/);
+    return first ?? p.full_name;
+  }
+
+  function showSwapToast(text: string) {
+    if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
+    setSwapToast(text);
+    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
+    // Light haptic tap on mobile.
+    if (typeof window !== "undefined" && window.matchMedia("(hover: none)").matches) {
+      navigator.vibrate?.(40);
+    }
   }
 
   function handleScore(kind: "goal" | "behind") {
@@ -633,6 +657,10 @@ export function LiveGame({
         clearTimeout(undoTimerRef.current);
         undoTimerRef.current = null;
       }
+      if (swapToastTimerRef.current !== null) {
+        clearTimeout(swapToastTimerRef.current);
+        swapToastTimerRef.current = null;
+      }
       if (songTimerRef.current !== null) {
         clearTimeout(songTimerRef.current);
         songTimerRef.current = null;
@@ -735,6 +763,23 @@ export function LiveGame({
         isFinished={isFinished}
       />
 
+      {/* Swap-done toast — flashes briefly after a substitution lands */}
+      {swapToast && !isPreGame && !isFinished && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card"
+        >
+          <span
+            aria-hidden
+            className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
+          >
+            ✓
+          </span>
+          <span className="text-xs font-semibold">{swapToast}</span>
+        </div>
+      )}
+
       {/* Undo last score — toast (8 s) then persistent chip */}
       {lastScore && !isPreGame && !isFinished && (
         <div
@@ -803,9 +848,22 @@ export function LiveGame({
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);
                   }
+                  if (suggestions.length === 1) {
+                    const s = suggestions[0];
+                    showSwapToast(
+                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
+                    );
+                  } else if (suggestions.length > 1) {
+                    showSwapToast(`${suggestions.length} subs made`);
+                  }
                   handleSubModalAcknowledge();
                 }}
-                onApplyOne={(s) => persistSwap(s.off_player_id, s.on_player_id, s.zone)}
+                onApplyOne={(s) => {
+                  persistSwap(s.off_player_id, s.on_player_id, s.zone);
+                  showSwapToast(
+                    `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
+                  );
+                }}
               />
             )}
 
@@ -929,6 +987,13 @@ export function LiveGame({
           playersById={playersById}
           onConfirm={() => {
             persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone);
+            if (pendingSwap.off) {
+              showSwapToast(
+                `${shortName(pendingSwap.off)} → ${shortName(pendingSwap.on)}`
+              );
+            } else {
+              showSwapToast(`${shortName(pendingSwap.on)} on`);
+            }
             setPendingSwap(null);
           }}
           onCancel={() => setPendingSwap(null)}
