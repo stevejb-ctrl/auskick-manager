@@ -13,6 +13,8 @@ interface FieldProps {
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
+  lockedIds?: string[];
+  onLongPress?: (playerId: string) => void;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   playerScores?: Record<string, { goals: number; behinds: number }>;
@@ -33,11 +35,14 @@ export function Field({
   totalMsByPlayer,
   zoneMsByPlayer,
   injuredIds,
+  lockedIds,
+  onLongPress,
   zoneCaps,
   positionModel,
   playerScores,
 }: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
+  const lockedSet = new Set(lockedIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
 
@@ -84,12 +89,14 @@ export function Field({
                     key={pid}
                     player={player}
                     onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
+                    onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                     selected={isSelected}
                     dimmed={dimZone}
                     swap={swapOffs?.has(pid) ? { role: "off", pair: swapOffs.get(pid)! } : null}
                     totalMs={totalMsByPlayer?.[pid]}
                     zoneMs={zoneMsByPlayer?.[pid]}
                     injured={injuredSet.has(pid)}
+                    locked={lockedSet.has(pid)}
                     score={playerScores?.[pid]}
                   />
                 );

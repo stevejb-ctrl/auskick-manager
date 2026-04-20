@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { Player } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 
@@ -8,6 +9,7 @@ export type SwapRole = { role: "off" | "on"; pair: number };
 interface PlayerTileProps {
   player: Player;
   onClick?: () => void;
+  onLongPress?: () => void;
   selected?: boolean;
   dimmed?: boolean;
   swap?: SwapRole | null;
@@ -15,6 +17,7 @@ interface PlayerTileProps {
   totalMs?: number;
   zoneMs?: ZoneMinutes;
   injured?: boolean;
+  locked?: boolean;
   score?: { goals: number; behinds: number };
 }
 
@@ -28,6 +31,7 @@ function formatMinSec(ms: number): string {
 export function PlayerTile({
   player,
   onClick,
+  onLongPress,
   selected,
   dimmed,
   swap,
@@ -35,8 +39,38 @@ export function PlayerTile({
   totalMs,
   zoneMs,
   injured,
+  locked,
   score,
 }: PlayerTileProps) {
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPressRef = useRef(false);
+
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!onLongPress) return;
+    didLongPressRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      longPressTimerRef.current = null;
+      onLongPress();
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function handleClick() {
+    if (didLongPressRef.current) {
+      didLongPressRef.current = false;
+      return;
+    }
+    onClick?.();
+  }
+
   const showSwap = swap && !selected && !injured;
   const isOff = showSwap && swap.role === "off";
   const isOn = showSwap && swap.role === "on";
@@ -55,20 +89,25 @@ export function PlayerTile({
         ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-300 shadow-sm"
         : injured
           ? "border-rose-300 bg-rose-50"
-          : "border-gray-200 bg-white hover:border-gray-300";
+          : locked
+            ? "border-indigo-300 bg-indigo-50"
+            : "border-gray-200 bg-white hover:border-gray-300";
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      disabled={!onClick}
+      onClick={handleClick}
+      onPointerDown={onLongPress ? handlePointerDown : undefined}
+      onPointerUp={onLongPress ? cancelLongPress : undefined}
+      onPointerCancel={onLongPress ? cancelLongPress : undefined}
+      disabled={!onClick && !onLongPress}
       className={[
         "relative flex w-full items-center justify-center rounded-md border text-center transition-all",
         compact ? "gap-1 px-2 py-1.5" : "flex-col gap-0.5 px-1 py-2",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
         injured ? "grayscale" : "",
-        !onClick ? "cursor-default" : "",
+        !onClick && !onLongPress ? "cursor-default" : "",
       ].join(" ")}
     >
       {isOff && (
@@ -95,6 +134,14 @@ export function PlayerTile({
           aria-label="Injured"
         >
           INJ
+        </span>
+      )}
+      {locked && !injured && (
+        <span
+          className="absolute left-1 top-1 rounded-sm bg-indigo-500 px-1 text-[9px] font-bold uppercase leading-none text-white"
+          aria-label="Locked"
+        >
+          LCK
         </span>
       )}
       {score && (score.goals > 0 || score.behinds > 0) && (
