@@ -39,6 +39,10 @@ export interface Team {
   track_scoring: boolean;
   age_group: AgeGroup;
   playhq_url: string | null;
+  /** Public Supabase Storage URL for the team song, or null if none set. */
+  song_url: string | null;
+  /** Seconds into the song to start playback from (defaults to 0). */
+  song_start_seconds: number;
   created_by: string;
   created_at: string;
   updated_at: string;
