@@ -175,6 +175,18 @@ export function LiveGame({
       setHydrated(true);
       return;
     }
+    // Reconstruct running clock for an active quarter from the quarter_start wall time.
+    let clockStartedAt: number | null = null;
+    let accumulatedMs = 0;
+    if (
+      !initialState.quarterEnded &&
+      !initialState.finalised &&
+      initialState.currentQuarter >= 1 &&
+      initialState.quarterStartedAt
+    ) {
+      accumulatedMs = Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime());
+      clockStartedAt = Date.now();
+    }
     init({
       activeGameId: gameId,
       lineup: initialState.lineup,
@@ -188,6 +200,8 @@ export function LiveGame({
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
       injuredIds: initialState.injuredIds,
+      clockStartedAt,
+      accumulatedMs,
     });
     setHydrated(true);
   }, [init, initialState, gameId, activeGameId]);
