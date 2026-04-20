@@ -181,8 +181,12 @@ export function LiveGame({
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Load the YouTube IFrame API once if the song URL is a YouTube link.
+  // NOTE: depends on `hydrated` because the container div only enters the DOM after
+  // the hydration guard clears. Without this dep the effect would fire when the
+  // component still returns null, find ytContainerRef.current === null, bail out
+  // early, and never re-run because songUrl/gameId don't change on the second render.
   useEffect(() => {
-    if (!songUrl || !isYouTubeUrl(songUrl)) return;
+    if (!hydrated || !songUrl || !isYouTubeUrl(songUrl)) return;
     const videoId = youtubeVideoId(songUrl);
     if (!videoId || !ytContainerRef.current) return;
 
@@ -221,7 +225,7 @@ export function LiveGame({
       playerDiv.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songUrl, gameId]);
+  }, [songUrl, gameId, hydrated]);
 
   function playSong() {
     if (!songUrl) return;
