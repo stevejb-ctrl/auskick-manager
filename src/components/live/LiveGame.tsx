@@ -509,8 +509,14 @@ export function LiveGame({
         <SubDueModal
           suggestions={suggestions}
           playersById={playersById}
+          onApply={() => {
+            for (const s of suggestions) {
+              persistSwap(s.off_player_id, s.on_player_id, s.zone);
+            }
+          }}
           onAcknowledge={handleSubModalAcknowledge}
           onSnooze={handleSubModalSnooze}
+          pending={isPending}
         />
       )}
       {trackScoring && (
