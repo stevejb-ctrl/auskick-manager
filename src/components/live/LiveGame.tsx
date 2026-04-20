@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
-import { NextSubBar } from "@/components/live/NextSubBar";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
@@ -773,14 +772,6 @@ export function LiveGame({
         </p>
       )}
 
-      {/* Next-sub progress */}
-      {!isPreGame && !isFinished && (
-        <NextSubBar
-          msUntilDue={msUntilDue}
-          subIntervalMs={subIntervalMs}
-        />
-      )}
-
       {error && (
         <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn" role="alert">
           {error}
@@ -806,6 +797,8 @@ export function LiveGame({
                 pending={isPending}
                 subState={subState}
                 forceOpen={subModalOpen}
+                msUntilDue={msUntilDue}
+                subIntervalMs={subIntervalMs}
                 onApply={() => {
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);

@@ -14,6 +14,54 @@ interface SwapCardProps {
   subState: "idle" | "soft" | "due";
   /** When true, start expanded — used when a sub is due so the detail is immediately visible. */
   forceOpen?: boolean;
+  /** Ms until next sub is due. null when the timer isn't running (pre-game / quarter break). */
+  msUntilDue?: number | null;
+  /** Full sub interval in ms — used to size the progress ring. */
+  subIntervalMs?: number;
+}
+
+function formatCountdown(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+/** Small ring + countdown badge — merged from the old NextSubBar. */
+function TimerRing({ msUntilDue, subIntervalMs }: { msUntilDue: number; subIntervalMs: number }) {
+  const due = msUntilDue <= 0;
+  const progress = Math.max(0, Math.min(1, 1 - msUntilDue / subIntervalMs));
+  const r = 12;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - progress);
+  const ringColor = due ? "#FFB366" : "#7CAA7D";
+  return (
+    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center" aria-hidden>
+      <svg width="32" height="32" viewBox="0 0 32 32" className="absolute inset-0">
+        <circle cx="16" cy="16" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+        <circle
+          cx="16"
+          cy="16"
+          r={r}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth="2.5"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform="rotate(-90 16 16)"
+          style={{ transition: "stroke-dashoffset 400ms linear" }}
+        />
+      </svg>
+      <span
+        className={`nums font-mono text-[9px] font-bold leading-none ${
+          due ? "animate-pulse text-warn" : "text-warm"
+        }`}
+      >
+        {due ? "NOW" : formatCountdown(msUntilDue)}
+      </span>
+    </span>
+  );
 }
 
 const ZONE_LABELS: Record<string, string> = {
@@ -57,17 +105,17 @@ export function SwapCard({
   pending,
   subState,
   forceOpen,
+  msUntilDue,
+  subIntervalMs,
 }: SwapCardProps) {
   const [open, setOpen] = useState(forceOpen ?? false);
   const swapCount = useLiveGame((s) => s.swapCount);
   const prevSwapCountRef = useRef(swapCount);
 
-  // Re-open automatically when a sub becomes due.
   useEffect(() => {
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
 
-  // Auto-close after any swap commits (field tap or SwapCard button).
   useEffect(() => {
     if (swapCount !== prevSwapCountRef.current) {
       prevSwapCountRef.current = swapCount;
@@ -83,9 +131,13 @@ export function SwapCard({
     })
     .filter((x): x is { s: SwapSuggestion; off: Player; on: Player } => x !== null);
 
-  if (valid.length === 0) return null;
-
+  const timerActive = msUntilDue !== null && msUntilDue !== undefined && subIntervalMs && subIntervalMs > 0;
   const isDue = subState === "due";
+
+  // Nothing to show at all — no timer, no suggestions.
+  if (!timerActive && valid.length === 0) return null;
+
+  const hasSuggestions = valid.length > 0;
 
   return (
     <div
@@ -95,50 +147,62 @@ export function SwapCard({
     >
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart hover:bg-white/[0.03]"
-        aria-expanded={open}
+        onClick={hasSuggestions ? () => setOpen((o) => !o) : undefined}
+        disabled={!hasSuggestions}
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart enabled:hover:bg-white/[0.03] disabled:cursor-default"
+        aria-expanded={hasSuggestions ? open : undefined}
       >
-        <span
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-sm bg-brand-600 text-white"
-          aria-hidden
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 3l2.09 6.26L20 11l-5.91 1.74L12 19l-2.09-6.26L4 11l5.91-1.74L12 3z"
-              fill="currentColor"
-            />
-          </svg>
-        </span>
+        {timerActive ? (
+          <TimerRing msUntilDue={msUntilDue as number} subIntervalMs={subIntervalMs as number} />
+        ) : (
+          <span
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-sm bg-brand-600 text-white"
+            aria-hidden
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3l2.09 6.26L20 11l-5.91 1.74L12 19l-2.09-6.26L4 11l5.91-1.74L12 3z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-warm/60">
-            {isDue ? "Sub due — " : "Suggested — "}
-            {valid.length} {valid.length === 1 ? "swap" : "swaps"}
+            {hasSuggestions
+              ? `${isDue ? "Sub due" : "Suggested"} — ${valid.length} ${valid.length === 1 ? "swap" : "swaps"}`
+              : isDue
+                ? "Sub due"
+                : "Next sub in"}
           </p>
           <p className="truncate text-xs font-medium text-warm/90">
-            {valid
-              .map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`)
-              .join(" · ")}
+            {hasSuggestions
+              ? valid
+                  .map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`)
+                  .join(" · ")
+              : "No suggestions yet"}
           </p>
         </div>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          className={`flex-shrink-0 text-warm/60 transition-transform duration-fast ease-out-quart ${
-            open ? "rotate-180" : ""
-          }`}
-          aria-hidden
-        >
-          <path
-            d="M6 9l6 6 6-6"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        {hasSuggestions && (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            className={`flex-shrink-0 text-warm/60 transition-transform duration-fast ease-out-quart ${
+              open ? "rotate-180" : ""
+            }`}
+            aria-hidden
+          >
+            <path
+              d="M6 9l6 6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
       </button>
 
       {open && (
