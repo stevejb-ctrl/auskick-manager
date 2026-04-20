@@ -12,11 +12,14 @@ interface BenchProps {
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
+  lockedIds?: string[];
+  onLongPress?: (playerId: string) => void;
   playerScores?: Record<string, { goals: number; behinds: number }>;
 }
 
-export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, playerScores }: BenchProps) {
+export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneMsByPlayer, injuredIds, lockedIds, onLongPress, playerScores }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
+  const lockedSet = new Set(lockedIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
 
@@ -41,12 +44,14 @@ export function Bench({ playersById, onTapBench, swapOns, totalMsByPlayer, zoneM
                 key={pid}
                 player={p}
                 onClick={injuredSet.has(pid) ? undefined : () => onTapBench(pid)}
+                onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                 selected={isSelected}
                 dimmed={!benchActive && selected !== null}
                 swap={swapOns?.has(pid) ? { role: "on", pair: swapOns.get(pid)! } : null}
                 totalMs={totalMsByPlayer?.[pid]}
                 zoneMs={zoneMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
+                locked={lockedSet.has(pid)}
                 score={playerScores?.[pid]}
               />
             );

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
@@ -120,13 +119,6 @@ export default async function LivePage({ params }: LivePageProps) {
 
     return (
       <div className="space-y-4">
-        <Link
-          href={`/teams/${params.teamId}/games/${params.gameId}`}
-          className="text-sm text-gray-500 hover:text-brand-600"
-        >
-          ← Game detail
-        </Link>
-        <h2 className="text-lg font-bold text-gray-900">vs {g.opponent}</h2>
         <LiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
@@ -139,6 +131,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           zoneCaps={zoneCaps}
           positionModel={positionModel}
+          exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
         {isAdmin && (
           <div className="border-t border-gray-200 pt-4">
@@ -184,16 +177,6 @@ export default async function LivePage({ params }: LivePageProps) {
 
   return (
     <div className="space-y-4">
-      <Link
-        href={`/teams/${params.teamId}/games/${params.gameId}`}
-        className="text-sm text-gray-500 hover:text-brand-600"
-      >
-        ← Game detail
-      </Link>
-      <h2 className="text-lg font-bold text-gray-900">
-        vs {g.opponent} — set the starting lineup
-      </h2>
-
       {availablePlayers.length === 0 ? (
         <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
           No players marked available — go back and set availability first.

@@ -36,6 +36,8 @@ export interface LiveGameState {
 
   swapCount: number;
   injuredIds: string[];
+  /** Ephemeral — resets on page reload. Locked players are skipped by auto-rotation. */
+  lockedIds: string[];
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -53,6 +55,7 @@ export interface LiveGameState {
   incPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
+  setLocked: (playerId: string, locked: boolean) => void;
 }
 
 function cloneLineup(l: Lineup): Lineup {
@@ -76,6 +79,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   stintZone: {},
   swapCount: 0,
   injuredIds: [],
+  lockedIds: [],
 
   init: (state) => set((prev) => ({ ...prev, ...state })),
 
@@ -260,6 +264,17 @@ export const useLiveGame = create<LiveGameState>((set) => ({
           ...prev.lineup,
           bench: [...prev.lineup.bench, playerId],
         },
+      };
+    }),
+
+  setLocked: (playerId, locked) =>
+    set((prev) => {
+      const wasLocked = prev.lockedIds.includes(playerId);
+      if (locked === wasLocked) return prev;
+      return {
+        lockedIds: locked
+          ? [...prev.lockedIds, playerId]
+          : prev.lockedIds.filter((p) => p !== playerId),
       };
     }),
 }));

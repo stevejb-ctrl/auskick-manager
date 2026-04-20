@@ -277,10 +277,12 @@ export function suggestSwaps(
   currentGameMs: Record<string, number> = {},
   tieBreak: number = 0,
   injuredIds: readonly string[] = [],
-  activeZoneList: Zone[] = ZONES
+  activeZoneList: Zone[] = ZONES,
+  lockedIds: readonly string[] = []
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
-  const fitBench = lineup.bench.filter((p) => !injured.has(p));
+  const locked = new Set(lockedIds);
+  const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));
   if (fitBench.length === 0) return [];
 
   const gameMin = (pid: string) => (currentGameMs[pid] ?? 0) / 60000;
@@ -289,7 +291,7 @@ export function suggestSwaps(
   for (const z of ALL_ZONES) fieldByZone[z] = [];
   for (const z of activeZoneList) {
     fieldByZone[z] = seededShuffle(
-      lineup[z].filter((p) => !injured.has(p)),
+      lineup[z].filter((p) => !injured.has(p) && !locked.has(p)),
       tieBreak + 131 * (ALL_ZONES.indexOf(z) + 1)
     );
     fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a));

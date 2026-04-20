@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   clockElapsedMs,
@@ -77,6 +78,7 @@ interface LiveGameProps {
   season: PlayerZoneMinutes;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
+  exitHref?: string;
 }
 
 export function LiveGame({
@@ -91,6 +93,7 @@ export function LiveGame({
   season,
   zoneCaps,
   positionModel,
+  exitHref,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -120,6 +123,8 @@ export function LiveGame({
   const swapCount = useLiveGame((s) => s.swapCount);
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const setInjured = useLiveGame((s) => s.setInjured);
+  const lockedIds = useLiveGame((s) => s.lockedIds);
+  const setLocked = useLiveGame((s) => s.setLocked);
 
   const activeGameId = useLiveGame((s) => s.activeGameId);
 
@@ -477,15 +482,29 @@ export function LiveGame({
     );
   }
 
+  function handleLongPress(playerId: string) {
+    setLocked(playerId, !lockedIds.includes(playerId));
+  }
+
   const suggestions =
     isPreGame || isFinished
       ? []
-      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones);
+      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds);
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
   return (
     <div className="space-y-3">
+      {exitHref && (
+        <div className="flex justify-end">
+          <Link
+            href={exitHref}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            Exit game ✕
+          </Link>
+        </div>
+      )}
       {subModalOpen && (
         <SubDueModal
           suggestions={suggestions}
@@ -555,6 +574,8 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              lockedIds={lockedIds}
+              onLongPress={handleLongPress}
               zoneCaps={zoneCaps}
               positionModel={positionModel}
               playerScores={playerScores}
@@ -566,6 +587,8 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              lockedIds={lockedIds}
+              onLongPress={handleLongPress}
               playerScores={playerScores}
             />
             {!isPreGame && !isFinished && (
