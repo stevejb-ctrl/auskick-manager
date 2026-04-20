@@ -734,8 +734,17 @@ export function LiveGame({
 
   return (
     <div className="space-y-3">
-      {/* Top utility row: walkthrough + exit */}
+      {/* Top utility row: exit on the left, help (?) on the right so it
+          sits above the scorebug's right edge — the conventional location
+          for a "help" affordance. */}
       <div className="flex items-center justify-between">
+        {exitHref ? (
+          <Link href={exitHref} className="font-mono text-[11px] text-ink-mute hover:text-ink-dim">
+            ✕ Exit
+          </Link>
+        ) : (
+          <span />
+        )}
         <button
           type="button"
           onClick={handleOpenWalkthrough}
@@ -744,11 +753,6 @@ export function LiveGame({
         >
           ?
         </button>
-        {exitHref && (
-          <Link href={exitHref} className="font-mono text-[11px] text-ink-mute hover:text-ink-dim">
-            Exit ✕
-          </Link>
-        )}
       </div>
 
       {/* Unified header — teams + scores + clock pill */}
