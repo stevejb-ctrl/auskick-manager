@@ -134,10 +134,9 @@ export function SwapCard({
   const timerActive = msUntilDue !== null && msUntilDue !== undefined && subIntervalMs && subIntervalMs > 0;
   const isDue = subState === "due";
 
-  // Nothing to show at all — no timer, no suggestions.
-  if (!timerActive && valid.length === 0) return null;
-
-  const hasSuggestions = valid.length > 0;
+  // Only render when there are actual sub suggestions — an idle countdown
+  // without any suggested swaps isn't worth the screen real estate.
+  if (valid.length === 0) return null;
 
   return (
     <div
@@ -147,10 +146,9 @@ export function SwapCard({
     >
       <button
         type="button"
-        onClick={hasSuggestions ? () => setOpen((o) => !o) : undefined}
-        disabled={!hasSuggestions}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart enabled:hover:bg-white/[0.03] disabled:cursor-default"
-        aria-expanded={hasSuggestions ? open : undefined}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart hover:bg-white/[0.03]"
+        aria-expanded={open}
       >
         {timerActive ? (
           <TimerRing msUntilDue={msUntilDue as number} subIntervalMs={subIntervalMs as number} />
@@ -169,40 +167,32 @@ export function SwapCard({
         )}
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-warm/60">
-            {hasSuggestions
-              ? `${isDue ? "Sub due" : "Suggested"} — ${valid.length} ${valid.length === 1 ? "swap" : "swaps"}`
-              : isDue
-                ? "Sub due"
-                : "Next sub in"}
+            {isDue ? "Sub due" : "Suggested"} — {valid.length} {valid.length === 1 ? "swap" : "swaps"}
           </p>
           <p className="truncate text-xs font-medium text-warm/90">
-            {hasSuggestions
-              ? valid
-                  .map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`)
-                  .join(" · ")
-              : "No suggestions yet"}
+            {valid
+              .map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`)
+              .join(" · ")}
           </p>
         </div>
-        {hasSuggestions && (
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            className={`flex-shrink-0 text-warm/60 transition-transform duration-fast ease-out-quart ${
-              open ? "rotate-180" : ""
-            }`}
-            aria-hidden
-          >
-            <path
-              d="M6 9l6 6 6-6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`flex-shrink-0 text-warm/60 transition-transform duration-fast ease-out-quart ${
+            open ? "rotate-180" : ""
+          }`}
+          aria-hidden
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {open && (
