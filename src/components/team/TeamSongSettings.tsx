@@ -3,9 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import {
   saveSong,
+  saveSongUrl,
   updateSongStart,
   deleteSong,
 } from "@/app/(app)/teams/[teamId]/settings/actions";
+import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
 
 interface TeamSongSettingsProps {
   teamId: string;
@@ -31,18 +33,37 @@ export function TeamSongSettings({
   const [success, setSuccess] = useState<string | null>(null);
   const [songUrl, setSongUrl] = useState<string | null>(currentSongUrl);
   const [startSecs, setStartSecs] = useState(currentStartSeconds);
-  const [showUpload, setShowUpload] = useState(!currentSongUrl);
-  const [previewPlaying, setPreviewPlaying] = useState(false);
-  const previewRef = useRef<HTMLAudioElement | null>(null);
+
+  // URL input form state
+  const [urlInput, setUrlInput] = useState(currentSongUrl ?? "");
+
+  // File upload section
+  const [showUpload, setShowUpload] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // YouTube preview toggle
+  const [showYtPreview, setShowYtPreview] = useState(false);
+
+  // HTML5 Audio preview
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
 
   function flash(msg: string) {
     setSuccess(msg);
     setTimeout(() => setSuccess(null), 3000);
   }
 
+  const isCurrentYouTube = songUrl ? isYouTubeUrl(songUrl) : false;
+
+  // ── Preview ──────────────────────────────────────────────────────────────
+
   function handlePreview() {
     if (!songUrl) return;
+    if (isCurrentYouTube) {
+      setShowYtPreview((v) => !v);
+      return;
+    }
+    // HTML5 Audio preview
     if (previewPlaying) {
       previewRef.current?.pause();
       setPreviewPlaying(false);
@@ -56,8 +77,30 @@ export function TeamSongSettings({
     setTimeout(() => {
       audio.pause();
       setPreviewPlaying(false);
-    }, 15000);
+    }, 15_000);
   }
+
+  // ── Save URL form ─────────────────────────────────────────────────────────
+
+  function handleSaveUrl(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const result = await saveSongUrl(teamId, trimmed, startSecs);
+      if (!result.success) {
+        setError(result.error ?? null);
+      } else {
+        setSongUrl(result.song_url ?? trimmed);
+        setShowYtPreview(false);
+        previewRef.current = null;
+        flash("Song saved!");
+      }
+    });
+  }
+
+  // ── Upload form ───────────────────────────────────────────────────────────
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -67,9 +110,11 @@ export function TeamSongSettings({
     startTransition(async () => {
       const result = await saveSong(teamId, fd);
       if (!result.success) {
-        setError(result.error);
+        setError(result.error ?? null);
       } else {
-        setSongUrl(result.song_url ?? null);
+        const newUrl = result.song_url ?? null;
+        setSongUrl(newUrl);
+        setUrlInput(newUrl ?? "");
         setShowUpload(false);
         previewRef.current = null;
         flash("Song saved!");
@@ -77,33 +122,41 @@ export function TeamSongSettings({
     });
   }
 
+  // ── Update start time only ────────────────────────────────────────────────
+
   function handleUpdateStart(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
       const result = await updateSongStart(teamId, startSecs);
-      if (!result.success) setError(result.error);
+      if (!result.success) setError(result.error ?? null);
       else flash("Start time updated!");
     });
   }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
 
   function handleDelete() {
     if (!confirm("Remove team song?")) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteSong(teamId);
-      if (!result.success) setError(result.error);
-      else {
+      if (!result.success) {
+        setError(result.error ?? null);
+      } else {
         setSongUrl(null);
+        setUrlInput("");
         setStartSecs(0);
-        setShowUpload(true);
+        setShowUpload(false);
+        setShowYtPreview(false);
         previewRef.current = null;
         flash("Song removed.");
       }
     });
   }
 
-  // Non-admins can only see the read-only state
+  // ── Non-admin read-only view ──────────────────────────────────────────────
+
   if (!isAdmin) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -120,6 +173,8 @@ export function TeamSongSettings({
     );
   }
 
+  const ytVideoId = songUrl ? youtubeVideoId(songUrl) : null;
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between">
@@ -129,7 +184,6 @@ export function TeamSongSettings({
             Plays for 15 seconds from the start point whenever a goal is scored.
           </p>
         </div>
-        {/* Musical note emoji */}
         <span className="text-2xl" aria-hidden>🎵</span>
       </div>
 
@@ -144,108 +198,137 @@ export function TeamSongSettings({
         </p>
       )}
 
-      {/* ── Start time (shared between upload and update forms) ── */}
-      <div className="mb-4">
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Start playback at
-        </label>
-        <div className="flex items-center gap-3">
+      {/* ── Primary: URL input ─────────────────────────────────────────── */}
+      <form onSubmit={handleSaveUrl} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Song URL
+          </label>
           <input
-            type="number"
-            min={0}
-            max={3600}
-            value={startSecs}
-            onChange={(e) => setStartSecs(Math.max(0, parseInt(e.target.value) || 0))}
-            className="w-24 rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            aria-label="Start seconds"
+            type="url"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=… or direct audio URL"
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
-          <span className="text-sm text-gray-500">{formatSeconds(startSecs)}</span>
-          {songUrl && (
-            <button
-              type="button"
-              onClick={handlePreview}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              {previewPlaying ? "⏹ Stop" : "▶ Preview 15s"}
-            </button>
-          )}
+          <p className="mt-1 text-xs text-gray-400">
+            Paste a YouTube link or a direct audio URL (https only).
+          </p>
         </div>
-        <p className="mt-1 text-xs text-gray-400">
-          Seconds into the song to start playing from (e.g. the chorus).
-        </p>
-      </div>
 
-      {/* ── Existing song ── */}
-      {songUrl && !showUpload && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-            <span className="text-lg" aria-hidden>🎶</span>
-            <span className="flex-1 truncate text-sm font-medium text-gray-700">
-              Song loaded
-            </span>
-            <a
-              href={songUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-brand-600 hover:underline"
-            >
-              Open ↗
-            </a>
-          </div>
-          {/* Update start time */}
-          <form onSubmit={handleUpdateStart} className="flex gap-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
-            >
-              {isPending ? "Saving…" : "Save start time"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUpload(true)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Replace file
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isPending}
-              className="ml-auto rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
-            >
-              Remove
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* ── Upload form ── */}
-      {(!songUrl || showUpload) && (
-        <form onSubmit={handleUpload} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Audio file
-              <span className="ml-1 font-normal text-gray-400">(MP3, M4A, AAC, WAV, OGG — max 20 MB)</span>
-            </label>
+        {/* Start time */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Start playback at
+          </label>
+          <div className="flex items-center gap-3">
             <input
-              ref={fileRef}
-              name="song"
-              type="file"
-              accept="audio/*"
-              required
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-brand-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+              type="number"
+              min={0}
+              max={3600}
+              value={startSecs}
+              onChange={(e) => setStartSecs(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-24 rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              aria-label="Start seconds"
+            />
+            <span className="text-sm text-gray-500">{formatSeconds(startSecs)}</span>
+            {songUrl && (
+              <button
+                type="button"
+                onClick={handlePreview}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                {isCurrentYouTube
+                  ? showYtPreview ? "⏹ Hide preview" : "▶ Preview"
+                  : previewPlaying ? "⏹ Stop" : "▶ Preview 15s"}
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            Seconds into the song to start playing from (e.g. the chorus).
+          </p>
+        </div>
+
+        {/* YouTube inline preview */}
+        {showYtPreview && ytVideoId && (
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${ytVideoId}?autoplay=1&start=${startSecs}&rel=0`}
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              className="aspect-video w-full"
+              title="Song preview"
             />
           </div>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
-            >
-              {isPending ? "Uploading…" : "Upload song"}
-            </button>
-            {songUrl && showUpload && (
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={isPending || !urlInput.trim()}
+            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+          >
+            {isPending ? "Saving…" : "Save song"}
+          </button>
+          {songUrl && (
+            <>
+              <form onSubmit={handleUpdateStart}>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                >
+                  {isPending ? "Saving…" : "Save start time only"}
+                </button>
+              </form>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isPending}
+                className="ml-auto rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+              >
+                Remove
+              </button>
+            </>
+          )}
+        </div>
+      </form>
+
+      {/* ── Secondary: file upload (collapsible) ───────────────────────── */}
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowUpload((v) => !v)}
+          className="flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700"
+        >
+          <span className={`inline-block transition-transform ${showUpload ? "rotate-90" : ""}`}>▶</span>
+          Or upload an audio file
+        </button>
+
+        {showUpload && (
+          <form onSubmit={handleUpload} className="mt-3 space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Audio file
+                <span className="ml-1 font-normal text-gray-400">(MP3, M4A, AAC, WAV, OGG — max 20 MB)</span>
+              </label>
+              <input
+                ref={fileRef}
+                name="song"
+                type="file"
+                accept="audio/*"
+                required
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-brand-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={isPending}
+                className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+              >
+                {isPending ? "Uploading…" : "Upload song"}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowUpload(false)}
@@ -253,10 +336,10 @@ export function TeamSongSettings({
               >
                 Cancel
               </button>
-            )}
-          </div>
-        </form>
-      )}
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

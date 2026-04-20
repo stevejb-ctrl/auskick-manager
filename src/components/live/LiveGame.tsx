@@ -42,6 +42,21 @@ import {
 } from "@/lib/fairness";
 import type { Player, PositionModel, Zone } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
+import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
+
+// Minimal inline types for the YouTube IFrame API — no @types/youtube needed.
+interface YTPlayer {
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  destroy(): void;
+}
+declare global {
+  interface Window {
+    YT: { Player: new (el: string | HTMLElement, opts: object) => YTPlayer };
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
 
 function playBeep() {
   try {
@@ -159,6 +174,46 @@ export function LiveGame({
   // Team song — play 15 s from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ytPlayerRef = useRef<YTPlayer | null>(null);
+  const ytReadyRef = useRef(false);
+
+  // Load the YouTube IFrame API once if the song URL is a YouTube link.
+  useEffect(() => {
+    if (!songUrl || !isYouTubeUrl(songUrl)) return;
+    const videoId = youtubeVideoId(songUrl);
+    if (!videoId) return;
+
+    const ytDivId = `yt-song-${gameId}`;
+
+    function createPlayer() {
+      ytPlayerRef.current = new window.YT.Player(ytDivId, {
+        videoId,
+        playerVars: { autoplay: 0, controls: 0, fs: 0, rel: 0, playsinline: 1 },
+        events: {
+          onReady: () => { ytReadyRef.current = true; },
+        },
+      });
+    }
+
+    if (window.YT?.Player) {
+      createPlayer();
+    } else {
+      // Queue the callback; the script fires it once loaded.
+      window.onYouTubeIframeAPIReady = createPlayer;
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
+      }
+    }
+
+    return () => {
+      ytPlayerRef.current?.destroy();
+      ytPlayerRef.current = null;
+      ytReadyRef.current = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songUrl, gameId]);
 
   function playSong() {
     if (!songUrl) return;
@@ -167,14 +222,26 @@ export function LiveGame({
         clearTimeout(songTimerRef.current);
         songTimerRef.current = null;
       }
-      const audio = songAudioRef.current ?? new Audio(songUrl);
-      songAudioRef.current = audio;
-      audio.currentTime = songStartSeconds;
-      audio.play().catch(() => {}); // silently ignore autoplay policy blocks
-      songTimerRef.current = setTimeout(() => {
-        audio.pause();
-        songTimerRef.current = null;
-      }, 15_000);
+      if (isYouTubeUrl(songUrl)) {
+        // YouTube IFrame path
+        if (!ytReadyRef.current || !ytPlayerRef.current) return;
+        ytPlayerRef.current.seekTo(songStartSeconds, true);
+        ytPlayerRef.current.playVideo();
+        songTimerRef.current = setTimeout(() => {
+          ytPlayerRef.current?.pauseVideo();
+          songTimerRef.current = null;
+        }, 15_000);
+      } else {
+        // HTML5 Audio path (uploaded file)
+        const audio = songAudioRef.current ?? new Audio(songUrl);
+        songAudioRef.current = audio;
+        audio.currentTime = songStartSeconds;
+        audio.play().catch(() => {}); // silently ignore autoplay policy blocks
+        songTimerRef.current = setTimeout(() => {
+          audio.pause();
+          songTimerRef.current = null;
+        }, 15_000);
+      }
     } catch {
       // ignore any audio API errors
     }
@@ -493,8 +560,12 @@ export function LiveGame({
   useEffect(() => {
     return () => {
       if (snoozeTimeoutRef.current !== null) clearTimeout(snoozeTimeoutRef.current);
-      if (songTimerRef.current !== null) clearTimeout(songTimerRef.current);
+      if (songTimerRef.current !== null) {
+        clearTimeout(songTimerRef.current);
+        songTimerRef.current = null;
+      }
       songAudioRef.current?.pause();
+      ytPlayerRef.current?.pauseVideo();
     };
   }, []);
 
@@ -823,6 +894,15 @@ export function LiveGame({
           />
         );
       })()}
+
+      {/* Hidden YouTube IFrame player — used for goal song playback */}
+      {songUrl && isYouTubeUrl(songUrl) && (
+        <div
+          id={`yt-song-${gameId}`}
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          aria-hidden
+        />
+      )}
     </div>
   );
 }
