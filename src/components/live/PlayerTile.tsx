@@ -134,7 +134,7 @@ export function PlayerTile({
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart overflow-hidden",
+        "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
         injured ? "grayscale" : "",
@@ -144,7 +144,7 @@ export function PlayerTile({
       {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
       {isOff && (
         <div
-          className="flex items-center justify-center gap-1 border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
           aria-label={`Coming off next, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
@@ -153,7 +153,7 @@ export function PlayerTile({
       )}
       {isOn && swap?.zone && (
         <div
-          className={`flex items-center justify-center gap-1 border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide ${swapZoneAccent}`}
+          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide ${swapZoneAccent}`}
           aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
@@ -162,12 +162,22 @@ export function PlayerTile({
       )}
       {isOn && !swap?.zone && (
         <div
-          className="flex items-center justify-center gap-1 border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
           aria-label={`Going on, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
           <span>→ ON</span>
         </div>
+      )}
+
+      {/* Score chip — floats above top-right corner so it never eats tile height */}
+      {score && (score.goals > 0 || score.behinds > 0) && (
+        <span
+          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
+          aria-label={`${score.goals} goals, ${score.behinds} behinds`}
+        >
+          <span>{score.goals}.{score.behinds}</span>
+        </span>
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-2">
@@ -227,18 +237,6 @@ export function PlayerTile({
       ) : (
         <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
           #{player.jersey_number}
-        </span>
-      )}
-
-      {/* Score chip */}
-      {score && (score.goals > 0 || score.behinds > 0) && (
-        <span
-          className="nums mt-0.5 inline-flex items-center gap-1 rounded-xs bg-ink px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-micro text-warm"
-          aria-label={`${score.goals} goals, ${score.behinds} behinds`}
-        >
-          <span>{score.goals}G</span>
-          <span className="text-warm/40">·</span>
-          <span>{score.behinds}B</span>
         </span>
       )}
 
