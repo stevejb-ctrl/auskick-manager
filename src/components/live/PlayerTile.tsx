@@ -134,41 +134,43 @@ export function PlayerTile({
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex w-full flex-col items-center justify-center gap-0.5 rounded-md border px-1.5 py-2 text-center transition-all duration-fast ease-out-quart",
+        "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart overflow-hidden",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
         injured ? "grayscale" : "",
         !onClick && !onLongPress ? "cursor-default" : "",
       ].join(" ")}
     >
-      {/* NEXT chip — dashed ochre, top-left — "coming off next swap"; shows pair number when multiple swaps */}
+      {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
       {isOff && (
-        <span
-          className="absolute -left-1 -top-1.5 inline-flex items-center rounded-xs border border-dashed border-warn bg-warn-soft px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warn"
+        <div
+          className="flex items-center justify-center gap-1 border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
           aria-label={`Coming off next, pair ${swap.pair}`}
         >
-          {showPairNumber ? `${swap.pair} NEXT` : "NEXT"}
-        </span>
+          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          <span>↑ OFF NEXT</span>
+        </div>
       )}
-
-      {/* ON chip — bench target zone + optional pair number when multiple swaps */}
       {isOn && swap?.zone && (
-        <span
-          className={`absolute -left-1 -top-1.5 inline-flex items-center rounded-xs border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none shadow-card ${swapZoneAccent}`}
+        <div
+          className={`flex items-center justify-center gap-1 border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide ${swapZoneAccent}`}
           aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
         >
-          {showPairNumber ? `${swap.pair} → ${ZONE_SHORT[swap.zone]}` : `→ ${ZONE_SHORT[swap.zone]}`}
-        </span>
+          {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          <span>→ {ZONE_SHORT[swap.zone]}</span>
+        </div>
       )}
-      {/* Fallback ON chip when zone is unknown */}
       {isOn && !swap?.zone && (
-        <span
-          className="absolute -left-1 -top-1.5 inline-flex items-center gap-0.5 rounded-full bg-brand-600 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none text-white shadow-card"
+        <div
+          className="flex items-center justify-center gap-1 border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
           aria-label={`Going on, pair ${swap.pair}`}
         >
-          {showPairNumber ? `${swap.pair} ON` : "ON"}
-        </span>
+          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          <span>→ ON</span>
+        </div>
       )}
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-2">
 
       {/* Injury badge */}
       {injured && (
@@ -258,6 +260,7 @@ export function PlayerTile({
           </span>
         );
       })()}
+      </div>
     </button>
   );
 }

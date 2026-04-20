@@ -42,9 +42,13 @@ const config: Config = {
 
         // Domain
         field:          "#3C8050",
-        "zone-f":       "#D47A2E",   // forward (warm orange)
-        "zone-c":       "#A87336",   // centre (warm ochre)
-        "zone-b":       "#2F6B3E",   // back (green)
+        // Colourblind-safe zone palette (Wong-inspired) — orange / violet /
+        // deep blue are distinguishable for protanopia, deuteranopia, and
+        // tritanopia, and each has distinct luminance against both the
+        // green field and white tiles.
+        "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
+        "zone-c":       "#7C3AED",   // centre — violet
+        "zone-b":       "#1D4ED8",   // back — royal blue
       },
       fontFamily: {
         sans: ["var(--font-geist)", "system-ui", "sans-serif"],
