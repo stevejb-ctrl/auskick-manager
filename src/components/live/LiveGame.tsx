@@ -525,7 +525,7 @@ export function LiveGame({
   const suggestions =
     isPreGame || isFinished
       ? []
-      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds);
+      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds, zoneMsByPlayer);
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 

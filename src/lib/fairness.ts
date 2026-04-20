@@ -196,16 +196,37 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 }
 
 // ─── Suggest a starting lineup ───────────────────────────────
+// `currentGame`      – zone minutes accumulated so far this game (minutes).
+//                      Zones with 0 minutes get a strong diversity bonus so
+//                      players rotate through every position across quarters.
+// `pinnedPositions`  – players who must stay in their current zone (e.g. they
+//                      came on just before the quarter break; moving them again
+//                      immediately would be disruptive).
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
   seed: number = 0,
-  zoneCaps: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 }
+  zoneCaps: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 },
+  currentGame: PlayerZoneMinutes = {},
+  pinnedPositions: Record<string, Zone> = {}
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
 
   const zones = activeZones(zoneCaps);
+  const zoneFill: ZoneCaps = emptyCaps();
+  const pinnedIds = new Set<string>();
+
+  // Place pinned players first so their slots are accounted for before the
+  // general assignment runs.
+  for (const p of availablePlayers) {
+    const z = pinnedPositions[p.id];
+    if (z && zones.includes(z) && zoneFill[z] < zoneCaps[z]) {
+      lineup[z].push(p.id);
+      zoneFill[z]++;
+      pinnedIds.add(p.id);
+    }
+  }
 
   const avgPerZone = (() => {
     const zm = Object.values(season);
@@ -215,9 +236,16 @@ export function suggestStartingLineup(
     return total / (zm.length * zones.length);
   })();
 
+  // A large bonus for zones the player has not played at all this game forces
+  // the algorithm to rotate players through every position.  Once they have
+  // played a zone this game the bonus disappears and we fall back to season
+  // fairness.
+  const DIVERSITY_BONUS = 1000;
+
   const owed = (pid: string, z: Zone) => {
-    const played = season[pid]?.[z] ?? 0;
-    return Math.max(0, avgPerZone - played);
+    const gameMins = currentGame[pid]?.[z] ?? 0;
+    const seasonMins = season[pid]?.[z] ?? 0;
+    return (gameMins === 0 ? DIVERSITY_BONUS : 0) + Math.max(0, avgPerZone - seasonMins);
   };
 
   const playedTotal = (pid: string) => {
@@ -226,12 +254,11 @@ export function suggestStartingLineup(
     return t;
   };
 
-  const shuffled = seededShuffle(availablePlayers, seed + 17);
+  const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
+  const shuffled = seededShuffle(remaining, seed + 17);
   const sortedPlayers = shuffled.sort(
     (a, b) => playedTotal(a.id) - playedTotal(b.id)
   );
-
-  const zoneFill: ZoneCaps = emptyCaps();
 
   for (const p of sortedPlayers) {
     const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
@@ -278,7 +305,10 @@ export function suggestSwaps(
   tieBreak: number = 0,
   injuredIds: readonly string[] = [],
   activeZoneList: Zone[] = ZONES,
-  lockedIds: readonly string[] = []
+  lockedIds: readonly string[] = [],
+  /** Zone-level ms this game per player. Used to prefer sending incoming players
+   *  to zones they haven't played yet, promoting position diversity mid-game. */
+  currentGameZoneMs: Record<string, ZoneMinutes> = {}
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
@@ -286,6 +316,8 @@ export function suggestSwaps(
   if (fitBench.length === 0) return [];
 
   const gameMin = (pid: string) => (currentGameMs[pid] ?? 0) / 60000;
+  const hasPlayedZone = (pid: string, z: Zone) =>
+    (currentGameZoneMs[pid]?.[z] ?? 0) > 0;
 
   const fieldByZone = {} as Record<Zone, string[]>;
   for (const z of ALL_ZONES) fieldByZone[z] = [];
@@ -307,13 +339,26 @@ export function suggestSwaps(
   for (let i = 0; i < benchSorted.length; i++) {
     const on = benchSorted[i];
     let pickZone: Zone | null = null;
+
+    // First pass: prefer a zone this player hasn't played yet this game.
     for (let k = 0; k < zoneOrder.length; k++) {
       const z = zoneOrder[(i + k) % zoneOrder.length];
-      if (fieldByZone[z][zoneCursor[z]]) {
+      if (!hasPlayedZone(on, z) && fieldByZone[z][zoneCursor[z]]) {
         pickZone = z;
         break;
       }
     }
+    // Fallback: any zone with an available player to rotate off.
+    if (!pickZone) {
+      for (let k = 0; k < zoneOrder.length; k++) {
+        const z = zoneOrder[(i + k) % zoneOrder.length];
+        if (fieldByZone[z][zoneCursor[z]]) {
+          pickZone = z;
+          break;
+        }
+      }
+    }
+
     if (!pickZone) break;
     const off = fieldByZone[pickZone][zoneCursor[pickZone]];
     zoneCursor[pickZone]++;

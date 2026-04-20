@@ -38,6 +38,13 @@ export interface LiveGameState {
   injuredIds: string[];
   /** Ephemeral — resets on page reload. Locked players are skipped by auto-rotation. */
   lockedIds: string[];
+  /**
+   * Duration (ms) of each player's last on-field stint, captured when the quarter ends.
+   * Used by QuarterBreak to pin recently-arrived players so they aren't moved again immediately.
+   */
+  lastStintMs: Record<string, number>;
+  /** Zone of each player's last on-field stint (parallel to lastStintMs). */
+  lastStintZone: Record<string, Zone>;
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -80,6 +87,8 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   swapCount: 0,
   injuredIds: [],
   lockedIds: [],
+  lastStintMs: {},
+  lastStintZone: {},
 
   init: (state) => set((prev) => ({ ...prev, ...state })),
 
@@ -161,6 +170,8 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         stintStartMs,
         stintZone,
         swapCount: prev.swapCount + 1,
+        lastStintMs: {},
+        lastStintZone: {},
       };
     }),
 
@@ -172,11 +183,16 @@ export const useLiveGame = create<LiveGameState>((set) => ({
           ? prev.accumulatedMs
           : prev.accumulatedMs + (now - prev.clockStartedAt);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
+      const lastStintMs: Record<string, number> = {};
+      const lastStintZone: Record<string, Zone> = {};
       for (const [pid, start] of Object.entries(prev.stintStartMs)) {
         const z = prev.stintZone[pid];
         if (!z) continue;
+        const dur = Math.max(0, accumulated - start);
         basePlayedZoneMs[pid] = { ...(basePlayedZoneMs[pid] ?? newZoneMs()) };
-        basePlayedZoneMs[pid][z] += Math.max(0, accumulated - start);
+        basePlayedZoneMs[pid][z] += dur;
+        lastStintMs[pid] = dur;
+        lastStintZone[pid] = z;
       }
       return {
         clockStartedAt: null,
@@ -185,6 +201,8 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         basePlayedZoneMs,
         stintStartMs: {},
         stintZone: {},
+        lastStintMs,
+        lastStintZone,
       };
     }),
 
