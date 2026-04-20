@@ -13,17 +13,22 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1 to begin the first quarter. The clock runs automatically. Use Pause if there's a break in play, then Resume to continue.",
+      body: "Tap Start Q1 to begin the first quarter. The clock runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
     },
     {
       emoji: "🏟️",
       title: "Field & bench",
-      body: "The field shows your players in their zones — Back, Mid, Forward. Players not on the field are shown on the bench below.",
+      body: "The field shows your players in their zones — Forward at the top, Centre in the middle, Back at the bottom. Anyone not on the field sits on the bench below.",
     },
     {
       emoji: "🔄",
       title: "Making a substitution",
-      body: "Tap a field player to select them (they'll highlight), then tap a bench player to swap them. A confirmation screen will appear before anything changes.",
+      body: "Tap a field player to select them (they'll highlight), then tap a bench player to swap them. A confirmation screen appears before anything changes. Empty slots on the field work the same way — tap one with a bench player selected to send them on.",
+    },
+    {
+      emoji: "🔀",
+      title: "Swapping zones on the field",
+      body: "Tap a field player, then tap another field player in a different zone. They'll exchange positions without anyone going off.",
     },
     {
       emoji: "⚡",
@@ -38,22 +43,22 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
     {
       emoji: "🔒",
       title: "Locking a player",
-      body: "Hold down a player tile for half a second to lock them. A padlock icon appears and they'll be skipped by auto-rotation — great if someone is playing a special role. Hold again to unlock.",
+      body: "Hold a player tile for half a second to open the lock menu. Lock to field keeps them on the pitch through auto-subs; Lock to zone lets them rotate off but always back into the same position. Hold again and tap Unlock to release.",
     },
   ];
 
   if (trackScoring) {
     steps.push({
       emoji: "⚽",
-      title: "Recording goals",
-      body: "Tap a field player to select them, then tap + GOAL or + BEHIND at the bottom of the screen. Their score appears on their tile.",
+      title: "Recording scores",
+      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? An Undo chip appears at the top after every score — tap Undo to reverse it.",
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter",
-    body: "Tap End Q1 when the quarter finishes. You'll get a break screen where you can shuffle the lineup before the next quarter starts.",
+    body: "Tap End Q1 when the quarter finishes. You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4 the game is marked complete and flows into your season stats.",
   });
 
   return steps;
