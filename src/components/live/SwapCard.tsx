@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
 
 interface SwapCardProps {
   suggestions: SwapSuggestion[];
@@ -58,11 +59,21 @@ export function SwapCard({
   forceOpen,
 }: SwapCardProps) {
   const [open, setOpen] = useState(forceOpen ?? false);
+  const swapCount = useLiveGame((s) => s.swapCount);
+  const prevSwapCountRef = useRef(swapCount);
 
   // Re-open automatically when a sub becomes due.
   useEffect(() => {
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
+
+  // Auto-close after any swap commits (field tap or SwapCard button).
+  useEffect(() => {
+    if (swapCount !== prevSwapCountRef.current) {
+      prevSwapCountRef.current = swapCount;
+      setOpen(false);
+    }
+  }, [swapCount]);
 
   const valid = suggestions
     .map((s) => {
