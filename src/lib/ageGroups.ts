@@ -154,7 +154,7 @@ export function positionsFor(model: PositionModel): Zone[] {
 export const ZONE_LABELS: Record<Zone, string> = {
   back: "Back",
   hback: "Half-back",
-  mid: "Midfield",
+  mid: "Centre",
   hfwd: "Half-forward",
   fwd: "Forward",
 };
@@ -163,7 +163,7 @@ export const ZONE_LABELS: Record<Zone, string> = {
 export const ZONE_SHORT_LABELS: Record<Zone, string> = {
   back: "Back",
   hback: "HBack",
-  mid: "Mid",
+  mid: "Centre",
   hfwd: "HFwd",
   fwd: "Fwd",
 };

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +41,8 @@ interface LineupPickerProps {
   minOnFieldSize: number;
   maxOnFieldSize: number;
   positionModel: PositionModel;
+  /** Optional href for the Back button shown above the picker. */
+  backHref?: string;
 }
 
 type Slot = Zone | "bench";
@@ -53,6 +56,7 @@ export function LineupPicker({
   minOnFieldSize,
   maxOnFieldSize,
   positionModel,
+  backHref,
 }: LineupPickerProps) {
   const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
   const zoneCaps = useMemo(
@@ -100,7 +104,11 @@ export function LineupPicker({
   );
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
-  const slots = useMemo<Slot[]>(() => [...zones, "bench"], [zones]);
+  // Display order mirrors the in-game field: forwards at the top, backs at the
+  // bottom. The underlying `zones` order stays unchanged (fairness + data rely
+  // on it) — only the UI grid order is reversed.
+  const displayZones = useMemo(() => [...zones].reverse(), [zones]);
+  const slots = useMemo<Slot[]>(() => [...displayZones, "bench"], [displayZones]);
   const slotLabel = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT_LABELS[s]);
 
   function slotOf(pid: string): Slot | null {
@@ -170,6 +178,23 @@ export function LineupPicker({
 
   return (
     <div className="space-y-4">
+      {backHref && (
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M15 18l-6-6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back to availability
+        </Link>
+      )}
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
