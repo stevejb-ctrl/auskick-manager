@@ -98,7 +98,6 @@ export default async function LivePage({ params }: LivePageProps) {
     const [
       { data: squadPlayers },
       { data: teamGames },
-      { data: gameAvail },
       { data: fillInRows },
     ] = await Promise.all([
       supabase
@@ -109,11 +108,6 @@ export default async function LivePage({ params }: LivePageProps) {
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
-        .from("game_availability")
-        .select("player_id, status")
-        .eq("game_id", params.gameId)
-        .eq("status", "available"),
-      supabase
         .from("game_fill_ins")
         .select("*")
         .eq("game_id", params.gameId)
@@ -122,27 +116,13 @@ export default async function LivePage({ params }: LivePageProps) {
     const fillInsForLive = ((fillInRows ?? []) as FillIn[]).map((f) =>
       fillInToPlayer(f, params.teamId)
     );
-    const allActive = [
+    // Pass the full active squad (+ fill-ins) — LateArrivalMenu needs
+    // non-available players as candidates, and LiveGame filters
+    // in-field/bench itself.
+    const allSquad = [
       ...((squadPlayers ?? []) as Player[]),
       ...fillInsForLive,
     ];
-    const availableIds = new Set((gameAvail ?? []).map((a) => a.player_id));
-    const inGameIds = new Set<string>();
-    if (state.lineup) {
-      const l = state.lineup;
-      for (const id of [
-        ...l.back,
-        ...l.hback,
-        ...l.mid,
-        ...l.hfwd,
-        ...l.fwd,
-        ...l.bench,
-      ])
-        inGameIds.add(id);
-    }
-    const allSquad = allActive.filter(
-      (p) => availableIds.has(p.id) || inGameIds.has(p.id)
-    );
     const priorGameIds = (teamGames ?? [])
       .map((t) => t.id)
       .filter((id) => id !== params.gameId);
