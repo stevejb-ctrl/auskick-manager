@@ -83,10 +83,16 @@ const config: Config = {
           from: { transform: "translateY(72px)", opacity: "0" },
           to:   { transform: "translateY(0)",    opacity: "1" },
         },
+        pulseHalo: {
+          "0%":   { transform: "scale(1)",   opacity: "0.55" },
+          "100%": { transform: "scale(2.4)", opacity: "0" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
-        "slide-up": "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
+        "slide-up":   "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
+        // Used by PulseMark — the siren-red halo ripple.
+        "pulse-halo": "pulseHalo 1.8s ease-out infinite",
       },
       letterSpacing: {
         tightest: "-0.02em",
