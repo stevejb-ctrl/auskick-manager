@@ -63,6 +63,14 @@ export function QuarterBreak({
   const lastStintZone = useLiveGame((s) => s.lastStintZone);
   const lockedIds = useLiveGame((s) => s.lockedIds);
   const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
+  const injuredIds = useLiveGame((s) => s.injuredIds);
+  const loanedIds = useLiveGame((s) => s.loanedIds);
+  const sidelinedSet = useMemo(
+    () => new Set<string>([...injuredIds, ...loanedIds]),
+    [injuredIds, loanedIds]
+  );
+  const injuredSet = useMemo(() => new Set(injuredIds), [injuredIds]);
+  const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // Display FWD → CENTRE → BACK (top → bottom) to match the coach's field mental model.
@@ -114,6 +122,16 @@ export function QuarterBreak({
       .map((id) => playersById.get(id))
       .filter((p): p is Player => !!p);
   }, [lineup, playersById]);
+  // Injured / loaned players stay parked on the bench — never fed to the
+  // reshuffler, never rotated onto the field at quarter breaks.
+  const healthyForLineup = useMemo(
+    () => availableForLineup.filter((p) => !sidelinedSet.has(p.id)),
+    [availableForLineup, sidelinedSet]
+  );
+  const sidelinedIdsInLineup = useMemo(
+    () => availableForLineup.filter((p) => sidelinedSet.has(p.id)).map((p) => p.id),
+    [availableForLineup, sidelinedSet]
+  );
 
   const score = fairnessScore(combinedZoneMins);
   const nextQuarter = currentQuarter + 1;
@@ -124,6 +142,9 @@ export function QuarterBreak({
   }
 
   function handleTap(pid: string) {
+    // Injured / loaned players are parked on the bench; tapping them is
+    // a no-op so a coach can't manually drag them onto the field.
+    if (sidelinedSet.has(pid)) return;
     if (!selected) {
       setSelected(pid);
       return;
@@ -181,15 +202,31 @@ export function QuarterBreak({
 
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;
-    return suggestStartingLineup(
-      availableForLineup,
+    const suggested = suggestStartingLineup(
+      healthyForLineup,
       combinedZoneMins,
-      currentQuarter * 1000 + availableForLineup.length,
+      currentQuarter * 1000 + healthyForLineup.length,
       zoneCaps,
       currentGameZoneMins,
       pinnedPositions
     );
-  }, [availableForLineup, combinedZoneMins, currentQuarter, lineup, zoneCaps, currentGameZoneMins, pinnedPositions]);
+    // Put any injured / loaned players back on the bench so they're still
+    // visible to the coach but cannot be sent on.
+    return {
+      ...suggested,
+      bench: [...suggested.bench, ...sidelinedIdsInLineup],
+    };
+  }, [
+    availableForLineup.length,
+    healthyForLineup,
+    sidelinedIdsInLineup,
+    combinedZoneMins,
+    currentQuarter,
+    lineup,
+    zoneCaps,
+    currentGameZoneMins,
+    pinnedPositions,
+  ]);
 
   useEffect(() => {
     if (availableForLineup.length === 0) return;
@@ -316,6 +353,9 @@ export function QuarterBreak({
                   const p = playersById.get(pid);
                   if (!p) return null;
                   const isSelected = selected === pid;
+                  const isInjured = injuredSet.has(pid);
+                  const isLoaned = loanedSet.has(pid);
+                  const isSidelined = isInjured || isLoaned;
                   const zm = currentGameZoneMins[pid] ?? emptyZM();
                   const total = zones.reduce((a, z) => a + zm[z], 0) || 1;
                   const prevSlot = slotOf(pid, lineup);
@@ -325,10 +365,14 @@ export function QuarterBreak({
                       <button
                         type="button"
                         onClick={() => handleTap(pid)}
+                        disabled={isSidelined}
+                        aria-disabled={isSidelined}
                         className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
                           isSelected
                             ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                            : "border-hairline hover:bg-surface-alt"
+                            : isSidelined
+                              ? "cursor-not-allowed border-hairline bg-surface-alt opacity-60"
+                              : "border-hairline hover:bg-surface-alt"
                         }`}
                       >
                         <span className="flex items-center gap-2">
@@ -336,17 +380,34 @@ export function QuarterBreak({
                             {p.jersey_number}
                           </span>
                           <span className="flex flex-col items-start">
-                            <span className="font-medium text-ink">
-                              {p.full_name}
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-medium text-ink">
+                                {p.full_name}
+                              </span>
+                              {isInjured && (
+                                <span className="rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
+                                  INJ
+                                </span>
+                              )}
+                              {isLoaned && !isInjured && (
+                                <span className="rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
+                                  LENT
+                                </span>
+                              )}
                             </span>
-                            {moved && prevSlot && (
+                            {moved && prevSlot && !isSidelined && (
                               <span className="text-[10px] font-semibold uppercase tracking-micro text-brand-600">
                                 {slotLabel(prevSlot)} → {slotLabel(slot)}
                               </span>
                             )}
-                            {!moved && prevSlot && (
+                            {!moved && prevSlot && !isSidelined && (
                               <span className="text-[10px] uppercase tracking-micro text-ink-mute">
                                 stays
+                              </span>
+                            )}
+                            {isSidelined && (
+                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
+                                unavailable
                               </span>
                             )}
                           </span>
