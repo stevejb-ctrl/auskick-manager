@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-playhq",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
