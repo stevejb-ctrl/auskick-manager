@@ -15,7 +15,43 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  /** Cross-tenant admin flag. Gates access to /admin/*. */
+  is_super_admin: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+// ─── CRM / super-admin types ──────────────────────────────────
+// These tables are service-role only (see migration 0018). UI access
+// funnels through requireSuperAdmin() + createAdminClient().
+
+export interface ContactTag {
+  id: string;
+  name: string;
+  /** Design-token colour key (e.g. "brand", "warn", "ok"). */
+  color: string;
+  created_at: string;
+}
+
+export interface ProfileTag {
+  profile_id: string;
+  tag_id: string;
+  assigned_by: string | null;
+  assigned_at: string;
+}
+
+export interface ContactNote {
+  id: string;
+  profile_id: string;
+  author_id: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface ContactPreference {
+  profile_id: string;
+  unsubscribed_at: string | null;
+  unsub_reason: string | null;
   updated_at: string;
 }
 
@@ -283,6 +319,41 @@ export type Database = {
           revoked_at?: string | null;
         };
         Update: Partial<Omit<TeamInvite, "id" | "team_id" | "token" | "created_at">>;
+        Relationships: [];
+      };
+      contact_tags: {
+        Row: ContactTag;
+        Insert: Omit<ContactTag, "id" | "created_at" | "color"> & {
+          id?: string;
+          color?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<ContactTag, "id" | "created_at">>;
+        Relationships: [];
+      };
+      profile_tags: {
+        Row: ProfileTag;
+        Insert: Omit<ProfileTag, "assigned_at"> & {
+          assigned_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      contact_notes: {
+        Row: ContactNote;
+        Insert: Omit<ContactNote, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      contact_preferences: {
+        Row: ContactPreference;
+        Insert: Omit<ContactPreference, "updated_at"> & {
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ContactPreference, "profile_id">>;
         Relationships: [];
       };
     };
