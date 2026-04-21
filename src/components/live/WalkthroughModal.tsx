@@ -45,6 +45,11 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
       title: "Locking a player",
       body: "Hold a player tile for half a second to open the lock menu. Lock to field keeps them on the pitch through auto-subs; Lock to zone lets them rotate off but always back into the same position. Hold again and tap Unlock to release.",
     },
+    {
+      emoji: "🩹",
+      title: "Managing an injury",
+      body: "Tap the Report injury button below the field to open the injury list. Mark a player injured and they'll stay on the bench and be skipped by auto-rotation — sub them off first if they're on the field. Tap the same button again (it shows the count) to clear the injury when they're ready to return.",
+    },
   ];
 
   if (trackScoring) {
