@@ -1,15 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 
+// Only follow `next` if it's a same-origin path — never an absolute URL.
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
+  return raw;
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
+  const signupHref = next === "/dashboard" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`;
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
@@ -30,7 +39,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(next);
     router.refresh();
   }
 
@@ -74,7 +83,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-ink-dim">
         No account?{" "}
-        <Link href="/signup" className="font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800">
+        <Link href={signupHref} className="font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800">
           Sign up
         </Link>
       </p>
