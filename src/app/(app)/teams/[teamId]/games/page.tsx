@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { CreateGameForm } from "@/components/games/CreateGameForm";
 import { GameList } from "@/components/games/GameList";
 import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
-import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { Spinner } from "@/components/ui/Spinner";
 
 interface GamesPageProps {
@@ -30,10 +29,9 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   const { data: team } = await supabase
     .from("teams")
-    .select("track_scoring, age_group, playhq_url")
+    .select("age_group, playhq_url")
     .eq("id", params.teamId)
     .single();
-  const trackScoring = team?.track_scoring ?? false;
   const ageGroup = (team?.age_group ?? "U10") as import("@/lib/types").AgeGroup;
 
   let existingExternalIds: string[] = [];
@@ -50,10 +48,6 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   return (
     <div className="space-y-6">
-      {isAdmin && (
-        <TrackScoringToggle teamId={params.teamId} initialEnabled={trackScoring} />
-      )}
-
       {isAdmin && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-2">

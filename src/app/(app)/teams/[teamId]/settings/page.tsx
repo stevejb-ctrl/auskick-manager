@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
+import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 
 interface SettingsPageProps {
   params: { teamId: string };
@@ -17,7 +18,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: songData }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name")
+      .select("id, name, track_scoring")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -44,6 +45,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
+        isAdmin={isAdmin}
+      />
+      <TrackScoringToggle
+        teamId={params.teamId}
+        initialEnabled={team.track_scoring ?? false}
         isAdmin={isAdmin}
       />
       <TeamSongSettings

@@ -104,6 +104,7 @@ export async function setTrackScoring(
   if (updateError) return { success: false, error: updateError.message };
 
   revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
 }
 
