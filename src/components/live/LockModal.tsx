@@ -9,9 +9,16 @@ interface LockModalProps {
   currentLock: "field" | "zone" | null;
   /** The zone the player is currently in (or last played), used for zone-lock label. */
   currentZone: Zone | null;
+  /** Whether this player is currently lent to the opposition. */
+  isLoaned: boolean;
+  /** Total minutes this player has been lent out across the season. */
+  seasonLoanMins: number;
+  /** Median minutes the squad has been lent out across the season (for context). */
+  squadLoanMins: number;
   onLockField: () => void;
   onLockZone: () => void;
   onUnlock: () => void;
+  onToggleLoan: () => void;
   onClose: () => void;
 }
 
@@ -19,13 +26,19 @@ export function LockModal({
   player,
   currentLock,
   currentZone,
+  isLoaned,
+  seasonLoanMins,
+  squadLoanMins,
   onLockField,
   onLockZone,
   onUnlock,
+  onToggleLoan,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
   const zoneLabel = currentZone ? ZONE_SHORT_LABELS[currentZone] : null;
+  const loanedLabel = Math.round(seasonLoanMins);
+  const squadLabel = Math.round(squadLoanMins);
 
   return (
     <div
@@ -36,7 +49,7 @@ export function LockModal({
     >
       <div className="w-full max-w-xs rounded-lg border border-hairline bg-surface p-5 shadow-modal">
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-          Player lock
+          Player actions
         </p>
         <h2
           id="lock-modal-title"
@@ -45,7 +58,34 @@ export function LockModal({
           {firstName} #{player.jersey_number}
         </h2>
 
-        {currentLock ? (
+        {isLoaned ? (
+          /* Currently loaned — offer to bring back */
+          <>
+            <p className="mb-5 text-center text-sm text-ink-dim">
+              Lent to the opposition. They&apos;re unavailable for subs until
+              you bring them back.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={onToggleLoan}
+                className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+              >
+                <span className="text-sm font-bold">Bring {firstName} back</span>
+                <span className="mt-0.5 text-xs opacity-90">
+                  Returns to the bench, available for the next sub
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : currentLock ? (
           /* Already locked — just offer unlock */
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
@@ -71,10 +111,10 @@ export function LockModal({
             </div>
           </>
         ) : (
-          /* Not locked — offer two lock types */
+          /* Unlocked, on the team — offer lock types or loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              How would you like to lock this player?
+              Lock this player in place, or lend them to the opposition.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -97,6 +137,19 @@ export function LockModal({
                   </span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={onToggleLoan}
+                className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+              >
+                <span className="text-sm font-bold">Lend to opposition</span>
+                <span className="mt-0.5 text-center text-xs text-ink-dim">
+                  Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
+                  {squadLabel > 0 && (
+                    <> · squad avg {squadLabel}m</>
+                  )}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
