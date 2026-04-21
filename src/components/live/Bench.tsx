@@ -63,7 +63,13 @@ export function Bench({
                 currentZone={null}
                 onClick={
                   injuredSet.has(pid) || loanedSet.has(pid)
-                    ? undefined
+                    ? // Injured / loaned players can't be subbed in the
+                      // normal way, so a tap opens the action sheet —
+                      // gives the coach a one-tap route to "Mark
+                      // recovered" or "Bring back".
+                      onLongPress
+                      ? () => onLongPress(pid)
+                      : undefined
                     : () => onTapBench(pid)
                 }
                 onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
