@@ -203,7 +203,8 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         currentQuarter: prev.currentQuarter + 1,
         quarterEnded: false,
         accumulatedMs: 0,
-        clockStartedAt: Date.now(),
+        // Don't auto-start the clock — the GM taps Start when the hooter goes.
+        clockStartedAt: null,
         stintStartMs,
         stintZone,
         swapCount: prev.swapCount + 1,
@@ -215,10 +216,13 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   endCurrentQuarter: () =>
     set((prev) => {
       const now = Date.now();
-      const accumulated =
+      const rawAccumulated =
         prev.clockStartedAt === null
           ? prev.accumulatedMs
           : prev.accumulatedMs + (now - prev.clockStartedAt);
+      // Cap at QUARTER_MS so that if the GM delays confirming end-of-quarter,
+      // player stint durations don't leak past the hooter.
+      const accumulated = Math.min(rawAccumulated, QUARTER_MS);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const lastStintMs: Record<string, number> = {};
       const lastStintZone: Record<string, Zone> = {};

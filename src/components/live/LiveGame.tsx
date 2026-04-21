@@ -30,6 +30,7 @@ import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/Walkt
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
@@ -579,6 +580,10 @@ export function LiveGame({
         return;
       }
       beginNextQuarter();
+      // Keep the existing single-tap Q1 kickoff: the "Start Q1" button
+      // both advances the quarter and starts the clock. The StartQuarterModal
+      // only gates Q2–Q4, since those run through the QuarterBreak screen.
+      startClock();
     });
   }
 
@@ -689,6 +694,9 @@ export function LiveGame({
       const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
       if (elapsed >= QUARTER_MS && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
+        // Freeze the clock at the hooter so per-player stint times don't keep
+        // accruing while the GM reads the modal.
+        pauseClock();
         setShowQuarterEndModal(true);
         if (window.matchMedia("(hover: none)").matches) {
           navigator.vibrate?.([200, 100, 200]);
@@ -1019,6 +1027,22 @@ export function LiveGame({
           onConfirm={handleQuarterEndConfirm}
         />
       )}
+
+      {/* Await-kickoff modal for Q2–Q4. QuarterBreak advances the quarter
+          without auto-starting the clock; the manager taps Start when the
+          hooter goes. Q1 keeps its single-tap "Start Q1" button above. */}
+      {!isPreGame &&
+        !isFinished &&
+        !quarterEnded &&
+        !running &&
+        accumulatedMs === 0 &&
+        currentQuarter >= 2 && (
+          <StartQuarterModal
+            quarter={currentQuarter}
+            loading={isPending}
+            onStart={() => startClock()}
+          />
+        )}
 
       {subModalOpen && (
         <SubDueModal onAcknowledge={handleSubModalAcknowledge} />
