@@ -1,0 +1,21 @@
+-- =============================================================
+-- UAT seed — runs after every `supabase db reset`.
+--
+-- We keep this file intentionally tiny. Creating auth users directly
+-- via INSERT into auth.users is fragile (the password-hash format is
+-- tied to Supabase internals) so the test harness creates users
+-- programmatically via the admin API in e2e/fixtures/supabase.ts.
+--
+-- What this file DOES do: documents the seed contract so future seed
+-- data (e.g. demo teams, fixture opponents) has an obvious home.
+-- =============================================================
+
+-- No-op on purpose. The global-setup step of the Playwright harness:
+--   1. Calls supabase.auth.admin.createUser() for the super-admin
+--   2. Flips profiles.is_super_admin = true on that row
+--   3. Creates per-test users/teams on demand via factories
+--
+-- If you need persistent seed rows (e.g. a demo team that every dev's
+-- local Supabase should always have), add them here — they'll survive
+-- `supabase db reset`.
+select 1;
