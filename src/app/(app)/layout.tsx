@@ -42,6 +42,12 @@ export default async function AppLayout({
                 Admin
               </Link>
             )}
+            <Link
+              href="/help"
+              className="rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink"
+            >
+              Help
+            </Link>
             <span className="hidden text-sm text-ink-mute sm:block">
               {user.email}
             </span>
@@ -50,6 +56,11 @@ export default async function AppLayout({
         </div>
       </header>
       <main className="px-4 py-4">{children}</main>
+      <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
+        <Link href="/help" className="hover:text-ink-dim">
+          Help
+        </Link>
+      </footer>
     </div>
   );
 }
