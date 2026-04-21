@@ -26,21 +26,6 @@ export default async function DemoPage() {
     );
   }
 
-  // Find an existing non-completed game, or create a fresh one.
-  const { data: existing } = await admin
-    .from("games")
-    .select("share_token")
-    .eq("team_id", team.id)
-    .neq("status", "completed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existing) {
-    redirect(`/run/${existing.share_token}`);
-  }
-
-  // All games are completed (or none exist) — spin up a fresh one.
   const { data: adminRow } = await admin
     .from("team_memberships")
     .select("user_id")
@@ -56,6 +41,13 @@ export default async function DemoPage() {
       </div>
     );
   }
+
+  // Clean up any leftover in-progress demo games before creating a fresh one.
+  await admin
+    .from("games")
+    .update({ status: "completed" })
+    .eq("team_id", team.id)
+    .neq("status", "completed");
 
   const cfg = AGE_GROUPS["U10"];
 
@@ -85,7 +77,6 @@ export default async function DemoPage() {
     );
   }
 
-  // Mark all active players as available for the new game.
   const { data: players } = await admin
     .from("players")
     .select("id")
