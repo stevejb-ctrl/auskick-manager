@@ -89,10 +89,10 @@ export function LineupPicker({
         .join(" / ");
       const tag =
         s === defaultOnFieldSize
-          ? "full team"
+          ? "recommended"
           : s < defaultOnFieldSize
           ? "short-handed"
-          : "extras";
+          : "above recommended";
       out.push({ value: s, label: `${s} — ${tag} (${splits})` });
     }
     return out;
