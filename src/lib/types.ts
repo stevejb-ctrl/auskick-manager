@@ -81,6 +81,8 @@ export interface Team {
   song_start_seconds: number;
   /** Whether goal-song playback is enabled. The URL is kept when disabled. */
   song_enabled: boolean;
+  /** Marks the shared demo team — page at /demo uses this flag to find it. */
+  is_demo: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -150,6 +152,8 @@ export interface Game {
   sub_interval_seconds: number;
   share_token: string;
   on_field_size: number;
+  /** Multiplier applied to the clock for demo games (1 = real-time, 6 = 6× speed). */
+  clock_multiplier: number;
   external_source: string | null;
   external_id: string | null;
   created_by: string;

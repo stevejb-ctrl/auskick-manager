@@ -18,6 +18,8 @@ interface GameHeaderProps {
   running: boolean;
   isPreGame: boolean;
   isFinished: boolean;
+  /** Speed multiplier for demo games — scales displayed elapsed time (default 1). */
+  clockMultiplier?: number;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -38,6 +40,7 @@ export function GameHeader({
   running,
   isPreGame,
   isFinished,
+  clockMultiplier = 1,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -52,7 +55,8 @@ export function GameHeader({
     return () => window.clearInterval(id);
   }, [startedAt]);
 
-  const elapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs });
+  const rawElapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs });
+  const elapsed = rawElapsed * clockMultiplier;
   const remaining = Math.max(0, QUARTER_MS - elapsed);
   const overtime = elapsed > QUARTER_MS;
 

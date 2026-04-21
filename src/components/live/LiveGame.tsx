@@ -111,6 +111,8 @@ interface LiveGameProps {
   songStartSeconds?: number;
   /** How many seconds to play the song for after each goal (default 15). */
   songDurationSeconds?: number;
+  /** Speed multiplier for demo games — scales stored elapsed_ms and sub/quarter timing (default 1). */
+  clockMultiplier?: number;
 }
 
 type LastScore = {
@@ -138,6 +140,7 @@ export function LiveGame({
   songUrl,
   songStartSeconds = 0,
   songDurationSeconds = 15,
+  clockMultiplier = 1,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -353,6 +356,10 @@ export function LiveGame({
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
   }
 
+  function scaledElapsedMs() {
+    return currentElapsedMs() * clockMultiplier;
+  }
+
   useEffect(() => {
     if (clockStartedAt === null) return;
     const id = setInterval(() => setTick((t) => t + 1), 500);
@@ -395,7 +402,7 @@ export function LiveGame({
       const pidA = selected.playerId;
       const zoneA = selected.zone;
       const quarter = Math.max(1, currentQuarter);
-      const elapsed_ms = currentElapsedMs();
+      const elapsed_ms = scaledElapsedMs();
       applyFieldZoneSwap(pidA, zoneA, playerId, zone);
       showSwapToast(
         `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
@@ -462,7 +469,7 @@ export function LiveGame({
     if (!selected || selected.kind !== "field") return;
     const playerId = selected.playerId;
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     const p = playersById.get(playerId);
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
@@ -489,7 +496,7 @@ export function LiveGame({
   function handleInjuryToggle(playerId: string, injured: boolean) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     setInjured(playerId, injured);
     startTransition(async () => {
       const result = await markInjury(auth, gameId, {
@@ -505,7 +512,7 @@ export function LiveGame({
   function handleLoanToggle(playerId: string, loaned: boolean) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     setLoaned(playerId, loaned);
     startTransition(async () => {
       const result = await markLoan(auth, gameId, {
@@ -521,7 +528,7 @@ export function LiveGame({
   function handleLateArrival(playerId: string) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     addBenchPlayer(playerId);
     startTransition(async () => {
       const result = await addLateArrival(auth, gameId, {
@@ -535,7 +542,7 @@ export function LiveGame({
 
   function handleOpponent(kind: "goal" | "behind") {
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
     startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
     startTransition(async () => {
@@ -584,8 +591,8 @@ export function LiveGame({
   function persistSwap(off: string, on: string, zone: Zone) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = currentElapsedMs();
-    setSubBaseMs(elapsed_ms);
+    const elapsed_ms = scaledElapsedMs();
+    setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
     applySwap(off, on, zone);
     startTransition(async () => {
       const result = await recordSwap(auth, gameId, {
@@ -628,7 +635,7 @@ export function LiveGame({
   function handleEndQuarter() {
     setError(null);
     const q = currentQuarter;
-    const elapsed_ms = currentElapsedMs();
+    const elapsed_ms = scaledElapsedMs();
     endCurrentQuarter();
     startTransition(async () => {
       const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
@@ -667,9 +674,11 @@ export function LiveGame({
   }
 
   const subIntervalMs = subIntervalSeconds * 1000;
+  // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
+  const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;
   const msUntilDue =
     subBaseMs !== null && !isPreGame && !isFinished
-      ? subBaseMs + subIntervalMs - nowMs
+      ? subBaseMs + effectiveSubIntervalMs - nowMs
       : null;
   const subState: "idle" | "soft" | "due" =
     msUntilDue === null
@@ -722,7 +731,7 @@ export function LiveGame({
 
     function maybeTrigger() {
       const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
-      if (elapsed >= QUARTER_MS && quarterEndTriggeredRef.current !== currentQuarter) {
+      if (elapsed * clockMultiplier >= QUARTER_MS && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
         // Freeze the clock at the hooter so per-player stint times don't keep
         // accruing while the GM reads the modal.
@@ -821,6 +830,7 @@ export function LiveGame({
         running={running}
         isPreGame={isPreGame}
         isFinished={isFinished}
+        clockMultiplier={clockMultiplier}
       />
 
       {/* Swap-done toast — flashes briefly after a substitution lands */}
