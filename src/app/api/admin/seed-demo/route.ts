@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     .insert({
       name: "Demo Team",
       age_group: "U10",
-      track_scoring: false,
+      track_scoring: true,
       is_demo: true,
       created_by: superAdmin.id,
     })
