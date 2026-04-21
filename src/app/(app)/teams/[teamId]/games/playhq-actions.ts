@@ -37,19 +37,32 @@ function futureFixtures(fixtures: PlayHQFixture[]): PlayHQFixture[] {
 }
 
 export async function previewPlayhqFixtures(
+  teamId: string,
   playhqUrl: string
 ): Promise<
   ActionResult & { meta?: PlayHQTeamMeta; fixtures?: PlayHQFixture[] }
 > {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
   const parsed = parsePlayhqUrl(playhqUrl);
   if (!parsed.ok) return { success: false, error: parsed.reason };
+
+  let result: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
   try {
-    const { meta, fixtures } = await fetchPlayhqTeamPage(parsed.teamId);
-    return { success: true, meta, fixtures: futureFixtures(fixtures) };
+    result = await fetchPlayhqTeamPage(parsed.teamId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
     return { success: false, error: msg };
   }
+
+  // Persist the URL so it pre-fills on future visits.
+  await supabase
+    .from("teams")
+    .update({ playhq_url: playhqUrl })
+    .eq("id", teamId);
+
+  return { success: true, meta: result.meta, fixtures: futureFixtures(result.fixtures) };
 }
 
 export async function importPlayhqFixtures(

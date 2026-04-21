@@ -54,7 +54,7 @@ export function ImportFixturesButton({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await previewPlayhqFixtures(url);
+      const res = await previewPlayhqFixtures(teamId, url);
       if (!res.success) {
         setError(res.error);
         return;
@@ -154,7 +154,16 @@ export function ImportFixturesButton({
                     autoFocus
                   />
                   <p className="text-xs text-gray-500">
-                    Open your team on playhq.com and copy the URL from the address bar.
+                    Go to <strong>playhq.com</strong>, navigate to your team&rsquo;s
+                    page, and paste the URL here. It should look like:
+                  </p>
+                  <p className="mt-1 rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-600 break-all">
+                    playhq.com/afl/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    The short code at the end is what identifies your team. If the
+                    URL you&rsquo;re pasting ends with <code>/teams</code> and nothing
+                    after it, open the team page first.
                   </p>
                 </div>
                 {error && (
