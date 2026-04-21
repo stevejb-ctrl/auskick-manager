@@ -54,7 +54,7 @@ export function CreateTeamForm({ userId }: { userId: string }) {
           value={ageGroup}
           onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
           disabled={isPending}
-          className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+          className="h-10 w-full rounded-md border border-hairline bg-surface px-2 text-sm text-ink shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus:border-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
         >
           {AGE_GROUP_ORDER.map((ag) => (
             <option key={ag} value={ag}>
@@ -63,7 +63,7 @@ export function CreateTeamForm({ userId }: { userId: string }) {
           ))}
         </select>
       </div>
-      <p className="text-xs text-gray-500">{cfg.notes}</p>
+      <p className="text-xs text-ink-mute">{cfg.notes}</p>
       <Button type="submit" loading={isPending} disabled={!name.trim()}>
         Create
       </Button>

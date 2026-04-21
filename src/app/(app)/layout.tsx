@@ -24,7 +24,7 @@ export default async function AppLayout({
             Auskick Manager
           </span>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-gray-500 sm:block">
+            <span className="hidden text-sm text-ink-mute sm:block">
               {user.email}
             </span>
             <SignOutButton />

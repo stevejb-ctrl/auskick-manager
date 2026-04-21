@@ -46,7 +46,7 @@ export async function GameList({ teamId }: GameListProps) {
 
   if (all.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+      <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
         No games yet — create your first game above.
       </p>
     );
@@ -56,7 +56,7 @@ export async function GameList({ teamId }: GameListProps) {
     <div className="space-y-6">
       {active.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
             Upcoming
           </h2>
           <div className="space-y-2">
@@ -75,7 +75,7 @@ export async function GameList({ teamId }: GameListProps) {
 
       {completed.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
             Completed
           </h2>
           <div className="space-y-2">

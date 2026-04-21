@@ -11,17 +11,17 @@ export function SquadHeader({
 
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-lg font-semibold text-gray-800">Squad management</h2>
+      <h2 className="text-lg font-semibold text-ink">Squad management</h2>
       <div className="text-right">
         <span
           className={`text-2xl font-bold tabular-nums ${
-            isFull ? "text-amber-600" : "text-brand-600"
+            isFull ? "text-warn" : "text-brand-600"
           }`}
         >
           {activeCount}
         </span>
-        <span className="text-lg text-gray-400"> / {maxPlayers}</span>
-        <p className="text-xs text-gray-400">players</p>
+        <span className="text-lg text-ink-mute"> / {maxPlayers}</span>
+        <p className="text-xs text-ink-mute">players</p>
       </div>
     </div>
   );

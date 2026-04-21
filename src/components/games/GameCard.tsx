@@ -16,36 +16,36 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
   return (
     <Link
       href={`/teams/${teamId}/games/${game.id}`}
-      className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-brand-300 hover:bg-brand-50/30"
+      className="block rounded-lg border border-hairline bg-surface p-4 shadow-card transition-colors duration-fast ease-out-quart hover:border-brand-300 hover:bg-brand-50/30"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             {game.round_number != null && (
-              <span className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+              <span className="text-[11px] font-semibold uppercase tracking-micro text-brand-600">
                 Round {game.round_number}
               </span>
             )}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-ink-mute">
               <FormattedDateTime iso={game.scheduled_at} mode="short" />
             </span>
             {isLive && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-micro text-ok">
+                <span className="h-1.5 w-1.5 rounded-full bg-ok animate-pulse" />
                 Live
               </span>
             )}
             {isDone && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
                 ✓ Done
               </span>
             )}
           </div>
-          <h3 className="mt-1 truncate text-base font-semibold text-gray-900">
+          <h3 className="mt-1 truncate text-base font-semibold text-ink">
             vs {game.opponent}
           </h3>
           {game.location && (
-            <p className="mt-0.5 truncate text-sm text-gray-500">{game.location}</p>
+            <p className="mt-0.5 truncate text-sm text-ink-dim">{game.location}</p>
           )}
         </div>
         {/* Only show availability count for upcoming/active games */}
@@ -54,8 +54,8 @@ export function GameCard({ teamId, game, availableCount, totalActive }: GameCard
             <span className="text-lg font-bold tabular-nums text-brand-600">
               {availableCount}
             </span>
-            <span className="text-sm text-gray-400"> / {totalActive}</span>
-            <p className="text-xs text-gray-400">available</p>
+            <span className="text-sm text-ink-mute"> / {totalActive}</span>
+            <p className="text-xs text-ink-mute">available</p>
           </div>
         )}
       </div>

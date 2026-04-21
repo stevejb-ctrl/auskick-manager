@@ -25,8 +25,8 @@ export async function PlayerList({ teamId }: PlayerListProps) {
     <div className="space-y-6">
       <SquadHeader activeCount={activePlayers.length} />
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-base font-semibold text-gray-800">Add player</h2>
+      <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+        <h2 className="mb-4 text-base font-semibold text-ink">Add player</h2>
         <AddPlayerForm
           teamId={teamId}
           activeCount={activePlayers.length}
@@ -34,18 +34,18 @@ export async function PlayerList({ teamId }: PlayerListProps) {
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="rounded-lg border border-hairline bg-surface shadow-card">
+        <div className="border-b border-hairline px-4 py-3">
+          <h2 className="text-base font-semibold text-ink">
             Active squad ({activePlayers.length})
           </h2>
         </div>
         {activePlayers.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
+          <p className="px-4 py-6 text-center text-sm text-ink-mute">
             No players yet — add your first player above.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-hairline">
             {activePlayers.map((player) => (
               <PlayerRow
                 key={player.id}
@@ -59,13 +59,13 @@ export async function PlayerList({ teamId }: PlayerListProps) {
       </div>
 
       {inactivePlayers.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-4 py-3">
-            <h2 className="text-base font-semibold text-gray-500">
+        <div className="rounded-lg border border-hairline bg-surface shadow-card">
+          <div className="border-b border-hairline px-4 py-3">
+            <h2 className="text-base font-semibold text-ink-mute">
               Inactive ({inactivePlayers.length})
             </h2>
           </div>
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-hairline">
             {inactivePlayers.map((player) => (
               <PlayerRow
                 key={player.id}

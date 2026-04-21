@@ -66,7 +66,7 @@ export function AddPlayerForm({
 
   if (isFull) {
     return (
-      <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+      <p className="rounded-lg border border-dashed border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
         Squad is full — deactivate a player to make room.
       </p>
     );
@@ -104,7 +104,7 @@ export function AddPlayerForm({
       </div>
 
       {serverError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {serverError}
         </p>
       )}

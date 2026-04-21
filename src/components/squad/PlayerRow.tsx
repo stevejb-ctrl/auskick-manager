@@ -113,7 +113,7 @@ export function PlayerRow({ player, teamId, takenJerseys }: PlayerRowProps) {
             aria-label="Jersey number"
           />
           {serverError && (
-            <p className="w-full text-xs text-red-600">{serverError}</p>
+            <p className="w-full text-xs text-danger">{serverError}</p>
           )}
           <Button size="sm" loading={isPending} onClick={saveEdit}>
             Save
@@ -124,7 +124,7 @@ export function PlayerRow({ player, teamId, takenJerseys }: PlayerRowProps) {
         </div>
       ) : (
         <>
-          <span className="flex-1 text-sm font-medium text-gray-900">
+          <span className="flex-1 text-sm font-medium text-ink">
             {player.full_name}
           </span>
           <Button
