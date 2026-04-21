@@ -1,0 +1,122 @@
+# Continuous integration for Siren.
+#
+# Three parallel jobs — lint/typecheck, unit tests, and the full e2e
+# suite — all gated on the same PR. A merge to `main` is blocked until
+# every one of them is green.
+#
+# The e2e job brings up a local Supabase stack (same one devs use)
+# and runs Playwright against a production-ish `next start` build.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck:
+    name: Lint + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+
+  unit:
+    name: Unit (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  e2e:
+    name: E2E (Playwright + Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        # --exclude trims containers we don't need for tests (realtime,
+        # edge functions, etc.) to keep the cold-start under a minute.
+        run: supabase start --exclude realtime,edge-runtime,imgproxy
+
+      - name: Apply migrations + seed
+        run: supabase db reset --no-confirm
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit path)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Load test env
+        # Deterministic Supabase CLI local keys. These are the same on
+        # every machine — safe to hard-code. See .env.test.example.
+        # We also export into $GITHUB_ENV so `next build` / `next start`
+        # (which read process.env at boot) pick up the Supabase URL.
+        run: |
+          cp .env.test.example .env.test
+          grep -v '^#' .env.test | grep -v '^$' >> "$GITHUB_ENV"
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Start Next.js
+        run: npm run start &
+
+      - name: Wait for Next.js
+        run: npx wait-on http://localhost:3000 --timeout 120000
+
+      - name: Run Playwright
+        # CI=true flips config into strict mode (forbidOnly, retries,
+        # fewer workers). We don't need scripts/e2e-setup.mjs here
+        # because we've already brought Supabase up explicitly.
+        run: npx playwright test
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

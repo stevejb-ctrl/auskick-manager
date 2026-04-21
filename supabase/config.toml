@@ -1,0 +1,75 @@
+# Supabase CLI config for local dev + UAT. Defaults mirror `supabase init`
+# output; the only customisation is `project_id` and the explicit port
+# assignments so CI and local dev agree on which services live where.
+#
+# Ports chosen deliberately:
+#   54321  API gateway (Kong)        — matches Supabase docs default
+#   54322  Postgres                   — matches Supabase docs default
+#   54323  Studio                     — matches Supabase docs default
+#   54324  Inbucket (fake SMTP)       — magic-link + signup emails land here
+#
+# Bring everything up with `supabase start`. Reset DB (re-run every migration +
+# seed.sql) with `supabase db reset --no-confirm`. The e2e test harness does
+# this automatically via scripts/e2e-setup.mjs.
+
+project_id = "siren"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Match the Postgres major version Supabase uses in production so our
+# migrations hit the same SQL surface locally.
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+# Smtp port + pop3 port optional — we only need the web UI for grabbing
+# magic-link URLs during auth tests.
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+# Preview deploys on Vercel push through wildcard redirect; for local UAT
+# we only need localhost + the callback route.
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+# Confirmations off locally so signups in tests don't need to click a link.
+# Production leaves this on via the Supabase dashboard, not this file.
+enable_confirmations = false
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
