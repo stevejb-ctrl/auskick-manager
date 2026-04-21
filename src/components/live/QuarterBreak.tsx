@@ -22,6 +22,10 @@ import {
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
+// Players who came on shortly before the quarter break — keep them in their
+// zone rather than moving them again immediately.
+const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
+
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
   gameId: string;
@@ -178,9 +182,6 @@ export function QuarterBreak({
     setSelected(null);
   }
 
-  // Players who came on shortly before the quarter break — keep them in their
-  // zone rather than moving them again immediately.
-  const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
     // Recent arrivals: short last stint
