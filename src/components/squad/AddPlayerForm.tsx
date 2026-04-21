@@ -78,7 +78,7 @@ export function AddPlayerForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
       <div className="flex gap-3">
         <div className="flex-1 space-y-1">
           <Label htmlFor="player-name">Player name</Label>
