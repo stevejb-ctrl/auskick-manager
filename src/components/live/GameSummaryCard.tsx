@@ -39,7 +39,7 @@ function fmtMs(ms: number): string {
 interface PlayerStat {
   id: string;
   name: string;
-  number: number;
+  number: number | null;
   totalMs: number;
   zones: { label: string; pct: number }[];
 }
@@ -62,7 +62,7 @@ function buildPlayerStats(
     stats.push({
       id,
       name: p ? p.full_name.split(" ")[0] : "Unknown",
-      number: p?.jersey_number ?? 0,
+      number: p?.jersey_number ?? null,
       totalMs,
       zones,
     });
@@ -108,9 +108,8 @@ function buildSummary(
       .sort((a, b) => b[1].goals - a[1].goals || b[1].behinds - a[1].behinds)
       .map(([id, s]) => {
         const p = playersById.get(id);
-        const name = p
-          ? `${p.full_name.split(" ")[0]} (#${p.jersey_number})`
-          : "Unknown";
+        const jerseyTag = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
+        const name = p ? `${p.full_name.split(" ")[0]}${jerseyTag}` : "Unknown";
         return s.goals > 1 ? `${name} ${s.goals}` : name;
       });
 
@@ -128,7 +127,8 @@ function buildSummary(
     lines.push(`\n⏱ Game time`);
     for (const ps of playerStats) {
       const zoneStr = ps.zones.map((z) => `${z.label} ${z.pct}%`).join(" · ");
-      lines.push(`#${ps.number} ${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}`);
+      const prefix = ps.number != null ? `#${ps.number} ` : "";
+      lines.push(`${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}`);
     }
   }
 

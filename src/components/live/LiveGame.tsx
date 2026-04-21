@@ -11,6 +11,7 @@ import {
   addLateArrival,
   endQuarter as endQuarterAction,
   markInjury,
+  markLoan,
   recordBehind,
   recordGoal,
   recordOpponentScore,
@@ -28,7 +29,6 @@ import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
-import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
@@ -96,6 +96,12 @@ interface LiveGameProps {
   squadPlayers: Player[];
   initialState: GameState;
   season: PlayerZoneMinutes;
+  /**
+   * Minutes each player has been lent to the opposition across the season
+   * (completed games only). Shown in the long-press loan menu so the coach
+   * can spread the favour evenly.
+   */
+  seasonLoanMinutes: Record<string, number>;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   exitHref?: string;
@@ -105,6 +111,7 @@ interface LiveGameProps {
   songStartSeconds?: number;
   /** How many seconds to play the song for after each goal (default 15). */
   songDurationSeconds?: number;
+  /** Speed multiplier for demo games — scales stored elapsed_ms and sub/quarter timing (default 1). */
   clockMultiplier?: number;
 }
 
@@ -126,6 +133,7 @@ export function LiveGame({
   squadPlayers,
   initialState,
   season,
+  seasonLoanMinutes,
   zoneCaps,
   positionModel,
   exitHref,
@@ -166,6 +174,10 @@ export function LiveGame({
   const swapCount = useLiveGame((s) => s.swapCount);
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const setInjured = useLiveGame((s) => s.setInjured);
+  const loanedIds = useLiveGame((s) => s.loanedIds);
+  const loanStartMs = useLiveGame((s) => s.loanStartMs);
+  const basePlayedLoanMs = useLiveGame((s) => s.basePlayedLoanMs);
+  const setLoaned = useLiveGame((s) => s.setLoaned);
   const lockedIds = useLiveGame((s) => s.lockedIds);
   const setLocked = useLiveGame((s) => s.setLocked);
   const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
@@ -331,6 +343,9 @@ export function LiveGame({
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
       injuredIds: initialState.injuredIds,
+      loanedIds: initialState.loanedIds,
+      loanStartMs: initialState.loanStartMs,
+      basePlayedLoanMs: initialState.basePlayedLoanMs,
       clockStartedAt,
       accumulatedMs,
     });
@@ -494,6 +509,22 @@ export function LiveGame({
     });
   }
 
+  function handleLoanToggle(playerId: string, loaned: boolean) {
+    setError(null);
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = scaledElapsedMs();
+    setLoaned(playerId, loaned);
+    startTransition(async () => {
+      const result = await markLoan(auth, gameId, {
+        player_id: playerId,
+        loaned,
+        quarter,
+        elapsed_ms,
+      });
+      if (!result.success) setError(result.error);
+    });
+  }
+
   function handleLateArrival(playerId: string) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
@@ -561,7 +592,7 @@ export function LiveGame({
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
-    setSubBaseMs(elapsed_ms);
+    setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
     applySwap(off, on, zone);
     startTransition(async () => {
       const result = await recordSwap(auth, gameId, {
@@ -643,6 +674,7 @@ export function LiveGame({
   }
 
   const subIntervalMs = subIntervalSeconds * 1000;
+  // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
   const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;
   const msUntilDue =
     subBaseMs !== null && !isPreGame && !isFinished
@@ -745,7 +777,17 @@ export function LiveGame({
   const suggestions =
     isPreGame || isFinished
       ? []
-      : suggestSwaps(lineup, totalMsByPlayer, swapCount, injuredIds, activeZones, lockedIds, zoneMsByPlayer, zoneLockedPlayers);
+      : suggestSwaps(
+          lineup,
+          totalMsByPlayer,
+          swapCount,
+          // Loaned players are unavailable for rotation, same as injured.
+          [...injuredIds, ...loanedIds],
+          activeZones,
+          lockedIds,
+          zoneMsByPlayer,
+          zoneLockedPlayers
+        );
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
@@ -917,23 +959,13 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              loanedIds={loanedIds}
               lockedIds={lockedIds}
               zoneLockedPlayers={zoneLockedPlayers}
               onLongPress={handleLongPress}
               playerScores={playerScores}
               totalPairs={totalPairs}
             />
-            {!isFinished && (
-              <InjuryMenu
-                players={squadPlayers.filter((p) => {
-                  if (lineup.bench.includes(p.id)) return true;
-                  return ALL_ZONES.some((z) => lineup[z].includes(p.id));
-                })}
-                injuredIds={injuredIds}
-                onToggle={handleInjuryToggle}
-                pending={isPending}
-              />
-            )}
             {!isFinished && (
               <LateArrivalMenu
                 candidates={squadPlayers.filter((p) => {
@@ -1070,11 +1102,33 @@ export function LiveGame({
         const isFieldLocked = lockedIds.includes(lockModal.playerId);
         const isZoneLocked = !!zoneLockedPlayers[lockModal.playerId];
         const currentLock: "field" | "zone" | null = isFieldLocked ? "field" : isZoneLocked ? "zone" : null;
+        const isInjured = injuredIds.includes(lockModal.playerId);
+        const isLoaned = loanedIds.includes(lockModal.playerId);
+        // Season total for this player includes (a) completed games from server,
+        // (b) already-closed loan ms this game, (c) the currently-open loan stint.
+        const pid = lockModal.playerId;
+        const nowMs = currentElapsedMs();
+        const liveGameMins =
+          ((basePlayedLoanMs[pid] ?? 0) +
+            (loanStartMs[pid] !== undefined ? Math.max(0, nowMs - loanStartMs[pid]) : 0)) /
+          60000;
+        const seasonLoanMins = (seasonLoanMinutes[pid] ?? 0) + liveGameMins;
+        // Squad reference — mean across everyone with non-zero loan mins
+        // (completed games only, so it stays stable during the current game).
+        const squadValues = Object.values(seasonLoanMinutes).filter((v) => v > 0);
+        const squadLoanMins =
+          squadValues.length > 0
+            ? squadValues.reduce((a, b) => a + b, 0) / squadValues.length
+            : 0;
         return (
           <LockModal
             player={p}
             currentLock={currentLock}
             currentZone={lockModal.zone}
+            isInjured={isInjured}
+            isLoaned={isLoaned}
+            seasonLoanMins={seasonLoanMins}
+            squadLoanMins={squadLoanMins}
             onLockField={() => {
               setLocked(lockModal.playerId, true);
               setLockModal(null);
@@ -1086,6 +1140,14 @@ export function LiveGame({
             onUnlock={() => {
               setLocked(lockModal.playerId, false);
               setZoneLocked(lockModal.playerId, null);
+              setLockModal(null);
+            }}
+            onToggleInjury={() => {
+              handleInjuryToggle(lockModal.playerId, !isInjured);
+              setLockModal(null);
+            }}
+            onToggleLoan={() => {
+              handleLoanToggle(lockModal.playerId, !isLoaned);
               setLockModal(null);
             }}
             onClose={() => setLockModal(null)}

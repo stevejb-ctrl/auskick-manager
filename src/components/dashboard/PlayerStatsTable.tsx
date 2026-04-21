@@ -12,7 +12,8 @@ type SortKey =
   | "avgMsPerGame"
   | "teamGameTimePct"
   | "gamesPlayed"
-  | "goals";
+  | "goals"
+  | "loanMs";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "totalMs", label: "Total minutes" },
@@ -20,6 +21,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "teamGameTimePct", label: "% of team time" },
   { value: "gamesPlayed", label: "Games played" },
   { value: "goals", label: "Goals" },
+  { value: "loanMs", label: "Loaned minutes" },
 ];
 
 interface Props {
@@ -76,9 +78,11 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
               {/* Header: jersey + name + headline total */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-                    #{p.jerseyNumber}
-                  </span>
+                  {p.jerseyNumber != null && (
+                    <span className="text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+                      #{p.jerseyNumber}
+                    </span>
+                  )}
                   <p className="truncate font-semibold text-ink">
                     {p.playerName}
                   </p>
@@ -112,11 +116,14 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
                 <ZonePill abbr="F" min={fwdMin} tone="f" />
               </div>
 
-              {/* Footer: behinds + subs, only if non-zero */}
-              {(p.behinds > 0 || p.subsIn > 0 || p.subsOut > 0) && (
+              {/* Footer: behinds + subs + loaned, only if non-zero */}
+              {(p.behinds > 0 || p.subsIn > 0 || p.subsOut > 0 || p.loanMs > 0) && (
                 <p className="mt-2 text-[11px] text-ink-mute">
                   {p.behinds > 0 && <>Behinds {p.behinds} · </>}
                   Subs {p.subsIn}/{p.subsOut}
+                  {p.loanMs > 0 && (
+                    <> · <span className="text-warn">Lent {fmt(p.loanMs)}m</span></>
+                  )}
                 </p>
               )}
             </div>

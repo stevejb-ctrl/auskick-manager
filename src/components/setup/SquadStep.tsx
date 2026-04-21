@@ -14,7 +14,7 @@ interface SquadStepProps {
 export function SquadStep({ teamId, ageGroup, players }: SquadStepProps) {
   const maxPlayers = AGE_GROUPS[ageGroup].maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
-  const takenJerseys = players.map((p) => p.jersey_number);
+  const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);
 
   return (
     <div className="mx-auto max-w-xl space-y-6">

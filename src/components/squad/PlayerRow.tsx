@@ -21,7 +21,7 @@ interface PlayerRowProps {
 export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.full_name);
-  const [jersey, setJersey] = useState(String(player.jersey_number));
+  const [jersey, setJersey] = useState(player.jersey_number != null ? String(player.jersey_number) : "");
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
 
   function cancelEdit() {
     setName(player.full_name);
-    setJersey(String(player.jersey_number));
+    setJersey(player.jersey_number != null ? String(player.jersey_number) : "");
     setNameError(undefined);
     setJerseyError(undefined);
     setServerError(null);
@@ -46,16 +46,18 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
       return;
     }
 
-    const jerseyNum = parseInt(jersey, 10);
-    if (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
+    const jerseyNum = jersey.trim() === "" ? null : parseInt(jersey, 10);
+    if (jerseyNum !== null && (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99)) {
       setJerseyError("1–99 only.");
       return;
     }
 
-    const otherJerseys = takenJerseys.filter((j) => j !== player.jersey_number);
-    if (otherJerseys.includes(jerseyNum)) {
-      setJerseyError(`#${jerseyNum} taken.`);
-      return;
+    if (jerseyNum !== null) {
+      const otherJerseys = takenJerseys.filter((j) => j !== player.jersey_number);
+      if (otherJerseys.includes(jerseyNum)) {
+        setJerseyError(`#${jerseyNum} taken.`);
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -87,9 +89,9 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
         !player.is_active ? "opacity-50" : ""
       }`}
     >
-      {/* Jersey badge */}
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
-        {player.jersey_number}
+      {/* Jersey badge — neutral circle when no number recorded */}
+      <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${player.jersey_number != null ? "bg-brand-100 text-brand-700" : "bg-surface-alt text-ink-mute"}`}>
+        {player.jersey_number ?? ""}
       </span>
 
       {editing && canEdit ? (

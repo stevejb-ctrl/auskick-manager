@@ -7,6 +7,7 @@ import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
   replayGame,
   seasonZoneMinutes,
+  seasonLoanMinutes,
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -23,7 +24,7 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
     id: f.id,
     team_id: teamId,
     full_name: f.full_name,
-    jersey_number: f.jersey_number ?? 0,
+    jersey_number: f.jersey_number,
     is_active: true,
     created_by: f.created_by ?? "",
     created_at: f.created_at,
@@ -135,6 +136,7 @@ export default async function LivePage({ params }: LivePageProps) {
           .in("game_id", priorGameIds)
       : { data: [] as GameEvent[] };
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
+    const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
 
     return (
       <div className="space-y-3">
@@ -149,6 +151,7 @@ export default async function LivePage({ params }: LivePageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
+          seasonLoanMinutes={loanMins}
           zoneCaps={zoneCaps}
           positionModel={positionModel}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}

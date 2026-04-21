@@ -31,7 +31,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
   const inactivePlayers = allPlayers.filter((p) => !p.is_active);
-  const takenJerseys = allPlayers.map((p) => p.jersey_number);
+  const takenJerseys = allPlayers.map((p) => p.jersey_number).filter((n): n is number => n !== null);
 
   return (
     <div className="space-y-6">

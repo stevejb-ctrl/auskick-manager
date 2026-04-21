@@ -41,14 +41,14 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
       body: "When it's time for subs, a pop-up shows you the suggested swaps. Tap Apply subs to action them all in one go, or dismiss and do it yourself.",
     },
     {
-      emoji: "🔒",
-      title: "Locking a player",
-      body: "Hold a player tile for half a second to open the lock menu. Lock to field keeps them on the pitch through auto-subs; Lock to zone lets them rotate off but always back into the same position. Hold again and tap Unlock to release.",
+      emoji: "👇",
+      title: "Long-press for player actions",
+      body: "Hold a player tile for half a second to open the actions sheet. From here you can Lock to field (never subbed), Lock to zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture, four options — works on field and bench tiles.",
     },
     {
-      emoji: "🩹",
-      title: "Managing an injury",
-      body: "Tap the Report injury button below the field to open the injury list. Mark a player injured and they'll stay on the bench and be skipped by auto-rotation — sub them off first if they're on the field. Tap the same button again (it shows the count) to clear the injury when they're ready to return.",
+      emoji: "↩️",
+      title: "Bringing someone back",
+      body: "Injured and lent players show a red INJ or amber LENT badge on the bench. Just tap them — the actions sheet opens straight to Mark recovered or Bring back, one tap and they're available for the next sub.",
     },
   ];
 

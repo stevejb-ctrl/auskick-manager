@@ -9,7 +9,7 @@ interface AvailabilityRowProps {
   gameId: string;
   playerId: string;
   playerName: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   status: AvailabilityStatus;
   canEdit: boolean;
 }
@@ -57,9 +57,11 @@ export function AvailabilityRow({
   return (
     <li className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
-          {jerseyNumber}
-        </span>
+        {jerseyNumber != null && (
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
+            {jerseyNumber}
+          </span>
+        )}
         <span className="text-sm font-medium text-ink">{playerName}</span>
       </div>
       {canEdit ? (

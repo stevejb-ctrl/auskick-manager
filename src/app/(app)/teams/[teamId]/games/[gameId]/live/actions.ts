@@ -246,6 +246,29 @@ export async function markInjury(
   });
 }
 
+// Mark a player as lent to the opposition (or bring them back). While loaned
+// they're excluded from sub rotation like an injury, but the loan minutes
+// accumulate into a season-long tally the coach can use to spread the favour.
+export async function markLoan(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_id: string;
+    loaned: boolean;
+    quarter: number;
+    elapsed_ms: number;
+  }
+): Promise<ActionResult> {
+  return insertEvent(auth, gameId, "player_loan", {
+    player_id: input.player_id,
+    metadata: {
+      loaned: input.loaned,
+      quarter: input.quarter,
+      elapsed_ms: input.elapsed_ms,
+    },
+  });
+}
+
 export async function recordLineupSet(
   auth: LiveAuth,
   gameId: string,

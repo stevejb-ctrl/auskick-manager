@@ -28,6 +28,8 @@ interface PlayerTileProps {
   /** Zone-minute distribution for the current game — shown as a mini stacked bar at the tile bottom. */
   zoneMs?: ZoneMinutes;
   injured?: boolean;
+  /** Currently lent to the opposition. Rendered like an unavailable player. */
+  loaned?: boolean;
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
   lockMode?: "field" | "zone" | null;
   score?: { goals: number; behinds: number };
@@ -51,6 +53,7 @@ export function PlayerTile({
   totalMs,
   zoneMs,
   injured,
+  loaned,
   lockMode,
   score,
 }: PlayerTileProps) {
@@ -83,7 +86,7 @@ export function PlayerTile({
     onClick?.();
   }
 
-  const showSwap = swap && !selected && !injured;
+  const showSwap = swap && !selected && !injured && !loaned;
   const isOff = showSwap && swap.role === "off";
   const isOn = showSwap && swap.role === "on";
   const showPairNumber = (swap?.totalPairs ?? 0) > 1;
@@ -113,7 +116,9 @@ export function PlayerTile({
         ? "border-brand-500 bg-brand-50 shadow-card"
         : injured
           ? "border-danger/40 bg-surface"
-          : lockMode === "field"
+          : loaned
+            ? "border-warn/40 bg-surface"
+            : lockMode === "field"
             ? "border-brand-300 bg-surface"
             : lockMode === "zone"
               ? "border-warn/50 bg-surface"
@@ -137,7 +142,7 @@ export function PlayerTile({
         "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
-        injured ? "grayscale" : "",
+        injured || loaned ? "grayscale" : "",
         !onClick && !onLongPress ? "cursor-default" : "",
       ].join(" ")}
     >
@@ -192,8 +197,18 @@ export function PlayerTile({
         </span>
       )}
 
+      {/* Loan badge — lent to opposition */}
+      {loaned && !injured && (
+        <span
+          className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+          aria-label="Lent to opposition"
+        >
+          LENT
+        </span>
+      )}
+
       {/* Lock badge */}
-      {lockMode && !injured && (
+      {lockMode && !injured && !loaned && (
         <span
           className={`absolute left-1 top-1 rounded-xs p-0.5 leading-none text-white ${
             lockMode === "field" ? "bg-brand-600" : "bg-warn"
@@ -232,13 +247,13 @@ export function PlayerTile({
       {/* Jersey + time */}
       {totalMs !== undefined ? (
         <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
-          #{player.jersey_number} · {formatMinSec(totalMs)}
+          {player.jersey_number != null ? `#${player.jersey_number} · ` : ""}{formatMinSec(totalMs)}
         </span>
-      ) : (
+      ) : player.jersey_number != null ? (
         <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
           #{player.jersey_number}
         </span>
-      )}
+      ) : null}
 
       {/* Zone-minute stacked bar — shows current-game time distribution */}
       {zoneMs && (() => {

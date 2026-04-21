@@ -36,6 +36,16 @@ export interface LiveGameState {
 
   swapCount: number;
   injuredIds: string[];
+  /**
+   * Players currently loaned to the opposition. Behaves like injury on the
+   * field (excluded from rotation, stays on bench) but accumulates a loan-
+   * minutes tally used for season fairness ("spread the favour").
+   */
+  loanedIds: string[];
+  /** Clock-elapsed ms when each loaned player's current stint started. */
+  loanStartMs: Record<string, number>;
+  /** Accumulated loan ms across closed stints this game. */
+  basePlayedLoanMs: Record<string, number>;
   /** Ephemeral — resets on page reload. Locked players are skipped by auto-rotation. */
   lockedIds: string[];
   /**
@@ -71,6 +81,12 @@ export interface LiveGameState {
   undoPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
+  /**
+   * Toggle whether a player is lent to the opposition. Starting a loan closes
+   * their current zone stint and moves them to the bench; ending it leaves
+   * them on the bench (ready for the next swap).
+   */
+  setLoaned: (playerId: string, loaned: boolean) => void;
   setLocked: (playerId: string, locked: boolean) => void;
   /** Lock player to a specific zone (they can sub on/off but only to this zone). Pass null to clear. */
   setZoneLocked: (playerId: string, zone: Zone | null) => void;
@@ -97,6 +113,9 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   stintZone: {},
   swapCount: 0,
   injuredIds: [],
+  loanedIds: [],
+  loanStartMs: {},
+  basePlayedLoanMs: {},
   lockedIds: [],
   lastStintMs: {},
   lastStintZone: {},
@@ -199,6 +218,11 @@ export const useLiveGame = create<LiveGameState>((set) => ({
           stintZone[p] = z;
         }
       }
+      // Still-loaned players continue their loan into the new quarter. The
+      // previous quarter's loan ms has already been flushed by endCurrentQuarter,
+      // so we just reset each stint start to 0 (the new quarter's elapsed).
+      const loanStartMs: Record<string, number> = {};
+      for (const pid of prev.loanedIds) loanStartMs[pid] = 0;
       return {
         currentQuarter: prev.currentQuarter + 1,
         quarterEnded: false,
@@ -207,6 +231,7 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         clockStartedAt: null,
         stintStartMs,
         stintZone,
+        loanStartMs,
         swapCount: prev.swapCount + 1,
         lastStintMs: {},
         lastStintZone: {},
@@ -235,6 +260,12 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         lastStintMs[pid] = dur;
         lastStintZone[pid] = z;
       }
+      // Flush active loan stints — beginNextQuarter will restart them at 0.
+      const basePlayedLoanMs = { ...prev.basePlayedLoanMs };
+      for (const [pid, start] of Object.entries(prev.loanStartMs)) {
+        const dur = Math.max(0, accumulated - start);
+        basePlayedLoanMs[pid] = (basePlayedLoanMs[pid] ?? 0) + dur;
+      }
       return {
         clockStartedAt: null,
         accumulatedMs: accumulated,
@@ -242,6 +273,8 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         basePlayedZoneMs,
         stintStartMs: {},
         stintZone: {},
+        basePlayedLoanMs,
+        loanStartMs: {},
         lastStintMs,
         lastStintZone,
       };
@@ -324,6 +357,58 @@ export const useLiveGame = create<LiveGameState>((set) => ({
       }
       return {
         injuredIds,
+        lineup,
+        basePlayedZoneMs,
+        stintStartMs,
+        stintZone,
+        swapCount: prev.swapCount + 1,
+      };
+    }),
+
+  setLoaned: (playerId, loaned) =>
+    set((prev) => {
+      const wasLoaned = prev.loanedIds.includes(playerId);
+      if (loaned && wasLoaned) return prev;
+      if (!loaned && !wasLoaned) return prev;
+
+      const nowMs = clockElapsedMs(prev);
+
+      if (!loaned) {
+        // End the loan: accumulate elapsed loan ms and drop the start marker.
+        // Player stays on bench (they're already there).
+        const basePlayedLoanMs = { ...prev.basePlayedLoanMs };
+        const loanStartMs = { ...prev.loanStartMs };
+        const start = loanStartMs[playerId] ?? nowMs;
+        basePlayedLoanMs[playerId] =
+          (basePlayedLoanMs[playerId] ?? 0) + Math.max(0, nowMs - start);
+        delete loanStartMs[playerId];
+        return {
+          loanedIds: prev.loanedIds.filter((p) => p !== playerId),
+          loanStartMs,
+          basePlayedLoanMs,
+        };
+      }
+
+      // Start the loan. If the player is on the field, close their zone stint
+      // and move them to the bench (same pattern as setInjured).
+      const lineup = cloneLineup(prev.lineup);
+      const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
+      const stintStartMs = { ...prev.stintStartMs };
+      const stintZone = { ...prev.stintZone };
+      const onFieldZone = ALL_ZONES.find((z) => lineup[z].includes(playerId));
+      if (onFieldZone) {
+        const start = stintStartMs[playerId] ?? nowMs;
+        const z = stintZone[playerId] ?? onFieldZone;
+        basePlayedZoneMs[playerId] = { ...(basePlayedZoneMs[playerId] ?? newZoneMs()) };
+        basePlayedZoneMs[playerId][z] += Math.max(0, nowMs - start);
+        delete stintStartMs[playerId];
+        delete stintZone[playerId];
+        lineup[onFieldZone] = lineup[onFieldZone].filter((p) => p !== playerId);
+        if (!lineup.bench.includes(playerId)) lineup.bench.push(playerId);
+      }
+      return {
+        loanedIds: [...prev.loanedIds, playerId],
+        loanStartMs: { ...prev.loanStartMs, [playerId]: nowMs },
         lineup,
         basePlayedZoneMs,
         stintStartMs,

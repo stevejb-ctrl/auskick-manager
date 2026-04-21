@@ -39,6 +39,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
   const playerBehinds: Record<string, number> = {};
   const subsIn: Record<string, number> = {};
   const subsOut: Record<string, number> = {};
+  const playerLoanMs: Record<string, number> = {};
   const teamScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
   const oppScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
   const lineupPeriods: LineupPeriod[] = [];
@@ -46,6 +47,8 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
 
   let lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
   const stints: Record<string, ActiveStint> = {};
+  /** Start elapsed-ms of each active loan stint (per quarter). */
+  const loanStart: Record<string, number> = {};
   let currentQuarter = 0;
   let periodStartMs = 0;
   let quarterActive = false;
@@ -58,6 +61,11 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     if (ms <= 0) return;
     playerZoneMs[pid] ??= emptyZoneMs();
     playerZoneMs[pid][zone] += ms;
+  }
+
+  function addLoanMs(pid: string, ms: number) {
+    if (ms <= 0) return;
+    playerLoanMs[pid] = (playerLoanMs[pid] ?? 0) + ms;
   }
 
   function closePeriod(endMs: number) {
@@ -106,6 +114,8 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
             stints[pid] = { zone: z, startMs: 0 };
           }
         }
+        // Re-anchor any still-open loan stints to elapsed=0.
+        for (const pid of Object.keys(loanStart)) loanStart[pid] = 0;
         break;
       }
 
@@ -144,6 +154,12 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         }
         // clear stints — don't delete properties, reset object
         for (const key of Object.keys(stints)) delete stints[key];
+        // Flush any open loan stints through the end of the quarter. Still-
+        // loaned players get their stint re-anchored at the next quarter_start.
+        for (const [pid, start] of Object.entries(loanStart)) {
+          addLoanMs(pid, qe - start);
+          loanStart[pid] = 0;
+        }
 
         closePeriod(qe);
         quarterActive = false;
@@ -209,6 +225,31 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
             lineup[z] = lineup[z].filter((p) => p !== pid);
             if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
           }
+        }
+        break;
+      }
+
+      case "player_loan": {
+        const loaned = meta.loaned !== false;
+        const pid = ev.player_id;
+        if (!pid) break;
+        if (loaned) {
+          // Starting a loan — if on-field, close the zone stint and move to
+          // bench; either way, open a loan stint.
+          const z = zoneOf(lineup, pid);
+          if (z) {
+            closePeriod(elapsed);
+            periodStartMs = elapsed;
+            const stint = stints[pid];
+            addZoneMs(pid, stint?.zone ?? z, elapsed - (stint?.startMs ?? 0));
+            delete stints[pid];
+            lineup[z] = lineup[z].filter((p) => p !== pid);
+            if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
+          }
+          loanStart[pid] = elapsed;
+        } else if (loanStart[pid] !== undefined) {
+          addLoanMs(pid, elapsed - loanStart[pid]);
+          delete loanStart[pid];
         }
         break;
       }
@@ -287,6 +328,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     playerBehinds,
     subsIn,
     subsOut,
+    playerLoanMs,
     teamScoreByQtr,
     oppScoreByQtr,
     lineupPeriods,
@@ -344,6 +386,7 @@ export function bucketFillIns(
     playerBehinds: mergeNumberMap(snapshot.playerBehinds),
     subsIn: mergeNumberMap(snapshot.subsIn),
     subsOut: mergeNumberMap(snapshot.subsOut),
+    playerLoanMs: mergeNumberMap(snapshot.playerLoanMs),
     lineupPeriods,
     playerIds,
   };

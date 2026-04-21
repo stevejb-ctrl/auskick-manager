@@ -53,12 +53,16 @@ export function computePlayerStats(
     );
   }, 0);
 
-  // Players who actually played (had non-zero zone time in at least one game)
+  // Players who actually took part (had non-zero zone time OR were loaned to
+  // the opposition in at least one game).
   const allPlayerIds = new Set<string>();
   for (const snap of snapshots) {
     for (const pid of Object.keys(snap.playerZoneMs)) {
       const total = ALL_ZONES.reduce((s, z) => s + snap.playerZoneMs[pid][z], 0);
       if (total > 0) allPlayerIds.add(pid);
+    }
+    for (const [pid, ms] of Object.entries(snap.playerLoanMs ?? {})) {
+      if (ms > 0) allPlayerIds.add(pid);
     }
   }
 
@@ -67,7 +71,7 @@ export function computePlayerStats(
   for (const pid of Array.from(allPlayerIds)) {
     const player = playerMap.get(pid);
     const name = player?.full_name ?? "Unknown";
-    const jersey = player?.jersey_number ?? 0;
+    const jersey = player?.jersey_number ?? null;
 
     let gamesPlayed = 0;
     let totalMs = 0;
@@ -76,6 +80,7 @@ export function computePlayerStats(
     let behinds = 0;
     let siCount = 0;
     let soCount = 0;
+    let loanMs = 0;
 
     for (const snap of snapshots) {
       const zm = snap.playerZoneMs[pid];
@@ -89,6 +94,7 @@ export function computePlayerStats(
       behinds += snap.playerBehinds[pid] ?? 0;
       siCount += snap.subsIn[pid] ?? 0;
       soCount += snap.subsOut[pid] ?? 0;
+      loanMs += snap.playerLoanMs?.[pid] ?? 0;
     }
 
     const teamGameTimePct =
@@ -107,6 +113,7 @@ export function computePlayerStats(
       subsIn: siCount,
       subsOut: soCount,
       teamGameTimePct,
+      loanMs,
     });
   }
 

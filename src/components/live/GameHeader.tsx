@@ -18,6 +18,7 @@ interface GameHeaderProps {
   running: boolean;
   isPreGame: boolean;
   isFinished: boolean;
+  /** Speed multiplier for demo games — scales displayed elapsed time (default 1). */
   clockMultiplier?: number;
 }
 
