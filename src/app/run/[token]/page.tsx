@@ -103,7 +103,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <GameInfoHeader teamName={teamName} g={g} />
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Who&apos;s here today?
         </h3>
         <AvailabilityList
@@ -117,7 +117,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="flex justify-end">
         <Link
           href={`/run/${params.token}/lineup`}
-          className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+          className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
           Continue to starting lineup →
         </Link>

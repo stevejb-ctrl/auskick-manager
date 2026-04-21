@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
 
 interface ErrorPageProps {
   error: Error & { digest?: string };
@@ -15,19 +16,15 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-16 text-center">
-      <h1 className="text-2xl font-bold text-gray-900">Something went wrong</h1>
-      <p className="text-sm text-gray-500">{error.message}</p>
+      <h1 className="text-2xl font-bold text-ink">Something went wrong</h1>
+      <p className="text-sm text-ink-dim">{error.message}</p>
       <div className="flex justify-center gap-3">
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
+        <Button type="button" onClick={reset} size="md">
           Try again
-        </button>
+        </Button>
         <Link
           href="/dashboard"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
         >
           Dashboard
         </Link>

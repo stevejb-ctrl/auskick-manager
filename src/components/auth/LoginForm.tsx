@@ -63,7 +63,7 @@ export function LoginForm() {
       </div>
 
       {error && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {error}
         </p>
       )}
@@ -72,9 +72,9 @@ export function LoginForm() {
         Sign in
       </Button>
 
-      <p className="text-center text-sm text-gray-600">
+      <p className="text-center text-sm text-ink-dim">
         No account?{" "}
-        <Link href="/signup" className="font-medium text-brand-600 hover:text-brand-700">
+        <Link href="/signup" className="font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800">
           Sign up
         </Link>
       </p>

@@ -5,7 +5,7 @@ import { SignupForm } from "@/components/auth/SignupForm";
 export default function SignupPage() {
   return (
     <>
-      <h2 className="mb-6 text-center text-xl font-semibold text-gray-800">
+      <h2 className="mb-6 text-center text-xl font-semibold text-ink">
         Create account
       </h2>
       <SignupForm />
