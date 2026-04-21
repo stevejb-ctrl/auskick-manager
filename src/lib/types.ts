@@ -59,6 +59,20 @@ export interface TeamMembership {
   created_at: string;
 }
 
+export interface TeamInvite {
+  id: string;
+  team_id: string;
+  token: string;
+  role: TeamRole;
+  email_hint: string | null;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  revoked_at: string | null;
+}
+
 export interface Player {
   id: string;
   team_id: string;
@@ -252,6 +266,23 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Omit<FillIn, "id" | "game_id" | "created_at">>;
+        Relationships: [];
+      };
+      team_invites: {
+        Row: TeamInvite;
+        Insert: Omit<
+          TeamInvite,
+          "id" | "token" | "created_at" | "expires_at" | "accepted_at" | "accepted_by" | "revoked_at"
+        > & {
+          id?: string;
+          token?: string;
+          created_at?: string;
+          expires_at?: string;
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          revoked_at?: string | null;
+        };
+        Update: Partial<Omit<TeamInvite, "id" | "team_id" | "token" | "created_at">>;
         Relationships: [];
       };
     };
