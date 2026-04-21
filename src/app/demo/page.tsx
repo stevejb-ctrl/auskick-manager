@@ -61,7 +61,7 @@ export default async function DemoPage() {
       notes: null,
       on_field_size: cfg.defaultOnFieldSize,
       sub_interval_seconds: cfg.subIntervalSeconds,
-      clock_multiplier: 6,
+      clock_multiplier: 8,
       created_by: adminRow.user_id,
     })
     .select("id, share_token")
