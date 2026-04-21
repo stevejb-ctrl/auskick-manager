@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   ALL_ZONES,
@@ -249,7 +250,25 @@ export function QuarterBreak({
             <p className="text-2xl font-bold tabular-nums text-brand-600">
               {score}
             </p>
-            <p className="text-[11px] uppercase tracking-micro text-ink-mute">Fairness</p>
+            <div className="flex items-center justify-end gap-1">
+              <p className="text-[11px] uppercase tracking-micro text-ink-mute">
+                Fairness
+              </p>
+              <InfoTooltip label="About the fairness index" placement="bottom-right">
+                <p className="font-semibold text-ink">Fairness index</p>
+                <p className="mt-1">
+                  Tracks how evenly zone minutes are shared across the squad.
+                  100 = perfectly even; lower numbers mean some kids have had
+                  noticeably more (or less) time in certain positions.
+                </p>
+                <p className="mt-2">
+                  Aim for a high score{" "}
+                  <strong className="text-ink">by the end of the season</strong>
+                  , not every game. Individual games often sit lower — that&apos;s
+                  normal. Rotations even out as the year goes on.
+                </p>
+              </InfoTooltip>
+            </div>
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
