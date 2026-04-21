@@ -120,21 +120,21 @@ export function ImportFixturesButton({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
           onClick={close}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-hairline bg-surface p-5 shadow-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-ink">
                 Import fixtures from PlayHQ
               </h3>
               <button
                 type="button"
                 onClick={close}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
                 aria-label="Close"
               >
                 ✕
@@ -143,7 +143,7 @@ export function ImportFixturesButton({
 
             {result ? (
               <div className="space-y-4">
-                <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                <div className="rounded-md border border-ok/30 bg-ok/10 p-3 text-sm text-ok">
                   Imported {result.imported} new, updated {result.updated},
                   skipped {result.skipped} unchanged.
                 </div>
@@ -164,21 +164,21 @@ export function ImportFixturesButton({
                     disabled={isPending}
                     autoFocus
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-ink-mute">
                     Go to <strong>playhq.com</strong>, navigate to your team&rsquo;s
                     page, and paste the URL here. It should look like:
                   </p>
-                  <p className="mt-1 rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-600 break-all">
+                  <p className="mt-1 rounded bg-surface-alt px-2 py-1 font-mono text-xs text-ink-dim break-all">
                     playhq.com/afl/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-ink-mute">
                     The short code at the end is what identifies your team. If the
                     URL you&rsquo;re pasting ends with <code>/teams</code> and nothing
                     after it, open the team page first.
                   </p>
                 </div>
                 {error && (
-                  <p className="text-sm text-red-600" role="alert">
+                  <p className="text-sm text-danger" role="alert">
                     {error}
                   </p>
                 )}
@@ -199,23 +199,23 @@ export function ImportFixturesButton({
               </form>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                  <div className="font-semibold text-gray-900">
+                <div className="rounded-md border border-hairline bg-surface-alt px-3 py-2 text-sm">
+                  <div className="font-semibold text-ink">
                     {meta.teamName}
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-ink-dim">
                     {meta.clubName} · {meta.competition} · {meta.season}
                   </div>
                 </div>
 
                 {fixtures.length === 0 ? (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-ink-mute">
                     No scheduled games found for this team yet.
                   </p>
                 ) : (
-                  <div className="max-h-96 overflow-y-auto rounded-md border border-gray-200">
+                  <div className="max-h-96 overflow-y-auto rounded-md border border-hairline">
                     <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                      <thead className="sticky top-0 bg-surface-alt text-[11px] font-bold uppercase tracking-micro text-ink-mute">
                         <tr>
                           <th className="px-3 py-2 text-left">
                             <input
@@ -256,7 +256,7 @@ export function ImportFixturesButton({
                           return (
                             <tr
                               key={f.externalId}
-                              className="border-t border-gray-100"
+                              className="border-t border-hairline"
                             >
                               <td className="px-3 py-2">
                                 <input
@@ -266,24 +266,24 @@ export function ImportFixturesButton({
                                   onChange={() => toggle(f.externalId)}
                                 />
                               </td>
-                              <td className="px-2 py-2">
+                              <td className="px-2 py-2 text-ink">
                                 {f.round ?? f.roundName}
                               </td>
-                              <td className="px-2 py-2">
+                              <td className="px-2 py-2 text-ink">
                                 <FormattedDateTime
                                   iso={f.scheduledAt}
                                   mode="long"
                                 />
                               </td>
-                              <td className="px-2 py-2">
+                              <td className="px-2 py-2 text-ink">
                                 {f.opponent}
                                 {already && (
-                                  <span className="ml-2 text-xs text-gray-400">
+                                  <span className="ml-2 text-xs text-ink-mute">
                                     (already imported)
                                   </span>
                                 )}
                               </td>
-                              <td className="px-2 py-2 text-gray-600">
+                              <td className="px-2 py-2 text-ink-dim">
                                 {f.venue ?? "—"}
                               </td>
                             </tr>
@@ -295,7 +295,7 @@ export function ImportFixturesButton({
                 )}
 
                 {error && (
-                  <p className="text-sm text-red-600" role="alert">
+                  <p className="text-sm text-danger" role="alert">
                     {error}
                   </p>
                 )}
@@ -328,7 +328,7 @@ export function ImportFixturesButton({
             )}
 
             {isPending && !meta && !result && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+              <div className="mt-3 flex items-center gap-2 text-xs text-ink-mute">
                 <Spinner size="sm" /> Fetching from PlayHQ…
               </div>
             )}

@@ -51,11 +51,11 @@ export function AddGameSection({
 
       {showManual && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
           onClick={() => setShowManual(false)}
         >
           <div
-            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg bg-surface p-5 shadow-modal"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-hairline bg-surface p-5 shadow-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">

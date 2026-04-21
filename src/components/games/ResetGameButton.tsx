@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { Button } from "@/components/ui/Button";
 import type { LiveAuth } from "@/lib/types";
 
 interface ResetGameButtonProps {
@@ -29,69 +30,76 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
 
   if (stage === "idle") {
     return (
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="md"
         onClick={() => setStage("confirm")}
-        className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+        className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
       >
         Restart game
-      </button>
+      </Button>
     );
   }
 
   return (
-    <div className="w-full rounded-md border border-red-300 bg-red-50 p-3 text-sm">
-      <p className="font-semibold text-red-900">
+    <div className="w-full rounded-md border border-danger/30 bg-danger/10 p-3 text-sm">
+      <p className="font-semibold text-danger">
         ⚠️ Restarting will permanently delete everything that happened in this game.
       </p>
-      <ul className="mt-2 list-disc pl-5 text-xs text-red-800">
+      <ul className="mt-2 list-disc pl-5 text-xs text-danger/90">
         <li>All quarters, swaps, goals, and behinds will be wiped.</li>
         <li>The starting lineup will be cleared.</li>
         <li>Player zone minutes from this game will no longer count.</li>
         <li>This can&apos;t be undone.</li>
       </ul>
       {error && (
-        <p className="mt-2 rounded bg-red-100 px-2 py-1 text-xs text-red-800">
+        <p className="mt-2 rounded bg-danger/20 px-2 py-1 text-xs text-danger">
           {error}
         </p>
       )}
       {stage === "confirm" ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setStage("final")}
             disabled={isPending}
-            className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-red-700 border border-red-300 hover:bg-red-50"
+            className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
           >
             I understand, continue
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setStage("idle")}
             disabled={isPending}
-            className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 hover:bg-gray-50"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
+          <Button
             type="button"
+            variant="danger"
+            size="sm"
             onClick={handleReset}
-            disabled={isPending}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            loading={isPending}
           >
             {isPending ? "Restarting…" : "Yes, restart this game"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setStage("idle")}
             disabled={isPending}
-            className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 hover:bg-gray-50"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       )}
     </div>
