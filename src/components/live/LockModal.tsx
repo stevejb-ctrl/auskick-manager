@@ -9,6 +9,8 @@ interface LockModalProps {
   currentLock: "field" | "zone" | null;
   /** The zone the player is currently in (or last played), used for zone-lock label. */
   currentZone: Zone | null;
+  /** Whether this player is currently injured. */
+  isInjured: boolean;
   /** Whether this player is currently lent to the opposition. */
   isLoaned: boolean;
   /** Total minutes this player has been lent out across the season. */
@@ -18,6 +20,7 @@ interface LockModalProps {
   onLockField: () => void;
   onLockZone: () => void;
   onUnlock: () => void;
+  onToggleInjury: () => void;
   onToggleLoan: () => void;
   onClose: () => void;
 }
@@ -26,12 +29,14 @@ export function LockModal({
   player,
   currentLock,
   currentZone,
+  isInjured,
   isLoaned,
   seasonLoanMins,
   squadLoanMins,
   onLockField,
   onLockZone,
   onUnlock,
+  onToggleInjury,
   onToggleLoan,
   onClose,
 }: LockModalProps) {
@@ -58,7 +63,34 @@ export function LockModal({
           {firstName} #{player.jersey_number}
         </h2>
 
-        {isLoaned ? (
+        {isInjured ? (
+          /* Currently injured — offer to mark recovered */
+          <>
+            <p className="mb-5 text-center text-sm text-ink-dim">
+              Injured — sitting on the bench and skipped by the sub
+              rotation until they&apos;re recovered.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={onToggleInjury}
+                className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+              >
+                <span className="text-sm font-bold">Mark {firstName} recovered</span>
+                <span className="mt-0.5 text-xs opacity-90">
+                  Back in the rotation from the next sub
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : isLoaned ? (
           /* Currently loaned — offer to bring back */
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
@@ -111,10 +143,10 @@ export function LockModal({
             </div>
           </>
         ) : (
-          /* Unlocked, on the team — offer lock types or loan */
+          /* Unlocked, on the team — offer lock / injure / loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              Lock this player in place, or lend them to the opposition.
+              Lock them in place, flag an injury, or lend them to the opposition.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -137,6 +169,16 @@ export function LockModal({
                   </span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={onToggleInjury}
+                className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
+              >
+                <span className="text-sm font-bold">Mark injured</span>
+                <span className="mt-0.5 text-xs opacity-90">
+                  Moves to the bench and skips the sub rotation
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={onToggleLoan}

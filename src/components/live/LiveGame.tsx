@@ -29,7 +29,6 @@ import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
-import { InjuryMenu } from "@/components/live/InjuryMenu";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
@@ -958,17 +957,6 @@ export function LiveGame({
               totalPairs={totalPairs}
             />
             {!isFinished && (
-              <InjuryMenu
-                players={squadPlayers.filter((p) => {
-                  if (lineup.bench.includes(p.id)) return true;
-                  return ALL_ZONES.some((z) => lineup[z].includes(p.id));
-                })}
-                injuredIds={injuredIds}
-                onToggle={handleInjuryToggle}
-                pending={isPending}
-              />
-            )}
-            {!isFinished && (
               <LateArrivalMenu
                 candidates={squadPlayers.filter((p) => {
                   const inBench = lineup.bench.includes(p.id);
@@ -1104,6 +1092,7 @@ export function LiveGame({
         const isFieldLocked = lockedIds.includes(lockModal.playerId);
         const isZoneLocked = !!zoneLockedPlayers[lockModal.playerId];
         const currentLock: "field" | "zone" | null = isFieldLocked ? "field" : isZoneLocked ? "zone" : null;
+        const isInjured = injuredIds.includes(lockModal.playerId);
         const isLoaned = loanedIds.includes(lockModal.playerId);
         // Season total for this player includes (a) completed games from server,
         // (b) already-closed loan ms this game, (c) the currently-open loan stint.
@@ -1126,6 +1115,7 @@ export function LiveGame({
             player={p}
             currentLock={currentLock}
             currentZone={lockModal.zone}
+            isInjured={isInjured}
             isLoaned={isLoaned}
             seasonLoanMins={seasonLoanMins}
             squadLoanMins={squadLoanMins}
@@ -1140,6 +1130,10 @@ export function LiveGame({
             onUnlock={() => {
               setLocked(lockModal.playerId, false);
               setZoneLocked(lockModal.playerId, null);
+              setLockModal(null);
+            }}
+            onToggleInjury={() => {
+              handleInjuryToggle(lockModal.playerId, !isInjured);
               setLockModal(null);
             }}
             onToggleLoan={() => {
