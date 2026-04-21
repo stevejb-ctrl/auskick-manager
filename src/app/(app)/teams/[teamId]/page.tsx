@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { FinishSetupBanner } from "@/components/setup/FinishSetupBanner";
 import type { Game } from "@/lib/types";
 
 interface TeamDashboardProps {
@@ -140,6 +141,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     { count: totalActive },
     { count: upcomingTotal },
     { data: availabilityRaw },
+    { data: membership },
   ] = await Promise.all([
     // Next 3 non-completed games (ascending so next game is first)
     supabase
@@ -169,11 +171,23 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .from("game_availability")
       .select("game_id, status")
       .eq("status", "available"),
+
+    // Current user's role on this team (to gate the FinishSetupBanner)
+    user
+      ? supabase
+          .from("team_memberships")
+          .select("role")
+          .eq("team_id", params.teamId)
+          .eq("user_id", user.id)
+          .single()
+      : Promise.resolve({ data: null }),
   ]);
 
   const upcoming = (upcomingRaw ?? []) as Game[];
   const playerCount = totalActive ?? 0;
   const upcomingCount = upcomingTotal ?? 0;
+  const isAdmin = membership?.role === "admin";
+  const showSetupBanner = isAdmin && playerCount === 0;
 
   const availMap = new Map<string, number>();
   for (const row of availabilityRaw ?? []) {
@@ -219,6 +233,9 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
   return (
     <div className="space-y-6">
+
+      {/* ── Finish setup banner (admins, empty squad) ────────────────────── */}
+      {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
 
       {/* ── Live game banner ─────────────────────────────────────────────── */}
       {liveGame && (
