@@ -7,11 +7,11 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<Variant, string> = {
-  active: "bg-green-100 text-green-800",
-  inactive: "bg-gray-100 text-gray-600",
-  admin: "bg-purple-100 text-purple-800",
-  game_manager: "bg-blue-100 text-blue-800",
-  parent: "bg-gray-100 text-gray-600",
+  active: "bg-ok/10 text-ok",
+  inactive: "bg-surface-alt text-ink-mute",
+  admin: "bg-ink text-warm",
+  game_manager: "bg-brand-100 text-brand-700",
+  parent: "bg-surface-alt text-ink-dim",
 };
 
 export function Badge({ variant, children, className = "" }: BadgeProps) {
