@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { AuthMethods } from "@/components/auth/AuthMethods";
 import { SignupForm } from "@/components/auth/SignupForm";
 
 export default function SignupPage() {
@@ -8,7 +9,10 @@ export default function SignupPage() {
       <h2 className="mb-6 text-center text-xl font-semibold text-ink">
         Create account
       </h2>
-      <SignupForm />
+      <AuthMethods mode="signup" />
+      <div className="mt-4">
+        <SignupForm />
+      </div>
     </>
   );
 }
