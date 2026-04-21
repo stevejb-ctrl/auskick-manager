@@ -22,37 +22,57 @@ export function QuarterScoring({ rows, hasData }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-brand-500" /> For
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-dim">
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-3 rounded-sm bg-brand-500"
+            aria-hidden
+          />{" "}
+          For
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-red-400" /> Against
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-3 rounded-sm bg-danger"
+            aria-hidden
+          />{" "}
+          Against
         </span>
       </div>
       {rows.map((row) => {
         const forPct = maxGoals > 0 ? (row.avgGoalsFor / maxGoals) * 100 : 0;
-        const agPct = maxGoals > 0 ? (row.avgGoalsAgainst / maxGoals) * 100 : 0;
+        const agPct =
+          maxGoals > 0 ? (row.avgGoalsAgainst / maxGoals) * 100 : 0;
         const won = row.avgGoalsFor > row.avgGoalsAgainst;
         return (
-          <div key={row.quarter} className="space-y-1">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="w-16 shrink-0 font-medium text-gray-700">Q{row.quarter}</span>
-              <span className={`text-xs font-semibold ${won ? "text-brand-600" : "text-red-600"}`}>
-                {row.avgGoalsFor.toFixed(1)}g {row.avgBehindsFor.toFixed(1)}b vs {row.avgGoalsAgainst.toFixed(1)}g {row.avgBehindsAgainst.toFixed(1)}b
+          <div key={row.quarter} className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-semibold text-ink">
+                Q{row.quarter}
               </span>
-              <span className="text-xs text-gray-400">({row.gamesCount} games)</span>
+              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
+                {row.gamesCount} {row.gamesCount === 1 ? "game" : "games"}
+              </span>
             </div>
+            <p
+              className={`text-xs font-medium tabular-nums ${
+                won ? "text-brand-600" : "text-danger"
+              }`}
+            >
+              {row.avgGoalsFor.toFixed(1)}g {row.avgBehindsFor.toFixed(1)}b{" "}
+              <span className="text-ink-mute">vs</span>{" "}
+              {row.avgGoalsAgainst.toFixed(1)}g{" "}
+              {row.avgBehindsAgainst.toFixed(1)}b
+            </p>
             <div className="space-y-1">
-              <div className="h-3 w-full rounded-full bg-gray-100">
+              <div className="h-2.5 w-full rounded-full bg-surface-alt">
                 <div
-                  className="h-3 rounded-full bg-brand-500 transition-all"
+                  className="h-2.5 rounded-full bg-brand-500 transition-all duration-slow"
                   style={{ width: `${Math.max(forPct, 2)}%` }}
                 />
               </div>
-              <div className="h-3 w-full rounded-full bg-gray-100">
+              <div className="h-2.5 w-full rounded-full bg-surface-alt">
                 <div
-                  className="h-3 rounded-full bg-red-400 transition-all"
+                  className="h-2.5 rounded-full bg-danger transition-all duration-slow"
                   style={{ width: `${Math.max(agPct, 2)}%` }}
                 />
               </div>

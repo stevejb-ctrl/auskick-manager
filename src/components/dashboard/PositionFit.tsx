@@ -2,12 +2,12 @@ import type { Zone } from "@/lib/types";
 import type { PositionFitRow } from "@/lib/dashboard/types";
 import { EmptyState } from "./EmptyState";
 
-const ZONE_ABBR: Record<Zone, string> = {
-  back: "BK",
-  hback: "HB",
-  mid: "MID",
-  hfwd: "HF",
-  fwd: "FWD",
+const ZONE_LABEL: Record<Zone, string> = {
+  back: "Back",
+  hback: "H-back",
+  mid: "Mid",
+  hfwd: "H-fwd",
+  fwd: "Fwd",
 };
 
 const MS_PER_MIN = 60_000;
@@ -37,46 +37,49 @@ export function PositionFit({ rows, playerNames, hasData }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Player</th>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Zone</th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Min</th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">For/90</th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Agnst/90</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
-          {Array.from(byPlayer.entries()).map(([pid, zoneRows]) => {
-            const playerName = playerNames[pid] ?? pid;
-            const sorted = [...zoneRows].sort((a, b) => b.durationMs - a.durationMs);
-            return sorted.map((row, idx) => (
-              <tr key={`${pid}-${row.zone}`} className="hover:bg-gray-50">
-                {idx === 0 && (
-                  <td
-                    rowSpan={sorted.length}
-                    className="px-3 py-2 align-top font-medium text-gray-900"
-                  >
-                    {playerName}
-                  </td>
-                )}
-                <td className="px-3 py-2 text-gray-500">{ZONE_ABBR[row.zone]}</td>
-                <td className="px-3 py-2 text-right text-gray-600">
-                  {Math.round(row.durationMs / MS_PER_MIN)}
-                </td>
-                <td className="px-3 py-2 text-right font-medium text-brand-700">
-                  {row.goalsForRate.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-red-600">
-                  {row.goalsAgainstRate.toFixed(1)}
-                </td>
-              </tr>
-            ));
-          })}
-        </tbody>
-      </table>
+    <div className="grid gap-2 sm:grid-cols-2">
+      {Array.from(byPlayer.entries()).map(([pid, zoneRows]) => {
+        const playerName = playerNames[pid] ?? pid;
+        const sorted = [...zoneRows].sort(
+          (a, b) => b.durationMs - a.durationMs
+        );
+        return (
+          <div
+            key={pid}
+            className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+          >
+            <p className="mb-2 text-sm font-semibold text-ink">{playerName}</p>
+            <div className="space-y-1.5">
+              {/* Column headers */}
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+                <span className="w-14 shrink-0">Zone</span>
+                <span className="w-10 shrink-0 text-right">Min</span>
+                <span className="flex-1 text-right">For/90</span>
+                <span className="flex-1 text-right">Agst/90</span>
+              </div>
+              {sorted.map((row) => (
+                <div
+                  key={row.zone}
+                  className="flex items-center gap-2 text-xs tabular-nums"
+                >
+                  <span className="w-14 shrink-0 font-medium text-ink-dim">
+                    {ZONE_LABEL[row.zone]}
+                  </span>
+                  <span className="w-10 shrink-0 text-right text-ink-mute">
+                    {Math.round(row.durationMs / MS_PER_MIN)}m
+                  </span>
+                  <span className="flex-1 text-right font-semibold text-brand-600">
+                    {row.goalsForRate.toFixed(1)}
+                  </span>
+                  <span className="flex-1 text-right font-semibold text-danger">
+                    {row.goalsAgainstRate.toFixed(1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

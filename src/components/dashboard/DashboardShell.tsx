@@ -50,11 +50,11 @@ interface SectionProps {
 
 function Section({ title, children }: SectionProps) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 px-5 py-4">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+    <section className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-card">
+      <div className="border-b border-hairline px-4 py-3 sm:px-5 sm:py-4">
+        <h3 className="text-sm font-semibold text-ink sm:text-base">{title}</h3>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-3 sm:p-5">{children}</div>
     </section>
   );
 }
@@ -77,9 +77,11 @@ export function DashboardShell({
 }: DashboardShellProps) {
   if (seasons.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-6 py-16 text-center">
-        <p className="text-sm font-medium text-gray-500">No completed games yet</p>
-        <p className="mt-1 text-xs text-gray-400">
+      <div className="rounded-lg border border-dashed border-hairline bg-surface-alt px-6 py-16 text-center">
+        <p className="text-sm font-medium text-ink-dim">
+          No completed games yet
+        </p>
+        <p className="mt-1 text-xs text-ink-mute">
           Stats will appear here once the first game is played and finalised.
         </p>
       </div>
@@ -87,18 +89,21 @@ export function DashboardShell({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Season selector */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {totalGames} completed {totalGames === 1 ? "game" : "games"}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Season header — stacks on small screens, splits on sm+ */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-ink-dim sm:text-sm">
+          <span className="font-semibold tabular-nums text-ink">
+            {totalGames}
+          </span>{" "}
+          completed {totalGames === 1 ? "game" : "games"}
         </p>
         <Suspense fallback={null}>
           <SeasonSelector seasons={seasons} selectedYear={selectedYear} />
         </Suspense>
       </div>
 
-      <div className="grid gap-6">
+      <div className="grid gap-4 sm:gap-6">
         {/* 1. Per-player stats */}
         <Section title="Player statistics">
           <PlayerStatsTable stats={playerStats} hasData={hasZoneData} />

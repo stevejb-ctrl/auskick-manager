@@ -25,39 +25,56 @@ export function MinutesEquity({ stats, hasData }: Props) {
   const sorted = [...stats].sort((a, b) => b.totalMs - a.totalMs);
 
   function colorClass(ms: number) {
-    if (avg === 0) return "bg-gray-300";
+    if (avg === 0) return "bg-ink-mute";
     const ratio = ms / avg;
-    if (ratio < 0.8) return "bg-red-400";
-    if (ratio > 1.2) return "bg-amber-400";
+    if (ratio < 0.8) return "bg-danger";
+    if (ratio > 1.2) return "bg-warn";
     return "bg-brand-500";
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-4 text-xs text-gray-500">
-        <span>Team avg: <strong className="text-gray-700">{Math.round(avg / MS_PER_MIN)} min</strong></span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded bg-red-400" /> &lt;80% avg</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded bg-amber-400" /> &gt;120% avg</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-dim">
+        <span>
+          Team avg:{" "}
+          <strong className="text-ink tabular-nums">
+            {Math.round(avg / MS_PER_MIN)} min
+          </strong>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-3 rounded-sm bg-danger" aria-hidden />
+          &lt;80%
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-3 rounded-sm bg-warn" aria-hidden />
+          &gt;120%
+        </span>
       </div>
-      {sorted.map((p) => {
-        const pct = maxMs > 0 ? (p.totalMs / maxMs) * 100 : 0;
-        return (
-          <div key={p.playerId} className="flex items-center gap-3">
-            <span className="w-32 shrink-0 truncate text-sm font-medium text-gray-700">
-              {p.playerName}
-            </span>
-            <div className="flex-1 rounded-full bg-gray-100">
-              <div
-                className={`h-4 rounded-full ${colorClass(p.totalMs)} transition-all`}
-                style={{ width: `${Math.max(pct, 2)}%` }}
-              />
+      <div className="space-y-2.5">
+        {sorted.map((p) => {
+          const pct = maxMs > 0 ? (p.totalMs / maxMs) * 100 : 0;
+          return (
+            <div key={p.playerId}>
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-medium text-ink">
+                  {p.playerName}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-ink-dim">
+                  {Math.round(p.totalMs / MS_PER_MIN)} min
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-surface-alt">
+                <div
+                  className={`h-2 rounded-full transition-all duration-slow ${colorClass(
+                    p.totalMs
+                  )}`}
+                  style={{ width: `${Math.max(pct, 2)}%` }}
+                />
+              </div>
             </div>
-            <span className="w-14 text-right text-sm text-gray-600">
-              {Math.round(p.totalMs / MS_PER_MIN)} min
-            </span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

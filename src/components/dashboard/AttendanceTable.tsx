@@ -18,32 +18,44 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50">
+    <div className="overflow-hidden rounded-lg border border-hairline">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-alt">
           <tr>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">#</th>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Player</th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Available / {totalGames}
+            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+              #
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">%</th>
+            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+              Player
+            </th>
+            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+              Avail / {totalGames}
+            </th>
+            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+              %
+            </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
+        <tbody className="divide-y divide-hairline bg-surface">
           {rows.map((row) => (
-            <tr key={row.playerId} className="hover:bg-gray-50">
-              <td className="px-3 py-2 text-gray-400">{row.jerseyNumber}</td>
-              <td className="px-3 py-2 font-medium text-gray-900">{row.playerName}</td>
-              <td className="px-3 py-2 text-right text-gray-600">{row.gamesAvailable}</td>
-              <td className="px-3 py-2 text-right">
+            <tr key={row.playerId}>
+              <td className="px-2 py-2 tabular-nums text-ink-mute">
+                {row.jerseyNumber}
+              </td>
+              <td className="truncate px-2 py-2 font-medium text-ink">
+                {row.playerName}
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums text-ink-dim">
+                {row.gamesAvailable}
+              </td>
+              <td className="px-2 py-2 text-right">
                 <span
-                  className={`font-semibold ${
+                  className={`font-semibold tabular-nums ${
                     row.attendancePct >= 80
-                      ? "text-brand-700"
+                      ? "text-brand-600"
                       : row.attendancePct >= 50
-                      ? "text-amber-600"
-                      : "text-red-600"
+                      ? "text-warn"
+                      : "text-danger"
                   }`}
                 >
                   {row.attendancePct}%

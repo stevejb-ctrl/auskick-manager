@@ -19,15 +19,18 @@ export function SeasonSelector({ seasons, selectedYear }: SeasonSelectorProps) {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <label htmlFor="season-select" className="text-sm font-medium text-gray-700">
+    <div className="flex items-center gap-2">
+      <label
+        htmlFor="season-select"
+        className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute"
+      >
         Season
       </label>
       <select
         id="season-select"
         value={selectedYear}
         onChange={handleChange}
-        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        className="rounded-md border border-hairline bg-surface px-2 py-1 text-sm font-medium text-ink shadow-card focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
       >
         {seasons.map((s) => (
           <option key={s.year} value={s.year}>

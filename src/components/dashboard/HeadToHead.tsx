@@ -17,40 +17,56 @@ export function HeadToHead({ records, hasData }: Props) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {records.map((r) => {
         const teamScore = r.goalsFor * 6 + r.behindsFor;
         const oppScore = r.goalsAgainst * 6 + r.behindsAgainst;
         return (
-          <div key={r.opponent} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="truncate text-sm font-semibold text-gray-900">{r.opponent}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              {r.gamesPlayed} {r.gamesPlayed === 1 ? "game" : "games"}
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <span className="rounded-md bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">
+          <div
+            key={r.opponent}
+            className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                {r.opponent}
+              </p>
+              <p className="shrink-0 text-[11px] text-ink-mute">
+                {r.gamesPlayed} {r.gamesPlayed === 1 ? "game" : "games"}
+              </p>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className="rounded bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700 tabular-nums">
                 {r.wins}W
               </span>
-              <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+              <span className="rounded bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger tabular-nums">
                 {r.losses}L
               </span>
               {r.draws > 0 && (
-                <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                <span className="rounded bg-surface-alt px-2 py-0.5 text-xs font-semibold text-ink-dim tabular-nums">
                   {r.draws}D
                 </span>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              For:{" "}
-              <span className="font-medium text-gray-700">
-                {r.goalsFor}.{r.behindsFor} ({teamScore})
-              </span>
-              {" · "}
-              Agnst:{" "}
-              <span className="font-medium text-gray-700">
-                {r.goalsAgainst}.{r.behindsAgainst} ({oppScore})
-              </span>
-            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-micro text-ink-mute">
+                  For
+                </p>
+                <p className="font-medium tabular-nums text-ink">
+                  {r.goalsFor}.{r.behindsFor}{" "}
+                  <span className="text-ink-mute">({teamScore})</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-micro text-ink-mute">
+                  Against
+                </p>
+                <p className="font-medium tabular-nums text-ink">
+                  {r.goalsAgainst}.{r.behindsAgainst}{" "}
+                  <span className="text-ink-mute">({oppScore})</span>
+                </p>
+              </div>
+            </div>
           </div>
         );
       })}
