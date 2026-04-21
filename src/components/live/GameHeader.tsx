@@ -71,7 +71,7 @@ export function GameHeader({
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
       {/* Left: home team — total points dominate, like a broadcast scorebug */}
       <div className="min-w-0">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {teamName}
         </p>
         <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
@@ -109,7 +109,7 @@ export function GameHeader({
 
       {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
