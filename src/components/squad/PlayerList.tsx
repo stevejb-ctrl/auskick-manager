@@ -6,9 +6,10 @@ import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 
 interface PlayerListProps {
   teamId: string;
+  isAdmin: boolean;
 }
 
-export async function PlayerList({ teamId }: PlayerListProps) {
+export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   const supabase = createClient();
 
   const [{ data: players }, { data: team }] = await Promise.all([
@@ -36,15 +37,17 @@ export async function PlayerList({ teamId }: PlayerListProps) {
     <div className="space-y-6">
       <SquadHeader activeCount={activePlayers.length} maxPlayers={maxPlayers} />
 
-      <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-        <h2 className="mb-4 text-base font-semibold text-ink">Add player</h2>
-        <AddPlayerForm
-          teamId={teamId}
-          activeCount={activePlayers.length}
-          maxPlayers={maxPlayers}
-          takenJerseys={takenJerseys}
-        />
-      </div>
+      {isAdmin && (
+        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+          <h2 className="mb-4 text-base font-semibold text-ink">Add player</h2>
+          <AddPlayerForm
+            teamId={teamId}
+            activeCount={activePlayers.length}
+            maxPlayers={maxPlayers}
+            takenJerseys={takenJerseys}
+          />
+        </div>
+      )}
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">
         <div className="border-b border-hairline px-4 py-3">
@@ -64,6 +67,7 @@ export async function PlayerList({ teamId }: PlayerListProps) {
                 player={player}
                 teamId={teamId}
                 takenJerseys={takenJerseys}
+                canEdit={isAdmin}
               />
             ))}
           </ul>
@@ -84,6 +88,7 @@ export async function PlayerList({ teamId }: PlayerListProps) {
                 player={player}
                 teamId={teamId}
                 takenJerseys={takenJerseys}
+                canEdit={isAdmin}
               />
             ))}
           </ul>

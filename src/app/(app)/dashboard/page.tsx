@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CreateTeamForm } from "@/components/dashboard/CreateTeamForm";
-import type { Team } from "@/lib/types";
+import { Badge } from "@/components/ui/Badge";
+import { ROLE_LABEL } from "@/lib/roles";
+import type { Team, TeamRole } from "@/lib/types";
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -13,7 +15,7 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   type MembershipRow = {
-    role: string;
+    role: TeamRole;
     teams: Pick<Team, "id" | "name"> | null;
   };
 
@@ -46,12 +48,10 @@ export default async function DashboardPage() {
             <li key={team.id}>
               <Link
                 href={`/teams/${team.id}`}
-                className="flex items-center justify-between px-5 py-4 transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                className="flex items-center justify-between gap-3 px-5 py-4 transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
               >
-                <span className="font-medium text-ink">{team.name}</span>
-                <span className="text-sm text-ink-mute capitalize">
-                  {team.role.replace("_", " ")}
-                </span>
+                <span className="truncate font-medium text-ink">{team.name}</span>
+                <Badge variant={team.role}>{ROLE_LABEL[team.role]}</Badge>
               </Link>
             </li>
           ))}

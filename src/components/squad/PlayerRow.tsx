@@ -15,9 +15,10 @@ interface PlayerRowProps {
   player: Player;
   teamId: string;
   takenJerseys: number[];
+  canEdit: boolean;
 }
 
-export function PlayerRow({ player, teamId, takenJerseys }: PlayerRowProps) {
+export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.full_name);
   const [jersey, setJersey] = useState(String(player.jersey_number));
@@ -91,7 +92,7 @@ export function PlayerRow({ player, teamId, takenJerseys }: PlayerRowProps) {
         {player.jersey_number}
       </span>
 
-      {editing ? (
+      {editing && canEdit ? (
         <div className="flex flex-1 flex-wrap items-start gap-2">
           <Input
             value={name}
@@ -127,23 +128,27 @@ export function PlayerRow({ player, teamId, takenJerseys }: PlayerRowProps) {
           <span className="flex-1 text-sm font-medium text-ink">
             {player.full_name}
           </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setEditing(true)}
-            disabled={isPending}
-          >
-            Edit
-          </Button>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditing(true)}
+              disabled={isPending}
+            >
+              Edit
+            </Button>
+          )}
         </>
       )}
 
-      <Toggle
-        checked={player.is_active}
-        onChange={handleToggle}
-        disabled={isPending}
-        label={player.is_active ? "Deactivate player" : "Reactivate player"}
-      />
+      {canEdit && (
+        <Toggle
+          checked={player.is_active}
+          onChange={handleToggle}
+          disabled={isPending}
+          label={player.is_active ? "Deactivate player" : "Reactivate player"}
+        />
+      )}
     </li>
   );
 }

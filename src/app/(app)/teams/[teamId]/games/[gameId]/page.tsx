@@ -119,7 +119,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             >
               {g.status === "upcoming" ? "Start game" : "Open live game"}
             </Link>
-            {role === "admin" && <ShareRunnerLink token={g.share_token} />}
+            {canRun && <ShareRunnerLink token={g.share_token} />}
             {role === "admin" && g.status !== "upcoming" && (
               <ResetGameButton auth={{ kind: "team", teamId: params.teamId }} gameId={params.gameId} />
             )}
