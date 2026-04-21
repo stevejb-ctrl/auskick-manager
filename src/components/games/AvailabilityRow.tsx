@@ -24,9 +24,9 @@ const nextStatus: Record<AvailabilityStatus, AvailabilityStatus> = {
 };
 
 const statusStyles: Record<AvailabilityStatus, string> = {
-  available: "bg-green-100 text-green-700 border-green-200",
-  unavailable: "bg-gray-100 text-gray-600 border-gray-200",
-  unknown: "bg-gray-100 text-gray-600 border-gray-200",
+  available: "bg-ok/10 text-ok border-ok/30",
+  unavailable: "bg-surface-alt text-ink-mute border-hairline",
+  unknown: "bg-surface-alt text-ink-mute border-hairline",
 };
 
 const statusLabels: Record<AvailabilityStatus, string> = {
@@ -60,7 +60,7 @@ export function AvailabilityRow({
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
           {jerseyNumber}
         </span>
-        <span className="text-sm font-medium text-gray-800">{playerName}</span>
+        <span className="text-sm font-medium text-ink">{playerName}</span>
       </div>
       {canEdit ? (
         <button

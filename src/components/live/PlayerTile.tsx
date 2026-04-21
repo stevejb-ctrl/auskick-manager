@@ -144,7 +144,7 @@ export function PlayerTile({
       {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
       {isOff && (
         <div
-          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
           aria-label={`Coming off next, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
@@ -153,7 +153,7 @@ export function PlayerTile({
       )}
       {isOn && swap?.zone && (
         <div
-          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide ${swapZoneAccent}`}
+          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
           aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
@@ -162,7 +162,7 @@ export function PlayerTile({
       )}
       {isOn && !swap?.zone && (
         <div
-          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-wide text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
           aria-label={`Going on, pair ${swap.pair}`}
         >
           {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}

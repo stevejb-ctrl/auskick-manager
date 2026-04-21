@@ -83,39 +83,39 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       <div>
         <Link
           href={`/teams/${params.teamId}/games`}
-          className="text-sm text-gray-500 hover:text-brand-600"
+          className="text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
         >
           ← Games
         </Link>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
         <div className="flex items-baseline gap-2">
           {g.round_number != null && (
-            <span className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+            <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
               Round {g.round_number}
             </span>
           )}
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-ink-mute">
             <FormattedDateTime iso={g.scheduled_at} mode="long" />
           </span>
         </div>
-        <h2 className="mt-1 text-xl font-bold text-gray-900">vs {g.opponent}</h2>
-        {g.location && <p className="mt-1 text-sm text-gray-500">{g.location}</p>}
-        <p className="mt-1 text-xs text-gray-500">
+        <h2 className="mt-1 text-xl font-bold text-ink">vs {g.opponent}</h2>
+        {g.location && <p className="mt-1 text-sm text-ink-dim">{g.location}</p>}
+        <p className="mt-1 text-xs text-ink-mute">
           {ageCfg.label} · {g.on_field_size} on field
           {g.on_field_size < ageCfg.defaultOnFieldSize && (
-            <span className="ml-1 font-medium text-amber-700">(short-handed)</span>
+            <span className="ml-1 font-medium text-warn">(short-handed)</span>
           )}
         </p>
         {g.notes && (
-          <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{g.notes}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">{g.notes}</p>
         )}
         {canRun && (
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
               href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
             >
               {g.status === "upcoming" ? "Start game" : "Open live game"}
             </Link>
@@ -131,9 +131,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       </div>
 
       {scorerRows.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-gray-800">Goal kickers</h3>
-          <ul className="mt-3 divide-y divide-gray-100">
+        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+          <h3 className="text-base font-semibold text-ink">Goal kickers</h3>
+          <ul className="mt-3 divide-y divide-hairline">
             {scorerRows.map((r) => (
               <li
                 key={r.player!.id}
@@ -143,14 +143,14 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
                     {r.player!.jersey_number}
                   </span>
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium text-ink">
                     {r.player!.full_name}
                   </span>
                 </span>
-                <span className="tabular-nums text-gray-600">
-                  <span className="font-semibold text-gray-900">{r.goals}</span> goals ·{" "}
-                  <span className="font-semibold text-gray-900">{r.behinds}</span> behinds
-                  <span className="ml-1 text-xs text-gray-400">
+                <span className="tabular-nums text-ink-dim">
+                  <span className="font-semibold text-ink">{r.goals}</span> goals ·{" "}
+                  <span className="font-semibold text-ink">{r.behinds}</span> behinds
+                  <span className="ml-1 text-xs text-ink-mute">
                     ({r.goals * 6 + r.behinds} pts)
                   </span>
                 </span>

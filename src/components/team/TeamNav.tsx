@@ -22,11 +22,11 @@ export function TeamNav({ teamId, teamName }: TeamNavProps) {
     <div className="space-y-3">
       <Link
         href="/dashboard"
-        className="text-sm text-gray-500 hover:text-brand-600"
+        className="text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
       >
         ← My teams
       </Link>
-      <h1 className="text-2xl font-bold text-gray-900">{teamName}</h1>
+      <h1 className="text-2xl font-bold text-ink">{teamName}</h1>
       <TeamTabBar teamId={teamId} />
     </div>
   );

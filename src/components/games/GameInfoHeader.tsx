@@ -32,7 +32,7 @@ export function GameInfoHeader({ teamName, g, compact = false }: GameInfoHeaderP
     <div>
       <div className="flex items-baseline gap-2">
         {g.round_number != null && (
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+          <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
             Round {g.round_number}
           </span>
         )}

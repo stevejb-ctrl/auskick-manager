@@ -54,7 +54,7 @@ export default async function LivePage({ params }: LivePageProps) {
   const canRun = isAdmin || membership?.role === "game_manager";
   if (!canRun) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div className="rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
         Only admins and game managers can run a live game.
       </div>
     );
@@ -219,7 +219,7 @@ export default async function LivePage({ params }: LivePageProps) {
   return (
     <div className="space-y-4">
       {availablePlayers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
           No players marked available — go back and set availability first.
         </p>
       ) : (

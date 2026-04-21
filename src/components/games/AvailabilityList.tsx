@@ -56,21 +56,21 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
   return (
     <div className="space-y-4">
       <div className="flex gap-2 text-sm">
-        <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-3 py-1 font-semibold text-green-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-ok/30 bg-ok/10 px-3 py-1 font-semibold text-ok">
           {available} available
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-3 py-1 font-semibold text-gray-600">
+        <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-alt px-3 py-1 font-semibold text-ink-mute">
           {unavailable} unavailable
         </span>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="rounded-lg border border-hairline bg-surface shadow-card">
         {squad.length === 0 && fillIns.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
+          <p className="px-4 py-6 text-center text-sm text-ink-mute">
             No active players in the squad.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-hairline">
             {squad.map((p) => (
               <AvailabilityRow
                 key={p.id}

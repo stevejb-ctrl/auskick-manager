@@ -119,12 +119,12 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
           placeholder="Anything parents should know"
           disabled={isPending}
           rows={3}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+          className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card placeholder:text-ink-mute focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-ink-mute"
         />
       </div>
 
       {serverError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {serverError}
         </p>
       )}

@@ -33,16 +33,16 @@ export function TrackScoringToggle({
   }
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+    <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-4 py-3 shadow-card">
       <div>
-        <p className="text-sm font-medium text-gray-800">
+        <p className="text-sm font-medium text-ink">
           Track goals &amp; behinds
         </p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-mute">
           When on, the live game screen shows scoring buttons and includes
           scores in the post-game summary.
         </p>
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
       </div>
       <Toggle
         checked={enabled}
