@@ -35,6 +35,7 @@ const config: Config = {
         },
 
         // Signals
+        alarm:          "#D63B2A",   // siren-red — brand mark, pulse indicator
         warn:           "#C8751F",   // ochre — sub timer firing, NEXT chip
         "warn-soft":    "#F5E5D2",
         danger:         "#B4393A",
