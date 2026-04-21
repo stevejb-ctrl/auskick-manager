@@ -46,6 +46,32 @@ const FEATURES = [
     imageAlt: "Pre-game availability list with injured and fill-in players",
   },
   {
+    id: "flexibility",
+    eyebrow: "Full control",
+    title: "Handle anything the game throws at you.",
+    body: "Long-press any player to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
+    bullets: [
+      "Lock a player always-on or to a specific zone",
+      "Injured players skip the rotation automatically",
+      "Lend a player to the opposition and track their time separately",
+    ],
+    image: "/marketing/screenshots/flexibility.png",
+    imageAlt: "Player actions sheet showing lock, injury, and lend options",
+  },
+  {
+    id: "quarterly",
+    eyebrow: "Quarter breaks",
+    title: "Walk into every quarter with a plan.",
+    body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
+    bullets: [
+      "Suggested lineup based on zone equity",
+      "One tap to accept or drag to customise",
+      "Fairness score updates as you swap players",
+    ],
+    image: "/marketing/screenshots/quarterly.png",
+    imageAlt: "Quarter break screen with suggested reshuffle and fairness bars",
+  },
+  {
     id: "share",
     eyebrow: "Share with parents",
     title: "Parents can follow along live.",
