@@ -155,6 +155,25 @@ export async function saveSongUrl(
   return { success: true, song_url: trimmed };
 }
 
+/** Toggle whether the team song plays on goals. The URL is preserved. */
+export async function setSongEnabled(
+  teamId: string,
+  enabled: boolean
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ song_enabled: enabled })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
 /** Update song timing (start + duration) without re-uploading the file or URL. */
 export async function updateSongTiming(
   teamId: string,

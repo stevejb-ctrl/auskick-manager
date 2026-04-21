@@ -43,6 +43,8 @@ export interface Team {
   song_url: string | null;
   /** Seconds into the song to start playback from (defaults to 0). */
   song_start_seconds: number;
+  /** Whether goal-song playback is enabled. The URL is kept when disabled. */
+  song_enabled: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;

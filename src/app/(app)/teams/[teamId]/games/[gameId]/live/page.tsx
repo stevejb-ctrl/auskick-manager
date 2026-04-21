@@ -69,7 +69,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds")
+      .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
   ]);
@@ -78,7 +78,8 @@ export default async function LivePage({ params }: LivePageProps) {
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   const ageGroup = ageGroupOf(teamRow?.age_group);
-  const songUrl = teamRow?.song_url ?? null;
+  const songEnabled = teamRow?.song_enabled ?? true;
+  const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
   const positionModel = AGE_GROUPS[ageGroup].positionModel;

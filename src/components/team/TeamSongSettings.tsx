@@ -4,12 +4,14 @@ import { useRef, useState, useTransition } from "react";
 import {
   saveSong,
   saveSongUrl,
+  setSongEnabled,
   updateSongTiming,
   deleteSong,
 } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Toggle } from "@/components/ui/Toggle";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
 
 interface TeamSongSettingsProps {
@@ -17,7 +19,24 @@ interface TeamSongSettingsProps {
   currentSongUrl: string | null;
   currentStartSeconds: number;
   currentDurationSeconds: number;
+  currentEnabled: boolean;
   isAdmin: boolean;
+}
+
+const DURATION_MIN = 5;
+const DURATION_MAX = 120;
+const DURATION_DEFAULT = 15;
+const START_MIN = 0;
+const START_MAX = 3600;
+
+function clampStart(n: number): number {
+  if (!Number.isFinite(n)) return START_MIN;
+  return Math.min(START_MAX, Math.max(START_MIN, Math.round(n)));
+}
+
+function clampDuration(n: number): number {
+  if (!Number.isFinite(n)) return DURATION_DEFAULT;
+  return Math.min(DURATION_MAX, Math.max(DURATION_MIN, Math.round(n)));
 }
 
 function formatSeconds(s: number): string {
@@ -31,14 +50,22 @@ export function TeamSongSettings({
   currentSongUrl,
   currentStartSeconds,
   currentDurationSeconds,
+  currentEnabled,
   isAdmin,
 }: TeamSongSettingsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [songUrl, setSongUrl] = useState<string | null>(currentSongUrl);
+  const [enabled, setEnabled] = useState(currentEnabled);
   const [startSecs, setStartSecs] = useState(currentStartSeconds);
   const [durationSecs, setDurationSecs] = useState(currentDurationSeconds);
+
+  // Separate string state for the number inputs so the user can clear the
+  // field and type a new value. The committed numeric state is only updated
+  // when the string parses to a valid number; clamping happens on blur.
+  const [startInput, setStartInput] = useState(String(currentStartSeconds));
+  const [durationInput, setDurationInput] = useState(String(currentDurationSeconds));
 
   // URL input form state
   const [urlInput, setUrlInput] = useState(currentSongUrl ?? "");
@@ -154,11 +181,30 @@ export function TeamSongSettings({
         setSongUrl(null);
         setUrlInput("");
         setStartSecs(0);
+        setStartInput("0");
         setShowUpload(false);
         setShowYtPreview(false);
         previewRef.current = null;
         flash("Song removed.");
       }
+    });
+  }
+
+  // ── Enable/disable toggle (persists without removing the song) ───────────
+
+  function handleToggleEnabled(next: boolean) {
+    // Update locally first for a responsive feel — revert if the server rejects.
+    const prev = enabled;
+    setEnabled(next);
+    setError(null);
+    startTransition(async () => {
+      const result = await setSongEnabled(teamId, next);
+      if (!result.success) {
+        setEnabled(prev);
+        setError(result.error ?? null);
+        return;
+      }
+      flash(next ? "Team song enabled." : "Team song disabled.");
     });
   }
 
@@ -171,6 +217,7 @@ export function TeamSongSettings({
         {songUrl ? (
           <p className="text-sm text-ink-dim">
             A team song is configured (start: {formatSeconds(startSecs)}, plays for {durationSecs}s).
+            {!enabled && <span className="ml-1 text-ink-mute">— currently disabled.</span>}
           </p>
         ) : (
           <p className="text-sm text-ink-mute">No team song set up yet.</p>
@@ -192,6 +239,25 @@ export function TeamSongSettings({
           </p>
         </div>
         <span className="text-2xl" aria-hidden>🎵</span>
+      </div>
+
+      {/* On/off switch — lets the admin silence goal songs without deleting
+          the URL and its timing, so it can be turned back on later. */}
+      <div className="mb-4 flex items-center justify-between rounded-md border border-hairline bg-surface-alt px-3 py-2">
+        <div>
+          <p className="text-sm font-medium text-ink">Play on goals</p>
+          <p className="text-xs text-ink-mute">
+            {enabled
+              ? "Song plays when your team scores a goal."
+              : "Song is set up but won't play on goals."}
+          </p>
+        </div>
+        <Toggle
+          checked={enabled}
+          onChange={handleToggleEnabled}
+          disabled={isPending}
+          label="Play team song on goals"
+        />
       </div>
 
       {error && (
@@ -229,12 +295,26 @@ export function TeamSongSettings({
               <Input
                 id="song-start"
                 type="number"
-                min={0}
-                max={3600}
-                value={startSecs}
-                onChange={(e) =>
-                  setStartSecs(Math.max(0, parseInt(e.target.value) || 0))
-                }
+                min={START_MIN}
+                max={START_MAX}
+                value={startInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setStartInput(raw);
+                  // Only commit when there's a parseable number — this lets
+                  // the user briefly leave the field empty while typing.
+                  if (raw.trim() === "") return;
+                  const n = parseInt(raw, 10);
+                  if (Number.isFinite(n)) setStartSecs(clampStart(n));
+                }}
+                onBlur={() => {
+                  // Normalise on blur: snap empty/invalid back to the last
+                  // committed number and clamp into range.
+                  const n = parseInt(startInput, 10);
+                  const clamped = clampStart(Number.isFinite(n) ? n : startSecs);
+                  setStartSecs(clamped);
+                  setStartInput(String(clamped));
+                }}
                 aria-label="Start seconds"
               />
             </div>
@@ -271,15 +351,23 @@ export function TeamSongSettings({
               <Input
                 id="song-duration"
                 type="number"
-                min={5}
-                max={120}
+                min={DURATION_MIN}
+                max={DURATION_MAX}
                 step={5}
-                value={durationSecs}
-                onChange={(e) =>
-                  setDurationSecs(
-                    Math.min(120, Math.max(5, parseInt(e.target.value) || 15))
-                  )
-                }
+                value={durationInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setDurationInput(raw);
+                  if (raw.trim() === "") return;
+                  const n = parseInt(raw, 10);
+                  if (Number.isFinite(n)) setDurationSecs(clampDuration(n));
+                }}
+                onBlur={() => {
+                  const n = parseInt(durationInput, 10);
+                  const clamped = clampDuration(Number.isFinite(n) ? n : durationSecs);
+                  setDurationSecs(clamped);
+                  setDurationInput(String(clamped));
+                }}
                 aria-label="Duration seconds"
               />
             </div>

@@ -23,7 +23,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("song_url, song_start_seconds, song_duration_seconds")
+      .select("song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -57,6 +57,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         currentSongUrl={songData?.song_url ?? null}
         currentStartSeconds={songData?.song_start_seconds ?? 0}
         currentDurationSeconds={songData?.song_duration_seconds ?? 15}
+        currentEnabled={songData?.song_enabled ?? true}
         isAdmin={isAdmin}
       />
     </div>

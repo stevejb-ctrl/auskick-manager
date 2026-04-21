@@ -30,14 +30,17 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds")
+    .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   const ageGroup = ageGroupOf(teamRow?.age_group);
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
-  const songUrl = teamRow?.song_url ?? null;
+  // When the admin has disabled the song, hide the URL from the live page
+  // so no playback is attempted (iframe/audio simply never mounts).
+  const songEnabled = teamRow?.song_enabled ?? true;
+  const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
 
