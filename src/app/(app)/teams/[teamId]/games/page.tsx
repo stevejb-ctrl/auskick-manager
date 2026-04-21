@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { CreateGameForm } from "@/components/games/CreateGameForm";
+import { AddGameSection } from "@/components/games/AddGameSection";
 import { GameList } from "@/components/games/GameList";
-import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
 import { Spinner } from "@/components/ui/Spinner";
 
 interface GamesPageProps {
@@ -49,17 +48,14 @@ export default async function GamesPage({ params }: GamesPageProps) {
   return (
     <div className="space-y-6">
       {isAdmin && (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-gray-800">Create game</h2>
-            <ImportFixturesButton
-              teamId={params.teamId}
-              existingExternalIds={existingExternalIds}
-              initialUrl={(team as { playhq_url?: string | null } | null)?.playhq_url ?? ""}
-            />
-          </div>
-          <CreateGameForm teamId={params.teamId} ageGroup={ageGroup} />
-        </div>
+        <AddGameSection
+          teamId={params.teamId}
+          ageGroup={ageGroup}
+          existingExternalIds={existingExternalIds}
+          initialUrl={
+            (team as { playhq_url?: string | null } | null)?.playhq_url ?? ""
+          }
+        />
       )}
 
       <Suspense

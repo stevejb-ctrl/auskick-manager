@@ -12,16 +12,26 @@ import { Spinner } from "@/components/ui/Spinner";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import type { PlayHQFixture, PlayHQTeamMeta } from "@/lib/playhq";
 
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonSize = "sm" | "md" | "lg";
+
 interface Props {
   teamId: string;
   existingExternalIds: string[];
   initialUrl?: string;
+  /** Trigger-button style. Defaults to `ghost` / `sm` to match the old inline usage. */
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  className?: string;
 }
 
 export function ImportFixturesButton({
   teamId,
   existingExternalIds,
   initialUrl = "",
+  variant = "ghost",
+  size = "sm",
+  className,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState(initialUrl);
@@ -100,8 +110,9 @@ export function ImportFixturesButton({
     <>
       <Button
         type="button"
-        variant="ghost"
-        size="sm"
+        variant={variant}
+        size={size}
+        className={className}
         onClick={() => setOpen(true)}
       >
         Import from PlayHQ
