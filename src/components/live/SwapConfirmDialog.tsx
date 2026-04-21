@@ -24,9 +24,9 @@ export function SwapConfirmDialog({ off, on, zone, playersById, onConfirm, onCan
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
-        <p className="text-center text-sm font-semibold text-gray-900">{message}</p>
+      <div className="absolute inset-0 bg-ink/40" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+        <p className="text-center text-sm font-semibold text-ink">{message}</p>
         <div className="mt-4 flex gap-2">
           <Button className="flex-1" onClick={onConfirm}>
             Confirm

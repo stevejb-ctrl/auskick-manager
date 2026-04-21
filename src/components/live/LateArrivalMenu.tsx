@@ -26,13 +26,13 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-800">Add late arrival</p>
+        <p className="text-sm font-semibold text-ink">Add late arrival</p>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-xs text-gray-500 hover:text-gray-700"
+          className="text-xs text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
         >
           Close
         </button>
@@ -47,12 +47,12 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
                 onAdd(p.id);
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-md border border-gray-200 px-2.5 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50"
+              className="flex w-full items-center gap-2 rounded-md border border-hairline px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-50"
             >
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
                 {p.jersey_number}
               </span>
-              <span className="font-medium text-gray-800">{p.full_name}</span>
+              <span className="font-medium text-ink">{p.full_name}</span>
             </button>
           </li>
         ))}

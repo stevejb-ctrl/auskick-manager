@@ -77,31 +77,31 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
   if (phase === "welcome") {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
         role="dialog"
         aria-modal="true"
         aria-labelledby="wt-welcome-title"
       >
-        <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+        <div className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal">
           <div className="mb-4 text-center text-5xl">👋</div>
-          <h2 id="wt-welcome-title" className="mb-2 text-center text-xl font-bold text-gray-900">
+          <h2 id="wt-welcome-title" className="mb-2 text-center text-xl font-bold text-ink">
             Welcome to Game Manager
           </h2>
-          <p className="mb-6 text-center text-sm leading-relaxed text-gray-500">
+          <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">
             You&apos;re in charge of today&apos;s game. Would you like a quick walkthrough of how it works?
           </p>
           <div className="flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setPhase("steps")}
-              className="w-full rounded-lg bg-brand-600 py-3 text-base font-bold text-white transition-colors hover:bg-brand-700"
+              className="w-full rounded-md bg-brand-600 py-3 text-base font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
             >
               Yes, show me!
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              className="w-full rounded-md border border-hairline py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
             >
               Skip for now
             </button>
@@ -117,36 +117,36 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="wt-step-title"
     >
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal">
         {/* Progress dots */}
         <div className="mb-5 flex justify-center gap-1.5">
           {steps.map((_, i) => (
             <span
               key={i}
-              className={`h-1.5 rounded-full transition-all duration-200 ${
-                i === idx ? "w-5 bg-brand-500" : i < idx ? "w-1.5 bg-brand-200" : "w-1.5 bg-gray-200"
+              className={`h-1.5 rounded-full transition-all duration-base ease-out-quart ${
+                i === idx ? "w-5 bg-brand-500" : i < idx ? "w-1.5 bg-brand-200" : "w-1.5 bg-surface-alt"
               }`}
             />
           ))}
         </div>
 
         <div className="mb-3 text-center text-4xl">{step.emoji}</div>
-        <h3 id="wt-step-title" className="mb-2 text-center text-lg font-bold text-gray-900">
+        <h3 id="wt-step-title" className="mb-2 text-center text-lg font-bold text-ink">
           {step.title}
         </h3>
-        <p className="mb-6 text-center text-sm leading-relaxed text-gray-600">{step.body}</p>
+        <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">{step.body}</p>
 
         <div className="flex gap-2">
           {!isFirst && (
             <button
               type="button"
               onClick={() => setIdx(idx - 1)}
-              className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              className="flex-1 rounded-md border border-hairline py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
             >
               Back
             </button>
@@ -154,7 +154,7 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
           <button
             type="button"
             onClick={() => (isLast ? onClose() : setIdx(idx + 1))}
-            className="flex-1 rounded-lg bg-brand-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-700"
+            className="flex-1 rounded-md bg-brand-600 py-2.5 text-sm font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
           >
             {isLast ? "Let's go! 🎉" : "Next"}
           </button>
@@ -164,7 +164,7 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
           <button
             type="button"
             onClick={onClose}
-            className="mt-3 w-full text-center text-xs text-gray-400 transition-colors hover:text-gray-600"
+            className="mt-3 w-full text-center text-xs text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink-dim"
           >
             Skip walkthrough
           </button>

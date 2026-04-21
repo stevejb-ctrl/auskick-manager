@@ -181,7 +181,7 @@ export function LineupPicker({
       {backHref && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
@@ -195,7 +195,7 @@ export function LineupPicker({
           Back to availability
         </Link>
       )}
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
           Tap any two players to swap them between zones or bench.
@@ -205,7 +205,7 @@ export function LineupPicker({
         </p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
         <Label htmlFor="on-field-size" className="mb-1">
           Players on field
         </Label>
@@ -214,7 +214,7 @@ export function LineupPicker({
           value={onFieldSize}
           onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
           disabled={isPending}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+          className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
         >
           {sizeOptions.map((o) => (
             <option key={o.value} value={o.value}>
@@ -222,7 +222,7 @@ export function LineupPicker({
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-mute">
           Drop this when the opposition is short and both teams agree to play fewer. Changing it re-suggests the starting lineup.
         </p>
       </div>
@@ -231,19 +231,19 @@ export function LineupPicker({
         {slots.map((slot) => (
           <div
             key={slot}
-            className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+            className="rounded-md border border-hairline bg-surface p-3 shadow-card"
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 {slotLabel(slot)}
               </h3>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs tabular-nums text-ink-mute">
                 {lineup[slot].length}
                 {slot !== "bench" && ` / ${zoneCaps[slot]}`}
               </span>
             </div>
             {lineup[slot].length === 0 ? (
-              <p className="px-1 py-2 text-xs text-gray-400">Empty</p>
+              <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
             ) : (
               <ul className="space-y-1.5">
                 {lineup[slot].map((pid) => {
@@ -255,16 +255,16 @@ export function LineupPicker({
                       <button
                         type="button"
                         onClick={() => handleTap(pid)}
-                        className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors ${
+                        className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
                           isSelected
                             ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                            : "border-gray-200 hover:bg-gray-50"
+                            : "border-hairline hover:bg-surface-alt"
                         }`}
                       >
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
                           {p.jersey_number}
                         </span>
-                        <span className="font-medium text-gray-800">
+                        <span className="font-medium text-ink">
                           {p.full_name}
                         </span>
                       </button>
@@ -277,13 +277,13 @@ export function LineupPicker({
         ))}
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
         <div className="flex items-end gap-3">
           <div className="flex-1">
             <Label htmlFor="sub-minutes" className="mb-1">
               Sub interval
             </Label>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-mute">
               Suggested {suggestedMin} min — {benchCount} on bench,{" "}
               {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
               {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
@@ -306,7 +306,7 @@ export function LineupPicker({
       </div>
 
       {serverError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {serverError}
         </p>
       )}

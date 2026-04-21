@@ -235,13 +235,13 @@ export function QuarterBreak({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
               Quarter break
             </p>
-            <p className="mt-0.5 text-lg font-bold text-gray-900">
+            <p className="mt-0.5 text-lg font-bold text-ink">
               Set zones for Q{nextQuarter}
             </p>
           </div>
@@ -249,7 +249,7 @@ export function QuarterBreak({
             <p className="text-2xl font-bold tabular-nums text-brand-600">
               {score}
             </p>
-            <p className="text-xs text-gray-400">Fairness</p>
+            <p className="text-[11px] uppercase tracking-micro text-ink-mute">Fairness</p>
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
@@ -260,7 +260,7 @@ export function QuarterBreak({
           >
             {useReshuffle ? "✓ Using suggested reshuffle" : "Apply suggested reshuffle"}
           </Button>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-ink-dim">
             {useReshuffle
               ? "Tap to keep last quarter's lineup instead."
               : "Tap to auto-rebalance zones for Q" + nextQuarter + "."}
@@ -269,7 +269,7 @@ export function QuarterBreak({
       </div>
 
       {availableForLineup.length > 0 && (
-        <p className="px-1 text-xs text-gray-500">
+        <p className="px-1 text-xs text-ink-dim">
           Tap any two players to swap them — even across zones or to the bench.
         </p>
       )}
@@ -278,19 +278,19 @@ export function QuarterBreak({
         {slots.map((slot) => (
           <div
             key={slot}
-            className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+            className="rounded-md border border-hairline bg-surface p-3 shadow-card"
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 {slotLabel(slot)}
               </h3>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs tabular-nums text-ink-mute">
                 {draft[slot].length}
                 {slot !== "bench" && ` / ${zoneCaps[slot]}`}
               </span>
             </div>
             {draft[slot].length === 0 ? (
-              <p className="px-1 py-2 text-xs text-gray-400">Empty</p>
+              <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
             ) : (
               <ul className="space-y-1.5">
                 {draft[slot].map((pid) => {
@@ -306,10 +306,10 @@ export function QuarterBreak({
                       <button
                         type="button"
                         onClick={() => handleTap(pid)}
-                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors ${
+                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
                           isSelected
                             ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                            : "border-gray-200 hover:bg-gray-50"
+                            : "border-hairline hover:bg-surface-alt"
                         }`}
                       >
                         <span className="flex items-center gap-2">
@@ -317,22 +317,22 @@ export function QuarterBreak({
                             {p.jersey_number}
                           </span>
                           <span className="flex flex-col items-start">
-                            <span className="font-medium text-gray-800">
+                            <span className="font-medium text-ink">
                               {p.full_name}
                             </span>
                             {moved && prevSlot && (
-                              <span className="text-[10px] font-medium uppercase tracking-wide text-brand-600">
+                              <span className="text-[10px] font-semibold uppercase tracking-micro text-brand-600">
                                 {slotLabel(prevSlot)} → {slotLabel(slot)}
                               </span>
                             )}
                             {!moved && prevSlot && (
-                              <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
                                 stays
                               </span>
                             )}
                           </span>
                         </span>
-                        <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-gray-100" aria-hidden>
+                        <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
                           {zones.map((z) => (
                             <span
                               key={z}
@@ -352,7 +352,7 @@ export function QuarterBreak({
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
           {error}
         </p>
       )}
