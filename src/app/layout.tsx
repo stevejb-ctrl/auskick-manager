@@ -14,7 +14,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Auskick Manager",
+  title: "Siren Footy",
   description: "AFL U10s team and substitution manager",
 };
 

@@ -31,7 +31,7 @@ export default async function AppLayout({
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <span className="text-lg font-semibold text-brand-700">
-            Auskick Manager
+            Siren Footy
           </span>
           <div className="flex items-center gap-3">
             {isSuperAdmin && (
