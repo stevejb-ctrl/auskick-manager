@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/Label";
 import { AGE_GROUPS, AGE_GROUP_ORDER } from "@/lib/ageGroups";
 import type { AgeGroup } from "@/lib/types";
 
-export function CreateTeamForm({ userId }: { userId: string }) {
+export function TeamBasicsForm({ userId }: { userId: string }) {
   const [name, setName] = useState("");
   const [ageGroup, setAgeGroup] = useState<AgeGroup>("U10");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function CreateTeamForm({ userId }: { userId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1">
         <Label htmlFor="team-name">Team name</Label>
         <Input
@@ -45,8 +45,10 @@ export function CreateTeamForm({ userId }: { userId: string }) {
           placeholder="e.g. Kingsway Roos"
           error={error ?? undefined}
           disabled={isPending}
+          autoFocus
         />
       </div>
+
       <div className="space-y-1">
         <Label htmlFor="team-age">Age group</Label>
         <select
@@ -62,10 +64,17 @@ export function CreateTeamForm({ userId }: { userId: string }) {
             </option>
           ))}
         </select>
+        <p className="text-xs text-ink-mute">{cfg.notes}</p>
       </div>
-      <p className="text-xs text-ink-mute">{cfg.notes}</p>
-      <Button type="submit" loading={isPending} disabled={!name.trim()}>
-        Create
+
+      <Button
+        type="submit"
+        loading={isPending}
+        disabled={!name.trim()}
+        size="lg"
+        className="w-full"
+      >
+        Continue
       </Button>
     </form>
   );

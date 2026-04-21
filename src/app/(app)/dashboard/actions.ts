@@ -46,5 +46,5 @@ export async function createTeam(
   }
 
   revalidatePath("/dashboard");
-  redirect(`/teams/${team.id}/squad`);
+  redirect(`/teams/${team.id}/setup?step=config`);
 }
