@@ -32,6 +32,8 @@ export interface GameSnapshot {
   playerBehinds: Record<string, number>;
   subsIn: Record<string, number>;
   subsOut: Record<string, number>;
+  /** Milliseconds each player spent loaned to the opposition this game. */
+  playerLoanMs: Record<string, number>;
   /** Team score keyed by quarter number. */
   teamScoreByQtr: Record<number, { goals: number; behinds: number }>;
   oppScoreByQtr: Record<number, { goals: number; behinds: number }>;
@@ -54,6 +56,8 @@ export interface PlayerSeasonStats {
   subsOut: number;
   /** % of total possible on-field time across games they played. */
   teamGameTimePct: number;
+  /** Total ms lent to the opposition across the season. */
+  loanMs: number;
 }
 
 export interface ZoneCombination {

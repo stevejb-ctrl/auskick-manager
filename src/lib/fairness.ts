@@ -170,10 +170,92 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
           if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
         }
       }
+    } else if (ev.type === "player_loan" && lineup && ev.player_id) {
+      const pid = ev.player_id;
+      const loaned = (ev.metadata as { loaned?: boolean }).loaned ?? true;
+      if (loaned) {
+        // Starting a loan — if on-field, close zone stint and move to bench.
+        const z = zoneOf(lineup, pid);
+        if (z) {
+          const sz = stintZ[pid] ?? z;
+          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
+          delete stintStart[pid];
+          delete stintZ[pid];
+          lineup[z] = lineup[z].filter((p) => p !== pid);
+          if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
+        }
+      }
     }
   }
 
   return result;
+}
+
+// ─── Loan minutes: per-game and per-season aggregation ───────
+// Loan stints are opened by a player_loan event with loaned=true and closed
+// by another with loaned=false, by quarter_end, or by game_finalised. We
+// only count elapsed ms between start and close, so a stint that spans
+// quarters picks up correctly (elapsed resets at each quarter_start).
+export function gameLoanMinutes(events: GameEvent[]): Record<string, number> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at)
+  );
+  const total: Record<string, number> = {};
+  const stintStart: Record<string, number> = {};
+  const addMs = (pid: string, ms: number) => {
+    if (ms <= 0) return;
+    total[pid] = (total[pid] ?? 0) + ms / 60000;
+  };
+
+  for (const ev of sorted) {
+    const meta = ev.metadata as { elapsed_ms?: number; loaned?: boolean };
+    const elapsed = meta.elapsed_ms ?? 0;
+
+    if (ev.type === "player_loan" && ev.player_id) {
+      const pid = ev.player_id;
+      const loaned = meta.loaned ?? true;
+      if (loaned) {
+        stintStart[pid] = elapsed;
+      } else if (stintStart[pid] !== undefined) {
+        addMs(pid, elapsed - stintStart[pid]);
+        delete stintStart[pid];
+      }
+    } else if (ev.type === "quarter_end" || ev.type === "game_finalised") {
+      for (const [pid, start] of Object.entries(stintStart)) {
+        addMs(pid, elapsed - start);
+      }
+      // quarter_end closes the stint for accounting purposes, but if the
+      // player is still loaned the next quarter_start re-opens it at elapsed=0.
+      if (ev.type === "quarter_end") {
+        for (const pid of Object.keys(stintStart)) stintStart[pid] = 0;
+      } else {
+        for (const pid of Object.keys(stintStart)) delete stintStart[pid];
+      }
+    } else if (ev.type === "quarter_start") {
+      // Re-anchor any active loan stint to the new quarter's elapsed=0.
+      for (const pid of Object.keys(stintStart)) stintStart[pid] = 0;
+    }
+  }
+
+  return total;
+}
+
+// Sum loan minutes across every game's events.
+export function seasonLoanMinutes(events: GameEvent[]): Record<string, number> {
+  const byGame = new Map<string, GameEvent[]>();
+  for (const ev of events) {
+    const arr = byGame.get(ev.game_id) ?? [];
+    arr.push(ev);
+    byGame.set(ev.game_id, arr);
+  }
+  const total: Record<string, number> = {};
+  byGame.forEach((gameEvents) => {
+    const perGame = gameLoanMinutes(gameEvents);
+    for (const [pid, mins] of Object.entries(perGame)) {
+      total[pid] = (total[pid] ?? 0) + mins;
+    }
+  });
+  return total;
 }
 
 // ─── Sum zone minutes across many games ──────────────────────
@@ -397,6 +479,9 @@ export interface GameState {
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
   injuredIds: string[];
+  loanedIds: string[];
+  loanStartMs: Record<string, number>;
+  basePlayedLoanMs: Record<string, number>;
   /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
   quarterStartedAt: string | null;
 }
@@ -417,6 +502,9 @@ export function replayGame(events: GameEvent[]): GameState {
     stintStartMs: {},
     stintZone: {},
     injuredIds: [],
+    loanedIds: [],
+    loanStartMs: {},
+    basePlayedLoanMs: {},
     quarterStartedAt: null,
   };
   let quarterStartedAt: string | null = null;
@@ -424,6 +512,10 @@ export function replayGame(events: GameEvent[]): GameState {
     if (ms <= 0) return;
     state.basePlayedZoneMs[pid] ??= emptyZM();
     state.basePlayedZoneMs[pid][zone] += ms;
+  };
+  const addLoan = (pid: string, ms: number) => {
+    if (ms <= 0) return;
+    state.basePlayedLoanMs[pid] = (state.basePlayedLoanMs[pid] ?? 0) + ms;
   };
 
   for (const ev of sorted) {
@@ -453,6 +545,8 @@ export function replayGame(events: GameEvent[]): GameState {
           }
         }
       }
+      // Re-anchor any still-loaned players' stints to elapsed=0 in this quarter.
+      for (const pid of state.loanedIds) state.loanStartMs[pid] = 0;
     } else if (ev.type === "quarter_end") {
       state.quarterEnded = true;
       quarterStartedAt = null;
@@ -462,6 +556,11 @@ export function replayGame(events: GameEvent[]): GameState {
       }
       state.stintStartMs = {};
       state.stintZone = {};
+      // Flush open loan stints — quarter_start will reopen if still loaned.
+      for (const [pid, start] of Object.entries(state.loanStartMs)) {
+        addLoan(pid, elapsed - start);
+      }
+      state.loanStartMs = {};
     } else if (
       ev.type === "swap" &&
       state.lineup &&
@@ -508,6 +607,29 @@ export function replayGame(events: GameEvent[]): GameState {
       } else {
         state.injuredIds = state.injuredIds.filter((p) => p !== pid);
       }
+    } else if (ev.type === "player_loan" && state.lineup && ev.player_id) {
+      const pid = ev.player_id;
+      const loaned = (ev.metadata as { loaned?: boolean }).loaned ?? true;
+      if (loaned) {
+        if (!state.loanedIds.includes(pid)) state.loanedIds.push(pid);
+        state.loanStartMs[pid] = elapsed;
+        const z = zoneOf(state.lineup, pid);
+        if (z) {
+          const sz = state.stintZone[pid] ?? z;
+          addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
+          delete state.stintStartMs[pid];
+          delete state.stintZone[pid];
+          state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
+          if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
+        }
+      } else {
+        state.loanedIds = state.loanedIds.filter((p) => p !== pid);
+        const start = state.loanStartMs[pid];
+        if (start !== undefined) {
+          addLoan(pid, elapsed - start);
+          delete state.loanStartMs[pid];
+        }
+      }
     } else if (ev.type === "goal") {
       state.teamScore.goals++;
       if (ev.player_id) {
@@ -526,6 +648,11 @@ export function replayGame(events: GameEvent[]): GameState {
       state.opponentScore.behinds++;
     } else if (ev.type === "game_finalised") {
       state.finalised = true;
+      // Close any open loan stints so final totals are correct.
+      for (const [pid, start] of Object.entries(state.loanStartMs)) {
+        addLoan(pid, elapsed - start);
+      }
+      state.loanStartMs = {};
     }
   }
 
