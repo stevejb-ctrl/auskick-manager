@@ -86,6 +86,7 @@ export default async function RunPage({ params }: RunPageProps) {
           opponentName={g.opponent}
           trackScoring={trackScoring}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           squadPlayers={allSquad}
           initialState={state}
           season={season}

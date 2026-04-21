@@ -24,7 +24,7 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
     id: f.id,
     team_id: teamId,
     full_name: f.full_name,
-    jersey_number: f.jersey_number ?? 0,
+    jersey_number: f.jersey_number,
     is_active: true,
     created_by: f.created_by ?? "",
     created_at: f.created_at,
