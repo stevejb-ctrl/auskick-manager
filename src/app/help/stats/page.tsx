@@ -7,7 +7,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Stats — Help — Siren",
+  title: "Stats — Help — Auskick Manager",
   description:
     "Per-player stats, minutes equity, combinations, chemistry, and more.",
 };

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Troubleshooting — Help — Siren",
+  title: "Troubleshooting — Help — Auskick Manager",
   description: "Common issues and how to fix them.",
 };
 
@@ -167,7 +167,8 @@ export default function TroubleshootingPage() {
           <li>Hard-refresh the page (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows/Android).</li>
           <li>Try opening the app in an incognito/private window.</li>
           <li>
-            If the problem persists, clear your browser cache for the site domain.
+            If the problem persists, clear your browser cache for
+            auskick-manager.vercel.app.
           </li>
         </ol>
       </section>

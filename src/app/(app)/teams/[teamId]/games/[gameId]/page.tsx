@@ -103,8 +103,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         <h2 className="mt-1 text-xl font-bold text-ink">vs {g.opponent}</h2>
         {g.location && <p className="mt-1 text-sm text-ink-dim">{g.location}</p>}
         <p className="mt-1 text-xs text-ink-mute">
-          {ageCfg.label} · {g.on_field_size} on field
-          {g.on_field_size < ageCfg.defaultOnFieldSize && (
+          {ageCfg.label} · {g.status === "upcoming" ? ageCfg.defaultOnFieldSize : g.on_field_size} on field
+          {g.status !== "upcoming" && g.on_field_size < ageCfg.defaultOnFieldSize && (
             <span className="ml-1 font-medium text-warn">(short-handed)</span>
           )}
         </p>

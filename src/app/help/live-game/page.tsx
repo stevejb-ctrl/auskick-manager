@@ -10,7 +10,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Live Game — Help — Siren",
+  title: "Live Game — Help — Auskick Manager",
   description: "Running a game: the on-field view, scoring, subs, and quarter breaks.",
 };
 

@@ -9,7 +9,7 @@ export const HELP_PAGES: HelpPage[] = [
   {
     slug: "overview",
     title: "Overview",
-    description: "Introduction to Siren and quick links to key topics.",
+    description: "Introduction to Auskick Manager and quick links to key topics.",
     href: "/help",
   },
   {

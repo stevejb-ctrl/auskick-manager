@@ -4,8 +4,8 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "FAQ — Help — Siren",
-  description: "Quick answers to the most common questions about Siren.",
+  title: "FAQ — Help — Auskick Manager",
+  description: "Quick answers to the most common questions about Auskick Manager.",
 };
 
 interface FAQItem {

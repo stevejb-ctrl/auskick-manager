@@ -6,7 +6,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Track Scoring — Help — Siren",
+  title: "Track Scoring — Help — Auskick Manager",
   description: "The Track goals & behinds toggle and what it unlocks.",
 };
 
@@ -15,9 +15,9 @@ export default function TrackScoringPage() {
     <HelpPage>
       <h1 className="text-2xl font-bold text-ink">Track goals &amp; behinds</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
-        Siren can record which players kick goals and behinds during a game. This
-        is optional — rotations and fairness tracking work perfectly without it —
-        but turning it on unlocks richer stats.
+        Auskick Manager can record which players kick goals and behinds during a
+        game. This is optional — rotations and fairness tracking work perfectly
+        without it — but turning it on unlocks richer stats.
       </p>
 
       <section className="mt-8">

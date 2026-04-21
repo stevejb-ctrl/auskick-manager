@@ -6,8 +6,8 @@ import { HelpFigure } from "@/components/help/HelpPage";
 import { HELP_PAGES } from "@/lib/help/pages";
 
 export const metadata = {
-  title: "Help — Siren",
-  description: "Guides and documentation for Siren.",
+  title: "Help — Auskick Manager",
+  description: "Guides and documentation for Auskick Manager.",
 };
 
 const QUICK_LINKS = [
@@ -27,9 +27,9 @@ export default function HelpOverviewPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Siren Help</h1>
+        <h1 className="text-2xl font-bold text-ink">Auskick Manager Help</h1>
         <p className="mt-3 text-base leading-relaxed text-ink-dim">
-          Siren helps coaches run their AFL junior season — from setting up
+          Auskick Manager helps coaches run their AFL U10s season — from setting up
           squads and scheduling games, to running rotations live on the sideline and
           reviewing fairness stats after the game. Use the topics on the left (or the
           menu above on mobile) to find what you need.
@@ -38,7 +38,7 @@ export default function HelpOverviewPage() {
 
       {/* CTA */}
       <div className="rounded-lg border border-brand-200 bg-brand-50 px-5 py-4">
-        <p className="text-sm font-semibold text-brand-700">New to Siren?</p>
+        <p className="text-sm font-semibold text-brand-700">New to Auskick Manager?</p>
         <p className="mt-1 text-sm text-brand-600">
           Start with the Getting Started guide — it walks you through signing in,
           creating your team, adding players, and running your first game.
@@ -53,7 +53,7 @@ export default function HelpOverviewPage() {
 
       <HelpFigure
         src="/help-screenshots/overview-landing.png"
-        alt="Siren dashboard showing your team cards and recent games"
+        alt="Auskick Manager dashboard showing your team cards and recent games"
         caption="The dashboard — your home screen once signed in."
       />
 

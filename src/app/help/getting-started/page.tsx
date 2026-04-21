@@ -8,7 +8,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Getting Started — Help — Siren",
+  title: "Getting Started — Help — Auskick Manager",
   description: "Sign in, create your first team, add players, and schedule a game.",
 };
 
@@ -29,7 +29,7 @@ export default function GettingStartedPage() {
           <li>
             Go to{" "}
             <Link href="/signup" className="font-medium text-brand-600 hover:underline">
-              /signup
+              auskick-manager.vercel.app/signup
             </Link>
             .
           </li>
@@ -49,7 +49,7 @@ export default function GettingStartedPage() {
 
         <HelpFigure
           src="/help-screenshots/getting-started-signup.png"
-          alt="The Siren sign-up form with email and password fields"
+          alt="The Auskick Manager sign-up form with email and password fields"
           caption="The sign-up form. Fill in your email and password to get started."
         />
       </section>

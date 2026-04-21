@@ -232,7 +232,7 @@ export default async function LivePage({ params }: LivePageProps) {
           gameId={params.gameId}
           players={availablePlayers}
           season={season}
-          defaultOnFieldSize={g.on_field_size}
+          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
