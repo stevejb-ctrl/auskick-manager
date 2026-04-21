@@ -45,7 +45,7 @@ export interface GameSnapshot {
 export interface PlayerSeasonStats {
   playerId: string;
   playerName: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   gamesPlayed: number;
   totalMs: number;
   avgMsPerGame: number;
@@ -113,7 +113,7 @@ export interface QuarterScoringRow {
 export interface AttendanceRow {
   playerId: string;
   playerName: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   gamesAvailable: number;
   gamesPlayed: number;
   attendancePct: number;

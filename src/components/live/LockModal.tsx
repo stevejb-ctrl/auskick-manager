@@ -60,7 +60,7 @@ export function LockModal({
           id="lock-modal-title"
           className="mb-1 text-center text-base font-bold text-ink"
         >
-          {firstName} #{player.jersey_number}
+          {firstName}{player.jersey_number != null ? ` #${player.jersey_number}` : ""}
         </h2>
 
         {isInjured ? (

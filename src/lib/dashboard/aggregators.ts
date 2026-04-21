@@ -71,7 +71,7 @@ export function computePlayerStats(
   for (const pid of Array.from(allPlayerIds)) {
     const player = playerMap.get(pid);
     const name = player?.full_name ?? "Unknown";
-    const jersey = player?.jersey_number ?? 0;
+    const jersey = player?.jersey_number ?? null;
 
     let gamesPlayed = 0;
     let totalMs = 0;

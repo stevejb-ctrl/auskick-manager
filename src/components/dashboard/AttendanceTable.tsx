@@ -40,7 +40,7 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
           {rows.map((row) => (
             <tr key={row.playerId}>
               <td className="px-2 py-2 tabular-nums text-ink-mute">
-                {row.jerseyNumber}
+                {row.jerseyNumber ?? ""}
               </td>
               <td className="truncate px-2 py-2 font-medium text-ink">
                 {row.playerName}

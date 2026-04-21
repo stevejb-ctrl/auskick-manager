@@ -247,13 +247,13 @@ export function PlayerTile({
       {/* Jersey + time */}
       {totalMs !== undefined ? (
         <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
-          #{player.jersey_number} · {formatMinSec(totalMs)}
+          {player.jersey_number != null ? `#${player.jersey_number} · ` : ""}{formatMinSec(totalMs)}
         </span>
-      ) : (
+      ) : player.jersey_number != null ? (
         <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
           #{player.jersey_number}
         </span>
-      )}
+      ) : null}
 
       {/* Zone-minute stacked bar — shows current-game time distribution */}
       {zoneMs && (() => {

@@ -113,7 +113,7 @@ export interface Player {
   id: string;
   team_id: string;
   full_name: string;
-  jersey_number: number;
+  jersey_number: number | null;
   is_active: boolean;
   created_by: string;
   created_at: string;

@@ -39,13 +39,15 @@ export function AddPlayerForm({
       valid = false;
     }
 
-    const jerseyNum = parseInt(jersey, 10);
-    if (!jersey || isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
-      setJerseyError("Jersey must be a number 1–99.");
-      valid = false;
-    } else if (takenJerseys.includes(jerseyNum)) {
-      setJerseyError(`#${jerseyNum} is already taken.`);
-      valid = false;
+    if (jersey.trim() !== "") {
+      const jerseyNum = parseInt(jersey, 10);
+      if (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
+        setJerseyError("Jersey must be 1–99.");
+        valid = false;
+      } else if (takenJerseys.includes(jerseyNum)) {
+        setJerseyError(`#${jerseyNum} is already taken.`);
+        valid = false;
+      }
     }
 
     return valid;
@@ -56,7 +58,8 @@ export function AddPlayerForm({
     if (!validate()) return;
 
     startTransition(async () => {
-      const result = await addPlayer(teamId, name.trim(), parseInt(jersey, 10));
+      const jerseyValue = jersey.trim() === "" ? null : parseInt(jersey, 10);
+      const result = await addPlayer(teamId, name.trim(), jerseyValue);
       if (!result.success) {
         setServerError(result.error);
       } else {
@@ -90,7 +93,7 @@ export function AddPlayerForm({
           />
         </div>
         <div className="w-28 space-y-1">
-          <Label htmlFor="jersey">Jersey #</Label>
+          <Label htmlFor="jersey">Jersey # <span className="text-ink-mute font-normal">(optional)</span></Label>
           <Input
             id="jersey"
             type="number"

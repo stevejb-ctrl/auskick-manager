@@ -3,8 +3,10 @@ import { replayGame } from "../eventReplay";
 import {
   computeWinningCombinations,
   computePlayerChemistry,
+  computePlayerStats,
+  computeAttendance,
 } from "../aggregators";
-import type { GameEvent } from "@/lib/types";
+import type { Game, GameAvailability, GameEvent, Player } from "@/lib/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -350,5 +352,74 @@ describe("score_undo replay", () => {
     const snap = replayGame("g1", events);
     expect(snap.playerGoals["p1"]).toBe(0);
     expect(snap.teamScoreByQtr[1]?.goals).toBe(0);
+  });
+});
+
+// ─── Null jersey number ──────────────────────────────────────────────────────
+
+function makePlayer(id: string, jerseyNumber: number | null): Player {
+  return {
+    id,
+    team_id: "t1",
+    full_name: `Player ${id}`,
+    jersey_number: jerseyNumber,
+    is_active: true,
+    created_by: "u1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function makeGame(id: string): Game {
+  return {
+    id,
+    team_id: "t1",
+    opponent: "Opponent",
+    scheduled_at: "2025-01-01T09:00:00Z",
+    location: null,
+    round_number: 1,
+    notes: null,
+    status: "completed",
+    sub_interval_seconds: 300,
+    share_token: id,
+    on_field_size: 12,
+    external_source: null,
+    external_id: null,
+    created_by: "u1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+describe("computePlayerStats — null jersey", () => {
+  it("propagates null jerseyNumber when player has no jersey set", () => {
+    const player = makePlayer("p1", null);
+    const events = buildSingleQtrEvents();
+    const snap = replayGame("g1", events);
+    const stats = computePlayerStats([player], [snap], [makeGame("g1")]);
+    const p1stat = stats.find((s) => s.playerId === "p1");
+    expect(p1stat?.jerseyNumber).toBeNull();
+  });
+
+  it("preserves the jersey number when set", () => {
+    const player = makePlayer("p1", 7);
+    const events = buildSingleQtrEvents();
+    const snap = replayGame("g1", events);
+    const stats = computePlayerStats([player], [snap], [makeGame("g1")]);
+    const p1stat = stats.find((s) => s.playerId === "p1");
+    expect(p1stat?.jerseyNumber).toBe(7);
+  });
+});
+
+describe("computeAttendance — null jersey", () => {
+  it("propagates null jerseyNumber when player has no jersey set", () => {
+    const player = makePlayer("p1", null);
+    const game = makeGame("g1");
+    const availability: GameAvailability[] = [
+      { id: "a1", game_id: "g1", player_id: "p1", status: "available", updated_by: null, updated_at: new Date().toISOString() },
+    ];
+    const rows = computeAttendance([player], [game], availability);
+    const row = rows.find((r) => r.playerId === "p1");
+    expect(row?.jerseyNumber).toBeNull();
   });
 });

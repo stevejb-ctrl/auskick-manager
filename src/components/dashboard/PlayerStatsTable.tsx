@@ -78,9 +78,11 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
               {/* Header: jersey + name + headline total */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-                    #{p.jerseyNumber}
-                  </span>
+                  {p.jerseyNumber != null && (
+                    <span className="text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+                      #{p.jerseyNumber}
+                    </span>
+                  )}
                   <p className="truncate font-semibold text-ink">
                     {p.playerName}
                   </p>
