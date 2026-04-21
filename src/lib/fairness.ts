@@ -43,7 +43,7 @@ export function zoneCapsFor(
   model: PositionModel = "zones3"
 ): ZoneCaps {
   const zones = positionsFor(model);
-  const hardMax = 20;
+  const hardMax = model === "positions5" ? 18 : 15;
   const size = Math.max(0, Math.min(hardMax, Math.floor(onFieldSize)));
   const base = Math.floor(size / zones.length);
   const rem = size % zones.length;
