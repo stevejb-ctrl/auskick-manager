@@ -11,6 +11,12 @@ export interface AgeGroupConfig {
   defaultOnFieldSize: number;
   minOnFieldSize: number;
   maxOnFieldSize: number;
+  /**
+   * Soft cap on the total active squad. Generous by design — coaches
+   * often carry a handful of extras to cover injuries and availability.
+   * Younger age groups (zones3) cap at 20; older (positions5) at 25.
+   */
+  maxSquadSize: number;
   quarterSeconds: number;
   subIntervalSeconds: number;
   tracksScoreDefault: boolean;
@@ -25,6 +31,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 9,
     minOnFieldSize: 6,
     maxOnFieldSize: 9,
+    maxSquadSize: 20,
     quarterSeconds: 10 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: false,
@@ -37,6 +44,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 12,
     minOnFieldSize: 6,
     maxOnFieldSize: 12,
+    maxSquadSize: 20,
     quarterSeconds: 12 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: false,
@@ -49,6 +57,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 12,
     minOnFieldSize: 6,
     maxOnFieldSize: 12,
+    maxSquadSize: 20,
     quarterSeconds: 12 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: false,
@@ -61,6 +70,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 15,
     minOnFieldSize: 9,
     maxOnFieldSize: 15,
+    maxSquadSize: 20,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
@@ -73,6 +83,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 15,
     minOnFieldSize: 9,
     maxOnFieldSize: 15,
+    maxSquadSize: 20,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
@@ -85,6 +96,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
+    maxSquadSize: 25,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
@@ -97,6 +109,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
+    maxSquadSize: 25,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
@@ -109,6 +122,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
+    maxSquadSize: 25,
     quarterSeconds: 18 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
@@ -121,6 +135,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
+    maxSquadSize: 25,
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
@@ -133,6 +148,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
+    maxSquadSize: 25,
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,

@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { ActionResult } from "@/lib/types";
-
-const MAX_PLAYERS = 15;
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -28,6 +27,19 @@ async function getAuthedAdmin(teamId: string) {
   return { supabase, user, error: null };
 }
 
+async function squadCapFor(
+  supabase: ReturnType<typeof createClient>,
+  teamId: string
+): Promise<number> {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("age_group")
+    .eq("id", teamId)
+    .single();
+  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
+  return AGE_GROUPS[ageGroup].maxSquadSize;
+}
+
 export async function addPlayer(
   teamId: string,
   fullName: string,
@@ -36,14 +48,19 @@ export async function addPlayer(
   const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
 
+  const maxPlayers = await squadCapFor(supabase, teamId);
+
   const { count } = await supabase
     .from("players")
     .select("*", { count: "exact", head: true })
     .eq("team_id", teamId)
     .eq("is_active", true);
 
-  if ((count ?? 0) >= MAX_PLAYERS) {
-    return { success: false, error: "Squad is full (15 players maximum)." };
+  if ((count ?? 0) >= maxPlayers) {
+    return {
+      success: false,
+      error: `Squad is full (${maxPlayers} players maximum).`,
+    };
   }
 
   const { error: insertError } = await supabase.from("players").insert({
@@ -106,13 +123,15 @@ export async function reactivatePlayer(
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
+  const maxPlayers = await squadCapFor(supabase, teamId);
+
   const { count } = await supabase
     .from("players")
     .select("*", { count: "exact", head: true })
     .eq("team_id", teamId)
     .eq("is_active", true);
 
-  if ((count ?? 0) >= MAX_PLAYERS) {
+  if ((count ?? 0) >= maxPlayers) {
     return { success: false, error: "Squad is full — deactivate another player first." };
   }
 

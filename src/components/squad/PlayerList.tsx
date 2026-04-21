@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { PlayerRow } from "@/components/squad/PlayerRow";
+import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 
 interface PlayerListProps {
   teamId: string;
@@ -10,11 +11,21 @@ interface PlayerListProps {
 export async function PlayerList({ teamId }: PlayerListProps) {
   const supabase = createClient();
 
-  const { data: players } = await supabase
-    .from("players")
-    .select("*")
-    .eq("team_id", teamId)
-    .order("jersey_number");
+  const [{ data: players }, { data: team }] = await Promise.all([
+    supabase
+      .from("players")
+      .select("*")
+      .eq("team_id", teamId)
+      .order("jersey_number"),
+    supabase
+      .from("teams")
+      .select("age_group")
+      .eq("id", teamId)
+      .single(),
+  ]);
+
+  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
+  const maxPlayers = AGE_GROUPS[ageGroup].maxSquadSize;
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -23,13 +34,14 @@ export async function PlayerList({ teamId }: PlayerListProps) {
 
   return (
     <div className="space-y-6">
-      <SquadHeader activeCount={activePlayers.length} />
+      <SquadHeader activeCount={activePlayers.length} maxPlayers={maxPlayers} />
 
       <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
         <h2 className="mb-4 text-base font-semibold text-ink">Add player</h2>
         <AddPlayerForm
           teamId={teamId}
           activeCount={activePlayers.length}
+          maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
         />
       </div>

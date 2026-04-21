@@ -1,11 +1,11 @@
 interface SquadHeaderProps {
   activeCount: number;
-  maxPlayers?: number;
+  maxPlayers: number;
 }
 
 export function SquadHeader({
   activeCount,
-  maxPlayers = 15,
+  maxPlayers,
 }: SquadHeaderProps) {
   const isFull = activeCount >= maxPlayers;
 

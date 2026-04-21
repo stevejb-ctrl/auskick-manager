@@ -9,12 +9,14 @@ import { Label } from "@/components/ui/Label";
 interface AddPlayerFormProps {
   teamId: string;
   activeCount: number;
+  maxPlayers: number;
   takenJerseys: number[];
 }
 
 export function AddPlayerForm({
   teamId,
   activeCount,
+  maxPlayers,
   takenJerseys,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
@@ -24,7 +26,7 @@ export function AddPlayerForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const isFull = activeCount >= 15;
+  const isFull = activeCount >= maxPlayers;
 
   function validate() {
     let valid = true;
