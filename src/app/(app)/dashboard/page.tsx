@@ -32,7 +32,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My teams</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Select a team to manage its squad.
+          Select a team to open its dashboard.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
           {teams.map((team) => (
             <li key={team.id}>
               <Link
-                href={`/teams/${team.id}/squad`}
+                href={`/teams/${team.id}`}
                 className="flex items-center justify-between px-5 py-4 hover:bg-gray-50"
               >
                 <span className="font-medium text-gray-900">{team.name}</span>
