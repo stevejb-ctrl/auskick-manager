@@ -3,10 +3,14 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 
-// Only render the GA script if a measurement ID is configured. Keeps
-// local dev clean (no events unless you explicitly set the env var)
-// and avoids shipping the tag to preview deploys if we'd rather not.
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+// GA4 Measurement ID. Not a secret — the same ID is in the HTML of
+// every page anyway — so hardcoding it is fine and avoids the
+// NEXT_PUBLIC_* inline-at-build-time foot-gun. Gated on VERCEL_ENV
+// so analytics only fires on the production deploy, never from
+// local dev (`next dev` leaves VERCEL_ENV undefined) or preview
+// deploys.
+const GA_ID = "G-ZBTGMZPTD0";
+const IS_PROD_DEPLOY = process.env.VERCEL_ENV === "production";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -37,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body className="font-sans">{children}</body>
-      {GA_ID && <GoogleAnalytics gaId={GA_ID} />}
+      {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }
