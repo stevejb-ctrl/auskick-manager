@@ -74,8 +74,11 @@ export default function PrivacyPage() {
               <li>
                 <strong>Device and usage data</strong> — basic request logs
                 (timestamps, IP address, user-agent) retained by our hosting
-                providers for security and debugging. We do not run third-party
-                analytics or advertising trackers.
+                providers for security and debugging. We also use Google
+                Analytics 4 to measure aggregate traffic (pageviews, referrers,
+                approximate country). Google Analytics truncates IP addresses
+                by default and we don&rsquo;t use advertising features or
+                cross-site tracking.
               </li>
             </ul>
             <p>
@@ -142,10 +145,16 @@ export default function PrivacyPage() {
                 security and performance.
               </li>
               <li>
-                <strong>Google</strong> &mdash; only when you choose to sign in
-                with Google. Google authenticates you and returns your profile
-                info to Siren. Siren does not read anything else from your
-                Google account.
+                <strong>Google (sign-in)</strong> &mdash; only when you choose
+                to sign in with Google. Google authenticates you and returns
+                your profile info to Siren. Siren does not read anything else
+                from your Google account.
+              </li>
+              <li>
+                <strong>Google Analytics 4</strong> &mdash; aggregate website
+                analytics (pageviews, referrers, approximate country). IP
+                addresses are truncated by Google before storage. We don&rsquo;t
+                enable advertising features or Google Signals.
               </li>
             </ul>
             <p>
@@ -215,10 +224,19 @@ export default function PrivacyPage() {
 
           <Section title="9. Cookies and local storage">
             <p>
-              Siren uses cookies and browser local storage only for
-              authentication and to remember your preferences (for example,
-              which team you last viewed). We do not use tracking cookies,
-              advertising pixels, or cross-site trackers.
+              Siren uses cookies and browser local storage for authentication
+              and to remember your preferences (for example, which team you
+              last viewed). Google Analytics sets its own cookies (typically
+              <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+                _ga
+              </code>
+              and
+              <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+                _ga_*
+              </code>
+              ) to count visits and sessions in aggregate. We do not use
+              advertising pixels or cross-site trackers, and we do not share
+              data with advertising networks.
             </p>
           </Section>
 

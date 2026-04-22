@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@next/third-parties": "^14.2.29",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "next": "14.2.29",
