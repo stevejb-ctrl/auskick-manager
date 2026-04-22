@@ -152,10 +152,15 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                     } bottom-4 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl`}
                   />
                   <PhoneFrame tilt={tilt} className="relative">
+                    {/* Absolute positioning — lets overflow-hidden on
+                        the phone's screen reliably clip the image. With
+                        an in-flow <img> the replaced-element intrinsic
+                        size can leak past the aspect-ratio box on some
+                        mobile viewports and spill below the bezel. */}
                     <img
                       src={f.image}
                       alt={f.imageAlt}
-                      className="h-full w-full object-cover"
+                      className="absolute inset-0 h-full w-full object-cover"
                       loading={i === 0 ? "eager" : "lazy"}
                     />
                   </PhoneFrame>
