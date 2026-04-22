@@ -25,7 +25,7 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Siren Footy",
-  description: "AFL U10s team and substitution manager",
+  description: "Junior AFL team and substitution manager",
 };
 
 export const viewport: Viewport = {
