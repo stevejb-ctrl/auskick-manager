@@ -93,7 +93,7 @@ export function AddPlayerForm({
           />
         </div>
         <div className="w-28 space-y-1">
-          <Label htmlFor="jersey">Jersey # <span className="text-ink-mute font-normal">(optional)</span></Label>
+          <Label htmlFor="jersey">Jersey #</Label>
           <Input
             id="jersey"
             type="number"
@@ -101,7 +101,7 @@ export function AddPlayerForm({
             max={99}
             value={jersey}
             onChange={(e) => setJersey(e.target.value)}
-            placeholder="7"
+            placeholder="Optional"
             error={jerseyError}
             disabled={isPending}
           />
