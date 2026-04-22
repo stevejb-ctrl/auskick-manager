@@ -15,6 +15,12 @@ export function MarketingFooter() {
 
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-dim">
           <Link
+            href="/why-siren"
+            className="transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            Why Siren
+          </Link>
+          <Link
             href="/help"
             className="transition-colors duration-fast ease-out-quart hover:text-ink"
           >
