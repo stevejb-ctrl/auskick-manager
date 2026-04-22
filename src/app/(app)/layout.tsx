@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { DeviceFrame } from "@/components/DeviceFrame";
 
 export default async function AppLayout({
   children,
@@ -74,12 +75,14 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="px-4 py-4">{children}</main>
-      <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
-        <Link href="/help" className="hover:text-ink-dim">
-          Help
-        </Link>
-      </footer>
+      <DeviceFrame>
+        <main className="px-4 py-4">{children}</main>
+        <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
+          <Link href="/help" className="hover:text-ink-dim">
+            Help
+          </Link>
+        </footer>
+      </DeviceFrame>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DeviceFrame } from "@/components/DeviceFrame";
 
 export default function RunLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +30,9 @@ export default function RunLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </header>
-      <main>{children}</main>
+      <DeviceFrame>
+        <main>{children}</main>
+      </DeviceFrame>
     </div>
   );
 }
