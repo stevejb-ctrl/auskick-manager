@@ -59,7 +59,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/demo") ||
     pathname.startsWith("/contact") ||
     pathname.startsWith("/privacy") ||
-    pathname.startsWith("/terms");
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/why-siren");
 
   if (!user && !isPublicRoute) {
     // Preserve the intended destination so sign-in lands the user back
