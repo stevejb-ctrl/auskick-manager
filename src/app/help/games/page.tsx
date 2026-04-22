@@ -7,7 +7,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Games — Help — Auskick Manager",
+  title: "Games — Help — Siren Footy",
   description: "Creating games, editing details, and tracking game status.",
 };
 

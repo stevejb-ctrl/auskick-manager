@@ -87,7 +87,7 @@ export async function Hero() {
               <img
                 src="/marketing/screenshots/live-game.png"
                 alt="Siren live game view with player rotations and score"
-                className="h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-cover"
               />
             </PhoneFrame>
           </div>

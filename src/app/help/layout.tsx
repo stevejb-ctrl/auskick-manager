@@ -2,8 +2,8 @@ import Link from "next/link";
 import { HelpNav } from "@/components/help/HelpNav";
 
 export const metadata = {
-  title: "Help — Auskick Manager",
-  description: "Documentation and guides for Auskick Manager.",
+  title: "Help — Siren Footy",
+  description: "Documentation and guides for Siren Footy.",
 };
 
 export default function HelpLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,7 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/" className="text-lg font-semibold text-brand-700">
-            Auskick Manager
+            Siren Footy
           </Link>
           <Link
             href="/login"
@@ -37,7 +37,7 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       <footer className="mt-12 border-t border-hairline py-6 text-center text-xs text-ink-mute">
-        <span>Auskick Manager · </span>
+        <span>Siren Footy · </span>
         <Link href="/login" className="hover:text-ink-dim">
           Sign in
         </Link>

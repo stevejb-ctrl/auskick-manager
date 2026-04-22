@@ -15,7 +15,7 @@ export function PhoneFrame({ children, tilt = 0, className = "" }: PhoneFramePro
     <div
       className={[
         "relative mx-auto aspect-[9/19.5] w-full max-w-[280px]",
-        "rounded-[2.75rem] bg-ink p-[10px] shadow-pop",
+        "overflow-hidden rounded-[2.75rem] bg-ink p-[10px] shadow-pop",
         "ring-1 ring-black/10",
         className,
       ].join(" ")}
