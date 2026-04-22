@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
@@ -31,15 +32,19 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
 
   const step = normalizeStep(searchParams.step);
 
-  // Gate on admin. We use the is_team_admin() RPC (SECURITY DEFINER) rather
-  // than a direct SELECT on team_memberships so the check bypasses the
-  // table's own RLS policy — avoids any recursive-policy edge cases that
-  // caused the direct .single() query to return null for valid admins.
-  const { data: isAdmin } = await supabase.rpc("is_team_admin", {
-    p_team_id: params.teamId,
-  });
+  // Gate on admin. Use the service-role client so the check never depends
+  // on auth.uid() being set inside PostgreSQL (it can be null for some
+  // OAuth providers when the JWT isn't forwarded correctly to PostgREST).
+  // We already have the verified user.id from auth.getUser() above.
+  const adminClient = createAdminClient();
+  const { data: membership } = await adminClient
+    .from("team_memberships")
+    .select("role")
+    .eq("team_id", params.teamId)
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (!isAdmin) {
+  if (membership?.role !== "admin") {
     redirect(`/teams/${params.teamId}`);
   }
 

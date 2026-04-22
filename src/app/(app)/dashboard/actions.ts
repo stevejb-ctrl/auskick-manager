@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, AgeGroup } from "@/lib/types";
 
@@ -9,7 +8,7 @@ export async function createTeam(
   userId: string,
   name: string,
   ageGroup: AgeGroup = "U10"
-): Promise<ActionResult & { teamId?: string }> {
+): Promise<ActionResult & { teamId?: string; redirectUrl?: string }> {
   const supabase = createClient();
 
   const {
@@ -20,9 +19,10 @@ export async function createTeam(
     return { success: false, error: "Unauthenticated." };
   }
 
-  // Pre-generate the team ID so we can redirect straight to the setup
-  // wizard without a round-trip SELECT.  The trigger still fires and
-  // creates the admin membership row inside the same DB transaction.
+  // Pre-generate the team ID so we can return the setup-wizard URL
+  // directly without a post-insert SELECT round-trip.  The trigger still
+  // fires and creates the admin membership row inside the same DB
+  // transaction.
   const teamId = crypto.randomUUID();
 
   const { error: insertError } = await supabase
@@ -34,5 +34,13 @@ export async function createTeam(
   }
 
   revalidatePath("/dashboard");
-  redirect(`/teams/${teamId}/setup?step=config`);
+
+  // Return the URL instead of calling redirect() so the client component
+  // can use router.push() — redirect() thrown from inside startTransition
+  // is not reliably caught by Next.js 14's client-side navigation.
+  return {
+    success: true,
+    teamId,
+    redirectUrl: `/teams/${teamId}/setup?step=config`,
+  };
 }

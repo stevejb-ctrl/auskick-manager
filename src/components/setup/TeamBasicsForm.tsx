@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createTeam } from "@/app/(app)/dashboard/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -9,6 +10,7 @@ import { AGE_GROUPS, AGE_GROUP_ORDER } from "@/lib/ageGroups";
 import type { AgeGroup } from "@/lib/types";
 
 export function TeamBasicsForm({ userId }: { userId: string }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [ageGroup, setAgeGroup] = useState<AgeGroup>("U10");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,9 @@ export function TeamBasicsForm({ userId }: { userId: string }) {
     startTransition(async () => {
       const result = await createTeam(userId, name.trim(), ageGroup);
       if (!result.success) {
-        setError(result.error);
+        setError(result.error ?? "Something went wrong.");
+      } else if (result.redirectUrl) {
+        router.push(result.redirectUrl);
       }
     });
   }
