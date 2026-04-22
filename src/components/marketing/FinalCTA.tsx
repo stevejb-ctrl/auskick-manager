@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 
 // Closing CTA. Dark field-green block so it reads as a decision point,
 // not another feature section. Auth-aware — logged-in visitors see
 // "Go to dashboard" instead of the sign-up prompt.
 export async function FinalCTA() {
-  const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   return (
     <section className="bg-brand-800 text-warm">

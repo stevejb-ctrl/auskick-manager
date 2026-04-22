@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 // Auth-aware top nav. If the visitor is already signed in we swap the
 // Sign in / Start free pair for a single "Dashboard" link.
 export async function MarketingHeader() {
-  const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   return (
     <header className="sticky top-0 z-20 border-b border-hairline bg-warm/80 backdrop-blur supports-[backdrop-filter]:bg-warm/70">

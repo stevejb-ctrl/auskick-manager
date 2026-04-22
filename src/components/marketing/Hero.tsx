@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { PulseMark } from "@/components/brand/PulseMark";
@@ -8,10 +8,9 @@ import { PulseMark } from "@/components/brand/PulseMark";
 // left, phone mockup on the right with a subtle tilt for visual energy.
 // CTA swaps to "Go to dashboard" for authed visitors.
 export async function Hero() {
-  const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   return (
     <section className="relative overflow-hidden border-b border-hairline">
