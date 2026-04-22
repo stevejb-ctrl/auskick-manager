@@ -22,12 +22,12 @@ const FEATURES = [
   {
     id: "scoring",
     eyebrow: "Score tracking",
-    title: "Keep the scoreboard honest.",
-    body: "Log goals and behinds for both sides as they happen. The goal song plays automatically — no clipboard, no app switching.",
+    title: "Keep the scoreboard honest — if you want to.",
+    body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically — or not. Your call.",
     bullets: [
-      "One tap for a goal, one for a behind",
+      "Score tracking is opt-in — skip it if you don't need it",
       "Opponent score tracked alongside yours",
-      "Goal song fires on every score",
+      "Optional goal song — enable it or leave it off",
     ],
     image: "/marketing/screenshots/scoring.png",
     imageAlt: "Score tracking with celebration chip visible",
