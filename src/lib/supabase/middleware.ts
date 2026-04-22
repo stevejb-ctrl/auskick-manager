@@ -40,8 +40,11 @@ export async function updateSession(request: NextRequest) {
 
   // Routes that don't require a session. Marketing landing, auth
   // flows, the public run-token, and the OAuth / magic-link callback.
-  // Also the static-ish SEO files (sitemap, robots) and the public
-  // marketing content pages (contact, privacy, terms).
+  // Also the static-ish SEO files (sitemap, robots), the public
+  // marketing content pages (contact, privacy, terms), and the invite
+  // landing page (/join/<token> — it renders a Sign in / Create account
+  // CTA itself for anonymous viewers, and bouncing them to /login here
+  // would drop the token and break the invite flow entirely).
   const isPublicRoute =
     pathname === "/" ||
     pathname === "/sitemap.xml" ||
@@ -51,6 +54,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/reset") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/run/") ||
+    pathname.startsWith("/join/") ||
     pathname.startsWith("/help") ||
     pathname.startsWith("/demo") ||
     pathname.startsWith("/contact") ||
@@ -58,15 +62,24 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/terms");
 
   if (!user && !isPublicRoute) {
+    // Preserve the intended destination so sign-in lands the user back
+    // where they were trying to go (e.g. deep links to a team page).
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    const nextPath = pathname + (request.nextUrl.search || "");
+    url.search = `?next=${encodeURIComponent(nextPath)}`;
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    // Honour ?next= so an already-signed-in user who clicked an invite
+    // link and got sent to /login or /signup still ends up at the
+    // invite page (or whatever deep link they wanted) instead of the
+    // dashboard. Restrict to same-origin paths to prevent open redirect.
+    const raw = request.nextUrl.searchParams.get("next");
+    const safeNext =
+      raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
+    return NextResponse.redirect(new URL(safeNext, request.nextUrl.origin));
   }
 
   return supabaseResponse;
