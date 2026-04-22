@@ -15,10 +15,25 @@ interface AvailabilityListProps {
   auth: LiveAuth;
   teamId: string;
   gameId: string;
-  canEdit: boolean;
+  /**
+   * Flip per-player availability? Any team member (parents included)
+   * plus anyone on the runner token can do this.
+   */
+  canMarkAvailability: boolean;
+  /**
+   * Add/remove fill-ins? Restricted to admins + game managers, plus
+   * the trusted runner token on match day.
+   */
+  canManageMatch: boolean;
 }
 
-export async function AvailabilityList({ auth, teamId, gameId, canEdit }: AvailabilityListProps) {
+export async function AvailabilityList({
+  auth,
+  teamId,
+  gameId,
+  canMarkAvailability,
+  canManageMatch,
+}: AvailabilityListProps) {
   const supabase = auth.kind === "token" ? createAdminClient() : createClient();
 
   const [{ data: players }, { data: availability }, { data: fillInRows }] = await Promise.all([
@@ -80,7 +95,7 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
                 playerName={p.full_name}
                 jerseyNumber={p.jersey_number}
                 status={availMap.get(p.id) ?? "unknown"}
-                canEdit={canEdit}
+                canEdit={canMarkAvailability}
               />
             ))}
             {fillIns.map((f) => (
@@ -91,12 +106,12 @@ export async function AvailabilityList({ auth, teamId, gameId, canEdit }: Availa
                 fillInId={f.id}
                 fullName={f.full_name}
                 jerseyNumber={f.jersey_number}
-                canEdit={canEdit}
+                canEdit={canManageMatch}
               />
             ))}
           </ul>
         )}
-        {canEdit && <AddFillInForm auth={auth} gameId={gameId} />}
+        {canManageMatch && <AddFillInForm auth={auth} gameId={gameId} />}
       </div>
     </div>
   );

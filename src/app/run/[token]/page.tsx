@@ -116,7 +116,8 @@ export default async function RunPage({ params }: RunPageProps) {
           auth={auth}
           teamId={g.team_id}
           gameId={g.id}
-          canEdit
+          canMarkAvailability
+          canManageMatch
         />
       </section>
 

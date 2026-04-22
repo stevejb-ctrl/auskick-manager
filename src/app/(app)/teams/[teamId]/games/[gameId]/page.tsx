@@ -57,8 +57,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   const g = game as Game;
   const role = membership?.role;
-  const canEdit = role === "admin" || role === "game_manager";
-  const canRun = canEdit;
+  // Match-day management — Start game, share runner link, add/remove
+  // fill-ins — stays locked to admins and game managers.
+  const canManageMatch = role === "admin" || role === "game_manager";
+  const canRun = canManageMatch;
+  // Availability RSVPs are open to any team member (parents included):
+  // the coach doesn't have to chase replies, parents can just flip it.
+  const canMarkAvailability = !!role;
   const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
   const ageCfg = AGE_GROUPS[ageGroup];
 
@@ -171,7 +176,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           auth={{ kind: "team", teamId: params.teamId }}
           teamId={params.teamId}
           gameId={params.gameId}
-          canEdit={canEdit}
+          canMarkAvailability={canMarkAvailability}
+          canManageMatch={canManageMatch}
         />
       </Suspense>
     </div>

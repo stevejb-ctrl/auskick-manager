@@ -89,6 +89,10 @@ export async function setAvailability(
   } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Unauthenticated." };
 
+  // Any team member — admin, game_manager, or parent — may toggle
+  // availability. Parents are trusted to RSVP for their team.
+  // Fill-in add/remove and live-game ops stay admin/game_manager via
+  // their own authorizeManager calls below.
   const { data: membership } = await supabase
     .from("team_memberships")
     .select("role")
@@ -96,10 +100,7 @@ export async function setAvailability(
     .eq("user_id", user.id)
     .single();
 
-  if (
-    !membership ||
-    (membership.role !== "admin" && membership.role !== "game_manager")
-  ) {
+  if (!membership) {
     return { success: false, error: "Not authorised." };
   }
 
