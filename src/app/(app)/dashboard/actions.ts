@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, AgeGroup } from "@/lib/types";
+import {
+  formatTeamMessage,
+  sendTelegramNotification,
+} from "@/lib/notifications/telegram";
 
 export async function createTeam(
   userId: string,
@@ -43,6 +47,15 @@ export async function createTeam(
     teamId,
     url: `/teams/${teamId}/setup?step=config`,
   });
+
+  const text = formatTeamMessage(
+    name,
+    ageGroup,
+    user.email ?? user.id,
+    new Date().toISOString()
+  );
+  // Fire-and-forget — Telegram outage must not block team creation
+  sendTelegramNotification(text).catch(() => {});
 
   revalidatePath("/dashboard");
   // redirect() throws NEXT_REDIRECT; must be OUTSIDE any try/catch
