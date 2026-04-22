@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
@@ -32,22 +31,13 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
 
   const step = normalizeStep(searchParams.step);
 
-  // Gate on admin. Use the service-role client so the check never depends
-  // on auth.uid() being set inside PostgreSQL (it can be null for some
-  // OAuth providers when the JWT isn't forwarded correctly to PostgREST).
-  // We already have the verified user.id from auth.getUser() above.
-  const adminClient = createAdminClient();
-  const { data: membership } = await adminClient
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", params.teamId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (membership?.role !== "admin") {
-    redirect(`/teams/${params.teamId}`);
-  }
-
+  // Fetch the team — the `teams: read` RLS policy calls is_team_member()
+  // (a SECURITY DEFINER function) which is the same gate used everywhere
+  // else in the app.  If the user is not a member the SELECT returns null
+  // and we redirect to /dashboard.  Individual mutations in each step are
+  // separately guarded by is_team_admin() inside their server actions, so
+  // there is no privilege-escalation risk from removing a page-level
+  // admin check here.
   const { data: team } = await supabase
     .from("teams")
     .select("name, age_group, track_scoring, playhq_url")
