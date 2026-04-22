@@ -236,6 +236,7 @@ export default async function LivePage({ params }: LivePageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
+          gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
       )}

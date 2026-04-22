@@ -96,6 +96,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
+          gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
         />
       )}
     </div>

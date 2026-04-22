@@ -14,9 +14,6 @@ import {
 } from "@/lib/fairness";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
-// Default full-game length for sub-interval calculation (4 × 10min quarters).
-const GAME_MINUTES = 40;
-
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -24,10 +21,14 @@ function restsPerPlayer(benchSize: number): number {
 }
 
 // Target sub interval (minutes), rounded to the nearest 0.5 min, clamped [1, 10].
-function suggestedSubMinutes(benchSize: number, totalPlayers: number): number {
+function suggestedSubMinutes(
+  benchSize: number,
+  totalPlayers: number,
+  gameMinutes: number,
+): number {
   if (benchSize <= 0 || totalPlayers <= 0) return 3;
   const R = restsPerPlayer(benchSize);
-  const raw = (benchSize * GAME_MINUTES) / (totalPlayers * R);
+  const raw = (benchSize * gameMinutes) / (totalPlayers * R);
   const rounded = Math.round(raw * 2) / 2;
   return Math.min(10, Math.max(1, rounded));
 }
@@ -41,6 +42,13 @@ interface LineupPickerProps {
   minOnFieldSize: number;
   maxOnFieldSize: number;
   positionModel: PositionModel;
+  /**
+   * Full-game length in minutes (4 × quarter length). Drives the
+   * suggested sub interval and the "over N min" copy. Sourced from the
+   * age-group config at the caller — U8 is 40 min, U9/U10 are 48 min,
+   * U11–U14 are 60 min, and U15+ are longer.
+   */
+  gameMinutes: number;
   /** Optional href for the Back button shown above the picker. */
   backHref?: string;
 }
@@ -56,6 +64,7 @@ export function LineupPicker({
   minOnFieldSize,
   maxOnFieldSize,
   positionModel,
+  gameMinutes,
   backHref,
 }: LineupPickerProps) {
   const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
@@ -154,7 +163,7 @@ export function LineupPicker({
   const onFieldCount = zones.reduce((n, z) => n + lineup[z].length, 0);
   const benchCount = lineup.bench.length;
   const totalCount = onFieldCount + benchCount;
-  const suggestedMin = suggestedSubMinutes(benchCount, totalCount);
+  const suggestedMin = suggestedSubMinutes(benchCount, totalCount, gameMinutes);
   // Effective on-field count = min(configured size, available players).
   const effectiveOnFieldTarget = Math.min(onFieldSize, totalCount);
   const effectiveSubMin = subMinInput === null
@@ -287,7 +296,7 @@ export function LineupPicker({
               Suggested {suggestedMin} min — {benchCount} on bench,{" "}
               {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
               {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
-              {GAME_MINUTES} min.
+              {gameMinutes} min.
             </p>
           </div>
           <div className="w-24">
