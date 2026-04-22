@@ -40,15 +40,22 @@ export async function updateSession(request: NextRequest) {
 
   // Routes that don't require a session. Marketing landing, auth
   // flows, the public run-token, and the OAuth / magic-link callback.
+  // Also the static-ish SEO files (sitemap, robots) and the public
+  // marketing content pages (contact, privacy, terms).
   const isPublicRoute =
     pathname === "/" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/robots.txt" ||
     isAuthRoute ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/run/") ||
     pathname.startsWith("/help") ||
-    pathname.startsWith("/demo");
+    pathname.startsWith("/demo") ||
+    pathname.startsWith("/contact") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms");
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
