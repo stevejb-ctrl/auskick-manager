@@ -19,6 +19,12 @@ export async function MarketingHeader() {
 
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link
+            href="/why-siren"
+            className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink sm:inline-flex"
+          >
+            Why Siren
+          </Link>
+          <Link
             href="/demo"
             className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
           >

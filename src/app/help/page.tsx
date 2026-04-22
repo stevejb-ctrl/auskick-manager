@@ -29,7 +29,7 @@ export default function HelpOverviewPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink">Siren Footy Help</h1>
         <p className="mt-3 text-base leading-relaxed text-ink-dim">
-          Siren Footy helps coaches run their AFL U10s season — from setting up
+          Siren Footy helps coaches run their junior AFL season — from setting up
           squads and scheduling games, to running rotations live on the sideline and
           reviewing fairness stats after the game. Use the topics on the left (or the
           menu above on mobile) to find what you need.
