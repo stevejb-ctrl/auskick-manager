@@ -74,15 +74,15 @@ const FEATURES = [
   {
     id: "share",
     eyebrow: "Share with parents",
-    title: "Parents can follow along live.",
-    body: "Send the public run-link to anyone on the sideline. They see the live field, score, and quarter clock — read-only, no login required.",
+    title: "Hand scoring to any parent in one tap.",
+    body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
     bullets: [
-      "One shareable link per game",
-      "Live score and clock update in real time",
-      "No account needed to view",
+      "Full scoring access via a single shareable link",
+      "No app download or account needed",
+      "Coach stays focused on the field",
     ],
     image: "/marketing/screenshots/share.png",
-    imageAlt: "Share game screen with public run-link",
+    imageAlt: "Public run-link scoring view for parents",
   },
   {
     id: "playhq",
