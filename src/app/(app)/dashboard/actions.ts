@@ -20,31 +20,19 @@ export async function createTeam(
     return { success: false, error: "Unauthenticated." };
   }
 
-  // Insert without .select() — using RETURNING would evaluate the SELECT
-  // policy before the handle_new_team trigger adds the membership row.
+  // Pre-generate the team ID so we can redirect straight to the setup
+  // wizard without a round-trip SELECT.  The trigger still fires and
+  // creates the admin membership row inside the same DB transaction.
+  const teamId = crypto.randomUUID();
+
   const { error: insertError } = await supabase
     .from("teams")
-    .insert({ name, created_by: user.id, age_group: ageGroup });
+    .insert({ id: teamId, name, created_by: user.id, age_group: ageGroup });
 
   if (insertError) {
     return { success: false, error: insertError.message };
   }
 
-  // Separate fetch — trigger has now run, membership exists, SELECT policy passes.
-  const { data: team, error: fetchError } = await supabase
-    .from("teams")
-    .select("id")
-    .eq("created_by", user.id)
-    .eq("name", name)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (fetchError || !team) {
-    revalidatePath("/dashboard");
-    redirect("/dashboard");
-  }
-
   revalidatePath("/dashboard");
-  redirect(`/teams/${team.id}/setup?step=config`);
+  redirect(`/teams/${teamId}/setup?step=config`);
 }

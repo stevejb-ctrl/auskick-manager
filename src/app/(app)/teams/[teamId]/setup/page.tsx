@@ -31,15 +31,15 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
 
   const step = normalizeStep(searchParams.step);
 
-  // Gate on admin — only team admins should see the setup wizard.
-  const { data: membership } = await supabase
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", params.teamId)
-    .eq("user_id", user.id)
-    .single();
+  // Gate on admin. We use the is_team_admin() RPC (SECURITY DEFINER) rather
+  // than a direct SELECT on team_memberships so the check bypasses the
+  // table's own RLS policy — avoids any recursive-policy edge cases that
+  // caused the direct .single() query to return null for valid admins.
+  const { data: isAdmin } = await supabase.rpc("is_team_admin", {
+    p_team_id: params.teamId,
+  });
 
-  if (membership?.role !== "admin") {
+  if (!isAdmin) {
     redirect(`/teams/${params.teamId}`);
   }
 
