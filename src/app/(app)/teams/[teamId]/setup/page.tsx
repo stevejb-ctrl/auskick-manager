@@ -27,7 +27,17 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect(`/login?next=/teams/${params.teamId}/setup`);
+  console.log("[SetupPage] enter", {
+    teamId: params.teamId,
+    step: searchParams.step,
+    hasUser: !!user,
+    userId: user?.id,
+  });
+
+  if (!user) {
+    console.log("[SetupPage] no user → /login");
+    redirect(`/login?next=/teams/${params.teamId}/setup`);
+  }
 
   const step = normalizeStep(searchParams.step);
 
@@ -38,13 +48,22 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   // separately guarded by is_team_admin() inside their server actions, so
   // there is no privilege-escalation risk from removing a page-level
   // admin check here.
-  const { data: team } = await supabase
+  const { data: team, error: teamError } = await supabase
     .from("teams")
     .select("name, age_group, track_scoring, playhq_url")
     .eq("id", params.teamId)
     .single();
 
-  if (!team) redirect("/dashboard");
+  console.log("[SetupPage] team fetch", {
+    teamId: params.teamId,
+    found: !!team,
+    error: teamError?.message,
+  });
+
+  if (!team) {
+    console.log("[SetupPage] team null → /dashboard");
+    redirect("/dashboard");
+  }
 
   const ageGroup = (team.age_group ?? "U10") as AgeGroup;
   const teamName = team.name as string;
