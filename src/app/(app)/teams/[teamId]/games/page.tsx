@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { GameList } from "@/components/games/GameList";
 import { Spinner } from "@/components/ui/Spinner";
@@ -13,24 +13,26 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
-  let isAdmin = false;
-  if (user) {
-    const { data: membership } = await supabase
-      .from("team_memberships")
-      .select("role")
-      .eq("team_id", params.teamId)
-      .eq("user_id", user.id)
-      .single();
-    isAdmin = membership?.role === "admin";
-  }
+  const [membershipResult, teamResult] = await Promise.all([
+    user
+      ? supabase
+          .from("team_memberships")
+          .select("role")
+          .eq("team_id", params.teamId)
+          .eq("user_id", user.id)
+          .single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("teams")
+      .select("age_group, playhq_url")
+      .eq("id", params.teamId)
+      .single(),
+  ]);
 
-  const { data: team } = await supabase
-    .from("teams")
-    .select("age_group, playhq_url")
-    .eq("id", params.teamId)
-    .single();
+  const isAdmin = membershipResult.data?.role === "admin";
+  const team = teamResult.data;
   const ageGroup = (team?.age_group ?? "U10") as import("@/lib/types").AgeGroup;
 
   let existingExternalIds: string[] = [];

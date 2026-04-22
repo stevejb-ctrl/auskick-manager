@@ -3,8 +3,14 @@ import {
   type CookieOptions,
 } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
+
+// React.cache deduplicates calls within a single render pass — multiple
+// server components calling getUser() in the same request share one
+// network round-trip to Supabase auth instead of N independent ones.
+export const getUser = cache(() => createClient().auth.getUser());
 
 export function createClient() {
   const cookieStore = cookies();

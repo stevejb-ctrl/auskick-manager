@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { Team, TeamRole } from "@/lib/types";
@@ -10,10 +10,9 @@ interface DashboardPageProps {
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   if (!user) redirect("/login");
 
@@ -22,7 +21,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     teams: Pick<Team, "id" | "name"> | null;
   };
 
-  const { data: memberships } = await supabase
+  const { data: memberships } = await createClient()
     .from("team_memberships")
     .select("role, teams(id, name)")
     .eq("user_id", user.id)

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 
 export default async function AppLayout({
@@ -8,10 +8,9 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   if (!user) {
     redirect("/login");
@@ -19,7 +18,7 @@ export default async function AppLayout({
 
   // Super-admin check: one cheap own-profile read (RLS allows it).
   // Used only to render a conditional "Admin" link in the header.
-  const { data: profile } = await supabase
+  const { data: profile } = await createClient()
     .from("profiles")
     .select("is_super_admin")
     .eq("id", user.id)

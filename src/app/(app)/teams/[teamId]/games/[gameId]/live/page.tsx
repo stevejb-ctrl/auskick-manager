@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
@@ -41,7 +41,7 @@ export default async function LivePage({ params }: LivePageProps) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
   if (!user) redirect("/login");
 
   const { data: membership } = await supabase
@@ -61,7 +61,7 @@ export default async function LivePage({ params }: LivePageProps) {
     );
   }
 
-  const [{ data: game }, { data: teamRow }] = await Promise.all([
+  const [{ data: game }, { data: teamRow }, { data: thisGameEvents }] = await Promise.all([
     supabase
       .from("games")
       .select("*")
@@ -73,6 +73,11 @@ export default async function LivePage({ params }: LivePageProps) {
       .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
+    supabase
+      .from("game_events")
+      .select("*")
+      .eq("game_id", params.gameId)
+      .order("created_at"),
   ]);
   if (!game) notFound();
   const g = game as Game;
@@ -85,12 +90,6 @@ export default async function LivePage({ params }: LivePageProps) {
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
 
-  // Has the game already started? (any lineup_set event)
-  const { data: thisGameEvents } = await supabase
-    .from("game_events")
-    .select("*")
-    .eq("game_id", params.gameId)
-    .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
   const ageCfg = AGE_GROUPS[ageGroup];
