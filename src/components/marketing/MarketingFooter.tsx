@@ -21,6 +21,12 @@ export function MarketingFooter() {
             Help
           </Link>
           <Link
+            href="/contact"
+            className="transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            Contact
+          </Link>
+          <Link
             href="/privacy"
             className="transition-colors duration-fast ease-out-quart hover:text-ink"
           >
