@@ -204,7 +204,7 @@ export default function LiveGamePage() {
           </li>
           <li>
             <strong className="text-ink">Lend to opposition</strong> — marks the player
-            as lent (common in U10s when numbers are uneven). Shows a{" "}
+            as lent (common in junior teams when numbers are uneven). Shows a{" "}
             <strong className="text-ink">LENT</strong> badge. Loan minutes are tracked
             separately. Tap <strong className="text-ink">Bring back</strong> to return
             them.
