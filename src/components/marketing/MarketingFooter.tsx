@@ -13,12 +13,24 @@ export function MarketingFooter() {
           </span>
         </div>
 
-        <nav className="flex items-center gap-5 text-sm text-ink-dim">
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-dim">
           <Link
             href="/help"
             className="transition-colors duration-fast ease-out-quart hover:text-ink"
           >
             Help
+          </Link>
+          <Link
+            href="/privacy"
+            className="transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/terms"
+            className="transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            Terms
           </Link>
           <Link
             href="/login"
