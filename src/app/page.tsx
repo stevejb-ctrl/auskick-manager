@@ -35,15 +35,15 @@ const FEATURES = [
   {
     id: "availability",
     eyebrow: "Availability",
-    title: "Know who's coming before you arrive.",
-    body: "Share a link with parents so they can mark availability the night before. Injuries, late arrivals, and fill-ins handled on the day.",
+    title: "Set your squad before you leave home.",
+    body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match — Siren rebalances rotations automatically.",
     bullets: [
-      "Parents mark via a link — no app install needed",
-      "Injured and late players flagged before kick-off",
-      "Fill-ins added on the spot",
+      "One tap to mark a player available or unavailable",
+      "Run a smaller squad to match the opposition",
+      "Last-minute changes and fill-ins handled on the day",
     ],
     image: "/marketing/screenshots/availability.png",
-    imageAlt: "Pre-game availability list with injured and fill-in players",
+    imageAlt: "Pre-game availability list showing available and unavailable players",
   },
   {
     id: "flexibility",
