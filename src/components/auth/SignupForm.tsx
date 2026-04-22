@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { notifySignup } from "@/app/(auth)/signup/actions";
 
 // Only follow `next` if it's a same-origin path — never an absolute URL.
 function safeNext(raw: string | null): string {
@@ -55,6 +56,9 @@ export function SignupForm() {
       setLoading(false);
       return;
     }
+
+    // Fire-and-forget — don't block navigation on Telegram availability
+    notifySignup(email).catch(() => {});
 
     router.push(next);
     router.refresh();
