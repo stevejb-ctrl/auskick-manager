@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
@@ -41,27 +42,55 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
 
   const step = normalizeStep(searchParams.step);
 
-  // Fetch the team — the `teams: read` RLS policy calls is_team_member()
-  // (a SECURITY DEFINER function) which is the same gate used everywhere
-  // else in the app.  If the user is not a member the SELECT returns null
-  // and we redirect to /dashboard.  Individual mutations in each step are
-  // separately guarded by is_team_admin() inside their server actions, so
-  // there is no privilege-escalation risk from removing a page-level
-  // admin check here.
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .select("name, age_group, track_scoring, playhq_url")
-    .eq("id", params.teamId)
-    .single();
+  // Fetch team + membership via the service-role client.
+  //
+  // Background: on a freshly-created team the RLS-backed SELECT from the
+  // user's cookie client was intermittently returning null here, even
+  // though the AFTER INSERT trigger on `teams` had already created the
+  // admin membership row in the same DB transaction as the team insert.
+  // The `teams: read` policy calls `is_team_member()` (SECURITY DEFINER
+  // using auth.uid()) and it works fine everywhere else in the app, so
+  // the failure mode was specific to this page's server-component
+  // request — most likely a cookie/session propagation edge case in the
+  // just-after-redirect window.
+  //
+  // We side-step the RLS dependency entirely here by fetching with the
+  // service-role client, then doing an explicit membership check of our
+  // own.  Individual mutations in each step are still gated by
+  // `is_team_admin()` inside their server actions, so bypassing RLS on
+  // this read-only page does not widen the privilege surface.
+  const adminClient = createAdminClient();
 
-  console.log("[SetupPage] team fetch", {
+  const [
+    { data: team, error: teamError },
+    { data: membership, error: membershipError },
+  ] = await Promise.all([
+    adminClient
+      .from("teams")
+      .select("name, age_group, track_scoring, playhq_url")
+      .eq("id", params.teamId)
+      .maybeSingle(),
+    adminClient
+      .from("team_memberships")
+      .select("role")
+      .eq("team_id", params.teamId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
+
+  console.log("[SetupPage] admin fetch", {
     teamId: params.teamId,
-    found: !!team,
-    error: teamError?.message,
+    teamFound: !!team,
+    teamError: teamError?.message,
+    membershipRole: membership?.role,
+    membershipError: membershipError?.message,
   });
 
-  if (!team) {
-    console.log("[SetupPage] team null → /dashboard");
+  if (!team || !membership) {
+    console.log("[SetupPage] team or membership missing → /dashboard", {
+      hasTeam: !!team,
+      hasMembership: !!membership,
+    });
     redirect("/dashboard");
   }
 
