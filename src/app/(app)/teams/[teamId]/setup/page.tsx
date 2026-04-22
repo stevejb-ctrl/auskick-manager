@@ -151,6 +151,28 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     );
   }
 
-  // step === "done"
-  return <DoneStep teamId={params.teamId} teamName={teamName} />;
+  // step === "done" — fetch counts for the summary card.  Admin client
+  // keeps this consistent with the team fetch above (RLS-agnostic);
+  // head+count is cheap and avoids hauling back full rows.
+  const [{ count: playerCount }, { count: gameCount }] = await Promise.all([
+    adminClient
+      .from("players")
+      .select("id", { count: "exact", head: true })
+      .eq("team_id", params.teamId)
+      .eq("is_active", true),
+    adminClient
+      .from("games")
+      .select("id", { count: "exact", head: true })
+      .eq("team_id", params.teamId),
+  ]);
+
+  return (
+    <DoneStep
+      teamId={params.teamId}
+      teamName={teamName}
+      playerCount={playerCount ?? 0}
+      gameCount={gameCount ?? 0}
+      scoringEnabled={team.track_scoring ?? false}
+    />
+  );
 }

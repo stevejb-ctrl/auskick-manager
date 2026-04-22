@@ -12,19 +12,35 @@ export default async function NewTeamPage() {
 
   if (!user) redirect("/login?next=/teams/new");
 
+  // "Back" link destination depends on whether this is a first-time
+  // setup (coming from /welcome) or an existing user adding another
+  // team (coming from /dashboard).  Cheapest proxy for "first team":
+  // count the user's memberships.  This is the same zero-check the
+  // /welcome page uses, so the back button stays consistent.
+  const { count: membershipCount } = await supabase
+    .from("team_memberships")
+    .select("team_id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  const isFirstTeam = (membershipCount ?? 0) === 0;
+  const backHref = isFirstTeam ? "/welcome" : "/dashboard";
+  const backLabel = isFirstTeam ? "← Welcome" : "← My teams";
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <Link
-        href="/dashboard"
+        href={backHref}
         className="inline-block text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
       >
-        ← My teams
+        {backLabel}
       </Link>
 
       <SetupProgress current="basics" />
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-ink">Create your team</h1>
+        <h1 className="text-2xl font-bold text-ink">
+          {isFirstTeam ? "Tell us about your team" : "Create your team"}
+        </h1>
         <p className="text-sm text-ink-dim">
           Your age group sets the default on-field size, quarter length, and
           rotation rules for this team (you can fine-tune on-field numbers per

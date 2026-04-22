@@ -5,7 +5,11 @@ import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { Team, TeamRole } from "@/lib/types";
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: { welcome?: string };
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const supabase = createClient();
   const {
     data: { user },
@@ -27,6 +31,14 @@ export default async function DashboardPage() {
   const teams = (memberships ?? []).flatMap((m) =>
     m.teams ? [{ ...m.teams, role: m.role }] : []
   );
+
+  // First-time user redirect.  If they have no teams and haven't
+  // explicitly skipped the welcome (?welcome=skipped), send them to
+  // the warmer /welcome screen.  Skipping sets the query param so the
+  // empty-state dashboard still works as an escape hatch.
+  if (teams.length === 0 && searchParams.welcome !== "skipped") {
+    redirect("/welcome");
+  }
 
   return (
     <div className="space-y-6">
