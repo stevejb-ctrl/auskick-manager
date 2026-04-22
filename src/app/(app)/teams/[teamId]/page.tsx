@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FinishSetupBanner } from "@/components/setup/FinishSetupBanner";
 import type { Game } from "@/lib/types";
@@ -134,13 +134,12 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   const [
     { data: upcomingRaw },
     { count: totalActive },
     { count: upcomingTotal },
-    { data: availabilityRaw },
     { data: membership },
   ] = await Promise.all([
     // Next 3 non-completed games (ascending so next game is first)
@@ -166,12 +165,6 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .eq("team_id", params.teamId)
       .neq("status", "completed"),
 
-    // Availability for those games
-    supabase
-      .from("game_availability")
-      .select("game_id, status")
-      .eq("status", "available"),
-
     // Current user's role on this team (to gate the FinishSetupBanner)
     user
       ? supabase
@@ -182,6 +175,17 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           .single()
       : Promise.resolve({ data: null }),
   ]);
+
+  // Fetch availability scoped to only the displayed games.
+  // Filtering by game_id avoids pulling every availability row for the team.
+  const upcomingIds = (upcomingRaw ?? []).map((g) => g.id);
+  const { data: availabilityRaw } = upcomingIds.length
+    ? await supabase
+        .from("game_availability")
+        .select("game_id, status")
+        .in("game_id", upcomingIds)
+        .eq("status", "available")
+    : { data: [] };
 
   const upcoming = (upcomingRaw ?? []) as Game[];
   const playerCount = totalActive ?? 0;

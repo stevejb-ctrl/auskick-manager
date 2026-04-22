@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TeamNav } from "@/components/team/TeamNav";
 
@@ -9,11 +9,9 @@ interface TeamLayoutProps {
 }
 
 export default async function TeamLayout({ children, params }: TeamLayoutProps) {
-  const supabase = createClient();
-
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   if (!user) {
     redirect(`/login?next=/teams/${params.teamId}`);
@@ -42,13 +40,6 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
-
-  console.log("[TeamLayout] fetch", {
-    teamId: params.teamId,
-    userId: user.id,
-    hasTeam: !!team,
-    hasMembership: !!membership,
-  });
 
   if (!team || !membership) {
     notFound();
