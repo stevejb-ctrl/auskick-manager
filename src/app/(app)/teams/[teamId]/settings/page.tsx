@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
@@ -19,17 +19,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
-  const [{ data: team }, { data: songData }, { data: membership }] = await Promise.all([
+  const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, track_scoring")
-      .eq("id", params.teamId)
-      .single(),
-    supabase
-      .from("teams")
-      .select("song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, track_scoring, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -106,10 +101,10 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       />
       <TeamSongSettings
         teamId={params.teamId}
-        currentSongUrl={songData?.song_url ?? null}
-        currentStartSeconds={songData?.song_start_seconds ?? 0}
-        currentDurationSeconds={songData?.song_duration_seconds ?? 15}
-        currentEnabled={songData?.song_enabled ?? true}
+        currentSongUrl={team.song_url ?? null}
+        currentStartSeconds={team.song_start_seconds ?? 0}
+        currentDurationSeconds={team.song_duration_seconds ?? 15}
+        currentEnabled={team.song_enabled ?? true}
         isAdmin={isAdmin}
       />
     </div>
