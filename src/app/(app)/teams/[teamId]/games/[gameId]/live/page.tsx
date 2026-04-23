@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
+import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
@@ -11,7 +12,9 @@ import {
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { FillIn, Game, GameEvent, Player } from "@/lib/types";
+import { getSportConfig, netballSport } from "@/lib/sports";
+import { replayNetballGame } from "@/lib/sports/netball/fairness";
+import type { FillIn, Game, GameEvent, Player, Sport } from "@/lib/types";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -70,7 +73,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("name, sport, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -82,6 +85,79 @@ export default async function LivePage({ params }: LivePageProps) {
   if (!game) notFound();
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
+  const sport: Sport = (teamRow?.sport as Sport | undefined) ?? "afl";
+
+  // ─── Netball branch ───────────────────────────────────────
+  // Netball uses its own component tree (different lineup shape,
+  // no mid-play subs, goals-only scoring). Branch early so none
+  // of the AFL-specific helpers below run for netball games.
+  if (sport === "netball") {
+    const ageCfgN = netballSport.ageGroups.find((a) => a.id === teamRow?.age_group)
+      ?? netballSport.ageGroups.find((a) => a.id === "open")!;
+
+    const [
+      { data: avail },
+      { data: players },
+      { data: teamGames },
+    ] = await Promise.all([
+      supabase
+        .from("game_availability")
+        .select("player_id, status")
+        .eq("game_id", params.gameId)
+        .eq("status", "available"),
+      supabase
+        .from("players")
+        .select("*")
+        .eq("team_id", params.teamId)
+        .eq("is_active", true)
+        .order("jersey_number"),
+      supabase.from("games").select("id").eq("team_id", params.teamId),
+    ]);
+
+    const squad = (players ?? []) as Player[];
+    const availableIds = (avail ?? []).map((a) => a.player_id);
+
+    const otherGameIds = (teamGames ?? [])
+      .map((t) => t.id)
+      .filter((id) => id !== params.gameId);
+    const { data: seasonEvents } = otherGameIds.length
+      ? await supabase.from("game_events").select("*").in("game_id", otherGameIds)
+      : { data: [] as GameEvent[] };
+
+    const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
+
+    return (
+      <div className="space-y-3">
+        <GameInfoHeader teamName={teamName} g={g} compact />
+        <NetballLiveGame
+          auth={{ kind: "team", teamId: params.teamId }}
+          game={g}
+          squad={squad}
+          availableIds={availableIds}
+          ageGroup={ageCfgN}
+          initialLineup={state.lineup}
+          currentQuarter={state.currentQuarter}
+          quarterElapsedMs={state.quarterElapsedMs}
+          teamScore={state.teamScore}
+          opponentScore={state.opponentScore}
+          quarterEnded={state.quarterEnded}
+          finalised={state.finalised}
+          thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
+          seasonEvents={(seasonEvents ?? []) as GameEvent[]}
+        />
+        {isAdmin && (
+          <div className="border-t border-hairline pt-4">
+            <ResetGameButton
+              auth={{ kind: "team", teamId: params.teamId }}
+              gameId={params.gameId}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── AFL branch (existing behaviour) ──────────────────────
   const trackScoring = teamRow?.track_scoring ?? false;
   const ageGroup = ageGroupOf(teamRow?.age_group);
   const songEnabled = teamRow?.song_enabled ?? true;
@@ -89,6 +165,7 @@ export default async function LivePage({ params }: LivePageProps) {
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  void getSportConfig; // exported for future use; keep import alive.
 
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 

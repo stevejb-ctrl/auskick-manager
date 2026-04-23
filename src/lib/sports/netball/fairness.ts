@@ -219,6 +219,90 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
   return lineup;
 }
 
+// ─── Replay one game → live state ────────────────────────────
+export interface NetballGameState {
+  lineup: GenericLineup | null;
+  currentQuarter: number;
+  quarterEnded: boolean;
+  quarterElapsedMs: number;
+  teamScore: { goals: number };
+  opponentScore: { goals: number };
+  /** Goals attributed per player, if player_id was set on the goal event. */
+  playerGoals: Record<string, number>;
+  finalised: boolean;
+  /** ISO timestamp of the current quarter_start event; null when quarter ended. */
+  quarterStartedAt: string | null;
+}
+
+export function replayNetballGame(events: GameEvent[]): NetballGameState {
+  const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const state: NetballGameState = {
+    lineup: null,
+    currentQuarter: 0,
+    quarterEnded: false,
+    quarterElapsedMs: 0,
+    teamScore: { goals: 0 },
+    opponentScore: { goals: 0 },
+    playerGoals: {},
+    finalised: false,
+    quarterStartedAt: null,
+  };
+
+  // score_undo: stack the last-N score events to revert.
+  const undoStack: Array<"team" | "opp" | { player: string }> = [];
+
+  for (const ev of sorted) {
+    const meta = ev.metadata as {
+      lineup?: Partial<GenericLineup>;
+      quarter?: number;
+      elapsed_ms?: number;
+      target?: string;
+    };
+
+    if (ev.type === "lineup_set" && meta.lineup) {
+      state.lineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "period_break_swap" && meta.lineup) {
+      state.lineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "quarter_start" && meta.quarter) {
+      state.currentQuarter = meta.quarter;
+      state.quarterEnded = false;
+      state.quarterElapsedMs = 0;
+      state.quarterStartedAt = ev.created_at;
+    } else if (ev.type === "quarter_end") {
+      state.quarterEnded = true;
+      state.quarterStartedAt = null;
+      state.quarterElapsedMs = meta.elapsed_ms ?? state.quarterElapsedMs;
+    } else if (ev.type === "game_finalised") {
+      state.finalised = true;
+    } else if (ev.type === "goal") {
+      state.teamScore.goals++;
+      if (ev.player_id) {
+        state.playerGoals[ev.player_id] = (state.playerGoals[ev.player_id] ?? 0) + 1;
+        undoStack.push({ player: ev.player_id });
+      } else {
+        undoStack.push("team");
+      }
+    } else if (ev.type === "opponent_goal") {
+      state.opponentScore.goals++;
+      undoStack.push("opp");
+    } else if (ev.type === "score_undo" && undoStack.length > 0) {
+      const last = undoStack.pop()!;
+      if (last === "opp") {
+        state.opponentScore.goals = Math.max(0, state.opponentScore.goals - 1);
+      } else if (last === "team") {
+        state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
+      } else {
+        state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
+        if (last.player && state.playerGoals[last.player]) {
+          state.playerGoals[last.player] = Math.max(0, state.playerGoals[last.player] - 1);
+        }
+      }
+    }
+  }
+
+  return state;
+}
+
 function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
   const a = [...arr];
   let s = (seed | 0) >>> 0;
