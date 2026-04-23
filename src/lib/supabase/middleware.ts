@@ -1,10 +1,34 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function updateSession(request: NextRequest) {
+  // ─── Brand routing ─────────────────────────────────────────
+  // Read the host and pick a brand. In dev, `?brand=netball` or
+  // NEXT_PUBLIC_DEFAULT_BRAND override. Result is stashed on the
+  // request headers so downstream RSC can read it via `headers()`.
+  const override =
+    request.nextUrl.searchParams.get("brand") ??
+    process.env.NEXT_PUBLIC_DEFAULT_BRAND ??
+    request.cookies.get(BRAND_COOKIE_NAME)?.value ??
+    null;
+  const brand = resolveBrandFromHost(request.headers.get("host"), override);
+  request.headers.set(BRAND_HEADER_NAME, brand.brand.id);
+
   let supabaseResponse = NextResponse.next({ request });
+
+  // Propagate brand header onto the response too, and stick the
+  // dev override into a cookie so deep-page navigations keep the
+  // override without the query param.
+  supabaseResponse.headers.set(BRAND_HEADER_NAME, brand.brand.id);
+  if (override) {
+    supabaseResponse.cookies.set(BRAND_COOKIE_NAME, brand.brand.id, {
+      path: "/",
+      sameSite: "lax",
+    });
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

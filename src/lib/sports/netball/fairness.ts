@@ -198,7 +198,8 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     // player that they're also eligible for. If none, bench them.
     let bestPos: string | null = null;
     let bestScore = -Infinity;
-    for (const posId of remaining) {
+    const remainingList = Array.from(remaining);
+    for (const posId of remainingList) {
       if (!isAllowed(pid, posId)) continue;
       const s = owed(pid, posId);
       if (s > bestScore) {
