@@ -4,6 +4,8 @@ import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { PulseMark } from "@/components/brand/PulseMark";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
+import { getBrand } from "@/lib/brand";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 // Above-the-fold. Two-column on desktop, stacked on mobile. Copy on the
 // left, phone mockup on the right with a subtle tilt for visual energy.
@@ -11,6 +13,8 @@ import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 // MarketingAuthCTAs so this component stays a pure server component —
 // the page prerenders statically.
 export function Hero() {
+  const brand = getBrand();
+  const copy = getBrandCopy(brand.id);
   return (
     <section className="relative overflow-hidden border-b border-hairline">
       {/* Soft field-green wash behind the content */}
@@ -24,19 +28,15 @@ export function Hero() {
           <RevealOnScroll>
             <span className="inline-flex items-center gap-2 rounded-full border border-warn/30 bg-warn-soft px-3 py-1 text-[11px] font-bold uppercase tracking-micro text-warn">
               <PulseMark size={12} pulsing />
-              <span>Built for junior AFL</span>
+              <span>{copy.banner}</span>
             </span>
             <h1 className="mt-5 text-4xl font-bold tracking-tightest text-ink sm:text-5xl md:text-6xl">
-              Run game day.
+              {copy.heroTitle[0]}
               <br />
-              Keep your head up.
+              {copy.heroTitle[1]}
             </h1>
             <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
-              Three-zone rotations. Fair game time across the quarters.
-              Late arrivals, injuries, fill-ins. Siren knows the
-              intricacies of junior AFL that generic sub-timers miss.
-              So you can stop juggling a clipboard and watch your kid
-              play.
+              {copy.heroSubtitle}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -70,7 +70,7 @@ export function Hero() {
             <PhoneFrame tilt={2} className="relative">
               <Image
                 src="/marketing/screenshots/live-game.png"
-                alt="Siren live game view with player rotations and score"
+                alt={`${copy.productName} live game view`}
                 fill
                 sizes="(max-width: 1024px) 300px, 280px"
                 priority

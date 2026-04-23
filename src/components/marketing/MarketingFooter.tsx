@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { getBrand } from "@/lib/brand";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 export function MarketingFooter() {
   const year = new Date().getFullYear();
+  const brand = getBrand();
+  const copy = getBrandCopy(brand.id);
   return (
     <footer className="bg-warm">
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-10 sm:flex-row sm:items-center sm:px-6">
         <div className="flex items-center gap-3">
           <SirenWordmark size="sm" />
           <span className="text-xs text-ink-mute">
-            Junior Australian rules football game manager
+            {copy.tagline}
           </span>
         </div>
 

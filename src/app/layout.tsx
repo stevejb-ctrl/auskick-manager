@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { getBrand } from "@/lib/brand";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -24,10 +26,18 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Siren Footy",
-  description: "Junior AFL team and substitution manager",
-};
+// Brand-aware metadata — middleware writes x-brand on the request so
+// sirenfooty.com.au and sirennetball.com.au get their own title + meta
+// description at render time. Falls back to AFL when no brand is set
+// (e.g. if middleware is bypassed).
+export function generateMetadata(): Metadata {
+  const brand = getBrand();
+  const copy = getBrandCopy(brand.id);
+  return {
+    title: copy.productName,
+    description: copy.metaDescription,
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
