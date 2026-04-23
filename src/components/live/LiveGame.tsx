@@ -831,6 +831,7 @@ export function LiveGame({
         isPreGame={isPreGame}
         isFinished={isFinished}
         clockMultiplier={clockMultiplier}
+        isPending={isPending}
       />
 
       {/* Swap-done toast — flashes briefly after a substitution lands */}

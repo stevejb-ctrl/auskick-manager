@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/Label";
 // We always show the same success message regardless of whether the email
 // exists — no account enumeration leak.
 export function ForgotPasswordForm() {
-  const supabase = createClient();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -19,6 +18,10 @@ export function ForgotPasswordForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    // Lazy-instantiate so the component can prerender statically
+    // without Supabase env vars — the client is only needed on
+    // submit.
+    const supabase = createClient();
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
     // Swallow the error intentionally — we don't surface whether the email

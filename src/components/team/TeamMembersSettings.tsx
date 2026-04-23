@@ -147,7 +147,7 @@ function MemberRowItem({
             size="sm"
             variant="ghost"
             onClick={handleRemove}
-            disabled={isPending}
+            loading={isPending}
             className="text-danger hover:bg-danger/10 hover:text-danger"
           >
             Remove
@@ -416,7 +416,7 @@ function InviteRow({
           size="sm"
           variant="ghost"
           onClick={handleRevoke}
-          disabled={isPending}
+          loading={isPending}
           className="text-danger hover:bg-danger/10 hover:text-danger"
         >
           Revoke

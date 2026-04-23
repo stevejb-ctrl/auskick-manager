@@ -235,7 +235,7 @@ export function SwapCard({
                     }}
                     className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
-                    Do
+                    {pending ? "…" : "Do"}
                   </button>
                 )}
               </li>

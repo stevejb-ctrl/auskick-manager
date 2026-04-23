@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 
@@ -152,16 +153,13 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                     } bottom-4 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl`}
                   />
                   <PhoneFrame tilt={tilt} className="relative">
-                    {/* Absolute positioning — lets overflow-hidden on
-                        the phone's screen reliably clip the image. With
-                        an in-flow <img> the replaced-element intrinsic
-                        size can leak past the aspect-ratio box on some
-                        mobile viewports and spill below the bezel. */}
-                    <img
+                    <Image
                       src={f.image}
                       alt={f.imageAlt}
-                      className="absolute inset-0 h-full w-full object-cover"
-                      loading={i === 0 ? "eager" : "lazy"}
+                      fill
+                      sizes="(max-width: 640px) 300px, 280px"
+                      priority={i === 0}
+                      className="object-cover"
                     />
                   </PhoneFrame>
                 </div>
@@ -229,14 +227,16 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                       opacity: 1. Keeps images pre-loaded for a snappy
                       crossfade instead of a flash-of-missing-image. */}
                   {features.map((f, i) => (
-                    <img
+                    <Image
                       key={f.id}
                       src={f.image}
                       alt={f.imageAlt}
-                      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
+                      fill
+                      sizes="280px"
+                      priority={i === 0}
+                      className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
                         i === activeIndex ? "opacity-100" : "opacity-0"
                       }`}
-                      loading={i === 0 ? "eager" : "lazy"}
                       aria-hidden={i !== activeIndex}
                     />
                   ))}

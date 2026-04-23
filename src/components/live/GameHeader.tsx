@@ -20,6 +20,8 @@ interface GameHeaderProps {
   isFinished: boolean;
   /** Speed multiplier for demo games — scales displayed elapsed time (default 1). */
   clockMultiplier?: number;
+  /** True while a server action from this header (e.g. opponent score) is in flight. */
+  isPending?: boolean;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -41,6 +43,7 @@ export function GameHeader({
   isPreGame,
   isFinished,
   clockMultiplier = 1,
+  isPending = false,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -127,14 +130,16 @@ export function GameHeader({
             <button
               type="button"
               onClick={() => onOpponent("goal")}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink"
+              disabled={isPending}
+              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +G
             </button>
             <button
               type="button"
               onClick={() => onOpponent("behind")}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink"
+              disabled={isPending}
+              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +B
             </button>

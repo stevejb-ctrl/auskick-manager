@@ -1,17 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getUser } from "@/lib/supabase/server";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { PulseMark } from "@/components/brand/PulseMark";
+import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 
 // Above-the-fold. Two-column on desktop, stacked on mobile. Copy on the
 // left, phone mockup on the right with a subtle tilt for visual energy.
-// CTA swaps to "Go to dashboard" for authed visitors.
-export async function Hero() {
-  const {
-    data: { user },
-  } = await getUser();
-
+// The auth-aware "Start free / Go to dashboard" CTA lives in
+// MarketingAuthCTAs so this component stays a pure server component —
+// the page prerenders statically.
+export function Hero() {
   return (
     <section className="relative overflow-hidden border-b border-hairline">
       {/* Soft field-green wash behind the content */}
@@ -41,21 +40,7 @@ export async function Hero() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              {user ? (
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-                >
-                  Go to dashboard
-                </Link>
-              ) : (
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-                >
-                  Start free
-                </Link>
-              )}
+              <MarketingAuthCTAs variant="hero" />
               <Link
                 href="/demo"
                 className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-5 py-2.5 text-base font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
@@ -83,10 +68,13 @@ export async function Hero() {
               className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
             />
             <PhoneFrame tilt={2} className="relative">
-              <img
+              <Image
                 src="/marketing/screenshots/live-game.png"
                 alt="Siren live game view with player rotations and score"
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                sizes="(max-width: 1024px) 300px, 280px"
+                priority
+                className="object-cover"
               />
             </PhoneFrame>
           </div>
