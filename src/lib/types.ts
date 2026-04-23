@@ -69,11 +69,17 @@ export type AgeGroup =
 
 export type PositionModel = "zones3" | "positions5";
 
+/** Sport identifier stored on Team. Drives SportConfig lookup. */
+export type Sport = "afl" | "netball";
+
 export interface Team {
   id: string;
   name: string;
+  /** Sport config identifier — "afl" or "netball". Legacy rows default to "afl". */
+  sport: Sport;
   track_scoring: boolean;
-  age_group: AgeGroup;
+  /** Opaque age-group id. Valid values depend on `sport` (SportConfig.ageGroups). */
+  age_group: string;
   playhq_url: string | null;
   /** Public Supabase Storage URL for the team song, or null if none set. */
   song_url: string | null;
@@ -186,7 +192,10 @@ export type GameEventType =
   | "injury"
   | "score_undo"
   | "field_zone_swap"
-  | "player_loan";
+  | "player_loan"
+  // Netball: subs only happen at period breaks, so we emit a single
+  // lineup-snapshot event per break instead of per-player `swap`s.
+  | "period_break_swap";
 
 export interface Lineup {
   back: string[];
