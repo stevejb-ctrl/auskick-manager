@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
@@ -20,7 +20,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   const [{ data: game }, { data: membership }, { data: team }, { data: scoringEvents }, { data: players }] = await Promise.all([
     supabase

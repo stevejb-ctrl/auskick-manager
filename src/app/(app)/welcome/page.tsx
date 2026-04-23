@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 
 /**
  * First-time welcome.  Middleware routes brand-new authenticated users
@@ -16,7 +16,7 @@ export default async function WelcomePage() {
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   if (!user) redirect("/login?next=/welcome");
 
