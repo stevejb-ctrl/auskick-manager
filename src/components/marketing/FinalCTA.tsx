@@ -1,15 +1,10 @@
-import Link from "next/link";
-import { getUser } from "@/lib/supabase/server";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
+import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 
 // Closing CTA. Dark field-green block so it reads as a decision point,
-// not another feature section. Auth-aware — logged-in visitors see
-// "Go to dashboard" instead of the sign-up prompt.
-export async function FinalCTA() {
-  const {
-    data: { user },
-  } = await getUser();
-
+// not another feature section. The auth-aware CTA pair lives in
+// MarketingAuthCTAs (client island) so this tree stays static.
+export function FinalCTA() {
   return (
     <section className="bg-brand-800 text-warm">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 md:py-28">
@@ -23,29 +18,7 @@ export async function FinalCTA() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            {user ? (
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-              >
-                Go to dashboard
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-                >
-                  Create your team
-                </Link>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center rounded-md border border-warm/30 px-6 py-3 text-base font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-                >
-                  Sign in
-                </Link>
-              </>
-            )}
+            <MarketingAuthCTAs variant="final" />
           </div>
         </RevealOnScroll>
       </div>

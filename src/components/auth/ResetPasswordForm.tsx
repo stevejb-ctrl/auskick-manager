@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/Label";
 // component mounts, so updateUser({ password }) works directly.
 export function ResetPasswordForm() {
   const router = useRouter();
-  const supabase = createClient();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +31,9 @@ export function ResetPasswordForm() {
     }
 
     setLoading(true);
+    // Lazy-instantiate so the component can prerender statically
+    // without Supabase env vars — the client is only needed on submit.
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       setError(error.message);
