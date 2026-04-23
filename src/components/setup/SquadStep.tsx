@@ -2,17 +2,17 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import { AGE_GROUPS } from "@/lib/ageGroups";
-import type { AgeGroup, Player } from "@/lib/types";
+import type { AgeGroupConfig } from "@/lib/sports/types";
+import type { Player } from "@/lib/types";
 
 interface SquadStepProps {
   teamId: string;
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroupConfig;
   players: Player[];
 }
 
 export function SquadStep({ teamId, ageGroup, players }: SquadStepProps) {
-  const maxPlayers = AGE_GROUPS[ageGroup].maxSquadSize;
+  const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);
 

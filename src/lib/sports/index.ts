@@ -4,6 +4,7 @@ export {
   ALL_SPORTS,
   ALL_SPORT_IDS,
   getSportConfig,
+  getAgeGroupConfig,
   getBrandForHost,
   getSportByBrand,
   isSportId,

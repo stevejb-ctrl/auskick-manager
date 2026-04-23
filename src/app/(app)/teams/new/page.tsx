@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
+import { getBrand } from "@/lib/brand";
 
 export default async function NewTeamPage() {
   const supabase = createClient();
@@ -11,6 +12,13 @@ export default async function NewTeamPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login?next=/teams/new");
+
+  // The brand the user arrived on picks the default sport for the form.
+  // We DON'T lock the sport though — a coach who lands on sirennetball.com.au
+  // but also runs a footy team should still be able to add that footy team
+  // without leaving the brand. They can pick.
+  const brand = getBrand();
+  const defaultSport = brand.brand.defaultSport;
 
   // "Back" link destination depends on whether this is a first-time
   // setup (coming from /welcome) or an existing user adding another
@@ -49,7 +57,7 @@ export default async function NewTeamPage() {
       </div>
 
       <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-        <TeamBasicsForm userId={user.id} />
+        <TeamBasicsForm userId={user.id} defaultSport={defaultSport} />
       </div>
     </div>
   );

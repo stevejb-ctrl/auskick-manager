@@ -5,17 +5,16 @@ import { createGame } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { AGE_GROUPS } from "@/lib/ageGroups";
-import type { AgeGroup } from "@/lib/types";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface CreateGameFormProps {
   teamId: string;
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroupConfig;
   onCancel?: () => void;
 }
 
 export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormProps) {
-  const cfg = AGE_GROUPS[ageGroup];
+  const cfg = ageGroup;
   const [opponent, setOpponent] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [location, setLocation] = useState("");

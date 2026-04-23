@@ -1,17 +1,43 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
-import { AGE_GROUPS } from "@/lib/ageGroups";
-import type { AgeGroup } from "@/lib/types";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface ScoringStepProps {
   teamId: string;
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroupConfig;
   initialEnabled: boolean;
+  /** Sport-aware copy around scoring (AFL vs netball framing). */
+  sportId?: "afl" | "netball";
 }
 
-export function ScoringStep({ teamId, ageGroup, initialEnabled }: ScoringStepProps) {
-  const cfg = AGE_GROUPS[ageGroup];
+export function ScoringStep({
+  teamId,
+  ageGroup,
+  initialEnabled,
+  sportId = "afl",
+}: ScoringStepProps) {
+  const blurb =
+    sportId === "netball" ? (
+      <>
+        Modified-netball leagues often skip the scoreboard for the youngest age
+        groups and switch it on once the kids move up. Flip this on if your
+        league keeps a scoreboard —{" "}
+        <strong className="text-ink">
+          you can update it later in Settings if you change your mind
+        </strong>
+        .
+      </>
+    ) : (
+      <>
+        Most AFL juniors don&apos;t keep score up to U10, then scoring comes in
+        around U11. Flip this on if your league keeps a scoreboard —{" "}
+        <strong className="text-ink">
+          you can update it later in Settings if you change your mind
+        </strong>
+        .
+      </>
+    );
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -19,16 +45,9 @@ export function ScoringStep({ teamId, ageGroup, initialEnabled }: ScoringStepPro
 
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-ink">How we play</h1>
-        <p className="text-sm text-ink-dim">
-          Most AFL juniors don&apos;t keep score up to U10, then scoring comes
-          in around U11. Flip this on if your league keeps a scoreboard —{" "}
-          <strong className="text-ink">
-            you can update it later in Settings if you change your mind
-          </strong>
-          .
-        </p>
+        <p className="text-sm text-ink-dim">{blurb}</p>
         <p className="text-xs text-ink-mute">
-          Default for {cfg.label}: {cfg.tracksScoreDefault ? "on" : "off"}.
+          Default for {ageGroup.label}: {ageGroup.tracksScoreDefault ? "on" : "off"}.
         </p>
       </div>
 

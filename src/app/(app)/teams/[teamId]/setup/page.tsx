@@ -5,7 +5,8 @@ import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
 import { DoneStep } from "@/components/setup/DoneStep";
-import type { AgeGroup, Player } from "@/lib/types";
+import { getAgeGroupConfig } from "@/lib/sports";
+import type { Player, Sport } from "@/lib/types";
 
 type SetupQueryStep = "config" | "squad" | "games" | "done";
 
@@ -67,7 +68,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   ] = await Promise.all([
     adminClient
       .from("teams")
-      .select("name, age_group, track_scoring, playhq_url")
+      .select("name, age_group, sport, track_scoring, playhq_url")
       .eq("id", params.teamId)
       .maybeSingle(),
     adminClient
@@ -94,15 +95,19 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     redirect("/dashboard");
   }
 
-  const ageGroup = (team.age_group ?? "U10") as AgeGroup;
   const teamName = team.name as string;
+  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  // Resolve the age-group config against the team's sport so netball
+  // teams get their NetSetGO/Modified config here (not U8-U17).
+  const ageGroupCfg = getAgeGroupConfig(sport, team.age_group as string | null);
 
   if (step === "config") {
     return (
       <ScoringStep
         teamId={params.teamId}
-        ageGroup={ageGroup}
+        ageGroup={ageGroupCfg}
         initialEnabled={team.track_scoring ?? false}
+        sportId={sport}
       />
     );
   }
@@ -118,7 +123,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     return (
       <SquadStep
         teamId={params.teamId}
-        ageGroup={ageGroup}
+        ageGroup={ageGroupCfg}
         players={players}
       />
     );
@@ -143,7 +148,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     return (
       <GamesStep
         teamId={params.teamId}
-        ageGroup={ageGroup}
+        ageGroup={ageGroupCfg}
         existingExternalIds={existingExternalIds}
         playhqUrl={(team.playhq_url as string | null) ?? ""}
         games={gamesRaw ?? []}

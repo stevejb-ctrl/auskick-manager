@@ -3,6 +3,8 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { GameList } from "@/components/games/GameList";
 import { Spinner } from "@/components/ui/Spinner";
+import { getAgeGroupConfig } from "@/lib/sports";
+import type { Sport } from "@/lib/types";
 
 interface GamesPageProps {
   params: { teamId: string };
@@ -26,14 +28,15 @@ export default async function GamesPage({ params }: GamesPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, playhq_url")
+      .select("age_group, sport, playhq_url")
       .eq("id", params.teamId)
       .single(),
   ]);
 
   const isAdmin = membershipResult.data?.role === "admin";
   const team = teamResult.data;
-  const ageGroup = (team?.age_group ?? "U10") as import("@/lib/types").AgeGroup;
+  const sport = ((team as { sport?: string | null } | null)?.sport ?? "afl") as Sport;
+  const ageGroupCfg = getAgeGroupConfig(sport, team?.age_group as string | null);
 
   let existingExternalIds: string[] = [];
   if (isAdmin) {
@@ -52,7 +55,7 @@ export default async function GamesPage({ params }: GamesPageProps) {
       {isAdmin && (
         <AddGameSection
           teamId={params.teamId}
-          ageGroup={ageGroup}
+          ageGroup={ageGroupCfg}
           existingExternalIds={existingExternalIds}
           initialUrl={
             (team as { playhq_url?: string | null } | null)?.playhq_url ?? ""

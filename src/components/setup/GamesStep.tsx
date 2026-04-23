@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import type { AgeGroup } from "@/lib/types";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface GameSummary {
   id: string;
@@ -14,7 +14,7 @@ interface GameSummary {
 
 interface GamesStepProps {
   teamId: string;
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   playhqUrl: string;
   games: GameSummary[];

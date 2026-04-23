@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { ActionResult, AgeGroup } from "@/lib/types";
+import type { ActionResult, Sport } from "@/lib/types";
+import { getSportConfig } from "@/lib/sports";
 import {
   formatTeamMessage,
   sendTelegramNotification,
@@ -12,7 +13,8 @@ import {
 export async function createTeam(
   userId: string,
   name: string,
-  ageGroup: AgeGroup = "U10"
+  ageGroup: string = "U10",
+  sport: Sport = "afl"
 ): Promise<ActionResult> {
   const supabase = createClient();
 
@@ -25,6 +27,19 @@ export async function createTeam(
     return { success: false, error: "Unauthenticated." };
   }
 
+  // Validate age_group belongs to the chosen sport. The DB has no
+  // per-sport CHECK (intentional — sport configs own the set), so
+  // guard here before writing garbage.
+  const cfg = getSportConfig(sport);
+  const validAgeGroup = cfg.ageGroups.some((a) => a.id === ageGroup);
+  if (!validAgeGroup) {
+    console.error("[createTeam] invalid age group for sport", { sport, ageGroup });
+    return {
+      success: false,
+      error: `Invalid age group "${ageGroup}" for ${cfg.name}.`,
+    };
+  }
+
   // Pre-generate the team ID so we can redirect straight to the setup
   // wizard — the AFTER INSERT trigger creates the admin membership row
   // in the same DB transaction, so by the time the redirect lands on
@@ -32,11 +47,11 @@ export async function createTeam(
   // RLS policy.
   const teamId = crypto.randomUUID();
 
-  console.log("[createTeam] inserting team", { teamId, userId: user.id, name, ageGroup });
+  console.log("[createTeam] inserting team", { teamId, userId: user.id, name, ageGroup, sport });
 
   const { error: insertError } = await supabase
     .from("teams")
-    .insert({ id: teamId, name, created_by: user.id, age_group: ageGroup });
+    .insert({ id: teamId, name, created_by: user.id, age_group: ageGroup, sport });
 
   if (insertError) {
     console.error("[createTeam] insert failed", insertError);

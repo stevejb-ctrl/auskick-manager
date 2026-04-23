@@ -4,11 +4,11 @@ import { useState } from "react";
 import { CreateGameForm } from "@/components/games/CreateGameForm";
 import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
 import { Button } from "@/components/ui/Button";
-import type { AgeGroup } from "@/lib/types";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface Props {
   teamId: string;
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   initialUrl?: string;
 }
