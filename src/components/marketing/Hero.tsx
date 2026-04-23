@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getUser } from "@/lib/supabase/server";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
@@ -83,10 +84,13 @@ export async function Hero() {
               className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
             />
             <PhoneFrame tilt={2} className="relative">
-              <img
+              <Image
                 src="/marketing/screenshots/live-game.png"
                 alt="Siren live game view with player rotations and score"
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                sizes="(max-width: 1024px) 300px, 280px"
+                priority
+                className="object-cover"
               />
             </PhoneFrame>
           </div>
