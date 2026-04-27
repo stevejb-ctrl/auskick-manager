@@ -2,133 +2,34 @@ import Link from "next/link";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FinishSetupBanner } from "@/components/setup/FinishSetupBanner";
+import {
+  Eyebrow,
+  RoundNumeral,
+  SFCard,
+  SFButton,
+  SFIcon,
+  StatusPill,
+} from "@/components/sf";
 import type { Game } from "@/lib/types";
 
 interface TeamDashboardProps {
   params: { teamId: string };
 }
 
-// ─── Icons (Heroicons-style outlines) ────────────────────────────────────────
-
-function UsersIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
-      />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z"
-      />
-    </svg>
-  );
-}
-
-function ChartBarIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
-      />
-    </svg>
-  );
-}
-
-function CogIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-      />
-    </svg>
-  );
-}
-
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className={className ?? "h-4 w-4"}
-      aria-hidden
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="h-3.5 w-3.5"
-      aria-hidden
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-    </svg>
-  );
-}
-
-// ─── Page ────────────────────────────────────────────────────────────────────
-
+/**
+ * Team Home — the coach's landing page after picking a team.
+ *
+ * Layout (matches design_handoff_siren_footy/prototype/sf/screens.jsx):
+ *   1. Finish-setup banner (admins on empty squads only)
+ *   2. Hero — Live banner if a game is in_progress, else Next-up hero
+ *   3. Upcoming list — compact GameRow-style cards for everything
+ *      after the next game
+ *
+ * The Season Pulse triplet (Record / Ladder / Form) and Last Result
+ * card from the design are deferred until the upstream queries land:
+ * Record + Form would need a sweep over completed games, Ladder isn't
+ * surfaced anywhere in the data model yet.
+ */
 export default async function TeamDashboardPage({ params }: TeamDashboardProps) {
   const supabase = createClient();
 
@@ -142,7 +43,6 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     { count: upcomingTotal },
     { data: membership },
   ] = await Promise.all([
-    // Next 3 non-completed games (ascending so next game is first)
     supabase
       .from("games")
       .select("*")
@@ -151,21 +51,18 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .order("scheduled_at", { ascending: true })
       .limit(3),
 
-    // Active player count
     supabase
       .from("players")
       .select("*", { count: "exact", head: true })
       .eq("team_id", params.teamId)
       .eq("is_active", true),
 
-    // Total upcoming (for nav tile subtitle)
     supabase
       .from("games")
       .select("*", { count: "exact", head: true })
       .eq("team_id", params.teamId)
       .neq("status", "completed"),
 
-    // Current user's role on this team (to gate the FinishSetupBanner)
     user
       ? supabase
           .from("team_memberships")
@@ -176,8 +73,6 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       : Promise.resolve({ data: null }),
   ]);
 
-  // Fetch availability scoped to only the displayed games.
-  // Filtering by game_id avoids pulling every availability row for the team.
   const upcomingIds = (upcomingRaw ?? []).map((g) => g.id);
   const { data: availabilityRaw } = upcomingIds.length
     ? await supabase
@@ -198,203 +93,270 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
   }
 
-  // Separate live game from the upcoming list
   const liveGame = upcoming.find((g) => g.status === "in_progress");
   const nextGames = upcoming.filter((g) => g.status !== "in_progress");
   const [featuredGame, ...moreGames] = nextGames;
 
-  const navTiles = [
-    {
-      label: "Squad",
-      sub: playerCount === 1 ? "1 player" : `${playerCount} players`,
-      href: `/teams/${params.teamId}/squad`,
-      icon: <UsersIcon />,
-    },
-    {
-      label: "Games",
-      sub:
-        upcomingCount === 0
-          ? "No upcoming games"
-          : upcomingCount === 1
-          ? "1 upcoming"
-          : `${upcomingCount} upcoming`,
-      href: `/teams/${params.teamId}/games`,
-      icon: <CalendarIcon />,
-    },
-    {
-      label: "Stats",
-      sub: "Season analysis",
-      href: `/teams/${params.teamId}/stats`,
-      icon: <ChartBarIcon />,
-    },
-    {
-      label: "Settings",
-      sub: "Team preferences",
-      href: `/teams/${params.teamId}/settings`,
-      icon: <CogIcon />,
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-
-      {/* ── Finish setup banner (admins, empty squad) ────────────────────── */}
+    <div className="space-y-4">
       {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
 
-      {/* ── Live game banner ─────────────────────────────────────────────── */}
-      {liveGame && (
-        <Link
-          href={`/teams/${params.teamId}/games/${liveGame.id}`}
-          className="flex items-center justify-between rounded-lg bg-brand-600 px-4 py-4 shadow-pop transition-opacity hover:opacity-95 active:opacity-90"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
-            </span>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-micro text-brand-100">
-                Game in progress
-              </p>
-              <p className="text-lg font-bold leading-tight text-white">
-                vs {liveGame.opponent}
-              </p>
-              {liveGame.round_number != null && (
-                <p className="text-sm text-brand-200">Round {liveGame.round_number}</p>
-              )}
-            </div>
-          </div>
-          <ChevronRightIcon className="h-5 w-5 shrink-0 text-brand-200" />
-        </Link>
+      {liveGame ? (
+        <LiveHero teamId={params.teamId} game={liveGame} />
+      ) : featuredGame ? (
+        <NextUpHero
+          teamId={params.teamId}
+          game={featuredGame}
+          available={availMap.get(featuredGame.id) ?? 0}
+          playerCount={playerCount}
+        />
+      ) : (
+        <EmptyHero teamId={params.teamId} />
       )}
 
-      {/* ── Upcoming games ───────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
-            Upcoming
-          </h2>
-          <Link
-            href={`/teams/${params.teamId}/games`}
-            className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
-          >
-            All games
-            <ArrowRightIcon />
-          </Link>
-        </div>
-
-        {upcoming.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center">
-            <p className="text-sm text-ink-mute">No upcoming games scheduled.</p>
+      {moreGames.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Eyebrow>More upcoming</Eyebrow>
             <Link
               href={`/teams/${params.teamId}/games`}
-              className="mt-2 inline-block text-sm font-medium text-brand-600 hover:text-brand-700"
+              className="inline-flex items-center gap-1 text-xs font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
             >
-              Add a game
+              All games
+              <SFIcon.chevronRight />
             </Link>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Featured next game */}
-            {featuredGame && (
-              <Link
-                href={`/teams/${params.teamId}/games/${featuredGame.id}`}
-                className="block rounded-lg border border-hairline bg-surface p-4 shadow-card transition-colors hover:border-brand-200 hover:bg-brand-50/20 active:bg-brand-50/40"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      {featuredGame.round_number != null && (
-                        <span className="text-[11px] font-semibold uppercase tracking-micro text-brand-600">
-                          Round {featuredGame.round_number}
-                        </span>
-                      )}
-                      <span className="text-xs text-ink-mute">
-                        <FormattedDateTime iso={featuredGame.scheduled_at} mode="long" />
-                      </span>
-                    </div>
-                    <p className="mt-1 text-lg font-bold leading-snug text-ink">
-                      vs {featuredGame.opponent}
-                    </p>
-                    {featuredGame.location && (
-                      <p className="mt-0.5 truncate text-sm text-ink-dim">
-                        {featuredGame.location}
-                      </p>
-                    )}
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className="text-2xl font-bold tabular-nums leading-none text-brand-600">
-                      {availMap.get(featuredGame.id) ?? 0}
-                    </span>
-                    <span className="text-sm text-ink-mute">/{playerCount}</span>
-                    <p className="mt-0.5 text-[10px] uppercase tracking-micro text-ink-mute">
-                      avail
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            )}
 
-            {/* Subsequent games — compact rows */}
+          <div className="space-y-2">
             {moreGames.map((game) => (
-              <Link
+              <UpcomingRow
                 key={game.id}
-                href={`/teams/${params.teamId}/games/${game.id}`}
-                className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand-200 hover:bg-brand-50/20 active:bg-brand-50/40"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    {game.round_number != null && (
-                      <span className="text-[11px] font-semibold uppercase tracking-micro text-brand-600">
-                        Rnd {game.round_number}
-                      </span>
-                    )}
-                    <span className="truncate font-medium text-ink">
-                      vs {game.opponent}
-                    </span>
-                  </div>
-                  <p className="text-xs text-ink-mute">
-                    <FormattedDateTime iso={game.scheduled_at} mode="short" />
-                    {game.location && ` · ${game.location}`}
-                  </p>
-                </div>
-                <div className="ml-3 shrink-0 text-right">
-                  <span className="text-sm font-semibold tabular-nums text-brand-600">
-                    {availMap.get(game.id) ?? 0}
-                  </span>
-                  <span className="text-xs text-ink-mute">/{playerCount}</span>
-                </div>
-              </Link>
+                teamId={params.teamId}
+                game={game}
+                available={availMap.get(game.id) ?? 0}
+                playerCount={playerCount}
+              />
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* ── Nav tiles ────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
-          Team
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          {navTiles.map((tile) => (
-            <Link
-              key={tile.label}
-              href={tile.href}
-              className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 shadow-card transition-colors hover:border-brand-200 hover:bg-brand-50/20 active:bg-brand-50/40"
-            >
-              <div className="flex items-start justify-between">
-                <div className="rounded-md bg-brand-50 p-2 text-brand-600">
-                  {tile.icon}
-                </div>
-                <ChevronRightIcon className="h-4 w-4 text-ink-mute" />
-              </div>
-              <div>
-                <p className="font-semibold text-ink">{tile.label}</p>
-                <p className="mt-0.5 text-xs text-ink-dim">{tile.sub}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {!liveGame && !featuredGame && upcomingCount === 0 && isAdmin && (
+        <SFCard>
+          <Eyebrow>Get started</Eyebrow>
+          <p className="mt-2 text-sm text-ink-dim">
+            Add a game to start tracking availability and lineups.
+          </p>
+          <div className="mt-3">
+            <SFButton href={`/teams/${params.teamId}/games`} variant="primary" size="sm">
+              Add a game
+            </SFButton>
+          </div>
+        </SFCard>
+      )}
     </div>
+  );
+}
+
+// ─── Live banner ─────────────────────────────────────────────────────────────
+
+function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
+  return (
+    <SFCard pad={0} className="overflow-hidden border-alarm/60">
+      <div className="bg-ink px-5 py-5 text-warm sm:px-7 sm:py-6">
+        <div className="flex items-center justify-between gap-3">
+          <StatusPill status="live" />
+          <span className="font-mono text-xs font-semibold tracking-[0.06em] text-warm/70">
+            {game.round_number != null && `R${String(game.round_number).padStart(2, "0")} · `}
+            In progress
+          </span>
+        </div>
+        <div className="mt-4 flex items-baseline gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-micro text-warm/60">
+            vs
+          </span>
+          <span className="text-2xl font-bold tracking-tightest text-warm sm:text-3xl">
+            {game.opponent}
+          </span>
+        </div>
+      </div>
+      <div className="bg-surface px-5 py-3.5 sm:px-7 sm:py-4">
+        <SFButton
+          href={`/teams/${teamId}/games/${game.id}`}
+          variant="alarm"
+          full
+          iconAfter={<SFIcon.chevronRight color="white" />}
+        >
+          Open live game
+        </SFButton>
+      </div>
+    </SFCard>
+  );
+}
+
+// ─── Next-up hero ────────────────────────────────────────────────────────────
+
+function NextUpHero({
+  teamId,
+  game,
+  available,
+  playerCount,
+}: {
+  teamId: string;
+  game: Game;
+  available: number;
+  playerCount: number;
+}) {
+  return (
+    <SFCard pad={0} className="overflow-hidden">
+      <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-800 px-5 py-6 text-warm sm:px-8 sm:py-8">
+        {/* Decorative footy-field oval, top-right */}
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-10 -top-8 opacity-[0.12]"
+          width="240"
+          height="260"
+          viewBox="0 0 200 220"
+          fill="none"
+          stroke="currentColor"
+        >
+          <ellipse cx="100" cy="110" rx="80" ry="100" strokeWidth="1.5" />
+          <ellipse cx="100" cy="110" rx="55" ry="75" strokeWidth="1" />
+          <line x1="100" y1="35" x2="100" y2="185" strokeWidth="1" opacity="0.6" />
+        </svg>
+
+        <div className="relative">
+          <Eyebrow className="!text-warm/70">
+            Next up{game.round_number != null && ` · Round ${game.round_number}`}
+          </Eyebrow>
+          <div className="mt-2.5 flex items-start gap-4">
+            {game.round_number != null && (
+              <div className="text-warm">
+                <RoundNumeral n={game.round_number} size={56} />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium text-warm/70">vs</div>
+              <div className="mt-0.5 text-2xl font-bold leading-tight tracking-tightest sm:text-3xl">
+                {game.opponent}
+              </div>
+              <div className="mt-2 flex flex-col gap-1 text-sm text-warm/85">
+                <span>
+                  <FormattedDateTime iso={game.scheduled_at} mode="long" />
+                </span>
+                {game.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <SFIcon.pin color="rgba(247,245,241,0.7)" />
+                    <span>{game.location}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div className="text-sm text-ink-dim">
+          <span className="font-mono text-base font-bold tabular-nums text-ink">
+            {available}
+          </span>
+          <span className="text-ink-mute"> / {playerCount}</span>
+          <span className="ml-1.5 font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            avail
+          </span>
+        </div>
+        <SFButton
+          href={`/teams/${teamId}/games/${game.id}`}
+          variant="primary"
+          iconAfter={<SFIcon.chevronRight color="currentColor" />}
+          className="w-full sm:w-auto"
+        >
+          Set starting lineup
+        </SFButton>
+      </div>
+    </SFCard>
+  );
+}
+
+// ─── Empty state (admin, no upcoming) ────────────────────────────────────────
+
+function EmptyHero({ teamId }: { teamId: string }) {
+  return (
+    <SFCard className="text-center">
+      <Eyebrow>No upcoming games</Eyebrow>
+      <p className="mt-2 text-sm text-ink-dim">
+        Add your first game to start tracking availability and lineups.
+      </p>
+      <div className="mt-4">
+        <SFButton
+          href={`/teams/${teamId}/games`}
+          variant="primary"
+          iconAfter={<SFIcon.chevronRight color="currentColor" />}
+        >
+          Add a game
+        </SFButton>
+      </div>
+    </SFCard>
+  );
+}
+
+// ─── Compact upcoming row ────────────────────────────────────────────────────
+
+function UpcomingRow({
+  teamId,
+  game,
+  available,
+  playerCount,
+}: {
+  teamId: string;
+  game: Game;
+  available: number;
+  playerCount: number;
+}) {
+  return (
+    <Link href={`/teams/${teamId}/games/${game.id}`} className="block">
+      <SFCard
+        pad={0}
+        interactive
+        className="grid grid-cols-[44px_1fr_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[56px_1fr_auto_auto] sm:gap-5 sm:px-5 sm:py-3.5"
+      >
+        {game.round_number != null ? (
+          <span
+            className="font-serif italic leading-none text-ink"
+            style={{ fontSize: 30, letterSpacing: "-0.02em" }}
+          >
+            {String(game.round_number).padStart(2, "0")}
+          </span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 truncate text-base font-bold text-ink sm:text-[17px]">
+            <span className="text-ink-mute font-medium">vs</span>
+            <span className="truncate">{game.opponent}</span>
+          </div>
+          <div className="mt-1 text-xs text-ink-dim">
+            <FormattedDateTime iso={game.scheduled_at} mode="short" />
+            {game.location && ` · ${game.location}`}
+          </div>
+        </div>
+
+        <div className="hidden text-right sm:block">
+          <div className="font-mono text-sm font-bold tabular-nums text-ink">
+            {available}
+            <span className="text-ink-mute">/{playerCount}</span>
+          </div>
+          <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            avail
+          </div>
+        </div>
+
+        <span className="text-ink-mute">
+          <SFIcon.chevronRight />
+        </span>
+      </SFCard>
+    </Link>
   );
 }
