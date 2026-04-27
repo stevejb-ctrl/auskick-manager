@@ -461,6 +461,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         onTokenTap={handleTokenTap}
         onTokenLongPress={handleTokenLongPress}
         scoringPositionIds={SCORING_POSITIONS}
+        injuredIds={injuredIds}
+        loanedIds={loanedIds}
+        nextBreakLocks={nextBreakLocks}
       />
 
       {/* Opponent goal — global because there's no opposition player to tap. */}
@@ -561,6 +564,9 @@ function CourtDisplay({
   onTokenTap,
   onTokenLongPress,
   scoringPositionIds,
+  injuredIds,
+  loanedIds,
+  nextBreakLocks,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -579,30 +585,36 @@ function CourtDisplay({
    * shoots.
    */
   scoringPositionIds?: Set<string>;
+  /** Players flagged as injured this game — drives INJ badge + greyscale. */
+  injuredIds?: Set<string>;
+  /** Players lent to opposition this game — drives LENT badge + greyscale. */
+  loanedIds?: Set<string>;
+  /** Position → playerId locks for the next quarter break — drives 🔒 badge. */
+  nextBreakLocks?: Record<string, string>;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
-  // Subtle alternating horizontal offset to break up the vertical column.
-  // Cycles through these values by index within each third.
-  const STAGGER = ["-1.25rem", "1.25rem", "-0.5rem", "0.5rem"];
-
   const renderThird = (positionIds: string[]) => (
     <>
-      {positionIds.map((positionId, i) => {
+      {positionIds.map((positionId) => {
         const pid = lineup.positions[positionId]?.[0] ?? null;
         const name = pid ? squadById.get(pid)?.full_name ?? null : null;
         return (
           <div
             key={positionId}
-            className="flex justify-center"
-            style={{ transform: `translateX(${STAGGER[i % STAGGER.length]})` }}
+            className={`relative z-10 flex w-full ${alignClass(positionId)}`}
           >
             <PositionToken
               positionId={positionId}
               playerName={name}
               disabled={disabled}
               canScore={scoringPositionIds?.has(positionId) ?? false}
+              injured={injuredIds?.has(pid ?? "") ?? false}
+              loaned={loanedIds?.has(pid ?? "") ?? false}
+              locked={
+                pid != null && nextBreakLocks?.[positionId] === pid
+              }
               onTap={
                 onTokenTap ? () => onTokenTap(positionId, pid) : undefined
               }
@@ -646,6 +658,37 @@ function formatClock(ms: number): string {
   const mm = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const ss = (totalSeconds % 60).toString().padStart(2, "0");
   return `${mm}:${ss}`;
+}
+
+// ─── alignClass ─────────────────────────────────────────────
+// Position-keyed horizontal alignment within each band. Spreads tokens
+// across the full width of the court rather than stacking them in a
+// central column. Mirror layout — GS/GK on opposite ends of their bands
+// (top-right / bottom-left), GA/GD opposite (centre-left / centre-right),
+// WA/WD on opposite wings of the centre band, C dead centre.
+//
+// AFL doesn't have an analogous concept (zones are spatial bands, not
+// named positions), so this is netball-specific and lives here rather
+// than in the shared sports config.
+function alignClass(positionId: string): string {
+  switch (positionId) {
+    case "gs":
+      return "justify-end pr-4";
+    case "ga":
+      return "justify-start pl-4";
+    case "wa":
+      return "justify-start pl-4";
+    case "c":
+      return "justify-center";
+    case "wd":
+      return "justify-end pr-4";
+    case "gd":
+      return "justify-end pr-4";
+    case "gk":
+      return "justify-start pl-4";
+    default:
+      return "justify-center";
+  }
 }
 
 // ─── applyLocks ─────────────────────────────────────────────

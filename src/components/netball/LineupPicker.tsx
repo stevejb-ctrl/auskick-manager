@@ -132,18 +132,27 @@ export function NetballLineupPicker({
     }
   };
 
-  // Subtle alternating horizontal offset to break up the vertical column
-  // (matches the live game's CourtDisplay).
-  const STAGGER = ["-1.25rem", "1.25rem", "-0.5rem", "0.5rem"];
+  // Position-keyed horizontal alignment — spreads tokens across each
+  // band (GS top-right, GA bottom-left, WA-C-WD across the centre band,
+  // GD bottom-right, GK bottom-left). Same layout as the live court so
+  // the lineup the coach builds matches what they'll see during play.
+  const ALIGN: Record<string, string> = {
+    gs: "justify-end pr-4",
+    ga: "justify-start pl-4",
+    wa: "justify-start pl-4",
+    c: "justify-center",
+    wd: "justify-end pr-4",
+    gd: "justify-end pr-4",
+    gk: "justify-start pl-4",
+  };
 
-  const renderTokenAt = (positionId: string, indexInThird: number) => {
+  const renderTokenAt = (positionId: string) => {
     const occupantId = lineup.positions[positionId]?.[0];
     const occupantName = occupantId ? squadById.get(occupantId)?.full_name ?? null : null;
     return (
       <div
         key={positionId}
-        className="flex justify-center"
-        style={{ transform: `translateX(${STAGGER[indexInThird % STAGGER.length]})` }}
+        className={`relative z-10 flex w-full ${ALIGN[positionId] ?? "justify-center"}`}
       >
         <PositionToken
           positionId={positionId}
@@ -172,9 +181,9 @@ export function NetballLineupPicker({
       </div>
 
       <Court
-        attackThird={byThird("attack-third").map((id, i) => renderTokenAt(id, i))}
-        centreThird={byThird("centre-third").map((id, i) => renderTokenAt(id, i))}
-        defenceThird={byThird("defence-third").map((id, i) => renderTokenAt(id, i))}
+        attackThird={byThird("attack-third").map(renderTokenAt)}
+        centreThird={byThird("centre-third").map(renderTokenAt)}
+        defenceThird={byThird("defence-third").map(renderTokenAt)}
       />
 
       <BenchStrip

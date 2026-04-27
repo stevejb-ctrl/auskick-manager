@@ -1,8 +1,12 @@
 "use client";
 
 // ─── Position token ──────────────────────────────────────────
-// Circular pill rendered inside a third on the Court. Shows the
-// position short label + player name (or "—" if empty).
+// Rectangular player card rendered inside a third on the Court.
+// Visually mirrors AFL's PlayerTile (src/components/live/PlayerTile.tsx)
+// so the design language stays consistent across sports — rounded-md,
+// hairline border, surface bg, hover state, monospace position chip
+// up top with a sky-accent, bold first-name + last-initial below,
+// optional INJ / LENT / lock badges floated top-left.
 //
 // Two interactions:
 //   tap        → onTap (open player picker / record goal for GS/GA)
@@ -30,6 +34,12 @@ interface PositionTokenProps {
    * the tap handler itself; the parent decides what tapping does.
    */
   canScore?: boolean;
+  /** Player flagged as injured this game — show INJ badge + greyscale. */
+  injured?: boolean;
+  /** Player lent to opposition this game — show LENT badge + greyscale. */
+  loaned?: boolean;
+  /** Player locked to this position for the next quarter break. */
+  locked?: boolean;
 }
 
 export function PositionToken({
@@ -41,6 +51,9 @@ export function PositionToken({
   ineligible,
   disabled,
   canScore,
+  injured,
+  loaned,
+  locked,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -67,14 +80,37 @@ export function PositionToken({
   }
 
   function handleClick() {
-    // If the long-press fired, swallow the trailing click — otherwise the
-    // user gets both menus stacked.
     if (didLongPressRef.current) {
       didLongPressRef.current = false;
       return;
     }
     onTap?.();
   }
+
+  // Pull a "First L" display name like the AFL tile.
+  const parts = (playerName ?? "").trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? "";
+  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  const display = playerName
+    ? lastInitial
+      ? `${firstName} ${lastInitial}`
+      : firstName
+    : "—";
+
+  // Container styling — rounded rectangle, hairline border, hover-aware.
+  // Selected state borrows the AFL brand-ring; canScore borrows an amber
+  // halo to read as "tap me to record a goal".
+  const baseBg = selected
+    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
+    : injured
+    ? "border-danger/40 bg-surface"
+    : loaned
+    ? "border-warn/40 bg-surface"
+    : ineligible
+    ? "border-neutral-300 bg-neutral-100 opacity-60"
+    : canScore
+    ? "border-sky-700 bg-white ring-1 ring-amber-300/70 hover:bg-amber-50"
+    : "border-hairline bg-surface hover:border-ink-mute";
 
   return (
     <button
@@ -85,28 +121,63 @@ export function PositionToken({
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
       disabled={disabled}
       className={[
-        "relative flex min-w-20 max-w-28 flex-col items-center justify-center gap-0.5 rounded-full border-2 px-2 py-1.5 text-center shadow-sm transition",
-        selected
-          ? "border-brand-600 bg-brand-50 ring-2 ring-brand-400"
-          : ineligible
-          ? "border-neutral-300 bg-neutral-100 opacity-60"
-          : canScore
-          // Score-eligible tokens get a faint amber halo to read as
-          // "tap to record a goal" without shouting. Distinct from the
-          // selected state (brand-green) so coaches don't confuse the
-          // two states.
-          ? "border-sky-700 bg-white ring-1 ring-amber-300/70 hover:bg-amber-50"
-          : "border-sky-700 bg-white hover:bg-sky-50",
+        "relative flex w-24 flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
+        baseBg,
+        injured || loaned ? "grayscale" : "",
         disabled ? "cursor-not-allowed opacity-70" : "",
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
-      <span className="text-[11px] font-bold uppercase tracking-wide text-sky-900">
-        {short}
-      </span>
-      <span className="max-w-[7rem] truncate text-xs font-medium text-neutral-800">
-        {playerName ?? "—"}
-      </span>
+      {/* Status badges floated top-left, mirrors AFL PlayerTile. Stacked
+          priority: INJ > LENT > LOCK so coaches see the highest-impact
+          flag first. */}
+      {injured && (
+        <span
+          className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+          aria-label="Injured"
+        >
+          INJ
+        </span>
+      )}
+      {loaned && !injured && (
+        <span
+          className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+          aria-label="Lent to opposition"
+        >
+          LENT
+        </span>
+      )}
+      {locked && !injured && !loaned && (
+        <span
+          className="absolute left-1 top-1 rounded-xs bg-brand-600 p-0.5 leading-none text-white"
+          aria-label="Locked at this position for the next quarter break"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="h-2.5 w-2.5"
+          >
+            <path
+              fillRule="evenodd"
+              d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </span>
+      )}
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
+        {/* Position chip — sky accent, monospace uppercase, mirrors AFL's zone label */}
+        <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-sky-700">
+          {short}
+        </span>
+
+        {/* Player name — first + last initial, bold, truncated */}
+        <span className="truncate text-sm font-bold leading-tight text-ink">
+          {display}
+        </span>
+      </div>
     </button>
   );
 }
