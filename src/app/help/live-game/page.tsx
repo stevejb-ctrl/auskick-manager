@@ -12,6 +12,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Live Game — Help — Siren Footy",
   description: "Running a game: the on-field view, scoring, subs, and quarter breaks.",
+  alternates: { canonical: "/help/live-game" },
 };
 
 export default function LiveGamePage() {

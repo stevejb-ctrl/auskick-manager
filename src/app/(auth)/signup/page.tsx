@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AuthMethods } from "@/components/auth/AuthMethods";
 import { SignupForm } from "@/components/auth/SignupForm";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/signup" },
+};
 
 export default function SignupPage() {
   return (

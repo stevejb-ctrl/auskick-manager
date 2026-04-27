@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Why Siren — Built for junior AFL",
   description:
     "Siren tracks where every kid has played, not just how long they've been on. Built for junior AFL coaches who care about giving every player a crack at every part of the ground.",
+  alternates: { canonical: "/why-siren" },
   openGraph: {
     title: "Why Siren — Every kid. Every zone. Every quarter.",
     description:

@@ -10,6 +10,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Getting Started — Help — Siren Footy",
   description: "Sign in, create your first team, add players, and schedule a game.",
+  alternates: { canonical: "/help/getting-started" },
 };
 
 export default function GettingStartedPage() {

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { AuthMethods } from "@/components/auth/AuthMethods";
 import { LoginForm } from "@/components/auth/LoginForm";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/login" },
+};
 
 export default function LoginPage() {
   return (

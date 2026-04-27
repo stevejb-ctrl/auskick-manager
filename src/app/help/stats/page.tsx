@@ -10,6 +10,7 @@ export const metadata = {
   title: "Stats — Help — Siren Footy",
   description:
     "Per-player stats, minutes equity, combinations, chemistry, and more.",
+  alternates: { canonical: "/help/stats" },
 };
 
 export default function StatsPage() {

@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Contact — Siren Footy",
   description:
     "Get in touch with the Siren Footy team. Questions, feedback, bug reports, or feature requests welcome.",
+  alternates: { canonical: "/contact" },
 };
 
 export default function ContactPage() {
