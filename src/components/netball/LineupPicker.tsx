@@ -132,16 +132,25 @@ export function NetballLineupPicker({
     }
   };
 
-  const renderToken = (positionId: string) => {
+  // Subtle alternating horizontal offset to break up the vertical column
+  // (matches the live game's CourtDisplay).
+  const STAGGER = ["-1.25rem", "1.25rem", "-0.5rem", "0.5rem"];
+
+  const renderTokenAt = (positionId: string, indexInThird: number) => {
     const occupantId = lineup.positions[positionId]?.[0];
     const occupantName = occupantId ? squadById.get(occupantId)?.full_name ?? null : null;
     return (
-      <PositionToken
+      <div
         key={positionId}
-        positionId={positionId}
-        playerName={occupantName}
-        onTap={() => setPicking(positionId)}
-      />
+        className="flex justify-center"
+        style={{ transform: `translateX(${STAGGER[indexInThird % STAGGER.length]})` }}
+      >
+        <PositionToken
+          positionId={positionId}
+          playerName={occupantName}
+          onTap={() => setPicking(positionId)}
+        />
+      </div>
     );
   };
 
@@ -163,21 +172,9 @@ export function NetballLineupPicker({
       </div>
 
       <Court
-        attackThird={
-          <div className="flex w-full items-center justify-around gap-2 px-2">
-            {byThird("attack-third").map(renderToken)}
-          </div>
-        }
-        centreThird={
-          <div className="flex w-full items-center justify-around gap-2 px-2">
-            {byThird("centre-third").map(renderToken)}
-          </div>
-        }
-        defenceThird={
-          <div className="flex w-full items-center justify-around gap-2 px-2">
-            {byThird("defence-third").map(renderToken)}
-          </div>
-        }
+        attackThird={byThird("attack-third").map((id, i) => renderTokenAt(id, i))}
+        centreThird={byThird("centre-third").map((id, i) => renderTokenAt(id, i))}
+        defenceThird={byThird("defence-third").map((id, i) => renderTokenAt(id, i))}
       />
 
       <BenchStrip

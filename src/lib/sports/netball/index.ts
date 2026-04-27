@@ -285,6 +285,13 @@ export function isPositionAllowedInZone(positionId: string, zoneId: string): boo
 
 // Utility: the primary (non-goal-circle) third for a position. Used by
 // the Court component to decide where to render a position's token.
+//
+// Note: WA and WD render in the centre band even though their primary
+// rules-of-play ranges are attack-+-centre and defence-+-centre. This
+// matches the way coaches read the court — the wings live "in the
+// middle" and pivot — and keeps the centre band visually balanced
+// (WA, C, WD) instead of leaving C alone with two crowded outer rows.
+// Eligibility (allowedZones) is unchanged; only the rendering home is.
 export function primaryThirdFor(positionId: string): string | null {
   switch (positionId) {
     case "gs":
@@ -292,11 +299,11 @@ export function primaryThirdFor(positionId: string): string | null {
     case "ga":
       return "attack-third";
     case "wa":
-      return "attack-third";
+      return "centre-third";
     case "c":
       return "centre-third";
     case "wd":
-      return "defence-third";
+      return "centre-third";
     case "gd":
       return "defence-third";
     case "gk":
