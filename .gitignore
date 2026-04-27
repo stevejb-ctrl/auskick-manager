@@ -36,3 +36,9 @@ next-env.d.ts
 # claude
 .claude/
 debug.log
+
+# local dev artefacts
+.next-dev.log
+.supabase-start.log
+supabase/.branches/
+supabase/.temp/
