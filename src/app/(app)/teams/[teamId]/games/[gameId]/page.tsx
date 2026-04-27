@@ -8,6 +8,13 @@ import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { DeleteGameButton } from "@/components/games/DeleteGameButton";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
+import {
+  Eyebrow,
+  SFButton,
+  SFCard,
+  SFIcon,
+  StatusPill,
+} from "@/components/sf";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game } from "@/lib/types";
 
@@ -22,7 +29,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     data: { user },
   } = await getUser();
 
-  const [{ data: game }, { data: membership }, { data: team }, { data: scoringEvents }, { data: players }] = await Promise.all([
+  const [
+    { data: game },
+    { data: membership },
+    { data: team },
+    { data: scoringEvents },
+    { data: players },
+  ] = await Promise.all([
     supabase
       .from("games")
       .select("*")
@@ -57,14 +70,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   const g = game as Game;
   const role = membership?.role;
-  // Match-day management — Start game, share runner link, add/remove
-  // fill-ins — stays locked to admins and game managers.
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
-  // Availability RSVPs are open to any team member (parents included):
-  // the coach doesn't have to chase replies, parents can just flip it.
   const canMarkAvailability = !!role;
-  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
+  const ageGroup = ageGroupOf(
+    (team as { age_group?: string } | null)?.age_group,
+  );
   const ageCfg = AGE_GROUPS[ageGroup];
 
   const tallies = new Map<string, { goals: number; behinds: number }>();
@@ -76,95 +87,208 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     tallies.set(ev.player_id, cur);
   }
   const playerById = new Map(
-    ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map((p) => [p.id, p])
+    ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map(
+      (p) => [p.id, p],
+    ),
   );
   const scorerRows = Array.from(tallies.entries())
     .map(([pid, t]) => ({ player: playerById.get(pid), ...t }))
     .filter((r) => r.player)
     .sort((a, b) => b.goals - a.goals || b.behinds - a.behinds);
 
+  const isLive = g.status === "in_progress";
+  const isFinal = g.status === "completed";
+  const isUp = g.status === "upcoming";
+
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={`/teams/${params.teamId}/games`}
-          className="text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
-        >
-          ← Games
-        </Link>
-      </div>
+      <Link
+        href={`/teams/${params.teamId}/games`}
+        className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+      >
+        <SFIcon.chevronLeft />
+        Games
+      </Link>
 
-      <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-        <div className="flex items-baseline gap-2">
-          {g.round_number != null && (
-            <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
-              Round {g.round_number}
-            </span>
-          )}
-          <span className="text-xs text-ink-mute">
-            <FormattedDateTime iso={g.scheduled_at} mode="long" />
-          </span>
-        </div>
-        <h2 className="mt-1 text-xl font-bold text-ink">vs {g.opponent}</h2>
-        {g.location && <p className="mt-1 text-sm text-ink-dim">{g.location}</p>}
-        <p className="mt-1 text-xs text-ink-mute">
-          {ageCfg.label} · {g.status === "upcoming" ? ageCfg.defaultOnFieldSize : g.on_field_size} on field
-          {g.status !== "upcoming" && g.on_field_size < ageCfg.defaultOnFieldSize && (
-            <span className="ml-1 font-medium text-warn">(short-handed)</span>
-          )}
-        </p>
-        {g.notes && (
-          <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">{g.notes}</p>
-        )}
-        {canRun && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link
-              href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-            >
-              {g.status === "upcoming" ? "Start game" : "Open live game"}
-            </Link>
-            {canRun && <ShareRunnerLink token={g.share_token} />}
-            {role === "admin" && g.status !== "upcoming" && (
-              <ResetGameButton auth={{ kind: "team", teamId: params.teamId }} gameId={params.gameId} />
-            )}
-            {role === "admin" && (
-              <DeleteGameButton teamId={params.teamId} gameId={params.gameId} />
-            )}
+      {/* ── Hero card — status-aware ─────────────────────────────────── */}
+      {isLive ? (
+        <SFCard pad={0} className="overflow-hidden border-alarm/60">
+          <div className="bg-ink px-5 py-5 text-warm sm:px-7 sm:py-6">
+            <div className="flex items-center justify-between gap-3">
+              <StatusPill status="live" />
+              <span className="font-mono text-xs font-semibold tracking-[0.06em] text-warm/70">
+                {g.round_number != null && `R${String(g.round_number).padStart(2, "0")} · `}
+                In progress
+              </span>
+            </div>
+            <div className="mt-4">
+              <div className="text-xs font-medium text-warm/70">vs</div>
+              <div className="mt-0.5 text-3xl font-bold leading-tight tracking-tightest sm:text-[40px]">
+                {g.opponent}
+              </div>
+              {(g.location || g.scheduled_at) && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm/85">
+                  <span>
+                    <FormattedDateTime iso={g.scheduled_at} mode="long" />
+                  </span>
+                  {g.location && (
+                    <span className="inline-flex items-center gap-1">
+                      <SFIcon.pin color="rgba(247,245,241,0.7)" />
+                      {g.location}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+          {canRun && (
+            <div className="flex flex-col gap-2 border-t border-hairline bg-surface px-5 py-4 sm:flex-row sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                variant="alarm"
+                iconAfter={<SFIcon.chevronRight color="white" />}
+                className="w-full sm:w-auto"
+              >
+                Open live game
+              </SFButton>
+              <ShareRunnerLink token={g.share_token} />
+              {role === "admin" && (
+                <ResetGameButton
+                  auth={{ kind: "team", teamId: params.teamId }}
+                  gameId={params.gameId}
+                />
+              )}
+              {role === "admin" && (
+                <DeleteGameButton
+                  teamId={params.teamId}
+                  gameId={params.gameId}
+                />
+              )}
+            </div>
+          )}
+        </SFCard>
+      ) : (
+        <SFCard pad={0} className="overflow-hidden">
+          <div className="px-5 py-5 sm:px-7 sm:py-7">
+            <div className="flex items-center justify-between gap-3">
+              <Eyebrow>
+                {g.round_number != null
+                  ? `Round ${String(g.round_number).padStart(2, "0")}`
+                  : "Game"}
+                {g.location && ` · Home`}
+              </Eyebrow>
+              <StatusPill status={isFinal ? "final" : "upcoming"} />
+            </div>
+            <div className="mt-3">
+              <div className="text-sm font-medium text-ink-dim">vs</div>
+              <div className="mt-0.5 text-3xl font-bold leading-[1.05] tracking-tightest text-ink sm:text-[40px]">
+                {g.opponent}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-dim">
+                <span>
+                  <FormattedDateTime iso={g.scheduled_at} mode="long" />
+                </span>
+                {g.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <SFIcon.pin />
+                    {g.location}
+                  </span>
+                )}
+              </div>
+              <p className="mt-3 text-xs text-ink-mute">
+                {ageCfg.label} ·{" "}
+                {isUp ? ageCfg.defaultOnFieldSize : g.on_field_size} on field
+                {!isUp && g.on_field_size < ageCfg.defaultOnFieldSize && (
+                  <span className="ml-1 font-medium text-warn">(short-handed)</span>
+                )}
+              </p>
+              {g.notes && (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
+                  {g.notes}
+                </p>
+              )}
+            </div>
+          </div>
+          {canRun && (
+            <div className="flex flex-col gap-2 border-t border-hairline bg-surface-alt px-5 py-4 sm:flex-row sm:items-center sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                variant="primary"
+                iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                className="w-full sm:w-auto"
+              >
+                {isUp ? "Start game" : "Open live game"}
+              </SFButton>
+              <ShareRunnerLink token={g.share_token} />
+              {role === "admin" && !isUp && (
+                <ResetGameButton
+                  auth={{ kind: "team", teamId: params.teamId }}
+                  gameId={params.gameId}
+                />
+              )}
+              {role === "admin" && (
+                <DeleteGameButton
+                  teamId={params.teamId}
+                  gameId={params.gameId}
+                />
+              )}
+            </div>
+          )}
+        </SFCard>
+      )}
 
+      {/* ── Goal kickers (existing data, refreshed surface) ──────────── */}
       {scorerRows.length > 0 && (
-        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-          <h3 className="text-base font-semibold text-ink">Goal kickers</h3>
-          <ul className="mt-3 divide-y divide-hairline">
-            {scorerRows.map((r) => (
+        <SFCard>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Eyebrow>Goal kickers</Eyebrow>
+              <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">
+                Who put it through
+              </h3>
+            </div>
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+              {scorerRows.length} scorer{scorerRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <ul className="mt-4 divide-y divide-hairline">
+            {scorerRows.map((r, i) => (
               <li
                 key={r.player!.id}
-                className="flex items-center justify-between py-2 text-sm"
+                className="flex items-center justify-between py-3 text-sm"
               >
-                <span className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
+                <span className="flex items-center gap-3">
+                  <span
+                    className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
+                      i === 0 ? "text-warn" : "text-ink-mute"
+                    }`}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink font-mono text-xs font-bold tabular-nums text-warm">
                     {r.player!.jersey_number}
                   </span>
-                  <span className="font-medium text-ink">
+                  <span className="font-semibold text-ink">
                     {r.player!.full_name}
                   </span>
                 </span>
-                <span className="tabular-nums text-ink-dim">
-                  <span className="font-semibold text-ink">{r.goals}</span> goals ·{" "}
-                  <span className="font-semibold text-ink">{r.behinds}</span> behinds
-                  <span className="ml-1 text-xs text-ink-mute">
-                    ({r.goals * 6 + r.behinds} pts)
+                <span className="font-mono tabular-nums text-ink-dim">
+                  <span className="font-bold text-ink">{r.goals}</span> g ·{" "}
+                  <span className="font-bold text-ink">{r.behinds}</span> b
+                  <span className="ml-2 font-bold text-ink">
+                    {r.goals * 6 + r.behinds}
+                  </span>
+                  <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
+                    pts
                   </span>
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </SFCard>
       )}
 
+      {/* ── Availability list (untouched, just below the hero) ───────── */}
       <Suspense
         fallback={
           <div className="flex justify-center py-12">
