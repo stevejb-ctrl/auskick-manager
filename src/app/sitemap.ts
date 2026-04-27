@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/seo";
 
 // Canonical production host. Matches the Vercel domain with the apex
 // redirecting to www — don't list both or Search Console flags them
 // as duplicates.
-const BASE = "https://www.sirenfooty.com.au";
+const BASE = SITE_URL;
 
 // Bump this when a substantive content change rolls out so search
 // engines see the lastmod move. Individual pages can override via
