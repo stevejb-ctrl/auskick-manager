@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -28,6 +28,17 @@ const mono = JetBrains_Mono({
 // SirenWordmark so the brand wordmark renders in Geist 900 (Black)
 // without switching the app-wide UI font away from Inter.
 
+// Instrument Serif italic — used decoratively for round numerals on the
+// Games list, the Home next-up hero, and the Game-detail upcoming hero.
+// Italic weight 400 only; we never set non-italic on this face.
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: "italic",
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Siren Footy",
   description: "Junior AFL team and substitution manager",
@@ -53,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}>
       <body className="font-sans">{children}</body>
       {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
       <SpeedInsights />

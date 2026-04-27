@@ -1,12 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Game, GameAvailability } from "@/lib/types";
-import { GameCard } from "@/components/games/GameCard";
+import { GameRow } from "@/components/games/GameRow";
 
 interface GameListProps {
   teamId: string;
+  /** Filter from URL (`?filter=upcoming|final|all`). Defaults to all. */
+  filter?: "all" | "upcoming" | "final";
 }
 
-export async function GameList({ teamId }: GameListProps) {
+/**
+ * Games list. Reads all games for the team and groups by status.
+ *
+ * In-progress games stay in the "Upcoming" group so the manager can
+ * navigate to the live view from the same place they were before.
+ *
+ * The filter prop is passed in from the page server-component, sourced
+ * from URL search params — keeps the list bookmarkable.
+ */
+export async function GameList({ teamId, filter = "all" }: GameListProps) {
   const supabase = createClient();
 
   const [{ data: games }, { count: activeCount }, { data: availability }] =
@@ -34,15 +45,19 @@ export async function GameList({ teamId }: GameListProps) {
     availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
   }
 
-  // Split by game status, not by date. In-progress games sit in the active
-  // list so the manager can still navigate to the live view.
   const active = all
     .filter((g) => g.status !== "completed")
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
+    );
 
   const completed = all
     .filter((g) => g.status === "completed")
-    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
+    );
 
   if (all.length === 0) {
     return (
@@ -52,16 +67,19 @@ export async function GameList({ teamId }: GameListProps) {
     );
   }
 
+  const showActive = filter === "all" || filter === "upcoming";
+  const showCompleted = filter === "all" || filter === "final";
+
   return (
     <div className="space-y-6">
-      {active.length > 0 && (
+      {showActive && active.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
             Upcoming
           </h2>
           <div className="space-y-2">
             {active.map((game) => (
-              <GameCard
+              <GameRow
                 key={game.id}
                 teamId={teamId}
                 game={game}
@@ -73,14 +91,14 @@ export async function GameList({ teamId }: GameListProps) {
         </section>
       )}
 
-      {completed.length > 0 && (
+      {showCompleted && completed.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
             Completed
           </h2>
           <div className="space-y-2">
             {completed.map((game) => (
-              <GameCard
+              <GameRow
                 key={game.id}
                 teamId={teamId}
                 game={game}
@@ -90,6 +108,18 @@ export async function GameList({ teamId }: GameListProps) {
             ))}
           </div>
         </section>
+      )}
+
+      {filter === "upcoming" && active.length === 0 && (
+        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
+          No upcoming games.
+        </p>
+      )}
+
+      {filter === "final" && completed.length === 0 && (
+        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
+          No completed games.
+        </p>
       )}
     </div>
   );
