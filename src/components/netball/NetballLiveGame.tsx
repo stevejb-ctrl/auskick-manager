@@ -11,7 +11,7 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
@@ -73,6 +73,45 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   const [isPending, startTransition] = useTransition();
   const [clockMs, setClockMs] = useState(_quarterElapsedMs);
+
+  // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
+  // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
+  // the auto-end-at-hooter trigger below.
+  const quarterLengthMs = ageGroup.periodSeconds * 1000;
+  const remainingMs = Math.max(0, quarterLengthMs - clockMs);
+
+  // Re-sync the local clock to the replayed elapsed_ms whenever the
+  // quarter changes (Q1 → Q2 → …) or the page reloads with a fresh
+  // replayed value. Without this, useState's one-shot init means the
+  // clock keeps ticking from Q1's last value into Q2.
+  useEffect(() => {
+    setClockMs(_quarterElapsedMs);
+  }, [_quarterElapsedMs, currentQuarter]);
+
+  // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
+  // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
+  // (which uses a ref to ensure single-fire). The coach doesn't need to
+  // tap an "End Q{n}" button — the clock running out IS the end of the
+  // quarter. The next render lands in the quarter-break branch which
+  // shows the next-quarter lineup picker.
+  const hooterFiredForQuarterRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (remainingMs > 0) return;
+    if (hooterFiredForQuarterRef.current === currentQuarter) return;
+    hooterFiredForQuarterRef.current = currentQuarter;
+    startTransition(async () => {
+      await endNetballQuarter(auth, game.id, currentQuarter, quarterLengthMs);
+    });
+  }, [
+    remainingMs,
+    currentQuarter,
+    quarterEnded,
+    finalised,
+    auth,
+    game.id,
+    quarterLengthMs,
+  ]);
 
   // ─── Client-only state (lost on reload) ────────────────────
   // injuredIds / loanedIds drive token greying and exclude players
@@ -470,7 +509,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     <div className="flex flex-col gap-4 p-4">
       <header className="text-center">
         <h1 className="text-xl font-semibold">
-          Q{currentQuarter} · {formatClock(clockMs)}
+          Q{currentQuarter} · {formatClock(remainingMs)}
         </h1>
         <ScoreHeader team={teamScore} opponent={opponentScore} />
       </header>
@@ -501,21 +540,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         + Opp goal
       </button>
 
-      <button
-        type="button"
-        onClick={() =>
-          startTransition(async () => {
-            await endNetballQuarter(auth, game.id, currentQuarter, clockMs);
-          })
-        }
-        disabled={isPending}
-        className="w-full rounded-lg border border-warn/40 bg-warn-soft py-3 text-center font-semibold text-warn disabled:opacity-60"
-      >
-        {isPending ? "…" : `End Q${currentQuarter}`}
-      </button>
-
       <p className="text-center text-xs text-neutral-500">
-        Tap GS or GA to score (with confirm). Long-press any player for actions.
+        Tap GS or GA to score (with confirm). Long-press any player for
+        actions. The quarter ends automatically when the clock reaches
+        zero.
       </p>
 
       {/* Action modal — opens on long-press of any token. */}
