@@ -13,6 +13,11 @@ interface SignupPageProps {
  * we just funnel everyone through /login. The `next` param is
  * preserved so post-auth redirects still work as expected.
  *
+ * No canonical metadata: the 308 redirect IS the canonicalization
+ * signal Google honours. Declaring one would be redundant and would
+ * conflict with the redirect (Google ignores canonicals on redirect
+ * responses anyway).
+ *
  * SignupForm.tsx is dormant — it's no longer rendered, but kept on
  * disk until we decide what to do with the Telegram notifySignup
  * hook (move to a Supabase user.created webhook, or drop).

@@ -6,6 +6,7 @@ import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Troubleshooting · Help · Siren Footy",
   description: "Common issues and how to fix them.",
+  alternates: { canonical: "/help/troubleshooting" },
 };
 
 export default function TroubleshootingPage() {

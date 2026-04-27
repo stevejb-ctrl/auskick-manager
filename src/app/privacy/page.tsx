@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy · Siren Footy",
   description:
     "How Siren Footy collects, uses, stores, and shares information about coaches, team managers, parents, and the players they manage.",
+  alternates: { canonical: "/privacy" },
 };
 
 // Last updated shown at the top of the policy. Bump this whenever the

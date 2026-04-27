@@ -6,6 +6,7 @@ import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "FAQ · Help · Siren Footy",
   description: "Quick answers to the most common questions about Siren Footy.",
+  alternates: { canonical: "/help/faq" },
 };
 
 interface FAQItem {

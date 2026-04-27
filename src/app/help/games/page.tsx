@@ -9,6 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Games · Help · Siren Footy",
   description: "Creating games, editing details, and tracking game status.",
+  alternates: { canonical: "/help/games" },
 };
 
 export default function GamesPage() {

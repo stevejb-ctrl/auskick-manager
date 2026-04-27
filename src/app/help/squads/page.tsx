@@ -9,6 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Squads · Help · Siren Footy",
   description: "Adding players, editing details, managing availability.",
+  alternates: { canonical: "/help/squads" },
 };
 
 export default function SquadsPage() {

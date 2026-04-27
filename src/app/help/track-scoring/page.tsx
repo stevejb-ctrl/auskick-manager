@@ -8,6 +8,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Track Scoring · Help · Siren Footy",
   description: "The Track goals & behinds toggle and what it unlocks.",
+  alternates: { canonical: "/help/track-scoring" },
 };
 
 export default function TrackScoringPage() {

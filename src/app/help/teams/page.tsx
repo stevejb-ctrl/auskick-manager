@@ -8,6 +8,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Teams · Help · Siren Footy",
   description: "Creating and managing teams, age groups, admin roles, and settings.",
+  alternates: { canonical: "/help/teams" },
 };
 
 export default function TeamsPage() {

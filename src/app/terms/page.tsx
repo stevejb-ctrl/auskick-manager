@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Terms of Service · Siren Footy",
   description:
     "The terms that govern your use of Siren Footy, the junior Australian rules football team and game manager.",
+  alternates: { canonical: "/terms" },
 };
 
 const LAST_UPDATED = "22 April 2026";
