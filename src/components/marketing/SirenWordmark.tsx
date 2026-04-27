@@ -32,8 +32,16 @@ export function SirenWordmark({
       aria-label="Siren"
       role="img"
     >
+      {/* Geist 900 + -0.05em letter-spacing matches the brand SVG exactly.
+          --font-geist-sans is loaded in the root layout via the geist package
+          so this renders in true Geist Black, not the app-wide Inter. */}
       <span
-        className={`font-bold tracking-tightest leading-none ${s.text} text-ink`}
+        className={`leading-none ${s.text} text-ink`}
+        style={{
+          fontFamily: 'var(--font-geist-sans, "Helvetica Neue", Arial, sans-serif)',
+          fontWeight: 900,
+          letterSpacing: "-0.05em",
+        }}
         aria-hidden="true"
       >
         Siren

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -23,6 +24,9 @@ const mono = JetBrains_Mono({
   variable: "--font-geist-mono",
   display: "swap",
 });
+// GeistSans.variable is "--font-geist-sans". Used exclusively by the
+// SirenWordmark so the brand wordmark renders in Geist 900 (Black)
+// without switching the app-wide UI font away from Inter.
 
 export const metadata: Metadata = {
   title: "Siren Footy",
@@ -49,7 +53,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable}`}>
       <body className="font-sans">{children}</body>
       {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
       <SpeedInsights />
