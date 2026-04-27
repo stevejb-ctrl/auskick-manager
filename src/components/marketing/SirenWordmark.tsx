@@ -46,10 +46,13 @@ export function SirenWordmark({
       >
         Siren
       </span>
-      {/* 0.32em top margin aligns the dot to the cap-height, matching
-          the brand SVG where the circle sits at the top-right of the
-          wordmark (not vertically centred). */}
-      <span className="text-alarm" style={{ marginTop: "0.32em" }}>
+      {/* A 1px upward nudge places the mark centre exactly at the
+          cap-height midpoint. The outer span has no font-size so
+          the brand's "0.32em" would resolve against the body (16px)
+          and land below the baseline — wrong. Leading-none geometry
+          means items-start already does most of the work; -1px
+          finishes it across all three scale sizes. */}
+      <span className="text-alarm" style={{ marginTop: "-1px" }}>
         <PulseMark size={s.mark} pulsing={pulsing} />
       </span>
     </span>
