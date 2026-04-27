@@ -25,9 +25,17 @@ export function Guernsey({
   ink = "#F7F5F1", // warm
   className = "",
 }: GuernseyProps) {
-  // Stable id per render so two guernseys on the same page don't share
-  // a clip path.
-  const clipId = `guernsey-clip-${String(num)}`;
+  // 2-digit numbers (10–99) need a slightly smaller font to stay inside
+  // the shirt body. Single digits get a chunkier scale so the badge
+  // reads at a glance from a metre away on the boundary.
+  const numStr = String(num);
+  const fontSize = numStr.length >= 2 ? 14 : 17;
+
+  // Stable id per render so multiple guernseys on the same page don't
+  // share a clip path. Strips non-alphanum so non-numeric `num`
+  // values still produce a valid id.
+  const clipId = `guernsey-clip-${numStr.replace(/[^a-z0-9]/gi, "")}`;
+
   return (
     <svg
       width={size}
@@ -49,15 +57,15 @@ export function Guernsey({
       />
       <text
         x="20"
-        y="25"
+        y="26"
         textAnchor="middle"
         fontFamily="var(--font-geist-mono), ui-monospace, monospace"
-        fontSize="13"
-        fontWeight="700"
+        fontSize={fontSize}
+        fontWeight="800"
         fill={ink}
         clipPath={`url(#${clipId})`}
       >
-        {num}
+        {numStr}
       </text>
     </svg>
   );

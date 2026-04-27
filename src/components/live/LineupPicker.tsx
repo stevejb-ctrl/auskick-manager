@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import {
   Eyebrow,
+  Guernsey,
   SFButton,
   SFCard,
   SFIcon,
@@ -327,9 +328,7 @@ export function LineupPicker({
                             : "hover:bg-surface-alt"
                         }`}
                       >
-                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-xs font-bold tabular-nums text-warm">
-                          {p.jersey_number}
-                        </span>
+                        <Guernsey num={p.jersey_number ?? ""} size={32} />
                         <span className="min-w-0 flex-1 truncate font-medium text-ink">
                           {p.full_name}
                         </span>

@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
+import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
 
 interface PlayerRowProps {
@@ -89,18 +90,15 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
         !player.is_active ? "opacity-50" : ""
       }`}
     >
-      {/* Jersey disc — ink fill on warm, matches the GameRow / Goal-kickers
-          treatment elsewhere in the SF design. Neutral surface-alt + mute
-          ink when no number is recorded. */}
-      <span
-        className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold tabular-nums ${
-          player.jersey_number != null
-            ? "bg-ink text-warm"
-            : "bg-surface-alt text-ink-mute"
-        }`}
-      >
-        {player.jersey_number ?? ""}
-      </span>
+      {/* Jersey badge — Guernsey SVG t-shirt with the player number printed
+          on it. Neutral surface-alt + mute ink when no number is recorded. */}
+      {player.jersey_number != null ? (
+        <Guernsey num={player.jersey_number} size={36} />
+      ) : (
+        <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-surface-alt font-mono text-sm font-bold text-ink-mute">
+          —
+        </span>
+      )}
 
       {editing && canEdit ? (
         <div className="flex flex-1 flex-wrap items-start gap-2">

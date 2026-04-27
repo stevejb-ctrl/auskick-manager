@@ -10,6 +10,7 @@ import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
 import {
   Eyebrow,
+  Guernsey,
   SFButton,
   SFCard,
   SFIcon,
@@ -265,9 +266,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink font-mono text-xs font-bold tabular-nums text-warm">
-                    {r.player!.jersey_number}
-                  </span>
+                  <Guernsey num={r.player!.jersey_number} size={32} />
                   <span className="font-semibold text-ink">
                     {r.player!.full_name}
                   </span>

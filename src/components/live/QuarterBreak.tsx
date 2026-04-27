@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { Guernsey } from "@/components/sf";
 import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   ALL_ZONES,
@@ -377,9 +378,7 @@ export function QuarterBreak({
                         }`}
                       >
                         <span className="flex items-center gap-2">
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
-                            {p.jersey_number}
-                          </span>
+                          <Guernsey num={p.jersey_number ?? ""} size={28} />
                           <span className="flex flex-col items-start">
                             <span className="flex items-center gap-1.5">
                               <span className="font-medium text-ink">
