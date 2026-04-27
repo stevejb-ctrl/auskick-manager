@@ -85,12 +85,20 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
 
   return (
     <li
-      className={`flex items-center gap-3 px-4 py-3 ${
+      className={`flex items-center gap-3 px-4 py-3 sm:px-5 ${
         !player.is_active ? "opacity-50" : ""
       }`}
     >
-      {/* Jersey badge — neutral circle when no number recorded */}
-      <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${player.jersey_number != null ? "bg-brand-100 text-brand-700" : "bg-surface-alt text-ink-mute"}`}>
+      {/* Jersey disc — ink fill on warm, matches the GameRow / Goal-kickers
+          treatment elsewhere in the SF design. Neutral surface-alt + mute
+          ink when no number is recorded. */}
+      <span
+        className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold tabular-nums ${
+          player.jersey_number != null
+            ? "bg-ink text-warm"
+            : "bg-surface-alt text-ink-mute"
+        }`}
+      >
         {player.jersey_number ?? ""}
       </span>
 
