@@ -125,6 +125,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         teamId={params.teamId}
         ageGroup={ageGroupCfg}
         players={players}
+        sportId={sport}
       />
     );
   }

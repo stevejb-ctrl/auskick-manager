@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
+import { getAgeGroupConfig } from "@/lib/sports";
+import type { Sport } from "@/lib/types";
 
 interface PlayerListProps {
   teamId: string;
@@ -20,13 +21,21 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group")
+      .select("age_group, sport")
       .eq("id", teamId)
       .single(),
   ]);
 
-  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
-  const maxPlayers = AGE_GROUPS[ageGroup].maxSquadSize;
+  // Resolve age-group config against the team's sport so netball teams
+  // pick up NetSetGO max-squad limits (16) instead of falling through
+  // to AFL U10's defaults.
+  const sport = ((team as { sport?: string | null } | null)?.sport ?? "afl") as Sport;
+  const ageGroupCfg = getAgeGroupConfig(
+    sport,
+    (team as { age_group?: string | null } | null)?.age_group ?? null,
+  );
+  const maxPlayers = ageGroupCfg.maxSquadSize;
+  const showJersey = sport === "afl";
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -45,6 +54,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
             activeCount={activePlayers.length}
             maxPlayers={maxPlayers}
             takenJerseys={takenJerseys}
+            showJersey={showJersey}
           />
         </div>
       )}
@@ -68,6 +78,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 teamId={teamId}
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
+                showJersey={showJersey}
               />
             ))}
           </ul>
@@ -89,6 +100,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 teamId={teamId}
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
+                showJersey={showJersey}
               />
             ))}
           </ul>

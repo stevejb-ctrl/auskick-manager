@@ -11,6 +11,12 @@ interface AddPlayerFormProps {
   activeCount: number;
   maxPlayers: number;
   takenJerseys: number[];
+  /**
+   * AFL teams use jersey numbers; netball doesn't. When false the input
+   * is hidden and `jersey_number: null` is always sent. Defaults true to
+   * preserve AFL behaviour.
+   */
+  showJersey?: boolean;
 }
 
 export function AddPlayerForm({
@@ -18,6 +24,7 @@ export function AddPlayerForm({
   activeCount,
   maxPlayers,
   takenJerseys,
+  showJersey = true,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
@@ -92,20 +99,22 @@ export function AddPlayerForm({
             disabled={isPending}
           />
         </div>
-        <div className="w-28 space-y-1">
-          <Label htmlFor="jersey">Jersey #</Label>
-          <Input
-            id="jersey"
-            type="number"
-            min={1}
-            max={99}
-            value={jersey}
-            onChange={(e) => setJersey(e.target.value)}
-            placeholder="Optional"
-            error={jerseyError}
-            disabled={isPending}
-          />
-        </div>
+        {showJersey && (
+          <div className="w-28 space-y-1">
+            <Label htmlFor="jersey">Jersey #</Label>
+            <Input
+              id="jersey"
+              type="number"
+              min={1}
+              max={99}
+              value={jersey}
+              onChange={(e) => setJersey(e.target.value)}
+              placeholder="Optional"
+              error={jerseyError}
+              disabled={isPending}
+            />
+          </div>
+        )}
       </div>
 
       {serverError && (

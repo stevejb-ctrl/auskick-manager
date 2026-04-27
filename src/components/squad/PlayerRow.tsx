@@ -16,9 +16,16 @@ interface PlayerRowProps {
   teamId: string;
   takenJerseys: number[];
   canEdit: boolean;
+  /**
+   * AFL teams use jersey numbers; netball doesn't. When false, the
+   * jersey badge and edit input both disappear so coaches don't see a
+   * field they're never going to use. Defaults true to preserve AFL
+   * behaviour.
+   */
+  showJersey?: boolean;
 }
 
-export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowProps) {
+export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = true }: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.full_name);
   const [jersey, setJersey] = useState(player.jersey_number != null ? String(player.jersey_number) : "");
@@ -89,10 +96,13 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
         !player.is_active ? "opacity-50" : ""
       }`}
     >
-      {/* Jersey badge — neutral circle when no number recorded */}
-      <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${player.jersey_number != null ? "bg-brand-100 text-brand-700" : "bg-surface-alt text-ink-mute"}`}>
-        {player.jersey_number ?? ""}
-      </span>
+      {/* Jersey badge — neutral circle when no number recorded.
+          Hidden entirely for sports that don't use jersey numbers. */}
+      {showJersey && (
+        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${player.jersey_number != null ? "bg-brand-100 text-brand-700" : "bg-surface-alt text-ink-mute"}`}>
+          {player.jersey_number ?? ""}
+        </span>
+      )}
 
       {editing && canEdit ? (
         <div className="flex flex-1 flex-wrap items-start gap-2">
@@ -104,17 +114,19 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
             className="min-w-0 flex-1"
             aria-label="Player name"
           />
-          <Input
-            type="number"
-            min={1}
-            max={99}
-            value={jersey}
-            onChange={(e) => setJersey(e.target.value)}
-            error={jerseyError}
-            disabled={isPending}
-            className="w-20"
-            aria-label="Jersey number"
-          />
+          {showJersey && (
+            <Input
+              type="number"
+              min={1}
+              max={99}
+              value={jersey}
+              onChange={(e) => setJersey(e.target.value)}
+              error={jerseyError}
+              disabled={isPending}
+              className="w-20"
+              aria-label="Jersey number"
+            />
+          )}
           {serverError && (
             <p className="w-full text-xs text-danger">{serverError}</p>
           )}

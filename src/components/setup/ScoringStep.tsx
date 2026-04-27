@@ -55,6 +55,7 @@ export function ScoringStep({
         teamId={teamId}
         initialEnabled={initialEnabled}
         isAdmin
+        sportId={sportId}
       />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">

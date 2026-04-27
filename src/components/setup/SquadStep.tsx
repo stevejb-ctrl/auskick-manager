@@ -3,15 +3,18 @@ import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import type { AgeGroupConfig } from "@/lib/sports/types";
-import type { Player } from "@/lib/types";
+import type { Player, Sport } from "@/lib/types";
 
 interface SquadStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   players: Player[];
+  /** AFL teams show jersey numbers, netball teams don't. */
+  sportId?: Sport;
 }
 
-export function SquadStep({ teamId, ageGroup, players }: SquadStepProps) {
+export function SquadStep({ teamId, ageGroup, players, sportId = "afl" }: SquadStepProps) {
+  const showJersey = sportId === "afl";
   const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);
@@ -37,6 +40,7 @@ export function SquadStep({ teamId, ageGroup, players }: SquadStepProps) {
           activeCount={activePlayers.length}
           maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
+          showJersey={showJersey}
         />
       </div>
 
@@ -60,6 +64,7 @@ export function SquadStep({ teamId, ageGroup, players }: SquadStepProps) {
                 teamId={teamId}
                 takenJerseys={takenJerseys}
                 canEdit
+                showJersey={showJersey}
               />
             ))}
           </ul>

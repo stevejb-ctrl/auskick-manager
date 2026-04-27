@@ -8,7 +8,7 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import type { TeamRole } from "@/lib/types";
+import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
   params: { teamId: string };
@@ -24,7 +24,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, track_scoring, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, track_scoring, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -40,6 +40,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   if (!team) notFound();
 
   const isAdmin = membership?.role === "admin";
+  const sport = ((team.sport as string | null) ?? "afl") as Sport;
 
   // Members: joined to profiles so we can show names/emails.
   type RawMembership = {
@@ -98,6 +99,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         teamId={params.teamId}
         initialEnabled={team.track_scoring ?? false}
         isAdmin={isAdmin}
+        sportId={sport}
       />
       <TeamSongSettings
         teamId={params.teamId}
