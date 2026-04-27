@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
 
 interface LateArrivalMenuProps {
@@ -50,9 +51,7 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
               className="flex w-full items-center gap-2 rounded-md border border-hairline px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-50"
             >
               {p.jersey_number != null && (
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
-                  {p.jersey_number}
-                </span>
+                <Guernsey num={p.jersey_number} size={28} />
               )}
               <span className="font-medium text-ink">{p.full_name}</span>
             </button>
