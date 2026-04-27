@@ -28,7 +28,7 @@ export function SirenWordmark({
   const s = SCALE[size];
   return (
     <span
-      className={`inline-flex items-center ${s.gap} ${className}`}
+      className={`inline-flex items-start ${s.gap} ${className}`}
       aria-label="Siren"
       role="img"
     >
@@ -38,7 +38,10 @@ export function SirenWordmark({
       >
         Siren
       </span>
-      <span className="text-alarm">
+      {/* 0.32em top margin aligns the dot to the cap-height, matching
+          the brand SVG where the circle sits at the top-right of the
+          wordmark (not vertically centred). */}
+      <span className="text-alarm" style={{ marginTop: "0.32em" }}>
         <PulseMark size={s.mark} pulsing={pulsing} />
       </span>
     </span>

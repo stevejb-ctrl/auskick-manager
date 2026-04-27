@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DeviceFrame } from "@/components/DeviceFrame";
+import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 export default function RunLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +9,8 @@ export default function RunLayout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center px-3 py-2">
           <Link
             href="/"
-            className="flex items-center gap-1 text-base font-semibold text-brand-700"
+            className="flex items-center gap-1"
+            aria-label="Siren home"
           >
             <svg
               width="18"
@@ -16,7 +18,7 @@ export default function RunLayout({ children }: { children: React.ReactNode }) {
               viewBox="0 0 24 24"
               fill="none"
               aria-hidden="true"
-              className="shrink-0"
+              className="shrink-0 text-ink-dim"
             >
               <path
                 d="M15 18l-6-6 6-6"
@@ -26,7 +28,7 @@ export default function RunLayout({ children }: { children: React.ReactNode }) {
                 strokeLinejoin="round"
               />
             </svg>
-            Siren Footy
+            <SirenWordmark size="sm" />
           </Link>
         </div>
       </header>
