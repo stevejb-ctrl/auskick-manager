@@ -14,3 +14,19 @@
     font-feature-settings: "tnum" 1;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Siren wordmark dot — single box-shadow halo, exactly per the brand's
+   siren-logo-animated.html. The pulse radius is supplied per-instance via
+   --siren-pulse-r so each scale (sm/md/lg) gets a proportional ripple.
+   ───────────────────────────────────────────────────────────────────── */
+@keyframes siren-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(217, 68, 45, 0.55); }
+  100% { box-shadow: 0 0 0 var(--siren-pulse-r, 30px) rgba(217, 68, 45, 0); }
+}
+.siren-dot--pulsing {
+  animation: siren-pulse 1.5s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .siren-dot--pulsing { animation: none; }
+}
