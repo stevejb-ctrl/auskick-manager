@@ -35,11 +35,22 @@ const config: Config = {
         },
 
         // Signals
-        alarm:          "#D63B2A",   // siren-red — brand mark, pulse indicator
+        alarm:          "#D9442D",   // siren-red — brand mark, pulse indicator
+        "alarm-soft":   "#FBE7DF",   // tinted background for alarm pills
         warn:           "#C8751F",   // ochre — sub timer firing, NEXT chip
         "warn-soft":    "#F5E5D2",
         danger:         "#B4393A",
         ok:             "#4C8B63",
+
+        // Game results — used by Game-detail final hero, Form line on Home,
+        // and the W/L/D ResultChip atom. Same hue family as the win/ok and
+        // danger tokens but slightly desaturated for the chip backgrounds.
+        win:            "#2F6B3E",
+        "win-soft":     "#E4EEE4",
+        loss:           "#9A2B2B",
+        "loss-soft":    "#F4DCDC",
+        draw:           "#8A6F2A",
+        "draw-soft":    "#F2E8C9",
 
         // Domain
         field:          "#3C8050",
@@ -57,6 +68,10 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-geist)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        // Decorative serif for round numerals on the Games list and game
+        // heroes — used italic only. Falls back to Georgia which has a
+        // similar warm, slightly editorial flavour.
+        serif: ["var(--font-instrument-serif)", "Georgia", "serif"],
       },
       borderRadius: {
         xs: "4px",
