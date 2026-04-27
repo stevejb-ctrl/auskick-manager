@@ -86,7 +86,12 @@ function ThirdRow({
     <div
       className={`relative flex h-1/3 w-full flex-col items-stretch justify-around border-b-2 border-sky-700/60 last:border-b-0 px-2 py-1 ${bg}`}
     >
-      <span className="pointer-events-none absolute left-2 top-1 text-[10px] font-semibold uppercase tracking-wider text-sky-800/70">
+      {/* Band label sits in the top-right corner because the netball
+          alignment puts a token in every top-left slot (GS / WA / GD).
+          The right side is clear at the top of each band — bottom-right
+          tokens (GA / WD / GK) sit in the lower half via flex-col
+          justify-around. */}
+      <span className="pointer-events-none absolute right-2 top-1 text-[10px] font-semibold uppercase tracking-wider text-sky-800/70">
         {label}
       </span>
       {children}

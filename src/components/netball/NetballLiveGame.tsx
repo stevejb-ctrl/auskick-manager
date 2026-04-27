@@ -102,6 +102,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     positionId: string;
     injuredPlayerId: string;
   } | null>(null);
+  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
+  // it sets this and surfaces a confirm sheet (mirrors AFL's score
+  // sheet). Prevents accidental scoring from a stray tap during play.
+  const [pendingGoal, setPendingGoal] = useState<{
+    playerId: string;
+    positionId: string;
+  } | null>(null);
 
   // Client-side tick during live play.
   useClock(!quarterEnded && !finalised && currentQuarter > 0, setClockMs);
@@ -124,16 +131,27 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const SCORING_POSITIONS = useMemo(() => new Set(["gs", "ga"]), []);
 
   // ─── Action handlers ───────────────────────────────────────
-  // tap on a GS/GA token → record a goal attributed to that player.
+  // tap on a GS/GA token → open the confirm sheet (mirrors AFL's
+  // score sheet, prevents accidental scoring). The goal only records
+  // after the coach confirms via handleConfirmGoal.
   // tap on any other token → no-op (long-press still works).
   const handleTokenTap = (positionId: string, playerId: string | null) => {
     if (!playerId) return;
     if (!SCORING_POSITIONS.has(positionId)) return;
     if (currentQuarter < 1 || quarterEnded || finalised) return;
+    setPendingGoal({ playerId, positionId });
+  };
+
+  const handleConfirmGoal = () => {
+    if (!pendingGoal) return;
+    const { playerId } = pendingGoal;
     startTransition(async () => {
       await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
     });
+    setPendingGoal(null);
   };
+
+  const handleCancelGoal = () => setPendingGoal(null);
 
   // long-press on any token → open the player actions modal.
   const handleTokenLongPress = (positionId: string, playerId: string | null) => {
@@ -395,7 +413,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             Lineup locked. Tap when the umpires call play.
           </p>
         </header>
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
+        {/* Start-Q1 button sits ABOVE the court, mirroring AFL's
+            LiveGame layout (between header/toasts and the field). Keeps
+            the action prominent rather than burying it below the court. */}
         <button
           type="button"
           onClick={() =>
@@ -408,6 +428,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         >
           {isPending ? "Starting…" : "Start Q1"}
         </button>
+        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
       </div>
     );
   }
@@ -494,7 +515,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       </button>
 
       <p className="text-center text-xs text-neutral-500">
-        Tap GS or GA to record a goal. Long-press any player for actions.
+        Tap GS or GA to score (with confirm). Long-press any player for actions.
       </p>
 
       {/* Action modal — opens on long-press of any token. */}
@@ -531,6 +552,42 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onCancel={() => setReplacingTarget(null)}
         />
       )}
+
+      {/* Goal confirm sheet — mirrors AFL's player-tap-to-score sheet
+          at LiveGame.tsx:996. Floats above bottom of viewport so the
+          coach can sanity-check the player before committing. */}
+      {pendingGoal && (() => {
+        const player = squadById.get(pendingGoal.playerId);
+        return (
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 p-3">
+            <div className="pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
+              <div className="mb-2 flex items-center gap-2">
+                <p className="flex-1 truncate text-sm font-semibold text-ink">
+                  Record goal for{" "}
+                  <span className="text-brand-700">
+                    {player?.full_name ?? "player"}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCancelGoal}
+                  className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute hover:text-ink-dim"
+                >
+                  Cancel
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleConfirmGoal}
+                disabled={isPending}
+                className="w-full rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+              >
+                + Goal
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -663,9 +720,15 @@ function formatClock(ms: number): string {
 // ─── alignClass ─────────────────────────────────────────────
 // Position-keyed horizontal alignment within each band. Spreads tokens
 // across the full width of the court rather than stacking them in a
-// central column. Mirror layout — GS/GK on opposite ends of their bands
-// (top-right / bottom-left), GA/GD opposite (centre-left / centre-right),
-// WA/WD on opposite wings of the centre band, C dead centre.
+// central column.
+//
+// Pure alternating zigzag down the court — left/right/left/right/left
+// /right/left for GS, GA, WA, C, WD, GD, GK respectively. C sits dead
+// centre between WA and WD as the genuine pivot. The zigzag keeps
+// every adjacent pair on OPPOSITE sides, so GA/WA sit across from each
+// other (instead of stacking on the same wing) and the same for WD/GD,
+// matching real-court geography where GA defends from the opposite
+// side to WA's attacking lane.
 //
 // AFL doesn't have an analogous concept (zones are spatial bands, not
 // named positions), so this is netball-specific and lives here rather
@@ -673,9 +736,9 @@ function formatClock(ms: number): string {
 function alignClass(positionId: string): string {
   switch (positionId) {
     case "gs":
-      return "justify-end pr-4";
-    case "ga":
       return "justify-start pl-4";
+    case "ga":
+      return "justify-end pr-4";
     case "wa":
       return "justify-start pl-4";
     case "c":
@@ -683,9 +746,9 @@ function alignClass(positionId: string): string {
     case "wd":
       return "justify-end pr-4";
     case "gd":
-      return "justify-end pr-4";
-    case "gk":
       return "justify-start pl-4";
+    case "gk":
+      return "justify-end pr-4";
     default:
       return "justify-center";
   }

@@ -132,18 +132,19 @@ export function NetballLineupPicker({
     }
   };
 
-  // Position-keyed horizontal alignment — spreads tokens across each
-  // band (GS top-right, GA bottom-left, WA-C-WD across the centre band,
-  // GD bottom-right, GK bottom-left). Same layout as the live court so
-  // the lineup the coach builds matches what they'll see during play.
+  // Position-keyed horizontal alignment — alternating zigzag down the
+  // court so adjacent positions sit on OPPOSITE sides (GA opposite WA,
+  // WD opposite GD), matching real-court geography. Same layout as the
+  // live court so the lineup the coach builds matches what they'll see
+  // during play.
   const ALIGN: Record<string, string> = {
-    gs: "justify-end pr-4",
-    ga: "justify-start pl-4",
+    gs: "justify-start pl-4",
+    ga: "justify-end pr-4",
     wa: "justify-start pl-4",
     c: "justify-center",
     wd: "justify-end pr-4",
-    gd: "justify-end pr-4",
-    gk: "justify-start pl-4",
+    gd: "justify-start pl-4",
+    gk: "justify-end pr-4",
   };
 
   const renderTokenAt = (positionId: string) => {

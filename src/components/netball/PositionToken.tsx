@@ -99,18 +99,20 @@ export function PositionToken({
 
   // Container styling — rounded rectangle, hairline border, hover-aware.
   // Selected state borrows the AFL brand-ring; canScore borrows an amber
-  // halo to read as "tap me to record a goal".
+  // halo to read as "tap me to record a goal". Solid bg-white + shadow
+  // on every state so cards POP off the sky-50 court bg (the previous
+  // bg-surface token was visually too washed out against the blue).
   const baseBg = selected
-    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
+    ? "border-brand-600 bg-white ring-2 ring-brand-500 shadow-pop"
     : injured
-    ? "border-danger/40 bg-surface"
+    ? "border-danger/40 bg-white shadow-card"
     : loaned
-    ? "border-warn/40 bg-surface"
+    ? "border-warn/40 bg-white shadow-card"
     : ineligible
-    ? "border-neutral-300 bg-neutral-100 opacity-60"
+    ? "border-neutral-300 bg-neutral-100"
     : canScore
-    ? "border-sky-700 bg-white ring-1 ring-amber-300/70 hover:bg-amber-50"
-    : "border-hairline bg-surface hover:border-ink-mute";
+    ? "border-sky-700 bg-white ring-1 ring-amber-300/70 shadow-card hover:bg-amber-50"
+    : "border-hairline bg-white shadow-card hover:border-ink-mute";
 
   return (
     <button
@@ -124,7 +126,7 @@ export function PositionToken({
         "relative flex w-24 flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
         baseBg,
         injured || loaned ? "grayscale" : "",
-        disabled ? "cursor-not-allowed opacity-70" : "",
+        disabled ? "cursor-not-allowed" : "",
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
