@@ -4,7 +4,7 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "FAQ — Help — Siren Footy",
+  title: "FAQ · Help · Siren Footy",
   description: "Quick answers to the most common questions about Siren Footy.",
 };
 
@@ -20,7 +20,7 @@ const FAQ: FAQItem[] = [
       <>
         Scores are saved to the server as events, so they should survive page
         refreshes and navigation. If scores appear to have reset, check that you
-        have a working internet connection — the live game screen requires
+        have a working internet connection. The live game screen requires
         connectivity to persist events. If you were offline, the events may not
         have saved; see{" "}
         <Link href="/help/troubleshooting" className="font-medium underline">
@@ -36,7 +36,7 @@ const FAQ: FAQItem[] = [
       <>
         After tapping Goal or Behind, an <strong>Undo</strong> toast appears at
         the bottom of the screen for 8 seconds. Tap it immediately to reverse the
-        score. If you miss the toast, the score is saved — contact your admin to
+        score. If you miss the toast, the score is saved. Contact your admin to
         manually correct the game data.
       </>
     ),
@@ -62,8 +62,8 @@ const FAQ: FAQItem[] = [
         The app needs an internet connection to save game events to the server.
         The UI will load from the browser cache if you&apos;ve visited before, but
         any actions you take (scoring, subs, ending quarters) require connectivity
-        to persist. If you lose connection during a game, actions may fail silently
-        — reconnect and refresh to check the current saved state.
+        to persist. If you lose connection during a game, actions may fail silently.
+        Reconnect and refresh to check the current saved state.
       </>
     ),
   },
@@ -73,7 +73,7 @@ const FAQ: FAQItem[] = [
       <>
         The sub timer only runs while a quarter is <strong>active</strong> (not
         paused and not in a quarter break). Make sure you&apos;ve tapped{" "}
-        <strong>Start Q{"{n}"}</strong> on the quarter break screen — if the clock
+        <strong>Start Q{"{n}"}</strong> on the quarter break screen. If the clock
         isn&apos;t running, the timer doesn&apos;t count. Also check that the sub
         interval is set in your team settings (a value of 0 disables the timer).
       </>
@@ -94,7 +94,7 @@ const FAQ: FAQItem[] = [
     q: "Can I run two games at the same time (e.g. two teams)?",
     a: (
       <>
-        Yes — each team has its own independent live game view. Open the two games
+        Yes, each team has its own independent live game view. Open the two games
         in separate browser tabs and manage them independently.
       </>
     ),
@@ -106,7 +106,7 @@ const FAQ: FAQItem[] = [
         It&apos;s a 0–100 index that measures how evenly zone minutes are distributed
         across the whole squad. 100 is perfectly equal; lower scores mean some players
         have had significantly more or less time in certain positions. Aim for a high
-        score by the end of the season — individual games often sit lower, which is
+        score by the end of the season. Individual games often sit lower, which is
         normal. See{" "}
         <Link href="/help/rotations" className="font-medium underline">
           Rotations
@@ -120,8 +120,8 @@ const FAQ: FAQItem[] = [
     a: (
       <>
         Open your team and go to <strong>Settings</strong>. You&apos;ll find a
-        shareable join link. Anyone with the link can join as a game manager —
-        they can run live games but cannot delete the team or change settings.
+        shareable join link. Anyone with the link can join as a game manager.
+        They can run live games but cannot delete the team or change settings.
       </>
     ),
   },
@@ -143,7 +143,7 @@ const FAQ: FAQItem[] = [
     q: "Can I use this on my phone?",
     a: (
       <>
-        Yes — the app is a mobile-first PWA. It works in any modern mobile browser
+        Yes, the app is a mobile-first PWA. It works in any modern mobile browser
         (Safari on iOS, Chrome on Android). For the best sideline experience, open
         it in your browser and add it to your home screen via the Share → Add to
         Home Screen option.

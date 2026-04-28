@@ -10,7 +10,7 @@ const FEATURES = [
     id: "rotations",
     eyebrow: "Fair rotations",
     title: "Every player gets a fair run.",
-    body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time — without you having to count.",
+    body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time, without you having to count.",
     bullets: [
       "Per-zone minute bars visible at a glance",
       "Colour-coded fairness indicators",
@@ -22,12 +22,12 @@ const FEATURES = [
   {
     id: "scoring",
     eyebrow: "Score tracking",
-    title: "Keep the scoreboard honest — if you want to.",
-    body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically — or not. Your call.",
+    title: "Keep the scoreboard honest, if you want to.",
+    body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically, or not. Your call.",
     bullets: [
-      "Score tracking is opt-in — skip it if you don't need it",
+      "Score tracking is opt-in. Skip it if you don't need it",
       "Opponent score tracked alongside yours",
-      "Optional goal song — enable it or leave it off",
+      "Optional goal song. Enable it or leave it off",
     ],
     image: "/marketing/screenshots/scoring.png",
     imageAlt: "Score tracking with celebration chip visible",
@@ -36,7 +36,7 @@ const FEATURES = [
     id: "availability",
     eyebrow: "Availability",
     title: "Set your squad before you leave home.",
-    body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match — Siren rebalances rotations automatically.",
+    body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match. Siren rebalances rotations automatically.",
     bullets: [
       "One tap to mark a player available or unavailable",
       "Run a smaller squad to match the opposition",
@@ -62,7 +62,7 @@ const FEATURES = [
     id: "quarterly",
     eyebrow: "Quarter breaks",
     title: "Walk into every quarter with a plan.",
-    body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
+    body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually. The fairness score updates live as you adjust.",
     bullets: [
       "Suggested lineup based on zone equity",
       "One tap to accept or drag to customise",
@@ -75,7 +75,7 @@ const FEATURES = [
     id: "share",
     eyebrow: "Share with parents",
     title: "Hand scoring to any parent in one tap.",
-    body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
+    body: "Send the run-link to a parent on the sideline and they become the scorer for the day. No app download, no account, no setup. A magic link gets them straight in.",
     bullets: [
       "Full scoring access via a single shareable link",
       "No app download or account needed",

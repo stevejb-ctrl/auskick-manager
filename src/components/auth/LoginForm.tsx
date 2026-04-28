@@ -136,7 +136,7 @@ export function LoginForm() {
         <span className="font-serif italic font-normal">season</span>
       </h1>
       <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
-        New or returning — enter your email and we&apos;ll get you in.
+        New or returning, enter your email and we&apos;ll get you in.
         Parents don&apos;t need an account; they just open a share link.
       </p>
 

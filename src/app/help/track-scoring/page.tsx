@@ -6,7 +6,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Track Scoring — Help — Siren Footy",
+  title: "Track Scoring · Help · Siren Footy",
   description: "The Track goals & behinds toggle and what it unlocks.",
 };
 
@@ -16,8 +16,8 @@ export default function TrackScoringPage() {
       <h1 className="text-2xl font-bold text-ink">Track goals &amp; behinds</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         Siren Footy can record which players kick goals and behinds during a
-        game. This is optional — rotations and fairness tracking work perfectly
-        without it — but turning it on unlocks richer stats.
+        game. This is optional (rotations and fairness tracking work perfectly
+        without it) but turning it on unlocks richer stats.
       </p>
 
       <section className="mt-8">
@@ -34,7 +34,7 @@ export default function TrackScoringPage() {
             Toggle <strong className="text-ink">Track goals &amp; behinds</strong> on.
           </li>
           <li>
-            The setting is saved immediately — you can change it before or during
+            The setting is saved immediately. You can change it before or during
             the game.
           </li>
         </ol>
@@ -95,27 +95,27 @@ export default function TrackScoringPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Player stats table</strong> — goals and
+            <strong className="text-ink">Player stats table</strong>:goals and
             behinds columns per player
           </li>
           <li>
-            <strong className="text-ink">Winning combinations</strong> — which
+            <strong className="text-ink">Winning combinations</strong>:which
             player groupings have the best win rate
           </li>
           <li>
-            <strong className="text-ink">Player chemistry</strong> — how the team
+            <strong className="text-ink">Player chemistry</strong>:how the team
             performs when specific pairs are on together
           </li>
           <li>
-            <strong className="text-ink">Position fit</strong> — player effectiveness
+            <strong className="text-ink">Position fit</strong>:player effectiveness
             per zone
           </li>
           <li>
-            <strong className="text-ink">Quarter-by-quarter scoring</strong> — your
+            <strong className="text-ink">Quarter-by-quarter scoring</strong>:your
             scoring pattern across the game
           </li>
           <li>
-            <strong className="text-ink">Goal kickers</strong> — listed on the game
+            <strong className="text-ink">Goal kickers</strong>:listed on the game
             detail page after the game
           </li>
         </ul>

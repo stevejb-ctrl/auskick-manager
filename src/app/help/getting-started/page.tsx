@@ -8,7 +8,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Getting Started — Help — Siren Footy",
+  title: "Getting Started · Help · Siren Footy",
   description: "Sign in, create your first team, add players, and schedule a game.",
 };
 
@@ -36,7 +36,7 @@ export default function GettingStartedPage() {
           <li>Enter your email address and tap <strong className="text-ink">Continue</strong>.</li>
           <li>
             Open the sign-in link we email you. New email? You&apos;ll
-            land on your dashboard straight away — no password to remember.
+            land on your dashboard straight away. No password to remember.
           </li>
         </ol>
         <p className="mt-3 text-sm text-ink-dim">

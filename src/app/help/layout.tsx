@@ -3,7 +3,7 @@ import { HelpNav } from "@/components/help/HelpNav";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 export const metadata = {
-  title: "Help — Siren Footy",
+  title: "Help · Siren Footy",
   description: "Documentation and guides for Siren Footy.",
 };
 

@@ -51,7 +51,7 @@ export function ContactForm() {
         role="status"
         className="rounded-lg border border-hairline bg-surface p-6 text-center shadow-card"
       >
-        <h3 className="text-lg font-semibold text-ink">Thanks — message sent.</h3>
+        <h3 className="text-lg font-semibold text-ink">Thanks, message sent.</h3>
         <p className="mt-2 text-sm text-ink-dim">
           We&rsquo;ll reply to the email you gave us as soon as we can.
         </p>
@@ -113,7 +113,7 @@ export function ContactForm() {
           rows={6}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Tell us what's up — a bug, a feature request, a question about your team."
+          placeholder="Tell us what's up: a bug, a feature request, a question about your team."
           className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card placeholder:text-ink-mute focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
         />
       </div>

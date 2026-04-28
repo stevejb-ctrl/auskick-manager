@@ -64,7 +64,7 @@ export function LoginBrandPanel() {
             Build the lineup once, then drag players between quarters.
           </BrandBullet>
           <BrandBullet n="03">
-            Share a read-only game link with parents — no account needed.
+            Share a read-only game link with parents. No account needed.
           </BrandBullet>
         </ul>
       </div>

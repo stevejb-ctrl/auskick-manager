@@ -96,7 +96,7 @@ export async function sendContactMessage(
       console.error("[contact] resend error:", result.error);
       return {
         success: false,
-        error: "Sorry — we couldn't send that just now. Please try again in a moment.",
+        error: "Sorry, we couldn't send that just now. Please try again in a moment.",
       };
     }
 
@@ -105,7 +105,7 @@ export async function sendContactMessage(
     console.error("[contact] send failed:", err);
     return {
       success: false,
-      error: "Sorry — we couldn't send that just now. Please try again in a moment.",
+      error: "Sorry, we couldn't send that just now. Please try again in a moment.",
     };
   }
 }
