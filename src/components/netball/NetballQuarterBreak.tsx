@@ -366,6 +366,18 @@ export function NetballQuarterBreak({
 
   function handleStart() {
     setError(null);
+    // Validate before firing the period_break_swap. The pre-game
+    // picker already runs the same gate (NetballLineupPicker:206) —
+    // without it here, an empty slot + a benched player slip through
+    // (the suggester always fills every slot, but a coach manually
+    // dragging tiles can leave one open). validateLineup catches the
+    // most common shapes: empty position, doubled-up position, dup
+    // across position+bench. Surfaces the first issue inline.
+    const validation = netballSport.validateLineup?.(draft, ageGroup);
+    if (validation && !validation.ok) {
+      setError(validation.issues[0]?.message ?? "Lineup is not valid.");
+      return;
+    }
     startTransition(async () => {
       const r1 = await periodBreakSwap(
         auth,
