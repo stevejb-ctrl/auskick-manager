@@ -383,6 +383,7 @@ function makeGame(id: string): Game {
     sub_interval_seconds: 300,
     share_token: id,
     on_field_size: 12,
+    quarter_length_seconds: null,
     clock_multiplier: 1,
     external_source: null,
     external_id: null,

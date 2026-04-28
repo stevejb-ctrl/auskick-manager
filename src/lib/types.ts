@@ -165,6 +165,13 @@ export interface Game {
   sub_interval_seconds: number;
   share_token: string;
   on_field_size: number;
+  /**
+   * Per-game override for quarter duration in seconds. NULL =
+   * inherit the team default (which itself may fall back to the
+   * age-group default). Set at game start so a single week's
+   * non-standard match length doesn't need to touch team config.
+   */
+  quarter_length_seconds: number | null;
   /** Multiplier applied to the clock for demo games (1 = real-time, 6 = 6× speed). */
   clock_multiplier: number;
   external_source: string | null;

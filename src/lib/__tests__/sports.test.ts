@@ -208,4 +208,34 @@ describe("getEffectiveQuarterSeconds", () => {
       getEffectiveQuarterSeconds({ quarter_length_seconds: null }, openAge),
     ).toBe(openAge.periodSeconds);
   });
+
+  it("per-game override wins over team override and age-group default", () => {
+    expect(
+      getEffectiveQuarterSeconds(
+        { quarter_length_seconds: 480 },
+        openAge,
+        { quarter_length_seconds: 360 },
+      ),
+    ).toBe(360);
+  });
+
+  it("game = null falls through to team override", () => {
+    expect(
+      getEffectiveQuarterSeconds(
+        { quarter_length_seconds: 480 },
+        openAge,
+        { quarter_length_seconds: null },
+      ),
+    ).toBe(480);
+  });
+
+  it("game = null and team = null falls through to age-group default", () => {
+    expect(
+      getEffectiveQuarterSeconds(
+        { quarter_length_seconds: null },
+        openAge,
+        { quarter_length_seconds: null },
+      ),
+    ).toBe(openAge.periodSeconds);
+  });
 });

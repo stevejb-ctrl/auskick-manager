@@ -15,15 +15,25 @@ export { aflSport } from "@/lib/sports/afl";
 export { netballSport, isPositionAllowedInZone, primaryThirdFor } from "@/lib/sports/netball";
 
 /**
- * Resolve the effective quarter duration (in seconds) for a team.
- * The team's per-row `quarter_length_seconds` override wins when
- * set; otherwise we fall back to the age group's default. Used by
- * the live-game clock and time-credit accounting so a coach can
- * tune their team's quarters without forking the sport config.
+ * Resolve the effective quarter duration (in seconds) for a game.
+ * Three-level resolution, most specific wins:
+ *   1. game.quarter_length_seconds — set when this individual match
+ *      runs to a non-standard length (finals, weather, double-
+ *      header). Optional; pass `null`/`undefined` for the game arg
+ *      when the caller doesn't have a game in hand (e.g. team
+ *      settings preview).
+ *   2. team.quarter_length_seconds — set when the league this team
+ *      plays in has a different quarter length than the age-group
+ *      default.
+ *   3. ageGroup.periodSeconds — sport-config default.
  */
 export function getEffectiveQuarterSeconds(
   team: { quarter_length_seconds: number | null },
   ageGroup: AgeGroupConfig,
+  game?: { quarter_length_seconds: number | null } | null,
 ): number {
+  if (game?.quarter_length_seconds != null) {
+    return game.quarter_length_seconds;
+  }
   return team.quarter_length_seconds ?? ageGroup.periodSeconds;
 }
