@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -40,6 +41,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Siren Footy",
   description: "Junior AFL team and substitution manager",
   icons: {

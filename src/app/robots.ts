@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/seo";
 
-const BASE = "https://www.sirenfooty.com.au";
+const BASE = SITE_URL;
 
 // Block crawlers from authed / tokenised / API routes. The public
 // marketing + help pages remain indexable. If you add a new
