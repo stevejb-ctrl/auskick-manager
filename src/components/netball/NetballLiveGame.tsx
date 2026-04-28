@@ -40,7 +40,8 @@ import {
   recordNetballOpponentGoal,
   undoNetballScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
-import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { addLateArrival, markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -160,6 +161,23 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // refresh-mid-quarter caveat.
   const [injuredIds, setInjuredIds] = useState<Set<string>>(new Set());
   const [loanedIds, setLoanedIds] = useState<Set<string>>(new Set());
+  // Late arrivals: squad players who weren't marked available pre-game
+  // but turned up after the umpire's first whistle. addLateArrival
+  // upserts game_availability + writes a player_arrived event for audit.
+  // Tracked client-side too so the bench strip lights up immediately
+  // (the action doesn't revalidatePath, mirroring the AFL pattern at
+  // src/components/live/LiveGame.tsx:528). Rehydrated from
+  // player_arrived events on mount so a refresh mid-quarter doesn't
+  // lose the late arrival from the bench (the FK quirk on
+  // game_availability.player_id stops fill-ins arriving via the same
+  // path, but persistent regular-player late arrivals are intact).
+  const [lateArrivedIds, setLateArrivedIds] = useState<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const ev of thisGameEvents) {
+      if (ev.type === "player_arrived" && ev.player_id) ids.add(ev.player_id);
+    }
+    return ids;
+  });
   // Lock-for-next-break: pins a player to a position when the next
   // lineup picker opens. Cleared after that picker confirms. Soft
   // signal (player can still be moved by coach), not enforced.
@@ -552,6 +570,45 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     setReplacingTarget(null);
   };
 
+  // Late arrival: a squad player who wasn't marked available pre-game
+  // but turned up after first whistle. Optimistically add them to the
+  // bench (lateArrivedIds), then write a player_arrived audit event
+  // and upsert their availability server-side. They flow into the
+  // next-quarter lineup picker via availableIds so the suggester can
+  // include them in the rotation. Mirrors AFL's pattern at
+  // src/components/live/LiveGame.tsx:528.
+  const handleLateArrival = (playerId: string) => {
+    setLateArrivedIds((prev) => new Set(prev).add(playerId));
+    startTransition(async () => {
+      await addLateArrival(auth, game.id, {
+        player_id: playerId,
+        quarter: Math.max(1, currentQuarter),
+        elapsed_ms: clockMs,
+      });
+    });
+  };
+
+  // Candidate pool for the late-arrival menu: active squad members who
+  // aren't on court, aren't already available, and haven't already been
+  // added as a late arrival. Players already injured/loaned aren't
+  // surfaced — they're sidelined for a reason.
+  const lateArrivalCandidates = useMemo<Player[]>(() => {
+    const onCourtIds = new Set<string>();
+    for (const ids of Object.values(onCourt.positions)) {
+      for (const id of ids) onCourtIds.add(id);
+    }
+    const benchIds = new Set(onCourt.bench);
+    const availSet = new Set(availableIds);
+    return squad.filter((p) =>
+      !onCourtIds.has(p.id) &&
+      !benchIds.has(p.id) &&
+      !availSet.has(p.id) &&
+      !lateArrivedIds.has(p.id) &&
+      !injuredIds.has(p.id) &&
+      !loanedIds.has(p.id),
+    );
+  }, [squad, onCourt, availableIds, lateArrivedIds, injuredIds, loanedIds]);
+
   // ─── Off-court roster (drives the bench strip on the live view) ──
   // Anyone in the available pool who isn't currently in a court
   // position. We surface bench / injured / lent in a single strip
@@ -579,17 +636,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       list.push({ player, status });
     };
     // Order: explicit bench first (most likely to come on next), then
-    // anyone else available, then sidelined naturally fall in via their
-    // status flag.
+    // anyone else available, then late arrivals so they appear on the
+    // bench immediately after the coach taps "Add late arrival" (the
+    // server doesn't revalidate, so without this loop they wouldn't
+    // show up until the next page render).
     for (const id of onCourt.bench) consider(id);
     for (const id of availableIds) consider(id);
+    lateArrivedIds.forEach(consider);
     // Sort sidelined to the end so the active bench stands out.
     list.sort((a, b) => {
       const rank = (s: OffCourtStatus) => (s === "bench" ? 0 : 1);
       return rank(a.status) - rank(b.status);
     });
     return list;
-  }, [onCourt, availableIds, squadById, injuredIds, loanedIds]);
+  }, [onCourt, availableIds, lateArrivedIds, squadById, injuredIds, loanedIds]);
 
   // Build replacement candidates: active squad − on-court − injured − loaned.
   const replacementCandidates = useMemo<Player[]>(() => {
@@ -873,6 +933,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         playerStats={playerStats}
         playerGoals={playerGoals}
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
+      />
+
+      {/* Late arrival — a squad member who wasn't marked available
+          pre-game but turned up after kick-off. Reuses the AFL menu
+          (it already null-guards jersey numbers, so netball just
+          works). The button hides itself when there are no
+          candidates left. */}
+      <LateArrivalMenu
+        candidates={lateArrivalCandidates}
+        onAdd={handleLateArrival}
+        pending={isPending}
       />
 
       <p className="text-center text-xs text-neutral-500">
