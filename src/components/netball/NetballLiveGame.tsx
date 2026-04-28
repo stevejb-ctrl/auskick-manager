@@ -244,18 +244,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
   }, [quarterEnded, finalised]);
 
-  // Defensive cleanup: clear modal-/sheet-driving state whenever the
-  // quarter or phase changes. Without this, an actionsTarget /
-  // replacingTarget / pendingGoal that somehow survives a phase
-  // transition would render an invisible-but-pointer-event-eating
-  // overlay over the live court, swallowing every subsequent
-  // long-press and tap.
-  useEffect(() => {
-    setActionsTarget(null);
-    setReplacingTarget(null);
-    setPendingGoal(null);
-  }, [currentQuarter, quarterEnded, finalised]);
-
   // Client-side tick during live play.
   useClock(!quarterEnded && !finalised && currentQuarter > 0, setClockMs);
 
@@ -708,6 +696,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             // the period_break_swap event the component just wrote.
             setNextBreakLocks({});
             setLocalOverlay(null);
+            // Belt-and-braces: clear any modal-/sheet-driving state
+            // that might have lingered from the previous quarter so
+            // a stuck overlay can't block long-press in the new one.
+            // (closeActions / setReplacingTarget(null) on the success
+            // paths usually handle this; this is the safety net.)
+            setActionsTarget(null);
+            setReplacingTarget(null);
+            setPendingGoal(null);
           }}
         />
       </div>
