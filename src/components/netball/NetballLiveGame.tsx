@@ -755,14 +755,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   // ─── Initial lineup (before game starts) ────────────────────
   if (!hasStarted) {
+    // Pre-kickoff: just the lineup picker. The earlier draft of this
+    // branch had a "vs {opponent}" + "Set your starting lineup for
+    // Q1" header on top, but the back-to-availability breadcrumb +
+    // the auto-suggested callout inside the picker already give the
+    // coach all the context they need. Keeping the chrome minimal
+    // here puts the actual decision (the lineup) front and centre.
     return (
       <div className="flex flex-col gap-4 p-4">
-        <header className="text-center">
-          <h1 className="text-xl font-semibold">vs {game.opponent}</h1>
-          <p className="text-sm text-neutral-600">
-            Set your starting lineup for Q1.
-          </p>
-        </header>
         <NetballLineupPicker
           ageGroup={ageGroup}
           squad={squad}

@@ -174,10 +174,17 @@ export default async function LivePage({ params }: LivePageProps) {
       : { data: [] as GameEvent[] };
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
+    // Pre-kickoff = no lineup_set event yet. The starting-lineup
+    // surface is intentionally minimal — back-to-availability
+    // breadcrumb + the picker itself — so we hide the round/date
+    // header strip AND the Restart Game button on this branch.
+    // There's nothing to reset yet, and the page header would just
+    // be visual noise on a one-purpose screen.
+    const isPreKickoff = state.lineup === null;
 
     return (
       <div className="space-y-3">
-        <GameInfoHeader teamName={teamName} g={g} compact />
+        {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           game={g}
@@ -198,7 +205,7 @@ export default async function LivePage({ params }: LivePageProps) {
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={(seasonEvents ?? []) as GameEvent[]}
         />
-        {isAdmin && (
+        {isAdmin && !isPreKickoff && (
           <div className="border-t border-hairline pt-4">
             <ResetGameButton
               auth={{ kind: "team", teamId: params.teamId }}
