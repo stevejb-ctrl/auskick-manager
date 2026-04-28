@@ -1,33 +1,18 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { AuthMethods } from "@/components/auth/AuthMethods";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { LoginScreen } from "@/components/auth/LoginScreen";
 
+/**
+ * Unified email-first login. Rendered full-bleed — the (auth) layout
+ * is a pass-through, so this page owns the entire viewport.
+ *
+ * Suspense wraps the screen because the inner LoginForm uses
+ * useSearchParams (to honour `?next=`) and Next.js requires a
+ * Suspense boundary for that hook on statically-prerendered pages.
+ */
 export default function LoginPage() {
   return (
-    <>
-      <h2 className="mb-6 text-center text-xl font-semibold text-ink">
-        Sign in
-      </h2>
-      {/* Suspense boundaries isolate useSearchParams() so the page shell
-          can be statically prerendered — the inner forms hydrate with
-          the real ?next= value on the client. */}
-      <Suspense fallback={null}>
-        <AuthMethods mode="login" />
-      </Suspense>
-      <div className="mt-4">
-        <Suspense fallback={null}>
-          <LoginForm />
-        </Suspense>
-      </div>
-      <p className="mt-3 text-center text-xs text-ink-mute">
-        <Link
-          href="/forgot-password"
-          className="transition-colors duration-fast ease-out-quart hover:text-ink-dim"
-        >
-          Forgot your password?
-        </Link>
-      </p>
-    </>
+    <Suspense fallback={null}>
+      <LoginScreen />
+    </Suspense>
   );
 }
