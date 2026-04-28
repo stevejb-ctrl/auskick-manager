@@ -111,6 +111,7 @@ export default async function LivePage({ params }: LivePageProps) {
       { data: avail },
       { data: players },
       { data: teamGames },
+      { data: fillInRows },
     ] = await Promise.all([
       supabase
         .from("game_availability")
@@ -124,9 +125,24 @@ export default async function LivePage({ params }: LivePageProps) {
         .eq("is_active", true)
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
+      supabase
+        .from("game_fill_ins")
+        .select("*")
+        .eq("game_id", params.gameId)
+        .order("created_at"),
     ]);
 
-    const squad = (players ?? []) as Player[];
+    // Match-day fill-ins are stored separately in game_fill_ins, but
+    // need to look like regular Players to the live UI (same id shape,
+    // appear in availableIds, render in NetballLineupPicker, etc.).
+    // addFillIn also writes a game_availability row so the fill-in's
+    // id ends up in `availableIds`; without projecting them into the
+    // squad here, the picker would reference IDs it has no data for
+    // and the fill-in would silently vanish.
+    const fillInsForLive = ((fillInRows ?? []) as FillIn[]).map((f) =>
+      fillInToPlayer(f, params.teamId),
+    );
+    const squad = [...((players ?? []) as Player[]), ...fillInsForLive];
     const availableIds = (avail ?? []).map((a) => a.player_id);
 
     const otherGameIds = (teamGames ?? [])
