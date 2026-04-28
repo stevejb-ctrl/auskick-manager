@@ -204,13 +204,20 @@ export function QuarterBreak({
 
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;
+    // `lastStintZone` is the zone each player ended the just-finished
+    // quarter in (set by endCurrentQuarter when stints flush). The
+    // suggester uses it to (a) penalise re-using the same zone two
+    // quarters running and (b) avoid the whole zone group migrating
+    // together (cluster penalty). Players who were on the bench at
+    // end-of-Q simply aren't in the map → no penalty contribution.
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,
       currentQuarter * 1000 + healthyForLineup.length,
       zoneCaps,
       currentGameZoneMins,
-      pinnedPositions
+      pinnedPositions,
+      lastStintZone
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -228,6 +235,7 @@ export function QuarterBreak({
     zoneCaps,
     currentGameZoneMins,
     pinnedPositions,
+    lastStintZone,
   ]);
 
   useEffect(() => {

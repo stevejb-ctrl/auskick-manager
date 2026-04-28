@@ -278,19 +278,41 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 }
 
 // ─── Suggest a starting lineup ───────────────────────────────
-// `currentGame`      – zone minutes accumulated so far this game (minutes).
-//                      Zones with 0 minutes get a strong diversity bonus so
-//                      players rotate through every position across quarters.
-// `pinnedPositions`  – players who must stay in their current zone (e.g. they
-//                      came on just before the quarter break; moving them again
-//                      immediately would be disruptive).
+// Scoring is a sum of four signals plus per-iteration cluster penalty:
+//
+//   IN_GAME_DIVERSITY (+1000)   "Haven't played this zone this game" → strong
+//                                pull. Drives every kid through every zone in
+//                                a single game.
+//   SEASON_DIVERSITY  (+500)    "Haven't played this zone for ≥ 1 quarter all
+//                                season" → over a season every kid hits all 3.
+//   SAME_AS_LAST_Q    (-800)    "Was in this zone last quarter" → don't park
+//                                a kid in the same line two quarters running.
+//   FAIRNESS_TERM     (~ small) Continuous: avg zone mins across the squad
+//                                minus this player's mins for that zone.
+//   CLUSTER_PENALTY   (-300/peer)
+//                                Applied at placement time: every peer from
+//                                the same source zone already in target zone
+//                                makes target zone less attractive. Stops a
+//                                whole line from migrating together (e.g. all
+//                                3 mid players flocking to fwd).
+//
+// `currentGame`            – zone minutes accumulated so far this game.
+// `pinnedPositions`        – players who must stay in their current zone (e.g.
+//                            recent arrivals, field/zone-locked) — bypass all
+//                            scoring.
+// `previousQuarterZones`   – per-player zone they ended the previous quarter
+//                            in. Drives the SAME_AS_LAST_Q penalty + the
+//                            cluster penalty (which compares source zones
+//                            across already-placed peers). Empty/missing for
+//                            Q1 of a game (where there's no "previous").
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
   seed: number = 0,
   zoneCaps: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 },
   currentGame: PlayerZoneMinutes = {},
-  pinnedPositions: Record<string, Zone> = {}
+  pinnedPositions: Record<string, Zone> = {},
+  previousQuarterZones: Record<string, Zone> = {}
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -318,22 +340,65 @@ export function suggestStartingLineup(
     return total / (zm.length * zones.length);
   })();
 
-  // A large bonus for zones the player has not played at all this game forces
-  // the algorithm to rotate players through every position.  Once they have
-  // played a zone this game the bonus disappears and we fall back to season
-  // fairness.
-  const DIVERSITY_BONUS = 1000;
+  const IN_GAME_DIVERSITY = 1000;
+  // 500 < 1000 so an in-game-fresh zone always beats a season-fresh-but-
+  // already-played-this-game zone. (Season diversity nudges, in-game forces.)
+  const SEASON_DIVERSITY = 500;
+  // 800 is below IN_GAME_DIVERSITY (1000), so the same-as-last-quarter penalty
+  // is still subordinate to playing a fresh-this-game zone — but it's strong
+  // enough to break ties cleanly when in-game diversity is even (e.g. mid-
+  // game in Q3 when all zones have already been played).
+  const SAME_AS_LAST_Q = 800;
+  // Per-peer penalty for cluster avoidance. With CLUSTER_PENALTY at 300 and
+  // the source-zone group size capped at zoneCaps[source] (typically 3), the
+  // 3rd same-source peer eyeing the same target eats a -600 hit, more than
+  // enough to flip a tied owed-score.
+  const CLUSTER_PENALTY = 300;
+  // "Played this zone for ≥ a full quarter all season" threshold (in ms).
+  // 12 * 60 * 1000 matches QUARTER_MS in liveGameStore — kept local here so
+  // fairness.ts stays a leaf module with no store imports.
+  const FULL_QUARTER_MS = 12 * 60 * 1000;
 
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
-    return (gameMins === 0 ? DIVERSITY_BONUS : 0) + Math.max(0, avgPerZone - seasonMins);
+    const inGameBonus = gameMins === 0 ? IN_GAME_DIVERSITY : 0;
+    const seasonBonus = seasonMins < FULL_QUARTER_MS ? SEASON_DIVERSITY : 0;
+    const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
+    const fairnessTerm = Math.max(0, avgPerZone - seasonMins);
+    return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
   };
 
   const playedTotal = (pid: string) => {
     let t = 0;
     for (const z of zones) t += season[pid]?.[z] ?? 0;
     return t;
+  };
+
+  // For the cluster penalty: we count, at placement time, how many already-
+  // placed peers from the same SOURCE zone (their previous-quarter zone) are
+  // in each TARGET zone. This is what stops the whole line from migrating
+  // together. Players with no known previous zone (Q1, late arrivals) are
+  // tracked under `null` and contribute no penalty.
+  const placedBySourceAndTarget: Map<Zone | null, Map<Zone, number>> = new Map();
+  const bumpCluster = (source: Zone | null, target: Zone) => {
+    const inner = placedBySourceAndTarget.get(source) ?? new Map<Zone, number>();
+    inner.set(target, (inner.get(target) ?? 0) + 1);
+    placedBySourceAndTarget.set(source, inner);
+  };
+  // Seed the cluster map with the pinned placements so the cluster penalty
+  // can see them.
+  for (const p of availablePlayers) {
+    if (!pinnedIds.has(p.id)) continue;
+    const z = pinnedPositions[p.id];
+    if (!z) continue;
+    bumpCluster(previousQuarterZones[p.id] ?? null, z);
+  }
+  const clusterPenaltyFor = (pid: string, target: Zone) => {
+    const src = previousQuarterZones[pid];
+    if (!src) return 0; // no source = nothing to cluster around
+    const peers = placedBySourceAndTarget.get(src)?.get(target) ?? 0;
+    return peers * CLUSTER_PENALTY;
   };
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
@@ -350,13 +415,16 @@ export function suggestStartingLineup(
     }
     const shuffledZones = seededShuffle(openZones, seed + p.id.charCodeAt(0));
     shuffledZones.sort((a, b) => {
-      const diff = owed(p.id, b) - owed(p.id, a);
+      const scoreA = owed(p.id, a) - clusterPenaltyFor(p.id, a);
+      const scoreB = owed(p.id, b) - clusterPenaltyFor(p.id, b);
+      const diff = scoreB - scoreA;
       if (diff !== 0) return diff;
       return zoneFill[a] - zoneFill[b];
     });
     const chosen = shuffledZones[0];
     lineup[chosen].push(p.id);
     zoneFill[chosen]++;
+    bumpCluster(previousQuarterZones[p.id] ?? null, chosen);
   }
 
   return lineup;
