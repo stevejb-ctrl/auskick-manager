@@ -205,8 +205,12 @@ export function NetballQuarterBreak({
       lastQuarterThird: lastThirds,
       previousTeammates: prevTeammates,
     });
-    // Pre-apply locks: locked player goes to locked position, displacing
-    // whoever the suggester put there.
+    // Pre-apply locks: locked player goes to locked position. If the
+    // locked player was already placed elsewhere by the suggester, we
+    // SWAP them with whoever's at the target slot — not bench-the-
+    // displaced — so we don't leave a hole at the locked player's old
+    // position. Only when the locked player came from the bench (or
+    // wasn't placed at all) does the displaced player end up benched.
     if (Object.keys(preAppliedLocks).length === 0) return base;
     const next: GenericLineup = {
       positions: {},
@@ -214,17 +218,36 @@ export function NetballQuarterBreak({
     };
     for (const id of positions) next.positions[id] = [...(base.positions[id] ?? [])];
     for (const [posId, lockedPid] of Object.entries(preAppliedLocks)) {
-      // Remove locked player from anywhere they currently sit.
+      // Find where the locked player currently is.
+      let lockedFromPos: string | null = null;
       for (const id of Object.keys(next.positions)) {
-        if (id !== posId) next.positions[id] = next.positions[id].filter((p) => p !== lockedPid);
+        if (next.positions[id].includes(lockedPid)) {
+          lockedFromPos = id;
+          break;
+        }
       }
-      next.bench = next.bench.filter((p) => p !== lockedPid);
-      // Bench whoever was at the target.
-      const displaced = next.positions[posId] ?? [];
-      for (const p of displaced) {
-        if (p !== lockedPid && !next.bench.includes(p)) next.bench.push(p);
+      const lockedFromBench = next.bench.includes(lockedPid);
+      const displacedAtTarget = (next.positions[posId] ?? []).filter((p) => p !== lockedPid);
+      // Vacate locked player from their old spot.
+      if (lockedFromPos && lockedFromPos !== posId) {
+        next.positions[lockedFromPos] = next.positions[lockedFromPos].filter((p) => p !== lockedPid);
       }
+      if (lockedFromBench) {
+        next.bench = next.bench.filter((p) => p !== lockedPid);
+      }
+      // Place lock at target.
       next.positions[posId] = [lockedPid];
+      // Re-home the displaced player. If the lock came from another
+      // court position, swap into that vacated slot — fills the hole
+      // we'd otherwise leave behind. Otherwise bench them.
+      for (const p of displacedAtTarget) {
+        if (p === lockedPid) continue;
+        if (lockedFromPos && lockedFromPos !== posId && next.positions[lockedFromPos].length === 0) {
+          next.positions[lockedFromPos] = [p];
+        } else if (!next.bench.includes(p)) {
+          next.bench.push(p);
+        }
+      }
     }
     return next;
   }, [
@@ -313,6 +336,33 @@ export function NetballQuarterBreak({
   // Two-tap swap. If both selected players are in positions, swap them.
   // If one is on bench and one is in a position, swap (bench player
   // takes the position, on-court player goes to bench).
+  // Tap an empty position slot. With a player selected, that player
+  // moves INTO the slot. The selected player's old position (if any)
+  // gets vacated — leaving its own empty placeholder if they came from
+  // court, or just removing them from the bench list. No-op without
+  // a selection.
+  function handleTapEmpty(positionId: string) {
+    if (!selected) return;
+    if (sidelinedSet.has(selected)) {
+      setSelected(null);
+      return;
+    }
+    setDraft((prev) => {
+      const next: GenericLineup = {
+        positions: Object.fromEntries(
+          Object.entries(prev.positions).map(([k, v]) => [
+            k,
+            v.filter((p) => p !== selected),
+          ]),
+        ),
+        bench: prev.bench.filter((p) => p !== selected),
+      };
+      next.positions[positionId] = [selected];
+      return next;
+    });
+    setSelected(null);
+  }
+
   function handleTap(pid: string) {
     if (sidelinedSet.has(pid)) return;
     if (!selected) {
@@ -450,13 +500,19 @@ export function NetballQuarterBreak({
       <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((slot) => {
           // Build the list of {playerId, positionId|null} for this slot.
-          const items: { pid: string; positionId: string | null }[] = [];
+          // For court bands, also surface UNFILLED positions as null-pid
+          // entries so they render as tappable empty placeholders — coach
+          // can pick a bench player and tap an empty slot to fill the
+          // hole (otherwise lock-displacement / cancelled swaps leave
+          // permanently-stuck holes the validator then refuses to ship).
+          const items: { pid: string | null; positionId: string | null }[] = [];
           if (slot === "bench") {
             for (const pid of draft.bench) items.push({ pid, positionId: null });
           } else {
             for (const posId of positionsByThird[slot]) {
               const occupant = draft.positions[posId]?.[0];
               if (occupant) items.push({ pid: occupant, positionId: posId });
+              else items.push({ pid: null, positionId: posId });
             }
           }
           const cap = slot === "bench" ? null : positionsByThird[slot].length;
@@ -479,6 +535,20 @@ export function NetballQuarterBreak({
               ) : (
                 <ul className="space-y-1.5">
                   {items.map(({ pid, positionId }) => {
+                    if (!pid) {
+                      // Empty position placeholder — tappable when a
+                      // player is currently selected, drops them into
+                      // this slot. Keyed by positionId since pid is null.
+                      return (
+                        <li key={`empty-${positionId}`}>
+                          <EmptySlotTile
+                            positionId={positionId!}
+                            disabled={!selected}
+                            onTap={() => positionId && handleTapEmpty(positionId)}
+                          />
+                        </li>
+                      );
+                    }
                     const p = playersById.get(pid);
                     if (!p) return null;
                     const isSelected = selected === pid;
@@ -535,6 +605,44 @@ export function NetballQuarterBreak({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─── Empty-slot tile ─────────────────────────────────────────
+// Renders for an unfilled position so the coach has something to
+// tap. Visually a dashed-border placeholder with the position label.
+// Active state (when a player is currently selected) gets a brand
+// outline + hint copy; idle state (no selection) is muted + disabled.
+function EmptySlotTile({
+  positionId,
+  disabled,
+  onTap,
+}: {
+  positionId: string;
+  disabled: boolean;
+  onTap: () => void;
+}) {
+  const pos = netballSport.allPositions.find((p) => p.id === positionId);
+  const posLabel = pos?.shortLabel ?? positionId.toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      disabled={disabled}
+      className={`flex w-full items-center gap-3 rounded-md border-2 border-dashed px-3 py-2 text-left text-sm transition-colors ${
+        disabled
+          ? "border-hairline text-ink-mute"
+          : "border-brand-500 bg-brand-50 text-brand-800 hover:bg-brand-100"
+      }`}
+      aria-label={`Empty ${posLabel} — tap to fill`}
+    >
+      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-current px-2 text-[10px] font-bold uppercase tracking-micro">
+        {posLabel}
+      </span>
+      <span className="font-medium">
+        {disabled ? "Empty" : `Tap to place here`}
+      </span>
+    </button>
   );
 }
 
