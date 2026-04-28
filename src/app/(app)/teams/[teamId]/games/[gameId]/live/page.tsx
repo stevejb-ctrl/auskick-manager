@@ -147,10 +147,24 @@ export default async function LivePage({ params }: LivePageProps) {
       fillInToPlayer(f, params.teamId),
     );
     const squad = [...((players ?? []) as Player[]), ...fillInsForLive];
-    const availableIds = [
-      ...(avail ?? []).map((a) => a.player_id),
-      ...fillInsForLive.map((f) => f.id),
-    ];
+    // availableIds also unions in any player_arrived event ids — late
+    // arrivals are unconditionally available regardless of what
+    // game_availability currently says about them. This rescues the
+    // case where addLateArrival's availability upsert silently failed
+    // earlier (the existing "unavailable" row got left in place) so
+    // the late arrival's id was never picked up by the suggester or
+    // the bench strip otherwise. Latest behaviour writes both, but
+    // older games may have the audit event without a flipped row.
+    const lateArrivedFromEvents = ((thisGameEvents ?? []) as GameEvent[])
+      .filter((e) => e.type === "player_arrived" && e.player_id)
+      .map((e) => e.player_id as string);
+    const availableIds = Array.from(
+      new Set<string>([
+        ...(avail ?? []).map((a) => a.player_id),
+        ...fillInsForLive.map((f) => f.id),
+        ...lateArrivedFromEvents,
+      ]),
+    );
 
     const otherGameIds = (teamGames ?? [])
       .map((t) => t.id)
