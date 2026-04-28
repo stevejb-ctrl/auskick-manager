@@ -40,10 +40,18 @@ setup("authenticate as super-admin", async ({ page }) => {
 
   // Step 3: sign in through the UI. This exercises the real auth path —
   // if LoginForm breaks, setup fails loudly instead of masking the bug.
+  //
+  // /login defaults to magic-link mode (email-only field, "Continue"
+  // button). For the deterministic CI auth path we want password
+  // sign-in, which requires clicking the "Sign in with password
+  // instead" toggle to reveal the password field. The toggle is a
+  // stable data-testid hook so this doesn't drift if the link copy
+  // is reworded.
   await page.goto("/login");
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole("button", { name: /sign in|log in/i }).click();
+  await page.getByTestId("login-mode-toggle").click();
+  await page.getByTestId("login-email").fill(email);
+  await page.getByTestId("login-password").fill(password);
+  await page.getByTestId("login-submit").click();
 
   // Landing page after login is /dashboard. If the server redirects
   // somewhere else (e.g. /onboarding for new accounts), update this.
