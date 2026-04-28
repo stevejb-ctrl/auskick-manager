@@ -411,32 +411,31 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     );
   };
 
-  // Priority order, descending strength:
-  //   1. Quarters played THIS GAME — least first. The placement loop
-  //      below is greedy: the first `positions.length` players fill
-  //      the court and everyone after lands on the bench. So the sort
-  //      key directly decides who plays vs who sits. Maximising game
-  //      time within the current match means a player who's been
-  //      benched once must get court time before a player who's
-  //      already played both prior quarters — otherwise they'd spend
-  //      two whole quarters on the bench (Steve flagged exactly this
-  //      on his Q3 break: Nicola P + Hattie D were headed for
-  //      back-to-back bench duty after one quarter off each).
-  //   2. Season totals — across-game fairness, used as a tiebreak
-  //      between players with identical this-game counts.
-  //   3. Seeded shuffle — final tie-break (deterministic).
-  // Multiplying this-game by a large constant makes it dominate
-  // strictly; season counts are typically <50 over a year so 1000×
-  // gives plenty of headroom for them to act as a true tiebreak.
+  // Sort key: quarters played THIS GAME, ascending. The placement
+  // loop is greedy — the first `positions.length` players in sort
+  // order fill the court, everyone after lands on the bench — so
+  // this is the WHO-PLAYS decision, not WHICH-POSITION. Steve's rule:
+  //
+  //   "The in-game algorithm takes priority over the season
+  //    algorithm. If someone has missed games they should NOT play
+  //    full games and have other players benched. Season counts
+  //    only optimise positions."
+  //
+  // So season totals deliberately don't appear here — a player
+  // who's missed half the season won't crowd today's bench-Q1
+  // teammate out of their court turn. Position-level season
+  // fairness lives entirely in tier 5 of `owed()` below, where it
+  // tiebreaks WHICH position to give a player — never whether
+  // they get a slot at all.
+  //
+  // Ties (everyone with the same this-game count, e.g. Q1 where
+  // every count is 0) fall back to the seeded shuffle below — a
+  // stable, deterministic ordering keyed by `seed + 41`.
   const thisGameTotal = (pid: string): number =>
     Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
-  const seasonTotal = (pid: string): number =>
-    Object.values(season[pid] ?? {}).reduce((a, b) => a + b, 0);
-  const totalPlayed = (pid: string): number =>
-    thisGameTotal(pid) * 1000 + seasonTotal(pid);
 
   const shuffled = seededShuffle(playerIds, seed + 41);
-  shuffled.sort((a, b) => totalPlayed(a) - totalPlayed(b));
+  shuffled.sort((a, b) => thisGameTotal(a) - thisGameTotal(b));
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);

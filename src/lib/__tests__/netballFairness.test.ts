@@ -152,10 +152,14 @@ describe("suggestNetballLineup", () => {
     //   - p8, p9 sat on the bench both quarters (0 plays)
     // Q3 suggestion must put p8 and p9 on court — they're the bench
     // for Q3 should be drawn from p1..p7.
-    // p8 and p9 also happen to have high season totals — testing
-    // that this-game count dominates season count (new sort key).
-    // Without this-game taking priority, the season-only sort would
-    // put p8 and p9 LAST and bench them again.
+    // p8 and p9 are deliberately given the HIGHEST season totals
+    // — testing that season counts have NO say in who plays vs who
+    // benches. Steve's rule: "In-game takes priority. Season is for
+    // positions only." A player who's played heaps over the season
+    // shouldn't be punished by being benched today; conversely, a
+    // player who's missed games shouldn't crowd today's bench-Q1
+    // teammate out of their court turn. The only thing that decides
+    // is this-game count.
     const lineup = suggestNetballLineup({
       playerIds: ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"],
       positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
@@ -177,10 +181,49 @@ describe("suggestNetballLineup", () => {
     });
     const onCourt = new Set<string>(Object.values(lineup.positions).flat());
     // The two bench-Q1+Q2 players must be on court for Q3 — even
-    // though the season-rarity tiebreak would otherwise keep them
-    // benched.
+    // though they're the season's most-played players. Season counts
+    // don't matter for who-plays; only this-game counts do.
     expect(onCourt.has("p8")).toBe(true);
     expect(onCourt.has("p9")).toBe(true);
+  });
+
+  it("season totals do NOT affect who-plays — only positions", () => {
+    // Steve's rule: a player who's missed games shouldn't get extra
+    // game time today at the expense of teammates. Two players have
+    // identical this-game counts (zero — both new) but very
+    // different season totals. The bench pick must NOT be biased by
+    // the season delta; it falls back to the deterministic shuffle.
+    const lineup = suggestNetballLineup({
+      playerIds: [
+        "veteran",  // 50 quarters across the season
+        "newbie",   // 0 quarters across the season
+        "p3", "p4", "p5", "p6", "p7", "p8",
+      ],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: { veteran: { c: 25, wa: 25 } },
+      thisGame: {},
+      isAllowed: alwaysAllowed,
+      seed: 0,
+    });
+    // 8 players, 7 court slots → exactly one bench. The point is
+    // that the bench pick is deterministic by shuffle, not biased
+    // toward "veteran has played more so bench them" or "newbie
+    // missed games so bench them to even up." Re-run with seed=1
+    // and the bench player should change (no season-bias to lock
+    // either of them in).
+    const lineup2 = suggestNetballLineup({
+      playerIds: [
+        "veteran", "newbie", "p3", "p4", "p5", "p6", "p7", "p8",
+      ],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: { veteran: { c: 25, wa: 25 } },
+      thisGame: {},
+      isAllowed: alwaysAllowed,
+      seed: 1,
+    });
+    // Different seeds → different shuffles → different bench (no
+    // season-driven systematic preference for who sits).
+    expect(lineup.bench).not.toEqual(lineup2.bench);
   });
 
   it("rotates a player away from a position they've already played this game", () => {
