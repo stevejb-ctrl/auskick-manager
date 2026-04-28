@@ -70,7 +70,10 @@ jobs:
         run: supabase start --exclude realtime,edge-runtime,imgproxy
 
       - name: Apply migrations + seed
-        run: supabase db reset --no-confirm
+        # The CLI renamed --no-confirm to --yes in a recent release. Because
+        # `supabase/setup-cli@v1` is pinned to `version: latest` above, every
+        # CI run installs the newest CLI, so we have to track the new flag.
+        run: supabase db reset --yes
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
