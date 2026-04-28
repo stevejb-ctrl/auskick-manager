@@ -132,6 +132,7 @@ export default async function LivePage({ params }: LivePageProps) {
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           game={g}
+          teamName={teamName}
           squad={squad}
           availableIds={availableIds}
           ageGroup={ageCfgN}

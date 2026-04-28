@@ -39,6 +39,8 @@ import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/
 interface NetballLiveGameProps {
   game: Game;
   auth: LiveAuth;
+  /** Team's own name — drives the home-side label in the score bug. */
+  teamName: string;
   squad: Player[];
   availableIds: string[];
   ageGroup: AgeGroupConfig;
@@ -57,6 +59,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const {
     game,
     auth,
+    teamName,
     squad,
     availableIds,
     ageGroup,
@@ -376,10 +379,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (finalised) {
     return (
       <div className="flex flex-col gap-4 p-4">
-        <header className="text-center">
-          <h1 className="text-xl font-semibold">Full time</h1>
-          <ScoreHeader team={teamScore} opponent={opponentScore} />
-        </header>
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel="FT"
+          clockText="—"
+        />
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
       </div>
     );
@@ -401,15 +408,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const seedLineup: GenericLineup = applyLocks(onCourt, nextBreakLocks, ageGroup.positions);
     return (
       <div className="flex flex-col gap-4 p-4">
-        <header className="text-center">
-          <h1 className="text-xl font-semibold">
-            Quarter {currentQuarter} break
-          </h1>
-          <ScoreHeader team={teamScore} opponent={opponentScore} />
-          <p className="text-sm text-neutral-600">
-            Pick the lineup for Q{nextQuarter}.
-          </p>
-        </header>
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel={`Q${currentQuarter} BRK`}
+          clockText="—"
+        />
+        <p className="text-center text-sm text-neutral-600">
+          Pick the lineup for Q{nextQuarter}.
+        </p>
         <NetballLineupPicker
           ageGroup={ageGroup}
           squad={squad}
@@ -446,12 +455,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (currentQuarter === 0 && !quarterEnded) {
     return (
       <div className="flex flex-col gap-4 p-4">
-        <header className="text-center">
-          <h1 className="text-xl font-semibold">vs {game.opponent}</h1>
-          <p className="text-sm text-neutral-600">
-            Lineup locked. Tap when the umpires call play.
-          </p>
-        </header>
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel="PRE"
+          clockText={formatClock(quarterLengthMs)}
+        />
+        <p className="text-center text-sm text-neutral-600">
+          Lineup locked. Tap when the umpires call play.
+        </p>
         {/* Start-Q1 button sits ABOVE the court, mirroring AFL's
             LiveGame layout (between header/toasts and the field). Keeps
             the action prominent rather than burying it below the court. */}
@@ -476,10 +490,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (quarterEnded && currentQuarter >= 4) {
     return (
       <div className="flex flex-col gap-4 p-4">
-        <header className="text-center">
-          <h1 className="text-xl font-semibold">End of Q4</h1>
-          <ScoreHeader team={teamScore} opponent={opponentScore} />
-        </header>
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel="Q4 END"
+          clockText="—"
+        />
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         <button
           type="button"
@@ -507,26 +525,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <header className="text-center">
-        <h1 className="text-xl font-semibold">
-          Q{currentQuarter} · {formatClock(remainingMs)}
-        </h1>
-        <ScoreHeader
-          team={teamScore}
-          opponent={opponentScore}
-          isPending={isPending}
-          onOpponentGoal={() =>
-            startTransition(async () => {
-              await recordNetballOpponentGoal(
-                auth,
-                game.id,
-                currentQuarter,
-                clockMs,
-              );
-            })
-          }
-        />
-      </header>
+      <NetballScoreBug
+        teamName={teamName}
+        opponentName={game.opponent}
+        team={teamScore}
+        opponent={opponentScore}
+        quarterLabel={`Q${currentQuarter}`}
+        clockText={formatClock(remainingMs)}
+        isPending={isPending}
+        onOpponentGoal={() =>
+          startTransition(async () => {
+            await recordNetballOpponentGoal(
+              auth,
+              game.id,
+              currentQuarter,
+              clockMs,
+            );
+          })
+        }
+      />
 
       <CourtDisplay
         lineup={onCourt}
@@ -620,40 +637,83 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   );
 }
 
-// ─── Score header ────────────────────────────────────────────
-// Compact +G next to the opponent's score mirrors the AFL pattern at
-// GameHeader.tsx:128 — opposition scoring lives inline in the
-// scoreboard rather than as a full-width button below the court.
-// No confirmation modal: there's no opposition player to mis-attribute,
-// so a stray tap costs at most one undo (which we'll surface in a
-// follow-up if it becomes annoying).
-function ScoreHeader({
+// ─── Score bug ──────────────────────────────────────────────
+// Broadcast-style scoreboard: HOME · clock pill · AWAY in three
+// columns, mirroring the AFL GameHeader at src/components/live/
+// GameHeader.tsx:73. Same tokens, same proportions — single-number
+// scores instead of AFL's "G·B + total" because netball is
+// goals-only. The clock pill is non-interactive (netball has no
+// pause/resume; the clock auto-runs and auto-ends at the hooter).
+//
+// quarterLabel + clockText are computed by the parent so a single
+// component covers every phase: PRE / Q1-4 / BRK / FT.
+function NetballScoreBug({
+  teamName,
+  opponentName,
   team,
   opponent,
+  quarterLabel,
+  clockText,
   onOpponentGoal,
   isPending,
 }: {
+  teamName: string;
+  opponentName: string;
   team: { goals: number };
   opponent: { goals: number };
+  /** Small uppercase label inside the clock pill — e.g. "PRE", "Q2", "BRK", "FT". */
+  quarterLabel: string;
+  /** Big numeric line inside the clock pill — e.g. "08:00", "—". */
+  clockText: string;
   onOpponentGoal?: () => void;
   isPending?: boolean;
 }) {
   return (
-    <div className="mt-1 flex items-center justify-center gap-6 text-3xl font-bold">
-      <span className="text-brand-700">{team.goals}</span>
-      <span className="text-neutral-400">—</span>
-      <div className="flex items-center gap-2">
-        <span className="text-neutral-700">{opponent.goals}</span>
+    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
+      {/* Left: home team */}
+      <div className="min-w-0">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+          {teamName}
+        </p>
+        <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
+          <span className="text-[36px] font-bold tracking-tightest">
+            {team.goals}
+          </span>
+        </p>
+      </div>
+
+      {/* Centre: dark clock pill */}
+      <div className="self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop">
+        <span className="font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+          {quarterLabel}
+        </span>
+        <span className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm">
+          {clockText}
+        </span>
+      </div>
+
+      {/* Right: opponent — mirror layout */}
+      <div className="min-w-0 text-right">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+          {opponentName}
+        </p>
+        <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
+          <span className="text-[36px] font-bold tracking-tightest">
+            {opponent.goals}
+          </span>
+        </p>
         {onOpponentGoal && (
-          <button
-            type="button"
-            onClick={onOpponentGoal}
-            disabled={isPending}
-            className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
-            aria-label="Record opponent goal"
-          >
-            +G
-          </button>
+          <div className="mt-0.5 flex justify-end gap-1">
+            <button
+              type="button"
+              onClick={onOpponentGoal}
+              disabled={isPending}
+              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              aria-label="Record opponent goal"
+            >
+              +G
+            </button>
+          </div>
         )}
       </div>
     </div>
