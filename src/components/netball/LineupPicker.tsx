@@ -56,9 +56,39 @@ export function NetballLineupPicker({
   confirmLabel = "Confirm lineup",
   disabled,
 }: LineupPickerProps) {
-  const [lineup, setLineup] = useState<GenericLineup>(() =>
-    initialLineup ?? emptyGenericLineup(ageGroup.positions),
-  );
+  // Initial lineup state. When the parent passes one (e.g. a Q-break
+  // seed lineup, or a previously-saved draft), we use that. Otherwise
+  // — i.e. the pre-game flow where the picker would have opened
+  // empty — we pre-fill with the suggester's output so the coach
+  // sees a sensible starting lineup right away (same behaviour as
+  // Siren Footy's pre-game flow). They can still drag it around or
+  // tap "Suggest fair lineup" to reshuffle if they don't like it.
+  const [lineup, setLineup] = useState<GenericLineup>(() => {
+    if (initialLineup) return initialLineup;
+    if (availableIds.length === 0) {
+      return emptyGenericLineup(ageGroup.positions);
+    }
+    const season = seasonPositionCounts(seasonEvents);
+    const thisGame = gamePositionCounts(thisGameEvents);
+    const lastThirds = lastQuarterThirds(
+      thisGameEvents,
+      primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
+    return suggestNetballLineup({
+      playerIds: availableIds,
+      positions: ageGroup.positions,
+      season,
+      thisGame,
+      isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
+      seed: 0,
+      thirdOf: primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+      lastQuarterThird: lastThirds,
+    });
+  });
   const [picking, setPicking] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Bumps every time the coach taps "Suggest fair lineup" so the
