@@ -77,6 +77,16 @@ export interface LiveGameState {
   selectBench: (playerId: string) => void;
   clearSelection: () => void;
   applySwap: (off: string, on: string, zone: Zone) => void;
+  /**
+   * Mark an on-field player injured AND substitute a bench player into their
+   * vacant zone, in one atomic update. Closes the injured player's zone stint,
+   * opens a fresh stint for the replacement, increments swapCount once.
+   *
+   * Caller must verify `injuredId` is on the field and `replacementId` is on
+   * the bench; this is a no-op otherwise (mirroring setInjured's defensive
+   * behaviour).
+   */
+  applyInjurySwap: (injuredId: string, replacementId: string) => void;
   applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
   setLineup: (lineup: Lineup) => void;
   startClock: () => void;
@@ -168,6 +178,66 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         basePlayedZoneMs,
         stintStartMs,
         stintZone,
+        swapCount: prev.swapCount + 1,
+      };
+    }),
+
+  applyInjurySwap: (injuredId, replacementId) =>
+    set((prev) => {
+      // Defensive: only fire if injured player is on the field. If they're
+      // already on the bench (already injured, or just sitting), the caller
+      // shouldn't be invoking this — fall back to a no-op so the UI can keep
+      // a single code path without us silently corrupting state.
+      const injuredZone = ALL_ZONES.find((z) => prev.lineup[z].includes(injuredId));
+      if (!injuredZone) return prev;
+      // Same defensive check on the replacement: must be on the bench.
+      if (!prev.lineup.bench.includes(replacementId)) return prev;
+      // Idempotency for double-taps — if injuredId is already in injuredIds
+      // we'd be in an inconsistent state (on-field + injured), but trust the
+      // caller and just dedupe.
+      const alreadyInjured = prev.injuredIds.includes(injuredId);
+
+      const lineup = cloneLineup(prev.lineup);
+      const nowMs = clockElapsedMs(prev);
+      const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
+      const stintStartMs = { ...prev.stintStartMs };
+      const stintZone = { ...prev.stintZone };
+
+      // Close the injured player's open stint.
+      const injuredStart = stintStartMs[injuredId] ?? nowMs;
+      const injuredStintZone = stintZone[injuredId] ?? injuredZone;
+      basePlayedZoneMs[injuredId] = {
+        ...(basePlayedZoneMs[injuredId] ?? newZoneMs()),
+      };
+      basePlayedZoneMs[injuredId][injuredStintZone] += Math.max(0, nowMs - injuredStart);
+      delete stintStartMs[injuredId];
+      delete stintZone[injuredId];
+
+      // Replace on the field: drop injured from zone, add replacement in.
+      lineup[injuredZone] = lineup[injuredZone].map((p) =>
+        p === injuredId ? replacementId : p
+      );
+      // Move injured to bench, replacement off bench.
+      lineup.bench = [
+        ...lineup.bench.filter((p) => p !== replacementId),
+        injuredId,
+      ];
+
+      // Open replacement's stint at nowMs in the vacated zone.
+      stintStartMs[replacementId] = nowMs;
+      stintZone[replacementId] = injuredZone;
+
+      const injuredIds = alreadyInjured
+        ? prev.injuredIds
+        : [...prev.injuredIds, injuredId];
+
+      return {
+        lineup,
+        selected: null,
+        basePlayedZoneMs,
+        stintStartMs,
+        stintZone,
+        injuredIds,
         swapCount: prev.swapCount + 1,
       };
     }),
