@@ -65,9 +65,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}>
-      <body className="font-sans">{children}</body>
-      {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
-      <SpeedInsights />
+      {/* Analytics components must live INSIDE <body>. Rendering
+          <SpeedInsights /> (or <GoogleAnalytics />) as a sibling of
+          <body> produces invalid HTML — the browser parser moves
+          their nodes into <body> while React's client-side renderer
+          still expects them as children of <html>. The mismatch
+          surfaces as a Suspense-boundary hydration error on every
+          page (the call stack points at
+          tryToClaimNextHydratableSuspenseInstance). Keeping them
+          inside <body> avoids the parser fix-up entirely. */}
+      <body className="font-sans">
+        {children}
+        {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
