@@ -18,8 +18,12 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
   function handleReset() {
     setError(null);
     startTransition(async () => {
+      // resetGame redirects on success (back to the pre-kick-off
+      // screen so the coach can re-set availability + fill-ins) so
+      // `result` will be undefined on the happy path. Only treat it
+      // as a failure when the action came back with `{success: false}`.
       const result = await resetGame(auth, gameId);
-      if (!result.success) {
+      if (result && !result.success) {
         setError(result.error);
         setStage("idle");
       } else {
