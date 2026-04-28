@@ -187,6 +187,40 @@ describe("suggestNetballLineup", () => {
     expect(onCourt.has("p9")).toBe(true);
   });
 
+  it("regression: season under-utilisation tie-breaks who-plays for equal in-game ms", () => {
+    // Steve's rule: a consistent attendee who's been benched a lot
+    // across the season should collect priority for court time so
+    // they don't keep drawing the bench. Two players with identical
+    // in-game ms — but very different season utilisation — should
+    // sort with the under-utilised one first (court priority).
+    const lineup = suggestNetballLineup({
+      playerIds: ["benchwarmer", "regular", "p3", "p4", "p5", "p6", "p7", "p8"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: {},
+      // Both have the same in-game total (zero — pre-game / fresh
+      // candidates). Tiebreak should consult season utilisation.
+      thisGameTotalMs: {},
+      seasonAvailability: {
+        // benchwarmer attended every quarter of every game this
+        // season but only played a third of them — heavy bench
+        // history. Should sort FIRST.
+        benchwarmer: { playedQuarters: 8, availableQuarters: 24 },
+        // regular attended the same and played most of them — well-
+        // utilised. Should sort LAST among the two.
+        regular: { playedQuarters: 22, availableQuarters: 24 },
+      },
+      isAllowed: alwaysAllowed,
+      seed: 7,
+    });
+    const onCourt = new Set<string>(Object.values(lineup.positions).flat());
+    // 8 candidates, 7 court slots → exactly one bench. The benched
+    // player must NOT be the under-utilised "benchwarmer". (Could
+    // be regular or any of p3..p8 depending on shuffle — we're
+    // asserting only that the season-tier protected benchwarmer.)
+    expect(onCourt.has("benchwarmer")).toBe(true);
+  });
+
   it("regression: ties prefer the third the player has played LEAST", () => {
     // Steve hit this at Q4: Patra played centre, then bench, then
     // centre, then centre — never escaped. With both attack and

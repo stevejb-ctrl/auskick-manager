@@ -180,6 +180,68 @@ export function lastQuarterTeammatesInThird(
   return out;
 }
 
+/**
+ * Per-player season "utilisation" — quarters they were on court vs
+ * total quarters they were AVAILABLE (i.e. appeared in any
+ * lineup_set / period_break_swap event for a given quarter, either
+ * on court or on the bench). Drives a season-level tier in the
+ * suggester's sort: among players with equal in-game ms played, the
+ * coach's pick of who-benches favours players who have been
+ * UNDER-utilised across the season — so consistent attendees who
+ * keep getting benched start collecting priority that nudges them
+ * onto court next time.
+ *
+ * Steve's framing: "If someone is away this is not available time."
+ * Missed games don't count against them; they just don't appear in
+ * the totals. So a player who attended 5 games at 100% court time
+ * and a player who attended 50 games at 30% court time both get
+ * sorted on their respective ratios, not their absolute totals.
+ *
+ * Returns played and available counts so callers can compute the
+ * ratio (or any other comparison) at the call site.
+ */
+export interface SeasonAvailability {
+  /** Quarters spent on court across all games in the input. */
+  playedQuarters: number;
+  /** Quarters spent on either court or bench (i.e. attended). */
+  availableQuarters: number;
+}
+export function seasonAvailability(
+  events: GameEvent[],
+): Record<string, SeasonAvailability> {
+  const out: Record<string, SeasonAvailability> = {};
+  const ensure = (pid: string): SeasonAvailability => {
+    let s = out[pid];
+    if (!s) {
+      s = { playedQuarters: 0, availableQuarters: 0 };
+      out[pid] = s;
+    }
+    return s;
+  };
+  // Walk every lineup-changing event in the input. Each represents
+  // one quarter's starting roster. Players in positions get +1 played
+  // + +1 available; players on bench get +1 available only.
+  for (const ev of events) {
+    if (ev.type !== "lineup_set" && ev.type !== "period_break_swap") continue;
+    const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
+    if (!meta.lineup) continue;
+    const lineup = normaliseGenericLineup(meta.lineup);
+    for (const ids of Object.values(lineup.positions)) {
+      for (const pid of ids) {
+        if (!pid) continue;
+        const s = ensure(pid);
+        s.playedQuarters++;
+        s.availableQuarters++;
+      }
+    }
+    for (const pid of lineup.bench) {
+      if (!pid) continue;
+      ensure(pid).availableQuarters++;
+    }
+  }
+  return out;
+}
+
 /** Sum counts across many games. Input: events for an entire season. */
 export function seasonPositionCounts(events: GameEvent[]): PlayerPositionCounts {
   const byGame = new Map<string, GameEvent[]>();
@@ -312,6 +374,19 @@ export interface NetballSuggestInput {
    * `thisGame` position counts (legacy behaviour).
    */
   thisGameTotalMs?: Record<string, number>;
+  /**
+   * Per-player season utilisation — quarters played vs available
+   * across all PRIOR games. Used as a tiebreak in the who-plays
+   * sort: among players with equal in-game ms, the under-utilised
+   * (lower played/available ratio) get court priority. So a
+   * consistent attendee who's been benched twice already this
+   * season starts moving up the queue ahead of teammates who've
+   * had similar attendance but more court time. Steve's rule:
+   * "those who have had the least game time should have the least
+   * subs." When absent, the tiebreak is skipped and the seeded
+   * shuffle decides ms-tied players.
+   */
+  seasonAvailability?: Record<string, SeasonAvailability>;
 }
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
@@ -326,6 +401,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     lastQuarterThird,
     previousTeammates,
     thisGameTotalMs,
+    seasonAvailability: seasonAvail,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
@@ -464,9 +540,29 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     if (thisGameTotalMs) return thisGameTotalMs[pid] ?? 0;
     return Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
   };
+  // Season utilisation tiebreak: ratio of quarters-played to
+  // quarters-available across prior games. Returns 1.0 (fully
+  // utilised, no signal) when we have no data — a brand-new player
+  // doesn't get artificial priority over the squad regulars.
+  const seasonRatio = (pid: string): number => {
+    if (!seasonAvail) return 1.0;
+    const s = seasonAvail[pid];
+    if (!s || s.availableQuarters === 0) return 1.0;
+    return s.playedQuarters / s.availableQuarters;
+  };
 
   const shuffled = seededShuffle(playerIds, seed + 41);
-  shuffled.sort((a, b) => sortKey(a) - sortKey(b));
+  shuffled.sort((a, b) => {
+    // Primary: in-game ms played. Less first.
+    const msDiff = sortKey(a) - sortKey(b);
+    if (msDiff !== 0) return msDiff;
+    // Tiebreak: season utilisation. Lower ratio (more bench history
+    // when present) sorts first → court priority. So a consistent
+    // attendee who keeps drawing the bench starts climbing the
+    // queue, and a teammate who's had a normal share of court time
+    // moves down to balance it.
+    return seasonRatio(a) - seasonRatio(b);
+  });
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);

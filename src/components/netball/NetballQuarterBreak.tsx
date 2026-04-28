@@ -40,6 +40,7 @@ import {
   lastQuarterTeammatesInThird,
   netballFairnessScore,
   playerThirdMs,
+  seasonAvailability,
   seasonPositionCounts,
   suggestNetballLineup,
 } from "@/lib/sports/netball/fairness";
@@ -222,6 +223,14 @@ export function NetballQuarterBreak({
     thirdMs.forEach((stats, pid) => {
       totalMsByPlayer[pid] = stats.attack + stats.centre + stats.defence;
     });
+    // Season-level utilisation tiebreak. Counts each player's
+    // quarters-played vs quarters-available across all prior games
+    // — a consistent attendee who's been benched twice already
+    // this season starts collecting sort priority for the next
+    // game. The suggester only consults this signal when in-game
+    // ms is tied, so within a single game the standard rotation
+    // still drives the decisions.
+    const seasonAvail = seasonAvailability(seasonEvents);
     const base = suggestNetballLineup({
       playerIds: candidatePool,
       positions,
@@ -233,6 +242,7 @@ export function NetballQuarterBreak({
       lastQuarterThird: lastThirds,
       previousTeammates: prevTeammates,
       thisGameTotalMs: totalMsByPlayer,
+      seasonAvailability: seasonAvail,
     });
     // Pre-apply locks: locked player goes to locked position. If the
     // locked player was already placed elsewhere by the suggester, we
