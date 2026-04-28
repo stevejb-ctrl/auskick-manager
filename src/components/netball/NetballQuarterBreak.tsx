@@ -34,6 +34,7 @@ import {
   type PlayerThirdMs,
   formatMinSec,
   gamePositionCounts,
+  lastQuarterThirds,
   netballFairnessScore,
   playerThirdMs,
   seasonPositionCounts,
@@ -157,6 +158,12 @@ export function NetballQuarterBreak({
   const suggestedLineup = useMemo(() => {
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
+    const lastThirds = lastQuarterThirds(
+      thisGameEvents,
+      primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
     const base = suggestNetballLineup({
       playerIds: candidatePool,
       positions,
@@ -164,6 +171,10 @@ export function NetballQuarterBreak({
       thisGame,
       isAllowed: (_pid, posId) => positions.includes(posId),
       seed: nextQuarter,
+      thirdOf: primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+      lastQuarterThird: lastThirds,
     });
     // Pre-apply locks: locked player goes to locked position, displacing
     // whoever the suggester put there.

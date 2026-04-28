@@ -27,6 +27,7 @@ import {
   suggestNetballLineup,
   seasonPositionCounts,
   gamePositionCounts,
+  lastQuarterThirds,
 } from "@/lib/sports/netball/fairness";
 import type { GameEvent } from "@/lib/types";
 
@@ -99,6 +100,12 @@ export function NetballLineupPicker({
     for (const id of lineup.bench) if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); }
     const nextSeed = suggestSeed + 1;
     setSuggestSeed(nextSeed);
+    const lastThirds = lastQuarterThirds(
+      thisGameEvents,
+      primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
     const suggested = suggestNetballLineup({
       playerIds: expandedAvailable,
       positions: ageGroup.positions,
@@ -106,6 +113,10 @@ export function NetballLineupPicker({
       thisGame,
       isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
       seed: nextSeed,
+      thirdOf: primaryThirdFor as (
+        positionId: string,
+      ) => "attack-third" | "centre-third" | "defence-third" | null,
+      lastQuarterThird: lastThirds,
     });
     setLineup(suggested);
   };

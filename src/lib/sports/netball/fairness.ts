@@ -84,6 +84,44 @@ export function gamePositionCounts(events: GameEvent[]): PlayerPositionCounts {
   return result;
 }
 
+/**
+ * Build a per-player "third they played in their most recent quarter"
+ * map from this-game events. Drives Tier-1 of the suggester: avoid
+ * placing a player in the same third two quarters running.
+ *
+ * Walks events forward; the LATEST lineup-changing event wins for each
+ * player, which means at Q3 break the map reflects Q2's lineup, at
+ * Q2 break it reflects Q1's lineup, etc. — exactly the "previous
+ * quarter" we want to compare against.
+ *
+ * Players who haven't played any quarter yet (bench-only so far) get
+ * no entry — null effectively — which the suggester treats as "no
+ * penalty, free to place anywhere".
+ */
+export function lastQuarterThirds(
+  events: GameEvent[],
+  thirdOf: ThirdLookup,
+): Record<string, "attack-third" | "centre-third" | "defence-third"> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const out: Record<string, "attack-third" | "centre-third" | "defence-third"> = {};
+  for (const ev of sorted) {
+    if (ev.type !== "lineup_set" && ev.type !== "period_break_swap") continue;
+    const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
+    if (!meta.lineup) continue;
+    const lineup = normaliseGenericLineup(meta.lineup);
+    for (const [posId, ids] of Object.entries(lineup.positions)) {
+      const third = thirdOf(posId);
+      if (!third) continue;
+      for (const pid of ids) {
+        if (pid) out[pid] = third;
+      }
+    }
+  }
+  return out;
+}
+
 /** Sum counts across many games. Input: events for an entire season. */
 export function seasonPositionCounts(events: GameEvent[]): PlayerPositionCounts {
   const byGame = new Map<string, GameEvent[]>();
@@ -148,6 +186,28 @@ export function netballFairnessScore(season: PlayerPositionCounts): number {
 // to field, suggest a lineup that moves each player toward under-
 // represented positions. Respects netball rules of play (via the
 // eligibility callback) so we never suggest GS on defence.
+//
+// Scoring is tiered (lexicographic via weighted sum). For each
+// candidate (player, position) pairing the score is:
+//
+//   tier 1 (+100000): the player hasn't played this third yet THIS
+//     GAME. Highest priority — cover all three thirds per player
+//     across the four quarters wherever possible.
+//   tier 2 (-50000):  the player has already played this exact
+//     position this game. With 7 positions and 4 quarters, no player
+//     should ever need to repeat a position — this penalty is large
+//     enough to dominate everything below tier 1.
+//   tier 3 (-10000):  the player played in this third LAST QUARTER.
+//     Soft preference — keep kids moving across the court between
+//     breaks rather than camping in one third.
+//   tier 4 (-seasonCount): season rarity — among otherwise-equal
+//     candidates, prefer the position they've played least across
+//     the year.
+//
+// Magnitudes are spaced so a higher tier always dominates lower
+// tiers in any plausible squad. Inputs that drive tiers 1 and 3
+// (`thirdOf`, `lastQuarterThird`) are optional for backward
+// compatibility; when absent those tiers contribute nothing.
 export interface NetballSuggestInput {
   /** Active player ids for this game. */
   playerIds: string[];
@@ -161,20 +221,83 @@ export interface NetballSuggestInput {
   isAllowed: (playerId: string, positionId: string) => boolean;
   /** Deterministic tie-break seed. */
   seed?: number;
+  /** Position → third. Required for tier 1 and tier 2 to apply. */
+  thirdOf?: (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null;
+  /** Each player's third in their most recent quarter on the court. Drives tier 2. */
+  lastQuarterThird?: Record<string, "attack-third" | "centre-third" | "defence-third">;
 }
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
-  const { playerIds, positions, season, thisGame, isAllowed, seed = 0 } = input;
+  const {
+    playerIds,
+    positions,
+    season,
+    thisGame,
+    isAllowed,
+    seed = 0,
+    thirdOf,
+    lastQuarterThird,
+  } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
 
-  // "Owe" heuristic: prefer positions this player has played less often
-  // across the season, AND hasn't played this game yet.
+  // Pre-compute the set of thirds each player has played this game.
+  // Cheap to do once up-front rather than per (player, position) pair.
+  const thirdsPlayedThisGame: Record<string, Set<string>> = {};
+  if (thirdOf) {
+    for (const [pid, posCounts] of Object.entries(thisGame)) {
+      const s = new Set<string>();
+      for (const [posId, count] of Object.entries(posCounts)) {
+        if (count > 0) {
+          const t = thirdOf(posId);
+          if (t) s.add(t);
+        }
+      }
+      thirdsPlayedThisGame[pid] = s;
+    }
+  }
+
   const owed = (pid: string, posId: string): number => {
-    const thisGameCount = thisGame[pid]?.[posId] ?? 0;
+    const playedThisGameAtPos = thisGame[pid]?.[posId] ?? 0;
     const seasonCount = season[pid]?.[posId] ?? 0;
-    const inGameBonus = thisGameCount === 0 ? 100 : 0;
-    return inGameBonus - seasonCount;
+    const candidateThird = thirdOf ? thirdOf(posId) : null;
+
+    // Tier 1: massive bonus for filling a third the player hasn't
+    // touched yet this game. The "play every third every game"
+    // objective dominates everything else.
+    let unplayedThirdBonus = 0;
+    if (candidateThird) {
+      const playedThirds = thirdsPlayedThisGame[pid];
+      if (!playedThirds || !playedThirds.has(candidateThird)) {
+        unplayedThirdBonus = 100000;
+      }
+    }
+
+    // Tier 2: heavy penalty for repeating the EXACT position this
+    // game. With 7 positions and 4 quarters, no player ever NEEDS to
+    // repeat a position — when they do it's the algorithm's last
+    // resort. Stronger than the same-third-as-last-quarter penalty
+    // (which is a softer "keep them moving" preference).
+    const samePositionPenalty = playedThisGameAtPos > 0 ? -50000 : 0;
+
+    // Tier 3: soft preference — avoid placing them in the same third
+    // they were in last quarter. Beats season rarity but bows to the
+    // two harder rules above.
+    let sameThirdAsLastPenalty = 0;
+    if (candidateThird && lastQuarterThird) {
+      const last = lastQuarterThird[pid];
+      if (last && last === candidateThird) sameThirdAsLastPenalty = -10000;
+    }
+
+    // Tier 4: prefer positions they've played least across the season.
+    const seasonRarity = -seasonCount;
+
+    return (
+      unplayedThirdBonus +
+      samePositionPenalty +
+      sameThirdAsLastPenalty +
+      seasonRarity
+    );
   };
 
   const totalPlayed = (pid: string): number => {
@@ -182,7 +305,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     return Object.values(counts).reduce((a, b) => a + b, 0);
   };
 
-  // Priority: players who've played fewest total periods go first.
+  // Priority: players who've played fewest total periods get first pick.
   const shuffled = seededShuffle(playerIds, seed + 41);
   shuffled.sort((a, b) => totalPlayed(a) - totalPlayed(b));
 
@@ -194,8 +317,6 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
       lineup.bench.push(pid);
       continue;
     }
-    // Pick the open position with the highest "owed" score for this
-    // player that they're also eligible for. If none, bench them.
     let bestPos: string | null = null;
     let bestScore = -Infinity;
     const remainingList = Array.from(remaining);

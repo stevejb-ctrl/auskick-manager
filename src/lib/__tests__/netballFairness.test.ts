@@ -180,6 +180,107 @@ describe("suggestNetballLineup", () => {
     expect(onField).toHaveLength(7);
     expect(lineup.bench).toHaveLength(2);
   });
+
+  // Map mirrors netball/index.ts primaryThirdFor — keeping the test
+  // self-contained instead of importing the live one so we don't have
+  // a hidden coupling to the production registry.
+  const TEST_THIRD = (posId: string) => {
+    const m: Record<string, "attack-third" | "centre-third" | "defence-third"> = {
+      gs: "attack-third",
+      ga: "attack-third",
+      wa: "centre-third",
+      c: "centre-third",
+      wd: "centre-third",
+      gd: "defence-third",
+      gk: "defence-third",
+    };
+    return m[posId] ?? null;
+  };
+
+  it("tier 1: prefers a third the player hasn't played this game", () => {
+    // alice played centre (C) in Q1. The tier-1 unplayed-third bonus
+    // should push her into attack OR defence for Q2 even when other
+    // signals are flat.
+    const lineup = suggestNetballLineup({
+      playerIds: ["alice", "b", "c", "d", "e", "f", "g"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: { alice: { c: 1 } },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+    });
+    const aliceAt = (Object.entries(lineup.positions).find(([, ids]) =>
+      ids.includes("alice"),
+    ) ?? [])[0];
+    expect(aliceAt).toBeDefined();
+    expect(TEST_THIRD(aliceAt!)).not.toBe("centre-third");
+  });
+
+  it("tier 2: avoids placing in the same third as last quarter", () => {
+    // bob played WA last quarter (centre-third). tier 1 says any
+    // unplayed third works — but tier 2 says don't put him in centre.
+    // With only thirdOf + lastQuarterThird (no thisGame counts), the
+    // tier-1 bonus applies to every third equally so tier 2 is the
+    // active discriminator.
+    const lineup = suggestNetballLineup({
+      playerIds: ["alice", "bob", "c", "d", "e", "f", "g"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: {},
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird: { bob: "centre-third" },
+    });
+    const bobAt = (Object.entries(lineup.positions).find(([, ids]) =>
+      ids.includes("bob"),
+    ) ?? [])[0];
+    expect(bobAt).toBeDefined();
+    expect(TEST_THIRD(bobAt!)).not.toBe("centre-third");
+  });
+
+  it("tier 2: heavy penalty on repeating exact position even after every third covered", () => {
+    // dan has covered all three thirds this game (gs in Q1, c in Q2,
+    // gd in Q3). No tier-1 bonus applies — every candidate scores 0
+    // there. The same-position penalty (-50000) should keep him out
+    // of GS / C / GD for Q4 even with a fresh squad available.
+    const lineup = suggestNetballLineup({
+      playerIds: ["dan", "b", "c", "d", "e", "f", "g"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: { dan: { gs: 1, c: 1, gd: 1 } },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird: { dan: "defence-third" },
+    });
+    const danAt = (Object.entries(lineup.positions).find(([, ids]) =>
+      ids.includes("dan"),
+    ) ?? [])[0];
+    expect(danAt).toBeDefined();
+    expect(["gs", "c", "gd"]).not.toContain(danAt);
+  });
+
+  it("tier 1 dominates tier 3 when they conflict", () => {
+    // cara played GS (attack) last quarter — tier 2 says avoid attack.
+    // But she's only ever played attack this game, so tier 1 says
+    // CENTRE or DEFENCE. The two rules agree here. Confirm she's NOT
+    // in attack despite the +100000 unplayed-third bonus that would
+    // apply to centre/defence — she has those slots open and shouldn't
+    // need to repeat attack.
+    const lineup = suggestNetballLineup({
+      playerIds: ["cara", "b", "c", "d", "e", "f", "g"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: { cara: { gs: 1 } },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird: { cara: "attack-third" },
+    });
+    const caraAt = (Object.entries(lineup.positions).find(([, ids]) =>
+      ids.includes("cara"),
+    ) ?? [])[0];
+    expect(caraAt).toBeDefined();
+    expect(TEST_THIRD(caraAt!)).not.toBe("attack-third");
+  });
 });
 
 describe("integration: netballSport.validateLineup + suggest", () => {
