@@ -197,7 +197,7 @@ export function PositionToken({
         </span>
       )}
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
+      <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-1">
         {/* Position chip — sky accent, monospace uppercase, mirrors AFL's zone label */}
         <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-sky-700">
           {short}
@@ -208,27 +208,25 @@ export function PositionToken({
           {display}
         </span>
 
-        {/* Total minutes played this game — small monospace under name. */}
-        {totalMs !== undefined && totalMs > 0 && (
-          <span className="nums font-mono text-[10px] font-semibold leading-none text-ink-dim">
-            {formatMinSec(totalMs)}
-          </span>
-        )}
-
-        {/* Stacked time bar — three thirds, same palette as AFL's
-            zone bar. Hidden when there's no time yet (Q1 with 0
-            seconds elapsed, finalised game with no events, etc.). */}
+        {/* Time + colour-coded bar share a single row to keep token
+            height compact (the centre band has to fit three tokens
+            inside one third of the court). */}
         {stats && totalMs !== undefined && totalMs > 0 && (() => {
           const total = totalMs || 1;
           const pct = (v: number) => `${(v / total) * 100}%`;
           return (
-            <span
-              className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
-              aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
-            >
-              <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
-              <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
-              <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
+            <span className="mt-0.5 flex w-full items-center gap-1">
+              <span className="nums font-mono text-[9px] font-semibold leading-none text-ink-dim">
+                {formatMinSec(totalMs)}
+              </span>
+              <span
+                className="flex h-1 flex-1 overflow-hidden rounded-full bg-surface-alt"
+                aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
+              >
+                <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
+                <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
+                <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
+              </span>
             </span>
           );
         })()}

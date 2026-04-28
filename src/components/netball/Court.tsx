@@ -26,10 +26,12 @@ interface CourtProps {
 export function Court({ attackThird, centreThird, defenceThird, overlay }: CourtProps) {
   return (
     <div className="relative flex w-full flex-col rounded-lg border border-sky-300 bg-sky-50 shadow-sm overflow-hidden">
-      {/* Court aspect: slightly taller than half of its width, matching
-          a real netball court (30.5m × 15.25m = 2:1). The three thirds
-          are drawn as equal-height rows stacked top-to-bottom. */}
-      <div className="relative aspect-[2/3]">
+      {/* Court aspect: 3:5 width-to-height. Closer to a real netball
+          court's 2:1 (30.5m × 15.25m) than the previous 2:3 was, and
+          gives each band enough vertical breathing room to fit 3
+          tokens (centre band: WA / C / WD) without overflowing into
+          the next band and covering the DEFENCE / CENTRE labels. */}
+      <div className="relative aspect-[3/5]">
         {/* Attack third */}
         <ThirdRow kind="attack" label="Attack">
           {attackThird}
@@ -83,14 +85,14 @@ function ThirdRow({
   // GS → GA → WA → C → WD → GD → GK. The caller is responsible for
   // adding the per-token horizontal stagger.
   //
-  // pt-5 reserves vertical space for the absolute-positioned ATTACK /
+  // pt-4 reserves vertical space for the absolute-positioned ATTACK /
   // CENTRE / DEFENCE label so the first token in each band can't
-  // overlap it. pb-1 keeps the band tight at the bottom. Without
-  // this, tokens distributed via justify-around sat right under the
-  // label and visually covered it.
+  // overlap it. pb-1 keeps the band tight at the bottom. Combined
+  // with the taller aspect ratio (3:5) this leaves room for the
+  // centre band's three tokens (WA / C / WD) without overflow.
   return (
     <div
-      className={`relative flex h-1/3 w-full flex-col items-stretch justify-around border-b-2 border-sky-700/60 last:border-b-0 px-2 pt-5 pb-1 ${bg}`}
+      className={`relative flex h-1/3 w-full flex-col items-stretch justify-around border-b-2 border-sky-700/60 last:border-b-0 px-2 pt-4 pb-1 ${bg}`}
     >
       <span className="pointer-events-none absolute right-2 top-1 text-[10px] font-semibold uppercase tracking-wider text-sky-800/70">
         {label}
