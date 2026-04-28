@@ -16,7 +16,7 @@
 // double-fire. Mirrors the AFL PlayerTile implementation.
 
 import { useRef } from "react";
-import { netballSport } from "@/lib/sports/netball";
+import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
 
 interface PositionTokenProps {
@@ -53,6 +53,16 @@ const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
   attack: "bg-zone-f",
   centre: "bg-zone-c",
   defence: "bg-zone-b",
+};
+// Same palette as the time-bar segments above, but as text colours
+// — so the position chip on a token reads in the same colour as the
+// third's slice in the time bar. Lets a coach scan a card and
+// instantly map "purple chip = centre time, blue chip = defence time"
+// without remembering the legend.
+const THIRD_TEXT_COLOR: Record<"attack" | "centre" | "defence", string> = {
+  attack: "text-zone-f",
+  centre: "text-zone-c",
+  defence: "text-zone-b",
 };
 
 export function PositionToken({
@@ -198,8 +208,22 @@ export function PositionToken({
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-1">
-        {/* Position chip — sky accent, monospace uppercase, mirrors AFL's zone label */}
-        <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-sky-700">
+        {/* Position chip — text colour matches the third's time-bar
+            colour (forward=orange, centre=purple, defence=blue) so
+            the legend is implicit. Falls back to neutral ink-dim
+            when the position has no third (shouldn't happen in
+            netball, but keeps the type-narrowing tidy). */}
+        <span
+          className={`font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
+            (() => {
+              const t = primaryThirdFor(positionId);
+              if (t === "attack-third") return THIRD_TEXT_COLOR.attack;
+              if (t === "centre-third") return THIRD_TEXT_COLOR.centre;
+              if (t === "defence-third") return THIRD_TEXT_COLOR.defence;
+              return "text-ink-dim";
+            })()
+          }`}
+        >
           {short}
         </span>
 

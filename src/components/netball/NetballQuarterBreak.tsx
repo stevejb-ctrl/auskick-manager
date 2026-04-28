@@ -968,8 +968,22 @@ function PlayerTile({
         </span>
       )}
       <span className="flex items-center gap-2">
-        {/* Position chip — sky-accent like the live token. "B" for bench. */}
-        <span className="inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-sky-100 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-sky-800 tabular-nums">
+        {/* Position chip — text colour matches the third's time-bar
+            colour (forward=orange, centre=purple, defence=blue) so
+            coaches can map a colour to a third without reading
+            labels. Bench tiles ("B") fall back to neutral ink. */}
+        <span
+          className={`inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-surface-alt px-1 font-mono text-[10px] font-bold uppercase tracking-micro tabular-nums ${
+            (() => {
+              if (!positionId) return "text-ink-dim";
+              const t = primaryThirdFor(positionId);
+              if (t === "attack-third") return "text-zone-f";
+              if (t === "centre-third") return "text-zone-c";
+              if (t === "defence-third") return "text-zone-b";
+              return "text-ink-dim";
+            })()
+          }`}
+        >
           {positionShort}
         </span>
         <span className="flex flex-col items-start">
