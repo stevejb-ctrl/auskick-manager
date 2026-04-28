@@ -1,9 +1,10 @@
 import { Suspense } from "react";
+import { AuthCardShell } from "@/components/auth/AuthCardShell";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 
 export default function ForgotPasswordPage() {
   return (
-    <>
+    <AuthCardShell>
       <h2 className="mb-6 text-center text-xl font-semibold text-ink">
         Reset your password
       </h2>
@@ -13,6 +14,6 @@ export default function ForgotPasswordPage() {
       <Suspense fallback={null}>
         <ForgotPasswordForm />
       </Suspense>
-    </>
+    </AuthCardShell>
   );
 }

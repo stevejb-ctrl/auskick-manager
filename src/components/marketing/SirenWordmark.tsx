@@ -6,6 +6,12 @@ interface SirenWordmarkProps {
   size?: "sm" | "md" | "lg";
   /** Fires the halo animation around the mark (hero use). */
   pulsing?: boolean;
+  /**
+   * Inverts the wordmark for use on dark surfaces (e.g. the login
+   * brand panel). The orange dot stays alarm-orange — only the text
+   * flips from ink to warm.
+   */
+  dark?: boolean;
 }
 
 /**
@@ -43,6 +49,7 @@ export function SirenWordmark({
   className = "",
   size = "md",
   pulsing = false,
+  dark = false,
 }: SirenWordmarkProps) {
   const s = SCALE[size];
 
@@ -69,7 +76,7 @@ export function SirenWordmark({
         fontSize: s.fontSize,
         lineHeight: 0.9,
         letterSpacing: "-0.05em",
-        color: "#141613",
+        color: dark ? "#F7F5F1" : "#141613",
         gap: s.gap,
       }}
       aria-label="Siren"
