@@ -326,7 +326,16 @@ export function LiveGame({
 
   useEffect(() => {
     if (!initialState.lineup) return;
-    if (activeGameId === gameId) {
+    // Skip re-init when the store is already in sync with the server's view
+    // of the game. After a `resetGame` deletes every event, the server's
+    // currentQuarter regresses to 0 — but quarters can only ever advance
+    // during normal play. So if the store thinks we're further along than
+    // the server says, the game has been reset and we MUST re-init to
+    // wipe accumulated zone minutes, scores, locks, and so on. Without
+    // this check, restart-game just left the in-memory state from before
+    // the reset visible on screen.
+    const storeAheadOfServer = currentQuarter > initialState.currentQuarter;
+    if (activeGameId === gameId && !storeAheadOfServer) {
       setHydrated(true);
       return;
     }
@@ -361,7 +370,7 @@ export function LiveGame({
       accumulatedMs,
     });
     setHydrated(true);
-  }, [init, initialState, gameId, activeGameId]);
+  }, [init, initialState, gameId, activeGameId, currentQuarter]);
 
   function currentElapsedMs() {
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
