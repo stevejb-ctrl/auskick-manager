@@ -23,8 +23,10 @@ import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
   type GenericLineup,
+  type PlayerThirdMs,
   emptyGenericLineup,
   gamePositionCounts,
+  playerThirdMs,
   seasonPositionCounts,
 } from "@/lib/sports/netball/fairness";
 import {
@@ -172,6 +174,29 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // In netball only GS and GA can legally shoot — other tokens are
   // tappable only as a no-op (long-press still works for actions menu).
   const SCORING_POSITIONS = useMemo(() => new Set(["gs", "ga"]), []);
+
+  // Per-player time-by-third stats. Recomputes when clockMs ticks
+  // (every 500ms) so the bar fills smoothly. Mid-quarter the trailing
+  // lineup gets credited with `clockMs`; at break/finalised the live
+  // value is irrelevant so we pass null to credit a full periodSeconds.
+  const playerStats = useMemo(() => {
+    const inProgress = quarterEnded || finalised || currentQuarter === 0
+      ? null
+      : clockMs;
+    return playerThirdMs(
+      thisGameEvents,
+      inProgress,
+      ageGroup.periodSeconds,
+      primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
+  }, [
+    thisGameEvents,
+    clockMs,
+    quarterEnded,
+    finalised,
+    currentQuarter,
+    ageGroup.periodSeconds,
+  ]);
 
   // ─── Action handlers ───────────────────────────────────────
   // tap on a GS/GA token → open the confirm sheet (mirrors AFL's
@@ -388,7 +413,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarterLabel="FT"
           clockText="—"
         />
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
+        <CourtDisplay
+          lineup={onCourt}
+          ageGroup={ageGroup}
+          squadById={squadById}
+          disabled
+          playerStats={playerStats}
+        />
       </div>
     );
   }
@@ -545,6 +576,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         injuredIds={injuredIds}
         loanedIds={loanedIds}
         nextBreakLocks={nextBreakLocks}
+        playerStats={playerStats}
       />
 
       <p className="text-center text-xs text-neutral-500">
@@ -733,6 +765,7 @@ function CourtDisplay({
   injuredIds,
   loanedIds,
   nextBreakLocks,
+  playerStats,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -757,6 +790,8 @@ function CourtDisplay({
   loanedIds?: Set<string>;
   /** Position → playerId locks for the next quarter break — drives 🔒 badge. */
   nextBreakLocks?: Record<string, string>;
+  /** Per-player {attack, centre, defence} ms — drives the stacked bar + total under each name. */
+  playerStats?: Map<string, PlayerThirdMs>;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
@@ -766,6 +801,10 @@ function CourtDisplay({
       {positionIds.map((positionId) => {
         const pid = lineup.positions[positionId]?.[0] ?? null;
         const name = pid ? squadById.get(pid)?.full_name ?? null : null;
+        const stats = pid ? playerStats?.get(pid) : undefined;
+        const totalMs = stats
+          ? stats.attack + stats.centre + stats.defence
+          : undefined;
         return (
           <div
             key={positionId}
@@ -781,6 +820,8 @@ function CourtDisplay({
               locked={
                 pid != null && nextBreakLocks?.[positionId] === pid
               }
+              stats={stats}
+              totalMs={totalMs}
               onTap={
                 onTokenTap ? () => onTokenTap(positionId, pid) : undefined
               }

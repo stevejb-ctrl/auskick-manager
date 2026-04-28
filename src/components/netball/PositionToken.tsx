@@ -17,6 +17,7 @@
 
 import { useRef } from "react";
 import { netballSport } from "@/lib/sports/netball";
+import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
 
 interface PositionTokenProps {
   positionId: string;
@@ -40,7 +41,17 @@ interface PositionTokenProps {
   loaned?: boolean;
   /** Player locked to this position for the next quarter break. */
   locked?: boolean;
+  /** Per-third minutes-played breakdown — drives the colour-coded time bar. */
+  stats?: PlayerThirdMs;
+  /** Total ms played this game — rendered as mm:ss under the name. */
+  totalMs?: number;
 }
+
+const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
+  attack: "bg-zone-f",
+  centre: "bg-zone-c",
+  defence: "bg-zone-b",
+};
 
 export function PositionToken({
   positionId,
@@ -54,6 +65,8 @@ export function PositionToken({
   injured,
   loaned,
   locked,
+  stats,
+  totalMs,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -179,6 +192,31 @@ export function PositionToken({
         <span className="truncate text-sm font-bold leading-tight text-ink">
           {display}
         </span>
+
+        {/* Total minutes played this game — small monospace under name. */}
+        {totalMs !== undefined && totalMs > 0 && (
+          <span className="nums font-mono text-[10px] font-semibold leading-none text-ink-dim">
+            {formatMinSec(totalMs)}
+          </span>
+        )}
+
+        {/* Stacked time bar — three thirds, same palette as AFL's
+            zone bar. Hidden when there's no time yet (Q1 with 0
+            seconds elapsed, finalised game with no events, etc.). */}
+        {stats && totalMs !== undefined && totalMs > 0 && (() => {
+          const total = totalMs || 1;
+          const pct = (v: number) => `${(v / total) * 100}%`;
+          return (
+            <span
+              className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
+              aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
+            >
+              <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
+              <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
+              <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
+            </span>
+          );
+        })()}
       </div>
     </button>
   );
