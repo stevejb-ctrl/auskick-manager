@@ -82,15 +82,16 @@ function ThirdRow({
   // stack vertically (flex-col) so reading order down the court is
   // GS → GA → WA → C → WD → GD → GK. The caller is responsible for
   // adding the per-token horizontal stagger.
+  //
+  // pt-5 reserves vertical space for the absolute-positioned ATTACK /
+  // CENTRE / DEFENCE label so the first token in each band can't
+  // overlap it. pb-1 keeps the band tight at the bottom. Without
+  // this, tokens distributed via justify-around sat right under the
+  // label and visually covered it.
   return (
     <div
-      className={`relative flex h-1/3 w-full flex-col items-stretch justify-around border-b-2 border-sky-700/60 last:border-b-0 px-2 py-1 ${bg}`}
+      className={`relative flex h-1/3 w-full flex-col items-stretch justify-around border-b-2 border-sky-700/60 last:border-b-0 px-2 pt-5 pb-1 ${bg}`}
     >
-      {/* Band label sits in the top-right corner because the netball
-          alignment puts a token in every top-left slot (GS / WA / GD).
-          The right side is clear at the top of each band — bottom-right
-          tokens (GA / WD / GK) sit in the lower half via flex-col
-          justify-around. */}
       <span className="pointer-events-none absolute right-2 top-1 text-[10px] font-semibold uppercase tracking-wider text-sky-800/70">
         {label}
       </span>

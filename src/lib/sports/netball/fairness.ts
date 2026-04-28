@@ -331,19 +331,51 @@ export interface ThirdLookup {
   (positionId: string): "attack-third" | "centre-third" | "defence-third" | null;
 }
 
+/** A slice of an in-progress quarter where a single lineup was active. */
+export interface InProgressSegment {
+  lineup: GenericLineup;
+  durationMs: number;
+}
+
+/**
+ * In-progress contribution for the trailing (still-open) quarter.
+ *
+ * When provided, the helper credits each segment's lineup with that
+ * segment's durationMs and IGNORES the trailing event-derived lineup.
+ * This is how mid-quarter substitutions get accurate per-player time:
+ * the sub-out player gets credit up to the substitution moment, the
+ * sub-in player gets credit from that moment onwards. Sum of all
+ * `durationMs` should equal the actual elapsed time of the quarter.
+ *
+ * When omitted, the helper falls back to crediting the event-derived
+ * trailing lineup with a full periodSeconds (treating the current
+ * quarter as if it just closed). Used for finalised + post-game views
+ * where the in-progress concept doesn't apply.
+ */
+export interface InProgressContribution {
+  segments: InProgressSegment[];
+}
+
 export function playerThirdMs(
   events: GameEvent[],
   inProgressMs: number | null,
   periodSeconds: number,
   thirdLookup: ThirdLookup,
   /**
-   * Optional override for the trailing in-progress quarter's lineup.
-   * Used when a mid-quarter substitution lives in client-side state
-   * (localOverlay) and isn't yet persisted as a period_break_swap
-   * event. Without this, a player subbed onto the court mid-quarter
-   * would receive zero in-progress credit because the event log still
-   * shows the OLD lineup. When set, this lineup is credited the
-   * `inProgressMs` budget instead of the event-derived currentLineup.
+   * Optional per-player timer override. When provided, the helper
+   * IGNORES the event-derived trailing lineup and credits each
+   * segment's lineup with that segment's durationMs instead. Each
+   * on-court player's clock therefore reflects their own time on
+   * court, not the time of whoever was in their position before a
+   * mid-quarter substitution. See the InProgressContribution comment
+   * above for the full contract.
+   */
+  inProgress?: InProgressContribution,
+  /**
+   * @deprecated single-segment override. Use `inProgress` for the
+   * accurate per-player split. Retained as a backward-compatible
+   * fallback: when provided AND `inProgress` is absent, it overrides
+   * the trailing lineup with `inProgressMs` of credit.
    */
   overrideTrailingLineup?: GenericLineup | null,
 ): Map<string, PlayerThirdMs> {
@@ -390,9 +422,20 @@ export function playerThirdMs(
     }
   }
 
-  if (!hasFinalised && currentLineup) {
-    const ms = inProgressMs ?? periodSeconds * 1000;
-    addLineupTime(overrideTrailingLineup ?? currentLineup, ms);
+  if (!hasFinalised) {
+    if (inProgress) {
+      // Per-player accurate path: each segment is a slice of the
+      // in-progress quarter where a single lineup was active. Crediting
+      // segment.lineup with segment.durationMs gives the sub-out
+      // player their pre-substitution time and the sub-in player their
+      // post-substitution time, with no inheritance.
+      for (const seg of inProgress.segments) {
+        addLineupTime(seg.lineup, seg.durationMs);
+      }
+    } else if (currentLineup) {
+      const ms = inProgressMs ?? periodSeconds * 1000;
+      addLineupTime(overrideTrailingLineup ?? currentLineup, ms);
+    }
   }
 
   return out;

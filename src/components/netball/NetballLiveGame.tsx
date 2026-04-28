@@ -11,7 +11,7 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
@@ -24,6 +24,7 @@ import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
   type GenericLineup,
+  type InProgressSegment,
   type PlayerThirdMs,
   emptyGenericLineup,
   gamePositionCounts,
@@ -82,21 +83,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   } = props;
 
   const [isPending, startTransition] = useTransition();
-  const [clockMs, setClockMs] = useState(_quarterElapsedMs);
+  // Bundle the live clock with the quarter it belongs to so the two
+  // can NEVER drift apart. Render-time sync below resets the bundle
+  // synchronously when the quarter prop changes, so `clockMs` is
+  // ALWAYS valid for the current quarter on every render — the
+  // useEffect-based reset we used previously left a brief window
+  // where `clockMs` held the previous quarter's final value, which
+  // tripped the auto-end-at-hooter check and bypassed the new
+  // quarter entirely.
+  const [clockState, setClockState] = useState(() => ({
+    quarter: currentQuarter,
+    ms: _quarterElapsedMs,
+  }));
+  if (clockState.quarter !== currentQuarter) {
+    setClockState({ quarter: currentQuarter, ms: _quarterElapsedMs });
+  }
+  const clockMs =
+    clockState.quarter === currentQuarter ? clockState.ms : _quarterElapsedMs;
+  const setClockMs = useCallback(
+    (updater: (prev: number) => number) => {
+      setClockState((prev) =>
+        prev.quarter === currentQuarter
+          ? { quarter: prev.quarter, ms: updater(prev.ms) }
+          : prev,
+      );
+    },
+    [currentQuarter],
+  );
 
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
   // the auto-end-at-hooter trigger below.
   const quarterLengthMs = ageGroup.periodSeconds * 1000;
   const remainingMs = Math.max(0, quarterLengthMs - clockMs);
-
-  // Re-sync the local clock to the replayed elapsed_ms whenever the
-  // quarter changes (Q1 → Q2 → …) or the page reloads with a fresh
-  // replayed value. Without this, useState's one-shot init means the
-  // clock keeps ticking from Q1's last value into Q2.
-  useEffect(() => {
-    setClockMs(_quarterElapsedMs);
-  }, [_quarterElapsedMs, currentQuarter]);
 
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
@@ -141,6 +160,22 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // lineup_set / period_break_swap events are the authoritative state).
   // Coach can re-do the sub if that happens.
   const [localOverlay, setLocalOverlay] = useState<GenericLineup | null>(null);
+  // Mid-quarter sub log for the CURRENT quarter only. Each entry
+  // records the exact clockMs at which a player vacated a position
+  // and another took it. Drives accurate per-player time accounting:
+  // the sub-out player's bar stops at `atMs`, the sub-in player's bar
+  // starts at `atMs`. Cleared when the quarter changes (next
+  // period_break_swap absorbs the post-sub state into events).
+  type MidQuarterSub = {
+    positionId: string;
+    outPlayerId: string;
+    inPlayerId: string;
+    atMs: number;
+  };
+  const [midQuarterSubs, setMidQuarterSubs] = useState<MidQuarterSub[]>([]);
+  useEffect(() => {
+    setMidQuarterSubs([]);
+  }, [currentQuarter]);
   // Modal target: long-press opens player actions for this player.
   const [actionsTarget, setActionsTarget] = useState<{
     playerId: string;
@@ -184,26 +219,65 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const SCORING_POSITIONS = useMemo(() => new Set(["gs", "ga"]), []);
 
   // Per-player time-by-third stats. Recomputes when clockMs ticks
-  // (every 500ms) so the bar fills smoothly. Mid-quarter the trailing
-  // lineup gets credited with `clockMs`; at break/finalised the live
-  // value is irrelevant so we pass null to credit a full periodSeconds.
+  // (every 500ms) so the bar fills smoothly.
   //
-  // The fifth arg overrides the event-derived trailing lineup with
-  // localOverlay when set. That's the mid-quarter sub state — a
-  // bench player who's just been brought on for an injury hasn't
-  // been written to events yet (period_break_swap fires only at
-  // quarter break), so without the override their tile would show
-  // a zero time bar despite being on the court right now.
+  // For the in-progress quarter we pass `inProgress.segments` — a
+  // chronological list of (lineup, durationMs) slices built from the
+  // start-of-quarter lineup plus midQuarterSubs. This gives EACH
+  // PLAYER their own timer:
+  //   - Q starts at clockMs=0, lineup A is on
+  //   - Sub at clockMs=180000 → lineup A credited 180000ms
+  //   - Lineup B credited (clockMs - 180000)ms, growing live
+  // The sub-out player's bar stops at the sub moment; the sub-in
+  // player's bar starts at zero contribution from this quarter and
+  // accrues from there. No more inheritance.
   const playerStats = useMemo(() => {
-    const inProgress = quarterEnded || finalised || currentQuarter === 0
-      ? null
-      : clockMs;
+    const isLive =
+      !quarterEnded && !finalised && currentQuarter > 0;
+    if (!isLive) {
+      // Closed-out / finalised / pre-game: no in-progress segments.
+      // The helper falls back to crediting closed quarters from events.
+      return playerThirdMs(
+        thisGameEvents,
+        null,
+        ageGroup.periodSeconds,
+        primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
+      );
+    }
+    // Build segments from the start-of-quarter lineup + each sub in
+    // chronological order. The start-of-quarter lineup is whatever the
+    // replay engine handed us (the most recent lineup_set or
+    // period_break_swap before the trailing quarter_start).
+    const startLineup =
+      initialLineup ?? emptyGenericLineup(ageGroup.positions);
+    const segments: InProgressSegment[] = [];
+    let current = startLineup;
+    let prevMs = 0;
+    for (const sub of midQuarterSubs) {
+      const dur = Math.max(0, sub.atMs - prevMs);
+      if (dur > 0) segments.push({ lineup: current, durationMs: dur });
+      // Apply the sub: outPlayer leaves position, inPlayer takes it.
+      const next: GenericLineup = {
+        positions: { ...current.positions },
+        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+      };
+      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
+        .filter((id) => id !== sub.outPlayerId)
+        .concat([sub.inPlayerId]);
+      if (!next.bench.includes(sub.outPlayerId)) {
+        next.bench = [...next.bench, sub.outPlayerId];
+      }
+      current = next;
+      prevMs = sub.atMs;
+    }
+    const finalDur = Math.max(0, clockMs - prevMs);
+    if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
     return playerThirdMs(
       thisGameEvents,
-      inProgress,
+      null,
       ageGroup.periodSeconds,
       primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
-      localOverlay,
+      { segments },
     );
   }, [
     thisGameEvents,
@@ -212,7 +286,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     finalised,
     currentQuarter,
     ageGroup.periodSeconds,
-    localOverlay,
+    initialLineup,
+    midQuarterSubs,
   ]);
 
   // ─── Action handlers ───────────────────────────────────────
@@ -371,11 +446,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   };
 
   // Pick-replacement: drop the picked bench player into the vacated
-  // position in the local overlay. Substitution becomes durable when
-  // the next quarter break confirms via period_break_swap.
+  // position in the local overlay AND record the substitution
+  // timestamp so per-player time accounting can split credit
+  // accurately. Substitution becomes durable when the next quarter
+  // break confirms via period_break_swap.
   const handlePickReplacement = (replacementId: string) => {
     if (!replacingTarget) return;
-    const { positionId } = replacingTarget;
+    const { positionId, vacatingPlayerId } = replacingTarget;
     setLocalOverlay((prev) => {
       const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
       const next: GenericLineup = {
@@ -385,6 +462,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       next.positions[positionId] = [replacementId];
       return next;
     });
+    setMidQuarterSubs((prev) => [
+      ...prev,
+      {
+        positionId,
+        outPlayerId: vacatingPlayerId,
+        inPlayerId: replacementId,
+        atMs: clockMs,
+      },
+    ]);
     setReplacingTarget(null);
   };
 
