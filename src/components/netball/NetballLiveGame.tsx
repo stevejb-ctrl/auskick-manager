@@ -682,12 +682,20 @@ function NetballScoreBug({
         </p>
       </div>
 
-      {/* Centre: dark clock pill */}
+      {/* Centre: dark clock pill. suppressHydrationWarning on the
+          countdown text because the parent's clockMs state is updated
+          by an interval tick after hydration; React 18 occasionally
+          flags the first post-mount setState as a hydration diff if
+          the tick lands inside the hydration commit. The text itself
+          re-renders fine — we just don't want a noisy warning. */}
       <div className="self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop">
         <span className="font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
           {quarterLabel}
         </span>
-        <span className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm">
+        <span
+          className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
+          suppressHydrationWarning
+        >
           {clockText}
         </span>
       </div>

@@ -60,6 +60,11 @@ export function NetballLineupPicker({
   );
   const [picking, setPicking] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Bumps every time the coach taps "Suggest fair lineup" so the
+  // seededShuffle inside suggestNetballLineup yields a different
+  // permutation each tap. Without this the suggester is fully
+  // deterministic and repeat taps look like the button is broken.
+  const [suggestSeed, setSuggestSeed] = useState(0);
 
   const squadById = useMemo(
     () => new Map(squad.map((p) => [p.id, p])),
@@ -79,12 +84,28 @@ export function NetballLineupPicker({
   const handleSuggest = () => {
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
+    // Players who are on the court right now in the seed lineup but
+    // who AREN'T in the official availableIds list (e.g. a fill-in
+    // subbed in mid-quarter via the injury flow). Without this
+    // adjustment, the suggester would drop them from Q2 entirely.
+    const onCourtNow = new Set<string>();
+    for (const ids of Object.values(lineup.positions)) {
+      for (const id of ids) onCourtNow.add(id);
+    }
+    const seen = new Set<string>();
+    const expandedAvailable: string[] = [];
+    for (const id of availableIds) if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); }
+    onCourtNow.forEach((id) => { if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); } });
+    for (const id of lineup.bench) if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); }
+    const nextSeed = suggestSeed + 1;
+    setSuggestSeed(nextSeed);
     const suggested = suggestNetballLineup({
-      playerIds: availableIds,
+      playerIds: expandedAvailable,
       positions: ageGroup.positions,
       season,
       thisGame,
       isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
+      seed: nextSeed,
     });
     setLineup(suggested);
   };
@@ -189,6 +210,9 @@ export function NetballLineupPicker({
 
       <BenchStrip
         bench={lineup.bench}
+        onCourtIds={Array.from(playerSlot.entries())
+          .filter(([, slot]) => slot !== "bench")
+          .map(([pid]) => pid)}
         squadById={squadById}
         availableIds={availableIds}
         onTapPlayer={(pid) => setPicking(`player:${pid}`)}
@@ -240,20 +264,27 @@ export function NetballLineupPicker({
 // ─── Bench strip ─────────────────────────────────────────────
 function BenchStrip({
   bench,
+  onCourtIds,
   squadById,
   availableIds,
   onTapPlayer,
 }: {
   bench: string[];
+  onCourtIds: string[];
   squadById: Map<string, Player>;
   availableIds: string[];
   onTapPlayer: (playerId: string) => void;
 }) {
-  // "Available but unassigned" = in availableIds but not already in a position.
-  // Render them alongside bench for easy tap-to-assign. If a player is in a
-  // position they won't appear here.
-  const assignedBenchIds = new Set(bench);
-  const all = availableIds.filter((pid) => assignedBenchIds.has(pid) || !bench.length);
+  // "Bench + unassigned" = available players who aren't currently in a
+  // position. That's the explicit bench list plus anyone in availableIds
+  // who hasn't been placed anywhere yet. Showing both lets the coach
+  // tap-to-assign without remembering who's left.
+  const onCourtSet = new Set(onCourtIds);
+  const benchSet = new Set(bench);
+  const unassigned = availableIds.filter(
+    (pid) => !onCourtSet.has(pid) && !benchSet.has(pid),
+  );
+  const all = [...bench, ...unassigned];
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3">
