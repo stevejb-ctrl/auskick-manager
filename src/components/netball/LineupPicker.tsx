@@ -15,6 +15,8 @@ import { useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -37,7 +39,26 @@ interface LineupPickerProps {
   thisGameEvents?: GameEvent[];
   /** Season events across all this team's games (for the "owed" heuristic). */
   seasonEvents?: GameEvent[];
-  onConfirm: (lineup: GenericLineup) => void | Promise<void>;
+  /**
+   * Default quarter length (in seconds) for the per-game override
+   * input. Resolved by the parent from the team's effective quarter
+   * length. When provided alongside `onChangeQuarterLengthSeconds`
+   * the picker renders a small "Quarter length" card mirroring AFL's
+   * pre-game sub-interval card — coach can override for this match.
+   * When `defaultQuarterSeconds` is omitted (e.g. Q-break flow which
+   * doesn't change quarter length mid-game), the card is hidden.
+   */
+  defaultQuarterSeconds?: number;
+  /**
+   * Confirmation handler. When the picker has a quarter-length card,
+   * the second arg carries the chosen override in seconds (or null
+   * if the coach left it at the default). Q-break callers can ignore
+   * the second arg.
+   */
+  onConfirm: (
+    lineup: GenericLineup,
+    quarterLengthSeconds?: number | null,
+  ) => void | Promise<void>;
   confirmLabel?: string;
   disabled?: boolean;
 }
@@ -49,6 +70,7 @@ export function NetballLineupPicker({
   initialLineup,
   thisGameEvents = [],
   seasonEvents = [],
+  defaultQuarterSeconds,
   onConfirm,
   confirmLabel = "Confirm lineup",
   disabled,
@@ -93,6 +115,16 @@ export function NetballLineupPicker({
   // pickers behave identically, and matches the AFL pattern.
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Per-game quarter-length override input. Stored as a free-text
+  // string (rather than a number) so the user can clear the field
+  // without it snapping back to 0 — mirrors AFL's sub-minute input.
+  // Empty/unchanged → null override → game falls back to team default.
+  const defaultQuarterMin =
+    defaultQuarterSeconds != null ? Math.round(defaultQuarterSeconds / 60) : null;
+  const [quarterMinInput, setQuarterMinInput] = useState<string>(
+    defaultQuarterMin != null ? String(defaultQuarterMin) : "",
+  );
 
   const squadById = useMemo(
     () => new Map(squad.map((p) => [p.id, p])),
@@ -191,9 +223,32 @@ export function NetballLineupPicker({
       alert(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
+    // Resolve the quarter-length override. Only emit a non-null value
+    // when the picker was rendered with `defaultQuarterSeconds` AND
+    // the coach actually changed the input — that way the parent can
+    // tell "leave the team default in place" from "lock this game to
+    // N minutes".
+    let quarterOverrideSeconds: number | null = null;
+    if (defaultQuarterSeconds != null) {
+      const parsed = Number(quarterMinInput);
+      if (
+        Number.isFinite(parsed) &&
+        Number.isInteger(parsed) &&
+        parsed >= 1 &&
+        parsed <= 30
+      ) {
+        const seconds = parsed * 60;
+        if (seconds !== defaultQuarterSeconds) {
+          quarterOverrideSeconds = seconds;
+        }
+      } else {
+        alert("Quarter length must be a whole number between 1 and 30 minutes.");
+        return;
+      }
+    }
     setSaving(true);
     try {
-      await onConfirm(lineup);
+      await onConfirm(lineup, quarterOverrideSeconds);
     } finally {
       setSaving(false);
     }
@@ -268,6 +323,41 @@ export function NetballLineupPicker({
         selectedId={selected}
         onTapPlayer={handleTapPlayer}
       />
+
+      {/* Per-game quarter-length override. Reuses the AFL pre-game
+          sub-interval card layout (src/components/live/LineupPicker.tsx
+          lines 289-315) — same affordance, different field. Netball
+          has no rolling subs so this slot is repurposed for "how long
+          is each quarter for this match". Defaults to the team
+          setting; the coach can dial it for finals / weather / etc. */}
+      {defaultQuarterSeconds != null && (
+        <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Label htmlFor="quarter-minutes" className="mb-1">
+                Quarter length
+              </Label>
+              <p className="text-xs text-ink-mute">
+                Defaults to your team setting ({defaultQuarterMin} min).
+                Override here for this game only — useful for finals,
+                double-headers, or weather-shortened matches.
+              </p>
+            </div>
+            <div className="w-24">
+              <Input
+                id="quarter-minutes"
+                type="number"
+                min={1}
+                max={30}
+                step={1}
+                value={quarterMinInput}
+                onChange={(e) => setQuarterMinInput(e.target.value)}
+                disabled={disabled || saving}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <button
         type="button"

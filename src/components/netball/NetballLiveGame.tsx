@@ -622,10 +622,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           availableIds={availableIds}
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
-          onConfirm={async (lineup) =>
+          defaultQuarterSeconds={quarterLengthSeconds}
+          onConfirm={async (lineup, quarterOverrideSeconds) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
-                await startNetballGame(auth, game.id, lineup, ageGroup.defaultOnFieldSize);
+                await startNetballGame(
+                  auth,
+                  game.id,
+                  lineup,
+                  ageGroup.defaultOnFieldSize,
+                  quarterOverrideSeconds,
+                );
                 resolve();
               });
             })

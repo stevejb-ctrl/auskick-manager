@@ -94,12 +94,17 @@ export default async function LivePage({ params }: LivePageProps) {
   if (sport === "netball") {
     const ageCfgN = netballSport.ageGroups.find((a) => a.id === teamRow?.age_group)
       ?? netballSport.ageGroups.find((a) => a.id === "open")!;
-    // Per-team override wins over the age-group default. `null` =
-    // "use age group default" — coaches whose league plays a
-    // non-standard quarter length adjust this in team settings.
+    // Three-level resolution, most specific wins:
+    //   1. game.quarter_length_seconds — set in the pre-game lineup
+    //      picker when this match runs to a non-standard length
+    //      (finals, weather, double-header).
+    //   2. team.quarter_length_seconds — coach's league plays a
+    //      different quarter length than the age-group default.
+    //   3. ageGroup.periodSeconds — sport-config default (10 min).
     const quarterLengthSeconds = getEffectiveQuarterSeconds(
       { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
       ageCfgN,
+      { quarter_length_seconds: g.quarter_length_seconds },
     );
 
     const [

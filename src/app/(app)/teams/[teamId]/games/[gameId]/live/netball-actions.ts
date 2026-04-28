@@ -74,11 +74,19 @@ async function insertEvent(
 
 // ─── startNetballGame ────────────────────────────────────────
 // Initial lineup + flip the game into "in_progress".
+//
+// `quarterLengthSeconds` carries the per-game override the coach set
+// in the pre-game lineup picker (the AFL pre-game "Sub interval" card
+// is repurposed for netball — no in-game subs, but per-game quarter
+// length is the equivalent dial). Pass `null` (or omit) to leave
+// games.quarter_length_seconds untouched, in which case the live
+// clock falls back through team → age-group defaults.
 export async function startNetballGame(
   auth: LiveAuth,
   gameId: string,
   lineup: GenericLineup,
   onFieldSize: number,
+  quarterLengthSeconds?: number | null,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -91,10 +99,28 @@ export async function startNetballGame(
   });
   if (insertError) return { success: false, error: insertError.message };
 
-  await w.supabase
-    .from("games")
-    .update({ status: "in_progress", on_field_size: onFieldSize })
-    .eq("id", gameId);
+  // Validate the override before writing — bounds match the picker
+  // input (1..30 min). Leaves the column untouched when the picker
+  // sent `null` / `undefined` (i.e. coach left the team default).
+  const update: { status: "in_progress"; on_field_size: number; quarter_length_seconds?: number | null } = {
+    status: "in_progress",
+    on_field_size: onFieldSize,
+  };
+  if (quarterLengthSeconds != null) {
+    if (
+      !Number.isInteger(quarterLengthSeconds) ||
+      quarterLengthSeconds < 60 ||
+      quarterLengthSeconds > 30 * 60
+    ) {
+      return {
+        success: false,
+        error: "Quarter length must be a whole number between 1 and 30 minutes.",
+      };
+    }
+    update.quarter_length_seconds = quarterLengthSeconds;
+  }
+
+  await w.supabase.from("games").update(update).eq("id", gameId);
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
