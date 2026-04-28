@@ -102,11 +102,13 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
-      - name: Start Next.js
-        run: npm run start &
-
-      - name: Wait for Next.js
-        run: npx wait-on http://localhost:3000 --timeout 120000
+      # No manual `npm run start` here: playwright.config.ts has a
+      # webServer block that boots `npm run start` against the build
+      # output and waits for the URL to come up. Starting it here too
+      # would race for port 3000 and Playwright would refuse to launch
+      # ("http://localhost:3000 is already used … set
+      # reuseExistingServer:true"). Build step stays — webServer
+      # assumes `.next/` exists.
 
       - name: Run Playwright
         # CI=true flips config into strict mode (forbidOnly, retries,
