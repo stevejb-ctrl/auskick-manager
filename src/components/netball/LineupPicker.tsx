@@ -91,11 +91,6 @@ export function NetballLineupPicker({
   });
   const [picking, setPicking] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Bumps every time the coach taps "Suggest fair lineup" so the
-  // seededShuffle inside suggestNetballLineup yields a different
-  // permutation each tap. Without this the suggester is fully
-  // deterministic and repeat taps look like the button is broken.
-  const [suggestSeed, setSuggestSeed] = useState(0);
 
   const squadById = useMemo(
     () => new Map(squad.map((p) => [p.id, p])),
@@ -111,45 +106,6 @@ export function NetballLineupPicker({
     for (const pid of lineup.bench) m.set(pid, "bench");
     return m;
   }, [lineup]);
-
-  const handleSuggest = () => {
-    const season = seasonPositionCounts(seasonEvents);
-    const thisGame = gamePositionCounts(thisGameEvents);
-    // Players who are on the court right now in the seed lineup but
-    // who AREN'T in the official availableIds list (e.g. a fill-in
-    // subbed in mid-quarter via the injury flow). Without this
-    // adjustment, the suggester would drop them from Q2 entirely.
-    const onCourtNow = new Set<string>();
-    for (const ids of Object.values(lineup.positions)) {
-      for (const id of ids) onCourtNow.add(id);
-    }
-    const seen = new Set<string>();
-    const expandedAvailable: string[] = [];
-    for (const id of availableIds) if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); }
-    onCourtNow.forEach((id) => { if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); } });
-    for (const id of lineup.bench) if (!seen.has(id)) { seen.add(id); expandedAvailable.push(id); }
-    const nextSeed = suggestSeed + 1;
-    setSuggestSeed(nextSeed);
-    const lastThirds = lastQuarterThirds(
-      thisGameEvents,
-      primaryThirdFor as (
-        positionId: string,
-      ) => "attack-third" | "centre-third" | "defence-third" | null,
-    );
-    const suggested = suggestNetballLineup({
-      playerIds: expandedAvailable,
-      positions: ageGroup.positions,
-      season,
-      thisGame,
-      isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
-      seed: nextSeed,
-      thirdOf: primaryThirdFor as (
-        positionId: string,
-      ) => "attack-third" | "centre-third" | "defence-third" | null,
-      lastQuarterThird: lastThirds,
-    });
-    setLineup(suggested);
-  };
 
   const placePlayer = (playerId: string, positionId: string | "bench") => {
     setLineup((prev) => {
@@ -231,16 +187,19 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Set lineup</h2>
-        <button
-          type="button"
-          onClick={handleSuggest}
-          className="rounded-md border border-brand-300 bg-white px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
-          disabled={disabled}
-        >
-          Suggest fair lineup
-        </button>
+      {/* Auto-suggested callout. Mirrors AFL's pre-game LineupPicker
+          (src/components/live/LineupPicker.tsx:207) — the picker
+          opens with the suggester's output already in place, and the
+          coach overrides by tapping a position to swap players. No
+          dedicated re-suggest button: AFL doesn't have one either,
+          and once the lineup is auto-filled there's nothing for the
+          button to do that a manual swap can't. */}
+      <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
+        <p className="font-semibold">Auto-suggested starting lineup</p>
+        <p className="mt-0.5 text-xs">
+          Tap any position to swap a player in or out. Drag-free —
+          override anything you don't like.
+        </p>
       </div>
 
       <Court
