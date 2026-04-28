@@ -1,25 +1,21 @@
 "use client";
 
 // ─── Netball Lineup Picker ────────────────────────────────────
-// Builds one quarter's lineup. Each position shows a button; tap
-// to open a bottom sheet of available players. Netball zone
-// eligibility (rules of play) is enforced in the bottom sheet —
-// only players the position allows are shown as taps; others are
-// visible but greyed out.
+// Pre-game initial lineup builder. Opens with the suggester's
+// output already in place (auto-suggested), then the coach taps
+// any two players to swap them between positions or bench. Same
+// two-tap-to-swap pattern as the AFL pre-game LineupPicker and
+// netball's NetballQuarterBreak so the design language stays
+// consistent across surfaces.
 //
-// Used for:
-//   - the initial lineup at the start of a game
-//   - each quarter-break lineup swap
+// (NetballQuarterBreak is the equivalent for in-game breaks —
+// this component is only used for the very first lineup.)
 
 import { useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
-import {
-  netballSport,
-  primaryThirdFor,
-  isPositionAllowedInZone,
-} from "@/lib/sports/netball";
+import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
   type GenericLineup,
@@ -89,7 +85,11 @@ export function NetballLineupPicker({
       lastQuarterThird: lastThirds,
     });
   });
-  const [picking, setPicking] = useState<string | null>(null);
+  // Two-tap-to-swap selection: tap a player → highlighted; tap another
+  // player (or an empty position / bench) → swap. Mirrors the
+  // NetballQuarterBreak interaction so the pre-game and Q-break
+  // pickers behave identically, and matches the AFL pattern.
+  const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const squadById = useMemo(
@@ -97,7 +97,9 @@ export function NetballLineupPicker({
     [squad],
   );
 
-  // Which player is currently in which position/bench — for conflict detection.
+  // Which player is currently in which position/bench. Used to find
+  // where the selected player lives so a swap can put the displaced
+  // player back into the original slot.
   const playerSlot = useMemo(() => {
     const m = new Map<string, string>();
     for (const [pos, ids] of Object.entries(lineup.positions)) {
@@ -107,29 +109,74 @@ export function NetballLineupPicker({
     return m;
   }, [lineup]);
 
-  const placePlayer = (playerId: string, positionId: string | "bench") => {
+  // Tap on a player — court or bench. With nothing selected, marks
+  // them as selected. With another player already selected, swaps the
+  // two. Tapping the same player again deselects.
+  const handleTapPlayer = (pid: string) => {
+    if (!selected) {
+      setSelected(pid);
+      return;
+    }
+    if (selected === pid) {
+      setSelected(null);
+      return;
+    }
+    const a = selected;
+    const b = pid;
     setLineup((prev) => {
-      // Start from a deep copy.
+      const aSlot = playerSlot.get(a);
+      const bSlot = playerSlot.get(b);
+      if (!aSlot || !bSlot) return prev;
       const next: GenericLineup = {
         positions: Object.fromEntries(
-          Object.entries(prev.positions).map(([k, v]) => [k, v.filter((p) => p !== playerId)]),
+          Object.entries(prev.positions).map(([k, v]) => [k, [...v]]),
         ),
-        bench: prev.bench.filter((p) => p !== playerId),
+        bench: [...prev.bench],
       };
-      if (positionId === "bench") {
-        next.bench.push(playerId);
-      } else {
-        next.positions[positionId] = [...(next.positions[positionId] ?? []), playerId];
-      }
+      const replaceInPos = (posId: string, x: string, y: string) => {
+        next.positions[posId] = (next.positions[posId] ?? []).map((p) =>
+          p === x ? y : p,
+        );
+      };
+      const replaceInBench = (x: string, y: string) => {
+        next.bench = next.bench.map((p) => (p === x ? y : p));
+      };
+      const swap = (slot: string, x: string, y: string) => {
+        if (slot === "bench") replaceInBench(x, y);
+        else replaceInPos(slot, x, y);
+      };
+      swap(aSlot, a, b);
+      swap(bSlot, b, a);
       return next;
     });
+    setSelected(null);
   };
 
-  const clearPosition = (positionId: string) => {
-    setLineup((prev) => ({
-      positions: { ...prev.positions, [positionId]: [] },
-      bench: prev.bench,
-    }));
+  // Tap on an empty position (no player there). With nothing selected
+  // this is a no-op. With a player selected, that player moves into
+  // the empty slot and whoever they used to be with goes there
+  // (effectively: selected leaves their old slot, fills this one).
+  const handleTapEmpty = (positionId: string) => {
+    if (!selected) return;
+    const fromSlot = playerSlot.get(selected);
+    if (!fromSlot) {
+      setSelected(null);
+      return;
+    }
+    setLineup((prev) => {
+      const next: GenericLineup = {
+        positions: Object.fromEntries(
+          Object.entries(prev.positions).map(([k, v]) => [
+            k,
+            v.filter((p) => p !== selected),
+          ]),
+        ),
+        bench: prev.bench.filter((p) => p !== selected),
+      };
+      next.positions[positionId] = [...(next.positions[positionId] ?? []), selected];
+      return next;
+    });
+    setSelected(null);
   };
 
   const handleConfirm = async () => {
@@ -176,7 +223,11 @@ export function NetballLineupPicker({
         <PositionToken
           positionId={positionId}
           playerName={occupantName}
-          onTap={() => setPicking(positionId)}
+          selected={!!occupantId && selected === occupantId}
+          onTap={() => {
+            if (occupantId) handleTapPlayer(occupantId);
+            else handleTapEmpty(positionId);
+          }}
         />
       </div>
     );
@@ -187,18 +238,15 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Auto-suggested callout. Mirrors AFL's pre-game LineupPicker
-          (src/components/live/LineupPicker.tsx:207) — the picker
-          opens with the suggester's output already in place, and the
-          coach overrides by tapping a position to swap players. No
-          dedicated re-suggest button: AFL doesn't have one either,
-          and once the lineup is auto-filled there's nothing for the
-          button to do that a manual swap can't. */}
+      {/* Auto-suggested callout — same wording as AFL's pre-game
+          LineupPicker (src/components/live/LineupPicker.tsx:207),
+          with "zones" swapped for "positions" since netball uses
+          named positions (GS / GA / WA / etc.) rather than spatial
+          zones. */}
       <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
-          Tap any position to swap a player in or out. Drag-free —
-          override anything you don't like.
+          Tap any two players to swap them between positions or bench.
         </p>
       </div>
 
@@ -215,7 +263,8 @@ export function NetballLineupPicker({
           .map(([pid]) => pid)}
         squadById={squadById}
         availableIds={availableIds}
-        onTapPlayer={(pid) => setPicking(`player:${pid}`)}
+        selectedId={selected}
+        onTapPlayer={handleTapPlayer}
       />
 
       <button
@@ -226,37 +275,6 @@ export function NetballLineupPicker({
       >
         {saving ? "Saving…" : confirmLabel}
       </button>
-
-      {picking && picking.startsWith("player:") ? (
-        <PlayerSheet
-          playerId={picking.slice("player:".length)}
-          squadById={squadById}
-          ageGroup={ageGroup}
-          currentSlot={playerSlot.get(picking.slice("player:".length)) ?? null}
-          onChoose={(slot) => {
-            placePlayer(picking.slice("player:".length), slot);
-            setPicking(null);
-          }}
-          onClose={() => setPicking(null)}
-        />
-      ) : picking ? (
-        <PositionSheet
-          positionId={picking}
-          ageGroup={ageGroup}
-          squadById={squadById}
-          availableIds={availableIds}
-          currentOccupantId={lineup.positions[picking]?.[0] ?? null}
-          onChoose={(pid) => {
-            placePlayer(pid, picking);
-            setPicking(null);
-          }}
-          onClear={() => {
-            clearPosition(picking);
-            setPicking(null);
-          }}
-          onClose={() => setPicking(null)}
-        />
-      ) : null}
     </div>
   );
 }
@@ -267,12 +285,15 @@ function BenchStrip({
   onCourtIds,
   squadById,
   availableIds,
+  selectedId,
   onTapPlayer,
 }: {
   bench: string[];
   onCourtIds: string[];
   squadById: Map<string, Player>;
   availableIds: string[];
+  /** Currently-selected player id (highlighted to confirm the tap). */
+  selectedId: string | null;
   onTapPlayer: (playerId: string) => void;
 }) {
   // "Bench + unassigned" = available players who aren't currently in a
@@ -301,12 +322,17 @@ function BenchStrip({
           all.map((pid) => {
             const player = squadById.get(pid);
             if (!player) return null;
+            const isSelected = selectedId === pid;
             return (
               <button
                 key={pid}
                 type="button"
                 onClick={() => onTapPlayer(pid)}
-                className="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-100"
+                className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                  isSelected
+                    ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
+                    : "border-neutral-300 bg-neutral-50 text-neutral-800 hover:bg-neutral-100"
+                }`}
               >
                 {player.full_name}
               </button>
@@ -316,218 +342,4 @@ function BenchStrip({
       </div>
     </div>
   );
-}
-
-// ─── Player picker sheet (when a position is tapped) ─────────
-function PositionSheet({
-  positionId,
-  ageGroup,
-  squadById,
-  availableIds,
-  currentOccupantId,
-  onChoose,
-  onClear,
-  onClose,
-}: {
-  positionId: string;
-  ageGroup: AgeGroupConfig;
-  squadById: Map<string, Player>;
-  availableIds: string[];
-  currentOccupantId: string | null;
-  onChoose: (playerId: string) => void;
-  onClear: () => void;
-  onClose: () => void;
-}) {
-  const pos = netballSport.allPositions.find((p) => p.id === positionId);
-
-  // Which zones is this position allowed in? For Court-token eligibility
-  // we filter players too — if a fielding rule pinned a player to only
-  // defence (via future zone-locked-player mechanism), they wouldn't
-  // show here. For MVP all squad players are eligible for any position;
-  // the position→zone eligibility enforces rules of play at tactical
-  // level rather than per-player restriction.
-  const eligiblePlayers = availableIds
-    .map((pid) => squadById.get(pid))
-    .filter((p): p is Player => !!p);
-
-  void ageGroup; // reserved for future: bench minimum enforcement
-
-  return (
-    <Sheet title={`Choose ${pos?.label ?? positionId.toUpperCase()}`} onClose={onClose}>
-      <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-3">
-        {pos?.allowedZones && pos.allowedZones.length > 0 ? (
-          <p className="text-xs text-neutral-600">
-            Allowed in: {pos.allowedZones.map(labelForZone).join(", ")}.
-          </p>
-        ) : null}
-        {eligiblePlayers.length === 0 ? (
-          <p className="text-sm italic text-neutral-500">No available players.</p>
-        ) : (
-          eligiblePlayers.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onChoose(p.id)}
-              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left ${
-                currentOccupantId === p.id
-                  ? "border-brand-400 bg-brand-50"
-                  : "border-neutral-200 bg-white hover:bg-neutral-50"
-              }`}
-            >
-              <span className="font-medium text-neutral-900">{p.full_name}</span>
-              {currentOccupantId === p.id ? (
-                <span className="text-xs font-semibold text-brand-700">
-                  Currently
-                </span>
-              ) : null}
-            </button>
-          ))
-        )}
-      </div>
-      <div className="flex gap-2 border-t border-neutral-200 p-3">
-        <button
-          type="button"
-          onClick={onClear}
-          className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-        >
-          Clear position
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
-        >
-          Cancel
-        </button>
-      </div>
-    </Sheet>
-  );
-}
-
-// ─── Position picker sheet (when a player is tapped) ─────────
-function PlayerSheet({
-  playerId,
-  squadById,
-  ageGroup,
-  currentSlot,
-  onChoose,
-  onClose,
-}: {
-  playerId: string;
-  squadById: Map<string, Player>;
-  ageGroup: AgeGroupConfig;
-  currentSlot: string | null;
-  onChoose: (slot: string | "bench") => void;
-  onClose: () => void;
-}) {
-  const player = squadById.get(playerId);
-  if (!player) return null;
-
-  return (
-    <Sheet title={`Place ${player.full_name}`} onClose={onClose}>
-      <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-3">
-        {ageGroup.positions.map((posId) => {
-          const pos = netballSport.allPositions.find((p) => p.id === posId);
-          const allowed =
-            pos?.allowedZones?.some((z) => isPositionAllowedInZone(posId, z)) ?? true;
-          return (
-            <button
-              key={posId}
-              type="button"
-              onClick={() => onChoose(posId)}
-              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left ${
-                currentSlot === posId
-                  ? "border-brand-400 bg-brand-50"
-                  : "border-neutral-200 bg-white hover:bg-neutral-50"
-              } ${allowed ? "" : "opacity-50"}`}
-            >
-              <span className="font-medium">{pos?.label ?? posId}</span>
-              {currentSlot === posId ? (
-                <span className="text-xs font-semibold text-brand-700">Currently</span>
-              ) : null}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => onChoose("bench")}
-          className={`flex items-center justify-between rounded-md border px-3 py-2 text-left ${
-            currentSlot === "bench"
-              ? "border-brand-400 bg-brand-50"
-              : "border-neutral-200 bg-white hover:bg-neutral-50"
-          }`}
-        >
-          <span className="font-medium">Bench</span>
-          {currentSlot === "bench" ? (
-            <span className="text-xs font-semibold text-brand-700">Currently</span>
-          ) : null}
-        </button>
-      </div>
-      <div className="flex gap-2 border-t border-neutral-200 p-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
-        >
-          Cancel
-        </button>
-      </div>
-    </Sheet>
-  );
-}
-
-// ─── Bottom sheet primitive ──────────────────────────────────
-function Sheet({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-center justify-between border-b border-neutral-200 p-3">
-          <h3 className="text-base font-semibold">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function labelForZone(zoneId: string): string {
-  switch (zoneId) {
-    case "attack-third":
-      return "Attack third";
-    case "attack-circle":
-      return "Attack goal circle";
-    case "centre-third":
-      return "Centre third";
-    case "defence-third":
-      return "Defence third";
-    case "defence-circle":
-      return "Defence goal circle";
-    default:
-      return zoneId;
-  }
 }
