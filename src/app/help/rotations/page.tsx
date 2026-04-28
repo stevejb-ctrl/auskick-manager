@@ -7,7 +7,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Rotations — Help — Siren Footy",
+  title: "Rotations · Help · Siren Footy",
   description:
     "How suggested rotations work, pair badges, zone colours, and player locks.",
 };
@@ -18,7 +18,7 @@ export default function RotationsPage() {
       <h1 className="text-2xl font-bold text-ink">Rotations</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         The rotation engine watches how much time every player has spent in each
-        zone — both in the current game and across the whole season — and suggests
+        zone, both in the current game and across the whole season, and suggests
         swaps that balance things out. You never have to do the maths yourself.
       </p>
 
@@ -27,30 +27,30 @@ export default function RotationsPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Every time the clock ticks, the app tracks which zone each player is in.
           When the sub timer is due, it ranks all possible field ↔ bench swaps by
-          how much they would improve overall fairness — considering:
+          how much they would improve overall fairness, considering:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Season zone minutes</strong> — time in each
+            <strong className="text-ink">Season zone minutes</strong>:time in each
             zone across all completed games this year
           </li>
           <li>
-            <strong className="text-ink">Current-game minutes</strong> — time accrued
+            <strong className="text-ink">Current-game minutes</strong>:time accrued
             so far in this game
           </li>
           <li>
-            <strong className="text-ink">Recent arrival pinning</strong> — players
+            <strong className="text-ink">Recent arrival pinning</strong>:players
             who only just came on are not immediately swapped back off (pinned for
             ~3 minutes)
           </li>
           <li>
-            <strong className="text-ink">Player locks</strong> — field-locked players
+            <strong className="text-ink">Player locks</strong>:field-locked players
             never leave; zone-locked players stay in their assigned zone
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          The algorithm produces a set of swap pairs — typically one or two at a
-          time — targeting the zone where the imbalance is greatest.
+          The algorithm produces a set of swap pairs (typically one or two at a
+          time) targeting the zone where the imbalance is greatest.
         </p>
       </section>
 
@@ -63,12 +63,12 @@ export default function RotationsPage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Collapsed</strong> — shows a sparkle icon (or
+            <strong className="text-ink">Collapsed</strong>:shows a sparkle icon (or
             countdown ring), the number of suggested swaps, and a one-line summary
             (e.g. <em>Alex→Sam · Jordan→Blake</em>). Tap to expand.
           </li>
           <li>
-            <strong className="text-ink">Expanded</strong> — shows each pair in a row
+            <strong className="text-ink">Expanded</strong>:shows each pair in a row
             with the zone label colour-coded, a <strong className="text-ink">Do</strong>{" "}
             button per pair, and a <strong className="text-ink">Do all N swaps</strong>{" "}
             button at the bottom.
@@ -102,7 +102,7 @@ export default function RotationsPage() {
           <li>The card expands automatically to show the suggestions.</li>
         </ul>
         <HelpCallout type="tip">
-          You can make a swap at any time — not just when the timer fires. Tapping
+          You can make a swap at any time, not just when the timer fires. Tapping
           any field + bench player pair opens the confirmation dialog and resets the
           timer on commit.
         </HelpCallout>
@@ -126,7 +126,7 @@ export default function RotationsPage() {
             H-BCK / BCK) in small caps at the top
           </li>
           <li>
-            A <strong className="text-ink">zone-minute bar</strong> at the bottom —
+            A <strong className="text-ink">zone-minute bar</strong> at the bottom:
             a thin horizontal bar colour-coded by zone showing how much time this
             player has spent where (blue = back, purple = centre, orange = forward)
           </li>
@@ -160,14 +160,14 @@ export default function RotationsPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            <span className="font-semibold text-zone-f">Orange</span> — Forward /
+            <span className="font-semibold text-zone-f">Orange</span>:Forward /
             H-Forward
           </li>
           <li>
-            <span className="font-semibold text-zone-c">Purple</span> — Centre
+            <span className="font-semibold text-zone-c">Purple</span>:Centre
           </li>
           <li>
-            <span className="font-semibold text-zone-b">Blue</span> — Back / H-Back
+            <span className="font-semibold text-zone-b">Blue</span>:Back / H-Back
           </li>
         </ul>
 
@@ -187,12 +187,12 @@ export default function RotationsPage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Lock to field</strong> — the player is
+            <strong className="text-ink">Lock to field</strong>:the player is
             excluded from all rotation suggestions and never leaves the field for the
             rest of the game.
           </li>
           <li>
-            <strong className="text-ink">Lock to zone</strong> — the player can rotate
+            <strong className="text-ink">Lock to zone</strong>:the player can rotate
             off temporarily (e.g. for water) but the algorithm will always put them
             back into the same zone. Tap <strong className="text-ink">Unlock player</strong>{" "}
             to remove the lock.
@@ -200,7 +200,7 @@ export default function RotationsPage() {
         </ul>
         <HelpCallout type="note">
           Field-locked and zone-locked players are pinned in the quarter-break
-          reshuffle too — the algorithm keeps them in their current zone.
+          reshuffle too. The algorithm keeps them in their current zone.
         </HelpCallout>
       </section>
 
@@ -209,12 +209,12 @@ export default function RotationsPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           The quarter-break screen shows a <strong className="text-ink">Fairness</strong>{" "}
           score from 0 to 100. It measures how evenly zone minutes are spread across
-          the whole squad — 100 is perfectly equal; lower means some kids have had
+          the whole squad. 100 is perfectly equal; lower means some kids have had
           noticeably more or less time in certain positions.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
           Aim for a high score by the end of the season, not every single game.
-          Individual games often sit lower — that&apos;s normal and expected.
+          Individual games often sit lower; that&apos;s normal and expected.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
           The{" "}

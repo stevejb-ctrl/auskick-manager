@@ -10,7 +10,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Live Game — Help — Siren Footy",
+  title: "Live Game · Help · Siren Footy",
   description: "Running a game: the on-field view, scoring, subs, and quarter breaks.",
 };
 
@@ -20,7 +20,7 @@ export default function LiveGamePage() {
       <h1 className="text-2xl font-bold text-ink">Live Game</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         The live game screen is your sideline companion. It shows the current field
-        layout, a countdown clock, suggested rotations, and a scoreboard — all in
+        layout, a countdown clock, suggested rotations, and a scoreboard, all in
         one view. Here&apos;s how to use it.
       </p>
 
@@ -42,7 +42,7 @@ export default function LiveGamePage() {
             <strong className="text-ink">Bench</strong>.
           </li>
           <li>
-            Tap any two players to swap them — even between zones or to and from the
+            Tap any two players to swap them, evenbetween zones or to and from the
             bench.
           </li>
           <li>
@@ -65,12 +65,12 @@ export default function LiveGamePage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Header</strong> — your team&apos;s score on the
+            <strong className="text-ink">Header</strong>:your team&apos;s score on the
             left, a dark clock pill in the centre, opponent score on the right. Tap
             the clock pill to pause or resume.
           </li>
           <li>
-            <strong className="text-ink">SwapCard</strong> — a dark card above the
+            <strong className="text-ink">SwapCard</strong>:a dark card above the
             field showing suggested rotations and a countdown ring. Tap it to expand
             the details. See{" "}
             <Link href="/help/rotations" className="font-medium underline">
@@ -79,12 +79,12 @@ export default function LiveGamePage() {
             for how suggestions work.
           </li>
           <li>
-            <strong className="text-ink">Field</strong> — five zone rows (FORWARD at
+            <strong className="text-ink">Field</strong>:five zone rows (FORWARD at
             the top, BACK at the bottom) showing each player as a tile with their
             jersey number and first name.
           </li>
           <li>
-            <strong className="text-ink">Bench</strong> — players not currently on
+            <strong className="text-ink">Bench</strong>:players not currently on
             the field, shown below the field.
           </li>
         </ul>
@@ -110,7 +110,7 @@ export default function LiveGamePage() {
             Tap a player on the field to select them (they get a highlighted ring).
           </li>
           <li>
-            Action buttons appear — tap <strong className="text-ink">Goal</strong> or{" "}
+            Action buttons appear. Tap <strong className="text-ink">Goal</strong> or{" "}
             <strong className="text-ink">Behind</strong>.
           </li>
           <li>
@@ -189,21 +189,21 @@ export default function LiveGamePage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Lock to field</strong> — the player is never
+            <strong className="text-ink">Lock to field</strong>:the player is never
             subbed out. Good for a player who needs extra game time.
           </li>
           <li>
-            <strong className="text-ink">Lock to zone</strong> — the player can rotate
+            <strong className="text-ink">Lock to zone</strong>:the player can rotate
             off temporarily but always returns to the same zone.
           </li>
           <li>
-            <strong className="text-ink">Mark injured</strong> — moves the player to
+            <strong className="text-ink">Mark injured</strong>:moves the player to
             the bench and excludes them from rotation suggestions. Their tile shows
             an <strong className="text-ink">INJ</strong> badge. Tap{" "}
             <strong className="text-ink">Mark recovered</strong> to return them.
           </li>
           <li>
-            <strong className="text-ink">Lend to opposition</strong> — marks the player
+            <strong className="text-ink">Lend to opposition</strong>:marks the player
             as lent (common in junior teams when numbers are uneven). Shows a{" "}
             <strong className="text-ink">LENT</strong> badge. Loan minutes are tracked
             separately. Tap <strong className="text-ink">Bring back</strong> to return
@@ -232,7 +232,7 @@ export default function LiveGamePage() {
         </ol>
         <p className="mt-2 text-sm text-ink-dim">
           When the clock runs past the set quarter duration, the time display turns
-          orange to flag overtime — but it keeps counting up so you can see total
+          orange to flag overtime, but it keeps counting up so you can see total
           elapsed time.
         </p>
 
@@ -259,12 +259,12 @@ export default function LiveGamePage() {
           </li>
           <li>
             The <strong className="text-ink">✓ Using suggested reshuffle</strong>{" "}
-            button is on by default — the algorithm has already placed players in the
+            button is on by default. The algorithm has already placed players in the
             fairest possible zones. Tap it to toggle back to last quarter&apos;s
             positions if you prefer.
           </li>
           <li>
-            Tap any two players to swap them — even across zones or to and from the
+            Tap any two players to swap them, evenacross zones or to and from the
             bench.
           </li>
           <li>
@@ -289,7 +289,7 @@ export default function LiveGamePage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           The first time you open a live game, a walkthrough modal guides you through
           the key features: zones, bench, making a sub, reading the swap suggestions,
-          and the sub due alert. You can skip it or step through it — it only shows
+          and the sub due alert. You can skip it or step through it; it only shows
           once per team.
         </p>
       </section>

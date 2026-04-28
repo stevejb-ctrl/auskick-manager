@@ -6,7 +6,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Teams — Help — Siren Footy",
+  title: "Teams · Help · Siren Footy",
   description: "Creating and managing teams, age groups, admin roles, and settings.",
 };
 
@@ -16,7 +16,7 @@ export default function TeamsPage() {
       <h1 className="text-2xl font-bold text-ink">Teams</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         A team is the container for your squad, games, and season stats. You can
-        manage multiple teams from the same account — for example if you coach an
+        manage multiple teams from the same account, for example if you coach an
         U10s and an U12s group in the same club.
       </p>
 
@@ -60,19 +60,19 @@ export default function TeamsPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">FORWARD</strong> — attacking end
+            <strong className="text-ink">FORWARD</strong>:attacking end
           </li>
           <li>
-            <strong className="text-ink">H-FWD</strong> (Half-Forward) — between centre and forward
+            <strong className="text-ink">H-FWD</strong> (Half-Forward): between centre and forward
           </li>
           <li>
-            <strong className="text-ink">CENTRE</strong> — middle of the ground
+            <strong className="text-ink">CENTRE</strong>:middle of the ground
           </li>
           <li>
-            <strong className="text-ink">H-BCK</strong> (Half-Back) — between centre and back
+            <strong className="text-ink">H-BCK</strong> (Half-Back): between centre and back
           </li>
           <li>
-            <strong className="text-ink">BACK</strong> — defensive end
+            <strong className="text-ink">BACK</strong>:defensive end
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
@@ -118,7 +118,7 @@ export default function TeamsPage() {
         <HelpFigure
           src="/help-screenshots/teams-settings.png"
           alt="The team settings page showing name, position model, and a delete team button at the bottom"
-          caption="Team settings — rename, change the position model, or delete the team."
+          caption="Team settings: rename, change the position model, or delete the team."
         />
       </section>
     </HelpPage>

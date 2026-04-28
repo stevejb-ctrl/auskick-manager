@@ -46,8 +46,8 @@ export function LoginSentState({
       </h1>
       <p className="mt-3 mb-6 text-sm leading-relaxed text-ink-dim">
         Tap the link in the email to sign in. It expires in 15 minutes
-        and only works once. If you don&apos;t see it, check spam —
-        magic links sometimes hide.
+        and only works once. If you don&apos;t see it, check spam.
+        Magic links sometimes hide.
       </p>
 
       {/* Faux email card — matches the prototype */}

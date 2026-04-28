@@ -3,7 +3,7 @@ import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Siren Footy",
+  title: "Privacy Policy · Siren Footy",
   description:
     "How Siren Footy collects, uses, stores, and shares information about coaches, team managers, parents, and the players they manage.",
 };
@@ -60,19 +60,19 @@ export default function PrivacyPage() {
             <p>We collect only what we need to run the app:</p>
             <ul>
               <li>
-                <strong>Account information</strong> — your email address and
+                <strong>Account information</strong>:your email address and
                 display name. If you sign in with Google, we also receive the
                 Google profile fields you approve (name, email, profile photo
                 URL) but no access to Gmail, Drive, Contacts, or Calendar.
               </li>
               <li>
-                <strong>Team and game data you create</strong> — team names,
+                <strong>Team and game data you create</strong>:team names,
                 season settings, player names and jersey numbers you add to the
                 squad, game fixtures, availability marks, rotations, scores, and
                 game events.
               </li>
               <li>
-                <strong>Device and usage data</strong> — basic request logs
+                <strong>Device and usage data</strong>:basic request logs
                 (timestamps, IP address, user-agent) retained by our hosting
                 providers for security and debugging. We also use Google
                 Analytics 4 to measure aggregate traffic (pageviews, referrers,
@@ -121,9 +121,9 @@ export default function PrivacyPage() {
           <Section title="4. How we use your information">
             <p>We use the data you provide to:</p>
             <ul>
-              <li>Run the app &mdash; authenticate you, store your team data, show you games and rotations.</li>
-              <li>Keep the service reliable &mdash; debug errors, investigate abuse, prevent fraud.</li>
-              <li>Contact you about your account when necessary &mdash; e.g. security alerts or material changes to this policy.</li>
+              <li>Run the app: authenticate you, store your team data, show you games and rotations.</li>
+              <li>Keep the service reliable: debug errors, investigate abuse, prevent fraud.</li>
+              <li>Contact you about your account when necessary, e.g. security alerts or material changes to this policy.</li>
             </ul>
             <p>We do not sell your data, rent it, or use it for advertising.</p>
           </Section>
@@ -135,23 +135,23 @@ export default function PrivacyPage() {
             </p>
             <ul>
               <li>
-                <strong>Supabase</strong> &mdash; authentication, database, and
+                <strong>Supabase</strong>:authentication, database, and
                 file storage (region: Sydney). Supabase processes data on our
                 behalf under its own privacy policy.
               </li>
               <li>
-                <strong>Vercel</strong> &mdash; web hosting and content
+                <strong>Vercel</strong>:web hosting and content
                 delivery. Vercel may log request metadata (IP, user-agent) for
                 security and performance.
               </li>
               <li>
-                <strong>Google (sign-in)</strong> &mdash; only when you choose
+                <strong>Google (sign-in)</strong>:only when you choose
                 to sign in with Google. Google authenticates you and returns
                 your profile info to Siren. Siren does not read anything else
                 from your Google account.
               </li>
               <li>
-                <strong>Google Analytics 4</strong> &mdash; aggregate website
+                <strong>Google Analytics 4</strong>:aggregate website
                 analytics (pageviews, referrers, approximate country). IP
                 addresses are truncated by Google before storage. We don&rsquo;t
                 enable advertising features or Google Signals.
@@ -177,17 +177,17 @@ export default function PrivacyPage() {
           <Section title="7. How long we keep data">
             <ul>
               <li>
-                <strong>Account data</strong> &mdash; kept for as long as your
+                <strong>Account data</strong>:kept for as long as your
                 account is active. If you delete your account, we delete your
                 profile and any teams where you are the only admin.
               </li>
               <li>
-                <strong>Team and game data</strong> &mdash; kept while the team
+                <strong>Team and game data</strong>:kept while the team
                 exists. When a team is deleted, its squad, games, rotations, and
                 events are deleted with it.
               </li>
               <li>
-                <strong>Server logs</strong> &mdash; retained for up to 30 days
+                <strong>Server logs</strong>:retained for up to 30 days
                 by our hosting providers, then discarded.
               </li>
             </ul>

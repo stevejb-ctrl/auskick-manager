@@ -4,7 +4,7 @@ import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Siren Footy",
+  title: "Terms of Service · Siren Footy",
   description:
     "The terms that govern your use of Siren Footy, the junior Australian rules football team and game manager.",
 };
@@ -41,7 +41,7 @@ export default function TermsPage() {
           <Section title="1. What Siren is">
             <p>
               Siren is a web app that helps coaches and team managers run junior
-              Australian rules football teams &mdash; rotating players fairly,
+              Australian rules football teams: rotating players fairly,
               tracking availability, managing game-day subs, and keeping a
               simple record of each season. It is a tool for adults managing
               junior teams; it is not for use by children directly.
@@ -68,7 +68,7 @@ export default function TermsPage() {
               <li>Use the app for anything unlawful or harmful to others.</li>
               <li>
                 Enter personal data about people (including children) without
-                the authority to do so &mdash; for example, only add a player to
+                the authority to do so. For example, only add a player to
                 a squad if you are the team coach, manager, or have equivalent
                 consent from the club.
               </li>

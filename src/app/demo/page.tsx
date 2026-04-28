@@ -20,7 +20,7 @@ export default async function DemoPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <p className="text-center text-ink-dim">
-          Demo not set up yet — check back soon.
+          Demo not set up yet. Check back soon.
         </p>
       </div>
     );
@@ -71,7 +71,7 @@ export default async function DemoPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <p className="text-center text-ink-dim">
-          Could not start demo — please try again.
+          Could not start demo. Please try again.
         </p>
       </div>
     );
