@@ -272,12 +272,68 @@ export function NetballQuarterBreak({
   // can mark recovered or bring back from loan from the Q-break view
   // without bouncing back to the live court.
   const [actionsTarget, setActionsTarget] = useState<string | null>(null);
+  // Players whom the coach has just un-injured / un-loaned during this
+  // Q-break session. They re-enter the candidate pool, which means the
+  // suggester would otherwise put them straight back on court — but a
+  // recently-recovered player should default to the BENCH so the coach
+  // explicitly decides if and where to bring them on. We post-process
+  // the draft below to push these ids onto the bench regardless of
+  // what the suggester chose. Cleared implicitly when the component
+  // unmounts (next quarter starts a fresh instance).
+  const [forcedBenchIds, setForcedBenchIds] = useState<Set<string>>(new Set());
 
-  // Refresh draft when toggle flips or suggestion changes.
+  // Refresh draft when toggle flips or suggestion changes. Then post-
+  // process: any forcedBenchIds (recently-recovered players) the
+  // suggester put on court get SWAPPED with whoever's first on the
+  // bench, so the slot stays filled and the recovered player lands on
+  // bench by default. Coach can manually swap them back into a slot
+  // if they want to.
   useEffect(() => {
-    setDraft(useReshuffle ? suggestedLineup : previousLineup);
+    const base = useReshuffle ? suggestedLineup : previousLineup;
+    if (forcedBenchIds.size === 0) {
+      setDraft(base);
+      setSelected(null);
+      return;
+    }
+    const next: GenericLineup = {
+      positions: Object.fromEntries(
+        Object.entries(base.positions).map(([k, v]) => [k, [...v]]),
+      ),
+      bench: [...base.bench],
+    };
+    forcedBenchIds.forEach((pid) => {
+      // Find the recovered player's current spot in the draft.
+      let courtPos: string | null = null;
+      for (const [posId, ids] of Object.entries(next.positions)) {
+        if (ids.includes(pid)) {
+          courtPos = posId;
+          break;
+        }
+      }
+      if (courtPos) {
+        // Swap with the first eligible bench player (skip other
+        // forced-bench ids so we don't ping-pong them onto court).
+        const swapPartner = next.bench.find((b) => !forcedBenchIds.has(b));
+        if (swapPartner) {
+          next.positions[courtPos] = next.positions[courtPos].map((p) =>
+            p === pid ? swapPartner : p,
+          );
+          next.bench = next.bench.filter((p) => p !== swapPartner);
+          if (!next.bench.includes(pid)) next.bench.push(pid);
+        }
+        // No bench player to swap with — leave them on court rather
+        // than create an empty slot. Edge case (full court, no bench
+        // space).
+      } else if (!next.bench.includes(pid)) {
+        // Not on court; ensure they're on bench if the lineup knows
+        // about them at all (post-revalidation).
+        const lineupHasPid = Object.values(base.positions).some((v) => v.includes(pid)) || base.bench.includes(pid);
+        if (lineupHasPid) next.bench.push(pid);
+      }
+    });
+    setDraft(next);
     setSelected(null);
-  }, [useReshuffle, suggestedLineup, previousLineup]);
+  }, [useReshuffle, suggestedLineup, previousLineup, forcedBenchIds]);
 
   // ─── Time bars (per-third minutes, color-coded) ────────────
   // Source from the parent's playerStats prop (which factors in the
@@ -465,6 +521,11 @@ export function NetballQuarterBreak({
     if (!actionsTarget) return;
     const playerId = actionsTarget;
     setActionsTarget(null);
+    // Stamp the recovered player as bench-default so the suggester
+    // doesn't put them straight back into a court position when the
+    // events refresh. The draft useEffect post-processes this set
+    // every time it rebuilds.
+    setForcedBenchIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markInjury(auth, gameId, {
         player_id: playerId,
@@ -478,6 +539,9 @@ export function NetballQuarterBreak({
     if (!actionsTarget) return;
     const playerId = actionsTarget;
     setActionsTarget(null);
+    // Same bench-default rationale as handleUnInjury — coach decides
+    // when (and if) to slot them in.
+    setForcedBenchIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markLoan(auth, gameId, {
         player_id: playerId,
