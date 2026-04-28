@@ -705,13 +705,22 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     for (const ids of Object.values(onCourt.positions)) {
       for (const id of ids) onCourtIds.add(id);
     }
+    // The candidate pool is the same "who's actually here today" set
+    // the bench strip uses: availableIds (server-confirmed) plus the
+    // optimistic lateArrivedIds (covers the brief window between a
+    // late-arrival tap and the action's auto-revalidation). Anyone
+    // marked unavailable for the day shouldn't be offered — they
+    // physically aren't at the game.
+    const availableSet = new Set<string>(availableIds);
+    lateArrivedIds.forEach((id) => availableSet.add(id));
     return squad.filter(
       (p) =>
+        availableSet.has(p.id) &&
         !onCourtIds.has(p.id) &&
         !injuredIds.has(p.id) &&
         !loanedIds.has(p.id),
     );
-  }, [replacingTarget, onCourt, squad, injuredIds, loanedIds]);
+  }, [replacingTarget, onCourt, squad, availableIds, lateArrivedIds, injuredIds, loanedIds]);
 
   // ─── Initial lineup (before game starts) ────────────────────
   if (!hasStarted) {
