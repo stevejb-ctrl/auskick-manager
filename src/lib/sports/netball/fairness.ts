@@ -313,3 +313,84 @@ function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
   }
   return a;
 }
+
+// ─── Per-third time accounting ──────────────────────────────
+// Like AFL's per-zone minutes, but bucketed by netball's three thirds
+// (attack / centre / defence). Each completed quarter contributes
+// `periodSeconds` worth of time to whatever third the player's position
+// rolled into via primaryThirdFor. The trailing in-progress quarter
+// contributes `inProgressMs` (the live clockMs) when the game isn't
+// finalised yet, so live court tiles show partial time.
+export interface PlayerThirdMs {
+  attack: number;
+  centre: number;
+  defence: number;
+}
+
+export interface ThirdLookup {
+  (positionId: string): "attack-third" | "centre-third" | "defence-third" | null;
+}
+
+export function playerThirdMs(
+  events: GameEvent[],
+  inProgressMs: number | null,
+  periodSeconds: number,
+  thirdLookup: ThirdLookup,
+): Map<string, PlayerThirdMs> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const out = new Map<string, PlayerThirdMs>();
+  const ensure = (pid: string): PlayerThirdMs => {
+    let s = out.get(pid);
+    if (!s) {
+      s = { attack: 0, centre: 0, defence: 0 };
+      out.set(pid, s);
+    }
+    return s;
+  };
+  const addLineupTime = (lineup: GenericLineup, ms: number) => {
+    for (const [posId, ids] of Object.entries(lineup.positions)) {
+      const third = thirdLookup(posId);
+      if (!third) continue;
+      for (const pid of ids) {
+        if (!pid) continue;
+        const s = ensure(pid);
+        if (third === "attack-third") s.attack += ms;
+        else if (third === "centre-third") s.centre += ms;
+        else if (third === "defence-third") s.defence += ms;
+      }
+    }
+  };
+
+  let currentLineup: GenericLineup | null = null;
+  let hasFinalised = false;
+
+  for (const ev of sorted) {
+    const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
+    if (ev.type === "lineup_set" && meta.lineup) {
+      currentLineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "period_break_swap" && meta.lineup) {
+      if (currentLineup) addLineupTime(currentLineup, periodSeconds * 1000);
+      currentLineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "game_finalised") {
+      if (currentLineup) addLineupTime(currentLineup, periodSeconds * 1000);
+      currentLineup = null;
+      hasFinalised = true;
+    }
+  }
+
+  if (!hasFinalised && currentLineup) {
+    const ms = inProgressMs ?? periodSeconds * 1000;
+    addLineupTime(currentLineup, ms);
+  }
+
+  return out;
+}
+
+export function formatMinSec(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}

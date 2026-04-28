@@ -17,6 +17,7 @@ import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
+import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -392,20 +393,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }
 
-  // ─── Quarter break — lineup picker for the next quarter ────
+  // ─── Quarter break — Siren Footy-style reshuffle ──────────
+  // Replaced the position-by-position lineup picker with the
+  // NetballQuarterBreak component (mirrors AFL's QuarterBreak design):
+  // header card with fairness score + suggested-reshuffle toggle,
+  // per-third sections, two-tap to swap, time bars per player. The
+  // component handles its own period_break_swap + startNetballQuarter
+  // writes; we just clear the local overlay/lock state on success.
   if (quarterEnded && currentQuarter < 4) {
-    const nextQuarter = currentQuarter + 1;
-    // Filter the candidate pool: injured + loaned players are excluded
-    // from suggestions and from manual placement (the picker will still
-    // show them as ineligible if a coach taps a slot, since they're
-    // unavailable to play).
-    const filteredAvailable = availableIds.filter(
-      (id) => !injuredIds.has(id) && !loanedIds.has(id),
-    );
-    // Pre-apply lock-for-next-break: ensures the locked player starts
-    // in the locked position when the picker opens. Coach can still
-    // drag them out manually (it's a soft preference, not a hard pin).
-    const seedLineup: GenericLineup = applyLocks(onCourt, nextBreakLocks, ageGroup.positions);
     return (
       <div className="flex flex-col gap-4 p-4">
         <NetballScoreBug
@@ -416,31 +411,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarterLabel={`Q${currentQuarter} BRK`}
           clockText="—"
         />
-        <p className="text-center text-sm text-neutral-600">
-          Pick the lineup for Q{nextQuarter}.
-        </p>
-        <NetballLineupPicker
-          ageGroup={ageGroup}
+        <NetballQuarterBreak
+          auth={auth}
+          gameId={game.id}
           squad={squad}
-          availableIds={filteredAvailable}
-          initialLineup={seedLineup}
+          availableIds={availableIds}
+          ageGroup={ageGroup}
+          currentQuarter={currentQuarter}
+          previousLineup={onCourt}
+          preAppliedLocks={nextBreakLocks}
+          periodSeconds={ageGroup.periodSeconds}
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
-          onConfirm={async (lineup) =>
-            new Promise<void>((resolve) => {
-              startTransition(async () => {
-                await periodBreakSwap(auth, game.id, nextQuarter, lineup);
-                await startNetballQuarter(auth, game.id, nextQuarter);
-                // Locks are single-use. Local overlay is durable now via
-                // the period_break_swap event we just fired, so reset both.
-                setNextBreakLocks({});
-                setLocalOverlay(null);
-                resolve();
-              });
-            })
-          }
-          confirmLabel={`Start Q${nextQuarter}`}
-          disabled={isPending}
+          injuredIds={injuredIds}
+          loanedIds={loanedIds}
+          onStarted={() => {
+            // Locks are single-use; local overlay is durable now via
+            // the period_break_swap event the component just wrote.
+            setNextBreakLocks({});
+            setLocalOverlay(null);
+          }}
         />
       </div>
     );
