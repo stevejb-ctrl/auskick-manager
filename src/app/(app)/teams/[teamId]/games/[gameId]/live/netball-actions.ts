@@ -106,14 +106,35 @@ export async function startNetballGame(
 
 // ─── periodBreakSwap ─────────────────────────────────────────
 // Snapshot the lineup about to take the court at a quarter break.
+//
+// `midQuarterSubs` carries the timestamps of any mid-quarter
+// substitutions that happened DURING the quarter just ended. The
+// replay engine uses them to split the closing quarter's time
+// credit between sub-out and sub-in players, so an injured player
+// who was on for 3 minutes gets credit for 3 minutes (not the full 8)
+// AFTER the page reloads or moves into the next quarter. Without
+// this metadata, the trailing-lineup credit would default to the
+// pre-sub Q1 lineup × full period, and the substitute would forever
+// show 0:00.
 export async function periodBreakSwap(
   auth: LiveAuth,
   gameId: string,
   quarter: number,
   lineup: GenericLineup,
+  midQuarterSubs?: Array<{
+    positionId: string;
+    outPlayerId: string;
+    inPlayerId: string;
+    atMs: number;
+  }>,
 ): Promise<ActionResult> {
   return insertEvent(auth, gameId, "period_break_swap", {
-    metadata: { quarter, lineup, sport: "netball" },
+    metadata: {
+      quarter,
+      lineup,
+      sport: "netball",
+      midQuarterSubs: midQuarterSubs ?? [],
+    },
   });
 }
 

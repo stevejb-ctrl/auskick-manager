@@ -122,6 +122,54 @@ export function lastQuarterThirds(
   return out;
 }
 
+/**
+ * Build a per-player "set of players who shared their third in the
+ * most recent quarter they played" map from this-game events. Drives
+ * the teammate-diversity rule in the suggester: spread kids across
+ * different teammates from one quarter to the next so they don't
+ * play with the same two or three friends every break.
+ *
+ * Walks events forward; the LATEST lineup-changing event wins for
+ * each player. For each lineup, players in the same third are
+ * teammates of one another.
+ */
+export function lastQuarterTeammatesInThird(
+  events: GameEvent[],
+  thirdOf: ThirdLookup,
+): Record<string, Set<string>> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const out: Record<string, Set<string>> = {};
+  for (const ev of sorted) {
+    if (ev.type !== "lineup_set" && ev.type !== "period_break_swap") continue;
+    const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
+    if (!meta.lineup) continue;
+    const lineup = normaliseGenericLineup(meta.lineup);
+    // Group players by third for this lineup.
+    const playersByThird: Record<string, string[]> = {};
+    for (const [posId, ids] of Object.entries(lineup.positions)) {
+      const third = thirdOf(posId);
+      if (!third) continue;
+      const list = playersByThird[third] ?? [];
+      for (const pid of ids) if (pid) list.push(pid);
+      playersByThird[third] = list;
+    }
+    // Each player's teammate set = the other players in the same
+    // third for THIS lineup. Overwrite to keep "most recent quarter".
+    for (const ids of Object.values(playersByThird)) {
+      for (const pid of ids) {
+        const set = new Set<string>();
+        for (const other of ids) {
+          if (other !== pid) set.add(other);
+        }
+        out[pid] = set;
+      }
+    }
+  }
+  return out;
+}
+
 /** Sum counts across many games. Input: events for an entire season. */
 export function seasonPositionCounts(events: GameEvent[]): PlayerPositionCounts {
   const byGame = new Map<string, GameEvent[]>();
@@ -526,18 +574,80 @@ export function playerThirdMs(
     }
   };
 
+  // Helper: split a closed quarter's time credit using its mid-quarter
+  // substitution log. Each sub turns the quarter into more segments,
+  // each with a different lineup. This is the SAME segment-building
+  // logic NetballLiveGame uses for the live trailing quarter — but
+  // run from event metadata so the split survives reload + the
+  // transition into the next quarter.
+  const creditClosedQuarter = (
+    lineup: GenericLineup,
+    periodMs: number,
+    subs: Array<{
+      positionId: string;
+      outPlayerId: string;
+      inPlayerId: string;
+      atMs: number;
+    }>,
+  ) => {
+    if (subs.length === 0) {
+      addLineupTime(lineup, periodMs);
+      return;
+    }
+    let current = lineup;
+    let prevMs = 0;
+    for (const sub of subs) {
+      const dur = Math.max(0, Math.min(sub.atMs, periodMs) - prevMs);
+      if (dur > 0) addLineupTime(current, dur);
+      const next: GenericLineup = {
+        positions: { ...current.positions },
+        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+      };
+      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
+        .filter((id) => id !== sub.outPlayerId)
+        .concat([sub.inPlayerId]);
+      if (!next.bench.includes(sub.outPlayerId)) {
+        next.bench = [...next.bench, sub.outPlayerId];
+      }
+      current = next;
+      prevMs = Math.min(sub.atMs, periodMs);
+    }
+    const finalDur = Math.max(0, periodMs - prevMs);
+    if (finalDur > 0) addLineupTime(current, finalDur);
+  };
+
   let currentLineup: GenericLineup | null = null;
   let hasFinalised = false;
 
   for (const ev of sorted) {
-    const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
+    const meta = ev.metadata as {
+      lineup?: Partial<GenericLineup>;
+      midQuarterSubs?: Array<{
+        positionId: string;
+        outPlayerId: string;
+        inPlayerId: string;
+        atMs: number;
+      }>;
+    };
     if (ev.type === "lineup_set" && meta.lineup) {
       currentLineup = normaliseGenericLineup(meta.lineup);
     } else if (ev.type === "period_break_swap" && meta.lineup) {
-      if (currentLineup) addLineupTime(currentLineup, periodSeconds * 1000);
+      if (currentLineup) {
+        creditClosedQuarter(
+          currentLineup,
+          periodSeconds * 1000,
+          meta.midQuarterSubs ?? [],
+        );
+      }
       currentLineup = normaliseGenericLineup(meta.lineup);
     } else if (ev.type === "game_finalised") {
-      if (currentLineup) addLineupTime(currentLineup, periodSeconds * 1000);
+      if (currentLineup) {
+        creditClosedQuarter(
+          currentLineup,
+          periodSeconds * 1000,
+          meta.midQuarterSubs ?? [],
+        );
+      }
       currentLineup = null;
       hasFinalised = true;
     }

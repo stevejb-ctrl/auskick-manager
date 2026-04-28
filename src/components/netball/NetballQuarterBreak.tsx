@@ -92,6 +92,20 @@ interface Props {
    * injured player keeps the credit.
    */
   playerStats?: Map<string, PlayerThirdMs>;
+  /**
+   * Mid-quarter substitution log for the quarter just ended. Threaded
+   * straight into period_break_swap's metadata so the replay engine
+   * can split the closing quarter's time credit between sub-out and
+   * sub-in players. Without this, after the next quarter starts and
+   * the page replays from events, the original lineup would get
+   * credited the full quarter (and the substitute would show 0:00).
+   */
+  midQuarterSubs: Array<{
+    positionId: string;
+    outPlayerId: string;
+    inPlayerId: string;
+    atMs: number;
+  }>;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -112,6 +126,7 @@ export function NetballQuarterBreak({
   loanedIds,
   playerGoals,
   playerStats,
+  midQuarterSubs,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -350,7 +365,13 @@ export function NetballQuarterBreak({
   function handleStart() {
     setError(null);
     startTransition(async () => {
-      const r1 = await periodBreakSwap(auth, gameId, nextQuarter, draft);
+      const r1 = await periodBreakSwap(
+        auth,
+        gameId,
+        nextQuarter,
+        draft,
+        midQuarterSubs,
+      );
       if (!r1.success) {
         setError(r1.error);
         return;

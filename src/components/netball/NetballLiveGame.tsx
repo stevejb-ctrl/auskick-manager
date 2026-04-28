@@ -690,6 +690,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           loanedIds={loanedIds}
           playerGoals={playerGoals}
           playerStats={playerStats}
+          midQuarterSubs={midQuarterSubs}
           onStarted={() => {
             // Locks are single-use; local overlay is durable now via
             // the period_break_swap event the component just wrote.
