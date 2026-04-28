@@ -25,21 +25,29 @@ test("new user signs up, creates team, adds first player", async ({
   let userId: string | null = null;
 
   try {
-    // --- Signup ---
-    await page.goto("/signup");
-    await page.getByLabel(/full name/i).fill("New Coach");
-    await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/^password$/i).fill(password);
-    await page.getByLabel(/confirm password/i).fill(password);
-    await page.getByRole("button", { name: /create account/i }).click();
-
-    // Signup lands on either /dashboard or /teams/new (no teams yet).
-    await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
-
-    // Capture the created user id for cleanup.
-    const { data } = await admin.auth.admin.listUsers();
-    userId = data.users.find((u) => u.email === email)?.id ?? null;
+    // --- Account creation + sign-in ---
+    // The signup UI was collapsed into the unified email-first /login
+    // flow, which sends a magic link — we can't click magic links in
+    // headless Playwright. Instead we provision the user via the admin
+    // SDK and sign in using the password fallback toggle on /login.
+    const { data: created, error: createErr } =
+      await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+    if (createErr) throw createErr;
+    userId = created.user?.id ?? null;
     expect(userId).not.toBeNull();
+
+    await page.goto("/login");
+    await page.getByTestId("login-mode-toggle").click();
+    await page.getByLabel(/^email$/i).fill(email);
+    await page.getByLabel(/^password$/i).fill(password);
+    await page.getByTestId("login-submit").click();
+
+    // Sign-in lands on either /dashboard or /teams/new (no teams yet).
+    await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
 
     // --- Create team ---
     if (!page.url().includes("/teams/new")) {

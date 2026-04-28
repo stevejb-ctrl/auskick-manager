@@ -17,7 +17,7 @@ export function MarketingBanner() {
         </span>
         <span className="hidden text-warm/60 sm:inline">·</span>
         <Link
-          href="/signup"
+          href="/login"
           className="hidden underline-offset-2 transition-colors duration-fast ease-out-quart hover:text-warn hover:underline sm:inline"
         >
           Sign up in under a minute
