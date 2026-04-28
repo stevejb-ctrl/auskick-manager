@@ -24,6 +24,7 @@ import {
   seasonPositionCounts,
   gamePositionCounts,
   lastQuarterThirds,
+  lastQuarterTeammatesInThird,
 } from "@/lib/sports/netball/fairness";
 import type { GameEvent } from "@/lib/types";
 
@@ -66,11 +67,13 @@ export function NetballLineupPicker({
     }
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
-    const lastThirds = lastQuarterThirds(
+    const thirdLookup = primaryThirdFor as (
+      positionId: string,
+    ) => "attack-third" | "centre-third" | "defence-third" | null;
+    const lastThirds = lastQuarterThirds(thisGameEvents, thirdLookup);
+    const prevTeammates = lastQuarterTeammatesInThird(
       thisGameEvents,
-      primaryThirdFor as (
-        positionId: string,
-      ) => "attack-third" | "centre-third" | "defence-third" | null,
+      thirdLookup,
     );
     return suggestNetballLineup({
       playerIds: availableIds,
@@ -79,10 +82,9 @@ export function NetballLineupPicker({
       thisGame,
       isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
       seed: 0,
-      thirdOf: primaryThirdFor as (
-        positionId: string,
-      ) => "attack-third" | "centre-third" | "defence-third" | null,
+      thirdOf: thirdLookup,
       lastQuarterThird: lastThirds,
+      previousTeammates: prevTeammates,
     });
   });
   // Two-tap-to-swap selection: tap a player → highlighted; tap another

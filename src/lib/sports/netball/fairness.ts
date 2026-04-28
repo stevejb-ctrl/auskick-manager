@@ -248,14 +248,19 @@ export function netballFairnessScore(season: PlayerPositionCounts): number {
 //   tier 3 (-10000):  the player played in this third LAST QUARTER.
 //     Soft preference — keep kids moving across the court between
 //     breaks rather than camping in one third.
-//   tier 4 (-seasonCount): season rarity — among otherwise-equal
+//   tier 4 (-200/teammate): one of the player's last-quarter
+//     teammates is already placed in this same third for the new
+//     quarter. Splits up "always plays with the same friends" pairs
+//     so kids share court time with different teammates each break.
+//   tier 5 (-seasonCount): season rarity — among otherwise-equal
 //     candidates, prefer the position they've played least across
 //     the year.
 //
 // Magnitudes are spaced so a higher tier always dominates lower
-// tiers in any plausible squad. Inputs that drive tiers 1 and 3
-// (`thirdOf`, `lastQuarterThird`) are optional for backward
-// compatibility; when absent those tiers contribute nothing.
+// tiers in any plausible squad. Inputs that drive tiers 1, 3 and 4
+// (`thirdOf`, `lastQuarterThird`, `previousTeammates`) are optional
+// for backward compatibility; when absent those tiers contribute
+// nothing.
 export interface NetballSuggestInput {
   /** Active player ids for this game. */
   playerIds: string[];
@@ -269,10 +274,18 @@ export interface NetballSuggestInput {
   isAllowed: (playerId: string, positionId: string) => boolean;
   /** Deterministic tie-break seed. */
   seed?: number;
-  /** Position → third. Required for tier 1 and tier 2 to apply. */
+  /** Position → third. Required for tiers 1, 3, and 4 to apply. */
   thirdOf?: (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null;
-  /** Each player's third in their most recent quarter on the court. Drives tier 2. */
+  /** Each player's third in their most recent quarter on the court. Drives tier 3. */
   lastQuarterThird?: Record<string, "attack-third" | "centre-third" | "defence-third">;
+  /**
+   * Each player's last-quarter teammates (other players who shared
+   * their third). Drives tier 4 — placing a player in a third where
+   * one of these friends has already landed for the new quarter
+   * incurs a -200 penalty per friend, so the same trio doesn't keep
+   * playing together break after break.
+   */
+  previousTeammates?: Record<string, Set<string>>;
 }
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
@@ -285,9 +298,20 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     seed = 0,
     thirdOf,
     lastQuarterThird,
+    previousTeammates,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
+
+  // Track who's already been placed in each third as we walk the
+  // candidate list. Drives tier 4 — when evaluating (X, P) we look
+  // at who else is currently slotted into P's third, and apply a
+  // penalty for each one that was X's last-quarter teammate.
+  const placedInThird: Record<string, Set<string>> = {
+    "attack-third": new Set(),
+    "centre-third": new Set(),
+    "defence-third": new Set(),
+  };
 
   // Pre-compute the set of thirds each player has played this game.
   // Cheap to do once up-front rather than per (player, position) pair.
@@ -337,13 +361,33 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
       if (last && last === candidateThird) sameThirdAsLastPenalty = -10000;
     }
 
-    // Tier 4: prefer positions they've played least across the season.
+    // Tier 4: split last-quarter teammates apart. For each player
+    // already placed in this third for the new quarter who was a
+    // teammate of `pid` last quarter, deduct 200. With 2-3 players
+    // per third, max stack is -600 — still well under tier 3 so the
+    // hard "don't repeat third" rule wins, but big enough to break
+    // ties between two otherwise-equivalent placements.
+    let teammateRepeatPenalty = 0;
+    if (candidateThird && previousTeammates) {
+      const myPrevMates = previousTeammates[pid];
+      if (myPrevMates && myPrevMates.size > 0) {
+        const placed = placedInThird[candidateThird];
+        if (placed) {
+          placed.forEach((other) => {
+            if (myPrevMates.has(other)) teammateRepeatPenalty -= 200;
+          });
+        }
+      }
+    }
+
+    // Tier 5: prefer positions they've played least across the season.
     const seasonRarity = -seasonCount;
 
     return (
       unplayedThirdBonus +
       samePositionPenalty +
       sameThirdAsLastPenalty +
+      teammateRepeatPenalty +
       seasonRarity
     );
   };
@@ -383,6 +427,12 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     lineup.positions[bestPos].push(pid);
     remaining.delete(bestPos);
     assigned.add(pid);
+    // Track placement for tier-4 teammate-diversity scoring on
+    // subsequent players in the same loop.
+    if (thirdOf) {
+      const t = thirdOf(bestPos);
+      if (t) placedInThird[t]?.add(pid);
+    }
   }
 
   return lineup;

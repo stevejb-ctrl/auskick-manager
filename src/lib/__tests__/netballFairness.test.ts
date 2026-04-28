@@ -238,6 +238,39 @@ describe("suggestNetballLineup", () => {
     expect(TEST_THIRD(bobAt!)).not.toBe("centre-third");
   });
 
+  it("tier 4: splits last-quarter teammates apart when other rules are flat", () => {
+    // ed and frank were both in the centre third in Q1. With nothing
+    // else differentiating placements (no thisGame counts so tier 1
+    // bonuses apply equally; no lastQuarterThird so tier 3 quiet),
+    // the suggester should NOT put both back into the centre third
+    // for Q2 — tier 4 deducts 200 per repeated teammate.
+    //
+    // Squad of 7 = exactly enough to fill the lineup with no bench;
+    // total played sort is stable; the seeded shuffle is deterministic.
+    // We assert that the centre third doesn't contain BOTH ed and
+    // frank — at least one of them should have moved to a different
+    // third.
+    const lineup = suggestNetballLineup({
+      playerIds: ["a", "b", "c", "d", "ed", "frank", "g"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: {},
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      previousTeammates: {
+        ed: new Set(["frank"]),
+        frank: new Set(["ed"]),
+      },
+    });
+    const centreSet = new Set([
+      ...lineup.positions.wa,
+      ...lineup.positions.c,
+      ...lineup.positions.wd,
+    ]);
+    const bothInCentre = centreSet.has("ed") && centreSet.has("frank");
+    expect(bothInCentre).toBe(false);
+  });
+
   it("tier 2: heavy penalty on repeating exact position even after every third covered", () => {
     // dan has covered all three thirds this game (gs in Q1, c in Q2,
     // gd in Q3). No tier-1 bonus applies — every candidate scores 0
