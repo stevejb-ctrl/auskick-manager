@@ -248,10 +248,13 @@ export function netballFairnessScore(season: PlayerPositionCounts): number {
 //   tier 3 (-10000):  the player played in this third LAST QUARTER.
 //     Soft preference — keep kids moving across the court between
 //     breaks rather than camping in one third.
-//   tier 4 (-200/teammate): one of the player's last-quarter
+//   tier 4 (-5000/teammate): one of the player's last-quarter
 //     teammates is already placed in this same third for the new
 //     quarter. Splits up "always plays with the same friends" pairs
 //     so kids share court time with different teammates each break.
+//     Magnitude is well below tier 3's -10000 (the "don't repeat
+//     third" rule still wins) but big enough that a single overlap
+//     dominates any plausible season-rarity tie-break.
 //   tier 5 (-seasonCount): season rarity — among otherwise-equal
 //     candidates, prefer the position they've played least across
 //     the year.
@@ -363,10 +366,14 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
 
     // Tier 4: split last-quarter teammates apart. For each player
     // already placed in this third for the new quarter who was a
-    // teammate of `pid` last quarter, deduct 200. With 2-3 players
-    // per third, max stack is -600 — still well under tier 3 so the
-    // hard "don't repeat third" rule wins, but big enough to break
-    // ties between two otherwise-equivalent placements.
+    // teammate of `pid` last quarter, deduct 5000. Sized to dominate
+    // every tier below it (a single overlap = -5000 vs season rarity
+    // typically <50) while staying below tier 3's -10000, so the
+    // hard "don't repeat third" rule still wins when the two
+    // conflict. Max stack on a 3-player centre band is -15000, which
+    // exactly matches tier-3 magnitude — at that point the suggester
+    // genuinely doesn't have a clean answer and the coach can drag
+    // tokens around manually.
     let teammateRepeatPenalty = 0;
     if (candidateThird && previousTeammates) {
       const myPrevMates = previousTeammates[pid];
@@ -374,7 +381,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
         const placed = placedInThird[candidateThird];
         if (placed) {
           placed.forEach((other) => {
-            if (myPrevMates.has(other)) teammateRepeatPenalty -= 200;
+            if (myPrevMates.has(other)) teammateRepeatPenalty -= 5000;
           });
         }
       }

@@ -238,6 +238,72 @@ describe("suggestNetballLineup", () => {
     expect(TEST_THIRD(bobAt!)).not.toBe("centre-third");
   });
 
+  it("regression: Steve's 8-player squad — Q1 attack pair stays apart in Q2", () => {
+    // Reproduces game 529e6ba6 from the bug report. Q1 lineup:
+    //   ATTACK  = hattie, sammy
+    //   CENTRE  = rosie, jess, lucy
+    //   DEFENCE = jonie, lori
+    //   BENCH   = renae
+    // After Q2 suggestion, no two players who shared a Q1 third
+    // should both end up in the SAME Q2 third.
+    const previousTeammates: Record<string, Set<string>> = {
+      hattie: new Set(["sammy"]),
+      sammy: new Set(["hattie"]),
+      rosie: new Set(["jess", "lucy"]),
+      jess: new Set(["rosie", "lucy"]),
+      lucy: new Set(["rosie", "jess"]),
+      jonie: new Set(["lori"]),
+      lori: new Set(["jonie"]),
+    };
+    const lastQuarterThird: Record<string, "attack-third" | "centre-third" | "defence-third"> = {
+      hattie: "attack-third",
+      sammy: "attack-third",
+      rosie: "centre-third",
+      jess: "centre-third",
+      lucy: "centre-third",
+      jonie: "defence-third",
+      lori: "defence-third",
+    };
+    const lineup = suggestNetballLineup({
+      playerIds: ["hattie", "sammy", "rosie", "jess", "lucy", "jonie", "lori", "renae"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: {
+        hattie: { gs: 1 },
+        sammy: { ga: 1 },
+        rosie: { wa: 1 },
+        jess: { c: 1 },
+        lucy: { wd: 1 },
+        jonie: { gd: 1 },
+        lori: { gk: 1 },
+      },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird,
+      previousTeammates,
+      seed: 2,
+    });
+
+    const thirdOf = (pid: string): string | null => {
+      for (const [posId, ids] of Object.entries(lineup.positions)) {
+        if (ids.includes(pid)) return TEST_THIRD(posId);
+      }
+      return null; // bench
+    };
+
+    // Hattie + Sammy were attack teammates in Q1 — must split.
+    expect(thirdOf("hattie")).not.toBe(thirdOf("sammy"));
+
+    // Centre trio (rosie, jess, lucy): no two of them should land in
+    // the same third for Q2.
+    const centreTrio = ["rosie", "jess", "lucy"] as const;
+    const centreThirds = centreTrio.map(thirdOf).filter(Boolean);
+    expect(new Set(centreThirds).size).toBe(centreThirds.length);
+
+    // Defence pair (jonie, lori) — must split too.
+    expect(thirdOf("jonie")).not.toBe(thirdOf("lori"));
+  });
+
   it("tier 4: splits last-quarter teammates apart when other rules are flat", () => {
     // ed and frank were both in the centre third in Q1. With nothing
     // else differentiating placements (no thisGame counts so tier 1
