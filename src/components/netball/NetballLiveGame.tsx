@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
+import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
@@ -237,8 +238,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   const handleCancelGoal = () => setPendingGoal(null);
 
-  // long-press on any token → open the player actions modal.
-  const handleTokenLongPress = (positionId: string, playerId: string | null) => {
+  // long-press on any token (court OR bench strip) → open the player
+  // actions modal. Bench tiles pass positionId=null; the modal hides
+  // the lock-for-next-break action for bench targets since there's no
+  // current position to lock to.
+  const handleTokenLongPress = (positionId: string | null, playerId: string | null) => {
     if (!playerId) return;
     setActionsTarget({ playerId, positionId });
   };
@@ -384,6 +388,45 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     setReplacingTarget(null);
   };
 
+  // ─── Off-court roster (drives the bench strip on the live view) ──
+  // Anyone in the available pool who isn't currently in a court
+  // position. We surface bench / injured / lent in a single strip
+  // because the coach mostly cares "who's not playing right now and
+  // why" — splitting them into separate sections is more clutter than
+  // signal at the point of decision.
+  type OffCourtStatus = "bench" | "injured" | "loaned";
+  const offCourt = useMemo(() => {
+    const onCourtIds = new Set<string>();
+    for (const ids of Object.values(onCourt.positions)) {
+      for (const id of ids) onCourtIds.add(id);
+    }
+    const seen = new Set<string>();
+    const list: { player: Player; status: OffCourtStatus }[] = [];
+    const consider = (pid: string) => {
+      if (!pid || seen.has(pid) || onCourtIds.has(pid)) return;
+      seen.add(pid);
+      const player = squadById.get(pid);
+      if (!player) return;
+      const status: OffCourtStatus = injuredIds.has(pid)
+        ? "injured"
+        : loanedIds.has(pid)
+        ? "loaned"
+        : "bench";
+      list.push({ player, status });
+    };
+    // Order: explicit bench first (most likely to come on next), then
+    // anyone else available, then sidelined naturally fall in via their
+    // status flag.
+    for (const id of onCourt.bench) consider(id);
+    for (const id of availableIds) consider(id);
+    // Sort sidelined to the end so the active bench stands out.
+    list.sort((a, b) => {
+      const rank = (s: OffCourtStatus) => (s === "bench" ? 0 : 1);
+      return rank(a.status) - rank(b.status);
+    });
+    return list;
+  }, [onCourt, availableIds, squadById, injuredIds, loanedIds]);
+
   // Build replacement candidates: active squad − on-court − injured − loaned.
   const replacementCandidates = useMemo<Player[]>(() => {
     if (!replacingTarget) return [];
@@ -447,6 +490,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ageGroup={ageGroup}
           squadById={squadById}
           disabled
+          playerStats={playerStats}
+          playerGoals={playerGoals}
+        />
+        <NetballBenchStrip
+          entries={offCourt}
           playerStats={playerStats}
           playerGoals={playerGoals}
         />
@@ -609,6 +657,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         nextBreakLocks={nextBreakLocks}
         playerStats={playerStats}
         playerGoals={playerGoals}
+      />
+
+      <NetballBenchStrip
+        entries={offCourt}
+        playerStats={playerStats}
+        playerGoals={playerGoals}
+        onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
       />
 
       <p className="text-center text-xs text-neutral-500">
