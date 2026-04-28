@@ -57,19 +57,28 @@ interface LineupPickerProps {
 type Slot = Zone | "bench";
 
 /**
+ * Selection model — either a real player by id, or an empty slot
+ * targeted by zone. Empty slots within the same zone are
+ * interchangeable, so the empty selection is just keyed on the
+ * zone, not a specific index.
+ */
+type Selection =
+  | { kind: "player"; id: string }
+  | { kind: "empty"; zone: Zone };
+
+/**
  * Lineup picker — coach assigns available players to zones + bench
- * before kick-off. Tap two players to swap them.
+ * before kick-off. Tap two players to swap them; tap a player and
+ * then an empty slot to move that player into a zone.
  *
- * Visual refresh per design_handoff_siren_footy/prototype/sf/lineup.jsx,
- * adapted to our 5-zone model (FWD / H-FWD / CEN / H-BCK / BCK) instead
- * of the prototype's 3-zone model. Every piece of game logic — the swap
- * reducer, suggestStartingLineup, sub interval calc, startGame action
- * — is unchanged from the previous version.
- *
- * Field-viz toggle (the design's green-oval pitch rendering with player
- * tiles) is intentionally not included in this commit; today's picker
- * is list-based, and the Field viz would be a substantial new SVG
- * component. Tracked for a follow-up.
+ * The on-field grid always renders the *default* formation (e.g. for
+ * U10 that's 12 slots = 4-4-4 across FWD/CEN/BACK). When the coach
+ * lowers "Players on field", some zones run short of their default
+ * cap — those slots render as dashed `OPEN` placeholders. Initial
+ * placement is fairness-driven via `suggestStartingLineup`, so the
+ * empty slots start in zones where the data says you've over-played
+ * recently. The coach can then move the empties around by tapping
+ * a player followed by the empty slot they want.
  */
 export function LineupPicker({
   auth,
@@ -84,12 +93,25 @@ export function LineupPicker({
   backHref,
 }: LineupPickerProps) {
   const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
-  const zoneCaps = useMemo(
-    () => zoneCapsFor(onFieldSize, positionModel),
-    [onFieldSize, positionModel],
+
+  // displayZoneCaps — always the default formation, used to render the
+  // structural grid. Empty slots = displayCap - actual placements.
+  const displayZoneCaps = useMemo(
+    () => zoneCapsFor(defaultOnFieldSize, positionModel),
+    [defaultOnFieldSize, positionModel],
   );
+
+  // The suggester targets `onFieldSize` players via zoneCapsFor —
+  // those caps sum to onFieldSize. When onFieldSize < default the
+  // resulting zones come up short of displayZoneCaps, and the
+  // difference is rendered as empty "OPEN" slots.
   const [lineup, setLineup] = useState<Lineup>(() =>
-    suggestStartingLineup(players, season, 0, zoneCaps),
+    suggestStartingLineup(
+      players,
+      season,
+      0,
+      zoneCapsFor(defaultOnFieldSize, positionModel),
+    ),
   );
 
   function handleSizeChange(next: number) {
@@ -104,29 +126,27 @@ export function LineupPicker({
     );
   }
 
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Selection | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [subMinInput, setSubMinInput] = useState<string | null>(null);
 
-  // Each on-field-size option becomes a pill. Per-zone breakdown is
-  // shown as a sub-line within the active pill.
+  // Sorted dropdown options. The default size is marked as recommended.
   const sizeOptions = useMemo(() => {
-    const out: { value: number; splits: string; tag: "rec" | "short" | "above" }[] = [];
-    for (let s = maxOnFieldSize; s >= minOnFieldSize; s--) {
-      const caps = zoneCapsFor(s, positionModel);
-      const zs = positionsFor(positionModel);
-      const splits = zs.map((z) => caps[z]).join("-");
-      const tag: "rec" | "short" | "above" =
+    const out: { value: number; label: string }[] = [];
+    for (let s = minOnFieldSize; s <= maxOnFieldSize; s++) {
+      const tag =
         s === defaultOnFieldSize
-          ? "rec"
+          ? " — recommended"
+          : s === defaultOnFieldSize - 1
+          ? " — 1 empty position"
           : s < defaultOnFieldSize
-          ? "short"
-          : "above";
-      out.push({ value: s, splits, tag });
+          ? ` — ${defaultOnFieldSize - s} empty positions`
+          : ` — ${s - defaultOnFieldSize} extra`;
+      out.push({ value: s, label: `${s} on field${tag}` });
     }
-    return out.sort((a, b) => a.value - b.value);
-  }, [defaultOnFieldSize, minOnFieldSize, maxOnFieldSize, positionModel]);
+    return out;
+  }, [defaultOnFieldSize, minOnFieldSize, maxOnFieldSize]);
 
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -134,6 +154,9 @@ export function LineupPicker({
   );
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // Display order mirrors the in-game field: forwards at the top, backs
+  // at the bottom. The underlying `zones` order stays unchanged (fairness
+  // + data rely on it) — only the UI grid order is reversed.
   const displayZones = useMemo(() => [...zones].reverse(), [zones]);
   const slots = useMemo<Slot[]>(() => [...displayZones, "bench"], [displayZones]);
   const slotLabel = (s: Slot) =>
@@ -144,21 +167,31 @@ export function LineupPicker({
     return null;
   }
 
-  function handleTap(pid: string) {
-    if (!selected) {
-      setSelected(pid);
+  /** Move a player to a different zone, filling an empty slot there.
+   *  No-op if target has no empty (caller should have checked, but
+   *  guard anyway). */
+  function movePlayerToZone(pid: string, target: Slot) {
+    const source = slotOf(pid);
+    if (!source || source === target) return;
+    if (target !== "bench" && lineup[target].length >= displayZoneCaps[target]) {
       return;
     }
-    if (selected === pid) {
-      setSelected(null);
-      return;
-    }
-    const a = selected;
-    const b = pid;
+    setLineup((prev) => ({
+      back: prev.back.filter((p) => p !== pid),
+      hback: prev.hback.filter((p) => p !== pid),
+      mid: prev.mid.filter((p) => p !== pid),
+      hfwd: prev.hfwd.filter((p) => p !== pid),
+      fwd: prev.fwd.filter((p) => p !== pid),
+      bench: prev.bench.filter((p) => p !== pid),
+      [target]: [...prev[target], pid],
+    }));
+  }
+
+  /** Existing two-player swap, lifted out so taps can call into it. */
+  function swapPlayers(a: string, b: string) {
     const sa = slotOf(a);
     const sb = slotOf(b);
     if (!sa || !sb) return;
-
     setLineup((prev) => {
       const next: Lineup = {
         back: [...prev.back],
@@ -176,6 +209,44 @@ export function LineupPicker({
       }
       return next;
     });
+  }
+
+  function tapPlayer(pid: string) {
+    if (!selected) {
+      setSelected({ kind: "player", id: pid });
+      return;
+    }
+    if (selected.kind === "player") {
+      if (selected.id === pid) {
+        setSelected(null); // tap-same = deselect
+      } else {
+        swapPlayers(selected.id, pid);
+        setSelected(null);
+      }
+      return;
+    }
+    // empty + player: move the player into the empty zone
+    movePlayerToZone(pid, selected.zone);
+    setSelected(null);
+  }
+
+  function tapEmpty(zone: Zone) {
+    if (!selected) {
+      setSelected({ kind: "empty", zone });
+      return;
+    }
+    if (selected.kind === "empty") {
+      if (selected.zone === zone) {
+        setSelected(null);
+      } else {
+        // empty + empty: re-target the selection to the new zone (UX
+        // shortcut — tapping a different empty just moves your aim).
+        setSelected({ kind: "empty", zone });
+      }
+      return;
+    }
+    // player + empty: move that player into the target zone
+    movePlayerToZone(selected.id, zone);
     setSelected(null);
   }
 
@@ -210,6 +281,8 @@ export function LineupPicker({
     });
   }
 
+  const playingShortHanded = onFieldSize < defaultOnFieldSize;
+
   return (
     <div className="space-y-4 pb-24">
       {backHref && (
@@ -232,123 +305,156 @@ export function LineupPicker({
             Auto-suggested starting lineup
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-ink/85">
-            Based on player preferences. Tap any two players to swap them
-            between zones or the bench.
+            Players who&apos;ve had less zone time across the season get
+            priority — fairer rotations, fewer kids stuck on the bench.
+            Tap any two players to swap them; tap a player and then an
+            empty slot to move them.
             {onFieldCount < effectiveOnFieldTarget &&
               ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
           </p>
         </div>
       </div>
 
-      {/* ── Players on field selector ────────────────────────────────── */}
-      <SFCard>
-        <Eyebrow>Players on field</Eyebrow>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {sizeOptions.map((opt) => {
-            const active = onFieldSize === opt.value;
-            const splitColour = active ? "text-warm/60" : "text-ink-mute";
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleSizeChange(opt.value)}
-                disabled={isPending}
-                className={`inline-flex h-[38px] items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition-colors duration-fast ease-out-quart disabled:opacity-50 ${
-                  active
-                    ? "border-ink bg-ink text-warm"
-                    : "border-hairline bg-surface text-ink hover:bg-surface-alt"
-                }`}
-              >
-                {opt.value}
-                <span
-                  className={`font-mono text-[10px] font-semibold tracking-[0.06em] ${splitColour}`}
-                >
-                  ({opt.splits})
-                </span>
-                {opt.tag === "rec" && (
-                  <span className="inline-flex h-4 items-center rounded-full bg-alarm px-1.5 font-mono text-[9px] font-bold tracking-[0.06em] text-white">
-                    REC
-                  </span>
-                )}
-              </button>
-            );
-          })}
+      {/* ── Players on field selector ────────────────────────────────────
+          Inline label + dropdown. Less prominent than the pill row —
+          most coaches play the recommended size; this is for the
+          short-handed exception. */}
+      <SFCard pad={14}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Label htmlFor="on-field-size" className="!mb-0 shrink-0 text-sm">
+            Players on field
+          </Label>
+          <select
+            id="on-field-size"
+            value={onFieldSize}
+            disabled={isPending}
+            onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+            className="min-w-0 flex-1 rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+          >
+            {sizeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <p className="mt-3 text-xs text-ink-mute">
-          Drop this when the opposition is short and both teams agree to play
-          fewer. Changing it re-suggests the starting lineup.
-        </p>
+        {playingShortHanded && (
+          <p className="mt-2 text-xs text-ink-mute">
+            Empty positions show as dashed slots in each zone — drag a
+            player into one, or tap an empty slot first to choose where
+            you&apos;re short.
+          </p>
+        )}
       </SFCard>
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2">
-        {slots.map((slot) => (
-          <SFCard key={slot} pad={0} className="overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-              <span
-                aria-hidden="true"
-                className={`block h-5 w-1 rounded-sm ${
-                  slot === "bench"
-                    ? "bg-ink-mute"
-                    : zoneAccent(slot)
-                }`}
-              />
-              <div className="min-w-0 flex-1">
-                <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
-                  {slotLabel(slot)}
-                </h3>
+        {slots.map((slot) => {
+          const isBench = slot === "bench";
+          const cap = isBench ? null : displayZoneCaps[slot];
+          const filled = lineup[slot].length;
+          const emptyCount =
+            isBench || cap === null ? 0 : Math.max(0, cap - filled);
+          const isFull = !isBench && cap !== null && filled === cap;
+          return (
+            <SFCard key={slot} pad={0} className="overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
+                <span
+                  aria-hidden="true"
+                  className={`block h-5 w-1 rounded-sm ${
+                    isBench ? "bg-ink-mute" : zoneAccent(slot)
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                    {slotLabel(slot)}
+                  </h3>
+                </div>
+                <span
+                  className={`font-mono text-xs font-semibold tabular-nums ${
+                    isFull ? "text-ink" : "text-ink-mute"
+                  }`}
+                >
+                  {filled}
+                  {!isBench && cap !== null && ` / ${cap}`}
+                </span>
               </div>
-              <span
-                className={`font-mono text-xs font-semibold tabular-nums ${
-                  slot !== "bench" && lineup[slot].length === zoneCaps[slot]
-                    ? "text-ink"
-                    : "text-ink-mute"
-                }`}
-              >
-                {lineup[slot].length}
-                {slot !== "bench" && ` / ${zoneCaps[slot]}`}
-              </span>
-            </div>
-            {lineup[slot].length === 0 ? (
-              <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
-            ) : (
-              <ul className="divide-y divide-hairline">
-                {lineup[slot].map((pid) => {
-                  const p = playerById.get(pid);
-                  if (!p) return null;
-                  const isSelected = selected === pid;
-                  return (
-                    <li key={pid}>
-                      <button
-                        type="button"
-                        onClick={() => handleTap(pid)}
-                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                          isSelected
-                            ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
-                            : "hover:bg-surface-alt"
-                        }`}
-                      >
-                        <Guernsey num={p.jersey_number ?? ""} size={32} />
-                        <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                          {p.full_name}
-                        </span>
-                        {isSelected ? (
-                          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
-                            Swapping…
+              {filled === 0 && emptyCount === 0 ? (
+                <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
+              ) : (
+                <ul className="divide-y divide-hairline">
+                  {lineup[slot].map((pid) => {
+                    const p = playerById.get(pid);
+                    if (!p) return null;
+                    const isSelected =
+                      selected?.kind === "player" && selected.id === pid;
+                    return (
+                      <li key={pid}>
+                        <button
+                          type="button"
+                          onClick={() => tapPlayer(pid)}
+                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
+                            isSelected
+                              ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
+                              : "hover:bg-surface-alt"
+                          }`}
+                        >
+                          <Guernsey num={p.jersey_number ?? ""} size={32} />
+                          <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                            {p.full_name}
                           </span>
-                        ) : (
-                          <span className="text-ink-mute opacity-60">
-                            <SFIcon.swap />
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </SFCard>
-        ))}
+                          {isSelected ? (
+                            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
+                              Swapping…
+                            </span>
+                          ) : (
+                            <span className="text-ink-mute opacity-60">
+                              <SFIcon.swap />
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {!isBench &&
+                    Array.from({ length: emptyCount }).map((_, idx) => {
+                      const isSelected =
+                        selected?.kind === "empty" && selected.zone === slot;
+                      return (
+                        <li key={`__open-${idx}`}>
+                          <button
+                            type="button"
+                            onClick={() => tapEmpty(slot)}
+                            aria-label={`Empty ${slotLabel(slot)} position`}
+                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
+                              isSelected
+                                ? "bg-warn-soft ring-2 ring-inset ring-warn"
+                                : "hover:bg-surface-alt"
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-ink-mute/60 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-mute"
+                            >
+                              —
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+                              Open slot
+                            </span>
+                            {isSelected ? (
+                              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-warn">
+                                Tap a player
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              )}
+            </SFCard>
+          );
+        })}
       </div>
 
       {/* ── Sub interval ─────────────────────────────────────────────── */}
