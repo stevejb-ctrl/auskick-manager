@@ -8,6 +8,7 @@ import { HELP_PAGES } from "@/lib/help/pages";
 export const metadata = {
   title: "Help · Siren Footy",
   description: "Guides and documentation for Siren Footy.",
+  alternates: { canonical: "/help" },
 };
 
 const QUICK_LINKS = [

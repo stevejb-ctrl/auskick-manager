@@ -10,6 +10,7 @@ export const metadata = {
   title: "Rotations · Help · Siren Footy",
   description:
     "How suggested rotations work, pair badges, zone colours, and player locks.",
+  alternates: { canonical: "/help/rotations" },
 };
 
 export default function RotationsPage() {

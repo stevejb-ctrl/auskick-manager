@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginScreen } from "@/components/auth/LoginScreen";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/login" },
+};
 
 /**
  * Unified email-first login. Rendered full-bleed — the (auth) layout
