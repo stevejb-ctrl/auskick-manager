@@ -52,6 +52,8 @@ interface NetballLiveGameProps {
   quarterElapsedMs: number;
   teamScore: { goals: number };
   opponentScore: { goals: number };
+  /** Per-player goals scored this game (from replayNetballGame.playerGoals). */
+  playerGoals: Record<string, number>;
   quarterEnded: boolean;
   finalised: boolean;
   thisGameEvents: GameEvent[];
@@ -71,6 +73,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     quarterElapsedMs: _quarterElapsedMs,
     teamScore,
     opponentScore,
+    playerGoals,
     quarterEnded,
     finalised,
     thisGameEvents,
@@ -419,6 +422,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           squadById={squadById}
           disabled
           playerStats={playerStats}
+          playerGoals={playerGoals}
         />
       </div>
     );
@@ -456,6 +460,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           seasonEvents={seasonEvents}
           injuredIds={injuredIds}
           loanedIds={loanedIds}
+          playerGoals={playerGoals}
           onStarted={() => {
             // Locks are single-use; local overlay is durable now via
             // the period_break_swap event the component just wrote.
@@ -577,6 +582,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         loanedIds={loanedIds}
         nextBreakLocks={nextBreakLocks}
         playerStats={playerStats}
+        playerGoals={playerGoals}
       />
 
       <p className="text-center text-xs text-neutral-500">
@@ -766,6 +772,7 @@ function CourtDisplay({
   loanedIds,
   nextBreakLocks,
   playerStats,
+  playerGoals,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -792,6 +799,8 @@ function CourtDisplay({
   nextBreakLocks?: Record<string, string>;
   /** Per-player {attack, centre, defence} ms — drives the stacked bar + total under each name. */
   playerStats?: Map<string, PlayerThirdMs>;
+  /** Per-player goals scored this game — drives the dark chip in each token's top-right corner. */
+  playerGoals?: Record<string, number>;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
@@ -822,6 +831,7 @@ function CourtDisplay({
               }
               stats={stats}
               totalMs={totalMs}
+              goalCount={pid ? playerGoals?.[pid] : undefined}
               onTap={
                 onTokenTap ? () => onTokenTap(positionId, pid) : undefined
               }

@@ -141,6 +141,7 @@ export default async function LivePage({ params }: LivePageProps) {
           quarterElapsedMs={state.quarterElapsedMs}
           teamScore={state.teamScore}
           opponentScore={state.opponentScore}
+          playerGoals={state.playerGoals}
           quarterEnded={state.quarterEnded}
           finalised={state.finalised}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}

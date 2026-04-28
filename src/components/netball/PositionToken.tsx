@@ -45,6 +45,8 @@ interface PositionTokenProps {
   stats?: PlayerThirdMs;
   /** Total ms played this game — rendered as mm:ss under the name. */
   totalMs?: number;
+  /** Goals scored by this player this game — drives the dark chip in the top-right corner. */
+  goalCount?: number;
 }
 
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
@@ -67,6 +69,7 @@ export function PositionToken({
   locked,
   stats,
   totalMs,
+  goalCount,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -143,6 +146,18 @@ export function PositionToken({
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
+      {/* Goal-count chip — floats above top-right corner so it never
+          eats tile height. Mirrors AFL's score chip at PlayerTile.tsx:179.
+          Hidden when zero so brand-new tokens stay clean. */}
+      {goalCount !== undefined && goalCount > 0 && (
+        <span
+          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
+          aria-label={`${goalCount} goal${goalCount === 1 ? "" : "s"}`}
+        >
+          <span>{goalCount}</span>
+        </span>
+      )}
+
       {/* Status badges floated top-left, mirrors AFL PlayerTile. Stacked
           priority: INJ > LENT > LOCK so coaches see the highest-impact
           flag first. */}

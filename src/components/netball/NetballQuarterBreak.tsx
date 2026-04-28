@@ -80,6 +80,8 @@ interface Props {
   seasonEvents: GameEvent[];
   injuredIds: Set<string>;
   loanedIds: Set<string>;
+  /** Per-player goals scored this game — drives the score chip on each tile. */
+  playerGoals: Record<string, number>;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -98,6 +100,7 @@ export function NetballQuarterBreak({
   seasonEvents,
   injuredIds,
   loanedIds,
+  playerGoals,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -448,6 +451,7 @@ export function NetballQuarterBreak({
                           stays={!moved && !isSidelined && prevSlot != null}
                           stats={stats}
                           totalMs={totalMs}
+                          goalCount={playerGoals[pid] ?? 0}
                           onTap={() => handleTap(pid)}
                         />
                       </li>
@@ -490,6 +494,7 @@ function PlayerTile({
   stays,
   stats,
   totalMs,
+  goalCount,
   onTap,
 }: {
   player: Player;
@@ -502,6 +507,7 @@ function PlayerTile({
   stays: boolean;
   stats: PlayerThirdMs;
   totalMs: number;
+  goalCount: number;
   onTap: () => void;
 }) {
   const positionShort = positionId
@@ -516,7 +522,7 @@ function PlayerTile({
       onClick={onTap}
       disabled={isSidelined}
       aria-disabled={isSidelined}
-      className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
+      className={`relative flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
         isSelected
           ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
           : isSidelined
@@ -524,6 +530,16 @@ function PlayerTile({
           : "border-hairline bg-surface hover:bg-surface-alt"
       }`}
     >
+      {/* Goal-count chip — top-right corner, dark pill, mirrors AFL.
+          Hidden when zero so non-scorers stay visually clean. */}
+      {goalCount > 0 && (
+        <span
+          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
+          aria-label={`${goalCount} goal${goalCount === 1 ? "" : "s"}`}
+        >
+          {goalCount}
+        </span>
+      )}
       <span className="flex items-center gap-2">
         {/* Position chip — sky-accent like the live token. "B" for bench. */}
         <span className="inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-sky-100 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-sky-800 tabular-nums">
