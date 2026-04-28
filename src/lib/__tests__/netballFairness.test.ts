@@ -304,6 +304,68 @@ describe("suggestNetballLineup", () => {
     expect(thirdOf("jonie")).not.toBe(thirdOf("lori"));
   });
 
+  it("regression: tier 4 wins over tier 1's unplayed-third bonus", () => {
+    // Reproduces Steve's game 41e8b552 Q2 suggestion. Q1:
+    //   ATTACK  = jady, patra
+    //   CENTRE  = lucy, jimmy, nicole
+    //   DEFENCE = sam (hattie injured)
+    //   BENCH   = stacey, yumi
+    // Earlier the candidate-order shuffle put `sam, stacey, lucy,
+    // yumi, nicole, ...` and Sam grabbed GS first. By the time
+    // Nicole's turn came, her only fresh thirds were taken by
+    // attack, leaving "centre (stale)" or "defence (with Lucy)".
+    // tier 1's +100000 unplayed-third bonus + tier 4's measly
+    // -5000 mate penalty meant defence still scored ~+95000 — vs
+    // -10000 for stale centre — and Nicole landed in defence with
+    // Lucy. Bumping tier 4 to -150000 flips the comparison so
+    // staleCentre wins and the trio actually splits.
+    const previousTeammates: Record<string, Set<string>> = {
+      jady: new Set(["patra"]),
+      patra: new Set(["jady"]),
+      lucy: new Set(["jimmy", "nicole"]),
+      jimmy: new Set(["lucy", "nicole"]),
+      nicole: new Set(["lucy", "jimmy"]),
+      sam: new Set(),
+    };
+    const lastQuarterThird = {
+      jady: "attack-third",
+      patra: "attack-third",
+      lucy: "centre-third",
+      jimmy: "centre-third",
+      nicole: "centre-third",
+      sam: "defence-third",
+    } as const;
+    const lineup = suggestNetballLineup({
+      // candidate order matches the live page's Postgres ordering +
+      // candidatePool concat from NetballQuarterBreak.
+      playerIds: ["jady", "sam", "patra", "stacey", "lucy", "nicole", "jimmy", "yumi"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      thisGame: {
+        jady: { gs: 1 }, patra: { ga: 1 }, lucy: { wa: 1 },
+        jimmy: { c: 1 }, nicole: { wd: 1 }, sam: { gk: 1 },
+      },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird,
+      previousTeammates,
+      seed: 2,
+    });
+
+    const thirdOf = (pid: string): string | null => {
+      for (const [posId, ids] of Object.entries(lineup.positions)) {
+        if (ids.includes(pid)) return TEST_THIRD(posId);
+      }
+      return null;
+    };
+    // The Q1 centre trio must split — no two of them in the same Q2 third.
+    const trio = ["lucy", "jimmy", "nicole"] as const;
+    const trioThirds = trio.map(thirdOf).filter(Boolean);
+    expect(new Set(trioThirds).size).toBe(trioThirds.length);
+    // And specifically: Lucy + Nicole shouldn't both end up in defence.
+    expect(thirdOf("lucy") === "defence-third" && thirdOf("nicole") === "defence-third").toBe(false);
+  });
+
   it("tier 4: splits last-quarter teammates apart when other rules are flat", () => {
     // ed and frank were both in the centre third in Q1. With nothing
     // else differentiating placements (no thisGame counts so tier 1

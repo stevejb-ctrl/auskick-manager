@@ -366,14 +366,26 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
 
     // Tier 4: split last-quarter teammates apart. For each player
     // already placed in this third for the new quarter who was a
-    // teammate of `pid` last quarter, deduct 5000. Sized to dominate
-    // every tier below it (a single overlap = -5000 vs season rarity
-    // typically <50) while staying below tier 3's -10000, so the
-    // hard "don't repeat third" rule still wins when the two
-    // conflict. Max stack on a 3-player centre band is -15000, which
-    // exactly matches tier-3 magnitude — at that point the suggester
-    // genuinely doesn't have a clean answer and the coach can drag
-    // tokens around manually.
+    // teammate of `pid` last quarter, deduct 150000.
+    //
+    // The size matters: it has to BEAT the tier-1 +100000
+    // unplayed-third bonus + tier-3 -10000 stale-third penalty so a
+    // candidate forced to choose between "fresh third where my Q1
+    // teammate already sits" (+100000 + tier4) and "the third I
+    // played last quarter alone" (-10000) actually picks the stale
+    // third and splits.
+    //
+    // Earlier this was -5000 ("stay below tier 3 so don't-repeat-
+    // third still wins") — but that's exactly the configuration
+    // that traps a Q1-centre trio into Q2 clumps when the only fresh
+    // third available has one of their mates in it. With -150000:
+    //   fresh + 1 mate = +100000 - 150000 = -50000  (loses to stale -10000)
+    //   fresh + 2 mates = +100000 - 300000 = -200000 (loses to stale)
+    //   fresh + 0 mates = +100000           ✓ still wins over stale
+    //
+    // Tier 2 (same position, -50000) still combines with tier 3 to
+    // give -60000, so "stale third with no clump" beats "same
+    // position twice" without needing tier 4 to fire.
     let teammateRepeatPenalty = 0;
     if (candidateThird && previousTeammates) {
       const myPrevMates = previousTeammates[pid];
@@ -381,7 +393,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
         const placed = placedInThird[candidateThird];
         if (placed) {
           placed.forEach((other) => {
-            if (myPrevMates.has(other)) teammateRepeatPenalty -= 5000;
+            if (myPrevMates.has(other)) teammateRepeatPenalty -= 150000;
           });
         }
       }
