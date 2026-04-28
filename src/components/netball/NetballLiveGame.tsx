@@ -244,6 +244,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
   }, [quarterEnded, finalised]);
 
+  // Defensive cleanup: clear modal-/sheet-driving state whenever the
+  // quarter or phase changes. Without this, an actionsTarget /
+  // replacingTarget / pendingGoal that somehow survives a phase
+  // transition would render an invisible-but-pointer-event-eating
+  // overlay over the live court, swallowing every subsequent
+  // long-press and tap.
+  useEffect(() => {
+    setActionsTarget(null);
+    setReplacingTarget(null);
+    setPendingGoal(null);
+  }, [currentQuarter, quarterEnded, finalised]);
+
   // Client-side tick during live play.
   useClock(!quarterEnded && !finalised && currentQuarter > 0, setClockMs);
 
