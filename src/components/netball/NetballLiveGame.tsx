@@ -511,7 +511,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <h1 className="text-xl font-semibold">
           Q{currentQuarter} · {formatClock(remainingMs)}
         </h1>
-        <ScoreHeader team={teamScore} opponent={opponentScore} />
+        <ScoreHeader
+          team={teamScore}
+          opponent={opponentScore}
+          isPending={isPending}
+          onOpponentGoal={() =>
+            startTransition(async () => {
+              await recordNetballOpponentGoal(
+                auth,
+                game.id,
+                currentQuarter,
+                clockMs,
+              );
+            })
+          }
+        />
       </header>
 
       <CourtDisplay
@@ -525,20 +539,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         loanedIds={loanedIds}
         nextBreakLocks={nextBreakLocks}
       />
-
-      {/* Opponent goal — global because there's no opposition player to tap. */}
-      <button
-        type="button"
-        onClick={() =>
-          startTransition(async () => {
-            await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
-          })
-        }
-        disabled={isPending}
-        className="w-full rounded-lg border border-neutral-300 bg-white py-4 text-center text-lg font-bold text-neutral-800 hover:bg-neutral-50 disabled:opacity-60"
-      >
-        + Opp goal
-      </button>
 
       <p className="text-center text-xs text-neutral-500">
         Tap GS or GA to score (with confirm). Long-press any player for
@@ -621,18 +621,41 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 }
 
 // ─── Score header ────────────────────────────────────────────
+// Compact +G next to the opponent's score mirrors the AFL pattern at
+// GameHeader.tsx:128 — opposition scoring lives inline in the
+// scoreboard rather than as a full-width button below the court.
+// No confirmation modal: there's no opposition player to mis-attribute,
+// so a stray tap costs at most one undo (which we'll surface in a
+// follow-up if it becomes annoying).
 function ScoreHeader({
   team,
   opponent,
+  onOpponentGoal,
+  isPending,
 }: {
   team: { goals: number };
   opponent: { goals: number };
+  onOpponentGoal?: () => void;
+  isPending?: boolean;
 }) {
   return (
-    <div className="mt-1 flex justify-center gap-6 text-3xl font-bold">
+    <div className="mt-1 flex items-center justify-center gap-6 text-3xl font-bold">
       <span className="text-brand-700">{team.goals}</span>
       <span className="text-neutral-400">—</span>
-      <span className="text-neutral-700">{opponent.goals}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-neutral-700">{opponent.goals}</span>
+        {onOpponentGoal && (
+          <button
+            type="button"
+            onClick={onOpponentGoal}
+            disabled={isPending}
+            className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+            aria-label="Record opponent goal"
+          >
+            +G
+          </button>
+        )}
+      </div>
     </div>
   );
 }
