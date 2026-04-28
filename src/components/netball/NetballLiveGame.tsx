@@ -145,10 +145,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playerId: string;
     positionId: string | null;
   } | null>(null);
-  // Pick-replacement target: set after marking a court player injured.
+  // Pick-replacement target: set after marking a court player as
+  // injured OR lent to opposition. Either reason vacates the slot and
+  // prompts the coach to pick a bench player to fill it for the rest
+  // of the quarter; the post-sub state lives in localOverlay until the
+  // next period_break_swap makes it durable.
   const [replacingTarget, setReplacingTarget] = useState<{
     positionId: string;
-    injuredPlayerId: string;
+    vacatingPlayerId: string;
   } | null>(null);
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
   // it sets this and surfaces a confirm sheet (mirrors AFL's score
@@ -242,6 +246,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─ Modal action wiring ───
   const closeActions = () => setActionsTarget(null);
 
+  // Generic helper used by injury + loan flows. Pops the player out of
+  // their court position in the local overlay (so the picker sees a
+  // vacant slot) and opens the Pick Replacement sheet. Bench targets
+  // skip both: there's no slot to vacate.
+  const vacateAndPromptReplacement = (playerId: string, positionId: string | null) => {
+    if (!positionId) return;
+    setLocalOverlay((prev) => {
+      const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
+      const next: GenericLineup = {
+        positions: { ...base.positions },
+        bench: [...base.bench],
+      };
+      next.positions[positionId] = (next.positions[positionId] ?? []).filter(
+        (id) => id !== playerId,
+      );
+      return next;
+    });
+    setReplacingTarget({ positionId, vacatingPlayerId: playerId });
+  };
+
   // Mark injured: write the audit-trail event, flag the player client-side,
   // then auto-prompt the bench replacement sheet so the coach can plug
   // the gap in two taps. Substitution itself is local-overlay only until
@@ -249,6 +273,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleMarkInjured = () => {
     if (!actionsTarget) return;
     const { playerId, positionId } = actionsTarget;
+    // Close the actions modal FIRST so it can't accidentally trap a
+    // subsequent long-press behind a stale state transition.
+    closeActions();
     setInjuredIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markInjury(auth, game.id, {
@@ -258,29 +285,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         elapsed_ms: clockMs,
       });
     });
-    closeActions();
-    // Only auto-prompt when the injured player was on the court.
-    if (positionId) {
-      // Pop them off the court immediately in the local overlay so
-      // the picker sees the gap.
-      setLocalOverlay((prev) => {
-        const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-        const next: GenericLineup = {
-          positions: { ...base.positions },
-          bench: [...base.bench],
-        };
-        next.positions[positionId] = (next.positions[positionId] ?? []).filter(
-          (id) => id !== playerId,
-        );
-        return next;
-      });
-      setReplacingTarget({ positionId, injuredPlayerId: playerId });
-    }
+    vacateAndPromptReplacement(playerId, positionId);
   };
 
   const handleUnInjury = () => {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
+    closeActions();
     setInjuredIds((prev) => {
       const next = new Set(prev);
       next.delete(playerId);
@@ -294,12 +305,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         elapsed_ms: clockMs,
       });
     });
-    closeActions();
   };
 
   const handleMarkLoaned = () => {
     if (!actionsTarget) return;
-    const { playerId } = actionsTarget;
+    const { playerId, positionId } = actionsTarget;
+    // Close the actions modal FIRST — same reason as injury: don't let
+    // a still-rendering modal block the next long-press attempt.
+    closeActions();
     setLoanedIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markLoan(auth, game.id, {
@@ -309,12 +322,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         elapsed_ms: clockMs,
       });
     });
-    closeActions();
+    // Loan = same UX as injury. The lent player vacates their slot and
+    // the coach picks a bench replacement to play out the rest of the
+    // quarter; otherwise the team is stuck playing a player short until
+    // the next break.
+    vacateAndPromptReplacement(playerId, positionId);
   };
 
   const handleUnLoan = () => {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
+    closeActions();
     setLoanedIds((prev) => {
       const next = new Set(prev);
       next.delete(playerId);
@@ -328,25 +346,24 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         elapsed_ms: clockMs,
       });
     });
-    closeActions();
   };
 
   const handleLockForNextBreak = () => {
     if (!actionsTarget?.positionId) return;
     const { playerId, positionId } = actionsTarget;
-    setNextBreakLocks((prev) => ({ ...prev, [positionId]: playerId }));
     closeActions();
+    setNextBreakLocks((prev) => ({ ...prev, [positionId]: playerId }));
   };
 
   const handleUnlock = () => {
     if (!actionsTarget?.positionId) return;
     const { positionId } = actionsTarget;
+    closeActions();
     setNextBreakLocks((prev) => {
       const next = { ...prev };
       delete next[positionId];
       return next;
     });
-    closeActions();
   };
 
   // Pick-replacement: drop the picked bench player into the vacated
@@ -622,12 +639,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Replace-after-injury sheet — opens after Mark injured for a court player. */}
+      {/* Replace sheet — opens after Mark Injured OR Lend to Opposition
+          for a court player. Shared UX so the coach picks a bench
+          player to fill the vacant slot in two taps either way. */}
       {replacingTarget && (
         <PickReplacementSheet
           positionId={replacingTarget.positionId}
-          injuredPlayerName={
-            squadById.get(replacingTarget.injuredPlayerId)?.full_name ?? "Player"
+          vacatingPlayerName={
+            squadById.get(replacingTarget.vacatingPlayerId)?.full_name ?? "Player"
           }
           candidates={replacementCandidates}
           onPick={handlePickReplacement}

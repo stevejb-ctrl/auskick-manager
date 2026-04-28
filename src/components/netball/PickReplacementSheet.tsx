@@ -1,22 +1,24 @@
 "use client";
 
 // ─── Pick Replacement Sheet ──────────────────────────────────
-// Pops after a coach marks an on-court player as injured. Lists every
-// available bench player and lets the coach tap one to substitute.
+// Pops after a coach marks an on-court player as injured OR lends them
+// to the opposition. Either reason vacates the slot; this sheet lists
+// available bench players so the coach can fill it in one tap.
 // Rules of play apply — only positions a player is eligible for would
-// be offered if we filtered, but for an injury sub the coach typically
-// just needs anyone available, so we don't gate by eligibility here.
-// (The lineup picker enforces eligibility at the start/break of every
-// quarter; a mid-quarter sub is a temporary stand-in.)
+// be offered if we filtered — but for a mid-quarter sub the coach
+// typically just needs anyone available, so we don't gate by
+// eligibility here. (The lineup picker enforces eligibility at the
+// start/break of every quarter; a mid-quarter sub is a temporary
+// stand-in.)
 
 import type { Player } from "@/lib/types";
 import { netballSport, isPositionAllowedInZone } from "@/lib/sports/netball";
 
 interface Props {
-  /** Position id of the slot the injured player just vacated. */
+  /** Position id of the slot the vacating player just left. */
   positionId: string;
-  /** Display name of the injured player, for context. */
-  injuredPlayerName: string;
+  /** Display name of the player vacating the slot, for context. */
+  vacatingPlayerName: string;
   /** Players available to take the slot (bench + active, not injured/loaned/already-on-court). */
   candidates: Player[];
   onPick: (playerId: string) => void;
@@ -25,7 +27,7 @@ interface Props {
 
 export function PickReplacementSheet({
   positionId,
-  injuredPlayerName,
+  vacatingPlayerName,
   candidates,
   onPick,
   onCancel,
@@ -57,7 +59,7 @@ export function PickReplacementSheet({
             Replace
           </p>
           <h2 id="replace-title" className="text-base font-semibold text-ink">
-            {injuredPlayerName} → {posLabel}
+            {vacatingPlayerName} → {posLabel}
           </h2>
           <p className="mt-1 text-xs text-ink-mute">
             Pick a bench player to take the {posLabel} slot for the rest of this
