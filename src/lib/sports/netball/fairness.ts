@@ -654,7 +654,11 @@ export function playerThirdMs(
     periodMs: number,
     subs: Array<{
       positionId: string;
-      outPlayerId: string;
+      // null when the slot was already empty before the sub (coach
+      // lent a player and cancelled the picker, then later tapped
+      // the empty token to fill it). Skip the bench-add step for
+      // those — there's no sub-out player to push to bench.
+      outPlayerId: string | null;
       inPlayerId: string;
       atMs: number;
     }>,
@@ -673,9 +677,9 @@ export function playerThirdMs(
         bench: current.bench.filter((id) => id !== sub.inPlayerId),
       };
       next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => id !== sub.outPlayerId)
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
         .concat([sub.inPlayerId]);
-      if (!next.bench.includes(sub.outPlayerId)) {
+      if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
       current = next;
@@ -693,7 +697,7 @@ export function playerThirdMs(
       lineup?: Partial<GenericLineup>;
       midQuarterSubs?: Array<{
         positionId: string;
-        outPlayerId: string;
+        outPlayerId: string | null;
         inPlayerId: string;
         atMs: number;
       }>;

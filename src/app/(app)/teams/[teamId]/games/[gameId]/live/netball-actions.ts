@@ -149,7 +149,10 @@ export async function periodBreakSwap(
   lineup: GenericLineup,
   midQuarterSubs?: Array<{
     positionId: string;
-    outPlayerId: string;
+    // null when the slot was empty before the sub (lent-without-
+    // replacement followed by a tap-to-fill). Replay engine skips
+    // the bench-add for those.
+    outPlayerId: string | null;
     inPlayerId: string;
     atMs: number;
   }>,

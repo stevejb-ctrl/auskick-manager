@@ -103,7 +103,9 @@ interface Props {
    */
   midQuarterSubs: Array<{
     positionId: string;
-    outPlayerId: string;
+    // null when the slot was empty (no sub-out player) — see
+    // NetballLiveGame's MidQuarterSub for the full story.
+    outPlayerId: string | null;
     inPlayerId: string;
     atMs: number;
   }>;

@@ -249,9 +249,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the sub-out player's bar stops at `atMs`, the sub-in player's bar
   // starts at `atMs`. Cleared when the quarter changes (next
   // period_break_swap absorbs the post-sub state into events).
+  //
+  // outPlayerId may be null when the slot was already empty before
+  // the sub — happens when a coach lent a player and cancelled the
+  // replacement picker, then later tapped the empty token to fill
+  // it. The segment-rebuilder treats null-out as "nobody to bench"
+  // (skips the bench-add step) so a phantom null id can't pollute
+  // the bench.
   type MidQuarterSub = {
     positionId: string;
-    outPlayerId: string;
+    outPlayerId: string | null;
     inPlayerId: string;
     atMs: number;
   };
@@ -271,7 +278,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // next period_break_swap makes it durable.
   const [replacingTarget, setReplacingTarget] = useState<{
     positionId: string;
-    vacatingPlayerId: string;
+    /**
+     * The player vacating the slot, or null when the coach is filling
+     * a previously-emptied slot (e.g. after a lend without an
+     * immediate replacement). The picker title flips from
+     * "Replace X → POS" to "Fill POS" when null, and the segment-
+     * rebuilder skips the bench-add for the sub since there's no
+     * sub-out player to bench.
+     */
+    vacatingPlayerId: string | null;
   } | null>(null);
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
   // it sets this and surfaces a confirm sheet (mirrors AFL's score
@@ -392,14 +407,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       const dur = Math.max(0, Math.min(sub.atMs, totalElapsed) - prevMs);
       if (dur > 0) segments.push({ lineup: current, durationMs: dur });
       // Apply the sub: outPlayer leaves position, inPlayer takes it.
+      // outPlayerId may be null when the slot was already empty
+      // (coach lent a player + cancelled the picker, then later
+      // tapped the empty token to fill it). In that case there's
+      // nobody to filter out of the position list and nobody to
+      // bench — just plug the inPlayer in.
       const next: GenericLineup = {
         positions: { ...current.positions },
         bench: current.bench.filter((id) => id !== sub.inPlayerId),
       };
       next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => id !== sub.outPlayerId)
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
         .concat([sub.inPlayerId]);
-      if (!next.bench.includes(sub.outPlayerId)) {
+      if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
       current = next;
@@ -432,9 +452,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // after the coach confirms via handleConfirmGoal.
   // tap on any other token → no-op (long-press still works).
   const handleTokenTap = (positionId: string, playerId: string | null) => {
-    if (!playerId) return;
-    if (!SCORING_POSITIONS.has(positionId)) return;
     if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (!playerId) {
+      // Empty slot — common after a lend without immediate
+      // replacement (or any time the coach cancelled the picker).
+      // Tapping the empty token re-opens the replacement sheet so
+      // they can fill the slot at any point during the quarter
+      // instead of being stuck with a hole in the lineup until the
+      // break. vacatingPlayerId stays null because there's no one
+      // to vacate.
+      setReplacingTarget({ positionId, vacatingPlayerId: null });
+      return;
+    }
+    if (!SCORING_POSITIONS.has(positionId)) return;
     setPendingGoal({ playerId, positionId });
   };
 
@@ -1052,13 +1082,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       )}
 
       {/* Replace sheet — opens after Mark Injured OR Lend to Opposition
-          for a court player. Shared UX so the coach picks a bench
-          player to fill the vacant slot in two taps either way. */}
+          for a court player, AND when the coach taps an empty position
+          token (vacatingPlayerId === null) to fill a slot left vacant
+          earlier in the quarter. Shared UX so the coach picks a bench
+          player to fill the vacant slot in two taps. */}
       {replacingTarget && (
         <PickReplacementSheet
           positionId={replacingTarget.positionId}
           vacatingPlayerName={
-            squadById.get(replacingTarget.vacatingPlayerId)?.full_name ?? "Player"
+            replacingTarget.vacatingPlayerId
+              ? squadById.get(replacingTarget.vacatingPlayerId)?.full_name ?? "Player"
+              : null
           }
           candidates={replacementCandidates}
           onPick={handlePickReplacement}

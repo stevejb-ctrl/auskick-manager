@@ -17,8 +17,13 @@ import { netballSport, isPositionAllowedInZone } from "@/lib/sports/netball";
 interface Props {
   /** Position id of the slot the vacating player just left. */
   positionId: string;
-  /** Display name of the player vacating the slot, for context. */
-  vacatingPlayerName: string;
+  /**
+   * Display name of the player vacating the slot. null when the
+   * coach is filling a previously-emptied slot (lent-without-
+   * replacement, then tapped the empty token later) — title +
+   * helper copy flip to "Fill POS" in that case.
+   */
+  vacatingPlayerName: string | null;
   /** Players available to take the slot (bench + active, not injured/loaned/already-on-court). */
   candidates: Player[];
   onPick: (playerId: string) => void;
@@ -34,6 +39,7 @@ export function PickReplacementSheet({
 }: Props) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const posLabel = pos?.label ?? positionId.toUpperCase();
+  const isFillEmpty = vacatingPlayerName == null;
 
   // Players whose allowed zones include this position's primary zone(s)
   // surface first; everyone else is grouped under "any available". This
@@ -56,10 +62,10 @@ export function PickReplacementSheet({
       >
         <div className="border-b border-hairline px-5 py-4">
           <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-            Replace
+            {isFillEmpty ? "Fill" : "Replace"}
           </p>
           <h2 id="replace-title" className="text-base font-semibold text-ink">
-            {vacatingPlayerName} → {posLabel}
+            {isFillEmpty ? `Fill ${posLabel}` : `${vacatingPlayerName} → ${posLabel}`}
           </h2>
           <p className="mt-1 text-xs text-ink-mute">
             Pick a bench player to take the {posLabel} slot for the rest of this
@@ -93,7 +99,9 @@ export function PickReplacementSheet({
             onClick={onCancel}
             className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-alt"
           >
-            Cancel — leave position empty for now
+            {isFillEmpty
+              ? "Cancel — leave empty"
+              : "Cancel — leave position empty for now"}
           </button>
         </div>
       </div>
