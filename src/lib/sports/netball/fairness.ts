@@ -336,6 +336,16 @@ export function playerThirdMs(
   inProgressMs: number | null,
   periodSeconds: number,
   thirdLookup: ThirdLookup,
+  /**
+   * Optional override for the trailing in-progress quarter's lineup.
+   * Used when a mid-quarter substitution lives in client-side state
+   * (localOverlay) and isn't yet persisted as a period_break_swap
+   * event. Without this, a player subbed onto the court mid-quarter
+   * would receive zero in-progress credit because the event log still
+   * shows the OLD lineup. When set, this lineup is credited the
+   * `inProgressMs` budget instead of the event-derived currentLineup.
+   */
+  overrideTrailingLineup?: GenericLineup | null,
 ): Map<string, PlayerThirdMs> {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
@@ -382,7 +392,7 @@ export function playerThirdMs(
 
   if (!hasFinalised && currentLineup) {
     const ms = inProgressMs ?? periodSeconds * 1000;
-    addLineupTime(currentLineup, ms);
+    addLineupTime(overrideTrailingLineup ?? currentLineup, ms);
   }
 
   return out;

@@ -182,6 +182,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // (every 500ms) so the bar fills smoothly. Mid-quarter the trailing
   // lineup gets credited with `clockMs`; at break/finalised the live
   // value is irrelevant so we pass null to credit a full periodSeconds.
+  //
+  // The fifth arg overrides the event-derived trailing lineup with
+  // localOverlay when set. That's the mid-quarter sub state — a
+  // bench player who's just been brought on for an injury hasn't
+  // been written to events yet (period_break_swap fires only at
+  // quarter break), so without the override their tile would show
+  // a zero time bar despite being on the court right now.
   const playerStats = useMemo(() => {
     const inProgress = quarterEnded || finalised || currentQuarter === 0
       ? null
@@ -191,6 +198,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       inProgress,
       ageGroup.periodSeconds,
       primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
+      localOverlay,
     );
   }, [
     thisGameEvents,
@@ -199,6 +207,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     finalised,
     currentQuarter,
     ageGroup.periodSeconds,
+    localOverlay,
   ]);
 
   // ─── Action handlers ───────────────────────────────────────
