@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
@@ -266,7 +267,17 @@ export async function resetGame(
   if (game?.share_token) {
     revalidatePath(`/run/${game.share_token}`, "layout");
   }
-  return { success: true };
+
+  // Redirect back to the pre-kick-off screen so the coach can re-set
+  // availability and add fill-ins before starting again. Without this
+  // the live page just rerenders into the lineup picker, skipping the
+  // availability + fill-in management surface entirely. Token bearers
+  // go to /run/[token] (their equivalent of the team game-detail
+  // page); team admins go to the game detail page.
+  if (auth.kind === "token") {
+    redirect(`/run/${auth.token}`);
+  }
+  redirect(`/teams/${teamId}/games/${gameId}`);
 }
 
 export async function deleteGame(
