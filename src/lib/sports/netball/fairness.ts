@@ -123,15 +123,20 @@ export function lastQuarterThirds(
 }
 
 /**
- * Build a per-player "set of players who shared their third in the
+ * Build a per-player "set of players who shared their cohort in the
  * most recent quarter they played" map from this-game events. Drives
  * the teammate-diversity rule in the suggester: spread kids across
  * different teammates from one quarter to the next so they don't
  * play with the same two or three friends every break.
  *
  * Walks events forward; the LATEST lineup-changing event wins for
- * each player. For each lineup, players in the same third are
- * teammates of one another.
+ * each player. Cohorts are the three on-court thirds AND the bench
+ * — bench players are also teammates of one another, so two players
+ * who sat the same quarter don't both come on into the same band
+ * in the next quarter (Steve's "two bench players to attack, two
+ * defence players to centre" report). Tier-4 in the suggester then
+ * naturally splits them across bands, exactly as it does for
+ * on-court third-mates.
  */
 export function lastQuarterTeammatesInThird(
   events: GameEvent[],
@@ -146,18 +151,23 @@ export function lastQuarterTeammatesInThird(
     const meta = ev.metadata as { lineup?: Partial<GenericLineup> };
     if (!meta.lineup) continue;
     const lineup = normaliseGenericLineup(meta.lineup);
-    // Group players by third for this lineup.
-    const playersByThird: Record<string, string[]> = {};
+    // Group players by cohort: each on-court third PLUS the bench.
+    // Bench is treated as a fourth cohort so two players who sat the
+    // same quarter together get tier-4-penalised when both placed
+    // in the same band next quarter.
+    const cohorts: Record<string, string[]> = {};
     for (const [posId, ids] of Object.entries(lineup.positions)) {
       const third = thirdOf(posId);
       if (!third) continue;
-      const list = playersByThird[third] ?? [];
+      const list = cohorts[third] ?? [];
       for (const pid of ids) if (pid) list.push(pid);
-      playersByThird[third] = list;
+      cohorts[third] = list;
     }
+    const bench = (lineup.bench ?? []).filter(Boolean);
+    if (bench.length > 0) cohorts["bench"] = bench;
     // Each player's teammate set = the other players in the same
-    // third for THIS lineup. Overwrite to keep "most recent quarter".
-    for (const ids of Object.values(playersByThird)) {
+    // cohort for THIS lineup. Overwrite to keep "most recent quarter".
+    for (const ids of Object.values(cohorts)) {
       for (const pid of ids) {
         const set = new Set<string>();
         for (const other of ids) {

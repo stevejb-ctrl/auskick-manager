@@ -187,6 +187,62 @@ describe("suggestNetballLineup", () => {
     expect(onCourt.has("p9")).toBe(true);
   });
 
+  it("regression: two bench-Q-prev players get split across bands in the next quarter", () => {
+    // Steve flagged: Jimmy + Hattie were both on bench last quarter
+    // and the suggester put BOTH of them at attack (gs + ga). Same
+    // quarter Lucy + Yumi (defence-Q-prev) BOTH ended up in centre.
+    // The fix: treat bench as a fourth cohort in
+    // lastQuarterTeammatesInThird so bench-Q-prev players become
+    // each other's tier-4 mates — exactly like the on-court thirds.
+    //
+    // 9-player squad, 7 court slots. Q-prev: jimmy + hattie on
+    // bench, the other 7 across positions (one each). At Q-next
+    // suggestion, jimmy and hattie should NOT both end up in the
+    // same band.
+    const previousTeammates: Record<string, Set<string>> = {
+      // Jimmy + Hattie were bench mates → each other's prev mates.
+      jimmy: new Set(["hattie"]),
+      hattie: new Set(["jimmy"]),
+      // The seven on-court players had their own third-mate sets.
+      // We don't need them to be precise for this assertion.
+      sam: new Set(), patra: new Set(), lucy: new Set(),
+      stacey: new Set(), yumi: new Set(), nicole: new Set(),
+      michelle: new Set(),
+    };
+    const lastQuarterThird = {
+      // jimmy + hattie were on bench — no last-Q third recorded.
+      sam: "attack-third", patra: "attack-third",
+      lucy: "centre-third", stacey: "centre-third", yumi: "centre-third",
+      nicole: "defence-third", michelle: "defence-third",
+    } as const;
+    const lineup = suggestNetballLineup({
+      playerIds: ["jimmy","hattie","sam","patra","lucy","stacey","yumi","nicole","michelle"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      // Jimmy + hattie played 0 ms (full quarter on bench);
+      // others all played a full quarter.
+      thisGameTotalMs: {
+        jimmy: 0, hattie: 0,
+        sam: 480_000, patra: 480_000, lucy: 480_000, stacey: 480_000,
+        yumi: 480_000, nicole: 480_000, michelle: 480_000,
+      },
+      thisGame: {},
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      lastQuarterThird,
+      previousTeammates,
+      seed: 5,
+    });
+    // Find which bands jimmy and hattie ended up in.
+    const thirdOf = (pid: string): string | null => {
+      for (const [posId, ids] of Object.entries(lineup.positions)) {
+        if (ids.includes(pid)) return TEST_THIRD(posId);
+      }
+      return null; // bench
+    };
+    expect(thirdOf("jimmy")).not.toBe(thirdOf("hattie"));
+  });
+
   it("regression: a player who only logged 1 minute gets court priority over teammates with full quarters", () => {
     // Steve hit this at Q4: Nicola P had played 1 min total (late
     // arrival, then mid-quarter sub off) and was still benched while
