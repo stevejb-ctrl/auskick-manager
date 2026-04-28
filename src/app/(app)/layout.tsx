@@ -27,7 +27,12 @@ export default async function AppLayout({
 
   return (
     <div>
-      <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
+      {/* z-20: the netball court's PositionToken wrappers use z-10
+          for sibling stacking (goal-confirm chip etc.), so a sticky
+          header at z-10 ties on stacking order and tokens render in
+          front on scroll. z-20 keeps the header above page content
+          while staying under modals (z-50). */}
+      <header className="sticky top-0 z-20 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <span className="text-lg font-semibold text-brand-700">
             Siren Footy
