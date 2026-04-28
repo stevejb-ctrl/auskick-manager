@@ -411,12 +411,30 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     );
   };
 
-  const totalPlayed = (pid: string): number => {
-    const counts = season[pid] ?? {};
-    return Object.values(counts).reduce((a, b) => a + b, 0);
-  };
+  // Priority order, descending strength:
+  //   1. Quarters played THIS GAME — least first. The placement loop
+  //      below is greedy: the first `positions.length` players fill
+  //      the court and everyone after lands on the bench. So the sort
+  //      key directly decides who plays vs who sits. Maximising game
+  //      time within the current match means a player who's been
+  //      benched once must get court time before a player who's
+  //      already played both prior quarters — otherwise they'd spend
+  //      two whole quarters on the bench (Steve flagged exactly this
+  //      on his Q3 break: Nicola P + Hattie D were headed for
+  //      back-to-back bench duty after one quarter off each).
+  //   2. Season totals — across-game fairness, used as a tiebreak
+  //      between players with identical this-game counts.
+  //   3. Seeded shuffle — final tie-break (deterministic).
+  // Multiplying this-game by a large constant makes it dominate
+  // strictly; season counts are typically <50 over a year so 1000×
+  // gives plenty of headroom for them to act as a true tiebreak.
+  const thisGameTotal = (pid: string): number =>
+    Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
+  const seasonTotal = (pid: string): number =>
+    Object.values(season[pid] ?? {}).reduce((a, b) => a + b, 0);
+  const totalPlayed = (pid: string): number =>
+    thisGameTotal(pid) * 1000 + seasonTotal(pid);
 
-  // Priority: players who've played fewest total periods get first pick.
   const shuffled = seededShuffle(playerIds, seed + 41);
   shuffled.sort((a, b) => totalPlayed(a) - totalPlayed(b));
 

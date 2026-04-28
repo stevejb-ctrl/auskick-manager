@@ -139,6 +139,50 @@ describe("netballFairnessScore", () => {
 });
 
 describe("suggestNetballLineup", () => {
+  it("regression: a player benched twice gets court time over players already on for both quarters", () => {
+    // Reproduces Steve's Q3 break — Nicola P and Hattie D benched
+    // through Q1 and Q2 were getting suggested for the Q3 bench too,
+    // which would mean two full quarters off court. The sort key
+    // must put least-played-THIS-GAME first so the sit-out players
+    // fill the court ahead of anyone who's already played both
+    // prior quarters.
+    //
+    // Setup: 9-player squad, 7 court slots. After Q1 + Q2:
+    //   - p1..p7 each played 2 quarters (one position per quarter)
+    //   - p8, p9 sat on the bench both quarters (0 plays)
+    // Q3 suggestion must put p8 and p9 on court — they're the bench
+    // for Q3 should be drawn from p1..p7.
+    // p8 and p9 also happen to have high season totals — testing
+    // that this-game count dominates season count (new sort key).
+    // Without this-game taking priority, the season-only sort would
+    // put p8 and p9 LAST and bench them again.
+    const lineup = suggestNetballLineup({
+      playerIds: ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {
+        p8: { gk: 8 }, // veteran — most played across the season
+        p9: { gd: 8 },
+      },
+      thisGame: {
+        p1: { gs: 1, ga: 1 },
+        p2: { ga: 1, gs: 1 },
+        p3: { wa: 1, c: 1 },
+        p4: { c: 1, wa: 1 },
+        p5: { wd: 1, c: 1 },
+        p6: { gd: 1, gk: 1 },
+        p7: { gk: 1, gd: 1 },
+      },
+      isAllowed: alwaysAllowed,
+      seed: 3,
+    });
+    const onCourt = new Set<string>(Object.values(lineup.positions).flat());
+    // The two bench-Q1+Q2 players must be on court for Q3 — even
+    // though the season-rarity tiebreak would otherwise keep them
+    // benched.
+    expect(onCourt.has("p8")).toBe(true);
+    expect(onCourt.has("p9")).toBe(true);
+  });
+
   it("rotates a player away from a position they've already played this game", () => {
     const lineup = suggestNetballLineup({
       playerIds: ["alice", "bob", "cara", "dan", "eve", "fay", "gus"],
