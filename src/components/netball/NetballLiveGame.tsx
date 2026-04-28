@@ -38,6 +38,7 @@ import {
   endNetballQuarter,
   recordNetballGoal,
   recordNetballOpponentGoal,
+  undoNetballScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 
@@ -197,6 +198,51 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playerId: string;
     positionId: string;
   } | null>(null);
+  // Undo last goal — mirrors AFL's pattern at LiveGame.tsx:206. After a
+  // goal is recorded a "[Team] goal — Player · Undo" chip appears for
+  // 8 seconds (toast); after the toast fades the chip stays as a
+  // muted "Undo last score" affordance until another goal is
+  // recorded (which replaces it). Tap fires score_undo; the replay
+  // engine pops the LIFO undo stack so the latest score is reverted.
+  const [lastScore, setLastScore] = useState<
+    | { kind: "team" | "opp"; playerName: string | null }
+    | null
+  >(null);
+  const [undoToastVisible, setUndoToastVisible] = useState(false);
+  const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startUndoToast = useCallback(
+    (kind: "team" | "opp", playerName: string | null) => {
+      if (undoToastTimerRef.current !== null) {
+        clearTimeout(undoToastTimerRef.current);
+      }
+      setLastScore({ kind, playerName });
+      setUndoToastVisible(true);
+      undoToastTimerRef.current = setTimeout(() => {
+        setUndoToastVisible(false);
+      }, 8000);
+    },
+    [],
+  );
+  const handleUndoLastScore = useCallback(() => {
+    if (!lastScore) return;
+    setLastScore(null);
+    setUndoToastVisible(false);
+    if (undoToastTimerRef.current !== null) {
+      clearTimeout(undoToastTimerRef.current);
+      undoToastTimerRef.current = null;
+    }
+    startTransition(async () => {
+      await undoNetballScore(auth, game.id);
+    });
+  }, [lastScore, auth, game.id]);
+  // Reset the undo state if the user transitions out of LIVE play
+  // (Q-break, finalised) so a stale chip doesn't carry across phases.
+  useEffect(() => {
+    if (quarterEnded || finalised) {
+      setLastScore(null);
+      setUndoToastVisible(false);
+    }
+  }, [quarterEnded, finalised]);
 
   // Client-side tick during live play.
   useClock(!quarterEnded && !finalised && currentQuarter > 0, setClockMs);
@@ -232,11 +278,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // player's bar starts at zero contribution from this quarter and
   // accrues from there. No more inheritance.
   const playerStats = useMemo(() => {
-    const isLive =
-      !quarterEnded && !finalised && currentQuarter > 0;
-    if (!isLive) {
-      // Closed-out / finalised / pre-game: no in-progress segments.
-      // The helper falls back to crediting closed quarters from events.
+    // Use segments any time the trailing quarter is "still open" from
+    // a client-state POV — that's LIVE play AND the Q-break window
+    // BEFORE period_break_swap is confirmed. Once confirmed, the
+    // post-sub lineup is durable in events and we can fall back to
+    // the event-only path. This catches the Q-break case where the
+    // injured player would otherwise get credited the full quarter
+    // and their substitute would show 0:00.
+    const isQuarterOpen = !finalised && currentQuarter > 0;
+    if (!isQuarterOpen) {
       return playerThirdMs(
         thisGameEvents,
         null,
@@ -248,13 +298,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // chronological order. The start-of-quarter lineup is whatever the
     // replay engine handed us (the most recent lineup_set or
     // period_break_swap before the trailing quarter_start).
+    //
+    // While LIVE, total in-progress duration = clockMs.
+    // At Q-break (quarterEnded), the quarter ran its full course so
+    // we credit the full quarterLengthMs even if clockMs ticked
+    // slightly under that.
     const startLineup =
       initialLineup ?? emptyGenericLineup(ageGroup.positions);
+    const totalElapsed = quarterEnded ? quarterLengthMs : clockMs;
     const segments: InProgressSegment[] = [];
     let current = startLineup;
     let prevMs = 0;
     for (const sub of midQuarterSubs) {
-      const dur = Math.max(0, sub.atMs - prevMs);
+      const dur = Math.max(0, Math.min(sub.atMs, totalElapsed) - prevMs);
       if (dur > 0) segments.push({ lineup: current, durationMs: dur });
       // Apply the sub: outPlayer leaves position, inPlayer takes it.
       const next: GenericLineup = {
@@ -268,9 +324,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
       current = next;
-      prevMs = sub.atMs;
+      prevMs = Math.min(sub.atMs, totalElapsed);
     }
-    const finalDur = Math.max(0, clockMs - prevMs);
+    const finalDur = Math.max(0, totalElapsed - prevMs);
     if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
     return playerThirdMs(
       thisGameEvents,
@@ -286,6 +342,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     finalised,
     currentQuarter,
     ageGroup.periodSeconds,
+    quarterLengthMs,
     initialLineup,
     midQuarterSubs,
   ]);
@@ -305,13 +362,24 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleConfirmGoal = () => {
     if (!pendingGoal) return;
     const { playerId } = pendingGoal;
+    const player = squadById.get(playerId);
+    const playerName =
+      player?.full_name.trim().split(/\s+/)[0] ?? null;
     startTransition(async () => {
       await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
     });
     setPendingGoal(null);
+    startUndoToast("team", playerName);
   };
 
   const handleCancelGoal = () => setPendingGoal(null);
+
+  const handleOpponentGoal = useCallback(() => {
+    startTransition(async () => {
+      await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
+    });
+    startUndoToast("opp", null);
+  }, [auth, game.id, currentQuarter, clockMs, startUndoToast]);
 
   // long-press on any token (court OR bench strip) → open the player
   // actions modal. Bench tiles pass positionId=null; the modal hides
@@ -621,6 +689,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           injuredIds={injuredIds}
           loanedIds={loanedIds}
           playerGoals={playerGoals}
+          playerStats={playerStats}
           onStarted={() => {
             // Locks are single-use; local overlay is durable now via
             // the period_break_swap event the component just wrote.
@@ -719,17 +788,45 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         quarterLabel={`Q${currentQuarter}`}
         clockText={formatClock(remainingMs)}
         isPending={isPending}
-        onOpponentGoal={() =>
-          startTransition(async () => {
-            await recordNetballOpponentGoal(
-              auth,
-              game.id,
-              currentQuarter,
-              clockMs,
-            );
-          })
-        }
+        onOpponentGoal={handleOpponentGoal}
       />
+
+      {/* Undo last score — toast (8s, dark bg) then persistent chip
+          (muted bg) until the next score replaces it. Mirrors AFL's
+          LiveGame.tsx:855 chip exactly so the affordance is familiar. */}
+      {lastScore && (
+        <div
+          className={`flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
+            undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            className={`text-xs ${
+              undoToastVisible ? "text-warm/80" : "text-ink-dim"
+            }`}
+          >
+            {undoToastVisible
+              ? `${
+                  lastScore.kind === "team" ? teamName : game.opponent
+                } goal${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
+              : "Undo last score"}
+          </span>
+          <button
+            type="button"
+            onClick={handleUndoLastScore}
+            disabled={isPending}
+            className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
+              undoToastVisible
+                ? "text-warn hover:text-warn/80"
+                : "text-brand-700 hover:text-brand-600"
+            }`}
+          >
+            Undo
+          </button>
+        </div>
+      )}
 
       <CourtDisplay
         lineup={onCourt}

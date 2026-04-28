@@ -83,6 +83,15 @@ interface Props {
   loanedIds: Set<string>;
   /** Per-player goals scored this game — drives the score chip on each tile. */
   playerGoals: Record<string, number>;
+  /**
+   * Per-player time-by-third map computed by the parent. Includes
+   * mid-quarter substitutions via the segment-based accounting in
+   * NetballLiveGame — passing it down avoids the Q-break tiles
+   * computing their own (event-only) version that misses
+   * mid-quarter subs and shows a substitute as 0:00 while the
+   * injured player keeps the credit.
+   */
+  playerStats?: Map<string, PlayerThirdMs>;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -102,6 +111,7 @@ export function NetballQuarterBreak({
   injuredIds,
   loanedIds,
   playerGoals,
+  playerStats,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -221,19 +231,20 @@ export function NetballQuarterBreak({
   }, [useReshuffle, suggestedLineup, previousLineup]);
 
   // ─── Time bars (per-third minutes, color-coded) ────────────
-  const thirdMs = useMemo(
-    () =>
-      playerThirdMs(
-        thisGameEvents,
-        // Q-break: the just-finished quarter is fully complete, no
-        // partial counting. null tells the helper to credit the trailing
-        // lineup for a full periodSeconds.
-        null,
-        periodSeconds,
-        primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
-      ),
-    [thisGameEvents, periodSeconds],
-  );
+  // Source from the parent's playerStats prop (which factors in the
+  // segment-based mid-quarter sub accounting). Falls back to a local
+  // event-only computation if the parent hasn't provided stats —
+  // shouldn't happen in normal flow but keeps the component self-
+  // sufficient.
+  const thirdMs = useMemo(() => {
+    if (playerStats) return playerStats;
+    return playerThirdMs(
+      thisGameEvents,
+      null,
+      periodSeconds,
+      primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
+  }, [playerStats, thisGameEvents, periodSeconds]);
 
   // ─── Fairness score (combined season + this-game position counts) ──
   const fairness = useMemo(() => {

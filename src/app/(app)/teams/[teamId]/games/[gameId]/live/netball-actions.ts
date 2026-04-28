@@ -186,12 +186,14 @@ export async function recordNetballOpponentGoal(
 }
 
 // ─── scoreUndo ───────────────────────────────────────────────
-// Append a marker event; the replay engine treats paired score/score_undo
-// events as a no-op. Shared with AFL's scoring.
+// Append a marker event; replayNetballGame pairs score / score_undo
+// LIFO from its own undoStack, so the action doesn't need a specific
+// target event. The optional targetEventId stays as audit metadata
+// when the caller has it.
 export async function undoNetballScore(
   auth: LiveAuth,
   gameId: string,
-  targetEventId: string,
+  targetEventId?: string,
 ): Promise<ActionResult> {
   return insertEvent(auth, gameId, "score_undo", {
     metadata: { target: targetEventId, sport: "netball" },
