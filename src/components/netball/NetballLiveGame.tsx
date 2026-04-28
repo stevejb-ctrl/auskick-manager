@@ -169,13 +169,50 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     quarterLengthMs,
   ]);
 
-  // ─── Client-only state (lost on reload) ────────────────────
-  // injuredIds / loanedIds drive token greying and exclude players
-  // from next-quarter lineup suggestions. Persisted as `injury` /
-  // `player_loan` events for audit trail; see comment below for the
-  // refresh-mid-quarter caveat.
-  const [injuredIds, setInjuredIds] = useState<Set<string>>(new Set());
-  const [loanedIds, setLoanedIds] = useState<Set<string>>(new Set());
+  // ─── Injured / loaned — derived from events ─────────────────
+  // Every markInjury / markLoan call writes an `injury` /
+  // `player_loan` event with metadata `{ injured: bool }` /
+  // `{ loaned: bool }` so the audit trail captures the toggle in
+  // both directions. Deriving the current sets from those events
+  // (latest per player wins) means the status survives:
+  //   • a quarter transition (period_break_swap doesn't reset events)
+  //   • a page refresh mid-quarter (events are persisted to Supabase)
+  //   • a navigation away and back to the live page
+  // Replaces an earlier React-only useState model that lost the
+  // status the moment the events prop refreshed without the local
+  // state being re-seeded.
+  const injuredIds = useMemo(() => {
+    const latest = new Map<string, { ts: string; injured: boolean }>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "injury" || !ev.player_id) continue;
+      const injured = ((ev.metadata as { injured?: boolean }).injured) ?? true;
+      const cur = latest.get(ev.player_id);
+      if (!cur || ev.created_at > cur.ts) {
+        latest.set(ev.player_id, { ts: ev.created_at, injured });
+      }
+    }
+    const set = new Set<string>();
+    latest.forEach((v, k) => {
+      if (v.injured) set.add(k);
+    });
+    return set;
+  }, [thisGameEvents]);
+  const loanedIds = useMemo(() => {
+    const latest = new Map<string, { ts: string; loaned: boolean }>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "player_loan" || !ev.player_id) continue;
+      const loaned = ((ev.metadata as { loaned?: boolean }).loaned) ?? true;
+      const cur = latest.get(ev.player_id);
+      if (!cur || ev.created_at > cur.ts) {
+        latest.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+    }
+    const set = new Set<string>();
+    latest.forEach((v, k) => {
+      if (v.loaned) set.add(k);
+    });
+    return set;
+  }, [thisGameEvents]);
   // Late arrivals: squad players who weren't marked available pre-game
   // but turned up after the umpire's first whistle. addLateArrival
   // upserts game_availability + writes a player_arrived event for audit.
@@ -193,9 +230,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     return ids;
   });
-  // Lock-for-next-break: pins a player to a position when the next
-  // lineup picker opens. Cleared after that picker confirms. Soft
-  // signal (player can still be moved by coach), not enforced.
+  // Persistent position locks: pin a player to a position so every
+  // subsequent quarter-break suggester places them there. Sticky
+  // until the coach explicitly unlocks. Coaches use this to keep a
+  // strong shooter at GS or a defensive specialist at GK across the
+  // game without having to re-pin each break.
   const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>({});
   // Mid-quarter substitution overlay. Coach injuries a court player and
   // picks a bench replacement; the change is reflected here client-side
@@ -457,13 +496,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // then auto-prompt the bench replacement sheet so the coach can plug
   // the gap in two taps. Substitution itself is local-overlay only until
   // the next quarter break makes it durable.
+  // Mark/un-mark handlers below: they no longer optimistically mutate
+  // local injuredIds / loanedIds state — the badges + greying are
+  // derived from events, and Next.js Server Actions auto-refresh the
+  // RSC payload after they complete, so the prop update lands in the
+  // next render. That's a few hundred ms of latency before the INJ/
+  // LENT badge appears, but the localOverlay vacate fires synchronously
+  // so the slot empties immediately and the replacement picker opens
+  // straight away — the user gets the affordance they care about.
   const handleMarkInjured = () => {
     if (!actionsTarget) return;
     const { playerId, positionId } = actionsTarget;
     // Close the actions modal FIRST so it can't accidentally trap a
     // subsequent long-press behind a stale state transition.
     closeActions();
-    setInjuredIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markInjury(auth, game.id, {
         player_id: playerId,
@@ -479,11 +525,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    setInjuredIds((prev) => {
-      const next = new Set(prev);
-      next.delete(playerId);
-      return next;
-    });
     startTransition(async () => {
       await markInjury(auth, game.id, {
         player_id: playerId,
@@ -500,7 +541,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Close the actions modal FIRST — same reason as injury: don't let
     // a still-rendering modal block the next long-press attempt.
     closeActions();
-    setLoanedIds((prev) => new Set(prev).add(playerId));
     startTransition(async () => {
       await markLoan(auth, game.id, {
         player_id: playerId,
@@ -520,11 +560,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    setLoanedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(playerId);
-      return next;
-    });
     startTransition(async () => {
       await markLoan(auth, game.id, {
         player_id: playerId,
@@ -771,7 +806,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ageGroup={ageGroup}
           currentQuarter={currentQuarter}
           previousLineup={onCourt}
-          preAppliedLocks={nextBreakLocks}
+          preAppliedLocks={(() => {
+            // Filter out locks for players who are now injured or on
+            // loan — pinning a sidelined player to a court slot would
+            // ignore the rules-of-play. The lock entry itself stays
+            // in nextBreakLocks (so it re-applies once the coach
+            // recovers/returns the player), it's just suppressed in
+            // this break's preApplied set.
+            const filtered: Record<string, string> = {};
+            for (const [posId, pid] of Object.entries(nextBreakLocks)) {
+              if (!injuredIds.has(pid) && !loanedIds.has(pid)) {
+                filtered[posId] = pid;
+              }
+            }
+            return filtered;
+          })()}
           periodSeconds={quarterLengthSeconds}
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
@@ -781,10 +830,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
           onStarted={() => {
-            // Locks are single-use; local overlay is durable now via
-            // the period_break_swap event the component just wrote.
-            setNextBreakLocks({});
+            // Local overlay is durable now via the period_break_swap
+            // event the component just wrote.
             setLocalOverlay(null);
+            // nextBreakLocks INTENTIONALLY persist across the
+            // transition: the coach's "🔒 Keep at GS next break" is
+            // a sticky preference, not a one-shot. Each subsequent
+            // Q-break re-applies the same locks to the suggester
+            // until the coach explicitly unlocks the slot. The
+            // Q-break component already filters injured/loaned
+            // players out of the candidate pool, so a locked-but-
+            // sidelined player won't get re-placed at their slot.
             // Belt-and-braces: clear any modal-/sheet-driving state
             // that might have lingered from the previous quarter so
             // a stuck overlay can't block long-press in the new one.
