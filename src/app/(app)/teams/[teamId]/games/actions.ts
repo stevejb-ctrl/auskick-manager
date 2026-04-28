@@ -108,6 +108,40 @@ export async function setTrackScoring(
   return { success: true };
 }
 
+/**
+ * Per-team override for quarter duration (in seconds). Pass `null` to
+ * clear the override and fall back to the age-group default. The form
+ * validates sane ranges (1–30 min); the DB column has no CHECK so a
+ * coach who genuinely wants 30-second training quarters isn't blocked.
+ */
+export async function setQuarterLengthSeconds(
+  teamId: string,
+  seconds: number | null,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  if (seconds !== null) {
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 1800) {
+      return {
+        success: false,
+        error: "Quarter length must be a whole number of minutes between 1 and 30.",
+      };
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ quarter_length_seconds: seconds })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
 export async function updateGame(
   teamId: string,
   gameId: string,

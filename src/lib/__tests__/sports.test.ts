@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSportConfig,
   getBrandForHost,
+  getEffectiveQuarterSeconds,
   ALL_SPORT_IDS,
   aflSport,
   netballSport,
@@ -190,5 +191,21 @@ describe("netball validateLineup", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.issues.some((i) => i.playerId === "p1")).toBe(true);
+  });
+});
+
+describe("getEffectiveQuarterSeconds", () => {
+  const openAge = netballSport.ageGroups.find((a) => a.id === "open")!;
+
+  it("returns the per-team override when set", () => {
+    expect(
+      getEffectiveQuarterSeconds({ quarter_length_seconds: 480 }, openAge),
+    ).toBe(480);
+  });
+
+  it("falls back to the age-group default when override is null", () => {
+    expect(
+      getEffectiveQuarterSeconds({ quarter_length_seconds: null }, openAge),
+    ).toBe(openAge.periodSeconds);
   });
 });

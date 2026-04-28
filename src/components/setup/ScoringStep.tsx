@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
+import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface ScoringStepProps {
@@ -9,6 +10,8 @@ interface ScoringStepProps {
   initialEnabled: boolean;
   /** Sport-aware copy around scoring (AFL vs netball framing). */
   sportId?: "afl" | "netball";
+  /** Current quarter-length override in seconds, or null to use age-group default. */
+  initialQuarterLengthSeconds?: number | null;
 }
 
 export function ScoringStep({
@@ -16,6 +19,7 @@ export function ScoringStep({
   ageGroup,
   initialEnabled,
   sportId = "afl",
+  initialQuarterLengthSeconds = null,
 }: ScoringStepProps) {
   const blurb =
     sportId === "netball" ? (
@@ -57,6 +61,18 @@ export function ScoringStep({
         isAdmin
         sportId={sportId}
       />
+
+      {/* Quarter-length override is a netball-only knob today — junior
+          netball leagues vary so much region-to-region that the
+          age-group default rarely fits everyone. AFL keeps its
+          age-group quarters as the source of truth. */}
+      {sportId === "netball" && (
+        <QuarterLengthInput
+          teamId={teamId}
+          ageGroupDefaultSeconds={ageGroup.periodSeconds}
+          initialOverrideSeconds={initialQuarterLengthSeconds}
+        />
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <Link

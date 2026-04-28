@@ -12,7 +12,7 @@ import {
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getSportConfig, netballSport } from "@/lib/sports";
+import { getEffectiveQuarterSeconds, getSportConfig, netballSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import type { FillIn, Game, GameEvent, Player, Sport } from "@/lib/types";
 
@@ -73,7 +73,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -94,6 +94,13 @@ export default async function LivePage({ params }: LivePageProps) {
   if (sport === "netball") {
     const ageCfgN = netballSport.ageGroups.find((a) => a.id === teamRow?.age_group)
       ?? netballSport.ageGroups.find((a) => a.id === "open")!;
+    // Per-team override wins over the age-group default. `null` =
+    // "use age group default" — coaches whose league plays a
+    // non-standard quarter length adjust this in team settings.
+    const quarterLengthSeconds = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+      ageCfgN,
+    );
 
     const [
       { data: avail },
@@ -136,6 +143,7 @@ export default async function LivePage({ params }: LivePageProps) {
           squad={squad}
           availableIds={availableIds}
           ageGroup={ageCfgN}
+          quarterLengthSeconds={quarterLengthSeconds}
           initialLineup={state.lineup}
           currentQuarter={state.currentQuarter}
           quarterElapsedMs={state.quarterElapsedMs}

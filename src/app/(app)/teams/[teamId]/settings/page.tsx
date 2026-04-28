@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
+import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import {
   TeamMembersSettings,
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
+import { getAgeGroupConfig } from "@/lib/sports";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -24,7 +26,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, track_scoring, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -101,6 +103,26 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         isAdmin={isAdmin}
         sportId={sport}
       />
+      {/* Quarter-length override: netball-only knob today since
+          junior netball formats vary so much across leagues. AFL
+          keeps its existing age-group quarters as the source of
+          truth (no override needed). */}
+      {sport === "netball" && (() => {
+        const ageGroup = getAgeGroupConfig(
+          sport,
+          (team as { age_group?: string | null }).age_group ?? null,
+        );
+        return (
+          <QuarterLengthInput
+            teamId={params.teamId}
+            ageGroupDefaultSeconds={ageGroup.periodSeconds}
+            initialOverrideSeconds={
+              (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
+            }
+            isAdmin={isAdmin}
+          />
+        );
+      })()}
       <TeamSongSettings
         teamId={params.teamId}
         currentSongUrl={team.song_url ?? null}

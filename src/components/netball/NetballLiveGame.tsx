@@ -50,6 +50,15 @@ interface NetballLiveGameProps {
   squad: Player[];
   availableIds: string[];
   ageGroup: AgeGroupConfig;
+  /**
+   * Effective quarter duration in seconds for THIS team. Comes from
+   * the parent (live page) which resolves
+   * `team.quarter_length_seconds ?? ageGroup.periodSeconds`. Used in
+   * place of `ageGroup.periodSeconds` for the countdown clock,
+   * auto-end-at-hooter, and time-credit accounting so a per-team
+   * override flows through every clock surface.
+   */
+  quarterLengthSeconds: number;
   initialLineup: GenericLineup | null;
   currentQuarter: number;
   quarterElapsedMs: number;
@@ -71,6 +80,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     squad,
     availableIds,
     ageGroup,
+    quarterLengthSeconds,
     initialLineup,
     currentQuarter,
     quarterElapsedMs: _quarterElapsedMs,
@@ -115,7 +125,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
   // the auto-end-at-hooter trigger below.
-  const quarterLengthMs = ageGroup.periodSeconds * 1000;
+  const quarterLengthMs = quarterLengthSeconds * 1000;
   const remainingMs = Math.max(0, quarterLengthMs - clockMs);
 
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
@@ -290,7 +300,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       return playerThirdMs(
         thisGameEvents,
         null,
-        ageGroup.periodSeconds,
+        quarterLengthSeconds,
         primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
       );
     }
@@ -331,7 +341,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return playerThirdMs(
       thisGameEvents,
       null,
-      ageGroup.periodSeconds,
+      quarterLengthSeconds,
       primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
       { segments },
     );
@@ -341,7 +351,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     quarterEnded,
     finalised,
     currentQuarter,
-    ageGroup.periodSeconds,
+    quarterLengthSeconds,
     quarterLengthMs,
     initialLineup,
     midQuarterSubs,
@@ -683,7 +693,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           currentQuarter={currentQuarter}
           previousLineup={onCourt}
           preAppliedLocks={nextBreakLocks}
-          periodSeconds={ageGroup.periodSeconds}
+          periodSeconds={quarterLengthSeconds}
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           injuredIds={injuredIds}

@@ -68,7 +68,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   ] = await Promise.all([
     adminClient
       .from("teams")
-      .select("name, age_group, sport, track_scoring, playhq_url")
+      .select("name, age_group, sport, track_scoring, quarter_length_seconds, playhq_url")
       .eq("id", params.teamId)
       .maybeSingle(),
     adminClient
@@ -108,6 +108,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         initialEnabled={team.track_scoring ?? false}
         sportId={sport}
+        initialQuarterLengthSeconds={
+          (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
+        }
       />
     );
   }

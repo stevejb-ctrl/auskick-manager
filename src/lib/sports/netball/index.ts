@@ -98,8 +98,14 @@ const NETBALL_SCORE_TYPES: ScoreTypeDef[] = [
 // ─── Age groups (NetSetGO + Modified rules) ──────────────────
 // NetSetGO: Set (5-7), Go (8-10) — skills-focused, modified or
 // training-only format. Modified Netball: 11u, 12u, 13u — full
-// 7-a-side but shorter quarters and some rule modifications.
-// Open (14+): standard 7-a-side, 15-minute quarters.
+// 7-a-side but with rule modifications.
+// Open (14+): standard 7-a-side.
+//
+// All age groups default to 10-min quarters because real-world rules
+// vary so much region-to-region that there's no honest "correct"
+// default. Coaches whose league differs override per-team via
+// `teams.quarter_length_seconds` (set in the team setup wizard or
+// settings page).
 const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
   {
     id: "set",
@@ -111,10 +117,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxOnFieldSize: 5,
     maxSquadSize: 14,
     periodCount: 4,
-    periodSeconds: 6 * 60,
-    subIntervalSeconds: 6 * 60,
+    periodSeconds: 10 * 60,
+    subIntervalSeconds: 10 * 60,
     tracksScoreDefault: false,
-    notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept.",
+    notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {
     id: "go",
@@ -126,10 +132,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxOnFieldSize: 7,
     maxSquadSize: 16,
     periodCount: 4,
-    periodSeconds: 8 * 60,
-    subIntervalSeconds: 8 * 60,
+    periodSeconds: 10 * 60,
+    subIntervalSeconds: 10 * 60,
     tracksScoreDefault: false,
-    notes: "NetSetGO Go: 7-a-side, introduction to all 7 positions.",
+    notes: "NetSetGO Go: 7-a-side, introduction to all 7 positions. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {
     id: "11u",
@@ -141,10 +147,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxOnFieldSize: 7,
     maxSquadSize: 16,
     periodCount: 4,
-    periodSeconds: 8 * 60,
-    subIntervalSeconds: 8 * 60,
+    periodSeconds: 10 * 60,
+    subIntervalSeconds: 10 * 60,
     tracksScoreDefault: true,
-    notes: "Modified netball: 7-a-side, 8-min quarters.",
+    notes: "Modified netball: 7-a-side, 10-min quarters by default.",
   },
   {
     id: "12u",
@@ -159,7 +165,7 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     periodSeconds: 10 * 60,
     subIntervalSeconds: 10 * 60,
     tracksScoreDefault: true,
-    notes: "Modified netball: 7-a-side, 10-min quarters.",
+    notes: "Modified netball: 7-a-side, 10-min quarters by default.",
   },
   {
     id: "13u",
@@ -171,10 +177,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxOnFieldSize: 7,
     maxSquadSize: 16,
     periodCount: 4,
-    periodSeconds: 12 * 60,
-    subIntervalSeconds: 12 * 60,
+    periodSeconds: 10 * 60,
+    subIntervalSeconds: 10 * 60,
     tracksScoreDefault: true,
-    notes: "Modified netball: 7-a-side, 12-min quarters.",
+    notes: "Modified netball: 7-a-side, 10-min quarters by default. Bump to 12 in team settings if your league plays the longer format.",
   },
   {
     id: "open",
@@ -186,10 +192,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxOnFieldSize: 7,
     maxSquadSize: 16,
     periodCount: 4,
-    periodSeconds: 15 * 60,
-    subIntervalSeconds: 15 * 60,
+    periodSeconds: 10 * 60,
+    subIntervalSeconds: 10 * 60,
     tracksScoreDefault: true,
-    notes: "Standard netball: 7-a-side, 15-min quarters.",
+    notes: "Standard netball: 7-a-side, 10-min quarters by default. Bump to 15 in team settings for full-rule competition.",
   },
 ];
 

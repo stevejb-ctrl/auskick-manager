@@ -87,6 +87,13 @@ export interface Team {
   song_start_seconds: number;
   /** Whether goal-song playback is enabled. The URL is kept when disabled. */
   song_enabled: boolean;
+  /**
+   * Per-team override for quarter duration in seconds. NULL means
+   * "use the age-group default from the sport config". Set when a
+   * coach's league plays a non-standard quarter length (common in
+   * junior netball where regions vary widely).
+   */
+  quarter_length_seconds: number | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   created_by: string;
