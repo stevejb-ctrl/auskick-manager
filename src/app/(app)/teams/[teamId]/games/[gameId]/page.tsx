@@ -9,7 +9,7 @@ import { DeleteGameButton } from "@/components/games/DeleteGameButton";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { Spinner } from "@/components/ui/Spinner";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { Game } from "@/lib/types";
+import type { Game, Sport } from "@/lib/types";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -39,7 +39,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group")
+      .select("age_group, sport")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -66,6 +66,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const canMarkAvailability = !!role;
   const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
   const ageCfg = AGE_GROUPS[ageGroup];
+  // Netball has no jersey numbers — hide the # input on AddFillInForm.
+  const sport: Sport = ((team as { sport?: Sport } | null)?.sport) ?? "afl";
 
   const tallies = new Map<string, { goals: number; behinds: number }>();
   for (const ev of (scoringEvents ?? []) as { type: string; player_id: string | null }[]) {
@@ -178,6 +180,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           gameId={params.gameId}
           canMarkAvailability={canMarkAvailability}
           canManageMatch={canManageMatch}
+          showJerseyNumber={sport !== "netball"}
         />
       </Suspense>
     </div>

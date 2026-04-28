@@ -25,6 +25,12 @@ interface AvailabilityListProps {
    * the trusted runner token on match day.
    */
   canManageMatch: boolean;
+  /**
+   * AFL teams show a jersey-number input on the fill-in form; netball
+   * teams don't (no jersey numbers in netball). Defaults to true so
+   * unchanged callers keep their current behaviour.
+   */
+  showJerseyNumber?: boolean;
 }
 
 export async function AvailabilityList({
@@ -33,6 +39,7 @@ export async function AvailabilityList({
   gameId,
   canMarkAvailability,
   canManageMatch,
+  showJerseyNumber = true,
 }: AvailabilityListProps) {
   const supabase = auth.kind === "token" ? createAdminClient() : createClient();
 
@@ -111,7 +118,13 @@ export async function AvailabilityList({
             ))}
           </ul>
         )}
-        {canManageMatch && <AddFillInForm auth={auth} gameId={gameId} />}
+        {canManageMatch && (
+          <AddFillInForm
+            auth={auth}
+            gameId={gameId}
+            showJerseyNumber={showJerseyNumber}
+          />
+        )}
       </div>
     </div>
   );

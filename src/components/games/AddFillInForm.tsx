@@ -9,9 +9,20 @@ import type { LiveAuth } from "@/lib/types";
 interface AddFillInFormProps {
   auth: LiveAuth;
   gameId: string;
+  /**
+   * AFL teams show a jersey-number input alongside the name; netball
+   * teams don't (no jersey numbers in netball). Defaults to true so
+   * existing AFL call sites keep their current behaviour. Mirrors the
+   * `showJersey` flag the setup wizard already uses on AddPlayerForm.
+   */
+  showJerseyNumber?: boolean;
 }
 
-export function AddFillInForm({ auth, gameId }: AddFillInFormProps) {
+export function AddFillInForm({
+  auth,
+  gameId,
+  showJerseyNumber = true,
+}: AddFillInFormProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
@@ -76,16 +87,18 @@ export function AddFillInForm({ auth, gameId }: AddFillInFormProps) {
           autoFocus
           className="min-w-0 flex-1"
         />
-        <Input
-          type="number"
-          inputMode="numeric"
-          value={jersey}
-          onChange={(e) => setJersey(e.target.value)}
-          placeholder="#"
-          min={0}
-          disabled={isPending}
-          className="w-16 tabular-nums"
-        />
+        {showJerseyNumber && (
+          <Input
+            type="number"
+            inputMode="numeric"
+            value={jersey}
+            onChange={(e) => setJersey(e.target.value)}
+            placeholder="#"
+            min={0}
+            disabled={isPending}
+            className="w-16 tabular-nums"
+          />
+        )}
         <Button
           type="button"
           onClick={submit}

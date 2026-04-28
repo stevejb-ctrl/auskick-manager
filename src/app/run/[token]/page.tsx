@@ -8,7 +8,7 @@ import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, zoneCapsFor } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +30,14 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+    .select("name, sport, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   const ageGroup = ageGroupOf(teamRow?.age_group);
+  // Netball has no jersey numbers — hide the # input on AddFillInForm.
+  const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
   // When the admin has disabled the song, hide the URL from the live page
   // so no playback is attempted (iframe/audio simply never mounts).
@@ -118,6 +120,7 @@ export default async function RunPage({ params }: RunPageProps) {
           gameId={g.id}
           canMarkAvailability
           canManageMatch
+          showJerseyNumber={sport !== "netball"}
         />
       </section>
 

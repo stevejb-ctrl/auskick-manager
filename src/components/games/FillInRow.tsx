@@ -33,9 +33,15 @@ export function FillInRow({
   return (
     <li className="flex items-center justify-between bg-warn-soft/40 px-4 py-3">
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn tabular-nums">
-          {jerseyNumber ?? "–"}
-        </span>
+        {/* Jersey-number chip — hidden when no number is set, which is
+            the netball case (no numbers in netball) and also the AFL
+            case where a fill-in arrived without one. Mirrors the same
+            null-guard already in AvailabilityRow. */}
+        {jerseyNumber != null && (
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn tabular-nums">
+            {jerseyNumber}
+          </span>
+        )}
         <span className="text-sm font-medium text-ink">{fullName}</span>
         <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-micro text-warn">
           Fill-in
