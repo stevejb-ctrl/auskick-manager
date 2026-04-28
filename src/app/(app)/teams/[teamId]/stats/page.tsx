@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { bucketFillIns, replayGame } from "@/lib/dashboard/eventReplay";
-import { FILL_IN_STATS_ID, type Player } from "@/lib/types";
+import { FILL_IN_STATS_ID, type Player, type Sport } from "@/lib/types";
 import {
   deriveSeasons,
   filterBySeason,
@@ -14,8 +14,18 @@ import {
   computeQuarterScoring,
   computeAttendance,
 } from "@/lib/dashboard/aggregators";
+import {
+  replayNetballGameForStats,
+  computeNetballPlayerStats,
+  computeNetballChemistry,
+  computeNetballHeadToHead,
+  computeNetballAttendance,
+} from "@/lib/dashboard/netballAggregators";
 import type { GameSnapshot, Season } from "@/lib/dashboard/types";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
+import { netballSport, getEffectiveQuarterSeconds } from "@/lib/sports";
+import type { GameEvent } from "@/lib/types";
 
 interface StatsPageProps {
   params: { teamId: string };
@@ -28,11 +38,12 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // Verify team exists + user has access (layout already guards this, but be explicit)
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, track_scoring")
+    .select("id, name, sport, track_scoring, age_group, quarter_length_seconds")
     .eq("id", params.teamId)
     .single();
 
   if (!team) notFound();
+  const sport: Sport = (team as { sport?: Sport } | null)?.sport ?? "afl";
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =
@@ -88,6 +99,78 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const seasonGames = filterBySeason(allGames, selectedYear).filter(
     (g) => g.status === "completed"
   );
+
+  // ─── Netball branch ───────────────────────────────────────
+  // Netball runs its own stats pipeline — different scoring (goals
+  // only, no behinds), different time buckets (three thirds, not
+  // five zones), and the AFL aggregators are zone-shaped from the
+  // ground up. We branch early so none of the AFL code below
+  // accidentally runs on netball events.
+  if (sport === "netball") {
+    const ageCfg =
+      netballSport.ageGroups.find((a) => a.id === team.age_group) ??
+      netballSport.ageGroups.find((a) => a.id === "open")!;
+    let snapshots: ReturnType<typeof replayNetballGameForStats>[] = [];
+    if (seasonGames.length > 0) {
+      const gameIds = seasonGames.map((g) => g.id);
+      const { data: eventsRaw } = await supabase
+        .from("game_events")
+        .select("*")
+        .in("game_id", gameIds)
+        .order("created_at");
+      const events = (eventsRaw ?? []) as GameEvent[];
+      const byGame = new Map<string, GameEvent[]>();
+      for (const ev of events) {
+        const arr = byGame.get(ev.game_id) ?? [];
+        arr.push(ev);
+        byGame.set(ev.game_id, arr);
+      }
+      snapshots = seasonGames.map((g) => {
+        const evs = byGame.get(g.id) ?? [];
+        const qSec = getEffectiveQuarterSeconds(
+          { quarter_length_seconds: team.quarter_length_seconds ?? null },
+          ageCfg,
+          { quarter_length_seconds: g.quarter_length_seconds },
+        );
+        return replayNetballGameForStats(g.id, evs, qSec);
+      });
+    }
+    const playerStats = computeNetballPlayerStats(players, snapshots);
+    const chemistry = computeNetballChemistry(snapshots);
+    const headToHead = computeNetballHeadToHead(seasonGames, snapshots);
+    const attendanceRows = computeNetballAttendance(
+      players,
+      seasonGames,
+      (availability ?? []) as import("@/lib/types").GameAvailability[],
+    );
+    const playerNames: Record<string, string> = Object.fromEntries(
+      players.map((p) => [p.id, p.full_name]),
+    );
+    const hasPlayData = playerStats.some((s) => s.totalMs > 0);
+    const hasScoringData = snapshots.some(
+      (s) =>
+        Object.keys(s.teamGoalsByQtr).length > 0 ||
+        Object.keys(s.oppGoalsByQtr).length > 0,
+    );
+    const hasAvailabilityData = availability.some((a) =>
+      seasonGames.some((g) => g.id === a.game_id),
+    );
+    return (
+      <NetballDashboardShell
+        seasons={seasons}
+        selectedYear={selectedYear}
+        playerNames={playerNames}
+        playerStats={playerStats}
+        chemistry={chemistry}
+        headToHead={headToHead}
+        attendance={attendanceRows}
+        totalGames={seasonGames.length}
+        hasPlayData={hasPlayData}
+        hasScoringData={hasScoringData}
+        hasAvailabilityData={hasAvailabilityData}
+      />
+    );
+  }
 
   // Fetch events for all completed season games (one query)
   let snapshots: GameSnapshot[] = [];
