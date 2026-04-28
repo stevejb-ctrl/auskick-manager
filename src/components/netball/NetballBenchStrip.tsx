@@ -60,7 +60,12 @@ export function NetballBenchStrip({
           {entries.length}
         </span>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-0.5">
+      {/* pt-2 reserves vertical space for each tile's goal-chip
+          which is positioned `-top-1.5` (outside the tile box) — per
+          CSS spec, `overflow-x: auto` implicitly clips overflow-y too,
+          so without the top padding the chip gets cut off by the
+          scroll container. */}
+      <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
         {entries.map((e) => (
           <BenchTile
             key={e.player.id}
