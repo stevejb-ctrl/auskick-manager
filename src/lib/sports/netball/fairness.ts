@@ -471,6 +471,29 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
   const assigned = new Set<string>();
   const remaining = new Set(positions);
 
+  // Per-player count of how many times this game they've played
+  // each third. Used as the tie-break when two positions score
+  // equally — we prefer the position whose third the player has
+  // touched LEAST. Without this, the iteration order of `remaining`
+  // (gs → ga → wa → c → wd → gd → gk) decides ties statically, and a
+  // player with attack + defence both fresh always grabs gs first
+  // even if she's been on attack twice already and never on defence.
+  // Steve's Patra/Nicole "stuck in centre 100% of the game" report
+  // came from exactly this: when her preferred slot was taken,
+  // remaining ties picked the next centre position instead of
+  // jumping to a fresh third.
+  const thirdCountOf = (pid: string, posId: string): number => {
+    if (!thirdOf) return 0;
+    const t = thirdOf(posId);
+    if (!t) return 0;
+    let count = 0;
+    const counts = thisGame[pid] ?? {};
+    for (const [otherPos, n] of Object.entries(counts)) {
+      if (thirdOf(otherPos) === t) count += n;
+    }
+    return count;
+  };
+
   for (const pid of shuffled) {
     if (remaining.size === 0) {
       lineup.bench.push(pid);
@@ -478,12 +501,20 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     }
     let bestPos: string | null = null;
     let bestScore = -Infinity;
+    let bestThirdCount = Infinity;
     const remainingList = Array.from(remaining);
     for (const posId of remainingList) {
       if (!isAllowed(pid, posId)) continue;
       const s = owed(pid, posId);
-      if (s > bestScore) {
+      const tc = thirdCountOf(pid, posId);
+      // Higher score wins; tie → lower third-count wins (fresher
+      // third); tie still → first in iteration order (stable).
+      const better =
+        s > bestScore ||
+        (s === bestScore && tc < bestThirdCount);
+      if (better) {
         bestScore = s;
+        bestThirdCount = tc;
         bestPos = posId;
       }
     }

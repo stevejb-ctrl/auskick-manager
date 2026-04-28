@@ -187,6 +187,34 @@ describe("suggestNetballLineup", () => {
     expect(onCourt.has("p9")).toBe(true);
   });
 
+  it("regression: ties prefer the third the player has played LEAST", () => {
+    // Steve hit this at Q4: Patra played centre, then bench, then
+    // centre, then centre — never escaped. With both attack and
+    // defence fresh for her, the iteration order of `remaining`
+    // (gs → ga → wa → ...) was deciding ties statically. If gs/ga
+    // were taken before her turn, the next equal-score option was
+    // a centre slot — so she repeated her third even with attack
+    // and defence still open elsewhere on the board (different
+    // iteration index, same +100k score).
+    //
+    // Setup: Patra has played centre 3 times this game. Two
+    // positions are available for her — `wa` (centre, repeat #4)
+    // and `gd` (defence, fresh). Both score the same baseline
+    // (suggester's other tiers are flat for this minimal setup);
+    // the tie-break must pick `gd` because centre is over-played.
+    const lineup = suggestNetballLineup({
+      playerIds: ["patra"],
+      positions: ["wa", "gd"],
+      season: {},
+      thisGame: { patra: { wa: 1, c: 1, wd: 1 } },
+      isAllowed: alwaysAllowed,
+      thirdOf: TEST_THIRD,
+      seed: 0,
+    });
+    expect(lineup.positions.gd).toContain("patra");
+    expect(lineup.positions.wa ?? []).not.toContain("patra");
+  });
+
   it("regression: two bench-Q-prev players get split across bands in the next quarter", () => {
     // Steve flagged: Jimmy + Hattie were both on bench last quarter
     // and the suggester put BOTH of them at attack (gs + ga). Same

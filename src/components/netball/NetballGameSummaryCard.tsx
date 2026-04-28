@@ -115,14 +115,22 @@ function buildSummary(
     lines.push(`\n🥅 Goals: ${scorers.join(", ")}`);
   }
 
-  lines.push(
-    `\n👟 ${squad.length} player${squad.length !== 1 ? "s" : ""}`,
-  );
-
   // Per-player time + third breakdown. Anyone with <1s on court is
   // dropped (they never came on; e.g. squad member who stayed on the
   // bench every quarter has 0 ms accrued).
   const rows = buildPlayerTimes(playerStats, squad);
+  // Count of players who actually took the court — drives the
+  // "👟 N players" line. Earlier this counted `squad.length` which
+  // includes squad members who were marked available but never
+  // played a single second (they show up in availableIds via fill-
+  // ins or a stale player_arrived event from an earlier session,
+  // and the bench strip carries them through). Counting only
+  // played-this-game keeps the headline number consistent with the
+  // "Game time" rows below it.
+  const playedCount = rows.length;
+  lines.push(
+    `\n👟 ${playedCount} player${playedCount !== 1 ? "s" : ""}`,
+  );
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const r of rows) {
