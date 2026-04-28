@@ -19,12 +19,14 @@
 //   - Fairness score is the position-count CV from
 //     netballFairnessScore, not minutes-equity.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import {
   periodBreakSwap,
   startNetballQuarter,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
+import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import {
   netballSport,
   primaryThirdFor,
@@ -265,6 +267,11 @@ export function NetballQuarterBreak({
   const [useReshuffle, setUseReshuffle] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Long-press target for the actions modal. Populated when the coach
+  // long-presses an INJ / LENT tile in the sidelined section so they
+  // can mark recovered or bring back from loan from the Q-break view
+  // without bouncing back to the live court.
+  const [actionsTarget, setActionsTarget] = useState<string | null>(null);
 
   // Refresh draft when toggle flips or suggestion changes.
   useEffect(() => {
@@ -305,6 +312,32 @@ export function NetballQuarterBreak({
     merge(thisGame);
     return netballFairnessScore(combined);
   }, [seasonEvents, thisGameEvents]);
+
+  // Players currently flagged injured or on loan — sourced from the
+  // events-derived sets in the parent. The candidatePool intentionally
+  // excludes them so the suggester doesn't put them back on court, but
+  // the Q-break still surfaces them in a "Sidelined" strip below the
+  // bench so the coach can:
+  //   - see who's unavailable for this break, and
+  //   - long-press to mark recovered / bring back, which fires the
+  //     same markInjury/markLoan actions the live court uses. Once
+  //     the event lands and the parent's sets refresh, the player
+  //     flows back into candidatePool → suggestedLineup → bench.
+  type SidelinedItem = { player: Player; status: "injured" | "loaned" };
+  const sidelined = useMemo<SidelinedItem[]>(() => {
+    const out: SidelinedItem[] = [];
+    const byId = new Map(squad.map((p) => [p.id, p]));
+    injuredIds.forEach((id) => {
+      const p = byId.get(id);
+      if (p) out.push({ player: p, status: "injured" });
+    });
+    loanedIds.forEach((id) => {
+      if (injuredIds.has(id)) return;
+      const p = byId.get(id);
+      if (p) out.push({ player: p, status: "loaned" });
+    });
+    return out;
+  }, [squad, injuredIds, loanedIds]);
 
   // ─── Helpers ───────────────────────────────────────────────
   function slotOfPosition(positionId: string): Slot {
@@ -414,6 +447,45 @@ export function NetballQuarterBreak({
 
   function handleToggleReshuffle() {
     setUseReshuffle((v) => !v);
+  }
+
+  // ─── Sidelined-tile long-press → un-mark handlers ──────────
+  // Open the standard NetballPlayerActions modal targeted at a
+  // sidelined player. Modal exposes "Mark recovered" / "Bring back
+  // from loan"; selecting either fires markInjury/markLoan with
+  // the negation flag, the page revalidates, and the parent's
+  // event-derived injuredIds/loanedIds drop the id — at which
+  // point sidelined recomputes (player vanishes from this strip)
+  // and candidatePool/suggestedLineup re-derive (player appears
+  // on the bench, ready to be tapped into a slot).
+  function handleSidelinedLongPress(playerId: string) {
+    setActionsTarget(playerId);
+  }
+  function handleUnInjury() {
+    if (!actionsTarget) return;
+    const playerId = actionsTarget;
+    setActionsTarget(null);
+    startTransition(async () => {
+      await markInjury(auth, gameId, {
+        player_id: playerId,
+        injured: false,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+    });
+  }
+  function handleUnLoan() {
+    if (!actionsTarget) return;
+    const playerId = actionsTarget;
+    setActionsTarget(null);
+    startTransition(async () => {
+      await markLoan(auth, gameId, {
+        player_id: playerId,
+        loaned: false,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+    });
   }
 
   function handleStart() {
@@ -593,6 +665,52 @@ export function NetballQuarterBreak({
         })}
       </div>
 
+      {/* Sidelined strip — players currently injured or on loan.
+          Long-press a tile to open the actions modal and mark
+          recovered / bring back from loan. Hidden when nobody is
+          sidelined to avoid an empty band. */}
+      {sidelined.length > 0 && (
+        <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              Sidelined
+            </h3>
+            <span className="text-[10px] text-ink-mute">
+              long-press to bring back
+            </span>
+          </div>
+          <ul className="space-y-1.5">
+            {sidelined.map(({ player, status }) => {
+              const stats = thirdMs.get(player.id) ?? {
+                attack: 0,
+                centre: 0,
+                defence: 0,
+              };
+              const totalMs = stats.attack + stats.centre + stats.defence;
+              return (
+                <li key={player.id}>
+                  <PlayerTile
+                    player={player}
+                    positionId={null}
+                    isSelected={false}
+                    isInjured={status === "injured"}
+                    isLoaned={status === "loaned"}
+                    isSidelined
+                    movedFromLabel={null}
+                    stays={false}
+                    stats={stats}
+                    totalMs={totalMs}
+                    goalCount={playerGoals[player.id] ?? 0}
+                    onTap={() => {}}
+                    onLongPress={() => handleSidelinedLongPress(player.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {error && (
         <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
           {error}
@@ -604,6 +722,32 @@ export function NetballQuarterBreak({
           Start Q{nextQuarter}
         </Button>
       </div>
+
+      {/* Actions modal — opens on long-press of a sidelined tile.
+          Reuses the same NetballPlayerActions the live court uses,
+          but the lock-for-next-break / mark-injured / mark-loaned
+          paths are hidden because the player is already sidelined
+          (only un-injure / un-loan and Cancel show). */}
+      {actionsTarget && (() => {
+        const player = squad.find((p) => p.id === actionsTarget);
+        if (!player) return null;
+        return (
+          <NetballPlayerActions
+            player={player}
+            positionId={null}
+            isInjured={injuredIds.has(actionsTarget)}
+            isLoaned={loanedIds.has(actionsTarget)}
+            isLockedForNextBreak={false}
+            onMarkInjured={() => setActionsTarget(null)}
+            onUnInjury={handleUnInjury}
+            onMarkLoaned={() => setActionsTarget(null)}
+            onUnLoan={handleUnLoan}
+            onLockForNextBreak={() => setActionsTarget(null)}
+            onUnlock={() => setActionsTarget(null)}
+            onClose={() => setActionsTarget(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -650,6 +794,9 @@ function EmptySlotTile({
 // Mirrors the AFL QuarterBreak tile at LiveGame.tsx:364 — flat row,
 // position chip on the left, name + movement underneath, time bar
 // floating to the right. Tapping fires the parent's handleTap.
+// onLongPress fires after a 500ms hold — used by the sidelined
+// strip so the coach can mark a player recovered from the Q-break
+// view without bouncing back to the live court.
 function PlayerTile({
   player,
   positionId,
@@ -663,6 +810,7 @@ function PlayerTile({
   totalMs,
   goalCount,
   onTap,
+  onLongPress,
 }: {
   player: Player;
   positionId: string | null;
@@ -676,7 +824,35 @@ function PlayerTile({
   totalMs: number;
   goalCount: number;
   onTap: () => void;
+  onLongPress?: () => void;
 }) {
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPressRef = useRef(false);
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!onLongPress) return;
+    didLongPressRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      longPressTimerRef.current = null;
+      onLongPress();
+    }, 500);
+  }
+  function cancelLongPress() {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+  function handleClick() {
+    // Suppress the click if a long-press just fired (prevents the
+    // tap-to-swap path from firing alongside the actions modal).
+    if (didLongPressRef.current) {
+      didLongPressRef.current = false;
+      return;
+    }
+    onTap();
+  }
   const positionShort = positionId
     ? netballSport.allPositions.find((pp) => pp.id === positionId)?.shortLabel ??
       positionId.toUpperCase()
@@ -686,14 +862,22 @@ function PlayerTile({
   return (
     <button
       type="button"
-      onClick={onTap}
-      disabled={isSidelined}
-      aria-disabled={isSidelined}
+      onClick={handleClick}
+      onPointerDown={onLongPress ? handlePointerDown : undefined}
+      onPointerUp={onLongPress ? cancelLongPress : undefined}
+      onPointerCancel={onLongPress ? cancelLongPress : undefined}
+      onPointerLeave={onLongPress ? cancelLongPress : undefined}
+      // Sidelined tiles stay tappable when onLongPress is wired so
+      // the coach can long-press to mark recovered. Without
+      // onLongPress they remain disabled (the tap-to-swap path is
+      // a no-op for sidelined players anyway).
+      disabled={isSidelined && !onLongPress}
+      aria-disabled={isSidelined && !onLongPress}
       className={`relative flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
         isSelected
           ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
           : isSidelined
-          ? "cursor-not-allowed border-hairline bg-surface-alt opacity-60"
+          ? `${onLongPress ? "" : "cursor-not-allowed "}border-hairline bg-surface-alt opacity-60`
           : "border-hairline bg-surface hover:bg-surface-alt"
       }`}
     >
