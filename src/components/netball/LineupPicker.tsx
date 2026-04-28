@@ -11,6 +11,7 @@
 // (NetballQuarterBreak is the equivalent for in-game breaks —
 // this component is only used for the very first lineup.)
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
@@ -61,6 +62,15 @@ interface LineupPickerProps {
   ) => void | Promise<void>;
   confirmLabel?: string;
   disabled?: boolean;
+  /**
+   * Optional href for a "Back to availability" breadcrumb above the
+   * picker. Mirrors AFL's LineupPicker affordance — lets the coach
+   * pop back to the game-detail page (with the AvailabilityList +
+   * fill-in form) without losing context. Omit to hide the link
+   * (e.g. Q-break flow where we're not in a "I picked the wrong
+   * starting roster" recovery scenario).
+   */
+  backHref?: string;
 }
 
 export function NetballLineupPicker({
@@ -74,6 +84,7 @@ export function NetballLineupPicker({
   onConfirm,
   confirmLabel = "Confirm lineup",
   disabled,
+  backHref,
 }: LineupPickerProps) {
   // Initial lineup state. When the parent passes one (e.g. a Q-break
   // seed lineup, or a previously-saved draft), we use that. Otherwise
@@ -295,15 +306,40 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Auto-suggested callout — same wording as AFL's pre-game
-          LineupPicker (src/components/live/LineupPicker.tsx:207),
-          with "zones" swapped for "positions" since netball uses
-          named positions (GS / GA / WA / etc.) rather than spatial
-          zones. */}
+      {/* "Back to availability" breadcrumb — mirrors AFL's
+          LineupPicker affordance at src/components/live/LineupPicker.tsx
+          lines 190-206. Lets the coach pop back to the game-detail
+          page (where the AvailabilityList + fill-in form live)
+          without losing the lineup-picker context. Hidden when
+          backHref isn't provided (Q-break flow, etc.). */}
+      {backHref && (
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M15 18l-6-6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back to availability
+        </Link>
+      )}
+      {/* Auto-suggested callout. Copy explains WHY the suggestion
+          looks the way it does (season-rarity for who gets first
+          pick) AND how to interact (tap-to-swap + tap-empty-slot to
+          place). Mirrors AFL's pattern but uses netball language. */}
       <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
         <p className="font-semibold">Auto-suggested starting lineup</p>
         <p className="mt-0.5 text-xs">
-          Tap any two players to swap them between positions or bench.
+          Players who&apos;ve had less zone time across the season get
+          priority — fairer rotations, fewer kids stuck on the bench.
+          Tap any two players to swap them; tap a player and then an
+          empty slot to move them.
         </p>
       </div>
 

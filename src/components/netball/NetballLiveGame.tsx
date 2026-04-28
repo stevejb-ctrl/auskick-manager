@@ -770,6 +770,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           defaultQuarterSeconds={quarterLengthSeconds}
+          // "Back to availability" breadcrumb — only meaningful for
+          // the team-auth path (game detail page exists). Token-auth
+          // (share runner) doesn't have a netball flow yet, so the
+          // link is hidden in that case.
+          backHref={
+            auth.kind === "team"
+              ? `/teams/${auth.teamId}/games/${game.id}`
+              : undefined
+          }
           onConfirm={async (lineup, quarterOverrideSeconds) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
