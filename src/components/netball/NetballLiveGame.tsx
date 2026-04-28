@@ -63,6 +63,15 @@ interface NetballLiveGameProps {
   initialLineup: GenericLineup | null;
   currentQuarter: number;
   quarterElapsedMs: number;
+  /**
+   * ISO timestamp of the most recent `quarter_start` event, or null
+   * when no quarter is in progress (pre-game, between quarters, or
+   * finalised). Used to anchor the live clock to wall-clock time so
+   * Chrome's background-tab interval throttling can't slow the clock
+   * down — see the useClockTick / clockMs derivation below for the
+   * full story.
+   */
+  quarterStartedAt: string | null;
   teamScore: { goals: number };
   opponentScore: { goals: number };
   /** Per-player goals scored this game (from replayNetballGame.playerGoals). */
@@ -85,6 +94,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     initialLineup,
     currentQuarter,
     quarterElapsedMs: _quarterElapsedMs,
+    quarterStartedAt,
     teamScore,
     opponentScore,
     playerGoals,
@@ -95,33 +105,38 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   } = props;
 
   const [isPending, startTransition] = useTransition();
-  // Bundle the live clock with the quarter it belongs to so the two
-  // can NEVER drift apart. Render-time sync below resets the bundle
-  // synchronously when the quarter prop changes, so `clockMs` is
-  // ALWAYS valid for the current quarter on every render — the
-  // useEffect-based reset we used previously left a brief window
-  // where `clockMs` held the previous quarter's final value, which
-  // tripped the auto-end-at-hooter check and bypassed the new
-  // quarter entirely.
-  const [clockState, setClockState] = useState(() => ({
-    quarter: currentQuarter,
-    ms: _quarterElapsedMs,
-  }));
-  if (clockState.quarter !== currentQuarter) {
-    setClockState({ quarter: currentQuarter, ms: _quarterElapsedMs });
-  }
-  const clockMs =
-    clockState.quarter === currentQuarter ? clockState.ms : _quarterElapsedMs;
-  const setClockMs = useCallback(
-    (updater: (prev: number) => number) => {
-      setClockState((prev) =>
-        prev.quarter === currentQuarter
-          ? { quarter: prev.quarter, ms: updater(prev.ms) }
-          : prev,
-      );
-    },
-    [currentQuarter],
-  );
+
+  // ─── Live clock — wall-clock anchored ────────────────────────
+  // We DERIVE clockMs on every render from `Date.now() -
+  // quarterStartedAtMs`. The 500ms ticker below merely forces a re-
+  // render — it does NOT increment a counter. Why this matters:
+  // Chrome aggressively throttles `setInterval` in background tabs
+  // (down to once per minute in deep background), which silently
+  // slowed the old "+= 500ms each tick" implementation to a crawl
+  // whenever the coach moved off the live page. Anchoring to wall-
+  // clock means the next render after the tab returns instantly
+  // catches up — the elapsed time is whatever the wall clock says it
+  // is, regardless of how long we were throttled.
+  //
+  // Quarter-end / finalised / pre-game: fall back to the snapshot
+  // `_quarterElapsedMs` from the parent (which represents the frozen
+  // recorded value) so a closed quarter can't keep ticking.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
+      return;
+    }
+    if (typeof window === "undefined") return;
+    const id = window.setInterval(() => setClockTick((t) => t + 1), 500);
+    return () => window.clearInterval(id);
+  }, [currentQuarter, quarterEnded, finalised, quarterStartedAt]);
+  const clockMs = (() => {
+    if (currentQuarter < 1) return 0;
+    if (quarterEnded || finalised || !quarterStartedAt) return _quarterElapsedMs;
+    const startedAtMs = Date.parse(quarterStartedAt);
+    if (Number.isNaN(startedAtMs)) return _quarterElapsedMs;
+    return Math.max(0, Date.now() - startedAtMs);
+  })();
 
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
@@ -271,9 +286,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       setUndoToastVisible(false);
     }
   }, [quarterEnded, finalised]);
-
-  // Client-side tick during live play.
-  useClock(!quarterEnded && !finalised && currentQuarter > 0, setClockMs);
 
   const squadById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
 
@@ -1217,20 +1229,6 @@ function CourtDisplay({
       defenceThird={renderThird(byThird("defence-third"))}
     />
   );
-}
-
-// ─── Tick clock ──────────────────────────────────────────────
-// Ticks every 500ms while running so the UI clock drifts within
-// half a second of the real quarter clock. Events carry elapsed_ms
-// too so the state is always reconstructable from events alone.
-function useClock(running: boolean, setMs: (f: (prev: number) => number) => void): void {
-  useEffect(() => {
-    if (!running || typeof window === "undefined") return;
-    const id = window.setInterval(() => {
-      setMs((prev) => prev + 500);
-    }, 500);
-    return () => window.clearInterval(id);
-  }, [running, setMs]);
 }
 
 function formatClock(ms: number): string {
