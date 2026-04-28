@@ -19,6 +19,7 @@ import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
+import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -814,6 +815,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           entries={offCourt}
           playerStats={playerStats}
           playerGoals={playerGoals}
+        />
+        {/* Full-time summary card — mirrors AFL's GameSummaryCard
+            position (below the live court + bench at FT). Renders a
+            copyable result + per-player time-on-court breakdown so
+            the coach can paste it straight into the team chat. */}
+        <NetballGameSummaryCard
+          teamName={teamName}
+          opponentName={game.opponent}
+          teamScore={teamScore}
+          opponentScore={opponentScore}
+          playerGoals={playerGoals}
+          playerStats={playerStats}
+          squad={squad}
         />
       </div>
     );
