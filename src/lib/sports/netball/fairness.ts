@@ -289,6 +289,19 @@ export interface NetballSuggestInput {
    * playing together break after break.
    */
   previousTeammates?: Record<string, Set<string>>;
+  /**
+   * Total minutes (in ms) each player has been on court so far this
+   * game, summed across all thirds. When provided, this drives the
+   * who-plays-vs-who-benches sort directly — least minutes first.
+   *
+   * Counts (`thisGame`) only see lineup_set / period_break_swap
+   * positions, so a player who got mid-quarter-subbed off after one
+   * minute counts identically to a teammate who played the whole
+   * quarter at the same position. Time-played catches that
+   * difference. When absent, the sort falls back to summing the
+   * `thisGame` position counts (legacy behaviour).
+   */
+  thisGameTotalMs?: Record<string, number>;
 }
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
@@ -302,6 +315,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     thirdOf,
     lastQuarterThird,
     previousTeammates,
+    thisGameTotalMs,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
@@ -411,31 +425,38 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     );
   };
 
-  // Sort key: quarters played THIS GAME, ascending. The placement
+  // Sort key: minutes played THIS GAME, ascending. The placement
   // loop is greedy — the first `positions.length` players in sort
   // order fill the court, everyone after lands on the bench — so
   // this is the WHO-PLAYS decision, not WHICH-POSITION. Steve's rule:
   //
-  //   "The in-game algorithm takes priority over the season
-  //    algorithm. If someone has missed games they should NOT play
-  //    full games and have other players benched. Season counts
-  //    only optimise positions."
+  //   "Maximise game time. If a player only played 1 minute of a
+  //    quarter (mid-quarter sub off, late arrival), they MUST get
+  //    court priority over a teammate who's played the whole game."
   //
-  // So season totals deliberately don't appear here — a player
-  // who's missed half the season won't crowd today's bench-Q1
-  // teammate out of their court turn. Position-level season
-  // fairness lives entirely in tier 5 of `owed()` below, where it
-  // tiebreaks WHICH position to give a player — never whether
-  // they get a slot at all.
+  // We prefer ms-played (`thisGameTotalMs`) over lineup-counts
+  // because counts treat a 1-min stint and an 8-min stint as
+  // identical — Steve hit exactly that bug at Q4: Nicola P had
+  // played 1 min total and was still benched while teammates with
+  // 6+ min were getting court time. When ms isn't provided
+  // (older call sites, simple unit tests, pre-game where everyone's
+  // at zero), fall back to summing `thisGame` counts so the sort
+  // still reflects "fewer prior placements first".
   //
-  // Ties (everyone with the same this-game count, e.g. Q1 where
-  // every count is 0) fall back to the seeded shuffle below — a
-  // stable, deterministic ordering keyed by `seed + 41`.
-  const thisGameTotal = (pid: string): number =>
-    Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
+  // Season totals deliberately DON'T appear here — a player who's
+  // missed games won't crowd today's bench-Q1 teammate out of
+  // their court turn. Position-level season fairness lives in
+  // tier 5 of `owed()`.
+  //
+  // Ties fall back to the seeded shuffle (deterministic, keyed by
+  // `seed + 41`).
+  const sortKey = (pid: string): number => {
+    if (thisGameTotalMs) return thisGameTotalMs[pid] ?? 0;
+    return Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
+  };
 
   const shuffled = seededShuffle(playerIds, seed + 41);
-  shuffled.sort((a, b) => thisGameTotal(a) - thisGameTotal(b));
+  shuffled.sort((a, b) => sortKey(a) - sortKey(b));
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);

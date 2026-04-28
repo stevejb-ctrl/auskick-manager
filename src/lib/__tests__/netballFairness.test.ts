@@ -187,6 +187,46 @@ describe("suggestNetballLineup", () => {
     expect(onCourt.has("p9")).toBe(true);
   });
 
+  it("regression: a player who only logged 1 minute gets court priority over teammates with full quarters", () => {
+    // Steve hit this at Q4: Nicola P had played 1 min total (late
+    // arrival, then mid-quarter sub off) and was still benched while
+    // teammates with 6+ min were getting court time. Counts treat a
+    // 1-min stint and an 8-min stint as identical because both look
+    // like one position appearance — using ms-played fixes it.
+    //
+    // Setup: 8-player squad, 7 court slots. Everyone has the same
+    // count-based history (one position appearance) but very
+    // different actual minutes on court.
+    const lineup = suggestNetballLineup({
+      playerIds: ["nicola", "p2", "p3", "p4", "p5", "p6", "p7", "p8"],
+      positions: ["gs", "ga", "wa", "c", "wd", "gd", "gk"],
+      season: {},
+      // Identical count-based "thisGame": each player has exactly
+      // one position appearance on record — the count-based sort
+      // would treat them as equivalent and let the shuffle decide
+      // bench picks.
+      thisGame: {
+        nicola: { c: 1 },
+        p2: { ga: 1 }, p3: { wa: 1 }, p4: { gs: 1 },
+        p5: { wd: 1 }, p6: { gd: 1 }, p7: { gk: 1 }, p8: { c: 1 },
+      },
+      // ms-played tells the truer story: Nicola was only on court
+      // for 60 seconds, the others all played a full 8-min quarter
+      // each (480,000 ms).
+      thisGameTotalMs: {
+        nicola: 60_000,
+        p2: 480_000, p3: 480_000, p4: 480_000,
+        p5: 480_000, p6: 480_000, p7: 480_000, p8: 480_000,
+      },
+      isAllowed: alwaysAllowed,
+      seed: 4,
+    });
+    const onCourt = new Set<string>(Object.values(lineup.positions).flat());
+    // Nicola's 1-minute deficit must put her on court — even though
+    // her count-based total matches everyone else's.
+    expect(onCourt.has("nicola")).toBe(true);
+  });
+
   it("season totals do NOT affect who-plays — only positions", () => {
     // Steve's rule: a player who's missed games shouldn't get extra
     // game time today at the expense of teammates. Two players have

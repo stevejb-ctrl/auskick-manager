@@ -185,6 +185,20 @@ export function NetballQuarterBreak({
     return out;
   }, [availableIds, previousLineup, sidelinedSet]);
 
+  // Per-player time on court (ms), summed across thirds. Computed
+  // here (above suggestedLineup) so the suggester can use it as the
+  // who-plays sort key. Defined ONCE here and reused by the time-bar
+  // rendering below.
+  const thirdMs = useMemo(() => {
+    if (playerStats) return playerStats;
+    return playerThirdMs(
+      thisGameEvents,
+      null,
+      periodSeconds,
+      primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
+    );
+  }, [playerStats, thisGameEvents, periodSeconds]);
+
   const suggestedLineup = useMemo(() => {
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
@@ -196,6 +210,18 @@ export function NetballQuarterBreak({
       thisGameEvents,
       thirdLookup,
     );
+    // Per-player total minutes (in ms). Drives the suggester's
+    // who-plays sort directly — least-time-played first. Sourced
+    // from the parent's playerStats (already computed for the live
+    // bars) which factors in mid-quarter subs via the segment
+    // accounting, so a player who came on at 0:30 of Q1 and got
+    // subbed off at 1:00 has 30,000 ms credited, NOT a full
+    // quarter-equivalent. Falls back to a self-computed thirdMs
+    // when playerStats isn't passed (defensive — shouldn't happen).
+    const totalMsByPlayer: Record<string, number> = {};
+    thirdMs.forEach((stats, pid) => {
+      totalMsByPlayer[pid] = stats.attack + stats.centre + stats.defence;
+    });
     const base = suggestNetballLineup({
       playerIds: candidatePool,
       positions,
@@ -206,6 +232,7 @@ export function NetballQuarterBreak({
       thirdOf: thirdLookup,
       lastQuarterThird: lastThirds,
       previousTeammates: prevTeammates,
+      thisGameTotalMs: totalMsByPlayer,
     });
     // Pre-apply locks: locked player goes to locked position. If the
     // locked player was already placed elsewhere by the suggester, we
@@ -259,6 +286,7 @@ export function NetballQuarterBreak({
     thisGameEvents,
     nextQuarter,
     preAppliedLocks,
+    thirdMs,
   ]);
 
   // ─── Draft state + reshuffle toggle ─────────────────────────
@@ -334,22 +362,6 @@ export function NetballQuarterBreak({
     setDraft(next);
     setSelected(null);
   }, [useReshuffle, suggestedLineup, previousLineup, forcedBenchIds]);
-
-  // ─── Time bars (per-third minutes, color-coded) ────────────
-  // Source from the parent's playerStats prop (which factors in the
-  // segment-based mid-quarter sub accounting). Falls back to a local
-  // event-only computation if the parent hasn't provided stats —
-  // shouldn't happen in normal flow but keeps the component self-
-  // sufficient.
-  const thirdMs = useMemo(() => {
-    if (playerStats) return playerStats;
-    return playerThirdMs(
-      thisGameEvents,
-      null,
-      periodSeconds,
-      primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
-    );
-  }, [playerStats, thisGameEvents, periodSeconds]);
 
   // ─── Fairness score (combined season + this-game position counts) ──
   const fairness = useMemo(() => {
