@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
@@ -151,19 +152,13 @@ export async function addFillIn(
     .single();
   if (error) return { success: false, error: error.message };
 
-  // Fill-ins are implicitly available for the day — mark availability so the
-  // live picker sees them in the same filter the squad players use.
-  const availDb = check.kind === "token" ? createAdminClient() : createClient();
-  await availDb.from("game_availability").upsert(
-    {
-      game_id: gameId,
-      player_id: data.id,
-      status: "available" as AvailabilityStatus,
-      updated_by: check.kind === "team" ? check.userId : null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "game_id,player_id" }
-  );
+  // Fill-ins are implicitly available for the day — they only exist
+  // because someone showed up unannounced. We don't (and can't) mark
+  // game_availability for them: that table's player_id has an FK to
+  // public.players(id) which fill-ins deliberately aren't in. Live
+  // pages merge the fill-in ids into their own availableIds set
+  // directly. (Earlier revisions tried a best-effort upsert here and
+  // silently swallowed the resulting 23503; removed.)
 
   if (check.kind === "token") {
     revalidatePath(`/run/${auth.kind === "token" ? auth.token : ""}`, "layout");
@@ -266,7 +261,17 @@ export async function resetGame(
   if (game?.share_token) {
     revalidatePath(`/run/${game.share_token}`, "layout");
   }
-  return { success: true };
+
+  // Redirect back to the pre-kick-off screen so the coach can re-set
+  // availability and add fill-ins before starting again. Without this
+  // the live page just rerenders into the lineup picker, skipping the
+  // availability + fill-in management surface entirely. Token bearers
+  // go to /run/[token] (their equivalent of the team game-detail
+  // page); team admins go to the game detail page.
+  if (auth.kind === "token") {
+    redirect(`/run/${auth.token}`);
+  }
+  redirect(`/teams/${teamId}/games/${gameId}`);
 }
 
 export async function deleteGame(

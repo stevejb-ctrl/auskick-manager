@@ -203,7 +203,14 @@ export default async function LivePage({ params }: LivePageProps) {
     ...((players ?? []) as Player[]),
     ...fillInsForPicker,
   ];
+  // Fill-ins are implicitly available: game_availability.player_id has
+  // an FK to public.players(id) which fill-ins deliberately don't
+  // appear in, so the row addFillIn used to try to upsert there was
+  // silently rejected (23503). Treating fill-ins as "always available"
+  // matches the intent — a coach only adds someone to game_fill_ins
+  // because they showed up on the day.
   const availableIds = new Set((avail ?? []).map((a) => a.player_id));
+  for (const f of fillInsForPicker) availableIds.add(f.id);
   const availablePlayers = allActive.filter((p) => availableIds.has(p.id));
 
   // Season events: all events for this team's prior games.

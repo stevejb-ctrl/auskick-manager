@@ -1,5 +1,16 @@
-// Single-device live-game state. Clock is in-memory only —
-// if the GM reloads mid-quarter, they restart it.
+// Single-device live-game state. Most state is in-memory only
+// (zustand) and lost on reload — that includes injuredIds /
+// loanedIds / lockedIds / pauses. The CLOCK is the exception:
+// LiveGame.tsx seeds the store on mount from
+// `initialState.quarterStartedAt` (the wall-clock timestamp
+// replayGame extracts from the active quarter_start event), so
+// a reload mid-quarter rebuilds accumulatedMs as
+// Date.now() - quarterStartedAt and the clock keeps running from
+// roughly where it was. The only thing the wall-clock approach
+// can't recover is in-quarter pause time — pauses aren't event-
+// persisted, so a reload silently includes paused seconds in
+// accumulatedMs. For a quarter without pauses (the common case)
+// the recovery is exact.
 
 import { create } from "zustand";
 

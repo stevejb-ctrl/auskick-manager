@@ -177,14 +177,27 @@ export async function addLateArrival(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  await w.supabase.from("game_availability").upsert(
-    {
-      game_id: gameId,
-      player_id: input.player_id,
-      status: "available",
-    },
-    { onConflict: "game_id,player_id" }
-  );
+  // updated_by + updated_at MUST be set: the INSERT policy on
+  // game_availability has `with check (... and updated_by = auth.uid())`,
+  // and Postgres evaluates the INSERT policy before falling through to
+  // ON CONFLICT UPDATE — so an upsert that omits updated_by fails the
+  // INSERT WITH CHECK and the whole statement errors, leaving the
+  // existing "unavailable" row untouched. Mirrors setAvailability.
+  // (Token path goes through admin client which bypasses RLS, but it's
+  // still hygienic to set the columns.)
+  const { error: upsertError } = await w.supabase
+    .from("game_availability")
+    .upsert(
+      {
+        game_id: gameId,
+        player_id: input.player_id,
+        status: "available",
+        updated_by: w.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "game_id,player_id" }
+    );
+  if (upsertError) return { success: false, error: upsertError.message };
   return insertEvent(auth, gameId, "player_arrived", {
     player_id: input.player_id,
     metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
