@@ -117,32 +117,49 @@ function cloneLineup(l: Lineup): Lineup {
   return normalizeLineup(l);
 }
 
-export const useLiveGame = create<LiveGameState>((set) => ({
-  activeGameId: null,
+// Every data field of LiveGameState at its blank-slate value. Used by the
+// store's create() initializer AND by `init` so that calling init() always
+// gives us a clean starting point — non-passed fields fall back to these
+// defaults instead of leaking from the previous state. (The previous
+// behaviour merged init's payload into `prev`, which left ephemeral fields
+// like swapCount / lockedIds / lastStintZone holding values from a prior
+// game when a game was reset and re-started.)
+const DEFAULT_LIVE_STATE_DATA = {
+  activeGameId: null as string | null,
   lineup: emptyLineup(),
   currentQuarter: 0,
   quarterEnded: false,
   finalised: false,
-  clockStartedAt: null,
+  clockStartedAt: null as number | null,
   accumulatedMs: 0,
-  selected: null,
+  selected: null as LiveGameState["selected"],
   teamScore: { goals: 0, behinds: 0 },
   opponentScore: { goals: 0, behinds: 0 },
-  playerScores: {},
-  basePlayedZoneMs: {},
-  stintStartMs: {},
-  stintZone: {},
+  playerScores: {} as Record<string, { goals: number; behinds: number }>,
+  basePlayedZoneMs: {} as Record<string, ZoneMs>,
+  stintStartMs: {} as Record<string, number>,
+  stintZone: {} as Record<string, Zone>,
   swapCount: 0,
-  injuredIds: [],
-  loanedIds: [],
-  loanStartMs: {},
-  basePlayedLoanMs: {},
-  lockedIds: [],
-  lastStintMs: {},
-  lastStintZone: {},
-  zoneLockedPlayers: {},
+  injuredIds: [] as string[],
+  loanedIds: [] as string[],
+  loanStartMs: {} as Record<string, number>,
+  basePlayedLoanMs: {} as Record<string, number>,
+  lockedIds: [] as string[],
+  lastStintMs: {} as Record<string, number>,
+  lastStintZone: {} as Record<string, Zone>,
+  zoneLockedPlayers: {} as Record<string, Zone>,
+};
 
-  init: (state) => set((prev) => ({ ...prev, ...state })),
+export const useLiveGame = create<LiveGameState>((set) => ({
+  ...DEFAULT_LIVE_STATE_DATA,
+
+  // init replaces ALL data fields. Caller passes only what they have from
+  // the server-side replay; everything else returns to the blank-slate
+  // defaults. This is what makes "Restart game" actually clear the slate
+  // — without it, fields the caller didn't pass (swapCount, lockedIds,
+  // lastStintMs/Zone, zoneLockedPlayers, selected) leaked across resets.
+  init: (state) =>
+    set((prev) => ({ ...prev, ...DEFAULT_LIVE_STATE_DATA, ...state })),
 
   selectField: (playerId, zone) =>
     set({ selected: { kind: "field", playerId, zone } }),
