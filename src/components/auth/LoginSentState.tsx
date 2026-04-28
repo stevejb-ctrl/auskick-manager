@@ -56,11 +56,11 @@ export function LoginSentState({
           <span style={{ fontSize: 16 }}>S</span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-ink">
-            Siren Footy &lt;hi@siren.team&gt;
+          <div className="truncate text-[13px] font-semibold text-ink">
+            Siren Footy &lt;noreply@sirenfooty.com.au&gt;
           </div>
           <div className="mt-0.5 text-[13px] text-ink-dim">
-            Your sign-in link
+            Your Siren Magic Link
           </div>
           <div className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink-mute">
             Usually arrives in under 30 seconds
