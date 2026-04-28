@@ -123,21 +123,54 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // `_quarterElapsedMs` from the parent (which represents the frozen
   // recorded value) so a closed quarter can't keep ticking.
   const [, setClockTick] = useState(0);
+  // Pause state. `pausedAtMs` is the wall-clock timestamp of the
+  // current pause (null when running). `accumulatedPauseMs` is the
+  // total paused time across all pauses this quarter — subtracted
+  // from `Date.now() - quarterStartedAt` so the clock skips paused
+  // intervals. Both are in-memory only (lost on reload), mirroring
+  // AFL's pause model — the comment on liveGameStore.ts explicitly
+  // notes pauses don't survive reload there either.
+  const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
+  const [accumulatedPauseMs, setAccumulatedPauseMs] = useState(0);
+  // Reset pause state on quarter transition so a fresh quarter
+  // starts unpaused with zero accumulated. Otherwise the
+  // accumulatedPauseMs from Q1 would silently steal time from Q2.
+  useEffect(() => {
+    setPausedAtMs(null);
+    setAccumulatedPauseMs(0);
+  }, [currentQuarter]);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;
     }
+    // Skip the tick when paused — no need to re-render every 500ms
+    // if the displayed clock isn't advancing.
+    if (pausedAtMs !== null) return;
     if (typeof window === "undefined") return;
     const id = window.setInterval(() => setClockTick((t) => t + 1), 500);
     return () => window.clearInterval(id);
-  }, [currentQuarter, quarterEnded, finalised, quarterStartedAt]);
+  }, [currentQuarter, quarterEnded, finalised, quarterStartedAt, pausedAtMs]);
   const clockMs = (() => {
     if (currentQuarter < 1) return 0;
     if (quarterEnded || finalised || !quarterStartedAt) return _quarterElapsedMs;
     const startedAtMs = Date.parse(quarterStartedAt);
     if (Number.isNaN(startedAtMs)) return _quarterElapsedMs;
-    return Math.max(0, Date.now() - startedAtMs);
+    // When paused, freeze at the moment of pause (subtract any
+    // already-accumulated pause time from prior pauses this quarter).
+    const refMs = pausedAtMs ?? Date.now();
+    return Math.max(0, refMs - startedAtMs - accumulatedPauseMs);
   })();
+  const isPaused = pausedAtMs !== null;
+  const handleClockTap = useCallback(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (pausedAtMs !== null) {
+      // Resume: bank the elapsed pause-time and clear the pause anchor.
+      setAccumulatedPauseMs((prev) => prev + (Date.now() - pausedAtMs));
+      setPausedAtMs(null);
+    } else {
+      setPausedAtMs(Date.now());
+    }
+  }, [currentQuarter, quarterEnded, finalised, pausedAtMs]);
 
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
@@ -1001,10 +1034,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         opponentName={game.opponent}
         team={teamScore}
         opponent={opponentScore}
-        quarterLabel={`Q${currentQuarter}`}
+        quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
         clockText={formatClock(remainingMs)}
         isPending={isPending}
         onOpponentGoal={handleOpponentGoal}
+        onClockTap={handleClockTap}
+        paused={isPaused}
       />
 
       {/* Undo last score — toast (8s, dark bg) then persistent chip
@@ -1181,6 +1216,8 @@ function NetballScoreBug({
   clockText,
   onOpponentGoal,
   isPending,
+  onClockTap,
+  paused = false,
 }: {
   teamName: string;
   opponentName: string;
@@ -1192,6 +1229,15 @@ function NetballScoreBug({
   clockText: string;
   onOpponentGoal?: () => void;
   isPending?: boolean;
+  /**
+   * Optional tap handler on the centre clock pill — wired during
+   * live play so the coach can pause/resume by tapping. Mirrors
+   * AFL's GameHeader pattern (src/components/live/GameHeader.tsx:34).
+   * When undefined, the pill renders as a plain div (no affordance).
+   */
+  onClockTap?: () => void;
+  /** Whether the clock is currently paused — drives the visual cue. */
+  paused?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
@@ -1207,23 +1253,51 @@ function NetballScoreBug({
         </p>
       </div>
 
-      {/* Centre: dark clock pill. suppressHydrationWarning on the
-          countdown text because the parent's clockMs state is updated
-          by an interval tick after hydration; React 18 occasionally
-          flags the first post-mount setState as a hydration diff if
-          the tick lands inside the hydration commit. The text itself
-          re-renders fine — we just don't want a noisy warning. */}
-      <div className="self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop">
-        <span className="font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-          {quarterLabel}
-        </span>
-        <span
-          className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
-          suppressHydrationWarning
-        >
-          {clockText}
-        </span>
-      </div>
+      {/* Centre: dark clock pill. Tappable when onClockTap is wired
+          (live play only) so the coach can pause/resume. When
+          paused, the pill picks up a brand-tinted ring + a small
+          ▶ glyph in the top corner so the state's unmistakable.
+          suppressHydrationWarning on the countdown text because the
+          parent's clockMs state is updated by an interval tick after
+          hydration; React 18 occasionally flags the first post-mount
+          setState as a hydration diff if the tick lands inside the
+          hydration commit. */}
+      {(() => {
+        const inner = (
+          <>
+            <span className="font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+              {quarterLabel}
+            </span>
+            <span
+              className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
+              suppressHydrationWarning
+            >
+              {clockText}
+            </span>
+          </>
+        );
+        const baseClass =
+          "relative self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop";
+        if (!onClockTap) return <div className={baseClass}>{inner}</div>;
+        return (
+          <button
+            type="button"
+            onClick={onClockTap}
+            aria-label={paused ? "Resume clock" : "Pause clock"}
+            className={`${baseClass} transition-shadow hover:bg-ink/90 ${
+              paused ? "ring-2 ring-brand-500" : ""
+            }`}
+          >
+            {/* ▶ glyph top-left when paused — tap to resume. */}
+            {paused && (
+              <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
+                ▶
+              </span>
+            )}
+            {inner}
+          </button>
+        );
+      })()}
 
       {/* Right: opponent — mirror layout */}
       <div className="min-w-0 text-right">
