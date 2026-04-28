@@ -135,15 +135,22 @@ export default async function LivePage({ params }: LivePageProps) {
     // Match-day fill-ins are stored separately in game_fill_ins, but
     // need to look like regular Players to the live UI (same id shape,
     // appear in availableIds, render in NetballLineupPicker, etc.).
-    // addFillIn also writes a game_availability row so the fill-in's
-    // id ends up in `availableIds`; without projecting them into the
-    // squad here, the picker would reference IDs it has no data for
-    // and the fill-in would silently vanish.
+    // We can't piggy-back on game_availability for them — that table's
+    // player_id has a FK to public.players(id), which fill-ins
+    // deliberately don't appear in (the FK rejects the upsert with
+    // 23503 and addFillIn's silent best-effort write is doomed). So
+    // fill-ins are treated as IMPLICITLY AVAILABLE here: they're added
+    // to the squad AND their ids are merged into availableIds. Coach
+    // already had the agency to "would not show up if unavailable"
+    // by simply not adding them to game_fill_ins in the first place.
     const fillInsForLive = ((fillInRows ?? []) as FillIn[]).map((f) =>
       fillInToPlayer(f, params.teamId),
     );
     const squad = [...((players ?? []) as Player[]), ...fillInsForLive];
-    const availableIds = (avail ?? []).map((a) => a.player_id);
+    const availableIds = [
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillInsForLive.map((f) => f.id),
+    ];
 
     const otherGameIds = (teamGames ?? [])
       .map((t) => t.id)
@@ -311,7 +318,14 @@ export default async function LivePage({ params }: LivePageProps) {
     ...((players ?? []) as Player[]),
     ...fillInsForPicker,
   ];
+  // Fill-ins are implicitly available: game_availability.player_id has
+  // an FK to public.players(id) which fill-ins deliberately don't
+  // appear in, so the row addFillIn tries to upsert there is silently
+  // rejected (23503). Treating fill-ins as "always available" matches
+  // the intent — a coach only adds someone to game_fill_ins because
+  // they showed up on the day.
   const availableIds = new Set((avail ?? []).map((a) => a.player_id));
+  for (const f of fillInsForPicker) availableIds.add(f.id);
   const availablePlayers = allActive.filter((p) => availableIds.has(p.id));
 
   // Season events: all events for this team's prior games.
