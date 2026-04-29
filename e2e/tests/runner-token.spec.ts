@@ -22,7 +22,7 @@ test("unauthed /run/[token] loads the live game UI", async ({ browser }) => {
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
-  await makePlayers(admin, { teamId: team.id, ownerId, count: 16 });
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // New context WITHOUT storageState — simulates a bench parent or
@@ -55,7 +55,7 @@ test("one game's share_token does not grant access to a different game", async (
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
-  await makePlayers(admin, { teamId: team.id, ownerId, count: 16 });
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   // Use distinctive multi-character opponent names so getByText can't
   // match a stray "A" or "B" elsewhere on the page (button labels,
   // nav, etc.).

@@ -27,7 +27,7 @@ test("swap a bench player onto the field produces a swap event", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
