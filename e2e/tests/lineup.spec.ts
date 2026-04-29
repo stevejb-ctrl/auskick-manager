@@ -28,14 +28,28 @@ test("pre-kickoff lineup renders a full field of players", async ({
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
+  // The /live page short-circuits to "No players marked available" when
+  // there are no `status='available'` rows in `game_availability` for
+  // this game — see the live page's `availablePlayers.length === 0`
+  // branch. Seed availability explicitly so the LineupPicker renders
+  // instead of the empty-state hint.
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Wait for the LineupPicker to actually render before asserting on
-  // its contents — `count()` is a synchronous read, so it returns
-  // 0 if the page hasn't hydrated yet, even though the elements
-  // would arrive a moment later. `toHaveCount` auto-waits.
+  // its contents. The pre-kickoff CTA in LineupPicker.tsx is "Start
+  // game" — the "Start Q1" button only appears AFTER the lineup is
+  // committed, inside LiveGame.tsx.
   await expect(
-    page.getByRole("button", { name: /start q1/i }),
+    page.getByRole("button", { name: /^start game$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // PlayerTile renders single-word names verbatim (the factory uses
