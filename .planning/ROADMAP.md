@@ -13,7 +13,7 @@ Two long-lived branches — `main` (60 production commits since fork) and `multi
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
-- [ ] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI
+- [ ] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI (1/3 plans complete)
 - [ ] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved
 - [ ] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly
 - [ ] **Phase 5: Test + type green** - Achieve full CI green: Vitest, Playwright e2e, TypeScript, lint, and seed team intact
@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 **Wave 1** *(parallel)*:
-- [ ] 02-01-PLAN.md — Re-verify sha256 equality of main:0024_super_admin.sql vs multi-sport:0025_super_admin.sql; write 02-SCHEMA-PLAN.md §§1-4 (file ops for Phase 3, SCHEMA-02 backfill audit, SCHEMA-04 destructive-ops audit)
+- [x] 02-01-PLAN.md — Re-verify sha256 equality of main:0024_super_admin.sql vs multi-sport:0025_super_admin.sql; write 02-SCHEMA-PLAN.md §§1-4 (file ops for Phase 3, SCHEMA-02 backfill audit, SCHEMA-04 destructive-ops audit) ✓ 2026-04-29
 - [ ] 02-02-PLAN.md — Add missing `e2e` + `db:*` scripts to package.json; extend e2e/fixtures/factories.ts makeTeam with optional sport parameter and widen ageGroup to string
 
 **Wave 2** *(blocked on Wave 1 completion)*:
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
-| 2. Schema reconciliation | 0/3 | Ready to execute | - |
+| 2. Schema reconciliation | 1/3 | In progress | - |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
 | 5. Test + type green | 0/TBD | Not started | - |
