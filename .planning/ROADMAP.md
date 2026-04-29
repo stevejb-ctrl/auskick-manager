@@ -30,7 +30,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Git tags `pre-merge/main` and `pre-merge/multi-sport` exist on the remote and are immutable — the merge can be re-run from a known good baseline if validation fails
   2. A written conflict-surface inventory (MERGE-NOTES.md or equivalent) names every file category expected to conflict: migration numbers, shared components touched by both branches, changed server actions, modified types
   3. The rationale for each non-trivial resolution decision (e.g. which branch's migration ordering wins, how abstraction conflicts are resolved) is captured in a form reviewable post-hoc
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 01-01-PLAN.md — Build divergence inventory (MERGE-NOTES.md, 9 sections) and create + push pre-merge/main and pre-merge/multi-sport annotated tags
 
 ### Phase 2: Schema reconciliation
 **Goal**: The database migration set is monotonic, unique, and safe to apply against existing AFL production data — the new `teams.sport`, `teams.track_scoring`, `teams.quarter_length_seconds`, and `games.quarter_length_seconds` columns land cleanly
@@ -112,7 +113,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Divergence inventory & merge plan | 0/TBD | Not started | - |
+| 1. Divergence inventory & merge plan | 0/1 | Not started | - |
 | 2. Schema reconciliation | 0/TBD | Not started | - |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
