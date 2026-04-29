@@ -13,16 +13,7 @@ import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e archaeology 2026-04-29): the click on "Select team for Q2"
-// fires correctly (UI transitions to QuarterBreak, "Start Q2" appears),
-// but the post-click DB query for the `quarter_end` event returns no
-// rows. handleEndQuarter calls endCurrentQuarter() (store action) AND
-// startTransition → endQuarterAction (server action). The store update
-// is what flips the UI to QuarterBreak; the server insert hasn't
-// committed by the time the test queries. Needs a waitForTimeout or
-// `expect.poll` on the DB before this can re-enter the suite. Re-
-// quarantined to keep main green.
-test.fixme("end Q1 transitions to quarter break and renders rotation suggestion", async ({
+test("end Q1 transitions to quarter break and renders rotation suggestion", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -93,16 +84,26 @@ test.fixme("end Q1 transitions to quarter break and renders rotation suggestion"
     timeout: 5_000,
   });
 
-  const { data: events } = await admin
-    .from("game_events")
-    .select("type, metadata")
-    .eq("game_id", game.id)
-    .in("type", ["quarter_end", "quarter_start"]);
-  expect(
-    events?.some(
-      (e) =>
-        e.type === "quarter_end" &&
-        (e.metadata as { quarter?: number } | null)?.quarter === 1,
-    ),
-  ).toBe(true);
+  // handleEndQuarter() flips the store synchronously (so the UI
+  // transitions to QuarterBreak immediately, which is why "Start Q2"
+  // shows up before the server action commits) and then fires
+  // endQuarterAction in startTransition. Poll the DB until the
+  // quarter_end event lands rather than hard-coding a sleep — the
+  // transition usually completes in <500ms but CI runners can be
+  // slower under load.
+  await expect
+    .poll(
+      async () => {
+        const { data: events } = await admin
+          .from("game_events")
+          .select("type, metadata")
+          .eq("game_id", game.id)
+          .eq("type", "quarter_end");
+        return (events ?? []).some(
+          (e) => (e.metadata as { quarter?: number } | null)?.quarter === 1,
+        );
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe(true);
 });

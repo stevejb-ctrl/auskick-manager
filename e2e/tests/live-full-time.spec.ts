@@ -16,13 +16,7 @@ import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e archaeology 2026-04-29): same root cause as live-quarters
-// — "End game" click fires, but the post-click query sees status=
-// "in_progress" not "completed" because the server action is still
-// in flight. Needs an explicit wait or expect.poll on the games row
-// before this can re-enter the suite. Re-quarantined to keep main
-// green.
-test.fixme("ending Q4 completes the game and renders the summary card", async ({
+test("ending Q4 completes the game and renders the summary card", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -104,12 +98,24 @@ test.fixme("ending Q4 completes the game and renders the summary card", async ({
     page.getByText(/full time|final score|game summary/i).first()
   ).toBeVisible({ timeout: 10_000 });
 
-  const { data: updated } = await admin
-    .from("games")
-    .select("status")
-    .eq("id", game.id)
-    .single();
-  expect(updated?.status).toBe("completed");
+  // handleEndQuarter for Q4 flips the store synchronously (which is
+  // why the summary card already renders) but the server action that
+  // writes game_finalised + flips status="completed" runs in
+  // startTransition. Poll until the DB catches up rather than
+  // hard-coding a sleep.
+  await expect
+    .poll(
+      async () => {
+        const { data: updated } = await admin
+          .from("games")
+          .select("status")
+          .eq("id", game.id)
+          .single();
+        return updated?.status;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe("completed");
 
   const { data: finalised } = await admin
     .from("game_events")
