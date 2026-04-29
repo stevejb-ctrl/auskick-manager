@@ -29,7 +29,55 @@
 
 ## §3 D-25 AgeGroup consumer patches
 
-TBD — populated by Plan 03-02 (post-merge `tsc --noEmit` discovery + uniform `getSportConfig(team.sport).ageGroups.find(...)` patches).
+**Outcome:** Zero patches required. RESEARCH §3 prediction confirmed — Plan 03-01's conflict resolutions already covered all three pre-verified D-25 consumers, and the post-merge `tsc --noEmit` scan surfaced no remaining `Type 'string' is not assignable to type 'AgeGroup'` errors.
+
+### Discovery evidence (Plan 03-02 Task 1)
+
+```bash
+$ ( cd $MERGE_WT && npx tsc --noEmit 2>&1 | tee /tmp/03-02-tsc.log )
+[exit 0 — log empty]
+
+$ grep -n "Type 'string' is not assignable to type 'AgeGroup'" /tmp/03-02-tsc.log
+[no matches]
+
+$ grep -n "'AgeGroup'" /tmp/03-02-tsc.log
+[no matches]
+
+$ grep -rnE 'as AgeGroup\b|: AgeGroup\b' src/ --include='*.ts' --include='*.tsx' \
+    | grep -v -E 'src/lib/types\.ts|src/lib/ageGroups\.ts|src/lib/sports/'
+[no matches]
+```
+
+### Patched files
+
+| File | Line | Before | After |
+|------|------|--------|-------|
+| (none) | — | — | — |
+
+### Safe-within-dispatch (kept unchanged — RESEARCH §3 Consumer 3)
+
+- `src/app/(app)/teams/[teamId]/games/[gameId]/live/page.tsx` lines 222 / 227 / 232 — `ageGroupOf(teamRow?.age_group)` + `AGE_GROUPS[ageGroup].positionModel` + `AGE_GROUPS[ageGroup]` live INSIDE the AFL branch (the `// ─── AFL branch (existing behaviour) ───` block at line 220, after the `if (sport === "netball") { … return … }` early-return dispatch). The narrow `ageGroupOf()` cast is correct here because the surrounding branch is AFL-only and `ageGroupOf` falls back to `"U10"` on miss. Per RESEARCH §3 Consumer 3 + §4 ("AFL fallback is intentional within sport-dispatch"), this remains untouched.
+
+### Resolution map (RESEARCH §3 Consumers vs trunk state)
+
+| Consumer | RESEARCH §3 prediction | Trunk state at HEAD `2906080` | D-25 patch needed? |
+|----------|------------------------|--------------------------------|---------------------|
+| `src/components/squad/PlayerList.tsx` line 29-30 | Resolved by Plan 03-01 conflict resolution (multi-sport's `getAgeGroupConfig()` taken) | `getAgeGroupConfig(sport, team.age_group)` present; no `AGE_GROUPS[ageGroup]` cast | NO — already D-25-uniform |
+| `src/app/(app)/teams/[teamId]/games/page.tsx` line 48 | Resolved by Plan 03-01 conflict resolution (multi-sport's `getAgeGroupConfig()` replaced main's `as AgeGroup` cast) | No `as AgeGroup` cast remains; `getAgeGroupConfig(sport, …)` present | NO — already D-25-uniform |
+| `src/app/(app)/teams/[teamId]/games/[gameId]/live/page.tsx` line 86 | Safe within AFL sport-dispatch branch | `ageGroupOf` + `AGE_GROUPS[ageGroup]` lives inside the AFL branch (lines 220-232, after `if (sport === "netball") return …`); narrow lookup is correct because branch is AFL-only | NO — safe-within-dispatch |
+
+### D-25 compliance grep (final, post-Plan-03-02)
+
+```bash
+$ ( cd $MERGE_WT && npx tsc --noEmit )
+[exit 0]
+
+$ grep -rnE 'as AgeGroup\b|: AgeGroup\b' src/ --include='*.ts' --include='*.tsx' \
+    | grep -v -E 'src/lib/types\.ts|src/lib/ageGroups\.ts|src/lib/sports/'
+[no matches outside type-defining files and the sports/ registry]
+```
+
+D-25 satisfied as-of-merge. ABSTRACT-01 acceptance criterion (no AFL-baked-in conditionals in shared components) holds — all `AGE_GROUPS[…]` and `ageGroupOf()` lookups outside `src/lib/ageGroups.ts` itself are inside sport-dispatched AFL branches.
 
 ## §4 D-26 / D-27 redirect compliance
 
