@@ -9,10 +9,7 @@ import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): 30s timeout. Onboarding flow was
-// reworked (signup collapsed into magic-link login, etc) — selectors
-// drifted. Quarantined.
-test.fixme("new user signs up, creates team, adds first player", async ({
+test("new user signs up, creates team, adds first player", async ({
   browser,
 }) => {
   // Use a clean context so we don't inherit the super-admin storageState.
@@ -45,8 +42,11 @@ test.fixme("new user signs up, creates team, adds first player", async ({
 
     await page.goto("/login");
     await page.getByTestId("login-mode-toggle").click();
-    await page.getByLabel(/^email$/i).fill(email);
-    await page.getByLabel(/^password$/i).fill(password);
+    // LoginForm's inputs are unlabelled at the DOM level (LoginField
+    // wraps them but the label association isn't exposed to a11y), so
+    // testids are the reliable hook.
+    await page.getByTestId("login-email").fill(email);
+    await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
 
     // Sign-in lands on either /dashboard or /teams/new (no teams yet).
