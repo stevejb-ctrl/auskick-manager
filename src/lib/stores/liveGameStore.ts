@@ -92,7 +92,7 @@ export interface LiveGameState {
   startClock: () => void;
   pauseClock: () => void;
   beginNextQuarter: () => void;
-  endCurrentQuarter: () => void;
+  endCurrentQuarter: (quarterMs: number) => void;
   finaliseGame: () => void;
   incTeam: (kind: "goals" | "behinds") => void;
   incOpponent: (kind: "goals" | "behinds") => void;
@@ -336,16 +336,19 @@ export const useLiveGame = create<LiveGameState>((set) => ({
       };
     }),
 
-  endCurrentQuarter: () =>
+  endCurrentQuarter: (quarterMs: number) =>
     set((prev) => {
       const now = Date.now();
       const rawAccumulated =
         prev.clockStartedAt === null
           ? prev.accumulatedMs
           : prev.accumulatedMs + (now - prev.clockStartedAt);
-      // Cap at QUARTER_MS so that if the GM delays confirming end-of-quarter,
-      // player stint durations don't leak past the hooter.
-      const accumulated = Math.min(rawAccumulated, QUARTER_MS);
+      // Cap at quarterMs (passed by caller from getEffectiveQuarterSeconds(team,
+      // ageGroup, game) so that if the GM delays confirming end-of-quarter,
+      // player stint durations don't leak past the hooter. AFL U10 default = 720s,
+      // netball default = 600s; per-team and per-game overrides flow through
+      // getEffectiveQuarterSeconds. ABSTRACT-03 / D-26 / D-27.
+      const accumulated = Math.min(rawAccumulated, quarterMs);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const lastStintMs: Record<string, number> = {};
       const lastStintZone: Record<string, Zone> = {};
