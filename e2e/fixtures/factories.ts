@@ -14,14 +14,15 @@ import type { AgeGroup } from "../../src/lib/types";
 
 export interface MakeTeamOpts {
   name?: string;
-  ageGroup?: AgeGroup;
+  ageGroup?: string;
+  sport?: "afl" | "netball";
   ownerId: string; // profile id of the admin who "created" this team
 }
 
 export async function makeTeam(
   admin: SupabaseClient,
   opts: MakeTeamOpts
-): Promise<{ id: string; name: string; ageGroup: AgeGroup }> {
+): Promise<{ id: string; name: string; ageGroup: string }> {
   const ageGroup = opts.ageGroup ?? "U10";
   const name = opts.name ?? `Test Team ${Math.random().toString(36).slice(2, 7)}`;
 
@@ -32,6 +33,7 @@ export async function makeTeam(
     name,
     age_group: ageGroup,
     created_by: opts.ownerId,
+    ...(opts.sport ? { sport: opts.sport } : {}),
   });
   if (insertError) throw new Error(`makeTeam insert: ${insertError.message}`);
 
