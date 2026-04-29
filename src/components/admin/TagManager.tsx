@@ -30,18 +30,17 @@ export function TagManager({ initialTags }: TagManagerProps) {
         setError(res.error);
         return;
       }
-      // Optimistic refresh: append a placeholder, then the server revalidates
-      // the page which gives us the real row on next navigation. To keep UI
-      // snappy without a full reload, prepend a local temp row.
-      setTags((prev) => [
-        ...prev,
-        {
-          id: `temp-${Date.now()}`,
-          name: trimmed,
-          color,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      // Append the real row from the server. Earlier this used a fake
+      // `temp-${Date.now()}` id and let revalidatePath swap it in
+      // later — but `useState(initialTags)` doesn't sync to prop
+      // changes, so the temp row stayed put. Editing then sent
+      // "temp-1234…" to updateTag and Postgres rejected it with
+      // "invalid input syntax for type uuid" — leaving the row stuck
+      // in edit mode forever.
+      const created = res.data;
+      if (created) {
+        setTags((prev) => [...prev, created]);
+      }
       setName("");
       setColor("brand");
     });

@@ -372,6 +372,10 @@ export type Database = {
 };
 
 // ─── Action result type ───────────────────────────────────────
-export type ActionResult =
-  | { success: true; data?: unknown }
+// Generic so callers that return real data (e.g. createTag returning the
+// inserted row so the client can replace its temp-id placeholder) get
+// proper type narrowing on `.data`. Defaults to `unknown` for the bulk
+// of actions that just signal success/failure.
+export type ActionResult<T = unknown> =
+  | { success: true; data?: T }
   | { success: false; error: string };
