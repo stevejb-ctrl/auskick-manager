@@ -8,6 +8,7 @@ import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, zoneCapsFor } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
@@ -39,6 +40,17 @@ export default async function RunPage({ params }: RunPageProps) {
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
   const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
   const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  // D-26 / D-27: same wiring as the team-coach branch in
+  // (app)/teams/[teamId]/games/[gameId]/live/page.tsx. The runner-token
+  // page renders the same <LiveGame> component for AFL games, so the
+  // hooter and countdown surfaces need the same per-game/per-team-aware
+  // duration. Three-level resolution: game → team → ageGroup default.
+  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
+  const quarterMs = getEffectiveQuarterSeconds(
+    { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+    ageCfgSport,
+    { quarter_length_seconds: g.quarter_length_seconds },
+  ) * 1000;
   // When the admin has disabled the song, hide the URL from the live page
   // so no playback is attempted (iframe/audio simply never mounts).
   const songEnabled = teamRow?.song_enabled ?? true;
@@ -98,6 +110,7 @@ export default async function RunPage({ params }: RunPageProps) {
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
+          quarterMs={quarterMs}
         />
         <div className="border-t border-hairline pt-4">
           <ResetGameButton auth={auth} gameId={g.id} />
