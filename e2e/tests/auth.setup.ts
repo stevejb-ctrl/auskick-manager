@@ -58,6 +58,16 @@ setup("authenticate as super-admin", async ({ page }) => {
   await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
   await expect(page).toHaveURL(/\/dashboard/);
 
-  // Persist the cookie jar for every downstream spec.
+  // Pre-dismiss the live-game walkthrough modal. LiveGame.tsx opens
+  // it whenever localStorage["gm-walkthrough-seen"] is missing, and
+  // it sits on top of the field intercepting pointer events — every
+  // live-* spec was timing out trying to click through it. Setting
+  // the flag here means every downstream spec inherits it via
+  // storageState and the walkthrough never shows.
+  await page.evaluate(() => {
+    localStorage.setItem("gm-walkthrough-seen", "1");
+  });
+
+  // Persist the cookie jar AND localStorage for every downstream spec.
   await page.context().storageState({ path: authFile });
 });
