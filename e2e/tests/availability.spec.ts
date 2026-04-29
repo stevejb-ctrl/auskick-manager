@@ -10,10 +10,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): assertion mismatch — got the wrong status
-// string back. Likely UI/schema drift since the spec was written. Quarantined
-// so CI is green; investigate when the availability flow gets touched next.
-test.fixme("team admin toggles a player's availability for a game", async ({
+test("team admin toggles a player's availability for a game", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -30,19 +27,34 @@ test.fixme("team admin toggles a player's availability for a game", async ({
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
+  // The original spec assumed "all players default to 'available'", but
+  // since the AvailabilityRow rework that's no longer true: a row with
+  // no game_availability record renders the "Unavailable" button label
+  // (legacy `unknown` is folded into unavailable for the 2-state UI),
+  // and clicking it flips to `available` rather than `unavailable`. To
+  // make the toggle test deterministic, pre-seed the target player as
+  // `available` so the rendered button reads "Available" and clicking
+  // it flips to `unavailable` — which is what the spec actually wants
+  // to verify.
+  const target = players[0];
+  await admin.from("game_availability").insert({
+    game_id: game.id,
+    player_id: target.id,
+    status: "available",
+    updated_by: ownerId,
+    updated_at: new Date().toISOString(),
+  });
+
   await page.goto(`/teams/${team.id}/games/${game.id}`);
 
-  // All players default to "available" when the game is created — mark
-  // player 1 as unavailable and confirm it sticks in the DB.
-  const target = players[0];
+  // Find the row for the seeded player and click its toggle. The
+  // button label reads "Available" because of the seed above; clicking
+  // calls setAvailability with `nextStatus[available] = unavailable`.
   const row = page
     .getByRole("listitem")
     .filter({ hasText: target.full_name })
     .first();
-
-  // The toggle may be a button labelled "Unavailable" or a switch.
-  // Click whatever matches "unavailable" case-insensitively in the row.
-  await row.getByRole("button", { name: /unavailable/i }).click();
+  await row.getByRole("button", { name: /^available$/i }).click();
 
   // Short wait for the server action to commit.
   await page.waitForTimeout(500);
