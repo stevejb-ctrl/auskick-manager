@@ -12,7 +12,7 @@ import {
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getEffectiveQuarterSeconds, getSportConfig, netballSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import type { FillIn, Game, GameEvent, Player, Sport } from "@/lib/types";
 
@@ -230,6 +230,20 @@ export default async function LivePage({ params }: LivePageProps) {
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
   const ageCfg = AGE_GROUPS[ageGroup];
+  // D-26 / D-27: compute the effective quarter length (seconds → ms) so
+  // LiveGame's countdown cap and hooter trigger respect per-team and
+  // per-game overrides instead of a hardcoded constant. Mirrors the
+  // netball branch's call above. Three-level resolution, most specific
+  // wins: game.quarter_length_seconds → team.quarter_length_seconds →
+  // ageGroup.periodSeconds (= 12 min for AFL U10). Uses the sport-config
+  // AgeGroupConfig (not the legacy AGE_GROUPS record) because
+  // getEffectiveQuarterSeconds expects the sport-config shape.
+  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
+  const quarterMs = getEffectiveQuarterSeconds(
+    { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+    ageCfgSport,
+    { quarter_length_seconds: g.quarter_length_seconds },
+  ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
 
   if (hasStarted) {
@@ -294,6 +308,7 @@ export default async function LivePage({ params }: LivePageProps) {
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
+          quarterMs={quarterMs}
         />
         {isAdmin && (
           <div className="border-t border-hairline pt-4">
