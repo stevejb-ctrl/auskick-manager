@@ -14,14 +14,7 @@ import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e archaeology 2026-04-29): bench-tap → field-tap →
-// confirm flow runs through but produces 0 swap events — the
-// click sequence isn't pairing as the spec expects. Could be the
-// new UI requires field-first then bench (not bench-first then
-// field), or the SwapConfirmDialog's confirm button has a
-// different label than /confirm/i. Worth pulling a Playwright
-// trace next time. Re-quarantined to keep main green.
-test.fixme("swap a bench player onto the field produces a swap event", async ({
+test("swap a bench player onto the field produces a swap event", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -81,21 +74,33 @@ test.fixme("swap a bench player onto the field produces a swap event", async ({
   // Pick a player currently on-field to swap out.
   const onFieldPlayer = players[0];
 
-  await page.getByText(bench.full_name).first().click();
-  await page.getByText(onFieldPlayer.full_name).first().click();
+  // Use getByRole("button") rather than getByText to dodge the
+  // SwapCard's suggestion summary <p> at the top of the page —
+  // that paragraph matches a player name first in DOM order, but
+  // it isn't interactive, so a getByText click hit nothing and the
+  // pendingSwap state never armed.
+  await page.getByRole("button", { name: new RegExp(bench.full_name) }).click();
+  await page
+    .getByRole("button", { name: new RegExp(onFieldPlayer.full_name) })
+    .click();
 
-  // If a confirmation dialog appears, confirm.
-  const confirm = page.getByRole("button", { name: /confirm/i });
-  if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await confirm.click();
-  }
+  // SwapConfirmDialog opens reliably once both clicks land — its
+  // CTA is "Confirm" (per src/components/live/SwapConfirmDialog.tsx).
+  await page.getByRole("button", { name: /^confirm$/i }).click();
 
-  await page.waitForTimeout(500);
-
-  const { data: swaps } = await admin
-    .from("game_events")
-    .select("type, metadata")
-    .eq("game_id", game.id)
-    .eq("type", "swap");
-  expect(swaps?.length ?? 0).toBeGreaterThanOrEqual(1);
+  // recordSwap runs in startTransition; poll the DB until the swap
+  // event lands.
+  await expect
+    .poll(
+      async () => {
+        const { data: swaps } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "swap");
+        return swaps?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
 });
