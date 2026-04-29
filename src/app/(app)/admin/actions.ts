@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/requireSuperAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ActionResult } from "@/lib/types";
+import type { ActionResult, ContactTag } from "@/lib/types";
 
 const ALLOWED_COLORS = new Set([
   "brand",
@@ -23,7 +23,7 @@ function sanitizeColor(color: string): string {
 export async function createTag(
   name: string,
   color: string
-): Promise<ActionResult> {
+): Promise<ActionResult<ContactTag>> {
   await requireSuperAdmin();
   const trimmed = name.trim();
   if (trimmed.length === 0) return { success: false, error: "Name required." };
@@ -32,14 +32,21 @@ export async function createTag(
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+  // Return the inserted row so the client can swap its optimistic temp-id
+  // placeholder for the real DB id. Without this the next "edit this tag"
+  // call sends `temp-1234…` to updateTag and Postgres rejects it with
+  // "invalid input syntax for type uuid" — leaving the user stranded in
+  // edit mode with no error feedback that traces back to the cause.
+  const { data, error } = await admin
     .from("contact_tags")
-    .insert({ name: trimmed, color: sanitizeColor(color) });
+    .insert({ name: trimmed, color: sanitizeColor(color) })
+    .select("*")
+    .single();
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/admin/tags");
   revalidatePath("/admin/users");
-  return { success: true };
+  return { success: true, data: data as ContactTag };
 }
 
 export async function updateTag(
