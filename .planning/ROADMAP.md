@@ -69,7 +69,33 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `getEffectiveQuarterSeconds(team, ageGroup, game)` resolves quarter length in documented priority order (game override → team override → age-group default) and is the sole source of truth used by countdown, hooter, time-credit accounting, and Q-break time bars
   4. All existing AFL e2e specs pass unchanged on the merged trunk — long-press, lineup availability, TagManager temp-id, injury-replacement, live-swaps, live-scoring specs all green
   5. Performance wave 3 artifacts (static marketing/auth, DB indexes, spinners), UX changes (back-arrow removal), and PlayHQ fixme status are all present and unchanged in the merged codebase
-**Plans**: TBD
+**Plans**: 6 plans
+
+**Wave 1** *(no parallel — gate)*:
+- [ ] 03-01-PLAN.md — Set up merge target branch, run `git merge --no-ff` of `claude/vibrant-banzai-a73b2f`, resolve all 6 mapped conflicts + `package.json` surprise (D-24), execute Phase 2 §2 file op (delete main `0024_super_admin.sql`), commit merge atomically; create `03-MERGE-LOG.md` §1+§2 (autonomous: false — checkpoint after merge before D-25/D-26 work)
+
+**Wave 2** *(blocked on 03-01)*:
+- [ ] 03-02-PLAN.md — Run post-merge `npx tsc --noEmit`, patch any residual D-25 AgeGroup consumers (expected: zero per RESEARCH §3), populate `03-MERGE-LOG.md` §3
+
+**Wave 3** *(blocked on 03-02 — fragile-area isolation per CONCERNS.md)*:
+- [ ] 03-03-PLAN.md — D-26 Surface 3: parameterise `endCurrentQuarter` in `src/lib/stores/liveGameStore.ts` (FRAGILE area — isolated edit + immediate `npm test`)
+
+**Wave 4** *(blocked on 03-03)*:
+- [ ] 03-04-PLAN.md — D-26 Surfaces 1+2: wire `quarterMs` prop through `src/components/live/LiveGame.tsx` + AFL-branch caller in `src/app/(app)/teams/[teamId]/games/[gameId]/live/page.tsx` (closes Plan 03-03 tsc handshake)
+
+**Wave 5** *(blocked on 03-04)*:
+- [ ] 03-05-PLAN.md — Run `npm run db:reset` + full gauntlet (`tsc && npm test && npm run lint && npm run e2e`); verify Phase 2 spec `e2e/tests/multi-sport-schema.spec.ts` flips green (D-12)
+
+**Wave 6** *(blocked on 03-05)*:
+- [ ] 03-06-PLAN.md — Verify PROD-01..04 preservation, ABSTRACT-01/03 grep audit, D-21 tag invariant; finalize `03-MERGE-LOG.md` §4+§5+§6 (Phase 4 hand-off)
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- `pre-merge/main` (`80a04eb`) and `pre-merge/multi-sport` (`1277068`) annotated tags are NEVER moved (D-21)
+- The merge work happens on a NEW branch `merge/multi-sport-trunk` (created off `multi-sport` HEAD per D-19); `claude/vibrant-banzai-a73b2f` does NOT receive the merge commit
+- `git merge --no-ff` only — no `--squash`, no `git rebase -i` for squashing (D-20)
+- No `git push --force` to `main` at any point (D-09 carried forward; Phase 7 owns the path to production main)
+- D-26 redirect targets exactly THREE sites (`LiveGame.tsx:657`, `LiveGame.tsx:791`, `liveGameStore.ts:347`) — research found `QuarterBreak.tsx` uses proportional math and needs no redirect (correction to CONTEXT.md D-26)
+- PlayHQ live-import `test.fixme` in `e2e/tests/playhq-import.spec.ts` MUST survive (PROD-04 — easy to accidentally "fix")
 
 ### Phase 4: Netball verification on merged trunk
 **Goal**: Every netball capability from the multi-sport branch works correctly on the merged trunk — coaches can run a full netball game from lineup to summary card
@@ -129,7 +155,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
-| 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
+| 3. Branch merge + abstraction integrity | 0/6 | Ready to execute | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
 | 5. Test + type green | 0/TBD | Not started | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |

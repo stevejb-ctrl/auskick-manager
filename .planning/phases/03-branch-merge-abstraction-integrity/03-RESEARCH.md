@@ -645,11 +645,13 @@ All other claims in this research were verified by reading actual source files o
 | Phase 1 §8 rationale | HIGH | Re-read both branch versions of all 7 conflict files |
 | PROD verification commands | HIGH | Verified spec files exist; grep patterns confirmed against live source |
 
-### Open Questions
+## Open Questions (RESOLVED)
 
-1. **`Instrument_Serif` downstream CSS consumers:** Does `tailwind.config.ts` or `src/app/globals.css` reference `--font-instrument-serif`? Resolution of `src/app/layout.tsx` should audit this before removing the import entirely.
+1. **`Instrument_Serif` downstream CSS consumers:** Does `tailwind.config.ts` or `src/app/globals.css` reference `--font-instrument-serif`?
+   **RESOLVED:** Yes — `tailwind.config.ts:74` references `--font-instrument-serif` via the `font-serif` Tailwind class, and 7 consumer components consume it. The correct resolution KEEPS the `Instrument_Serif` import in `src/app/layout.tsx` (deviation from Phase 1 §8 — main's removal was incomplete). See PATTERNS.md Pattern 1 for the exact target shape and §8 L-5 landmine in this RESEARCH.md for the rationale.
 
-2. **Multi-sport's `applyInjurySwap` absence:** Multi-sport's `LiveGame.tsx` doesn't show `applyInjurySwap` in the visible import list. If multi-sport removed it, the conflict resolution for `live/page.tsx` must preserve main's injury-replacement modal. Executor should search: `git show multi-sport:src/components/live/LiveGame.tsx | grep applyInjurySwap`.
+2. **Multi-sport's `applyInjurySwap` absence:** Multi-sport's `LiveGame.tsx` doesn't show `applyInjurySwap` in the visible import list. If multi-sport removed it, the conflict resolution for `live/page.tsx` must preserve main's injury-replacement modal.
+   **RESOLVED:** `src/lib/stores/liveGameStore.ts` auto-merges (no content conflict per §2 above), so the function definition is present in the merged trunk. `src/components/live/LiveGame.tsx` itself does NOT appear in the conflict list, so its existing imports — including `applyInjurySwap` — survive intact. PATTERNS.md L-8 landmine (mirrored in §8 L-8 of this RESEARCH.md) codifies this as a verifier: every plan that touches `LiveGame.tsx` (Plan 03-04) gates `grep -c "applyInjurySwap" src/components/live/LiveGame.tsx >= 1` to confirm main's injury-replacement modal call site survives.
 
 ### Ready for Planning
 
