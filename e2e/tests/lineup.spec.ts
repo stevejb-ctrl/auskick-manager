@@ -30,17 +30,20 @@ test("pre-kickoff lineup renders a full field of players", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // U10 defaultOnFieldSize is 12 — 12 unique jersey numbers must be
-  // visible on the field before kickoff. We can't count zones directly
-  // without testids, so assert via jersey-number text: every player's
-  // jersey should appear somewhere on the page.
-  for (let i = 0; i < Math.min(players.length, 12); i++) {
-    const row = await page.getByText(players[i].full_name).count();
-    expect(row).toBeGreaterThanOrEqual(1);
-  }
-
-  // "Start Q1" is enabled once the lineup is valid.
+  // Wait for the LineupPicker to actually render before asserting on
+  // its contents — `count()` is a synchronous read, so it returns
+  // 0 if the page hasn't hydrated yet, even though the elements
+  // would arrive a moment later. `toHaveCount` auto-waits.
   await expect(
-    page.getByRole("button", { name: /start q1/i })
-  ).toBeVisible();
+    page.getByRole("button", { name: /start q1/i }),
+  ).toBeVisible({ timeout: 10_000 });
+
+  // PlayerTile renders single-word names verbatim (the factory uses
+  // distinct first names — see e2e/fixtures/factories.ts). Each
+  // active player should appear in at least one tile.
+  for (let i = 0; i < Math.min(players.length, 12); i++) {
+    await expect(
+      page.getByText(players[i].full_name, { exact: true }),
+    ).toHaveCount(1, { timeout: 5_000 });
+  }
 });

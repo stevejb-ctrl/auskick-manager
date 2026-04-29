@@ -106,14 +106,11 @@ test("record a goal via the live UI and see it in game_events", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Tap a player on the field. Use getByRole("button") rather than
-  // getByText to avoid matching the SwapCard's suggestion summary
-  // <p> at the top — that paragraph mentions player names but
-  // isn't interactive.
+  // Tap a player on the field by their PlayerTile testid. Avoids
+  // colliding with SwapCard's pair-row buttons, which also expose a
+  // role of "button" with the player name in their accessible text.
   const scorer = players[0];
-  await page
-    .getByRole("button", { name: new RegExp(scorer.full_name) })
-    .click();
+  await page.getByTestId(`player-tile-${scorer.id}`).click();
 
   // The "Record score for X" panel surfaces a "+ Goal" button.
   await page.getByRole("button", { name: /\+ goal/i }).click();
@@ -172,9 +169,7 @@ test("undo last score removes the most recent goal from the tally", async ({
   // toast is client-state, set when handleScore fires. So drive the
   // full flow through the UI.
   const scorer = players[0];
-  await page
-    .getByRole("button", { name: new RegExp(scorer.full_name) })
-    .click();
+  await page.getByTestId(`player-tile-${scorer.id}`).click();
   await page.getByRole("button", { name: /\+ goal/i }).click();
 
   // Toast renders an Undo button. Click it before the 8s timer

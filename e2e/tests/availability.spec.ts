@@ -27,45 +27,44 @@ test("team admin toggles a player's availability for a game", async ({
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  // The original spec assumed "all players default to 'available'", but
-  // since the AvailabilityRow rework that's no longer true: a row with
-  // no game_availability record renders the "Unavailable" button label
-  // (legacy `unknown` is folded into unavailable for the 2-state UI),
-  // and clicking it flips to `available` rather than `unavailable`. To
-  // make the toggle test deterministic, pre-seed the target player as
-  // `available` so the rendered button reads "Available" and clicking
-  // it flips to `unavailable` — which is what the spec actually wants
-  // to verify.
+  // The original spec assumed "all players default to available", but
+  // since the AvailabilityRow rework that's no longer true: a fresh
+  // game has NO game_availability rows, AvailabilityRow renders status
+  // "unknown" with the button label "Unavailable", and
+  // `nextStatus.unknown = "available"` — so clicking once flips them
+  // TO available, not the other way. To verify a flip from "available"
+  // to "unavailable", click twice: unknown → available → unavailable.
   const target = players[0];
-  await admin.from("game_availability").insert({
-    game_id: game.id,
-    player_id: target.id,
-    status: "available",
-    updated_by: ownerId,
-    updated_at: new Date().toISOString(),
-  });
 
   await page.goto(`/teams/${team.id}/games/${game.id}`);
 
-  // Find the row for the seeded player and click its toggle. The
-  // button label reads "Available" because of the seed above; clicking
-  // calls setAvailability with `nextStatus[available] = unavailable`.
   const row = page
     .getByRole("listitem")
     .filter({ hasText: target.full_name })
     .first();
+  // Click 1: unknown → available. Button label is "Unavailable" until
+  // it flips, then becomes "Available".
+  await row.getByRole("button", { name: /^unavailable$/i }).click();
+  // Wait for the round-trip to land before clicking again — otherwise
+  // we race and may double-fire on stale state.
+  await expect(row.getByRole("button", { name: /^available$/i })).toBeVisible();
+  // Click 2: available → unavailable.
   await row.getByRole("button", { name: /^available$/i }).click();
 
-  // Short wait for the server action to commit.
-  await page.waitForTimeout(500);
-
-  const { data: availability } = await admin
-    .from("game_availability")
-    .select("status")
-    .eq("game_id", game.id)
-    .eq("player_id", target.id)
-    .single();
-  expect(availability?.status).toBe("unavailable");
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_availability")
+          .select("status")
+          .eq("game_id", game.id)
+          .eq("player_id", target.id)
+          .single();
+        return data?.status;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe("unavailable");
 });
 
 test("team admin adds a fill-in player for this game only", async ({

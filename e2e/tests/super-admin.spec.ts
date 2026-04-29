@@ -57,8 +57,12 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
 
   // ── Rename ─────────────────────────────────────────────────
   // Tags render as <li> rows. Edit swaps the chip for an input +
-  // a Save / Cancel button pair (per TagManager.tsx).
-  const row = page.getByRole("listitem").filter({ hasText: name });
+  // a Save / Cancel button pair (per TagManager.tsx). Once edit
+  // mode engages the row's visible text becomes the input value,
+  // so a `hasText: name` filter would no longer match. The test
+  // creates exactly one tag on a fresh /admin/tags page, so a
+  // bare `getByRole("listitem")` is unambiguous.
+  const row = page.getByRole("listitem");
   await row.getByRole("button", { name: /^edit$/i }).click();
   const renamed = `${name} renamed`;
   await row.getByRole("textbox").fill(renamed);
@@ -67,11 +71,10 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
 
   // ── Delete ─────────────────────────────────────────────────
   // handleDelete calls window.confirm(); accept it preemptively so
-  // the click-handler doesn't block.
+  // the click-handler doesn't block. Still only one tag in the list.
   page.once("dialog", (d) => d.accept());
   await page
     .getByRole("listitem")
-    .filter({ hasText: renamed })
     .getByRole("button", { name: /^delete$/i })
     .click();
 

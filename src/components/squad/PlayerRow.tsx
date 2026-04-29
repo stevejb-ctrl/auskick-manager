@@ -86,6 +86,7 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit }: PlayerRowPr
 
   return (
     <li
+      data-testid={`player-row-${player.id}`}
       className={`flex items-center gap-3 px-4 py-3 sm:px-5 ${
         !player.is_active ? "opacity-50" : ""
       }`}
