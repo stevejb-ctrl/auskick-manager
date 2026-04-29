@@ -11,6 +11,7 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
@@ -786,6 +787,30 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }, [replacingTarget, onCourt, squad, availableIds, lateArrivedIds, injuredIds, loanedIds]);
 
+  // ─── "✕ Exit" affordance ────────────────────────────────────
+  // Mirrors AFL's top utility row in src/components/live/LiveGame.tsx:806.
+  // Always-visible link in the upper-left of every netball
+  // branch (pre-kickoff / live / Q-break / finalised) so the coach
+  // can pop back to the game detail page (or runner landing) at
+  // any moment without hunting for an action. Same destination as
+  // the pre-kickoff "Back to availability" breadcrumb, but exposed
+  // in every state.
+  const exitHref =
+    auth.kind === "team"
+      ? `/teams/${auth.teamId}/games/${game.id}`
+      : `/run/${auth.token}`;
+  const topUtilityRow = (
+    <div className="flex items-center justify-between">
+      <Link
+        href={exitHref}
+        className="font-mono text-[11px] text-ink-mute transition-colors hover:text-ink-dim"
+      >
+        ✕ Exit
+      </Link>
+      <span />
+    </div>
+  );
+
   // ─── Initial lineup (before game starts) ────────────────────
   if (!hasStarted) {
     // Pre-kickoff: just the lineup picker. The earlier draft of this
@@ -796,6 +821,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // here puts the actual decision (the lineup) front and centre.
     return (
       <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
         <NetballLineupPicker
           ageGroup={ageGroup}
           squad={squad}
@@ -837,6 +863,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (finalised) {
     return (
       <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -885,6 +912,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (quarterEnded && currentQuarter < 4) {
     return (
       <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -959,6 +987,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (currentQuarter === 0 && !quarterEnded) {
     return (
       <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -994,6 +1023,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   if (quarterEnded && currentQuarter >= 4) {
     return (
       <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -1029,6 +1059,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {topUtilityRow}
       <NetballScoreBug
         teamName={teamName}
         opponentName={game.opponent}
