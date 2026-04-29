@@ -10,12 +10,13 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { positionsFor } from "../../src/lib/ageGroups";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): fast failure — likely a stale event
-// `kind` vs the schema's `type` column or related drift. Quarantined.
-test.fixme("ending Q4 completes the game and renders the summary card", async ({
+test("ending Q4 completes the game and renders the summary card", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -32,21 +33,31 @@ test.fixme("ending Q4 completes the game and renders the summary card", async ({
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  const onField = players.slice(0, game.on_field_size).map((p, idx) => ({
-    player_id: p.id,
-    zone: idx < 3 ? "forward" : idx < 6 ? "mid" : idx < 9 ? "back" : "ruck",
-  }));
+  // Build the same `Lineup` shape startGame writes — `{back, hback, mid,
+  // hfwd, fwd, bench}` — keyed off the team's age-group position model.
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
 
   // Fast-forward through Q1–Q3 end, then start Q4 so the UI shows
   // the "End Q4" button.
   const now = Date.now();
-  // Typed as any[] because `payload` varies by event kind and Supabase
-  // typegen picks up the shape of the first element otherwise.
+  // `metadata` shape varies by event type; type kept loose so the
+  // single-array insert call typechecks across all the variants.
   const events: Array<Record<string, unknown>> = [
     {
       game_id: game.id,
-      kind: "lineup_set",
-      payload: { on_field: onField, on_field_size: game.on_field_size },
+      type: "lineup_set",
+      metadata: { lineup },
       created_by: ownerId,
       created_at: new Date(now - 60 * 60_000).toISOString(),
     },
@@ -54,16 +65,16 @@ test.fixme("ending Q4 completes the game and renders the summary card", async ({
   for (let q = 1; q <= 4; q++) {
     events.push({
       game_id: game.id,
-      kind: "quarter_start",
-      payload: { quarter: q, started_at: new Date(now - (5 - q) * 10 * 60_000).toISOString() },
+      type: "quarter_start",
+      metadata: { quarter: q },
       created_by: ownerId,
       created_at: new Date(now - (5 - q) * 10 * 60_000).toISOString(),
     });
     if (q < 4) {
       events.push({
         game_id: game.id,
-        kind: "quarter_end",
-        payload: { quarter: q, elapsed_ms: 10 * 60_000 },
+        type: "quarter_end",
+        metadata: { quarter: q, elapsed_ms: 10 * 60_000 },
         created_by: ownerId,
         created_at: new Date(now - (4 - q) * 10 * 60_000).toISOString(),
       });
@@ -96,8 +107,8 @@ test.fixme("ending Q4 completes the game and renders the summary card", async ({
 
   const { data: finalised } = await admin
     .from("game_events")
-    .select("kind")
+    .select("type")
     .eq("game_id", game.id)
-    .eq("kind", "game_finalised");
+    .eq("type", "game_finalised");
   expect(finalised?.length ?? 0).toBeGreaterThanOrEqual(1);
 });

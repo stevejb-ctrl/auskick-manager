@@ -7,12 +7,13 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { positionsFor } from "../../src/lib/ageGroups";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): fast failure — likely `kind` vs `type`
-// schema-column drift in the seeded events. Quarantined.
-test.fixme("end Q1 transitions to quarter break and renders rotation suggestion", async ({
+test("end Q1 transitions to quarter break and renders rotation suggestion", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -29,21 +30,32 @@ test.fixme("end Q1 transitions to quarter break and renders rotation suggestion"
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  const onField = players.slice(0, game.on_field_size).map((p, idx) => ({
-    player_id: p.id,
-    zone: idx < 3 ? "forward" : idx < 6 ? "mid" : idx < 9 ? "back" : "ruck",
-  }));
+  // Build the same `Lineup` shape startGame writes (see actions.ts —
+  // metadata.lineup, NOT the historical { on_field, on_field_size }).
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+
   await admin.from("game_events").insert([
     {
       game_id: game.id,
-      kind: "lineup_set",
-      payload: { on_field: onField, on_field_size: game.on_field_size },
+      type: "lineup_set",
+      metadata: { lineup },
       created_by: ownerId,
     },
     {
       game_id: game.id,
-      kind: "quarter_start",
-      payload: { quarter: 1, started_at: new Date().toISOString() },
+      type: "quarter_start",
+      metadata: { quarter: 1 },
       created_by: ownerId,
     },
   ]);
@@ -67,10 +79,14 @@ test.fixme("end Q1 transitions to quarter break and renders rotation suggestion"
 
   const { data: events } = await admin
     .from("game_events")
-    .select("kind, payload")
+    .select("type, metadata")
     .eq("game_id", game.id)
-    .in("kind", ["quarter_end", "quarter_start"]);
+    .in("type", ["quarter_end", "quarter_start"]);
   expect(
-    events?.some((e) => e.kind === "quarter_end" && e.payload?.quarter === 1)
+    events?.some(
+      (e) =>
+        e.type === "quarter_end" &&
+        (e.metadata as { quarter?: number } | null)?.quarter === 1,
+    ),
   ).toBe(true);
 });
