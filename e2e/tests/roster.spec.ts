@@ -29,10 +29,12 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   await expect(page.getByText("Alex River")).toBeVisible();
 
   // ── Rename ─────────────────────────────────────────────────
-  // Each PlayerRow is a <li>. Edit opens an inline form with two
-  // bare <Input>s (no <label>). Scope all interactions to the row
-  // so we never collide with other rows or the header form above.
-  const row = page.getByRole("listitem").filter({ hasText: "Alex River" });
+  // The test creates exactly one player on a fresh team, so there's
+  // exactly one <li> on the squad list — no need to filter by name
+  // (which would break in edit mode anyway: the row's text content
+  // shifts from the rendered name to button labels + input values
+  // once `editing=true`).
+  const row = page.getByRole("listitem");
   await row.getByRole("button", { name: /^edit$/i }).click();
   // Inside the row in edit mode: textbox[0] = name, textbox[1] = jersey.
   const nameInput = row.getByRole("textbox").first();
@@ -41,10 +43,9 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   await expect(page.getByText("Alex Rivers")).toBeVisible();
 
   // ── Deactivate ─────────────────────────────────────────────
-  // PlayerRow renders a Toggle (role="switch") with aria-label
-  // "Deactivate player" when active.
-  const row2 = page.getByRole("listitem").filter({ hasText: "Alex Rivers" });
-  await row2.getByRole("switch", { name: /deactivate player/i }).click();
+  // Toggle role="switch" with aria-label "Deactivate player" when
+  // active. Single-row page → no filter needed.
+  await page.getByRole("switch", { name: /deactivate player/i }).click();
 
   // Wait for the row to reappear in the inactive section. PlayerList
   // renders an "Inactive" SFCard automatically when any inactive
@@ -65,13 +66,10 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
     .toBe(false);
 
   // ── Reactivate ─────────────────────────────────────────────
-  // Same Toggle, but aria-label is now "Reactivate player".
-  const inactiveRow = page
-    .getByRole("listitem")
-    .filter({ hasText: "Alex Rivers" });
-  await inactiveRow
-    .getByRole("switch", { name: /reactivate player/i })
-    .click();
+  // Same Toggle, aria-label is now "Reactivate player". Player
+  // moved to the inactive section but is still the only <li> on
+  // the page.
+  await page.getByRole("switch", { name: /reactivate player/i }).click();
 
   // ── Verify final state via DB ──────────────────────────────
   await expect

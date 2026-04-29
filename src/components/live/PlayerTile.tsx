@@ -133,6 +133,7 @@ export function PlayerTile({
   return (
     <button
       type="button"
+      data-testid={`player-tile-${player.id}`}
       onClick={handleClick}
       onPointerDown={onLongPress ? handlePointerDown : undefined}
       onPointerUp={onLongPress ? cancelLongPress : undefined}

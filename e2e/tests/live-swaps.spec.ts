@@ -74,15 +74,13 @@ test("swap a bench player onto the field produces a swap event", async ({
   // Pick a player currently on-field to swap out.
   const onFieldPlayer = players[0];
 
-  // Use getByRole("button") rather than getByText to dodge the
-  // SwapCard's suggestion summary <p> at the top of the page —
-  // that paragraph matches a player name first in DOM order, but
-  // it isn't interactive, so a getByText click hit nothing and the
-  // pendingSwap state never armed.
-  await page.getByRole("button", { name: new RegExp(bench.full_name) }).click();
-  await page
-    .getByRole("button", { name: new RegExp(onFieldPlayer.full_name) })
-    .click();
+  // PlayerTile carries `data-testid="player-tile-{id}"` so tests can
+  // pin to exactly one tile per player. Without it, getByRole("button")
+  // also matches SwapCard's collapse + pair-row buttons, which mention
+  // the same player names ("Going on to CEN, pair 2 Maeve") and trip
+  // strict-mode.
+  await page.getByTestId(`player-tile-${bench.id}`).click();
+  await page.getByTestId(`player-tile-${onFieldPlayer.id}`).click();
 
   // SwapConfirmDialog opens reliably once both clicks land — its
   // CTA is "Confirm" (per src/components/live/SwapConfirmDialog.tsx).

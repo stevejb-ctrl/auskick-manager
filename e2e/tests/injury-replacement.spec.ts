@@ -75,13 +75,10 @@ test("injuring an on-field player prompts for a bench replacement and persists b
   // The replacement we'll pick — first bench player.
   const replacement = bench[0];
 
-  // Tap the on-field PlayerTile to open LockModal. Use getByRole
-  // "button" rather than getByText to avoid the SwapCard's
-  // suggestion <p> at the top, which mentions player names but
-  // isn't interactive.
-  await page
-    .getByRole("button", { name: new RegExp(injured.full_name) })
-    .click();
+  // Tap the on-field PlayerTile by its testid. Avoids colliding
+  // with SwapCard's pair-row buttons, which also expose role of
+  // "button" with the player name in their accessible text.
+  await page.getByTestId(`player-tile-${injured.id}`).click();
   // LockModal renders "Mark injured" as a button.
   await page.getByRole("button", { name: /mark injured/i }).click();
 
@@ -175,9 +172,7 @@ test("injuring an on-field player when the bench is empty falls through to the o
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   const injured = players[third];
-  await page
-    .getByRole("button", { name: new RegExp(injured.full_name) })
-    .click();
+  await page.getByTestId(`player-tile-${injured.id}`).click();
   await page.getByRole("button", { name: /mark injured/i }).click();
 
   // Picker should NOT appear — the gate in LiveGame.tsx skips it when
