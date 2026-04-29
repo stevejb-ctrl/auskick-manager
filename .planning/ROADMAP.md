@@ -42,7 +42,21 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. After migration, every existing AFL team row has `sport = 'afl'` (not null) — the backfill ran before any NOT NULL constraint was applied
   3. A Playwright spec exercises the new `teams.sport`, `teams.track_scoring`, and `teams.quarter_length_seconds` columns through the setup wizard / team settings UI for both AFL and netball, and passes green
   4. Existing AFL data (teams, players, games, events, availability, share tokens) is fully queryable through the merged code with no RLS errors or null-sport code panics
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1** *(parallel)*:
+- [ ] 02-01-PLAN.md — Re-verify sha256 equality of main:0024_super_admin.sql vs multi-sport:0025_super_admin.sql; write 02-SCHEMA-PLAN.md §§1-4 (file ops for Phase 3, SCHEMA-02 backfill audit, SCHEMA-04 destructive-ops audit)
+- [ ] 02-02-PLAN.md — Add missing `e2e` + `db:*` scripts to package.json; extend e2e/fixtures/factories.ts makeTeam with optional sport parameter and widen ageGroup to string
+
+**Wave 2** *(blocked on Wave 1 completion)*:
+- [ ] 02-03-PLAN.md — Author e2e/tests/multi-sport-schema.spec.ts (3 test cases: AFL wizard, netball wizard, team-settings round-trip — expected red on this branch, Phase 3 flips green); finalize 02-SCHEMA-PLAN.md §§5-6 (spec design + Phase 6 handoff)
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- `supabase/migrations/` on this branch is unchanged at end of every plan (D-11 read-only invariant; rename/delete is documented for Phase 3, not executed here)
+- `git status` against `src/`, `supabase/`, `scripts/` remains clean throughout (Phase 2 source-tree boundary; only `e2e/`, `package.json`, and `.planning/phases/02-schema-reconciliation/` are written)
+- `npx tsc --noEmit` exits 0 after every plan that touches typed code (Plans 02 + 03)
+- `e2e/tests/multi-sport-schema.spec.ts` is committed but expected red on this branch — Phase 3 verification flips it green (D-12 — the spec exercises post-merge UI)
+
 **UI hint**: yes
 
 ### Phase 3: Branch merge + abstraction integrity
@@ -114,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
-| 2. Schema reconciliation | 0/TBD | Not started | - |
+| 2. Schema reconciliation | 0/3 | Ready to execute | - |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
 | 5. Test + type green | 0/TBD | Not started | - |
