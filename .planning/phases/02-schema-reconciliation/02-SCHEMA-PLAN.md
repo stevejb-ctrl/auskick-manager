@@ -144,12 +144,81 @@ $ echo $?
 
 **Phase 6 deferred items (per D-17):** "Queryable through merged code without RLS or null errors" requires a running Postgres against the merged code. Captured in §6.
 
-## §5 SCHEMA-03 e2e spec design (filled by Plan 03)
+## §5 SCHEMA-03 e2e spec design
 
-_To be filled by Plan 03 Task 2 — spec design notes pointing at `e2e/tests/multi-sport-schema.spec.ts`._
+**Spec file:** `e2e/tests/multi-sport-schema.spec.ts` (committed on `claude/vibrant-banzai-a73b2f` per Plan 03 Task 1).
 
-## §6 Phase 6 handoff — prod-clone acceptance criteria for SCHEMA-04 (filled by Plan 03)
+**Decision locks:** D-12 (spec written here, expected red on this branch — Phase 3 flips green), D-13 (one journey-level spec file), D-14 (three test cases — AFL wizard, netball wizard, settings round-trip), D-15 (excludes games.quarter_length_seconds and track_scoring=false live-screen suppression).
 
-_To be filled by Plan 03 Task 2 — five acceptance criteria from CONTEXT.md `<specifics>` "Phase 6 handoff acceptance criteria"._
+**Test cases** (verbatim names — match `grep -E '^test\(' e2e/tests/multi-sport-schema.spec.ts`):
+
+| # | Test name | Surfaces exercised | DB assertions | Pattern source |
+|---|-----------|--------------------|---------------|----------------|
+| 1 | `"AFL setup wizard creates team with sport='afl' and default track_scoring"` | `/teams/new` wizard (TeamBasicsForm), age select, Continue button, redirect to `/teams/[id]/setup`, then `/teams/[id]/settings` for L7 negative-presence | `teams.sport='afl'`, `teams.track_scoring=false`, `<QuarterLengthInput>` not visible on AFL settings | `e2e/tests/onboarding.spec.ts` (clean-context + user provisioning) + `e2e/tests/settings.spec.ts:39-51` (expect.poll DB round-trip) |
+| 2 | `"netball setup wizard creates team with sport='netball' and netball-default track_scoring"` | `/teams/new` wizard, **Netball sport pill** (`page.getByRole("button", { name: "Netball" })` per L9), age select `"go"`, Continue, redirect | `teams.sport='netball'`, `teams.track_scoring=false` (L4 — wizard does not auto-flip) | Same as test 1 |
+| 3 | `"team settings round-trips quarter_length_seconds for a netball team"` | Factory fast-forward (`makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball", name: ... })` per L7), `/teams/[id]/settings`, `<QuarterLengthInput>` (8 min fill + Save), reload | `teams.quarter_length_seconds=480` via `expect.poll`, then `qlCard.getByLabel(/quarter length/i).toHaveValue("8")` after reload | `e2e/tests/settings.spec.ts:23-65` |
+
+**Locator references** (verified against multi-sport's components — RESEARCH §3):
+
+- Sport pill: `page.getByRole("button", { name: "Netball" })` — `<SportPill>` renders `role="button"` with verbatim title `"Netball"` (also `"AFL / Auskick"`); component at `../multi-sport/src/components/setup/TeamBasicsForm.tsx`.
+- Team name input: `page.getByLabel(/team name/i)`.
+- Age group select: `page.getByLabel(/age group/i).selectOption("U10")` (AFL) or `selectOption("go")` (netball).
+- Submit: `page.getByRole("button", { name: /continue/i })`.
+- Post-submit URL match: `/\/teams\/[0-9a-f-]+/` (regex; `waitForURL` with 10_000 ms timeout per L5).
+- QuarterLengthInput card scope: `page.locator("section").filter({ hasText: /quarter length/i })`; component at `../multi-sport/src/components/team/QuarterLengthInput.tsx`.
+
+**Landmines encoded in the spec body** (RESEARCH §6):
+- L4 — `track_scoring=false` is the post-creation expectation for both sports (wizard does not auto-flip).
+- L5 — `waitForURL(/\/teams\/[0-9a-f-]+/, { timeout: 10_000 })` after wizard submission, protects against the AFTER INSERT trigger RLS race.
+- L6 — Two-step insert/fetch via `makeTeam` (no `.insert(...).select(...)` chain).
+- L7 — `<QuarterLengthInput>` renders only for `sport === 'netball'`; the round-trip test passes `sport: "netball"` explicitly to the factory.
+- L8 — There is no separate `NetballSetupWizard`; one wizard, two sports.
+- L9 — Brand defaults AFL on localhost; the netball case clicks the `Netball` pill explicitly.
+
+**Expected red on this branch** (D-12):
+
+The spec is committed but is NOT expected to pass on `claude/vibrant-banzai-a73b2f`. Reasons:
+1. The netball setup wizard (`<SportPill>` toggle in `TeamBasicsForm`) doesn't exist on this branch.
+2. `<QuarterLengthInput>` doesn't exist on this branch.
+3. `teams.sport` and `teams.quarter_length_seconds` columns don't exist in this branch's local Supabase.
+
+**Phase 2 acceptance for SCHEMA-03:** spec FILE exists with the three named test cases; `npx tsc --noEmit` passes; structure matches the patterns above. Acceptance is NOT "spec runs green."
+
+**Phase 3 verification flips green** — once Phase 3 lands the migrations and the netball UI components, all three test cases run as intended. Per ROADMAP Phase 3 success criterion 4 ("All existing AFL e2e specs pass unchanged on the merged trunk") and the implicit corollary that this new spec joins the green set.
+
+**Excluded test surfaces (D-15 — do NOT add to this spec without re-discussion):**
+- Per-game quarter length override (`games` table, migration `0027`) — Phase 5 follow-up if a gap analysis flags it. Resolution semantics covered by `getEffectiveQuarterSeconds` Vitest unit tests on multi-sport.
+- `track_scoring=false` UI suppression on the live screen, score bug, summary card "Goals:" line, walkthrough scoring step, GS/GA tap no-op — Phase 4 / NETBALL-04.
+
+## §6 Phase 6 handoff — prod-clone acceptance criteria for SCHEMA-04
+
+**Decision lock:** D-17 — "queryable through merged code without RLS or null errors" is deferred from Phase 2 (migration-content audit, §3 + §4) to Phase 6 (prod-clone runtime verification).
+
+**SCHEMA-04 split:**
+- Phase 2 owns the migration-content side — already complete in §4 (zero `DROP TABLE`/`DROP COLUMN`/`DROP POLICY`/`DROP TRIGGER`/`DROP FUNCTION`; the two safe `drop constraint` lines accounted for).
+- **Phase 6 owns the runtime side** — the five acceptance criteria below.
+
+**Phase 6 acceptance criteria for SCHEMA-04 (verbatim from CONTEXT.md `<specifics>`):**
+
+1. **Apply the merged migration set against a Supabase prod-clone DB.** Use `supabase db reset` against a Supabase project populated from a prod snapshot (or a prod-clone instance per DEPLOY-01). All 27 migrations apply in order with zero errors. (Note: depends on Phase 3 having executed the §2 file ops — main's `0024_super_admin.sql` deleted; multi-sport's `0024_multi_sport.sql` + `0025_super_admin.sql` + `0026_team_quarter_seconds.sql` + `0027_game_quarter_seconds.sql` retained.)
+
+2. **Load at least one pre-existing AFL team through the merged code.** Verify no RLS errors and no null-sport panics in either the dashboard team-list page or the live-game shell. Existing AFL teams' `age_group` text values (U8..U17) remain valid plain strings after the constraint drop in `0024_multi_sport.sql:48`.
+
+3. **Verify `select count(*) from teams where sport is null` returns 0.** This confirms the `0024_multi_sport.sql:25-27` atomic backfill (NOT NULL DEFAULT 'afl') correctly populated all pre-existing rows during migration application.
+
+4. **Verify `select distinct sport from teams` returns only `'afl'`.** Production has only ever been AFL — the only post-migration `sport` value across pre-existing rows must be `'afl'`. Any `'netball'` value would indicate a corruption (prod has no netball teams yet).
+
+5. **Verify at least one pre-existing AFL share token still resolves through `/run/[token]`.** Loads the public-facing share-link route against the prod-clone-backed code. No 404, no RLS error, no null-sport panic.
+
+**Phase 6 hand-off pointer:** `/gsd-execute-phase 6` (or successor) reads this §6 list and turns each into a manual or automated check. The five items map 1:1 to a Phase 6 verification block. SCHEMA-04 is closed when all five pass on prod-clone.
+
+**SCHEMA-04 closure summary:**
+
+| Side | Phase | Verification |
+|------|-------|--------------|
+| Migration-content audit | Phase 2 (this plan §4) | `grep -E "DROP TABLE\|DROP COLUMN\|DROP POLICY\|DROP TRIGGER\|DROP FUNCTION"` exits 1 across all three new migrations; the two `drop constraint` matches are safe (constraint relaxation/widen) |
+| Live-data runtime | Phase 6 | Five criteria above against prod-clone |
+
+*02-SCHEMA-PLAN.md is now complete. All six §-numbered sections substantive. Phase 2's audit deliverable is sealed.*
 
 *Generated: 2026-04-29 by /gsd-execute-phase 02 Plan 01.*
