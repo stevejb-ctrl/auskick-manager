@@ -19,60 +19,77 @@ import {
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): 30s timeout. Tag CRM UI selectors.
-// Quarantined.
-test.fixme("super-admin creates, renames, and deletes a tag", async ({ page }) => {
+test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
   const admin = createAdminClient();
   const name = `Tag ${Date.now()}`;
 
   await page.goto("/admin/tags");
 
-  // Create
-  await page.getByLabel(/name/i).fill(name);
-  await page.getByLabel(/colou?r/i).selectOption("brand");
-  await page.getByRole("button", { name: /add tag/i }).click();
+  // ── Create ─────────────────────────────────────────────────
+  // TagManager's "New tag" card has bare <label>s without htmlFor,
+  // so getByLabel doesn't work. Scope to the card heading instead.
+  const newTagCard = page
+    .locator("div")
+    .filter({ has: page.getByRole("heading", { name: /^new tag$/i }) })
+    .first();
+  await newTagCard.getByRole("textbox").fill(name);
+  await newTagCard.getByRole("combobox").selectOption("brand");
+  await newTagCard.getByRole("button", { name: /^add tag$/i }).click();
   await expect(page.getByText(name)).toBeVisible();
 
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("contact_tags")
+          .select("id")
+          .eq("name", name);
+        return data?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe(1);
   const { data: created } = await admin
     .from("contact_tags")
     .select("id, name")
     .eq("name", name)
     .single();
-  expect(created).not.toBeNull();
 
-  // Rename (inline edit on the tag row).
-  const row = page.locator("li, tr").filter({ hasText: name }).first();
-  await row.getByRole("button", { name: /edit|rename/i }).click();
+  // ── Rename ─────────────────────────────────────────────────
+  // Tags render as <li> rows. Edit swaps the chip for an input +
+  // a Save / Cancel button pair (per TagManager.tsx).
+  const row = page.getByRole("listitem").filter({ hasText: name });
+  await row.getByRole("button", { name: /^edit$/i }).click();
   const renamed = `${name} renamed`;
-  // The edit-in-place input surfaces the current name; target by value.
-  await page.locator(`input[value="${name}"]`).first().fill(renamed);
-  await page.getByRole("button", { name: /save/i }).first().click();
+  await row.getByRole("textbox").fill(renamed);
+  await row.getByRole("button", { name: /^save$/i }).click();
   await expect(page.getByText(renamed)).toBeVisible();
 
-  // Delete
+  // ── Delete ─────────────────────────────────────────────────
+  // handleDelete calls window.confirm(); accept it preemptively so
+  // the click-handler doesn't block.
   page.once("dialog", (d) => d.accept());
   await page
-    .locator("li, tr")
+    .getByRole("listitem")
     .filter({ hasText: renamed })
-    .first()
-    .getByRole("button", { name: /delete/i })
+    .getByRole("button", { name: /^delete$/i })
     .click();
-  const confirm = page.getByRole("button", { name: /confirm/i });
-  if (await confirm.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await confirm.click();
-  }
 
-  await page.waitForTimeout(500);
-  const { data: afterDelete } = await admin
-    .from("contact_tags")
-    .select("id")
-    .eq("id", created!.id);
-  expect(afterDelete).toHaveLength(0);
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("contact_tags")
+          .select("id")
+          .eq("id", created!.id);
+        return data?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe(0);
 });
 
-// FIXME (e2e green-up 2026-04-29): 30s timeout. Auth path / 404 surface
-// changed. Quarantined.
-test.fixme("non-super-admin hitting /admin routes gets a 404", async ({
+test("non-super-admin hitting /admin routes gets a 404", async ({
   browser,
 }) => {
   const admin = createAdminClient();
@@ -88,10 +105,13 @@ test.fixme("non-super-admin hitting /admin routes gets a 404", async ({
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
 
+    // Email-first /login: toggle into password mode, then use the
+    // testid pattern (matches auth.setup).
     await page.goto("/login");
-    await page.getByLabel(/email/i).fill(regular.email);
-    await page.getByLabel(/password/i).fill(regular.password);
-    await page.getByRole("button", { name: /sign in|log in/i }).click();
+    await page.getByTestId("login-mode-toggle").click();
+    await page.getByTestId("login-email").fill(regular.email);
+    await page.getByTestId("login-password").fill(regular.password);
+    await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
 
     // Navigate to an admin route. The app's route guard should 404 —
