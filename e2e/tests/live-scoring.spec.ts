@@ -71,14 +71,7 @@ async function startGameInDb(opts: {
     .eq("id", gameId);
 }
 
-// FIXME (e2e archaeology 2026-04-29): tapping the player's name
-// (getByText("Alicia").first()) doesn't surface the "Record goal"
-// affordance in 30s — the click lands on the rendered span but
-// either the score-button has been replaced (a toast? long-press?
-// a new chip on the tile?) or selecting requires a different
-// gesture. Needs a real look at how scoring is triggered in the
-// current live UI. Re-quarantined to keep main green.
-test.fixme("record a goal via the live UI and see it in game_events", async ({
+test("record a goal via the live UI and see it in game_events", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -88,6 +81,13 @@ test.fixme("record a goal via the live UI and see it in game_events", async ({
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  // Score buttons render only when canScore is true, which requires
+  // team.track_scoring (see src/components/live/LiveGame.tsx ~ line
+  // 848). makeTeam doesn't enable it; flip it explicitly here.
+  await admin
+    .from("teams")
+    .update({ track_scoring: true })
+    .eq("id", team.id);
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -106,30 +106,34 @@ test.fixme("record a goal via the live UI and see it in game_events", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Tap a forward player (first 6 in the seeded lineup). Then tap the
-  // "Record goal" affordance that appears.
+  // Tap a player on the field. Use getByRole("button") rather than
+  // getByText to avoid matching the SwapCard's suggestion summary
+  // <p> at the top — that paragraph mentions player names but
+  // isn't interactive.
   const scorer = players[0];
-  await page.getByText(scorer.full_name).first().click();
   await page
-    .getByRole("button", { name: /record goal|goal/i })
-    .first()
+    .getByRole("button", { name: new RegExp(scorer.full_name) })
     .click();
 
-  await page.waitForTimeout(500); // let the server action commit
+  // The "Record score for X" panel surfaces a "+ Goal" button.
+  await page.getByRole("button", { name: /\+ goal/i }).click();
 
-  const { data: events } = await admin
-    .from("game_events")
-    .select("type, metadata")
-    .eq("game_id", game.id)
-    .eq("type", "goal");
-
-  expect(events?.length ?? 0).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(
+      async () => {
+        const { data: events } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "goal");
+        return events?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
 });
 
-// FIXME (e2e archaeology 2026-04-29): same root cause as the goal
-// test above — "Undo" affordance not found in 30s after a seeded
-// goal event. Probably the same UI mechanic.
-test.fixme("undo last score removes the most recent goal from the tally", async ({
+test("undo last score removes the most recent goal from the tally", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -139,6 +143,11 @@ test.fixme("undo last score removes the most recent goal from the tally", async 
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  // Required for canScore — see comment on the goal test above.
+  await admin
+    .from("teams")
+    .update({ track_scoring: true })
+    .eq("id", team.id);
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -155,28 +164,38 @@ test.fixme("undo last score removes the most recent goal from the tally", async 
     createdBy: ownerId,
   });
 
-  // Seed one goal directly so the Undo button is definitely reachable.
-  // game_events.player_id is its own column on this schema; the rest
-  // of the event-specific data goes in metadata.
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "goal",
-    player_id: players[0].id,
-    metadata: { quarter: 1, elapsed_ms: 10_000 },
-    created_by: ownerId,
-  });
-
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  await page.getByRole("button", { name: /undo/i }).first().click();
-  await page.waitForTimeout(500);
+  // The Undo affordance only appears in the post-score toast (auto-
+  // dismisses after 8s — see startUndoToast in LiveGame.tsx). Seeding
+  // a goal event directly in the DB does NOT trigger the toast: the
+  // toast is client-state, set when handleScore fires. So drive the
+  // full flow through the UI.
+  const scorer = players[0];
+  await page
+    .getByRole("button", { name: new RegExp(scorer.full_name) })
+    .click();
+  await page.getByRole("button", { name: /\+ goal/i }).click();
+
+  // Toast renders an Undo button. Click it before the 8s timer
+  // dismisses it.
+  await page
+    .getByRole("button", { name: /^undo$/i })
+    .click({ timeout: 7_000 });
 
   // Undo inserts a score_undo event (added in migration 0013), not a
   // delete on the original — the audit trail stays intact.
-  const { data: undoEvents } = await admin
-    .from("game_events")
-    .select("type")
-    .eq("game_id", game.id)
-    .eq("type", "score_undo");
-  expect(undoEvents?.length ?? 0).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(
+      async () => {
+        const { data: undoEvents } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "score_undo");
+        return undoEvents?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
 });
