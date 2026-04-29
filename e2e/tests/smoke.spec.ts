@@ -9,9 +9,7 @@
 
 import { test, expect } from "@playwright/test";
 
-// FIXME (e2e green-up 2026-04-29): assertion failure — KPI grid markup
-// has changed since this was written. Quarantined.
-test.fixme("super-admin loads /admin and sees the KPI grid", async ({ page }) => {
+test("super-admin loads /admin and sees the KPI grid", async ({ page }) => {
   await page.goto("/admin");
 
   // Route guard: if storageState missing or profile.is_super_admin flag
