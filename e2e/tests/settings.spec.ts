@@ -74,13 +74,21 @@ test("toggle track-scoring flag", async ({ page }) => {
   );
   await toggle.click();
 
-  await page.waitForTimeout(500);
-
-  const { data: after } = await admin
-    .from("teams")
-    .select("track_scoring")
-    .eq("id", team.id)
-    .single();
-
-  expect(after?.track_scoring).not.toBe(before?.track_scoring);
+  // The server action runs in startTransition; a fixed 500ms wait was
+  // flaky on slower CI runners (the race lost ~10% of the time and
+  // would only pass on retry). Poll the DB instead — bounded at 5s,
+  // exits as soon as the row flips.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("teams")
+          .select("track_scoring")
+          .eq("id", team.id)
+          .single();
+        return data?.track_scoring;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .not.toBe(before?.track_scoring);
 });
