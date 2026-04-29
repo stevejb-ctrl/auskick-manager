@@ -26,7 +26,7 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 

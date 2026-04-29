@@ -84,7 +84,7 @@ test("record a goal via the live UI and see it in game_events", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
@@ -132,7 +132,7 @@ test("undo last score removes the most recent goal from the tally", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 

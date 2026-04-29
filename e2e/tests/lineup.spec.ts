@@ -26,7 +26,7 @@ test.fixme("pre-kickoff lineup renders a full field of players", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
