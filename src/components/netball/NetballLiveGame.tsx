@@ -22,6 +22,8 @@ import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions"
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
+import { WalkthroughModal } from "@/components/live/WalkthroughModal";
+import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -787,14 +789,43 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }, [replacingTarget, onCourt, squad, availableIds, lateArrivedIds, injuredIds, loanedIds]);
 
-  // ─── "✕ Exit" affordance ────────────────────────────────────
+  // ─── Walkthrough state ──────────────────────────────────────
+  // Mirrors AFL's first-visit walkthrough at
+  // src/components/live/LiveGame.tsx:299. localStorage key is
+  // sport-specific (`nb-walkthrough-seen`) so a coach who's seen
+  // the AFL walkthrough still gets the netball one on their first
+  // netball game — different mechanics, different copy.
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
+  const walkthroughSteps = useMemo(
+    () => buildNetballWalkthroughSteps({ trackScoring: true }),
+    [],
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("nb-walkthrough-seen")) return;
+    setWalkthroughOpen(true);
+  }, []);
+  function handleWalkthroughClose() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+    }
+    setWalkthroughOpen(false);
+    setWalkthroughSkipWelcome(false);
+  }
+  function handleOpenWalkthrough() {
+    setWalkthroughSkipWelcome(true);
+    setWalkthroughOpen(true);
+  }
+
+  // ─── "✕ Exit" affordance + walkthrough ? button ────────────
   // Mirrors AFL's top utility row in src/components/live/LiveGame.tsx:806.
   // Always-visible link in the upper-left of every netball
   // branch (pre-kickoff / live / Q-break / finalised) so the coach
   // can pop back to the game detail page (or runner landing) at
-  // any moment without hunting for an action. Same destination as
-  // the pre-kickoff "Back to availability" breadcrumb, but exposed
-  // in every state.
+  // any moment without hunting for an action. The "?" button on
+  // the right opens the walkthrough modal with the welcome step
+  // skipped (coach already knows what they signed up for).
   const exitHref =
     auth.kind === "team"
       ? `/teams/${auth.teamId}/games/${game.id}`
@@ -807,9 +838,23 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       >
         ✕ Exit
       </Link>
-      <span />
+      <button
+        type="button"
+        onClick={handleOpenWalkthrough}
+        className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
+        aria-label="Open walkthrough"
+      >
+        ?
+      </button>
     </div>
   );
+  const walkthroughOverlay = walkthroughOpen ? (
+    <WalkthroughModal
+      steps={walkthroughSteps}
+      skipWelcome={walkthroughSkipWelcome}
+      onClose={handleWalkthroughClose}
+    />
+  ) : null;
 
   // ─── Initial lineup (before game starts) ────────────────────
   if (!hasStarted) {
@@ -822,6 +867,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 p-4">
         {topUtilityRow}
+        {walkthroughOverlay}
         <NetballLineupPicker
           ageGroup={ageGroup}
           squad={squad}
@@ -864,6 +910,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 p-4">
         {topUtilityRow}
+        {walkthroughOverlay}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -913,6 +960,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 p-4">
         {topUtilityRow}
+        {walkthroughOverlay}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -988,6 +1036,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 p-4">
         {topUtilityRow}
+        {walkthroughOverlay}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -1024,6 +1073,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 p-4">
         {topUtilityRow}
+        {walkthroughOverlay}
         <NetballScoreBug
           teamName={teamName}
           opponentName={game.opponent}
@@ -1060,6 +1110,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   return (
     <div className="flex flex-col gap-4 p-4">
       {topUtilityRow}
+      {walkthroughOverlay}
       <NetballScoreBug
         teamName={teamName}
         opponentName={game.opponent}
