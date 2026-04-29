@@ -17,9 +17,7 @@ import { makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): 30s timeout. Invite flow changed.
-// Quarantined.
-test.fixme("admin invites a parent, parent accepts via /join/[token]", async ({
+test("admin invites a parent, parent accepts via /join/[token]", async ({
   browser,
 }) => {
   const admin = createAdminClient();
@@ -37,24 +35,35 @@ test.fixme("admin invites a parent, parent accepts via /join/[token]", async ({
   const adminPage = await adminContext.newPage();
 
   await adminPage.goto(`/teams/${team.id}/settings`);
+  // TeamMembersSettings starts with "Invite someone" trigger; clicking
+  // it surfaces the create-link form whose submit button is "Create
+  // invite link" (per src/components/team/TeamMembersSettings.tsx).
   await adminPage
-    .getByRole("button", { name: /invite/i })
-    .first()
+    .getByRole("button", { name: /^invite someone$/i })
     .click();
   await adminPage
-    .getByRole("button", { name: /create invite|generate/i })
-    .first()
+    .getByRole("button", { name: /^create invite link$/i })
     .click();
 
   // Pull the freshly-created token straight from the DB — the UI
-  // surfaces a "Copy link" button but parsing the clipboard from a
+  // surfaces a "Copy" button but parsing the clipboard from a
   // Playwright test is flakier than a DB fetch.
-  await adminPage.waitForTimeout(500);
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("team_invites")
+          .select("token")
+          .eq("team_id", team.id);
+        return data?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
   const { data: invites } = await admin
     .from("team_invites")
     .select("token, role")
     .eq("team_id", team.id);
-  expect(invites?.length ?? 0).toBeGreaterThanOrEqual(1);
   const token = invites![0].token;
   const invitedRole = invites![0].role;
 
@@ -71,17 +80,20 @@ test.fixme("admin invites a parent, parent accepts via /join/[token]", async ({
     const userContext = await browser.newContext({ storageState: undefined });
     const userPage = await userContext.newPage();
 
-    // Sign in as the invitee first (account created via admin API above).
+    // Sign in as the invitee first (account created via admin API
+    // above). /login is email-first / magic-link; toggle to password
+    // mode and use the testid pattern.
     await userPage.goto("/login");
-    await userPage.getByLabel(/email/i).fill(invitee.email);
-    await userPage.getByLabel(/password/i).fill(invitee.password);
-    await userPage.getByRole("button", { name: /sign in|log in/i }).click();
+    await userPage.getByTestId("login-mode-toggle").click();
+    await userPage.getByTestId("login-email").fill(invitee.email);
+    await userPage.getByTestId("login-password").fill(invitee.password);
+    await userPage.getByTestId("login-submit").click();
     await userPage.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
 
     await userPage.goto(`/join/${token}`);
+    // AcceptInviteButton renders "Accept & join team".
     await userPage
-      .getByRole("button", { name: /accept|join/i })
-      .first()
+      .getByRole("button", { name: /accept.*join team/i })
       .click();
 
     // Lands on the team page after accepting.
@@ -90,13 +102,19 @@ test.fixme("admin invites a parent, parent accepts via /join/[token]", async ({
     });
 
     // --- Step 3: DB confirms membership ---
-    const { data: memberships } = await admin
-      .from("team_memberships")
-      .select("user_id, role")
-      .eq("team_id", team.id)
-      .eq("user_id", invitee.id);
-    expect(memberships).toHaveLength(1);
-    expect(memberships![0].role).toBe(invitedRole);
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin
+            .from("team_memberships")
+            .select("role")
+            .eq("team_id", team.id)
+            .eq("user_id", invitee.id);
+          return data?.[0]?.role;
+        },
+        { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+      )
+      .toBe(invitedRole);
 
     await userContext.close();
   } finally {
