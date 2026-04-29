@@ -213,15 +213,21 @@ test("team settings round-trips quarter_length_seconds for a netball team", asyn
   try {
     await page.goto(`/teams/${team.id}/settings`);
 
-    // Section-scoped locator (settings.spec.ts:35 pattern) — avoids accidental
-    // matches against other numeric inputs on the settings page.
-    const qlCard = page
-      .locator("section")
-      .filter({ hasText: /quarter length/i });
+    // QuarterLengthInput renders as a <div> wrapper (not <section>
+    // like TeamNameSettings), and its label is unique on the settings
+    // page — no other input is labelled "Quarter length". Locate the
+    // input directly, then walk up to the card root (which has the
+    // shared `rounded-lg` shell class) and find the Save button inside
+    // it. This avoids matching the Team name Save button or the
+    // "Save song" button elsewhere on the page.
+    const qlInput = page.getByLabel(/quarter length/i);
+    const qlCard = qlInput.locator(
+      "xpath=ancestor::div[contains(@class, 'rounded-lg')][1]",
+    );
 
-    await qlCard.getByLabel(/quarter length/i).clear();
-    await qlCard.getByLabel(/quarter length/i).fill("8"); // 8 min = 480 sec
-    await qlCard.getByRole("button", { name: /save/i }).click();
+    await qlInput.clear();
+    await qlInput.fill("8"); // 8 min = 480 sec
+    await qlCard.getByRole("button", { name: /^save$/i }).click();
 
     // expect.poll DB-write round-trip (settings.spec.ts:39-51 pattern).
     // 8 minutes × 60 seconds = 480.
@@ -237,9 +243,10 @@ test("team settings round-trips quarter_length_seconds for a netball team", asyn
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     ).toBe(480);
 
-    // Reload and confirm UI reflects the persisted value.
+    // Reload and confirm UI reflects the persisted value. qlInput is
+    // a lazy locator — it re-resolves against the post-reload DOM.
     await page.reload();
-    await expect(qlCard.getByLabel(/quarter length/i)).toHaveValue("8");
+    await expect(qlInput).toHaveValue("8");
   } finally {
     await admin.from("teams").delete().eq("id", team.id);
   }
