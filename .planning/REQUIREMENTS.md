@@ -100,47 +100,45 @@ Deferred to future milestones. Tracked but not in current roadmap.
 
 ## Traceability
 
-Empty initially — populated by the roadmapper during ROADMAP.md creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MERGE-01 | TBD | Pending |
-| MERGE-02 | TBD | Pending |
-| MERGE-03 | TBD | Pending |
-| SCHEMA-01 | TBD | Pending |
-| SCHEMA-02 | TBD | Pending |
-| SCHEMA-03 | TBD | Pending |
-| SCHEMA-04 | TBD | Pending |
-| ABSTRACT-01 | TBD | Pending |
-| ABSTRACT-02 | TBD | Pending |
-| ABSTRACT-03 | TBD | Pending |
-| NETBALL-01 | TBD | Pending |
-| NETBALL-02 | TBD | Pending |
-| NETBALL-03 | TBD | Pending |
-| NETBALL-04 | TBD | Pending |
-| NETBALL-05 | TBD | Pending |
-| NETBALL-06 | TBD | Pending |
-| NETBALL-07 | TBD | Pending |
-| NETBALL-08 | TBD | Pending |
-| PROD-01 | TBD | Pending |
-| PROD-02 | TBD | Pending |
-| PROD-03 | TBD | Pending |
-| PROD-04 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
-| TEST-05 | TBD | Pending |
-| DEPLOY-01 | TBD | Pending |
-| DEPLOY-02 | TBD | Pending |
-| DEPLOY-03 | TBD | Pending |
-| DEPLOY-04 | TBD | Pending |
+| MERGE-01 | Phase 3 | Pending |
+| MERGE-02 | Phase 1 | Pending |
+| MERGE-03 | Phase 1 | Pending |
+| SCHEMA-01 | Phase 2 | Pending |
+| SCHEMA-02 | Phase 2 | Pending |
+| SCHEMA-03 | Phase 2 | Pending |
+| SCHEMA-04 | Phase 2 | Pending |
+| ABSTRACT-01 | Phase 3 | Pending |
+| ABSTRACT-02 | Phase 3 | Pending |
+| ABSTRACT-03 | Phase 3 | Pending |
+| NETBALL-01 | Phase 4 | Pending |
+| NETBALL-02 | Phase 4 | Pending |
+| NETBALL-03 | Phase 4 | Pending |
+| NETBALL-04 | Phase 4 | Pending |
+| NETBALL-05 | Phase 4 | Pending |
+| NETBALL-06 | Phase 4 | Pending |
+| NETBALL-07 | Phase 4 | Pending |
+| NETBALL-08 | Phase 4 | Pending |
+| PROD-01 | Phase 3 | Pending |
+| PROD-02 | Phase 3 | Pending |
+| PROD-03 | Phase 3 | Pending |
+| PROD-04 | Phase 3 | Pending |
+| TEST-01 | Phase 5 | Pending |
+| TEST-02 | Phase 5 | Pending |
+| TEST-03 | Phase 5 | Pending |
+| TEST-04 | Phase 5 | Pending |
+| TEST-05 | Phase 5 | Pending |
+| DEPLOY-01 | Phase 6 | Pending |
+| DEPLOY-02 | Phase 6 | Pending |
+| DEPLOY-03 | Phase 7 | Pending |
+| DEPLOY-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 31 total
-- Mapped to phases: 0 (will be set by roadmapper)
-- Unmapped: 31 (initial state — roadmapper fills in)
+- Mapped to phases: 31
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after initial definition*
+*Last updated: 2026-04-29 after roadmap creation — traceability table populated*
