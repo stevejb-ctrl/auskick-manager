@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   clockElapsedMs,
-  QUARTER_MS,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import {
@@ -117,6 +116,10 @@ interface LiveGameProps {
   songDurationSeconds?: number;
   /** Speed multiplier for demo games — scales stored elapsed_ms and sub/quarter timing (default 1). */
   clockMultiplier?: number;
+  /** Effective quarter duration in milliseconds for this game/team/age-group.
+   * Computed by parent via getEffectiveQuarterSeconds(team, ageGroup, game) * 1000.
+   * D-26 / D-27: replaces hardcoded QUARTER_MS at the countdown cap and hooter trigger. */
+  quarterMs: number;
 }
 
 type LastScore = {
@@ -145,6 +148,7 @@ export function LiveGame({
   songStartSeconds = 0,
   songDurationSeconds = 15,
   clockMultiplier = 1,
+  quarterMs,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -692,7 +696,7 @@ export function LiveGame({
     setError(null);
     const q = currentQuarter;
     const elapsed_ms = scaledElapsedMs();
-    endCurrentQuarter();
+    endCurrentQuarter(quarterMs);
     startTransition(async () => {
       const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
       if (!result.success) setError(result.error);
@@ -710,7 +714,7 @@ export function LiveGame({
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
-  const displayNowMs = Math.min(nowMs, QUARTER_MS);
+  const displayNowMs = Math.min(nowMs, quarterMs);
 
   const zoneMsByPlayer: Record<string, ZoneMinutes> = {};
   for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
@@ -787,7 +791,7 @@ export function LiveGame({
 
     function maybeTrigger() {
       const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
-      if (elapsed * clockMultiplier >= QUARTER_MS && quarterEndTriggeredRef.current !== currentQuarter) {
+      if (elapsed * clockMultiplier >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
         // Freeze the clock at the hooter so per-player stint times don't keep
         // accruing while the GM reads the modal.
