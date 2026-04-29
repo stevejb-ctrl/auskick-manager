@@ -13,7 +13,7 @@ Two long-lived branches — `main` (60 production commits since fork) and `multi
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
-- [ ] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI (1/3 plans complete)
+- [x] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI — COMPLETE 2026-04-29
 - [ ] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved
 - [ ] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly
 - [ ] **Phase 5: Test + type green** - Achieve full CI green: Vitest, Playwright e2e, TypeScript, lint, and seed team intact
@@ -49,7 +49,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 02-02-PLAN.md — Add missing `e2e` + `db:*` scripts to package.json; extend e2e/fixtures/factories.ts makeTeam with optional sport parameter and widen ageGroup to string ✓ 2026-04-29
 
 **Wave 2** *(blocked on Wave 1 completion)*:
-- [ ] 02-03-PLAN.md — Author e2e/tests/multi-sport-schema.spec.ts (3 test cases: AFL wizard, netball wizard, team-settings round-trip — expected red on this branch, Phase 3 flips green); finalize 02-SCHEMA-PLAN.md §§5-6 (spec design + Phase 6 handoff)
+- [x] 02-03-PLAN.md — Author e2e/tests/multi-sport-schema.spec.ts (3 test cases: AFL wizard, netball wizard, team-settings round-trip — expected red on this branch, Phase 3 flips green); finalize 02-SCHEMA-PLAN.md §§5-6 (spec design + Phase 6 handoff) ✓ 2026-04-29
 
 **Cross-cutting constraints** *(must hold across all plans)*:
 - `supabase/migrations/` on this branch is unchanged at end of every plan (D-11 read-only invariant; rename/delete is documented for Phase 3, not executed here)
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
-| 2. Schema reconciliation | 2/3 | In progress | - |
+| 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
 | 5. Test + type green | 0/TBD | Not started | - |
