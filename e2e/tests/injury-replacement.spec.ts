@@ -75,21 +75,38 @@ test("injuring an on-field player prompts for a bench replacement and persists b
   // The replacement we'll pick — first bench player.
   const replacement = bench[0];
 
-  // Tap the on-field PlayerTile by its testid. Avoids colliding
-  // with SwapCard's pair-row buttons, which also expose role of
-  // "button" with the player name in their accessible text.
-  await page.getByTestId(`player-tile-${injured.id}`).click();
+  // LockModal (where "Mark injured" lives) opens on long-press, not
+  // a regular tap — PlayerTile.tsx fires onLongPress after a 500ms
+  // pointerdown hold. Playwright's `click({ delay })` is the wait
+  // between mousedown and mouseup, so 600ms blows past the 500ms
+  // threshold and triggers the long-press handler. We also use the
+  // testid (not role-by-name) so we don't collide with SwapCard's
+  // pair-row buttons that mention the same player names.
+  await page
+    .getByTestId(`player-tile-${injured.id}`)
+    .click({ delay: 600 });
   // LockModal renders "Mark injured" as a button.
   await page.getByRole("button", { name: /mark injured/i }).click();
 
   // InjuryReplacementModal should now be visible (title: "Who comes
   // on at MID?"), with the first bench candidate flagged "Suggested".
-  await expect(page.getByText(/who comes on at/i)).toBeVisible();
-  await expect(page.getByText("Suggested")).toBeVisible();
+  // Scope the assertion to the dialog because the page also contains:
+  //   - SwapCard's "Suggested — 3 swaps" header (behind the modal)
+  //   - the modal's own helper text "… Suggested = least field time …"
+  // — so a bare getByText("Suggested") trips strict-mode every time.
+  const injuryDialog = page.getByRole("dialog", {
+    name: /who comes on at/i,
+  });
+  await expect(injuryDialog).toBeVisible();
+  await expect(
+    injuryDialog.getByText("Suggested", { exact: true }),
+  ).toBeVisible();
 
-  // Pick the replacement by name. The modal's button accessible name
-  // includes the player name + "Suggested" + "Played 0:00 this game".
-  await page
+  // Pick the replacement by name. Scope to the dialog because the
+  // page also has a SwapCard pair-row button + the on-field PlayerTile
+  // that mention the same player names. The modal's candidate button
+  // exposes accessible name "Maeve #13 Suggested Played 0:00 this game".
+  await injuryDialog
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
 
@@ -172,7 +189,11 @@ test("injuring an on-field player when the bench is empty falls through to the o
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   const injured = players[third];
-  await page.getByTestId(`player-tile-${injured.id}`).click();
+  // Long-press to open LockModal — see comment on the picker test
+  // above for why click({ delay: 600 }) is needed.
+  await page
+    .getByTestId(`player-tile-${injured.id}`)
+    .click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
 
   // Picker should NOT appear — the gate in LiveGame.tsx skips it when
