@@ -12,7 +12,7 @@ Two long-lived branches — `main` (60 production commits since fork) and `multi
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
+- [x] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
 - [ ] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI
 - [ ] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved
 - [ ] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly
@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A written conflict-surface inventory (MERGE-NOTES.md or equivalent) names every file category expected to conflict: migration numbers, shared components touched by both branches, changed server actions, modified types
   3. The rationale for each non-trivial resolution decision (e.g. which branch's migration ordering wins, how abstraction conflicts are resolved) is captured in a form reviewable post-hoc
 **Plans**: 1 plan
-- [ ] 01-01-PLAN.md — Build divergence inventory (MERGE-NOTES.md, 9 sections) and create + push pre-merge/main and pre-merge/multi-sport annotated tags
+- [x] 01-01-PLAN.md — Build divergence inventory (MERGE-NOTES.md, 9 sections) and create + push pre-merge/main and pre-merge/multi-sport annotated tags ✓
 
 ### Phase 2: Schema reconciliation
 **Goal**: The database migration set is monotonic, unique, and safe to apply against existing AFL production data — the new `teams.sport`, `teams.track_scoring`, `teams.quarter_length_seconds`, and `games.quarter_length_seconds` columns land cleanly
@@ -113,7 +113,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Divergence inventory & merge plan | 0/1 | Not started | - |
+| 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
 | 2. Schema reconciliation | 0/TBD | Not started | - |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
