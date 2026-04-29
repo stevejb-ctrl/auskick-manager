@@ -17,15 +17,12 @@ test("super-admin loads /admin and sees the KPI grid", async ({ page }) => {
   // navigation catches both cases.
   await expect(page).toHaveURL(/\/admin$/);
 
-  // The AdminTabBar contains nav links also labelled "Users" / "Teams"
-  // / "Games" — `getByText("Users", { exact: true })` matches both the
-  // tab link AND the KPI card label, which trips Playwright's strict
-  // mode. Match the KPI labels by their style fingerprint
-  // (uppercase + tracking-micro = the eyebrow class only used by the
-  // KpiCard) so we end up at exactly one element per label.
-  const kpiLabel = (label: string) =>
-    page.locator(".tracking-micro", { hasText: new RegExp(`^${label}$`) });
-  await expect(kpiLabel("Users")).toBeVisible();
-  await expect(kpiLabel("Teams")).toBeVisible();
-  await expect(kpiLabel("Games")).toBeVisible();
+  // KpiCard exposes a stable `data-testid="admin-kpi-{slug}"` per
+  // card. Using it sidesteps the ambiguity from `getByText("Users")`
+  // — there are AdminTabBar nav links AND DataTable column headers
+  // also labelled "Users"/"Teams"/"Games" using the same eyebrow
+  // styling.
+  await expect(page.getByTestId("admin-kpi-users")).toBeVisible();
+  await expect(page.getByTestId("admin-kpi-teams")).toBeVisible();
+  await expect(page.getByTestId("admin-kpi-games")).toBeVisible();
 });
