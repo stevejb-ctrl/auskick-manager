@@ -28,9 +28,7 @@ const cases: Array<{ ageGroup: AgeGroup; expectedSize: number }> = [
 ];
 
 for (const { ageGroup, expectedSize } of cases) {
-  // FIXME (e2e green-up 2026-04-29): 30s timeout — UI selectors no longer
-  // match the create-game form. Quarantined so CI is green.
-  test.fixme(`createGame on a ${ageGroup} team stores on_field_size=${expectedSize}`, async ({
+  test(`createGame on a ${ageGroup} team stores on_field_size=${expectedSize}`, async ({
     browser,
   }) => {
     const admin = createAdminClient();
@@ -49,21 +47,27 @@ for (const { ageGroup, expectedSize } of cases) {
       });
 
       // Sign in as this user (not the super-admin) so the create-game
-      // flow mirrors a real team admin's experience.
+      // flow mirrors a real team admin's experience. /login is now an
+      // email-first / magic-link form by default; click the password
+      // toggle first to surface the password input. (Same pattern
+      // auth.setup uses — see e2e/tests/auth.setup.ts.)
       const context = await browser.newContext({ storageState: undefined });
       const page = await context.newPage();
 
       await page.goto("/login");
-      await page.getByLabel(/email/i).fill(user.email);
-      await page.getByLabel(/password/i).fill(user.password);
-      await page.getByRole("button", { name: /sign in|log in/i }).click();
+      await page.getByTestId("login-mode-toggle").click();
+      await page.getByTestId("login-email").fill(user.email);
+      await page.getByTestId("login-password").fill(user.password);
+      await page.getByTestId("login-submit").click();
       await page.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
 
       await page.goto(`/teams/${team.id}/games`);
 
-      // The games page has an "Add game" affordance that opens the
-      // CreateGameForm. Button label may be "Add game" or "+ Add game".
-      await page.getByRole("button", { name: /add game/i }).first().click();
+      // The games page lives behind AddGameSection now: the "manual
+      // create" affordance is a "Create manually" button (the primary
+      // option is "Import from PlayHQ"). Clicking opens a modal that
+      // hosts CreateGameForm.
+      await page.getByRole("button", { name: /create manually/i }).click();
 
       const opponent = `Test Opp ${stamp}`;
       await page.getByLabel(/opponent/i).fill(opponent);
@@ -74,10 +78,10 @@ for (const { ageGroup, expectedSize } of cases) {
       const local = future.toISOString().slice(0, 16);
       await page.getByLabel(/date.*time/i).fill(local);
 
-      await page.getByRole("button", { name: /create game/i }).click();
+      await page.getByRole("button", { name: /^create game$/i }).click();
 
-      // Game detail page loads. Confirm via DB that on_field_size
-      // matches the age-group default.
+      // createGame redirects to /teams/{teamId}/games/{gameId} on
+      // success — wait for that redirect, then DB-verify the size.
       await page.waitForURL(/\/teams\/.+\/games\/.+/, { timeout: 10_000 });
 
       const { data: games } = await admin
