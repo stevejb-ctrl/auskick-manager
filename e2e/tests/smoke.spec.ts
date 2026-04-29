@@ -17,11 +17,15 @@ test("super-admin loads /admin and sees the KPI grid", async ({ page }) => {
   // navigation catches both cases.
   await expect(page).toHaveURL(/\/admin$/);
 
-  // "Users" is one of the four KPI card labels rendered at the top of
-  // the admin overview (see src/app/(app)/admin/page.tsx). Using the
-  // accessible label rather than a testid keeps the test resilient to
-  // cosmetic tweaks of the card component.
-  await expect(page.getByText("Users", { exact: true })).toBeVisible();
-  await expect(page.getByText("Teams", { exact: true })).toBeVisible();
-  await expect(page.getByText("Games", { exact: true })).toBeVisible();
+  // The AdminTabBar contains nav links also labelled "Users" / "Teams"
+  // / "Games" — `getByText("Users", { exact: true })` matches both the
+  // tab link AND the KPI card label, which trips Playwright's strict
+  // mode. Match the KPI labels by their style fingerprint
+  // (uppercase + tracking-micro = the eyebrow class only used by the
+  // KpiCard) so we end up at exactly one element per label.
+  const kpiLabel = (label: string) =>
+    page.locator(".tracking-micro", { hasText: new RegExp(`^${label}$`) });
+  await expect(kpiLabel("Users")).toBeVisible();
+  await expect(kpiLabel("Teams")).toBeVisible();
+  await expect(kpiLabel("Games")).toBeVisible();
 });

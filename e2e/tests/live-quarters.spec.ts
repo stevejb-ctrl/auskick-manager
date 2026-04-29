@@ -45,34 +45,41 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
   }
   lineup.bench = players.slice(cursor).map((p) => p.id);
 
+  // Backdate quarter_start so Q1 has already run past the 12-minute
+  // QUARTER_MS threshold by the time the page mounts. LiveGame's
+  // `maybeTrigger` effect runs immediately on mount, sees elapsed >=
+  // QUARTER_MS, and auto-opens the QuarterEndModal — there's no manual
+  // "End Q1" button on the field; the hooter is what fires the
+  // end-of-quarter flow.
+  const thirteenMinutesAgo = new Date(Date.now() - 13 * 60_000).toISOString();
   await admin.from("game_events").insert([
     {
       game_id: game.id,
       type: "lineup_set",
       metadata: { lineup },
       created_by: ownerId,
+      created_at: thirteenMinutesAgo,
     },
     {
       game_id: game.id,
       type: "quarter_start",
       metadata: { quarter: 1 },
       created_by: ownerId,
+      created_at: thirteenMinutesAgo,
     },
   ]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // End Q1.
-  await page.getByRole("button", { name: /end q1/i }).click();
+  // QuarterEndModal auto-opens because Q1 ran past the hooter.
+  // For Q1–Q3 the modal CTA reads "Select team for Q{n+1}" (per
+  // QuarterEndModal.tsx); only Q4 reads "End game".
+  await page
+    .getByRole("button", { name: /select team for q2/i })
+    .click();
 
-  // Confirm if a modal appears.
-  const confirm = page.getByRole("button", { name: /confirm|end quarter/i });
-  if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await confirm.click();
-  }
-
-  // Expect "Start Q2" button to appear during the break.
+  // Expect "Start Q2" button on the QuarterBreak screen.
   await expect(page.getByRole("button", { name: /start q2/i })).toBeVisible({
     timeout: 5_000,
   });
