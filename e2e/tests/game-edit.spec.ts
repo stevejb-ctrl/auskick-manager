@@ -1,46 +1,17 @@
-// Covers updateGame + deleteGame server actions. Because the super-admin
-// storageState is reused here, we operate on teams the super-admin owns —
-// simpler than reauthing as another user.
+// Covers deleteGame server action. The companion update-game test
+// was removed in 2026-04-29 — `updateGame` is defined in
+// `src/app/(app)/teams/[teamId]/games/actions.ts` but isn't called
+// from anywhere in `src/`. There's no UI affordance to edit a game's
+// metadata, so the spec was testing a flow that doesn't exist. Per
+// CLAUDE.md "dead tests are worse than no tests."
 //
-// Covers: src/app/(app)/teams/[teamId]/games/actions.ts:updateGame
-//         src/app/(app)/teams/[teamId]/games/[gameId]/actions.ts:deleteGame
+// Covers: src/app/(app)/teams/[teamId]/games/[gameId]/actions.ts:deleteGame
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makeGame } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
-
-test("update game metadata persists across reload", async ({ page }) => {
-  const admin = createAdminClient();
-
-  const { data: superAdmin } = await admin.auth.admin.listUsers();
-  const ownerId = superAdmin.users.find(
-    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
-  )!.id;
-
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
-  const game = await makeGame(admin, {
-    teamId: team.id,
-    ownerId,
-    opponent: "Original Opp",
-  });
-
-  await page.goto(`/teams/${team.id}/games/${game.id}`);
-
-  // An Edit affordance on the game detail page opens the edit form.
-  // The exact UI may be a button, link, or menu item; grep for /edit/i.
-  await page.getByRole("link", { name: /edit/i }).or(
-    page.getByRole("button", { name: /edit/i })
-  ).first().click();
-
-  await page.getByLabel(/opponent/i).fill("Updated Opp");
-  await page.getByRole("button", { name: /save|update/i }).first().click();
-
-  // Navigate back to detail and assert.
-  await page.goto(`/teams/${team.id}/games/${game.id}`);
-  await expect(page.getByText("Updated Opp")).toBeVisible();
-});
 
 test("delete game removes it from the games list", async ({ page }) => {
   const admin = createAdminClient();

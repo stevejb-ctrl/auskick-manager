@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/seo";
 
 // Canonical production host. Matches the Vercel domain with the apex
 // redirecting to www — don't list both or Search Console flags them
 // as duplicates.
-const BASE = "https://www.sirenfooty.com.au";
+const BASE = SITE_URL;
 
 // Bump this when a substantive content change rolls out so search
 // engines see the lastmod move. Individual pages can override via
@@ -31,9 +32,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/help/faq`, priority: 0.7, changeFrequency: "monthly" },
     { url: `${BASE}/help/troubleshooting`, priority: 0.6, changeFrequency: "monthly" },
 
-    // Transactional landing pages — useful for brand search
-    { url: `${BASE}/login`, priority: 0.4, changeFrequency: "yearly" },
-    { url: `${BASE}/signup`, priority: 0.5, changeFrequency: "yearly" },
+    // Transactional landing pages — useful for brand search.
+    // /signup is omitted: it redirects to /login under the unified
+    // email-first flow, so listing both is just two URLs for one page.
+    { url: `${BASE}/login`, priority: 0.5, changeFrequency: "yearly" },
     { url: `${BASE}/contact`, priority: 0.5, changeFrequency: "yearly" },
 
     // Legal

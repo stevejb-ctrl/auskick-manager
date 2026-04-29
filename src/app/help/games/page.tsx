@@ -7,8 +7,9 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Games — Help — Siren Footy",
+  title: "Games · Help · Siren Footy",
   description: "Creating games, editing details, and tracking game status.",
+  alternates: { canonical: "/help/games" },
 };
 
 export default function GamesPage() {
@@ -35,10 +36,10 @@ export default function GamesPage() {
             Fill in:
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>
-                <strong className="text-ink">Opponent</strong> — the other team&apos;s name
+                <strong className="text-ink">Opponent</strong>:the other team&apos;s name
               </li>
               <li>
-                <strong className="text-ink">Round</strong> — round number for the season
+                <strong className="text-ink">Round</strong>:round number for the season
               </li>
               <li>
                 <strong className="text-ink">Date and time</strong>
@@ -65,17 +66,17 @@ export default function GamesPage() {
         <h2 className="text-xl font-semibold text-ink">Game statuses</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Upcoming</strong> — game is scheduled but
+            <strong className="text-ink">Upcoming</strong>:game is scheduled but
             not yet started. Tap <strong className="text-ink">Start game</strong> to
             begin on game day.
           </li>
           <li>
-            <strong className="text-ink">In progress</strong> — the game has been
+            <strong className="text-ink">In progress</strong>:the game has been
             started. Tap <strong className="text-ink">Open live game</strong> to
             return to the live view.
           </li>
           <li>
-            <strong className="text-ink">Completed</strong> — all four quarters have
+            <strong className="text-ink">Completed</strong>:all four quarters have
             ended. Stats are now available in the Stats tab.
           </li>
         </ul>
@@ -114,7 +115,7 @@ export default function GamesPage() {
         <h2 className="text-xl font-semibold text-ink">Editing a game</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Open the game detail page and tap <strong className="text-ink">Edit</strong>. You
-          can change the opponent name, round, date, time, and venue at any time —
+          can change the opponent name, round, date, time, and venue at any time,
           even after a game has started.
         </p>
       </section>

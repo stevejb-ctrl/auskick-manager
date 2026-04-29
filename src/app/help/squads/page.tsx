@@ -7,8 +7,9 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Squads — Help — Siren Footy",
+  title: "Squads · Help · Siren Footy",
   description: "Adding players, editing details, managing availability.",
+  alternates: { canonical: "/help/squads" },
 };
 
 export default function SquadsPage() {
@@ -51,7 +52,7 @@ export default function SquadsPage() {
 
         <HelpCallout type="tip">
           Jersey numbers help you identify players quickly during a live game. You
-          can use any number — it does not need to be unique.
+          can use any number; it does not need to be unique.
         </HelpCallout>
       </section>
 

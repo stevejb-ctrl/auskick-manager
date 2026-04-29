@@ -7,9 +7,10 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Stats — Help — Siren Footy",
+  title: "Stats · Help · Siren Footy",
   description:
     "Per-player stats, minutes equity, combinations, chemistry, and more.",
+  alternates: { canonical: "/help/stats" },
 };
 
 export default function StatsPage() {
@@ -88,7 +89,7 @@ export default function StatsPage() {
         <HelpFigure
           src="/help-screenshots/stats-combinations.png"
           alt="The winning combinations card showing player pairs ranked by win rate per zone"
-          caption="Winning combinations by zone — who plays well together in each position."
+          caption="Winning combinations by zone: who plays well together in each position."
         />
       </section>
 
@@ -134,7 +135,7 @@ export default function StatsPage() {
         <h2 className="text-xl font-semibold text-ink">Quarter-by-quarter scoring</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           A breakdown of how your team&apos;s scoring changed across each quarter of
-          the season. Useful for identifying patterns — for example, if you
+          the season. Useful for identifying patterns. For example, if you
           consistently leak goals in Q3.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
@@ -146,7 +147,7 @@ export default function StatsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Attendance</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          A table showing each player&apos;s attendance record across the season —
+          A table showing each player&apos;s attendance record across the season:
           how many games they were marked available and how many they missed.
         </p>
         <p className="mt-3 text-sm text-ink-dim">

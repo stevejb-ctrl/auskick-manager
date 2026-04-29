@@ -52,20 +52,15 @@ export default async function JoinPage({ params }: JoinPageProps) {
         <p className="text-sm text-ink-dim">
           Sign in or create an account to join this team.
         </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link
-            href={`/login?next=${encodeURIComponent(nextPath)}`}
-            className="inline-flex flex-1 items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-          >
-            Sign in
-          </Link>
-          <Link
-            href={`/signup?next=${encodeURIComponent(nextPath)}`}
-            className="inline-flex flex-1 items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-          >
-            Create account
-          </Link>
-        </div>
+        {/* Unified email-first auth — /login serves both new and
+            returning users via Supabase signInWithOtp, so a single
+            CTA covers both cases. */}
+        <Link
+          href={`/login?next=${encodeURIComponent(nextPath)}`}
+          className="inline-flex w-full items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        >
+          Continue with email
+        </Link>
       </InviteShell>
     );
   }

@@ -8,6 +8,9 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { positionsFor } from "../../src/lib/ageGroups";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -24,27 +27,41 @@ test("swap a bench player onto the field produces a swap event", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // Fast-forward: seed a lineup_set + quarter_start so the UI renders
-  // the mid-quarter state with the Swap affordance.
-  const onField = players.slice(0, game.on_field_size).map((p, idx) => ({
-    player_id: p.id,
-    zone: idx < 3 ? "forward" : idx < 6 ? "mid" : idx < 9 ? "back" : "ruck",
-  }));
+  // the mid-quarter state with the Swap affordance. The `lineup_set`
+  // metadata shape MUST match what startGame writes (see
+  // src/app/(app)/teams/[teamId]/games/[gameId]/live/actions.ts → it's
+  // `{ lineup: Lineup }` where Lineup is `{back, hback, mid, hfwd, fwd,
+  // bench}` — not the historical `{ on_field, on_field_size }` shape
+  // this spec used to seed before being quarantined).
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+
   await admin.from("game_events").insert([
     {
       game_id: game.id,
-      kind: "lineup_set",
-      payload: { on_field: onField, on_field_size: game.on_field_size },
+      type: "lineup_set",
+      metadata: { lineup },
       created_by: ownerId,
     },
     {
       game_id: game.id,
-      kind: "quarter_start",
-      payload: { quarter: 1, started_at: new Date().toISOString() },
+      type: "quarter_start",
+      metadata: { quarter: 1 },
       created_by: ownerId,
     },
   ]);
@@ -53,25 +70,35 @@ test("swap a bench player onto the field produces a swap event", async ({
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Pick a bench player (any one outside the first on_field_size).
-  const bench = players[game.on_field_size];
+  const bench = players[cursor];
   // Pick a player currently on-field to swap out.
   const onFieldPlayer = players[0];
 
-  await page.getByText(bench.full_name).first().click();
-  await page.getByText(onFieldPlayer.full_name).first().click();
+  // PlayerTile carries `data-testid="player-tile-{id}"` so tests can
+  // pin to exactly one tile per player. Without it, getByRole("button")
+  // also matches SwapCard's collapse + pair-row buttons, which mention
+  // the same player names ("Going on to CEN, pair 2 Maeve") and trip
+  // strict-mode.
+  await page.getByTestId(`player-tile-${bench.id}`).click();
+  await page.getByTestId(`player-tile-${onFieldPlayer.id}`).click();
 
-  // If a confirmation dialog appears, confirm.
-  const confirm = page.getByRole("button", { name: /confirm/i });
-  if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await confirm.click();
-  }
+  // SwapConfirmDialog opens reliably once both clicks land — its
+  // CTA is "Confirm" (per src/components/live/SwapConfirmDialog.tsx).
+  await page.getByRole("button", { name: /^confirm$/i }).click();
 
-  await page.waitForTimeout(500);
-
-  const { data: swaps } = await admin
-    .from("game_events")
-    .select("kind, payload")
-    .eq("game_id", game.id)
-    .eq("kind", "swap");
-  expect(swaps?.length ?? 0).toBeGreaterThanOrEqual(1);
+  // recordSwap runs in startTransition; poll the DB until the swap
+  // event lands.
+  await expect
+    .poll(
+      async () => {
+        const { data: swaps } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "swap");
+        return swaps?.length ?? 0;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
 });

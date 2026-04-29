@@ -4,6 +4,7 @@ import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
+import { Eyebrow, SFCard } from "@/components/sf";
 
 interface PlayerListProps {
   teamId: string;
@@ -40,33 +41,38 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
   const inactivePlayers = allPlayers.filter((p) => !p.is_active);
-  const takenJerseys = allPlayers.map((p) => p.jersey_number).filter((n): n is number => n !== null);
+  const takenJerseys = allPlayers
+    .map((p) => p.jersey_number)
+    .filter((n): n is number => n !== null);
 
   return (
     <div className="space-y-6">
       <SquadHeader activeCount={activePlayers.length} maxPlayers={maxPlayers} />
 
       {isAdmin && (
-        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-          <h2 className="mb-4 text-base font-semibold text-ink">Add player</h2>
-          <AddPlayerForm
-            teamId={teamId}
-            activeCount={activePlayers.length}
-            maxPlayers={maxPlayers}
-            takenJerseys={takenJerseys}
-            showJersey={showJersey}
-          />
-        </div>
+        <SFCard>
+          <Eyebrow>Add player</Eyebrow>
+          <div className="mt-3">
+            <AddPlayerForm
+              teamId={teamId}
+              activeCount={activePlayers.length}
+              maxPlayers={maxPlayers}
+              takenJerseys={takenJerseys}
+              showJersey={showJersey}
+            />
+          </div>
+        </SFCard>
       )}
 
-      <div className="rounded-lg border border-hairline bg-surface shadow-card">
-        <div className="border-b border-hairline px-4 py-3">
-          <h2 className="text-base font-semibold text-ink">
-            Active squad ({activePlayers.length})
-          </h2>
+      <SFCard pad={0}>
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3 sm:px-5">
+          <Eyebrow>On the squad</Eyebrow>
+          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+            {activePlayers.length} active
+          </span>
         </div>
         {activePlayers.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-ink-mute">
+          <p className="px-4 py-8 text-center text-sm text-ink-mute">
             No players yet — add your first player above.
           </p>
         ) : (
@@ -83,14 +89,15 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
             ))}
           </ul>
         )}
-      </div>
+      </SFCard>
 
       {inactivePlayers.length > 0 && (
-        <div className="rounded-lg border border-hairline bg-surface shadow-card">
-          <div className="border-b border-hairline px-4 py-3">
-            <h2 className="text-base font-semibold text-ink-mute">
-              Inactive ({inactivePlayers.length})
-            </h2>
+        <SFCard pad={0}>
+          <div className="flex items-center justify-between border-b border-hairline px-4 py-3 sm:px-5">
+            <Eyebrow>Inactive</Eyebrow>
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+              {inactivePlayers.length}
+            </span>
           </div>
           <ul className="divide-y divide-hairline">
             {inactivePlayers.map((player) => (
@@ -104,7 +111,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               />
             ))}
           </ul>
-        </div>
+        </SFCard>
       )}
     </div>
   );

@@ -22,7 +22,7 @@ test("unauthed /run/[token] loads the live game UI", async ({ browser }) => {
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
-  await makePlayers(admin, { teamId: team.id, ownerId, count: 16 });
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // New context WITHOUT storageState — simulates a bench parent or
@@ -32,12 +32,15 @@ test("unauthed /run/[token] loads the live game UI", async ({ browser }) => {
 
   await page.goto(`/run/${game.share_token}`);
 
-  // A live-game affordance (some kind of "start" or lineup area) should
-  // render. We don't assert the exact button because the runner UI has
-  // slightly different chrome from the authed /live page.
-  await expect(page.getByRole("button", { name: /start q1|q1/i })).toBeVisible(
-    { timeout: 10_000 }
-  );
+  // The runner page (src/app/run/[token]/page.tsx) has two states:
+  // pre-kickoff (when no lineup_set event exists) renders an
+  // AvailabilityList + a "Continue to starting lineup" CTA, and
+  // in-progress renders the full LiveGame. With no events seeded,
+  // we land on pre-kickoff — assert the CTA link, which is a
+  // page-specific affordance that proves the token grants access.
+  await expect(
+    page.getByRole("link", { name: /continue to starting lineup/i })
+  ).toBeVisible({ timeout: 10_000 });
 
   await context.close();
 });
@@ -52,32 +55,33 @@ test("one game's share_token does not grant access to a different game", async (
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
-  await makePlayers(admin, { teamId: team.id, ownerId, count: 16 });
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  // Use distinctive multi-character opponent names so getByText can't
+  // match a stray "A" or "B" elsewhere on the page (button labels,
+  // nav, etc.).
   const gameA = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    opponent: "A",
+    opponent: "Alpha Sharks",
   });
   const gameB = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    opponent: "B",
+    opponent: "Bravo Eagles",
   });
 
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
 
-  // Navigate with gameA's token but try to access gameB — the runner
-  // route is keyed off the token so gameB is simply unreachable through
-  // gameA's token URL. The test encodes the *intent* that tokens are
-  // single-game scoped.
+  // Each token is single-game scoped: visiting one renders that
+  // game's opponent, visiting the other renders the other's. The
+  // test proves both tokens render distinct game state without
+  // cross-contamination.
   await page.goto(`/run/${gameA.share_token}`);
-  const aTitleMatch = await page.content();
-  expect(aTitleMatch).toContain("A"); // opponent A rendered
+  await expect(page.getByText("Alpha Sharks").first()).toBeVisible();
 
-  // Now swap to gameB's token — should render a different opponent.
   await page.goto(`/run/${gameB.share_token}`);
-  await expect(page.getByText("B", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Bravo Eagles").first()).toBeVisible();
 
   await context.close();
 });

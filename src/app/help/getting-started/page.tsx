@@ -8,8 +8,9 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Getting Started — Help — Siren Footy",
+  title: "Getting Started · Help · Siren Footy",
   description: "Sign in, create your first team, add players, and schedule a game.",
+  alternates: { canonical: "/help/getting-started" },
 };
 
 export default function GettingStartedPage() {
@@ -28,15 +29,15 @@ export default function GettingStartedPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>
             Go to{" "}
-            <Link href="/signup" className="font-medium text-brand-600 hover:underline">
-              auskick-manager.vercel.app/signup
+            <Link href="/login" className="font-medium text-brand-600 hover:underline">
+              sirenfooty.com.au/login
             </Link>
             .
           </li>
-          <li>Enter your email address and choose a password.</li>
+          <li>Enter your email address and tap <strong className="text-ink">Continue</strong>.</li>
           <li>
-            Tap <strong className="text-ink">Create account</strong>. You&apos;ll
-            land on your dashboard straight away — no email confirmation required.
+            Open the sign-in link we email you. New email? You&apos;ll
+            land on your dashboard straight away. No password to remember.
           </li>
         </ol>
         <p className="mt-3 text-sm text-ink-dim">

@@ -54,12 +54,6 @@ export function MarketingFooter() {
           >
             Sign in
           </Link>
-          <Link
-            href="/signup"
-            className="transition-colors duration-fast ease-out-quart hover:text-ink"
-          >
-            Sign up
-          </Link>
           <span className="text-ink-mute">&copy; {year} Siren</span>
         </nav>
       </div>

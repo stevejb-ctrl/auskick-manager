@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "e2e": "node scripts/e2e-setup.mjs",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --no-confirm",
@@ -16,9 +17,10 @@
   },
   "dependencies": {
     "@next/third-parties": "^14.2.29",
-    "@vercel/speed-insights": "^1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
+    "@vercel/speed-insights": "^1",
+    "geist": "^1.7.0",
     "next": "14.2.29",
     "react": "^18",
     "react-dom": "^18",
@@ -26,6 +28,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

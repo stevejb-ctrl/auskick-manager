@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="200" viewBox="0 0 540 200" role="img" aria-label="Siren">
+  <title>Siren</title>
+  <text x="20" y="160" font-family="Geist, &#39;Helvetica Neue&#39;, Arial, sans-serif" font-size="180" font-weight="900" letter-spacing="-9" fill="#F7F5F1">Siren</text>
+  
+  <circle cx="500" cy="58" r="18" fill="#D9442D"></circle>
+</svg>

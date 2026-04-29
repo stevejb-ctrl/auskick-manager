@@ -33,6 +33,10 @@ import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
+import {
+  InjuryReplacementModal,
+  type InjuryReplacementCandidate,
+} from "@/components/live/InjuryReplacementModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import {
   ALL_ZONES,
@@ -155,6 +159,7 @@ export function LiveGame({
   const selectBench = useLiveGame((s) => s.selectBench);
   const clearSelection = useLiveGame((s) => s.clearSelection);
   const applySwap = useLiveGame((s) => s.applySwap);
+  const applyInjurySwap = useLiveGame((s) => s.applyInjurySwap);
   const applyFieldZoneSwap = useLiveGame((s) => s.applyFieldZoneSwap);
   const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   const incTeam = useLiveGame((s) => s.incTeam);
@@ -201,6 +206,12 @@ export function LiveGame({
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
+  // When set, the coach is choosing a replacement for an on-field player about
+  // to be marked injured. Null means no picker open.
+  const [injuryReplacementModal, setInjuryReplacementModal] = useState<{
+    injuredId: string;
+    zone: Zone;
+  } | null>(null);
 
   // Undo-score state
   const [lastScore, setLastScore] = useState<LastScore | null>(null);
@@ -315,7 +326,16 @@ export function LiveGame({
 
   useEffect(() => {
     if (!initialState.lineup) return;
-    if (activeGameId === gameId) {
+    // Skip re-init when the store is already in sync with the server's view
+    // of the game. After a `resetGame` deletes every event, the server's
+    // currentQuarter regresses to 0 — but quarters can only ever advance
+    // during normal play. So if the store thinks we're further along than
+    // the server says, the game has been reset and we MUST re-init to
+    // wipe accumulated zone minutes, scores, locks, and so on. Without
+    // this check, restart-game just left the in-memory state from before
+    // the reset visible on screen.
+    const storeAheadOfServer = currentQuarter > initialState.currentQuarter;
+    if (activeGameId === gameId && !storeAheadOfServer) {
       setHydrated(true);
       return;
     }
@@ -350,7 +370,7 @@ export function LiveGame({
       accumulatedMs,
     });
     setHydrated(true);
-  }, [init, initialState, gameId, activeGameId]);
+  }, [init, initialState, gameId, activeGameId, currentQuarter]);
 
   function currentElapsedMs() {
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
@@ -506,6 +526,42 @@ export function LiveGame({
         elapsed_ms,
       });
       if (!result.success) setError(result.error);
+    });
+  }
+
+  // Combined injury + bench-replacement swap. Used when the coach picks a
+  // replacement in InjuryReplacementModal — fires the atomic store action
+  // and persists both events to the server (injury + swap) in parallel.
+  // Mirrors persistSwap's sub-timer reset so the next sub-due alert fires
+  // a fresh interval after the forced rotation.
+  function handleInjuryReplacement(
+    injuredId: string,
+    replacementId: string,
+    zone: Zone
+  ) {
+    setError(null);
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = scaledElapsedMs();
+    setSubBaseMs(currentElapsedMs());
+    applyInjurySwap(injuredId, replacementId);
+    startTransition(async () => {
+      const [injuryResult, swapResult] = await Promise.all([
+        markInjury(auth, gameId, {
+          player_id: injuredId,
+          injured: true,
+          quarter,
+          elapsed_ms,
+        }),
+        recordSwap(auth, gameId, {
+          off_player_id: injuredId,
+          on_player_id: replacementId,
+          zone,
+          quarter,
+          elapsed_ms,
+        }),
+      ]);
+      if (!injuryResult.success) setError(injuryResult.error);
+      else if (!swapResult.success) setError(swapResult.error);
     });
   }
 
@@ -1144,6 +1200,24 @@ export function LiveGame({
               setLockModal(null);
             }}
             onToggleInjury={() => {
+              // When marking an ON-FIELD player injured, prompt for a bench
+              // replacement so the zone doesn't go a player short. Fall
+              // through to the direct path when (a) un-marking injury,
+              // (b) the player is already on the bench (no zone to fill),
+              // or (c) the bench has no eligible replacements.
+              const goingToInjured = !isInjured;
+              const onFieldZone = lockModal.zone;
+              const hasEligibleBench = lineup.bench.some(
+                (id) => !injuredIds.includes(id) && !loanedIds.includes(id)
+              );
+              if (goingToInjured && onFieldZone && hasEligibleBench) {
+                setInjuryReplacementModal({
+                  injuredId: lockModal.playerId,
+                  zone: onFieldZone,
+                });
+                setLockModal(null);
+                return;
+              }
               handleInjuryToggle(lockModal.playerId, !isInjured);
               setLockModal(null);
             }}
@@ -1152,6 +1226,41 @@ export function LiveGame({
               setLockModal(null);
             }}
             onClose={() => setLockModal(null)}
+          />
+        );
+      })()}
+
+      {injuryReplacementModal && (() => {
+        const inj = playersById.get(injuryReplacementModal.injuredId);
+        if (!inj) return null;
+        // Build the candidate list at render time so it stays fresh if a
+        // bench player is loaned/recovered while the picker is open.
+        const candidates: InjuryReplacementCandidate[] = lineup.bench
+          .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
+          .map((id) => ({
+            player: playersById.get(id),
+            totalMs: totalMsByPlayer[id] ?? 0,
+          }))
+          .filter((c): c is InjuryReplacementCandidate => !!c.player)
+          .sort((a, b) => a.totalMs - b.totalMs);
+        return (
+          <InjuryReplacementModal
+            injuredPlayer={inj}
+            zone={injuryReplacementModal.zone}
+            candidates={candidates}
+            onPickReplacement={(rid) => {
+              handleInjuryReplacement(
+                injuryReplacementModal.injuredId,
+                rid,
+                injuryReplacementModal.zone
+              );
+              setInjuryReplacementModal(null);
+            }}
+            onSkipReplacement={() => {
+              handleInjuryToggle(injuryReplacementModal.injuredId, true);
+              setInjuryReplacementModal(null);
+            }}
+            onCancel={() => setInjuryReplacementModal(null)}
           />
         );
       })()}

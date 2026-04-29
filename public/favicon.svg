@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#F7F5F1"></rect>
+  
+  <text x="32" y="46" text-anchor="middle" font-family="Geist, &#39;Helvetica Neue&#39;, Arial, sans-serif" font-size="44" font-weight="900" letter-spacing="-2" fill="#141613">S</text>
+  <circle cx="50" cy="20" r="6" fill="#D9442D"></circle>
+</svg>

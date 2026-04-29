@@ -17,11 +17,12 @@ test("super-admin loads /admin and sees the KPI grid", async ({ page }) => {
   // navigation catches both cases.
   await expect(page).toHaveURL(/\/admin$/);
 
-  // "Users" is one of the four KPI card labels rendered at the top of
-  // the admin overview (see src/app/(app)/admin/page.tsx). Using the
-  // accessible label rather than a testid keeps the test resilient to
-  // cosmetic tweaks of the card component.
-  await expect(page.getByText("Users", { exact: true })).toBeVisible();
-  await expect(page.getByText("Teams", { exact: true })).toBeVisible();
-  await expect(page.getByText("Games", { exact: true })).toBeVisible();
+  // KpiCard exposes a stable `data-testid="admin-kpi-{slug}"` per
+  // card. Using it sidesteps the ambiguity from `getByText("Users")`
+  // — there are AdminTabBar nav links AND DataTable column headers
+  // also labelled "Users"/"Teams"/"Games" using the same eyebrow
+  // styling.
+  await expect(page.getByTestId("admin-kpi-users")).toBeVisible();
+  await expect(page.getByTestId("admin-kpi-teams")).toBeVisible();
+  await expect(page.getByTestId("admin-kpi-games")).toBeVisible();
 });

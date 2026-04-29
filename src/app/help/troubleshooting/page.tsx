@@ -4,8 +4,9 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Troubleshooting — Help — Siren Footy",
+  title: "Troubleshooting · Help · Siren Footy",
   description: "Common issues and how to fix them.",
+  alternates: { canonical: "/help/troubleshooting" },
 };
 
 export default function TroubleshootingPage() {
@@ -34,7 +35,7 @@ export default function TroubleshootingPage() {
           <li>
             <strong className="text-ink">Clock is not paused.</strong> The clock
             pill in the header shows a <em>▶</em> icon when paused. Tap it to
-            resume — the timer only counts while the clock runs.
+            resume. The timer only counts while the clock runs.
           </li>
           <li>
             <strong className="text-ink">Sub interval is set.</strong> Go to your
@@ -85,7 +86,7 @@ export default function TroubleshootingPage() {
           </li>
           <li>
             If scores are genuinely missing, they were likely not saved. Unfortunately
-            there is no automatic recovery for lost events — the game detail page
+            there is no automatic recovery for lost events. The game detail page
             shows the current recorded state.
           </li>
         </ol>
@@ -103,7 +104,7 @@ export default function TroubleshootingPage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            Check the player tile — their name should be greyed out (60% opacity)
+            Check the player tile: their name should be greyed out (60% opacity)
             and tapping them should have no effect.
           </li>
           <li>
@@ -140,7 +141,7 @@ export default function TroubleshootingPage() {
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
             Stats only populate for <strong className="text-ink">completed</strong>{" "}
-            games — all four quarters must have been ended via the{" "}
+            games. All four quarters must have been ended via the{" "}
             <strong className="text-ink">End quarter</strong> flow.
           </li>
           <li>
@@ -174,11 +175,11 @@ export default function TroubleshootingPage() {
       </section>
 
       <HelpCallout type="note">
-        Still stuck? Browse the other help topics — especially{" "}
+        Still stuck? Browse the other help topics, especially the{" "}
         <Link href="/help/faq" className="font-medium underline">
           FAQ
-        </Link>{" "}
-        — for more quick answers.
+        </Link>
+        , for more quick answers.
       </HelpCallout>
     </HelpPage>
   );

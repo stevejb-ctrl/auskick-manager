@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { Guernsey } from "@/components/sf";
 import type { AvailabilityStatus, LiveAuth } from "@/lib/types";
 
 interface AvailabilityRowProps {
@@ -57,11 +58,7 @@ export function AvailabilityRow({
   return (
     <li className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-3">
-        {jerseyNumber != null && (
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
-            {jerseyNumber}
-          </span>
-        )}
+        {jerseyNumber != null && <Guernsey num={jerseyNumber} size={32} />}
         <span className="text-sm font-medium text-ink">{playerName}</span>
       </div>
       {canEdit ? (

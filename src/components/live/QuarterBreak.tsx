@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { Guernsey } from "@/components/sf";
 import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   ALL_ZONES,
@@ -203,13 +204,20 @@ export function QuarterBreak({
 
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;
+    // `lastStintZone` is the zone each player ended the just-finished
+    // quarter in (set by endCurrentQuarter when stints flush). The
+    // suggester uses it to (a) penalise re-using the same zone two
+    // quarters running and (b) avoid the whole zone group migrating
+    // together (cluster penalty). Players who were on the bench at
+    // end-of-Q simply aren't in the map → no penalty contribution.
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,
       currentQuarter * 1000 + healthyForLineup.length,
       zoneCaps,
       currentGameZoneMins,
-      pinnedPositions
+      pinnedPositions,
+      lastStintZone
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -227,6 +235,7 @@ export function QuarterBreak({
     zoneCaps,
     currentGameZoneMins,
     pinnedPositions,
+    lastStintZone,
   ]);
 
   useEffect(() => {
@@ -377,9 +386,7 @@ export function QuarterBreak({
                         }`}
                       >
                         <span className="flex items-center gap-2">
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 tabular-nums">
-                            {p.jersey_number}
-                          </span>
+                          <Guernsey num={p.jersey_number ?? ""} size={28} />
                           <span className="flex flex-col items-start">
                             <span className="flex items-center gap-1.5">
                               <span className="font-medium text-ink">

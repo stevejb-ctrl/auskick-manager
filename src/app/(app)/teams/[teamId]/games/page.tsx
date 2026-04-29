@@ -2,16 +2,28 @@ import { Suspense } from "react";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { GameList } from "@/components/games/GameList";
+import { GamesFilter, type GamesFilterValue } from "@/components/games/GamesFilter";
 import { Spinner } from "@/components/ui/Spinner";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
+import { Eyebrow } from "@/components/sf";
 
 interface GamesPageProps {
   params: { teamId: string };
+  searchParams?: { filter?: string };
 }
 
-export default async function GamesPage({ params }: GamesPageProps) {
+function parseFilter(raw: string | undefined): GamesFilterValue {
+  if (raw === "upcoming" || raw === "final") return raw;
+  return "all";
+}
+
+export default async function GamesPage({
+  params,
+  searchParams,
+}: GamesPageProps) {
   const supabase = createClient();
+  const filter = parseFilter(searchParams?.filter);
 
   const {
     data: { user },
@@ -52,6 +64,16 @@ export default async function GamesPage({ params }: GamesPageProps) {
 
   return (
     <div className="space-y-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Eyebrow>2026 Season</Eyebrow>
+          <h1 className="mt-1.5 text-3xl font-bold tracking-tightest text-ink sm:text-[32px]">
+            Games
+          </h1>
+        </div>
+        <GamesFilter />
+      </header>
+
       {isAdmin && (
         <AddGameSection
           teamId={params.teamId}
@@ -70,7 +92,7 @@ export default async function GamesPage({ params }: GamesPageProps) {
           </div>
         }
       >
-        <GameList teamId={params.teamId} />
+        <GameList teamId={params.teamId} filter={filter} />
       </Suspense>
     </div>
   );

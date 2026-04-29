@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { HelpNav } from "@/components/help/HelpNav";
+import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 export const metadata = {
-  title: "Help — Siren Footy",
+  title: "Help · Siren Footy",
   description: "Documentation and guides for Siren Footy.",
 };
 
@@ -11,8 +12,8 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-warm">
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link href="/" className="text-lg font-semibold text-brand-700">
-            Siren Footy
+          <Link href="/" aria-label="Siren home">
+            <SirenWordmark size="sm" />
           </Link>
           <Link
             href="/login"

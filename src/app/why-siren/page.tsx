@@ -5,13 +5,14 @@ import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 
 export const metadata: Metadata = {
-  title: "Why Siren — Built for junior AFL",
+  title: "Why Siren · Built for junior AFL",
   description:
     "Siren tracks where every kid has played, not just how long they've been on. Built for junior AFL coaches who care about giving every player a crack at every part of the ground.",
+  alternates: { canonical: "/why-siren" },
   openGraph: {
-    title: "Why Siren — Every kid. Every zone. Every quarter.",
+    title: "Why Siren. Every kid. Every zone. Every quarter.",
     description:
-      "The sideline tool built for junior AFL. Fair rotations across forward, centre and back — without the clipboard.",
+      "The sideline tool built for junior AFL. Fair rotations across forward, centre and back, without the clipboard.",
     type: "website",
   },
 };
@@ -36,7 +37,7 @@ export default function WhySirenPage() {
                 Built for the kid who&apos;s been at full-back all quarter.
               </h1>
               <p className="mt-6 max-w-2xl text-lg text-ink-dim sm:text-xl">
-                The sideline tool that tracks where every kid has played &mdash;
+                The sideline tool that tracks where every kid has played,
                 not just how long they&apos;ve been on.
               </p>
             </RevealOnScroll>
@@ -87,13 +88,13 @@ export default function WhySirenPage() {
                   <p>
                     A generic sports app can count minutes. But in junior AFL,
                     fair isn&apos;t about how long a kid&apos;s been on the
-                    field &mdash; it&apos;s about whether they&apos;ve had a
+                    field. It&apos;s about whether they&apos;ve had a
                     crack at every part of the ground.
                   </p>
                   <p>
                     Siren tracks time per zone: forward, centre, back, and
                     interchange. When you rotate, it doesn&apos;t just look at
-                    who&apos;s played the least &mdash; it looks at who&apos;s
+                    who&apos;s played the least. It looks at who&apos;s
                     missed out on where. The kid who spent the whole first
                     quarter at full-back gets their run up forward before the
                     final siren.
@@ -111,9 +112,9 @@ export default function WhySirenPage() {
 
             <RevealOnScroll>
               <p className="mx-auto mt-12 max-w-3xl rounded-md border border-brand-200/60 bg-brand-50/60 px-5 py-4 text-sm leading-relaxed text-ink-dim sm:text-base">
-                Following the AFL junior rotation policy &mdash; rotate every
+                Following the AFL junior rotation policy (rotate every
                 quarter, several positions, 50&ndash;75&#37; minimum game
-                time &mdash; turns out to be a nice side effect. The point is
+                time) turns out to be a nice side effect. The point is
                 that every kid leaves the ground feeling like they got a go.
               </p>
             </RevealOnScroll>
@@ -167,7 +168,7 @@ export default function WhySirenPage() {
                   </p>
                   <p className="text-ink">
                     If you want to be the coach whose kids all remember
-                    getting a go &mdash; I&apos;d love your help shaping it.
+                    getting a go, I&apos;d love your help shaping it.
                   </p>
                 </div>
                 <p className="mt-6 text-sm font-semibold text-ink">

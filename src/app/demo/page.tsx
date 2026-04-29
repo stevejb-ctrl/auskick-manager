@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AGE_GROUPS } from "@/lib/ageGroups";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/demo" },
+};
 
 export default async function DemoPage() {
   noStore();
@@ -20,7 +25,7 @@ export default async function DemoPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <p className="text-center text-ink-dim">
-          Demo not set up yet — check back soon.
+          Demo not set up yet. Check back soon.
         </p>
       </div>
     );
@@ -71,7 +76,7 @@ export default async function DemoPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <p className="text-center text-ink-dim">
-          Could not start demo — please try again.
+          Could not start demo. Please try again.
         </p>
       </div>
     );

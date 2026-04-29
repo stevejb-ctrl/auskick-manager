@@ -10,6 +10,9 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { positionsFor } from "../../src/lib/ageGroups";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -26,44 +29,58 @@ test("ending Q4 completes the game and renders the summary card", async ({
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  const onField = players.slice(0, game.on_field_size).map((p, idx) => ({
-    player_id: p.id,
-    zone: idx < 3 ? "forward" : idx < 6 ? "mid" : idx < 9 ? "back" : "ruck",
-  }));
+  // Build the same `Lineup` shape startGame writes — `{back, hback, mid,
+  // hfwd, fwd, bench}` — keyed off the team's age-group position model.
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
 
-  // Fast-forward through Q1–Q3 end, then start Q4 so the UI shows
-  // the "End Q4" button.
+  // Q1–Q3 ran 13 mins each (so each was past the 12-min hooter at
+  // the time it ended), then Q4 has been running for 13 mins now.
+  // Backdating like this means LiveGame's maybeTrigger effect sees
+  // Q4 elapsed >= QUARTER_MS on mount and auto-opens the
+  // QuarterEndModal. There's no manual "End Q4" button — the hooter
+  // fires the flow, and for the final quarter the modal CTA reads
+  // "End game".
   const now = Date.now();
-  // Typed as any[] because `payload` varies by event kind and Supabase
-  // typegen picks up the shape of the first element otherwise.
+  const QUARTER_DURATION = 13 * 60_000; // > QUARTER_MS so each quarter ran past the hooter
   const events: Array<Record<string, unknown>> = [
     {
       game_id: game.id,
-      kind: "lineup_set",
-      payload: { on_field: onField, on_field_size: game.on_field_size },
+      type: "lineup_set",
+      metadata: { lineup },
       created_by: ownerId,
-      created_at: new Date(now - 60 * 60_000).toISOString(),
+      created_at: new Date(now - 5 * QUARTER_DURATION).toISOString(),
     },
   ];
   for (let q = 1; q <= 4; q++) {
     events.push({
       game_id: game.id,
-      kind: "quarter_start",
-      payload: { quarter: q, started_at: new Date(now - (5 - q) * 10 * 60_000).toISOString() },
+      type: "quarter_start",
+      metadata: { quarter: q },
       created_by: ownerId,
-      created_at: new Date(now - (5 - q) * 10 * 60_000).toISOString(),
+      created_at: new Date(now - (5 - q) * QUARTER_DURATION).toISOString(),
     });
     if (q < 4) {
       events.push({
         game_id: game.id,
-        kind: "quarter_end",
-        payload: { quarter: q, elapsed_ms: 10 * 60_000 },
+        type: "quarter_end",
+        metadata: { quarter: q, elapsed_ms: QUARTER_DURATION },
         created_by: ownerId,
-        created_at: new Date(now - (4 - q) * 10 * 60_000).toISOString(),
+        created_at: new Date(now - (4 - q) * QUARTER_DURATION).toISOString(),
       });
     }
   }
@@ -72,30 +89,38 @@ test("ending Q4 completes the game and renders the summary card", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  await page.getByRole("button", { name: /end q4|full time/i }).click();
-  const confirm = page.getByRole("button", {
-    name: /confirm|end quarter|end game/i,
-  });
-  if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await confirm.click();
-  }
+  // QuarterEndModal auto-opens (Q4 is past hooter). For the final
+  // quarter the modal's CTA reads "End game".
+  await page.getByRole("button", { name: /^end game$/i }).click();
 
   // Summary card content — "final score" / "MVP" / similar.
   await expect(
     page.getByText(/full time|final score|game summary/i).first()
   ).toBeVisible({ timeout: 10_000 });
 
-  const { data: updated } = await admin
-    .from("games")
-    .select("status")
-    .eq("id", game.id)
-    .single();
-  expect(updated?.status).toBe("completed");
+  // handleEndQuarter for Q4 flips the store synchronously (which is
+  // why the summary card already renders) but the server action that
+  // writes game_finalised + flips status="completed" runs in
+  // startTransition. Poll until the DB catches up rather than
+  // hard-coding a sleep.
+  await expect
+    .poll(
+      async () => {
+        const { data: updated } = await admin
+          .from("games")
+          .select("status")
+          .eq("id", game.id)
+          .single();
+        return updated?.status;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe("completed");
 
   const { data: finalised } = await admin
     .from("game_events")
-    .select("kind")
+    .select("type")
     .eq("game_id", game.id)
-    .eq("kind", "game_finalised");
+    .eq("type", "game_finalised");
   expect(finalised?.length ?? 0).toBeGreaterThanOrEqual(1);
 });

@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -25,17 +27,46 @@ const mono = JetBrains_Mono({
   variable: "--font-geist-mono",
   display: "swap",
 });
+// GeistSans.variable is "--font-geist-sans". Used exclusively by the
+// SirenWordmark so the brand wordmark renders in Geist 900 (Black)
+// without switching the app-wide UI font away from Inter.
+
+// Instrument Serif italic — used decoratively for round numerals on the
+// Games list, the Home next-up hero, and the Game-detail upcoming hero.
+// Italic weight 400 only; we never set non-italic on this face.
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: "italic",
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
 
 // Brand-aware metadata — middleware writes x-brand on the request so
 // sirenfooty.com.au and sirennetball.com.au get their own title + meta
 // description at render time. Falls back to AFL when no brand is set
 // (e.g. if middleware is bypassed).
+//
+// metadataBase + icons are kept from main: metadataBase resolves
+// per-page `alternates: { canonical: "/" }` exports against the apex
+// host, and the icons block is the multi-resolution favicon set used
+// by all branded sites.
 export function generateMetadata(): Metadata {
   const brand = getBrand();
   const copy = getBrandCopy(brand.id);
   return {
+    metadataBase: new URL(SITE_URL),
     title: copy.productName,
     description: copy.metaDescription,
+    icons: {
+      icon: [
+        { url: "/favicon.svg", type: "image/svg+xml" },
+        { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+        { url: "/favicon-64.png", sizes: "64x64", type: "image/png" },
+      ],
+      apple: { url: "/favicon-180.png", sizes: "180x180" },
+      other: [{ rel: "icon", url: "/favicon-512.png", sizes: "512x512" }],
+    },
   };
 }
 
@@ -50,7 +81,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}>
+
       {/* Analytics components must live INSIDE <body>. Rendering
           <SpeedInsights /> (or <GoogleAnalytics />) as a sibling of
           <body> produces invalid HTML — the browser parser moves

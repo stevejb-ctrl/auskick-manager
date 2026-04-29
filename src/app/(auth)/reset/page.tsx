@@ -1,9 +1,10 @@
 import { Suspense } from "react";
+import { AuthCardShell } from "@/components/auth/AuthCardShell";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 
 export default function ResetPasswordPage() {
   return (
-    <>
+    <AuthCardShell>
       <h2 className="mb-6 text-center text-xl font-semibold text-ink">
         Set a new password
       </h2>
@@ -13,6 +14,6 @@ export default function ResetPasswordPage() {
       <Suspense fallback={null}>
         <ResetPasswordForm />
       </Suspense>
-    </>
+    </AuthCardShell>
   );
 }

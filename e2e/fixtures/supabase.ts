@@ -85,9 +85,18 @@ export async function deleteTestUser(
   admin: SupabaseClient,
   userId: string
 ): Promise<void> {
+  // Best-effort cleanup. Several specs leave FK references behind
+  // (team memberships, profiles touched by triggers, etc.) and
+  // Supabase's `admin.auth.deleteUser` surfaces those as
+  // "Database error deleting user". But this runs in the test's
+  // `finally` block, so throwing here masks the real test outcome.
+  // Log and move on — the next CI run starts from a fresh
+  // `db reset --yes` so leaked rows don't accumulate.
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error && !error.message.includes("not found")) {
-    throw new Error(`deleteTestUser failed: ${error.message}`);
+    console.warn(
+      `[deleteTestUser] non-fatal cleanup error for ${userId}: ${error.message}`,
+    );
   }
 }
 

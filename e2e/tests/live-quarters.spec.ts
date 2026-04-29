@@ -7,6 +7,9 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { positionsFor } from "../../src/lib/ageGroups";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -23,52 +26,84 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 16,
+    count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  const onField = players.slice(0, game.on_field_size).map((p, idx) => ({
-    player_id: p.id,
-    zone: idx < 3 ? "forward" : idx < 6 ? "mid" : idx < 9 ? "back" : "ruck",
-  }));
+  // Build the same `Lineup` shape startGame writes (see actions.ts —
+  // metadata.lineup, NOT the historical { on_field, on_field_size }).
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+
+  // Backdate quarter_start so Q1 has already run past the 12-minute
+  // QUARTER_MS threshold by the time the page mounts. LiveGame's
+  // `maybeTrigger` effect runs immediately on mount, sees elapsed >=
+  // QUARTER_MS, and auto-opens the QuarterEndModal — there's no manual
+  // "End Q1" button on the field; the hooter is what fires the
+  // end-of-quarter flow.
+  const thirteenMinutesAgo = new Date(Date.now() - 13 * 60_000).toISOString();
   await admin.from("game_events").insert([
     {
       game_id: game.id,
-      kind: "lineup_set",
-      payload: { on_field: onField, on_field_size: game.on_field_size },
+      type: "lineup_set",
+      metadata: { lineup },
       created_by: ownerId,
+      created_at: thirteenMinutesAgo,
     },
     {
       game_id: game.id,
-      kind: "quarter_start",
-      payload: { quarter: 1, started_at: new Date().toISOString() },
+      type: "quarter_start",
+      metadata: { quarter: 1 },
       created_by: ownerId,
+      created_at: thirteenMinutesAgo,
     },
   ]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // End Q1.
-  await page.getByRole("button", { name: /end q1/i }).click();
+  // QuarterEndModal auto-opens because Q1 ran past the hooter.
+  // For Q1–Q3 the modal CTA reads "Select team for Q{n+1}" (per
+  // QuarterEndModal.tsx); only Q4 reads "End game".
+  await page
+    .getByRole("button", { name: /select team for q2/i })
+    .click();
 
-  // Confirm if a modal appears.
-  const confirm = page.getByRole("button", { name: /confirm|end quarter/i });
-  if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await confirm.click();
-  }
-
-  // Expect "Start Q2" button to appear during the break.
+  // Expect "Start Q2" button on the QuarterBreak screen.
   await expect(page.getByRole("button", { name: /start q2/i })).toBeVisible({
     timeout: 5_000,
   });
 
-  const { data: events } = await admin
-    .from("game_events")
-    .select("kind, payload")
-    .eq("game_id", game.id)
-    .in("kind", ["quarter_end", "quarter_start"]);
-  expect(
-    events?.some((e) => e.kind === "quarter_end" && e.payload?.quarter === 1)
-  ).toBe(true);
+  // handleEndQuarter() flips the store synchronously (so the UI
+  // transitions to QuarterBreak immediately, which is why "Start Q2"
+  // shows up before the server action commits) and then fires
+  // endQuarterAction in startTransition. Poll the DB until the
+  // quarter_end event lands rather than hard-coding a sleep — the
+  // transition usually completes in <500ms but CI runners can be
+  // slower under load.
+  await expect
+    .poll(
+      async () => {
+        const { data: events } = await admin
+          .from("game_events")
+          .select("type, metadata")
+          .eq("game_id", game.id)
+          .eq("type", "quarter_end");
+        return (events ?? []).some(
+          (e) => (e.metadata as { quarter?: number } | null)?.quarter === 1,
+        );
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe(true);
 });

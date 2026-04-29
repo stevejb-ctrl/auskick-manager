@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
+import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
 
 interface PlayerRowProps {
@@ -92,16 +93,22 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = 
 
   return (
     <li
-      className={`flex items-center gap-3 px-4 py-3 ${
+      data-testid={`player-row-${player.id}`}
+      className={`flex items-center gap-3 px-4 py-3 sm:px-5 ${
         !player.is_active ? "opacity-50" : ""
       }`}
     >
-      {/* Jersey badge — neutral circle when no number recorded.
-          Hidden entirely for sports that don't use jersey numbers. */}
+      {/* Jersey badge — Guernsey SVG t-shirt with the player number printed
+          on it. Neutral surface-alt + mute ink when no number is recorded.
+          Hidden entirely for sports that don't use jersey numbers (netball). */}
       {showJersey && (
-        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${player.jersey_number != null ? "bg-brand-100 text-brand-700" : "bg-surface-alt text-ink-mute"}`}>
-          {player.jersey_number ?? ""}
-        </span>
+        player.jersey_number != null ? (
+          <Guernsey num={player.jersey_number} size={36} />
+        ) : (
+          <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-surface-alt font-mono text-sm font-bold text-ink-mute">
+            —
+          </span>
+        )
       )}
 
       {editing && canEdit ? (
