@@ -46,7 +46,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1** *(parallel)*:
 - [x] 02-01-PLAN.md — Re-verify sha256 equality of main:0024_super_admin.sql vs multi-sport:0025_super_admin.sql; write 02-SCHEMA-PLAN.md §§1-4 (file ops for Phase 3, SCHEMA-02 backfill audit, SCHEMA-04 destructive-ops audit) ✓ 2026-04-29
-- [ ] 02-02-PLAN.md — Add missing `e2e` + `db:*` scripts to package.json; extend e2e/fixtures/factories.ts makeTeam with optional sport parameter and widen ageGroup to string
+- [x] 02-02-PLAN.md — Add missing `e2e` + `db:*` scripts to package.json; extend e2e/fixtures/factories.ts makeTeam with optional sport parameter and widen ageGroup to string ✓ 2026-04-29
 
 **Wave 2** *(blocked on Wave 1 completion)*:
 - [ ] 02-03-PLAN.md — Author e2e/tests/multi-sport-schema.spec.ts (3 test cases: AFL wizard, netball wizard, team-settings round-trip — expected red on this branch, Phase 3 flips green); finalize 02-SCHEMA-PLAN.md §§5-6 (spec design + Phase 6 handoff)
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
-| 2. Schema reconciliation | 1/3 | In progress | - |
+| 2. Schema reconciliation | 2/3 | In progress | - |
 | 3. Branch merge + abstraction integrity | 0/TBD | Not started | - |
 | 4. Netball verification on merged trunk | 0/TBD | Not started | - |
 | 5. Test + type green | 0/TBD | Not started | - |

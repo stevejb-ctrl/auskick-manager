@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Phase 2 — Plan 01 complete (02-SCHEMA-PLAN.md §§1-4 written); Plan 02 and 03 pending
-last_updated: "2026-04-29T10:13:04Z"
+stopped_at: Phase 2 — Plan 02 complete (package.json + factory extension); Plan 03 pending
+last_updated: "2026-04-29T10:30:00Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 4
-  completed_plans: 2
-  percent: 38
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -26,29 +26,29 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 02 (schema-reconciliation) — IN PROGRESS
-Plan: 1 of 3 executed
-Status: Plan 01 complete — 02-SCHEMA-PLAN.md §§1-4 written and committed; Plan 02 (package.json + factory) pending; Plan 03 (e2e spec + §§5-6) pending
+Plan: 2 of 3 executed
+Status: Plan 02 complete — package.json + factory extension committed; Plan 03 (e2e spec + §§5-6) pending
 Last activity: 2026-04-29
 
-Progress: [██░░░░░░░░] 25%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
-- Average duration: 3 min
-- Total execution time: 3 min
+- Total plans completed: 2
+- Average duration: 4 min
+- Total execution time: 8 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 02-schema-reconciliation | 1 | 3 min | 3 min |
+| 02-schema-reconciliation | 2 | 8 min | 4 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-01 (3 min)
+- Last 5 plans: 02-01 (3 min), 02-02 (5 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - 02-01: SCHEMA-02 satisfied as-shipped — single ADD COLUMN NOT NULL DEFAULT 'afl' is atomic in Postgres 11+
 - 02-01: SCHEMA-04 migration-content side satisfied — zero DROP TABLE/COLUMN/POLICY/TRIGGER/FUNCTION; two drop constraint lines are safe relaxations
 - 02-01: Audit grep needs -i flag — migration SQL uses lowercase keywords
+- 02-02: ageGroup widened to string in factory ahead of D-06 (Phase 3) — post-merge type alignment; all 16+ existing callers unaffected (superset)
+- 02-02: sport uses string literal union "afl"|"netball" in factory — no Sport type import needed on this branch; Phase 3 owns source-side type
 
 ### Pending Todos
 
@@ -88,5 +90,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: Phase 2 Plan 01 complete — 02-SCHEMA-PLAN.md §§1-4 written, hashes verified, audits done
-Resume file: .planning/phases/02-schema-reconciliation/02-02-PLAN.md (next plan in Wave 1)
+Stopped at: Phase 2 Plan 02 complete — package.json (11 scripts) + factories.ts (makeTeam sport param + ageGroup widened) committed
+Resume file: .planning/phases/02-schema-reconciliation/02-03-PLAN.md (Plan 03 — e2e spec + §§5-6)
