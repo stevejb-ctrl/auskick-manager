@@ -11,8 +11,20 @@ import { makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-// FIXME (e2e green-up 2026-04-29): 30s timeout. PlayHQ admin UI changed.
-// Quarantined.
+// FIXME (architecture 2026-04-29): the test stubs `playhq.com` via
+// `page.route(...)`, but `previewPlayhqFixtures` and
+// `importPlayhqFixtures` are server actions — the fetch to PlayHQ
+// happens server-side, so the stub is silently ignored. The action
+// then either errors out or returns no fixtures, the preview list
+// stays empty, and the spec times out trying to find a checkbox to
+// click. To un-fixme, we need ONE of:
+//   (a) a TEST_PLAYHQ_FIXTURES env var that makes
+//       `lib/playhq.ts:fetchPlayhqFixtures` return canned data when
+//       set (cheapest)
+//   (b) MSW or similar set up on the server runtime
+//   (c) replace this with a unit test of previewPlayhqFixtures
+//       directly, with `fetch` mocked at the module boundary
+// Until one of those lands, this stays quarantined.
 test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
