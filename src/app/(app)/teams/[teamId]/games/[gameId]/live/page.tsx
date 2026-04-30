@@ -86,6 +86,14 @@ export default async function LivePage({ params }: LivePageProps) {
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = (teamRow?.sport as Sport | undefined) ?? "afl";
+  // track_scoring is sport-agnostic — both AFL and netball flows
+  // honour it. Hoisted ABOVE the netball branch (was nested inside
+  // the AFL branch) so plan 04-04's NetballLiveGame can consume it.
+  // NETBALL-04 / NETBALL-07: this single source flows through to
+  // the +G button gate, GS/GA scoring confirm gate, undo chip
+  // gate, score-bug numeric gate, walkthrough scoring-step gate,
+  // and the summary-card result+goals-line gate.
+  const trackScoring = teamRow?.track_scoring ?? false;
 
   // ─── Netball branch ───────────────────────────────────────
   // Netball uses its own component tree (different lineup shape,
@@ -204,6 +212,7 @@ export default async function LivePage({ params }: LivePageProps) {
           finalised={state.finalised}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={(seasonEvents ?? []) as GameEvent[]}
+          trackScoring={trackScoring}
         />
         {isAdmin && !isPreKickoff && (
           <div className="border-t border-hairline pt-4">
@@ -218,7 +227,9 @@ export default async function LivePage({ params }: LivePageProps) {
   }
 
   // ─── AFL branch (existing behaviour) ──────────────────────
-  const trackScoring = teamRow?.track_scoring ?? false;
+  // (`trackScoring` is hoisted above the netball branch so both
+  // sports share the same source — see the const at the top of
+  // this function.)
   const ageGroup = ageGroupOf(teamRow?.age_group);
   const songEnabled = teamRow?.song_enabled ?? true;
   const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
