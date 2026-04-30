@@ -113,6 +113,14 @@ async function setupNetballTeam(opts: SetupOpts): Promise<SetupResult> {
  * quarter_start was — default 60 seconds ago, leaves plenty of time
  * before the auto-hooter fires for non-overridden quarter lengths
  * (default netball "go" period is 10 min = 600s).
+ *
+ * Also inserts game_availability rows for every passed playerId
+ * (status='available'). NetballLiveGame's replacementCandidates
+ * filter (NetballLiveGame.tsx:789-810) requires bench players to be
+ * in availableIds — which is sourced from game_availability, NOT
+ * lineup.bench. Without this, the PickReplacementSheet would render
+ * "No bench players available — your squad is fully deployed" even
+ * though the bench-strip clearly shows Harvey and Ingrid.
  */
 async function seedQ1InProgress(opts: {
   admin: ReturnType<typeof createAdminClient>;
@@ -120,8 +128,22 @@ async function seedQ1InProgress(opts: {
   ownerId: string;
   playerIds: string[];
   quarterStartOffsetSec?: number;
+  /**
+   * If true (default), also writes game_availability rows for each
+   * playerId. Set false when the test specifically wants to control
+   * availability (e.g., the late-arrival test that pre-inserts only
+   * the first 8 players' availability rows).
+   */
+  seedAvailability?: boolean;
 }) {
-  const { admin, gameId, ownerId, playerIds, quarterStartOffsetSec = 60 } = opts;
+  const {
+    admin,
+    gameId,
+    ownerId,
+    playerIds,
+    quarterStartOffsetSec = 60,
+    seedAvailability = true,
+  } = opts;
 
   // Netball lineup shape (GenericLineup): metadata.lineup =
   // { positions: { gs: [...], ga: [...], ... }, bench: [...] }.
@@ -133,6 +155,16 @@ async function seedQ1InProgress(opts: {
   );
   const bench = playerIds.slice(NETBALL_LINEUP_KEYS.length);
   const lineup = { positions, bench };
+
+  if (seedAvailability && playerIds.length > 0) {
+    await admin.from("game_availability").insert(
+      playerIds.map((pid) => ({
+        game_id: gameId,
+        player_id: pid,
+        status: "available",
+      })),
+    );
+  }
 
   const startedAt = new Date(Date.now() - quarterStartOffsetSec * 1000).toISOString();
   await admin.from("game_events").insert([
@@ -254,4 +286,318 @@ test("NETBALL-04 (live-shell): track_scoring=false hides +G button in score bug"
   await expect(
     page.getByRole("button", { name: /record opponent goal/i }),
   ).toHaveCount(0);
+});
+
+// ─── NETBALL-03: goal scoring flow ─────────────────────────
+
+test("NETBALL-03: tapping GS opens confirm sheet, confirming records goal + 8s undo toast", async ({
+  page,
+}) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // GS = players[0] per NETBALL_LINEUP_KEYS index 0. PositionToken
+  // (PositionToken.tsx:84+157) resolves `pos.label` via
+  // netballSport.allPositions.find(...).label — for "gs" that's the
+  // FULL name "Goal Shooter" (not the "GS" shortLabel). So the
+  // court-tile aria-label is "Goal Shooter, ${playerName}", which
+  // also nicely disambiguates from the bench tile
+  // (NetballBenchStrip aria-label = "${name} (${status})").
+  const gsPlayer = players[0];
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+    })
+    .click();
+
+  // The pendingGoal confirm sheet renders a "+ Goal" CTA at
+  // NetballLiveGame.tsx:1309. Match it directly; tolerate "Record
+  // goal" / "Confirm goal" copy variants in case the button text
+  // is ever softened.
+  await page
+    .getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i })
+    .click({ timeout: 5_000 });
+
+  // DB-poll for the goal event with player_id set. Rule-1 spec
+  // authoring fix: netball uses event type "goal" (not "score") —
+  // see netball-actions.ts:221 (insertEvent(..., "goal", ...)) and
+  // the replay engine at netball/fairness.ts:690. AFL also uses
+  // "goal" so this matches live-scoring.spec.ts's pattern.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, player_id")
+          .eq("game_id", game.id)
+          .eq("type", "goal")
+          .eq("player_id", gsPlayer.id);
+        return (data ?? []).length;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
+
+  // 8-second undo toast — locate the Undo button while the toast is
+  // still visible (well within the 8s window).
+  await expect(
+    page.getByRole("button", { name: /^undo$/i }),
+  ).toBeVisible({ timeout: 2_000 });
+});
+
+test("NETBALL-03: undo writes score_undo event after a goal", async ({ page }) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const gsPlayer = players[0];
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+    })
+    .click();
+  await page
+    .getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i })
+    .click({ timeout: 5_000 });
+  // Wait for the goal event to land before clicking Undo so the
+  // server-side state is consistent — the LIFO undo stack pops the
+  // last "goal", and popping a not-yet-persisted goal would no-op.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "goal")
+          .eq("player_id", gsPlayer.id);
+        return (data ?? []).length;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
+  // Tap Undo before the 8s toast fades (it stays as a persistent
+  // chip after fading too, but tapping while visible mirrors the
+  // typical coach flow + the AFL live-scoring.spec.ts pattern).
+  await page
+    .getByRole("button", { name: /^undo$/i })
+    .click({ timeout: 7_000 });
+
+  // score_undo event must land — same shape as
+  // live-scoring.spec.ts:184-195.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type")
+          .eq("game_id", game.id)
+          .eq("type", "score_undo");
+        return (data ?? []).length;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
+});
+
+// ─── NETBALL-08: long-press, replacement, late-arrival ────
+
+test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal", async ({
+  page,
+}) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Long-press = pointerdown, hold ≥500ms, pointerup. PositionToken
+  // wires `onPointerDown` → 500ms setTimeout → `onLongPress` (see
+  // PositionToken.tsx:90-99). We drive the gesture via locator-level
+  // dispatchEvent so we don't have to compute viewport coordinates
+  // (boundingBox() returns null on certain device-emulation profiles
+  // even when the element is visible per `waitFor`, which made the
+  // page.mouse.move(cx, cy) approach flaky).
+  const tile = page.getByRole("button", {
+    name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+  });
+  await tile.waitFor({ state: "visible", timeout: 10_000 });
+  // pointerId+pointerType are required for setPointerCapture in the
+  // component's pointerdown handler — without them the synthetic
+  // event is dropped by some browsers.
+  await tile.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch" });
+  // > 500ms long-press threshold.
+  await page.waitForTimeout(700);
+  await tile.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch" });
+
+  // NetballPlayerActions modal: role="dialog" with
+  // aria-labelledby="netball-actions-title" (the player name +
+  // position label). The three primary actions ("Mark injured",
+  // "Lend to opposition", "Keep at GS next break") are in the modal.
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: /mark injured/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /lend to opposition/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /keep at .* next break/i }),
+  ).toBeVisible();
+});
+
+test("NETBALL-08: marking a court player injured prompts replacement and writes injury event", async ({
+  page,
+}) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Open the actions modal for GS via long-press, then mark injured.
+  // See the long-press helper rationale in the previous test —
+  // dispatchEvent path beats page.mouse.move for device-emulated
+  // profiles where boundingBox() can return null on visible tiles.
+  const tile = page.getByRole("button", {
+    name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+  });
+  await tile.waitFor({ state: "visible", timeout: 10_000 });
+  await tile.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch" });
+  await page.waitForTimeout(700);
+  await tile.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch" });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+
+  // PickReplacementSheet renders role="dialog" with
+  // aria-labelledby="replace-title" ("<vacating> → GS"). Bench
+  // candidates (players[7], players[8]) are listed within the
+  // dialog. Scope candidate-button lookups to the dialog so they
+  // don't accidentally target the bench-strip tile underneath.
+  const replaceDialog = page.getByRole("dialog");
+  await expect(replaceDialog).toBeVisible({ timeout: 5_000 });
+  // Header copy includes the vacating player + the position label
+  // ("Goal Shooter" — PickReplacementSheet.tsx:41 uses pos.label).
+  // Format: "${vacatingPlayerName} → Goal Shooter".
+  await expect(
+    replaceDialog.getByText(
+      new RegExp(`${players[0].full_name}.*Goal Shooter|→\\s*Goal Shooter`, "i"),
+    ),
+  ).toBeVisible();
+
+  // Pick the first bench player. The candidate buttons in
+  // PickReplacementSheet render the player's full_name as their
+  // accessible text (no aria-label), so getByRole('button', name)
+  // matches via accessible-text.
+  const benchPlayer = players[7];
+  await replaceDialog
+    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}$`, "i") })
+    .click({ timeout: 5_000 });
+
+  // injury event landed (markInjury server action writes
+  // type='injury' with metadata.injured=true).
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, player_id")
+          .eq("game_id", game.id)
+          .eq("type", "injury")
+          .eq("player_id", players[0].id);
+        return (data ?? []).length;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
+});
+
+test("NETBALL-08: late arrival adds a previously-unavailable squad member and writes player_arrived event", async ({
+  page,
+}) => {
+  // A "late arrival" candidate is a squad member NOT in
+  // game_availability and NOT in lineup.bench. Setup:
+  //   - 9 players exist
+  //   - players[0..7] (8 players) are marked available
+  //   - lineup uses players[0..6] on court + players[7] on bench
+  //   - players[8] is NOT in availability, NOT in lineup → eligible
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+
+  // Mark 8 players available pre-game (players[0..7]); players[8]
+  // stays NOT-available so they qualify as a late-arrival candidate
+  // (NetballLiveGame.tsx:735-744 candidate filter).
+  const availableIds = players.slice(0, 8).map((p) => p.id);
+  await admin.from("game_availability").insert(
+    availableIds.map((pid) => ({
+      game_id: game.id,
+      player_id: pid,
+      status: "available",
+    })),
+  );
+
+  // Seed Q1 with only players[0..7] in the lineup (court + 1 bench).
+  // Pass seedAvailability:false because this test pre-inserted exactly
+  // 8 game_availability rows above; reseeding would either insert
+  // duplicates (PK conflict) or unintentionally make players[8]
+  // available, breaking the late-arrival precondition.
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.slice(0, 8).map((p) => p.id),
+    seedAvailability: false,
+  });
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // LateArrivalMenu renders "+ Add late arrival" only when
+  // candidates exist (LateArrivalMenu.tsx:23).
+  await page
+    .getByRole("button", { name: /add late arrival/i })
+    .click({ timeout: 10_000 });
+
+  // After expand, the menu lists candidates by full_name. players[8]
+  // should be the only candidate (everyone else is on court / bench /
+  // available).
+  const latePlayer = players[8];
+  await page
+    .getByRole("button", { name: new RegExp(`^${latePlayer.full_name}$`, "i") })
+    .click({ timeout: 5_000 });
+
+  // player_arrived event must land with player_id = late player.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, player_id")
+          .eq("game_id", game.id)
+          .eq("type", "player_arrived")
+          .eq("player_id", latePlayer.id);
+        return (data ?? []).length;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBeGreaterThanOrEqual(1);
 });
