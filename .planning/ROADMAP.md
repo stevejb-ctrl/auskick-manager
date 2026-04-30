@@ -109,7 +109,35 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. Netball stats dashboard renders all 5 sections with per-position breakdown; `stats/page.tsx` routes AFL events to AFL aggregators and netball events to netball aggregators with no cross-contamination
   6. First-visit walkthrough fires on netball live shell, persists `nb-walkthrough-seen`, and the scoring step gate is covered by the existing `netballWalkthroughSteps.test.ts`
   7. Long-press actions modal, mid-quarter replacement sheet, and late-arrival menu all function on the netball live shell
-**Plans**: TBD
+**Plans**: 7 plans
+
+**Wave 1** *(no parallel — hygiene + helper foundation)*:
+- [ ] 04-01-PLAN.md — Side-finding #1 (gitignore Playwright artefacts) inline + `e2e/helpers/seed-audit.ts` (Kotara Koalas presence audit for TEST-05)
+
+**Wave 2** *(parallel — independent surfaces, blocked on 04-01)*:
+- [ ] 04-02-PLAN.md — `e2e/tests/netball-walkthrough.spec.ts` (NETBALL-07 — first-visit fire, persistence, scoring-step gate)
+- [ ] 04-03-PLAN.md — `e2e/tests/netball-stats.spec.ts` (NETBALL-05) + `e2e/tests/netball-summary.spec.ts` (NETBALL-06)
+
+**Wave 3** *(blocked on 04-02 + 04-03 — fragile-area source fix)*:
+- [ ] 04-04-PLAN.md — Wire `trackScoring` prop through `NetballLiveGame` + `NetballGameSummaryCard` + `page.tsx` call sites (NETBALL-04, NETBALL-07 source fix; flips wave-2 expected-red tests green) — autonomous: false
+
+**Wave 4** *(blocked on 04-04 — heaviest spec on the fragile surface)*:
+- [ ] 04-05-PLAN.md — `e2e/tests/netball-live-flow.spec.ts` (NETBALL-01 + NETBALL-03 + NETBALL-04 live-shell + NETBALL-08 + ABSTRACT-03 quarter-length override) — autonomous: false
+
+**Wave 5** *(blocked on 04-01 + 04-05 — depends on Kotara audit + live-flow scaffolding)*:
+- [ ] 04-06-PLAN.md — `e2e/tests/netball-quarter-break.spec.ts` (NETBALL-02 — 5 fairness tiers + Kotara-optional season-history path)
+
+**Wave 6** *(gate — full gauntlet + Phase 5 hand-off)*:
+- [ ] 04-07-PLAN.md — Full gauntlet (`tsc && npm test && npm run lint && npm run e2e`) + `04-EVIDENCE.md` with NETBALL-N traceability + Phase 3 invariants re-verified — autonomous: false
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- `pre-merge/main` + `pre-merge/multi-sport` tags MUST stay frozen (D-21 carried forward from Phase 3)
+- `e2e/tests/playhq-import.spec.ts` `test.fixme` MUST stay (PROD-04)
+- D-26/D-27 `quarterMs` wiring at `LiveGame.tsx` + `liveGameStore.ts` MUST NOT be touched
+- Existing AFL e2e specs MUST NOT be modified
+- Source code in `src/` touched ONLY to fix NETBALL-N blockers (plan 04-04 only)
+- Pause-event persistence bug NOT addressed (deferred per CONTEXT)
+
 **UI hint**: yes
 
 ### Phase 5: Test + type green
@@ -136,7 +164,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 
 ### Phase 7: Production cutover + smoke test
-**Goal**: `main` is fast-forwarded to the merged trunk, production Supabase has taken the new migrations, and the production environment is confirmed healthy for both existing AFL teams and new netball capability
+**Goal**: `main` is fast-forwarded to the merged trunk, production Supabase has executed the new migrations, and the production environment is confirmed healthy for both existing AFL teams and new netball capability
 **Depends on**: Phase 6
 **Requirements**: DEPLOY-03, DEPLOY-04
 **Success Criteria** (what must be TRUE):
@@ -156,7 +184,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
-| 4. Netball verification on merged trunk | 0/TBD | Ready to plan | - |
+| 4. Netball verification on merged trunk | 0/7 | Plans authored | - |
 | 5. Test + type green | 0/TBD | Not started | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
