@@ -970,6 +970,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerGoals={playerGoals}
           playerStats={playerStats}
           squad={squad}
+          trackScoring={trackScoring}
         />
       </div>
     );

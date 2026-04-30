@@ -31,6 +31,16 @@ interface Props {
   playerStats: Map<string, PlayerThirdMs>;
   /** Active squad — drives name lookup AND the "N players" line. */
   squad: Player[];
+  /**
+   * Whether this team records goals/scores. NETBALL-04 / NETBALL-06:
+   * when false, the result line ("def" / "drew with" / "lost to") AND
+   * the "🥅 Goals:" line are suppressed in the copyable text. The
+   * "🏐 Full time" header, "👟 N players" line, and "⏱ Game time" block
+   * remain — those are universal regardless of track_scoring.
+   * Defaults to false to match the codebase convention
+   * (`teamRow?.track_scoring ?? false` at every call site).
+   */
+  trackScoring?: boolean;
 }
 
 const THIRD_LABEL: Record<keyof PlayerThirdMs, string> = {
@@ -78,41 +88,49 @@ function buildSummary(
   playerGoals: Record<string, number>,
   playerStats: Map<string, PlayerThirdMs>,
   squad: Player[],
+  trackScoring: boolean,
 ): string {
   const lines: string[] = [];
 
   lines.push(`🏐 Full time — ${teamName} v ${opponentName}`);
 
-  // Result line. Netball is goals-only — no points calculation, no
-  // behinds. "def" / "drew with" mirrors AFL's copy so the message
-  // reads consistently across sports for coaches who run both.
-  if (teamScore.goals > opponentScore.goals) {
-    lines.push(
-      `${teamName} ${teamScore.goals} def ${opponentName} ${opponentScore.goals}`,
-    );
-  } else if (opponentScore.goals > teamScore.goals) {
-    lines.push(
-      `${opponentName} ${opponentScore.goals} def ${teamName} ${teamScore.goals}`,
-    );
-  } else {
-    lines.push(
-      `${teamName} ${teamScore.goals} drew with ${opponentName} ${opponentScore.goals}`,
-    );
-  }
+  // NETBALL-04 / NETBALL-06: scoring lines are suppressed entirely
+  // when this team isn't tracking scores. Without the gate the
+  // 0-0 default scores leak as "{team} 0 drew with {opp} 0", which
+  // is wrong on its face for a non-scoring team. Universal lines
+  // (player count + per-player game time) still emit below.
+  if (trackScoring) {
+    // Result line. Netball is goals-only — no points calculation, no
+    // behinds. "def" / "drew with" mirrors AFL's copy so the message
+    // reads consistently across sports for coaches who run both.
+    if (teamScore.goals > opponentScore.goals) {
+      lines.push(
+        `${teamName} ${teamScore.goals} def ${opponentName} ${opponentScore.goals}`,
+      );
+    } else if (opponentScore.goals > teamScore.goals) {
+      lines.push(
+        `${opponentName} ${opponentScore.goals} def ${teamName} ${teamScore.goals}`,
+      );
+    } else {
+      lines.push(
+        `${teamName} ${teamScore.goals} drew with ${opponentName} ${opponentScore.goals}`,
+      );
+    }
 
-  // Top scorers — only player-attributed goals. Anonymous goals
-  // (added via the team-score path) drop out, matching AFL behaviour.
-  const byId = new Map(squad.map((p) => [p.id, p]));
-  const scorers = Object.entries(playerGoals)
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([id, n]) => {
-      const p = byId.get(id);
-      const name = p ? p.full_name.split(/\s+/)[0] : "Unknown";
-      return n > 1 ? `${name} ${n}` : name;
-    });
-  if (scorers.length > 0) {
-    lines.push(`\n🥅 Goals: ${scorers.join(", ")}`);
+    // Top scorers — only player-attributed goals. Anonymous goals
+    // (added via the team-score path) drop out, matching AFL behaviour.
+    const byId = new Map(squad.map((p) => [p.id, p]));
+    const scorers = Object.entries(playerGoals)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, n]) => {
+        const p = byId.get(id);
+        const name = p ? p.full_name.split(/\s+/)[0] : "Unknown";
+        return n > 1 ? `${name} ${n}` : name;
+      });
+    if (scorers.length > 0) {
+      lines.push(`\n🥅 Goals: ${scorers.join(", ")}`);
+    }
   }
 
   // Per-player time + third breakdown. Anyone with <1s on court is
@@ -152,6 +170,7 @@ export function NetballGameSummaryCard({
   playerGoals,
   playerStats,
   squad,
+  trackScoring = false,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -163,6 +182,7 @@ export function NetballGameSummaryCard({
     playerGoals,
     playerStats,
     squad,
+    trackScoring,
   );
 
   async function handleCopy() {
