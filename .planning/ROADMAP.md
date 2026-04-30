@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
 - [x] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI — COMPLETE 2026-04-29
-- [ ] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved
+- [x] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved — COMPLETE 2026-04-30
 - [ ] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly
 - [ ] **Phase 5: Test + type green** - Achieve full CI green: Vitest, Playwright e2e, TypeScript, lint, and seed team intact
 - [ ] **Phase 6: Preview deploy + manual validation** - Deploy merged trunk to Vercel preview against a Supabase prod clone; manually validate both sports end-to-end
@@ -72,22 +72,22 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 6 plans
 
 **Wave 1** *(no parallel — gate)*:
-- [ ] 03-01-PLAN.md — Set up merge target branch, run `git merge --no-ff` of `claude/vibrant-banzai-a73b2f`, resolve all 6 mapped conflicts + `package.json` surprise (D-24), execute Phase 2 §2 file op (delete main `0024_super_admin.sql`), commit merge atomically; create `03-MERGE-LOG.md` §1+§2 (autonomous: false — checkpoint after merge before D-25/D-26 work)
+- [x] 03-01-PLAN.md — Set up merge target branch, run `git merge --no-ff` of `claude/vibrant-banzai-a73b2f`, resolve all 6 mapped conflicts + `package.json` surprise (D-24), execute Phase 2 §2 file op (delete main `0024_super_admin.sql`), commit merge atomically; create `03-MERGE-LOG.md` §1+§2 ✓
 
 **Wave 2** *(blocked on 03-01)*:
-- [ ] 03-02-PLAN.md — Run post-merge `npx tsc --noEmit`, patch any residual D-25 AgeGroup consumers (expected: zero per RESEARCH §3), populate `03-MERGE-LOG.md` §3
+- [x] 03-02-PLAN.md — Run post-merge `npx tsc --noEmit`, patch any residual D-25 AgeGroup consumers; populate `03-MERGE-LOG.md` §3 ✓
 
 **Wave 3** *(blocked on 03-02 — fragile-area isolation per CONCERNS.md)*:
-- [ ] 03-03-PLAN.md — D-26 Surface 3: parameterise `endCurrentQuarter` in `src/lib/stores/liveGameStore.ts` (FRAGILE area — isolated edit + immediate `npm test`)
+- [x] 03-03-PLAN.md — D-26 Surface 3: parameterise `endCurrentQuarter` in `src/lib/stores/liveGameStore.ts` ✓
 
 **Wave 4** *(blocked on 03-03)*:
-- [ ] 03-04-PLAN.md — D-26 Surfaces 1+2: wire `quarterMs` prop through `src/components/live/LiveGame.tsx` + AFL-branch caller in `src/app/(app)/teams/[teamId]/games/[gameId]/live/page.tsx` (closes Plan 03-03 tsc handshake)
+- [x] 03-04-PLAN.md — D-26 Surfaces 1+2: wire `quarterMs` prop through `src/components/live/LiveGame.tsx` + AFL-branch caller in `src/app/(app)/teams/[teamId]/games/[gameId]/live/page.tsx` ✓
 
 **Wave 5** *(blocked on 03-04)*:
-- [ ] 03-05-PLAN.md — Run `npm run db:reset` + full gauntlet (`tsc && npm test && npm run lint && npm run e2e`); verify Phase 2 spec `e2e/tests/multi-sport-schema.spec.ts` flips green (D-12)
+- [x] 03-05-PLAN.md — Full gauntlet (`tsc && npm test && npm run lint && npm run e2e`) all-green; D-12 satisfied (multi-sport-schema.spec.ts flipped green) ✓
 
 **Wave 6** *(blocked on 03-05)*:
-- [ ] 03-06-PLAN.md — Verify PROD-01..04 preservation, ABSTRACT-01/03 grep audit, D-21 tag invariant; finalize `03-MERGE-LOG.md` §4+§5+§6 (Phase 4 hand-off)
+- [x] 03-06-PLAN.md — PROD-01..04 + ABSTRACT-01..03 evidence captured, D-21 tag invariant intact; `03-MERGE-LOG.md` §4+§5+§6 finalized (Phase 4 hand-off) ✓
 
 **Cross-cutting constraints** *(must hold across all plans)*:
 - `pre-merge/main` (`80a04eb`) and `pre-merge/multi-sport` (`1277068`) annotated tags are NEVER moved (D-21)
@@ -155,8 +155,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
-| 3. Branch merge + abstraction integrity | 0/6 | Ready to execute | - |
-| 4. Netball verification on merged trunk | 0/TBD | Not started | - |
+| 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
+| 4. Netball verification on merged trunk | 0/TBD | Ready to plan | - |
 | 5. Test + type green | 0/TBD | Not started | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
