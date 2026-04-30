@@ -43,3 +43,8 @@ debug.log
 .supabase-start.log
 supabase/.branches/
 supabase/.temp/
+
+# playwright run artefacts (per Phase 3 side-finding #1, MERGE-LOG §6)
+playwright-report/
+playwright/
+test-results/
