@@ -229,10 +229,22 @@ test("NETBALL-06: track_scoring=false summary card omits result and goals lines"
   const summaryText = page.locator("#netball-game-summary-text");
   await expect(summaryText).toBeVisible();
 
-  // Acceptance gate: result + goals lines suppressed. No "def {N}",
+  // Acceptance gate: result + goals lines suppressed. No lowercase
+  // "def" + space + word (the result line — buildSummary emits
+  // lowercase "def" / "drew with" — see NetballGameSummaryCard.tsx),
   // no "drew with", no "🥅 Goals:" substring anywhere in the body.
+  //
+  // Plan 04-04 deviation (Rule 1 — Bug fix in the regression spec
+  // ahead of the source fix): the original regex `/def\s+\w/i` was
+  // too broad — it matched "DEF 1" inside the per-third
+  // breakdown row "Felix — 10:00  (DEF 100%)" when a player accrues
+  // most of their time in the defence third. The buildSummary result
+  // line emits lowercase "def" only ("Team 2 def Opponent 1"); the
+  // per-third labels are uppercase ATK/CEN/DEF (NetballGameSummaryCard
+  // .tsx line 38). Dropping the `i` flag tightens the regex to catch
+  // ONLY the result line.
   const text = (await summaryText.textContent()) ?? "";
-  expect(text).not.toMatch(/def\s+\w/i);
+  expect(text).not.toMatch(/\bdef\s+\w/);
   expect(text).not.toMatch(/drew with/i);
   expect(text).not.toContain("🥅");
 
