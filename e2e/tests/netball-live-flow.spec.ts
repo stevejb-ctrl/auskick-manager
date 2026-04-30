@@ -430,22 +430,16 @@ test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal"
 
   // Long-press = pointerdown, hold ≥500ms, pointerup. PositionToken
   // wires `onPointerDown` → 500ms setTimeout → `onLongPress` (see
-  // PositionToken.tsx:90-99). We drive the gesture via locator-level
-  // dispatchEvent so we don't have to compute viewport coordinates
-  // (boundingBox() returns null on certain device-emulation profiles
-  // even when the element is visible per `waitFor`, which made the
-  // page.mouse.move(cx, cy) approach flaky).
-  const tile = page.getByRole("button", {
-    name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
-  });
-  await tile.waitFor({ state: "visible", timeout: 10_000 });
-  // pointerId+pointerType are required for setPointerCapture in the
-  // component's pointerdown handler — without them the synthetic
-  // event is dropped by some browsers.
-  await tile.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch" });
-  // > 500ms long-press threshold.
-  await page.waitForTimeout(700);
-  await tile.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch" });
+  // PositionToken.tsx:90-99); same pattern as AFL's PlayerTile. The
+  // `click({ delay })` form holds the (mouse-derived) pointer down
+  // for the specified ms before releasing — 600ms blows past the
+  // 500ms threshold and triggers onLongPress. Mirrors the proven
+  // pattern at e2e/tests/injury-replacement.spec.ts:85-87.
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+    })
+    .click({ delay: 600 });
 
   // NetballPlayerActions modal: role="dialog" with
   // aria-labelledby="netball-actions-title" (the player name +
@@ -476,17 +470,14 @@ test("NETBALL-08: marking a court player injured prompts replacement and writes 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Open the actions modal for GS via long-press, then mark injured.
-  // See the long-press helper rationale in the previous test —
-  // dispatchEvent path beats page.mouse.move for device-emulated
-  // profiles where boundingBox() can return null on visible tiles.
-  const tile = page.getByRole("button", {
-    name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
-  });
-  await tile.waitFor({ state: "visible", timeout: 10_000 });
-  await tile.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch" });
-  await page.waitForTimeout(700);
-  await tile.dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch" });
+  // Open the actions modal for GS via long-press, then mark
+  // injured. Long-press via `click({ delay: 600 })` per the
+  // injury-replacement.spec.ts pattern (600ms > 500ms threshold).
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+    })
+    .click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
 
   // PickReplacementSheet renders role="dialog" with
@@ -600,4 +591,123 @@ test("NETBALL-08: late arrival adds a previously-unavailable squad member and wr
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBeGreaterThanOrEqual(1);
+});
+
+// ─── ABSTRACT-03: quarter-length override ─────────────────
+//
+// Both tests below verify ABSTRACT-03's quarterMs threading by
+// asserting the auto-hooter fires at the CORRECT override-derived
+// elapsed time (not the 10-min "go" age-group default). The hooter
+// itself is the useEffect at NetballLiveGame.tsx:206-222: when
+// `remainingMs <= 0`, it fires `endNetballQuarter` server-side once.
+//
+// Spec-side note on revalidation: endNetballQuarter writes the
+// `quarter_end` event to the DB but does NOT revalidatePath for
+// non-final quarters (only Q4 finalise revalidates). In real coach
+// use the page rerenders eventually via Next.js router prefetch /
+// the next user interaction, but in a Playwright spec we observe
+// the server side directly: poll the DB for the quarter_end event,
+// THEN reload the page to pick up the post-hooter replay state and
+// assert the Q-break shell mounts. This is a spec-side observation
+// pattern, not a source workaround.
+
+test("ABSTRACT-03: team.quarter_length_seconds=480 fires the auto-hooter at the overridden 8-minute mark", async ({
+  page,
+}) => {
+  // 8 min = 480s. Backdate quarter_start to 9 min ago so by mount
+  // time we're already past the override hooter.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({
+    trackScoring: false, // simplifies the score-bug DOM; not relevant to the hooter
+    teamQuarterLengthSeconds: 480,
+  });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+    quarterStartOffsetSec: 9 * 60,
+  });
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Wait for the auto-hooter to write the `quarter_end` event for
+  // Q1. If the override wasn't honoured (default 10-min "go"
+  // period), 9 min would still be inside the quarter and the
+  // hooter useEffect's `remainingMs > 0` early-return would skip
+  // the write — this poll would time out and the test would fail.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, metadata")
+          .eq("game_id", game.id)
+          .eq("type", "quarter_end");
+        return (data ?? []).some(
+          (e) => (e.metadata as { quarter?: number } | null)?.quarter === 1,
+        );
+      },
+      { timeout: 10_000, intervals: [200, 500, 500, 1000, 1000] },
+    )
+    .toBe(true);
+
+  // Reload to pick up the post-hooter replayed state. Netball's
+  // quarter_end → quarterEnded path renders the Q-break shell
+  // (NetballLiveGame.tsx:986-1054) — there's NO intermediate
+  // "Select team for Q2" modal (that's AFL-only, from
+  // QuarterEndModal.tsx). Assert one of the two Q-break CTAs is
+  // visible: "Start Q2" or "Apply suggested reshuffle".
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /start q2|apply suggested reshuffle/i }).first(),
+  ).toBeVisible({ timeout: 10_000 });
+});
+
+test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length_seconds via the priority chain", async ({
+  page,
+}) => {
+  // game (6 min) > team (null) > ageGroup default (10 min for "go").
+  // Backdate Q1 by 7 min — past the 6-min game override but inside
+  // the 10-min ageGroup default. If priority chain were broken
+  // (ageGroup default won), the hooter wouldn't fire and the
+  // quarter_end DB-poll would time out. Pinpoints the
+  // game-wins-over-team semantic at
+  // src/lib/sports/index.ts:35-39 (getEffectiveQuarterSeconds).
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({
+    trackScoring: false,
+    teamQuarterLengthSeconds: null, // explicit null → fall through to game/age
+    gameQuarterLengthSeconds: 360,
+  });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+    quarterStartOffsetSec: 7 * 60,
+  });
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, metadata")
+          .eq("game_id", game.id)
+          .eq("type", "quarter_end");
+        return (data ?? []).some(
+          (e) => (e.metadata as { quarter?: number } | null)?.quarter === 1,
+        );
+      },
+      { timeout: 10_000, intervals: [200, 500, 500, 1000, 1000] },
+    )
+    .toBe(true);
+
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /start q2|apply suggested reshuffle/i }).first(),
+  ).toBeVisible({ timeout: 10_000 });
 });
