@@ -46,12 +46,22 @@ test("delete game removes it from the games list", async ({ page }) => {
     await confirmBtn.click();
   }
 
-  // Land back on team games list. Assert the deleted opponent is gone.
-  await page.waitForURL(/\/teams\/[0-9a-f-]+\/games\/?$/, { timeout: 10_000 });
-
-  const { data: games } = await admin
-    .from("games")
-    .select("id")
-    .eq("id", game.id);
-  expect(games).toHaveLength(0);
+  // Wait for the cascade-delete to complete in the DB before asserting on
+  // the URL or row count. Under parallel workers the deleteGame server
+  // action occasionally settles the navigation a touch later than 10s,
+  // and the prior `waitForURL` race surfaced as a flake. Same DB-poll
+  // shape as roster.spec.ts and settings.spec.ts (commit b014ef9 / fa26cd1).
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("games")
+          .select("id")
+          .eq("id", game.id);
+        return data?.length ?? -1;
+      },
+      { timeout: 30_000, intervals: [200, 500, 1000, 2000, 2000] },
+    )
+    .toBe(0);
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]+\/games\/?$/, { timeout: 10_000 });
 });
