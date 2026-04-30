@@ -82,10 +82,10 @@ if (statusCode !== 0) {
   }
 }
 
-// 3. Reapply migrations + seed on a clean schema. `--no-confirm` skips
+// 3. Reapply migrations + seed on a clean schema. `--yes` skips
 //    the interactive prompt that would hang in CI.
 console.log("→ Resetting local DB (migrations + seed)");
-const resetCode = run("supabase", ["db", "reset", "--no-confirm"]);
+const resetCode = run("supabase", ["db", "reset", "--yes"]);
 if (resetCode !== 0) {
   console.error("supabase db reset failed — aborting before Playwright.");
   process.exit(resetCode);
