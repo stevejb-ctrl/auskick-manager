@@ -45,7 +45,17 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   // ── Deactivate ─────────────────────────────────────────────
   // Toggle role="switch" with aria-label "Deactivate player" when
   // active. Single-row page → no filter needed.
-  await page.getByRole("switch", { name: /deactivate player/i }).click();
+  //
+  // Post-merge: the per-row Toggle disables itself for non-admins
+  // (Toggle's `disabled={isPending || !isAdmin}`). Under parallel
+  // workers we occasionally render before the membership-driven
+  // `isAdmin` lookup has hydrated, leaving the switch [disabled] and
+  // making the click a no-op. Wait for the admin-enabled state via a
+  // Web-First assertion before clicking — same pattern landed in
+  // settings.spec.ts (commit b014ef9) for the track-scoring toggle.
+  const deactivateSwitch = page.getByRole("switch", { name: /deactivate player/i });
+  await expect(deactivateSwitch).toBeEnabled({ timeout: 5_000 });
+  await deactivateSwitch.click();
 
   // Wait for the row to reappear in the inactive section. PlayerList
   // renders an "Inactive" SFCard automatically when any inactive
@@ -68,8 +78,12 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   // ── Reactivate ─────────────────────────────────────────────
   // Same Toggle, aria-label is now "Reactivate player". Player
   // moved to the inactive section but is still the only <li> on
-  // the page.
-  await page.getByRole("switch", { name: /reactivate player/i }).click();
+  // the page. Same admin-membership race guard as the deactivate
+  // click above — see settings.spec.ts commit b014ef9 for the
+  // pattern rationale.
+  const reactivateSwitch = page.getByRole("switch", { name: /reactivate player/i });
+  await expect(reactivateSwitch).toBeEnabled({ timeout: 5_000 });
+  await reactivateSwitch.click();
 
   // ── Verify final state via DB ──────────────────────────────
   await expect
