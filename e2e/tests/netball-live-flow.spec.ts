@@ -179,12 +179,13 @@ test("NETBALL-01: pre-kickoff renders the netball lineup picker (six-state machi
 
   // Pre-kickoff branch of NetballLiveGame renders NetballLineupPicker
   // with confirmLabel="Start game" (NetballLiveGame.tsx:926). Match
-  // the CTA directly; fall back to picker chrome copy in case the
-  // confirm-button copy ever changes.
+  // the CTA directly. We deliberately avoid an `.or(...)` fallback
+  // against picker chrome copy ("Auto-suggested starting lineup")
+  // because Playwright strict-mode flags the unioned locator when
+  // both branches resolve simultaneously — the button is the
+  // canonical entry-point assertion for this state.
   await expect(
-    page
-      .getByRole("button", { name: /start game/i })
-      .or(page.getByText(/lineup|starting lineup/i).first()),
+    page.getByRole("button", { name: /^start game$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 
