@@ -69,18 +69,31 @@ test("toggle track-scoring flag", async ({ page }) => {
     .eq("id", team.id)
     .single();
 
-  const toggle = page.getByRole("switch", { name: /track scoring/i }).or(
-    page.getByRole("checkbox", { name: /track scoring/i })
-  );
+  // Post-merge: TrackScoringToggle disables itself for non-admins
+  // (Toggle's `disabled={isPending || !isAdmin}`). Under parallel
+  // workers we occasionally render before the membership-driven
+  // `isAdmin` lookup has hydrated, leaving the switch [disabled] and
+  // making the click a no-op. Wait for the page to settle into its
+  // admin-enabled state before clicking — a Web-First assertion is
+  // the right tool here per Playwright best practices.
+  const toggle = page.getByRole("switch", { name: /track scoring/i });
+  await expect(toggle).toBeEnabled({ timeout: 5_000 });
   await toggle.click();
 
-  await page.waitForTimeout(500);
-
-  const { data: after } = await admin
-    .from("teams")
-    .select("track_scoring")
-    .eq("id", team.id)
-    .single();
-
-  expect(after?.track_scoring).not.toBe(before?.track_scoring);
+  // Poll for the persisted change instead of a fixed waitForTimeout —
+  // the server action runs async after the click and the previous
+  // 500ms timeout was occasionally too tight under load.
+  await expect
+    .poll(
+      async () => {
+        const { data: row } = await admin
+          .from("teams")
+          .select("track_scoring")
+          .eq("id", team.id)
+          .single();
+        return row?.track_scoring;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .not.toBe(before?.track_scoring);
 });
