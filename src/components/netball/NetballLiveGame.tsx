@@ -84,6 +84,20 @@ interface NetballLiveGameProps {
   finalised: boolean;
   thisGameEvents: GameEvent[];
   seasonEvents: GameEvent[];
+  /**
+   * Whether this team records goals/scores. NETBALL-04: when false,
+   *   • +G opponent-goal button hidden in the score bug
+   *   • GS/GA tap is a no-op for scoring (long-press still opens
+   *     the actions modal, mirroring track_scoring-agnostic flows)
+   *   • Undo chip never appears (scoring path is fully suppressed)
+   *   • Score-bug numeric goal counts hidden (em-dash placeholder)
+   *   • Walkthrough "Recording scores" step dropped (NETBALL-07)
+   *   • Bottom hint copy drops the "Tap GS or GA to score" sentence
+   *   • Summary card omits the result + goals lines (NETBALL-06)
+   * Defaults to false to match the codebase convention
+   * (`teamRow?.track_scoring ?? false` at every call site).
+   */
+  trackScoring?: boolean;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -106,6 +120,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     finalised,
     thisGameEvents,
     seasonEvents,
+    trackScoring = false,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -502,6 +517,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       return;
     }
     if (!SCORING_POSITIONS.has(positionId)) return;
+    // NETBALL-04: scoring affordance gated on track_scoring. The tap
+    // becomes a no-op when the team isn't tracking scores; long-press
+    // (handleTokenLongPress) is unaffected so coaches can still open
+    // the actions modal on GS/GA tokens.
+    if (!trackScoring) return;
     setPendingGoal({ playerId, positionId });
   };
 
@@ -797,9 +817,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
+  // NETBALL-07: walkthrough scoring-step gate is wired to the team's
+  // actual track_scoring (was hard-coded `true` before plan 04-04).
+  // The "Recording scores" step is dropped when trackScoring=false so
+  // the onboarding doesn't promise an affordance the live shell now
+  // suppresses.
   const walkthroughSteps = useMemo(
-    () => buildNetballWalkthroughSteps({ trackScoring: true }),
-    [],
+    () => buildNetballWalkthroughSteps({ trackScoring }),
+    [trackScoring],
   );
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -918,6 +943,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           opponent={opponentScore}
           quarterLabel="FT"
           clockText="—"
+          showScores={trackScoring}
         />
         <CourtDisplay
           lineup={onCourt}
@@ -968,6 +994,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           opponent={opponentScore}
           quarterLabel={`Q${currentQuarter} BRK`}
           clockText="—"
+          showScores={trackScoring}
         />
         <NetballQuarterBreak
           auth={auth}
@@ -1044,6 +1071,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           opponent={opponentScore}
           quarterLabel="PRE"
           clockText={formatClock(quarterLengthMs)}
+          showScores={trackScoring}
         />
         <p className="text-center text-sm text-neutral-600">
           Lineup locked. Tap when the umpires call play.
@@ -1081,6 +1109,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           opponent={opponentScore}
           quarterLabel="Q4 END"
           clockText="—"
+          showScores={trackScoring}
         />
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         <button
@@ -1119,15 +1148,22 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
         clockText={formatClock(remainingMs)}
         isPending={isPending}
-        onOpponentGoal={handleOpponentGoal}
+        // NETBALL-04: pass undefined when scoring isn't tracked so
+        // NetballScoreBug's existing `{onOpponentGoal && (...)}` gate
+        // hides the +G affordance (no opponent-goal button visible).
+        onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
         onClockTap={handleClockTap}
         paused={isPaused}
+        showScores={trackScoring}
       />
 
       {/* Undo last score — toast (8s, dark bg) then persistent chip
           (muted bg) until the next score replaces it. Mirrors AFL's
-          LiveGame.tsx:855 chip exactly so the affordance is familiar. */}
-      {lastScore && (
+          LiveGame.tsx:855 chip exactly so the affordance is familiar.
+          NETBALL-04: gated on trackScoring — when scoring is suppressed
+          there's no goal flow, so the undo chip never has a reason to
+          render. */}
+      {trackScoring && lastScore && (
         <div
           className={`flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
             undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
@@ -1194,9 +1230,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       />
 
       <p className="text-center text-xs text-neutral-500">
-        Tap GS or GA to score (with confirm). Long-press any player for
-        actions. The quarter ends automatically when the clock reaches
-        zero.
+        {trackScoring
+          ? "Tap GS or GA to score (with confirm). Long-press any player for actions. The quarter ends automatically when the clock reaches zero."
+          : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}
       </p>
 
       {/* Action modal — opens on long-press of any token. */}
@@ -1300,6 +1336,7 @@ function NetballScoreBug({
   isPending,
   onClockTap,
   paused = false,
+  showScores = true,
 }: {
   teamName: string;
   opponentName: string;
@@ -1320,6 +1357,16 @@ function NetballScoreBug({
   onClockTap?: () => void;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
+  /**
+   * Whether to render the numeric goal counts. NETBALL-04: when the
+   * team isn't tracking scores the broadcast scoreboard is misleading
+   * — both sides would show "0" all game. Replace with an em-dash
+   * placeholder so the score-bug retains its broadcast layout (team
+   * names + clock pill stay aligned) without lying about a 0-0 score.
+   * Defaults to true so the existing track_scoring=true behaviour is
+   * unchanged at every call site that doesn't pass the prop.
+   */
+  showScores?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
@@ -1330,7 +1377,7 @@ function NetballScoreBug({
         </p>
         <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
           <span className="text-[36px] font-bold tracking-tightest">
-            {team.goals}
+            {showScores ? team.goals : "—"}
           </span>
         </p>
       </div>
@@ -1388,7 +1435,7 @@ function NetballScoreBug({
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
           <span className="text-[36px] font-bold tracking-tightest">
-            {opponent.goals}
+            {showScores ? opponent.goals : "—"}
           </span>
         </p>
         {onOpponentGoal && (
