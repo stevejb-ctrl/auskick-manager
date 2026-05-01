@@ -150,7 +150,37 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `npx tsc --noEmit` exits 0 with no type errors across the full merged codebase
   4. `npm run lint` exits 0 with no ESLint errors
   5. Kotara Koalas team (`5ba1eb72-ee23-4b8e-9f9c-22a12fd0fc11`) is queryable in local Supabase with 9 active players and 5 simulated games, usable as a netball validation seed
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1** *(seed-data — TEST-05 closure)*:
+- [ ] 05-01-PLAN.md — Add Kotara Koalas seed to `supabase/seed.sql` (Option A pure-SQL DO-block; falls back to `scripts/seed-kotara-koalas.mjs` if `auth.users` direct INSERT fragile across Supabase CLI versions). Closes TEST-05; flips netball-quarter-break.spec.ts:380 Kotara-optional test from SKIP to PASS.
+
+**Wave 2** *(blocked on 05-01 — pure refactor)*:
+- [ ] 05-02-PLAN.md — Extract `waitForAdminHydration(switchLocator, opts?)` to `e2e/helpers/admin-hydration.ts`; refactor settings.spec.ts (×1) + roster.spec.ts (×2) + game-edit.spec.ts cross-reference comment. Closes Phase-3 deferred Side-finding #3.
+
+**Wave 3** *(blocked on 05-02 — bootstrap script)*:
+- [ ] 05-03-PLAN.md — Add port-3000 probe to `scripts/e2e-setup.mjs` (cross-platform via `node:net` `createServer().listen(3000)`; reuses existing dev server when present, aborts with PID + kill-suggestion when port held by hostile process). Closes Phase-3 deferred Side-finding #2.
+
+**Wave 4** *(blocked on 05-03 — FRAGILE-area-adjacent source fix)*:
+- [ ] 05-04-PLAN.md — `revalidatePath` in `endNetballQuarter` (non-final branch) + `startNetballQuarter`; `router.refresh()` in `NetballLiveGame.tsx` auto-hooter + start-Q1 + manual-end-Q4 paths AND in `NetballQuarterBreak.tsx` Start-Qn handler. Remove 3 `page.reload()` workarounds from `netball-live-flow.spec.ts` (×2) + `netball-quarter-break.spec.ts` (×1) and confirm specs stay green. Closes Phase-4 deferred items #1 (revalidatePath gap) + #2 (router.refresh gap) — autonomous: false.
+
+**Wave 5** *(blocked on 05-04 — gauntlet + Phase 6 hand-off)*:
+- [ ] 05-05-PLAN.md — Full gauntlet (`tsc && lint && vitest && e2e --workers=1` + PROD-01 per-spec re-run) + author `05-EVIDENCE.md` aggregating TEST-01..05 traceability + Phase 3/4 invariant re-verification + Phase 6 hand-off block. Final human-verify checkpoint signs off Phase 5 — autonomous: false.
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- `pre-merge/main` (`e9073dd…`) and `pre-merge/multi-sport` (`e13e787c…`) tags MUST stay frozen (D-21 carried forward)
+- `e2e/tests/playhq-import.spec.ts` `test.fixme` MUST stay (PROD-04 — exactly 1 occurrence)
+- D-26 `quarterMs` hits in `src/components/live/LiveGame.tsx` MUST stay at 5 (AFL surface untouched)
+- D-27 `quarterMs` hits in `src/lib/stores/liveGameStore.ts` MUST stay at 4 (AFL surface untouched)
+- ABSTRACT-01 4 UI-presentation matches outside `src/lib/sports/` MUST stay (pre-classified acceptable per Phase 3 plan 03-06)
+- Phase 4 plan 04-04 `trackScoring` prop chain in NetballLiveGame.tsx + NetballGameSummaryCard.tsx + live/page.tsx MUST stay intact (Plan 05-04 adds router.refresh; doesn't rewire trackScoring)
+- All netball + AFL e2e specs from Phases 1-4 MUST stay green
+- Pause-event persistence bug NOT addressed (deferred per Phase 3 CONTEXT)
+- ABSTRACT-01 / PROD-04 CI guards stay backlog (per Phase 3 CONTEXT)
+- `src/` touched ONLY in Plan 05-04 (revalidatePath + router.refresh source fix)
+- `supabase/migrations/` NOT touched (TEST-05 seed lands in `supabase/seed.sql`, not a migration)
+
+**UI hint**: no
 
 ### Phase 6: Preview deploy + manual validation
 **Goal**: The merged trunk is deployed to a Vercel preview environment backed by a Supabase prod clone, and a human has manually verified that both sports work end-to-end against real-shape data
@@ -185,6 +215,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
 | 4. Netball verification on merged trunk | 7/7 | ✓ Complete | 2026-05-01 |
-| 5. Test + type green | 0/TBD | Not started | - |
+| 5. Test + type green | 0/5 | Planned | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
