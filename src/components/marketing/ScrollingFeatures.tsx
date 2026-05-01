@@ -16,20 +16,19 @@ const PADDED = (n: number) => n.toString().padStart(2, "0");
 
 /**
  * Feature showcase section with the brand's editorial centrepiece on top
- * and two responsive layouts beneath, both driven from the same data:
+ * and a single sticky-phone scroll-pin pattern that adapts across breakpoints:
  *
- *   • **Desktop (lg+)** — sticky-phone scroll-pin. The phone is locked to
- *     the right column; copy blocks scroll past on the left, each one a
- *     viewport tall so the reader has time to register a feature before
- *     the phone crossfades to the next one. An IntersectionObserver
- *     watches a tight band at the centre of the viewport.
+ *   • **Desktop (lg+)** — phone sticks to the right column; copy blocks
+ *     scroll past on the left, each one a viewport tall so the reader
+ *     has time to register a feature before the phone crossfades.
  *
- *   • **Mobile (< lg)** — self-contained scroll-snap frame. A fixed
- *     phone mock holds in place; an invisible scroll-snap layer stacked
- *     on top of it captures the user's gesture. `scrollTop /
- *     clientHeight` rounds to the active feature index. Accessibility:
- *     the gesture surface is `aria-hidden`; the dot indicators below
- *     the frame are the keyboard-accessible nav with descriptive labels.
+ *   • **Mobile (< lg)** — same scroll-pin idea on a single column. The
+ *     phone sticks to the top of the viewport (vertically centred under
+ *     the navbar); copy blocks scroll past underneath. One unified page
+ *     scroll — no inner scroll layer, no overlay card, no progress pill.
+ *
+ * Both modes share an IntersectionObserver that picks the block closest
+ * to the centre of the viewport and crossfades the active screenshot.
  */
 export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesProps) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -89,9 +88,64 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Centerpiece left={centerpiece.left} right={centerpiece.right} />
 
-        {/* MOBILE LAYOUT — scroll-snap frame */}
-        <div className="mt-12 lg:hidden">
-          <MobileScrollSnapFeatures features={features} />
+        {/* MOBILE LAYOUT — single-column page scroll, sticky phone at top. */}
+        <div className="mt-10 lg:hidden">
+          {/* Sticky phone — stays pinned while the user scrolls the
+              feature blocks beneath. Sticky context is this <div>; the
+              phone unsticks when the last copy block exits the viewport. */}
+          <div className="pointer-events-none sticky top-4 z-10 mx-auto mb-6 w-full max-w-[220px]">
+            <PhoneFrame className="relative">
+              {features.map((f, i) => (
+                <Image
+                  key={f.id}
+                  src={f.image}
+                  alt={f.imageAlt}
+                  fill
+                  sizes="220px"
+                  priority={i === 0}
+                  className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
+                    i === activeIndex ? "opacity-100" : "opacity-0"
+                  }`}
+                  aria-hidden={i !== activeIndex}
+                />
+              ))}
+            </PhoneFrame>
+          </div>
+
+          {/* Copy blocks — generous min-height so each feature dominates
+              one screen worth of scroll while the phone stays pinned. */}
+          <div className="space-y-0">
+            {features.map((f, i) => (
+              <article
+                key={f.id}
+                data-index={i}
+                ref={setRef[i]}
+                className={`flex min-h-[70vh] flex-col justify-center py-8 transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
+                  i === activeIndex ? "opacity-100" : "opacity-50"
+                }`}
+              >
+                <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-alarm">
+                  <span className="mr-3">{PADDED(i + 1)}</span>
+                  <span className="text-ink-mute">{f.eyebrow}</span>
+                </p>
+                <h3 className="mt-3 text-2xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-3xl">
+                  <TitleAccent parts={f.title} />
+                </h3>
+                <p className="mt-4 text-base text-ink-dim sm:text-lg">{f.body}</p>
+                <ul className="mt-5 space-y-2.5">
+                  {f.bullets.map((bullet) => (
+                    <li key={bullet} className="flex gap-3 text-sm text-ink sm:text-base">
+                      <span
+                        aria-hidden="true"
+                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-alarm"
+                      />
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
         </div>
 
         {/* DESKTOP LAYOUT — sticky phone (right) + scrolling copy (left) */}
@@ -134,14 +188,6 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
           <div className="relative" aria-hidden="true">
             <div className="sticky top-[12vh] flex items-center justify-center">
               <div className="relative w-full max-w-[280px]">
-                <div
-                  aria-hidden="true"
-                  className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl"
-                />
-                <div
-                  aria-hidden="true"
-                  className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
-                />
                 <PhoneFrame className="relative">
                   {features.map((f, i) => (
                     <Image
@@ -208,172 +254,3 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
   );
 }
 
-// ─── Mobile scroll-snap features frame ────────────────────────────────
-function MobileScrollSnapFeatures({ features }: { features: FeatureCopy[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const idx = Math.round(el.scrollTop / Math.max(1, el.clientHeight));
-    const clamped = Math.max(0, Math.min(features.length - 1, idx));
-    if (clamped !== activeIndex) setActiveIndex(clamped);
-    const max = Math.max(1, el.scrollHeight - el.clientHeight);
-    setProgress(Math.max(0, Math.min(1, el.scrollTop / max)));
-  };
-
-  const scrollToIndex = (idx: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTo({
-      top: idx * el.clientHeight,
-      behavior:
-        typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-    });
-  };
-
-  return (
-    <div className="mx-auto max-w-[340px]">
-      <div className="relative mx-auto h-[560px] w-full">
-        {/* Phone frame locked in centre — visual only, gestures pass through */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="relative w-full max-w-[280px]">
-            <div
-              aria-hidden="true"
-              className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
-            />
-            <PhoneFrame className="relative">
-              {features.map((f, i) => (
-                <Image
-                  key={f.id}
-                  src={f.image}
-                  alt={f.imageAlt}
-                  fill
-                  sizes="280px"
-                  priority={i === 0}
-                  className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
-                    i === activeIndex ? "opacity-100" : "opacity-0"
-                  }`}
-                  aria-hidden={i !== activeIndex}
-                />
-              ))}
-              <MobileOverlayCard
-                key={`overlay-${activeIndex}`}
-                feature={features[activeIndex]}
-                index={activeIndex}
-                total={features.length}
-              />
-            </PhoneFrame>
-          </div>
-        </div>
-
-        {/* Vertical alarm progress pill on the right rim */}
-        <div
-          aria-hidden="true"
-          className="absolute right-0 top-6 bottom-6 w-[3px] overflow-hidden rounded-full bg-hairline/60"
-        >
-          <div
-            className="w-full rounded-full bg-alarm transition-[height] duration-200 ease-out-quart motion-reduce:transition-none"
-            style={{ height: `${progress * 100}%` }}
-          />
-        </div>
-
-        {/* Invisible scroll-snap gesture surface, stacked on top */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          aria-hidden="true"
-          className="no-scrollbar absolute inset-0 h-full snap-y snap-mandatory overflow-y-auto"
-        >
-          {features.map((f, i) => (
-            <div key={f.id} className="h-full snap-start" data-index={i} />
-          ))}
-        </div>
-      </div>
-
-      {/* Dot indicators — keyboard-accessible feature nav */}
-      <div className="mt-6 flex items-center justify-center gap-2">
-        {features.map((f, i) => (
-          <button
-            key={f.id}
-            type="button"
-            aria-label={`Feature ${i + 1}: ${f.eyebrow}`}
-            aria-current={i === activeIndex ? "true" : undefined}
-            onClick={() => scrollToIndex(i)}
-            className={`flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart`}
-          >
-            <span
-              aria-hidden="true"
-              className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
-                i === activeIndex
-                  ? "h-1.5 w-5 bg-alarm"
-                  : "h-1.5 w-1.5 bg-hairline"
-              }`}
-            />
-          </button>
-        ))}
-      </div>
-
-      {/* Screen-reader-only feature list — the visual frame is aria-hidden */}
-      <ul className="sr-only">
-        {features.map((f) => (
-          <li key={f.id}>
-            <h3>
-              {f.title.before}
-              {f.title.italic}
-              {f.title.after}
-            </h3>
-            <p>{f.body}</p>
-            <ul>
-              {f.bullets.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// ─── Overlay card pinned to the bottom of the phone screen on mobile ──
-function MobileOverlayCard({
-  feature,
-  index,
-  total,
-}: {
-  feature: FeatureCopy;
-  index: number;
-  total: number;
-}) {
-  return (
-    <div
-      className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 motion-safe:animate-fade-in"
-      aria-hidden="true"
-    >
-      <div className="rounded-md bg-ink/[0.92] px-4 py-3 text-warm shadow-modal backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-alarm">
-            {PADDED(index + 1)}/{PADDED(total)}
-          </span>
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-warm/55">
-            {feature.eyebrow}
-          </span>
-        </div>
-        <h3 className="mt-1 text-base font-semibold leading-snug tracking-tightest text-warm [text-wrap:balance]">
-          <TitleAccent parts={feature.title} italicClassName="text-warm/90" />
-        </h3>
-      </div>
-    </div>
-  );
-}

@@ -1,27 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
+import { FieldOval } from "@/components/marketing/FieldOval";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
-// Above-the-fold. Two-column on desktop, stacked on mobile. Copy on the
-// left, phone mockup on the right with a subtle tilt for visual energy.
-// The auth-aware "Start free / Go to dashboard" CTA lives in
-// MarketingAuthCTAs so this component stays a pure server component —
-// the page prerenders statically.
+// Above-the-fold. Two-column on desktop, copy-only on mobile (the phone
+// mock returns later in the features section). The auth-aware CTA pair
+// lives in MarketingAuthCTAs (client island) so this tree stays static.
 export function Hero() {
   const brand = getBrand();
   const copy = getBrandCopy(brand.id);
   return (
     <section className="relative overflow-hidden border-b border-hairline">
-      {/* Soft field-green wash behind the content */}
+      {/* Field-oval motif behind the hero on desktop only — quiet
+          target/oval cue, off-canvas to the right, ultra-low opacity. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-50/60 via-warm to-warm"
-      />
+        className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
+        style={{ transform: "translate(15%, 0)" }}
+      >
+        <FieldOval size={900} className="opacity-[0.07]" />
+      </div>
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
         <div>
@@ -52,29 +55,33 @@ export function Hero() {
           </RevealOnScroll>
         </div>
 
-        <RevealOnScroll delay={120}>
-          <div className="relative">
-            {/* Accent blobs behind the phone */}
-            <div
-              aria-hidden="true"
-              className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
-            />
-            <PhoneFrame tilt={2} className="relative">
-              <Image
-                src="/marketing/screenshots/live-game.png"
-                alt={`${copy.productName} live game view`}
-                fill
-                sizes="(max-width: 1024px) 300px, 280px"
-                priority
-                className="object-cover"
+        {/* Desktop-only phone mock — mobile drops the hero phone entirely
+            and reintroduces it in the sticky features section below, so
+            the above-the-fold mobile view stays compact. */}
+        <div className="hidden lg:block">
+          <RevealOnScroll delay={120}>
+            <div className="relative">
+              <div
+                aria-hidden="true"
+                className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl"
               />
-            </PhoneFrame>
-          </div>
-        </RevealOnScroll>
+              <div
+                aria-hidden="true"
+                className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
+              />
+              <PhoneFrame tilt={2} className="relative">
+                <Image
+                  src="/marketing/screenshots/live-game.png"
+                  alt={`${copy.productName} live game view`}
+                  fill
+                  sizes="280px"
+                  priority
+                  className="object-cover"
+                />
+              </PhoneFrame>
+            </div>
+          </RevealOnScroll>
+        </div>
       </div>
     </section>
   );
