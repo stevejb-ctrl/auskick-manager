@@ -340,7 +340,17 @@ export function LiveGame({
     // wipe accumulated zone minutes, scores, locks, and so on. Without
     // this check, restart-game just left the in-memory state from before
     // the reset visible on screen.
-    const storeAheadOfServer = currentQuarter > initialState.currentQuarter;
+    //
+    // Read the store's currentQuarter via getState() rather than the
+    // selector subscription so this effect is NOT re-triggered by normal
+    // forward progress (Start Q1, Start Q2, …). That mistake caused a
+    // regression where the user had to tap "Start Qn" twice: the first
+    // tap advanced the store, the effect re-fired before initialState
+    // had refreshed, storeAheadOfServer was true, and init() reset the
+    // store back to the pre-tap state. The legitimate trigger for re-init
+    // is initialState changing — that's already in the dep array.
+    const storeQuarter = useLiveGame.getState().currentQuarter;
+    const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
     if (activeGameId === gameId && !storeAheadOfServer) {
       setHydrated(true);
       return;
@@ -376,7 +386,7 @@ export function LiveGame({
       accumulatedMs,
     });
     setHydrated(true);
-  }, [init, initialState, gameId, activeGameId, currentQuarter]);
+  }, [init, initialState, gameId, activeGameId]);
 
   function currentElapsedMs() {
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
