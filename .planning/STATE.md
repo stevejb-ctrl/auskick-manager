@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Phase 5 complete (2026-05-01) — all 5 plans landed; full gauntlet (tsc + vitest 169/169 + lint + e2e 52 PASS / 1 intentional SKIP + PROD-01 9/9) green on single clean run; TEST-01..05 ALL PASS (TEST-05 closed by Plan 05-01 Kotara seed); 3 side-findings + 3 Phase-4-deferred items ALL CLOSED; Phase 3+4 invariants intact; Phase 6 entry signal armed
-last_updated: "2026-05-01T03:00:00Z"
+stopped_at: Phase 6 partial (2026-05-01) — autonomous prep COMPLETE (Plans 06-01..03 landed: DEPLOY-CHECKLIST.md + DEPLOY-RUNBOOK.md + scripts/verify-prod-clone.mjs); Plans 06-04 (execute runbook) + 06-05 (manual validation) BLOCKED on user creds (Supabase prod clone + Vercel preview env). /gsd-autonomous --to 6 target reached for the autonomous-runnable scope.
+last_updated: "2026-05-01T05:00:00Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 28
-  completed_plans: 23
-  percent: 86
+  total_plans: 33
+  completed_plans: 26
+  percent: 79
 ---
 
 # Project State
@@ -21,17 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Live-game time-on-ground fairness must be effortless and trustworthy across both AFL and netball — coaches end every match confident every kid got their fair share.
-**Current focus:** Phase 06 — preview-deploy-and-manual-validation
+**Current focus:** Phase 06 — preview-deploy-and-manual-validation (Plans 06-04 + 06-05 BLOCKED on user creds)
 
 ## Current Position
 
-Phase: 06 (preview-deploy-and-manual-validation) — NOT STARTED
-Plan: 0 of TBD
-Status: Phase 5 closed; full gauntlet (tsc + vitest 169/169 + lint + e2e 52/1 + PROD-01 9/9) green on single clean run. TEST-01..05 ALL PASS (TEST-05 closed by Plan 05-01 Kotara seed in supabase/seed.sql). All 3 side-findings + all 3 Phase-4-deferred items CLOSED. 05-EVIDENCE.md aggregates per-TEST-N + per-invariant evidence; 04-EVIDENCE.md cosmetic over-counts (D-27, ABSTRACT-01) corrected — no source change. Phase 3+4 invariants frozen. Phase 6 needs: Supabase prod clone (BLOCKER, user action) + Vercel preview deploy creds (BLOCKER, user action).
-Resume file: .planning/phases/05-test-and-type-green/05-EVIDENCE.md (next: /gsd-discuss-phase 6)
+Phase: 06 (preview-deploy-and-manual-validation) — IN PROGRESS (autonomous prep done)
+Plan: 3 of 5 (06-01..03 complete; 06-04..05 BLOCKED on user creds)
+Status: Phase 6 autonomous prep landed cleanly (6 commits across 3 plans):
+  - 06-01: 06-DEPLOY-CHECKLIST.md (250 lines; env-var matrix, vercel.json + next.config.mjs audit, 27-migration enumeration, 10-row ready-to-deploy boolean criteria)
+  - 06-02: 06-DEPLOY-RUNBOOK.md (368 lines; Phase A-E + Rollback; both Supabase paths + both deploy-trigger paths + both migration-apply paths)
+  - 06-03: scripts/verify-prod-clone.mjs (228 lines; read-only Phase 2 §6 acceptance queries; node --check clean; tsc/lint pass)
+  Plans 06-04 (execute runbook) + 06-05 (manual AFL/netball validation) cannot run autonomously — they require:
+  1. Supabase prod-clone provisioned (user action via Supabase Console / CLI)
+  2. Vercel preview deploy environment configured with prod-clone env vars (user action via Vercel dashboard / CLI)
+  Resume command: /gsd-execute-phase 6 --wave 4 (after creds in place)
+Resume file: .planning/phases/06-preview-deploy-and-manual-validation/06-DEPLOY-RUNBOOK.md (the user-facing runbook)
 Last activity: 2026-05-01
 
-Progress: [████████░░] 86%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
