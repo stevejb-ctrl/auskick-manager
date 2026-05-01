@@ -206,7 +206,9 @@ async function enterQBreakView(
     )
     .toBe(true);
 
-  await page.reload();
+  // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
+  // self-rerenders the live shell into the Q-break branch when quarterEnded
+  // flips. NO page.reload() required.
   await expect(
     page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 10_000 });

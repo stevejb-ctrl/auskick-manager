@@ -652,13 +652,14 @@ test("ABSTRACT-03: team.quarter_length_seconds=480 fires the auto-hooter at the 
     )
     .toBe(true);
 
-  // Reload to pick up the post-hooter replayed state. Netball's
-  // quarter_end → quarterEnded path renders the Q-break shell
-  // (NetballLiveGame.tsx:986-1054) — there's NO intermediate
-  // "Select team for Q2" modal (that's AFL-only, from
-  // QuarterEndModal.tsx). Assert one of the two Q-break CTAs is
-  // visible: "Start Q2" or "Apply suggested reshuffle".
-  await page.reload();
+  // Plan 05-04 wired router.refresh() into NetballLiveGame's auto-hooter
+  // useEffect after endNetballQuarter resolves; the page now self-rerenders
+  // into the Q-break shell. NO page.reload() needed. (Pre-Plan-05-04, the
+  // spec used await page.reload() here.) Netball's quarter_end →
+  // quarterEnded path renders the Q-break shell (NetballLiveGame.tsx:986-1054)
+  // — there's NO intermediate "Select team for Q2" modal (AFL-only, from
+  // QuarterEndModal.tsx). Assert one of the two Q-break CTAs is visible:
+  // "Start Q2" or "Apply suggested reshuffle".
   await expect(
     page.getByRole("button", { name: /start q2|apply suggested reshuffle/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
@@ -706,7 +707,8 @@ test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length
     )
     .toBe(true);
 
-  await page.reload();
+  // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
+  // means no page.reload() is needed; the Q-break shell auto-renders.
   await expect(
     page.getByRole("button", { name: /start q2|apply suggested reshuffle/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
