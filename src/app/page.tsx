@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { Hero } from "@/components/marketing/Hero";
+import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
@@ -26,7 +27,8 @@ export default function Home() {
       <MarketingHeader />
       <main>
         <Hero />
-        <ScrollingFeatures features={copy.features} />
+        <TrustBand />
+        <ScrollingFeatures features={copy.features} centerpiece={copy.centerpiece} />
         <FinalCTA />
       </main>
       <MarketingFooter />

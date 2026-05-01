@@ -30,3 +30,16 @@
 @media (prefers-reduced-motion: reduce) {
   .siren-dot--pulsing { animation: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Hide native scrollbar without affecting scroll behaviour. Used by the
+   mobile features scroll-snap layer (an invisible gesture surface stacked
+   on top of the phone mock).
+   ───────────────────────────────────────────────────────────────────── */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

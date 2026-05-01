@@ -102,12 +102,19 @@ const config: Config = {
           "0%":   { transform: "scale(1)",   opacity: "0.55" },
           "100%": { transform: "scale(2.4)", opacity: "0" },
         },
+        fadeIn: {
+          from: { opacity: "0" },
+          to:   { opacity: "1" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
         "slide-up":   "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
         // Used by PulseMark — the siren-red halo ripple.
         "pulse-halo": "pulseHalo 1.8s ease-out infinite",
+        // Used by the mobile features overlay card (350ms ease-out per
+        // the design handoff's crossfade timing).
+        "fade-in":    "fadeIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
       letterSpacing: {
         tightest: "-0.02em",

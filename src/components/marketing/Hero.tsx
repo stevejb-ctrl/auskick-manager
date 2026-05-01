@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
-import { PulseMark } from "@/components/brand/PulseMark";
+import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
@@ -23,17 +23,14 @@ export function Hero() {
         className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-50/60 via-warm to-warm"
       />
 
-      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2 lg:gap-16 lg:py-28">
+      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
         <div>
           <RevealOnScroll>
-            <span className="inline-flex items-center gap-2 rounded-full border border-warn/30 bg-warn-soft px-3 py-1 text-[11px] font-bold uppercase tracking-micro text-warn">
-              <PulseMark size={12} pulsing />
-              <span>{copy.banner}</span>
-            </span>
-            <h1 className="mt-5 text-4xl font-bold tracking-tightest text-ink sm:text-5xl md:text-6xl">
-              {copy.heroTitle[0]}
-              <br />
-              {copy.heroTitle[1]}
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+              {copy.heroEyebrow}
+            </p>
+            <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
+              <TitleAccent parts={copy.heroTitle} />
             </h1>
             <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
               {copy.heroSubtitle}
@@ -49,9 +46,8 @@ export function Hero() {
               </Link>
             </div>
 
-            <p className="mt-4 text-sm text-ink-mute">
-              Free for the entire 2026 season. Works on any phone.
-              No app to install.
+            <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
+              {copy.heroTrust}
             </p>
           </RevealOnScroll>
         </div>

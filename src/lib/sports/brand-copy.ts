@@ -9,10 +9,22 @@
 
 import type { SportId } from "@/lib/sports/types";
 
+/**
+ * A heading split into three parts so a single word can render in
+ * Instrument Serif italic — the defining type move of the marketing
+ * site. `italic` may be empty, in which case the heading renders as
+ * a single sans-serif line.
+ */
+export interface TitleParts {
+  before: string;
+  italic: string;
+  after: string;
+}
+
 export interface FeatureCopy {
   id: string;
   eyebrow: string;
-  title: string;
+  title: TitleParts;
   body: string;
   bullets: string[];
   image: string;
@@ -24,39 +36,70 @@ export interface BrandCopy {
   productName: string;
   /** Tagline shown in the footer under the wordmark. */
   tagline: string;
-  /** Top banner pill text ("Built for junior AFL"). */
-  banner: string;
-  /** Hero H1 — two short lines separated by a <br />. */
-  heroTitle: [string, string];
+  /** Two-message banner: prefix + alarm-orange link. */
+  banner: { prefix: string; linkText: string };
+  /** Hero eyebrow above the H1. Default-styled (ink-dim mono uppercase). */
+  heroEyebrow: string;
+  /** Hero H1 — TitleParts; italic may be empty (the prototype's hero is plain). */
+  heroTitle: TitleParts;
   /** Hero subtitle paragraph. */
   heroSubtitle: string;
+  /** Mini trust line under the hero CTAs (mono uppercase, ink-mute). */
+  heroTrust: string;
   /** Page meta description. */
   metaDescription: string;
+  /** Trust band phrases between hero and features. 3-4 short items. */
+  trustBand: readonly string[];
+  /**
+   * Editorial centrepiece above the feature blocks. Two halves —
+   * the right half renders Instrument Serif italic.
+   */
+  centerpiece: { left: string; right: string };
   /** Ordered feature blocks for ScrollingFeatures. */
   features: FeatureCopy[];
-  /** Final CTA headline + subline. */
-  finalCtaTitle: string;
+  /** Final CTA pieces — title is split for italic accent. */
+  finalCtaEyebrow: string;
+  finalCtaTitle: TitleParts;
   finalCtaBody: string;
 }
 
-// ─── AFL copy (current production strings, preserved verbatim) ──────
+// ─── AFL copy ────────────────────────────────────────────────────────
 const AFL_COPY: BrandCopy = {
   productName: "Siren Footy",
-  tagline: "Junior Australian rules football game manager",
-  banner: "Built for junior AFL",
-  heroTitle: ["Run game day.", "Keep your head up."],
+  tagline: "Made for volunteer coaches.",
+  banner: {
+    prefix: "Free for the entire 2026 season.",
+    linkText: "Sign up in under a minute →",
+  },
+  heroEyebrow: "Built for junior AFL",
+  // Hero stays plain per the prototype source — italic accents are
+  // reserved for features, the centrepiece, and the final CTA.
+  heroTitle: { before: "Run game day. Keep your head up.", italic: "", after: "" },
   heroSubtitle:
     "Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play.",
+  heroTrust: "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL",
   metaDescription:
     "Junior AFL game manager. Fair three-zone rotations, live score, late arrivals and fill-ins handled automatically.",
-  finalCtaTitle: "Ready for Saturday?",
+  trustBand: [
+    "Built with coaches",
+    "Plain English, no jargon",
+    "One tap to share",
+    "Fixtures from PlayHQ",
+  ],
+  centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
+  finalCtaEyebrow: "Saturday morning is coming",
+  finalCtaTitle: {
+    before: "Set up your team in about ",
+    italic: "five",
+    after: " minutes.",
+  },
   finalCtaBody:
-    "Create your team, set your squad, and walk onto the ground with a plan. Free for the entire 2026 season.",
+    "Free for the entire 2026 season. Works on the phone you already have. No app download, no credit card.",
   features: [
     {
       id: "rotations",
       eyebrow: "Fair rotations",
-      title: "Every player gets a fair run.",
+      title: { before: "Every player gets a ", italic: "fair", after: " run." },
       body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time — without you having to count.",
       bullets: [
         "Per-zone minute bars visible at a glance",
@@ -69,10 +112,14 @@ const AFL_COPY: BrandCopy = {
     {
       id: "scoring",
       eyebrow: "Score tracking",
-      title: "Keep the scoreboard honest — if you want to.",
+      title: {
+        before: "Keep the scoreboard ",
+        italic: "honest",
+        after: " — if you want to.",
+      },
       body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically — or not. Your call.",
       bullets: [
-        "Score tracking is opt-in — skip it if you don't need it",
+        "Score tracking is opt-in — skip it if you don’t need it",
         "Opponent score tracked alongside yours",
         "Optional goal song — enable it or leave it off",
       ],
@@ -82,7 +129,11 @@ const AFL_COPY: BrandCopy = {
     {
       id: "availability",
       eyebrow: "Availability",
-      title: "Set your squad before you leave home.",
+      title: {
+        before: "Set your squad before you ",
+        italic: "leave",
+        after: " home.",
+      },
       body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match — Siren rebalances rotations automatically.",
       bullets: [
         "One tap to mark a player available or unavailable",
@@ -95,7 +146,11 @@ const AFL_COPY: BrandCopy = {
     {
       id: "flexibility",
       eyebrow: "Full control",
-      title: "Handle anything the game throws at you.",
+      title: {
+        before: "Handle anything the game ",
+        italic: "throws",
+        after: " at you.",
+      },
       body: "Long-press any player to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
       bullets: [
         "Lock a player always-on or to a specific zone",
@@ -108,7 +163,11 @@ const AFL_COPY: BrandCopy = {
     {
       id: "quarterly",
       eyebrow: "Quarter breaks",
-      title: "Walk into every quarter with a plan.",
+      title: {
+        before: "Walk into every quarter with a ",
+        italic: "plan",
+        after: ".",
+      },
       body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
       bullets: [
         "Suggested lineup based on zone equity",
@@ -121,7 +180,11 @@ const AFL_COPY: BrandCopy = {
     {
       id: "share",
       eyebrow: "Share with parents",
-      title: "Hand scoring to any parent in one tap.",
+      title: {
+        before: "Hand scoring to any parent in ",
+        italic: "one",
+        after: " tap.",
+      },
       body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
       bullets: [
         "Full scoring access via a single shareable link",
@@ -134,7 +197,11 @@ const AFL_COPY: BrandCopy = {
     {
       id: "playhq",
       eyebrow: "PlayHQ integration",
-      title: "Fixtures imported automatically.",
+      title: {
+        before: "Fixtures imported ",
+        italic: "automatically",
+        after: ".",
+      },
       body: "Connect your PlayHQ club URL and Siren pulls in your draw. Rounds, opponents, and results stay in sync so you never have to enter a game twice.",
       bullets: [
         "Fixtures imported from PlayHQ automatically",
@@ -147,8 +214,8 @@ const AFL_COPY: BrandCopy = {
     {
       id: "stats",
       eyebrow: "Season stats",
-      title: "See how the season is going.",
-      body: "After every game, zone-minute stats update automatically. Spot who's been stuck on the bench and fix it before next week.",
+      title: { before: "See how the ", italic: "season", after: " is going." },
+      body: "After every game, zone-minute stats update automatically. Spot who’s been stuck on the bench and fix it before next week.",
       bullets: [
         "Minutes equity across the whole squad",
         "Per-player zone breakdowns",
@@ -160,29 +227,50 @@ const AFL_COPY: BrandCopy = {
   ],
 };
 
-// ─── Netball copy ───────────────────────────────────────────────
-// Pitched at netball coaches using NetSetGO / Modified formats. Keeps
-// the tone of the AFL site (short, practical, coach-first) but leans
-// into what netball coaches uniquely face: rules of play, no mid-play
-// subs, coaching-app gaps left by the big platforms.
+// ─── Netball copy ────────────────────────────────────────────────────
 const NETBALL_COPY: BrandCopy = {
   productName: "Siren Netball",
-  tagline: "Junior netball rotation manager",
-  banner: "Built for junior netball",
-  heroTitle: ["Run the quarter break.", "Not the clipboard."],
+  tagline: "Made for volunteer coaches.",
+  banner: {
+    prefix: "Free for the entire 2026 season.",
+    linkText: "Sign up in under a minute →",
+  },
+  heroEyebrow: "Built for junior netball",
+  heroTitle: {
+    before: "Run the quarter break. Not the clipboard.",
+    italic: "",
+    after: "",
+  },
   heroSubtitle:
-    "Seven positions, three thirds, no rolling subs. Siren tracks who's played what, respects the rules of play, and suggests a fair rotation for every quarter — so every kid gets a turn at GS, not just the same three all season.",
+    "Seven positions, three thirds, no rolling subs. Siren tracks who’s played what, respects the rules of play, and suggests a fair rotation for every quarter — so every kid gets a turn at GS, not just the same three all season.",
+  heroTrust: "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL",
   metaDescription:
     "Junior netball game manager. Fair position rotations, quarter-break lineup suggestions, rules-of-play enforced, live score tracking.",
-  finalCtaTitle: "Ready for Saturday?",
+  trustBand: [
+    "Built with coaches",
+    "Plain English, no jargon",
+    "One tap to share",
+    "Rules of play enforced",
+  ],
+  centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
+  finalCtaEyebrow: "Saturday morning is coming",
+  finalCtaTitle: {
+    before: "Set up your team in about ",
+    italic: "five",
+    after: " minutes.",
+  },
   finalCtaBody:
-    "Create your team, set your squad, and walk onto the court with a plan. Free for the entire 2026 season.",
+    "Free for the entire 2026 season. Works on the phone you already have. No app download, no credit card.",
   features: [
     {
       id: "rotations",
       eyebrow: "Fair rotations",
-      title: "Every kid gets a turn in the circle.",
-      body: "Siren counts how many times each player has rostered into each position across the season — GS through GK — and nudges you toward an even spread. No more 'you were GS last week too' arguments.",
+      title: {
+        before: "Every kid gets a turn in the ",
+        italic: "circle",
+        after: ".",
+      },
+      body: "Siren counts how many times each player has rostered into each position across the season — GS through GK — and nudges you toward an even spread. No more ‘you were GS last week too’ arguments.",
       bullets: [
         "Per-position appearance counts, season and game",
         "Coefficient-of-variation fairness score (0–100)",
@@ -194,8 +282,12 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "rules",
       eyebrow: "Rules of play",
-      title: "The lineup builder already knows the rules.",
-      body: "GS can't leave the attack third. GK can't leave defence. Wings can't enter the goal circles. Siren's lineup picker greys out ineligible positions so a new coach doesn't field an illegal lineup on page one.",
+      title: {
+        before: "The lineup builder already ",
+        italic: "knows",
+        after: " the rules.",
+      },
+      body: "GS can’t leave the attack third. GK can’t leave defence. Wings can’t enter the goal circles. Siren’s lineup picker greys out ineligible positions so a new coach doesn’t field an illegal lineup on page one.",
       bullets: [
         "Zone eligibility enforced for all 7 positions",
         "Modified-netball age groups (Set, Go, 11u, 12u, 13u)",
@@ -207,12 +299,16 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "quarterly",
       eyebrow: "Quarter breaks",
-      title: "Make the quarter break count.",
-      body: "Netball gives you four chances to rotate — that's it. At every break, Siren lines up the next quarter's suggested squad, weighted by who's played least and who hasn't had a turn at their preferred position.",
+      title: {
+        before: "Make the quarter break ",
+        italic: "count",
+        after: ".",
+      },
+      body: "Netball gives you four chances to rotate — that’s it. At every break, Siren lines up the next quarter’s suggested squad, weighted by who’s played least and who hasn’t had a turn at their preferred position.",
       bullets: [
         "One tap to accept the suggested lineup",
         "Drag-and-drop to rearrange manually",
-        "No mid-play subs — Siren won't let you break the rules",
+        "No mid-play subs — Siren won’t let you break the rules",
       ],
       image: "/marketing/screenshots/quarterly.png",
       imageAlt: "Quarter break lineup picker for netball",
@@ -220,8 +316,8 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "scoring",
       eyebrow: "Score tracking",
-      title: "One tap for a goal.",
-      body: "No points, no behinds, no conversions. Tap +Goal for us, +Opp goal for them. Attribute the goal to your shooter if you want to track leading scorer — or don't.",
+      title: { before: "One ", italic: "tap", after: " for a goal." },
+      body: "No points, no behinds, no conversions. Tap +Goal for us, +Opp goal for them. Attribute the goal to your shooter if you want to track leading scorer — or don’t.",
       bullets: [
         "One-tap goal / opponent goal",
         "Per-player scorer leaderboard (optional)",
@@ -233,11 +329,15 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "availability",
       eyebrow: "Availability",
-      title: "Set your squad before you leave home.",
+      title: {
+        before: "Set your squad before you ",
+        italic: "leave",
+        after: " home.",
+      },
       body: "Mark each player available or unavailable the night before. Fill-ins and late arrivals on game day are handled without breaking the rotation.",
       bullets: [
         "One tap to mark a player available",
-        "Fill-ins added on game day don't pollute season stats",
+        "Fill-ins added on game day don’t pollute season stats",
         "Late arrivals slotted in at the next break",
       ],
       image: "/marketing/screenshots/availability.png",
@@ -246,7 +346,11 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "share",
       eyebrow: "Share with parents",
-      title: "Hand scoring to any parent in one tap.",
+      title: {
+        before: "Hand scoring to any parent in ",
+        italic: "one",
+        after: " tap.",
+      },
       body: "Send the run-link to a parent on the sideline — they become the scorer for the day. No app download, no account. A magic link gets them straight in.",
       bullets: [
         "Scoring access via a single shareable link",
@@ -259,8 +363,8 @@ const NETBALL_COPY: BrandCopy = {
     {
       id: "stats",
       eyebrow: "Season stats",
-      title: "See how the season is going.",
-      body: "After every game, position-counts update automatically. Spot who's been stuck at WD every week and fix it before next round.",
+      title: { before: "See how the ", italic: "season", after: " is going." },
+      body: "After every game, position-counts update automatically. Spot who’s been stuck at WD every week and fix it before next round.",
       bullets: [
         "Position variance across the whole squad",
         "Per-player breakdown of positions played",
