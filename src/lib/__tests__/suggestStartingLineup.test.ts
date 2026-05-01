@@ -240,6 +240,64 @@ describe("suggestStartingLineup — partnership-breaking penalty", () => {
   });
 });
 
+describe("suggestStartingLineup — sort key prioritises kids with least in-game minutes", () => {
+  // Steve's "Maximise game time" rule: a kid who got benched all of
+  // Q1 should get court priority over teammates who played the full
+  // quarter, even when season totals are similar. The sort key uses
+  // `currentGame` minutes ascending, with season totals as a fallback
+  // when no in-game data is present (pre-game / unit-test callers).
+  it("under-played-this-game kids get court priority over fully-played teammates", () => {
+    // 9 players, 9 slots — everyone is technically placeable. The
+    // question is WHICH zones the under-played kid (Z) gets first
+    // crack at vs the over-played kids who already played a zone.
+    // We narrow the cap to leave one bench seat so the sort key
+    // actually decides someone's fate.
+    const all = players(["A", "B", "C", "D", "E", "F", "G", "H", "Z"]);
+    const caps = { back: 3, hback: 0, mid: 3, hfwd: 0, fwd: 2 };
+    // 8 of the 9 played Q1 (a full quarter each). Z was benched.
+    const fullQ = (z: Zone): Record<Zone, number> => {
+      const r = { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+      r[z] = QUARTER_MINS;
+      return r;
+    };
+    const currentGame: PlayerZoneMinutes = {
+      A: fullQ("back"), B: fullQ("back"), C: fullQ("back"),
+      D: fullQ("mid"), E: fullQ("mid"), F: fullQ("mid"),
+      G: fullQ("fwd"), H: fullQ("fwd"),
+      // Z has 0 minutes — sort key puts them first.
+    };
+    // Identical season totals so the season fallback would shuffle
+    // them randomly. Only the in-game ms key keeps Z deterministic.
+    const balanced = { back: 30 * 60_000, hback: 0, mid: 30 * 60_000, hfwd: 0, fwd: 30 * 60_000 };
+    const season: PlayerZoneMinutes = {};
+    for (const p of all) season[p.id] = { ...balanced };
+
+    const lineup = suggestStartingLineup(all, season, 0, caps, currentGame);
+    // Z must be on the field. With 8 caps and 9 players, exactly one
+    // player goes to the bench — and the sort puts Z first, so Z is
+    // the LAST candidate to be benched. (Specifically, Z gets first
+    // pick of zones, so they always land somewhere.)
+    expect(zoneOf(lineup, "Z"), "Z (0-min kid) should land on the field, not the bench").not.toBeNull();
+  });
+
+  it("when no in-game minutes are present, falls back to season totals (backward-compat)", () => {
+    // Pre-game scenario: currentGame={}, season has data. Sort
+    // should fall back to season totals, lowest first. With 3
+    // players and 3 slots there's no bench pressure, so this
+    // mostly proves we don't crash + don't regress legacy callers.
+    const all = players(["A", "B", "C"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    const season: PlayerZoneMinutes = {
+      A: { back: 60_000, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+      B: { back: 30_000, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+      C: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+    };
+    const lineup = suggestStartingLineup(all, season, 0, caps);
+    // All 3 placed — no errors when `currentGame` is empty.
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+});
+
 describe("zoneTeammatesFromLineup", () => {
   it("groups zone-mates and includes the bench cohort", () => {
     const lineup: Lineup = {

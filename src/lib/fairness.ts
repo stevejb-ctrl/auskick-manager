@@ -359,6 +359,16 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 //                            quarter (zone-mates OR bench-mates). Drives
 //                            PARTNERSHIP_PENALTY. See zoneTeammatesFromLineup
 //                            for the canonical builder. Empty/missing for Q1.
+//
+// Sort key (who plays vs who benches):
+//   When `currentGame` is provided, the placement loop iterates players
+//   in ASCENDING order of in-game zone minutes — the kid who's been on
+//   the bench all of Q1 climbs ahead of teammates who played the full
+//   quarter, even if their season totals are similar. Steve's rule:
+//   "those who have had the least game time should have the least subs."
+//   Ties fall back to a deterministic seeded shuffle. When `currentGame`
+//   is empty (start of Q1, simple unit tests), the sort falls back to
+//   season totals so legacy callers behave the same as before.
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
@@ -426,11 +436,33 @@ export function suggestStartingLineup(
     return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
   };
 
-  const playedTotal = (pid: string) => {
+  // Primary sort key: minutes played so far this GAME, ascending.
+  // The kid who's been benched all of Q1 jumps ahead of teammates
+  // who played the full quarter — Steve's "those who have had the
+  // least game time should have the least subs" rule.
+  //
+  // We deliberately use IN-GAME minutes, not season totals: a kid
+  // who missed the last 5 games and shows up today shouldn't crowd
+  // out a teammate who's at zero minutes today. Position-level
+  // season fairness lives in the `owed()` scoring (SEASON_DIVERSITY
+  // + FAIRNESS_TERM), not the who-plays-vs-who-benches sort.
+  //
+  // When `currentGame` is empty (every value sums to 0), we fall
+  // back to season totals — preserves the legacy "rank by season
+  // load" behaviour for pre-game / unit-test callers that don't
+  // pass in-game data.
+  const inGameTotal = (pid: string) => {
+    let t = 0;
+    for (const z of zones) t += currentGame[pid]?.[z] ?? 0;
+    return t;
+  };
+  const seasonTotal = (pid: string) => {
     let t = 0;
     for (const z of zones) t += season[pid]?.[z] ?? 0;
     return t;
   };
+  const anyInGameMinutes = availablePlayers.some((p) => inGameTotal(p.id) > 0);
+  const sortKey = anyInGameMinutes ? inGameTotal : seasonTotal;
 
   // For the partnership penalty: track exactly which players have already
   // been placed in each target zone. When evaluating (pid, target) we look
@@ -464,7 +496,7 @@ export function suggestStartingLineup(
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
   const sortedPlayers = shuffled.sort(
-    (a, b) => playedTotal(a.id) - playedTotal(b.id)
+    (a, b) => sortKey(a.id) - sortKey(b.id)
   );
 
   for (const p of sortedPlayers) {
