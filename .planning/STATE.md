@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Phase 5 Plan 02 complete (2026-04-30) — waitForAdminHydration helper extracted to e2e/helpers/admin-hydration.ts; settings.spec.ts (×1) + roster.spec.ts (×2) refactored to use it; game-edit.spec.ts comment cross-reference updated (DB-poll race documented as DIFFERENT from helper); side-finding #3 CLOSED; full e2e gauntlet stable at 52 PASS / 1 SKIP (PROD-04 fixme only — matches Plan 05-01 baseline); tsc/lint/vitest all green; pre-merge tags + Phase 3/4 invariants intact
-last_updated: "2026-05-01T01:38:13Z"
-last_activity: 2026-04-30
+stopped_at: Phase 5 complete (2026-05-01) — all 5 plans landed; full gauntlet (tsc + vitest 169/169 + lint + e2e 52 PASS / 1 intentional SKIP + PROD-01 9/9) green on single clean run; TEST-01..05 ALL PASS (TEST-05 closed by Plan 05-01 Kotara seed); 3 side-findings + 3 Phase-4-deferred items ALL CLOSED; Phase 3+4 invariants intact; Phase 6 entry signal armed
+last_updated: "2026-05-01T03:00:00Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 23
-  completed_plans: 19
-  percent: 79
+  completed_phases: 5
+  total_plans: 28
+  completed_plans: 23
+  percent: 86
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Live-game time-on-ground fairness must be effortless and trustworthy across both AFL and netball — coaches end every match confident every kid got their fair share.
-**Current focus:** Phase 05 — test-and-type-green
+**Current focus:** Phase 06 — preview-deploy-and-manual-validation
 
 ## Current Position
 
-Phase: 05 (test-and-type-green) — IN PROGRESS
-Plan: 2 of 5 (05-01 + 05-02 complete; 05-03 pending)
-Status: Plan 05-02 complete — `waitForAdminHydration` helper extracted to `e2e/helpers/admin-hydration.ts` (67 lines, file-header rationale + JSDoc + thin wrapper around `expect(...).toBeEnabled(...)`). Three call sites refactored: settings.spec.ts (track-scoring toggle), roster.spec.ts (deactivate + reactivate switches). game-edit.spec.ts is a comment-only update — its DB-poll cascade-delete wait is a DIFFERENT race (not a helper candidate); cross-reference updated to make the divergence explicit. Side-finding #3 (CONTEXT D-CONTEXT-side-finding-3) CLOSED. Pure mechanical refactor; zero deviations triggered. Full e2e gauntlet stable at 52 PASS / 1 SKIP — matches Plan 05-01 baseline exactly. tsc/lint/vitest all green; pre-merge tags + PROD-04 fixme + Phase 3/4 invariants all intact.
-Resume file: .planning/phases/05-test-and-type-green/05-03-PLAN.md (next: stale-dev-server detection in scripts/e2e-setup.mjs)
-Last activity: 2026-04-30
+Phase: 06 (preview-deploy-and-manual-validation) — NOT STARTED
+Plan: 0 of TBD
+Status: Phase 5 closed; full gauntlet (tsc + vitest 169/169 + lint + e2e 52/1 + PROD-01 9/9) green on single clean run. TEST-01..05 ALL PASS (TEST-05 closed by Plan 05-01 Kotara seed in supabase/seed.sql). All 3 side-findings + all 3 Phase-4-deferred items CLOSED. 05-EVIDENCE.md aggregates per-TEST-N + per-invariant evidence; 04-EVIDENCE.md cosmetic over-counts (D-27, ABSTRACT-01) corrected — no source change. Phase 3+4 invariants frozen. Phase 6 needs: Supabase prod clone (BLOCKER, user action) + Vercel preview deploy creds (BLOCKER, user action).
+Resume file: .planning/phases/05-test-and-type-green/05-EVIDENCE.md (next: /gsd-discuss-phase 6)
+Last activity: 2026-05-01
 
-Progress: [████████░░] 79%
+Progress: [████████░░] 86%
 
 ## Performance Metrics
 
