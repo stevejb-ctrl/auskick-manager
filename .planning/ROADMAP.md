@@ -156,7 +156,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 05-01-PLAN.md — Added Kotara Koalas seed to `supabase/seed.sql` (Option A pure-SQL DO-block worked; Option B fallback not triggered). Closes TEST-05; netball-quarter-break.spec.ts:380 Kotara-optional test FLIPPED from SKIP to PASS. Full e2e suite now 52 PASS / 1 SKIP (PROD-04 fixme only). ✓ 2026-04-30
 
 **Wave 2** *(blocked on 05-01 — pure refactor)*:
-- [ ] 05-02-PLAN.md — Extract `waitForAdminHydration(switchLocator, opts?)` to `e2e/helpers/admin-hydration.ts`; refactor settings.spec.ts (×1) + roster.spec.ts (×2) + game-edit.spec.ts cross-reference comment. Closes Phase-3 deferred Side-finding #3.
+- [x] 05-02-PLAN.md — Extracted `waitForAdminHydration(switchLocator, opts?)` to `e2e/helpers/admin-hydration.ts`; refactored settings.spec.ts (×1) + roster.spec.ts (×2) + game-edit.spec.ts comment cross-reference. Closes Phase-3 deferred Side-finding #3. Full e2e gauntlet stable at 52 PASS / 1 SKIP (matches Plan 05-01 baseline). ✓ 2026-04-30
 
 **Wave 3** *(blocked on 05-02 — bootstrap script)*:
 - [ ] 05-03-PLAN.md — Add port-3000 probe to `scripts/e2e-setup.mjs` (cross-platform via `node:net` `createServer().listen(3000)`; reuses existing dev server when present, aborts with PID + kill-suggestion when port held by hostile process). Closes Phase-3 deferred Side-finding #2.
