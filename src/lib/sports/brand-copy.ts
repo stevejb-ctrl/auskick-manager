@@ -280,8 +280,8 @@ const NETBALL_COPY: BrandCopy = {
         "Coefficient-of-variation fairness score (0–100)",
         "Suggests next-quarter lineup with one tap",
       ],
-      image: "/marketing/screenshots/rotations.png",
-      imageAlt: "Netball rotation view showing positions played per player",
+      image: "/marketing/screenshots/netball/rotations.png",
+      imageAlt: "Netball player-statistics table — games, minutes, and per-third %, with GS/GA/WA/etc. breakdowns under each",
     },
     {
       id: "rules",
@@ -314,29 +314,40 @@ const NETBALL_COPY: BrandCopy = {
         "Drag-and-drop to rearrange manually",
         "No mid-play subs — Siren won’t let you break the rules",
       ],
-      image: "/marketing/screenshots/quarterly.png",
-      imageAlt: "Quarter break lineup picker for netball",
+      image: "/marketing/screenshots/netball/quarterly.png",
+      imageAlt: "Netball Q-break with the suggested-reshuffle toggle on, showing per-third lineup cards and time bars",
     },
     {
-      id: "scoring",
-      eyebrow: "Score tracking",
-      title: { before: "One ", italic: "tap", after: " for a goal." },
-      body: "No points, no behinds, no conversions. Tap +Goal for us, +Opp goal for them. Attribute the goal to your shooter if you want to track leading scorer — or don’t.",
+      // Mirrors AFL's "flexibility" feature copy verbatim (per
+      // Steve's "make 04 the same as footy" direction). The
+      // screenshot shows netball's player-actions sheet —
+      // long-press a player → lock to position, mark injured,
+      // lend to opposition — so the AFL "lock them to a zone"
+      // wording reads slightly off-brand here ("position" is
+      // netball's word) but the parity-with-footy intent wins.
+      id: "flexibility",
+      eyebrow: "Full control",
+      title: {
+        before: "Handle anything the game ",
+        italic: "throws",
+        after: " at you.",
+      },
+      body: "Long-press any player to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
       bullets: [
-        "One-tap goal / opponent goal",
-        "Per-player scorer leaderboard (optional)",
-        "Live score visible on the run link",
+        "Lock a player always-on or to a specific zone",
+        "Injured players skip the rotation automatically",
+        "Lend a player to the opposition and track their time separately",
       ],
-      image: "/marketing/screenshots/scoring.png",
-      imageAlt: "Netball score view with team and opponent goals",
+      image: "/marketing/screenshots/netball/flexibility.png",
+      imageAlt: "Netball player-actions sheet over the live court — lock, injury, and lend options for the selected player",
     },
     {
       id: "availability",
       eyebrow: "Availability",
       title: {
-        before: "Set your squad before you ",
-        italic: "leave",
-        after: " home.",
+        before: "Fix the team ",
+        italic: "the night",
+        after: " before.",
       },
       body: "Mark each player available or unavailable the night before. Fill-ins and late arrivals on game day are handled without breaking the rotation.",
       bullets: [
@@ -344,8 +355,8 @@ const NETBALL_COPY: BrandCopy = {
         "Fill-ins added on game day don’t pollute season stats",
         "Late arrivals slotted in at the next break",
       ],
-      image: "/marketing/screenshots/availability.png",
-      imageAlt: "Pre-game availability list for netball squad",
+      image: "/marketing/screenshots/netball/availability.png",
+      imageAlt: "Pre-game availability list — Bondi Bandits roster with available/unavailable chips and a fill-in row at the bottom",
     },
     {
       id: "share",
@@ -363,6 +374,27 @@ const NETBALL_COPY: BrandCopy = {
       ],
       image: "/marketing/screenshots/share.png",
       imageAlt: "Run link being shared to a parent",
+    },
+    {
+      // Mirrors AFL's "playhq" feature — same body + bullets so
+      // a coach who runs both sports gets identical messaging.
+      // PlayHQ covers netball clubs in Australia, so the integration
+      // story is sport-agnostic.
+      id: "playhq",
+      eyebrow: "PlayHQ integration",
+      title: {
+        before: "Fixtures imported ",
+        italic: "automatically",
+        after: ".",
+      },
+      body: "Connect your PlayHQ club URL and Siren pulls in your draw. Rounds, opponents, and results stay in sync so you never have to enter a game twice.",
+      bullets: [
+        "Fixtures imported from PlayHQ automatically",
+        "Round results synced after each game",
+        "Works alongside manually created games",
+      ],
+      image: "/marketing/screenshots/netball/fixtures.png",
+      imageAlt: "Bondi Bandits Games tab — PlayHQ import card with the upcoming and completed netball fixtures listed below",
     },
     {
       id: "stats",
