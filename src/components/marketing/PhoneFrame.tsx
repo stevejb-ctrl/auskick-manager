@@ -20,17 +20,21 @@ interface PhoneFrameProps {
 }
 
 // Stylised phone bezel for wrapping product screenshots. Cream chassis
-// with a hairline border per the marketing design handoff
-// (`marketing_handoff/`). The prototype uses `t.color.bg` (warm
-// off-white) for the chassis and `t.color.border` for the outline. No
-// notch — screenshots are full-bleed, and a notch on a cream device
-// reads as noise rather than a device cue.
+// with a hairline border per the marketing design handoff. No notch —
+// screenshots are full-bleed, and a notch on a cream device reads as
+// noise rather than a device cue.
 //
-// Padding is `14px` so the cream bezel reads as a real chassis around
-// the screen — and the inner screen carries a darker `ring` so the
-// screen edge stays delineated even when the screenshot's own
-// background colour matches the cream bezel (which it usually does for
-// the AFL/netball app screens).
+// Padding is asymmetric — `px-[6px] py-[14px]` — so the inner screen's
+// aspect ratio matches the screenshot aspect ratio (9:19.5). With
+// symmetric `p-[14px]` the inner aspect (276 × 622 ≈ 0.444) was narrower
+// than the screenshot (0.461), forcing `object-cover` to crop the
+// vertical edges of the image (e.g., chopping the "S" off "Siren Footy"
+// in the top-left of the app screen). The asymmetric ratio
+// (px:py = 6:14 ≈ 9:19.5 × 0.7) keeps the inner aspect at ~0.460, so
+// the screenshot fills the screen with no side cropping.
+//
+// Real-phone bezels are also asymmetric (thinner sides, thicker
+// top/bottom) so this looks more device-like, not less.
 export function PhoneFrame({
   children,
   tilt = 0,
@@ -39,18 +43,14 @@ export function PhoneFrame({
 }: PhoneFrameProps) {
   // Fluid: derive width from viewport height so the phone + dot-stepper
   // + breathing always fit between the sticky header (top-16 ≈ 64px)
-  // and the bottom of the screen. The reservation budget is:
-  //   sticky offset (64) + dot-stepper (~30) + gap (~24) + breathing (~30)
-  //   ≈ 148px. Round to 160px for safety.
-  // Phone height = 100dvh - 160; phone width = height × 9/19.5.
-  // Capped at 360px so it doesn't get goofy on tablets in portrait.
+  // and the bottom of the screen. Reservation budget ≈ 160px.
   const fluidMaxWidth = "min(360px, calc((100dvh - 160px) * 9 / 19.5))";
   return (
     <div
       className={[
         "relative mx-auto aspect-[9/19.5] w-full",
         size === "fixed" ? "max-w-[320px]" : "",
-        "overflow-hidden rounded-[2.75rem] border border-hairline bg-warm p-[14px] shadow-pop",
+        "overflow-hidden rounded-[2.75rem] border border-hairline bg-warm px-[6px] py-[14px] shadow-pop",
         className,
       ].join(" ")}
       style={{
@@ -62,10 +62,10 @@ export function PhoneFrame({
       }}
     >
       {/* Screen — surface white so any image inside is full-bleed.
-          `ring-ink/15` makes the screen edge visible against a cream
-          screenshot background; `ring-inset` keeps the ring inside the
+          `ring-ink/25` is dark enough to be visible against the cream
+          screenshot backgrounds; `ring-inset` keeps the ring inside the
           rounded clip so it reads as a screen bezel, not a stroke. */}
-      <div className="relative h-full w-full overflow-hidden rounded-[1.875rem] bg-surface ring-1 ring-inset ring-ink/15">
+      <div className="relative h-full w-full overflow-hidden rounded-[1.875rem] bg-surface ring-1 ring-inset ring-ink/25">
         {children}
       </div>
     </div>
