@@ -258,6 +258,46 @@ export function seasonLoanMinutes(events: GameEvent[]): Record<string, number> {
   return total;
 }
 
+// ─── Teammate cohorts from a single lineup snapshot ──────────
+/**
+ * Given one lineup, build a per-player set of "teammates" — the
+ * other players in the same cohort, where a cohort is any active
+ * zone OR the bench. Used by the suggester's partnership-breaking
+ * penalty: two players who shared a zone (or both sat the bench)
+ * one quarter shouldn't both end up in the same new zone the next
+ * quarter. Mirrors lastQuarterTeammatesInThird in netball/fairness.ts.
+ *
+ * The bench cohort is included so a Q1 bench duo doesn't get
+ * placed in the same Q2 zone — even though they didn't play
+ * together, they "sat together" and partnership-breaking applies
+ * with the same intent.
+ *
+ * Returns {} when the lineup is entirely empty. Pinned players are
+ * included in their cohort just like everyone else; the suggester
+ * still respects their pin, but their teammates can be penalised
+ * around them.
+ */
+export function zoneTeammatesFromLineup(
+  lineup: Lineup
+): Record<string, Set<string>> {
+  const out: Record<string, Set<string>> = {};
+  const cohorts: string[][] = [];
+  for (const z of ALL_ZONES) {
+    if (lineup[z].length > 0) cohorts.push(lineup[z]);
+  }
+  if (lineup.bench.length > 0) cohorts.push(lineup.bench);
+  for (const cohort of cohorts) {
+    for (const pid of cohort) {
+      const set = new Set<string>();
+      for (const other of cohort) {
+        if (other !== pid) set.add(other);
+      }
+      out[pid] = set;
+    }
+  }
+  return out;
+}
+
 // ─── Sum zone minutes across many games ──────────────────────
 export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
   const byGame = new Map<string, GameEvent[]>();
@@ -278,33 +318,47 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 }
 
 // ─── Suggest a starting lineup ───────────────────────────────
-// Scoring is a sum of four signals plus per-iteration cluster penalty:
+// Scoring is a sum of four signals plus per-iteration partnership penalty:
 //
-//   IN_GAME_DIVERSITY (+1000)   "Haven't played this zone this game" → strong
-//                                pull. Drives every kid through every zone in
-//                                a single game.
-//   SEASON_DIVERSITY  (+500)    "Haven't played this zone for ≥ 1 quarter all
-//                                season" → over a season every kid hits all 3.
-//   SAME_AS_LAST_Q    (-800)    "Was in this zone last quarter" → don't park
-//                                a kid in the same line two quarters running.
-//   FAIRNESS_TERM     (~ small) Continuous: avg zone mins across the squad
-//                                minus this player's mins for that zone.
-//   CLUSTER_PENALTY   (-300/peer)
-//                                Applied at placement time: every peer from
-//                                the same source zone already in target zone
-//                                makes target zone less attractive. Stops a
-//                                whole line from migrating together (e.g. all
-//                                3 mid players flocking to fwd).
+//   IN_GAME_DIVERSITY  (+1000)    "Haven't played this zone this game" → strong
+//                                  pull. Drives every kid through every zone in
+//                                  a single game.
+//   SEASON_DIVERSITY   (+500)     "Haven't played this zone for ≥ 1 quarter all
+//                                  season" → over a season every kid hits all 3.
+//   SAME_AS_LAST_Q     (-800)     "Was in this zone last quarter" → don't park
+//                                  a kid in the same line two quarters running.
+//   FAIRNESS_TERM      (~ small)  Continuous: avg zone mins across the squad
+//                                  minus this player's mins for that zone.
+//   PARTNERSHIP_PENALTY (-2000/teammate)
+//                                  Applied at placement time: every Q-1 cohort
+//                                  mate (same zone OR same bench) already
+//                                  placed in target zone makes that zone less
+//                                  attractive. Stops a Q1 trio camping
+//                                  together in the same Q2 zone, AND splits up
+//                                  bench-mates so Q2 doesn't keep them sitting
+//                                  side-by-side again. Magnitude is tuned so
+//                                  one teammate flips the preference: fresh
+//                                  zone with one mate (1000-2000=-1000) loses
+//                                  to a stale zone with no mates (-800), but
+//                                  fresh with no mates (+1000) still beats
+//                                  stale (-800). Replaces the older
+//                                  CLUSTER_PENALTY (-300/source-zone-peer):
+//                                  partnership tracks specific kids rather
+//                                  than zone buckets, catches bench cohorts
+//                                  too, and is the same shape the netball
+//                                  suggester uses (tier 4).
 //
 // `currentGame`            – zone minutes accumulated so far this game.
 // `pinnedPositions`        – players who must stay in their current zone (e.g.
 //                            recent arrivals, field/zone-locked) — bypass all
 //                            scoring.
 // `previousQuarterZones`   – per-player zone they ended the previous quarter
-//                            in. Drives the SAME_AS_LAST_Q penalty + the
-//                            cluster penalty (which compares source zones
-//                            across already-placed peers). Empty/missing for
-//                            Q1 of a game (where there's no "previous").
+//                            in. Drives the SAME_AS_LAST_Q penalty.
+//                            Empty/missing for Q1 of a game.
+// `previousZoneTeammates`  – per-player set of cohort mates from last
+//                            quarter (zone-mates OR bench-mates). Drives
+//                            PARTNERSHIP_PENALTY. See zoneTeammatesFromLineup
+//                            for the canonical builder. Empty/missing for Q1.
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
@@ -312,7 +366,8 @@ export function suggestStartingLineup(
   zoneCaps: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 },
   currentGame: PlayerZoneMinutes = {},
   pinnedPositions: Record<string, Zone> = {},
-  previousQuarterZones: Record<string, Zone> = {}
+  previousQuarterZones: Record<string, Zone> = {},
+  previousZoneTeammates: Record<string, Set<string>> = {}
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -349,11 +404,13 @@ export function suggestStartingLineup(
   // enough to break ties cleanly when in-game diversity is even (e.g. mid-
   // game in Q3 when all zones have already been played).
   const SAME_AS_LAST_Q = 800;
-  // Per-peer penalty for cluster avoidance. With CLUSTER_PENALTY at 300 and
-  // the source-zone group size capped at zoneCaps[source] (typically 3), the
-  // 3rd same-source peer eyeing the same target eats a -600 hit, more than
-  // enough to flip a tied owed-score.
-  const CLUSTER_PENALTY = 300;
+  // Per-teammate penalty for partnership avoidance. Tuned so one prior-
+  // quarter mate already in a target zone flips the preference: with
+  // IN_GAME_DIVERSITY (+1000) and SAME_AS_LAST_Q (-800), a fresh zone with
+  // one mate scores 1000-2000=-1000, losing to a stale zone with no mates
+  // (-800). A fresh zone with NO mates still wins clearly (+1000 vs -800).
+  // Two mates (-4000) make the target essentially unreachable.
+  const PARTNERSHIP_PENALTY = 2000;
   // "Played this zone for ≥ a full quarter all season" threshold (in ms).
   // 12 * 60 * 1000 matches QUARTER_MS in liveGameStore — kept local here so
   // fairness.ts stays a leaf module with no store imports.
@@ -375,30 +432,33 @@ export function suggestStartingLineup(
     return t;
   };
 
-  // For the cluster penalty: we count, at placement time, how many already-
-  // placed peers from the same SOURCE zone (their previous-quarter zone) are
-  // in each TARGET zone. This is what stops the whole line from migrating
-  // together. Players with no known previous zone (Q1, late arrivals) are
-  // tracked under `null` and contribute no penalty.
-  const placedBySourceAndTarget: Map<Zone | null, Map<Zone, number>> = new Map();
-  const bumpCluster = (source: Zone | null, target: Zone) => {
-    const inner = placedBySourceAndTarget.get(source) ?? new Map<Zone, number>();
-    inner.set(target, (inner.get(target) ?? 0) + 1);
-    placedBySourceAndTarget.set(source, inner);
+  // For the partnership penalty: track exactly which players have already
+  // been placed in each target zone. When evaluating (pid, target) we look
+  // at who's currently slotted into target and apply -PARTNERSHIP_PENALTY
+  // for each one that was a Q-1 cohort mate of pid. Pinned players are
+  // seeded into the map below so subsequent partnership scoring sees them.
+  const placedByZone: Map<Zone, Set<string>> = new Map();
+  const trackPlaced = (pid: string, zone: Zone) => {
+    const set = placedByZone.get(zone) ?? new Set<string>();
+    set.add(pid);
+    placedByZone.set(zone, set);
   };
-  // Seed the cluster map with the pinned placements so the cluster penalty
-  // can see them.
   for (const p of availablePlayers) {
     if (!pinnedIds.has(p.id)) continue;
     const z = pinnedPositions[p.id];
     if (!z) continue;
-    bumpCluster(previousQuarterZones[p.id] ?? null, z);
+    trackPlaced(p.id, z);
   }
-  const clusterPenaltyFor = (pid: string, target: Zone) => {
-    const src = previousQuarterZones[pid];
-    if (!src) return 0; // no source = nothing to cluster around
-    const peers = placedBySourceAndTarget.get(src)?.get(target) ?? 0;
-    return peers * CLUSTER_PENALTY;
+  const partnershipPenaltyFor = (pid: string, target: Zone) => {
+    const myMates = previousZoneTeammates[pid];
+    if (!myMates || myMates.size === 0) return 0;
+    const placed = placedByZone.get(target);
+    if (!placed) return 0;
+    let penalty = 0;
+    placed.forEach((other) => {
+      if (myMates.has(other)) penalty += PARTNERSHIP_PENALTY;
+    });
+    return penalty;
   };
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
@@ -415,8 +475,8 @@ export function suggestStartingLineup(
     }
     const shuffledZones = seededShuffle(openZones, seed + p.id.charCodeAt(0));
     shuffledZones.sort((a, b) => {
-      const scoreA = owed(p.id, a) - clusterPenaltyFor(p.id, a);
-      const scoreB = owed(p.id, b) - clusterPenaltyFor(p.id, b);
+      const scoreA = owed(p.id, a) - partnershipPenaltyFor(p.id, a);
+      const scoreB = owed(p.id, b) - partnershipPenaltyFor(p.id, b);
       const diff = scoreB - scoreA;
       if (diff !== 0) return diff;
       return zoneFill[a] - zoneFill[b];
@@ -424,7 +484,7 @@ export function suggestStartingLineup(
     const chosen = shuffledZones[0];
     lineup[chosen].push(p.id);
     zoneFill[chosen]++;
-    bumpCluster(previousQuarterZones[p.id] ?? null, chosen);
+    trackPlaced(p.id, chosen);
   }
 
   return lineup;
