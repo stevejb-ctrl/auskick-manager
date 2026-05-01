@@ -49,8 +49,10 @@ test("delete game removes it from the games list", async ({ page }) => {
   // Wait for the cascade-delete to complete in the DB before asserting on
   // the URL or row count. Under parallel workers the deleteGame server
   // action occasionally settles the navigation a touch later than 10s,
-  // and the prior `waitForURL` race surfaced as a flake. Same DB-poll
-  // shape as roster.spec.ts and settings.spec.ts (commit b014ef9 / fa26cd1).
+  // and the prior `waitForURL` race surfaced as a flake. This is a
+  // DIFFERENT race from the admin-membership hydration helper at
+  // e2e/helpers/admin-hydration.ts (which guards switch clicks); here we
+  // wait for the cascade-delete row count, not for a hydrated control.
   await expect
     .poll(
       async () => {
