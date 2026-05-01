@@ -689,13 +689,10 @@ export function LiveGame({
         return;
       }
       beginNextQuarter();
-      // Keep the existing single-tap Q1 kickoff: the "Start Q1" button
-      // both advances the quarter and starts the clock. The StartQuarterModal
-      // only gates Q2–Q4, since those run through the QuarterBreak screen.
-      startClock();
-      // Server-rendered events list is now stale; refresh so the page
-      // picks up the new quarter_start event and re-renders into LIVE state.
-      // Mirrors Plan 05-04's netball fix.
+      // Don't auto-start the clock — the StartQuarterModal below renders
+      // a "Ready for Q1, tap when the hooter goes" CTA so the GM controls
+      // the kickoff moment. Q1, Q2, Q3, Q4 all flow through the same
+      // modal-gated pattern.
       router.refresh();
     });
   }
@@ -1152,15 +1149,17 @@ export function LiveGame({
         />
       )}
 
-      {/* Await-kickoff modal for Q2–Q4. QuarterBreak advances the quarter
-          without auto-starting the clock; the manager taps Start when the
-          hooter goes. Q1 keeps its single-tap "Start Q1" button above. */}
+      {/* Await-kickoff modal for every quarter. Q1's "Start Q1" button
+          advances the quarter without auto-starting the clock; Q2–Q4
+          come through QuarterBreak which does the same. The GM taps the
+          modal CTA when the hooter goes — gives them control of the
+          kickoff moment instead of the clock starting on the lineup tap. */}
       {!isPreGame &&
         !isFinished &&
         !quarterEnded &&
         !running &&
         accumulatedMs === 0 &&
-        currentQuarter >= 2 && (
+        currentQuarter >= 1 && (
           <StartQuarterModal
             quarter={currentQuarter}
             loading={isPending}

@@ -52,7 +52,21 @@ async function buildLineup(opts: {
   return lineup;
 }
 
-test("Start Q1 starts the clock on a single tap", async ({ page }) => {
+test("Start Q1 advances to the await-kickoff modal (clock waits for the user)", async ({
+  page,
+}) => {
+  // The "Start Q1" button no longer auto-starts the clock — it
+  // advances the quarter, persists `quarter_start`, and renders
+  // StartQuarterModal so the GM can tap when the umpire blows the
+  // whistle. Mirrors Q2–Q4's pattern. Pre-modal-feature, this
+  // assertion would fail because the clock was already running and
+  // the modal was gated to currentQuarter >= 2.
+  //
+  // This test ALSO covers the original "two clicks" regression
+  // (10bf677 / #31): pre-fix, the hydration effect re-ran on every
+  // store-side currentQuarter change and reset the store back to
+  // pre-game before the modal could render. Post-fix, the single
+  // tap reliably reaches the modal.
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -69,8 +83,8 @@ test("Start Q1 starts the clock on a single tap", async ({ page }) => {
 
   // Seed a lineup_set event + flip status to in_progress. With NO
   // quarter_start, replayGame returns currentQuarter=0 and the live
-  // page renders LiveGame (because hasStarted=true) with isPreGame=true
-  // — i.e. the "Start Q1" button is visible.
+  // page renders LiveGame with isPreGame=true — the "Start Q1"
+  // button is visible.
   const lineup = await buildLineup({
     playerIds: players.map((p) => p.id),
     onFieldSize: game.on_field_size,
@@ -86,35 +100,29 @@ test("Start Q1 starts the clock on a single tap", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  const startQ1 = page.getByRole("button", { name: /^start q1$/i });
-  await expect(startQ1).toBeVisible({ timeout: 10_000 });
+  // Tap the pre-game "Start Q1" button. Both this button AND the
+  // modal's CTA share the accessible name "Start Q1", so we anchor
+  // on the page-level button via .first() (the modal isn't visible
+  // yet, so .first() picks the live-game one).
+  const startQ1Initial = page.getByRole("button", { name: /^start q1$/i }).first();
+  await expect(startQ1Initial).toBeVisible({ timeout: 10_000 });
+  await startQ1Initial.click();
 
-  // SINGLE tap. Pre-fix, this fires beginNextQuarter() + startClock(),
-  // then the hydration effect re-runs because currentQuarter is in
-  // its dep array, sees storeAheadOfServer=true (initialState hasn't
-  // caught up yet), and re-inits the store back to currentQuarter=0
-  // with clockStartedAt=null — so the "Start Q1" button comes back
-  // and the clock isn't running.
-  await startQ1.click();
-
-  // Post-fix: the button stays gone after one tap because the hydration
-  // effect no longer reacts to store-side currentQuarter changes.
-  // Allow up to 2s to absorb the server-action roundtrip + any
-  // revalidation re-render. Pre-fix, after that window the button is
-  // back (waiting for the second tap), so this assertion fails red.
-  await expect(startQ1).toBeHidden({ timeout: 2_000 });
-
-  // Belt-and-braces: the clock pill should be in "running" mode (its
-  // aria-label flips from "Resume clock" → "Pause clock" when the clock
-  // is actually started). See GameHeader.tsx — `running` controls both
-  // the icon glyph and the aria-label.
+  // StartQuarterModal renders "Ready for Q1" — the clock has NOT
+  // started, the modal CTA is what kicks it off. Pre-fix (modal
+  // gated to >= Q2), this heading would never appear and the clock
+  // would already be running.
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("heading", { name: /^ready for q1$/i }),
   ).toBeVisible({ timeout: 2_000 });
 
-  // And the server should have recorded exactly one quarter_start for
-  // Q1 — proving the single tap also persisted, not just updated the
-  // optimistic in-memory store.
+  // Clock pill is in pre-running state (aria-label "Resume clock").
+  // If the clock were running, the label would flip to "Pause clock".
+  await expect(
+    page.getByRole("button", { name: /^resume clock$/i }),
+  ).toBeVisible();
+
+  // Server has the quarter_start event — single tap persisted it.
   await expect
     .poll(
       async () => {
@@ -130,6 +138,17 @@ test("Start Q1 starts the clock on a single tap", async ({ page }) => {
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe(1);
+
+  // Tapping the modal's CTA finally starts the clock. The pre-game
+  // button is gone now (isPreGame=false after the first tap), so a
+  // bare getByRole resolves uniquely to the modal's "Start Q1".
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^ready for q1$/i }),
+  ).toBeHidden({ timeout: 2_000 });
+  await expect(
+    page.getByRole("button", { name: /^pause clock$/i }),
+  ).toBeVisible({ timeout: 2_000 });
 });
 
 test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap", async ({
