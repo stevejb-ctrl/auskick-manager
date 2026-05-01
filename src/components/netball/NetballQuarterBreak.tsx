@@ -20,6 +20,7 @@
 //     netballFairnessScore, not minutes-equity.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import {
   periodBreakSwap,
@@ -305,6 +306,11 @@ export function NetballQuarterBreak({
   const [useReshuffle, setUseReshuffle] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Phase 5: router.refresh() after startNetballQuarter success so the
+  // page rerenders into the next quarter's live state without a manual
+  // reload. Pairs with revalidatePath in netball-actions.ts.
+  // (Phase 4 deferred item #2 / 04-EVIDENCE.md §5.)
+  const router = useRouter();
   // Long-press target for the actions modal. Populated when the coach
   // long-presses an INJ / LENT tile in the sidelined section so they
   // can mark recovered or bring back from loan from the Q-break view
@@ -606,6 +612,10 @@ export function NetballQuarterBreak({
         return;
       }
       onStarted();
+      // Phase 5: re-fetch so the page renders into Q(n+1)'s live state
+      // without needing a manual reload. Pairs with revalidatePath in
+      // netball-actions.ts startNetballQuarter.
+      router.refresh();
     });
   }
 
