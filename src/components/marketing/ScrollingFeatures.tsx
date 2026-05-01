@@ -108,10 +108,13 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Centerpiece left={centerpiece.left} right={centerpiece.right} />
 
-        {/* MOBILE LAYOUT — single-column page scroll, sticky phone at top
-            with overlay card + progress pill. */}
+        {/* MOBILE LAYOUT — single-column page scroll, sticky phone below
+            the page header with overlay card + progress pill. */}
         <div className="mt-10 lg:hidden">
-          <div className="sticky top-4 z-10 mx-auto mb-6 w-full max-w-[220px]">
+          {/* Sticky offset is `top-16` (64px) to clear the marketing
+              header (sticky top-0, ~52px tall + hairline). At top-4 the
+              phone slid behind the header on mobile. */}
+          <div className="sticky top-16 z-10 mx-auto mb-6 w-full max-w-[260px]">
             <div className="relative">
               <PhoneFrame className="relative">
                 {features.map((f, i) => (
@@ -120,7 +123,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                     src={f.image}
                     alt={f.imageAlt}
                     fill
-                    sizes="220px"
+                    sizes="260px"
                     priority={i === 0}
                     className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
                       i === activeIndex ? "opacity-100" : "opacity-0"
@@ -138,20 +141,10 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                 />
               </PhoneFrame>
 
-              {/* Vertical alarm progress pill on the right rim of the phone.
-                  Tracks activeIndex / (total - 1) so it steps cleanly between
-                  features rather than jittering with raw scroll position. */}
-              <div
-                aria-hidden="true"
-                className="absolute -right-2 top-6 bottom-6 w-[3px] overflow-hidden rounded-full bg-hairline/60"
-              >
-                <div
-                  className="w-full rounded-full bg-alarm transition-[height] duration-300 ease-out-quart motion-reduce:transition-none"
-                  style={{
-                    height: `${(activeIndex / Math.max(1, features.length - 1)) * 100}%`,
-                  }}
-                />
-              </div>
+              <ProgressPill
+                activeIndex={activeIndex}
+                total={features.length}
+              />
             </div>
           </div>
 
@@ -251,6 +244,10 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                     />
                   ))}
                 </PhoneFrame>
+                <ProgressPill
+                  activeIndex={activeIndex}
+                  total={features.length}
+                />
               </div>
             </div>
           </div>
@@ -302,6 +299,13 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
 }
 
 // ─── Overlay card pinned to the phone's bottom edge on mobile ──────────
+//
+// Inset on all four sides so the card stays clear of the phone screen's
+// rounded corners (`rounded-[2.1rem]` on PhoneFrame). At zero inset the
+// card's bottom corners get diagonally clipped by the curve and look
+// chopped on iPhones. Text is sized so titles like "Set your squad
+// before you leave home." wrap to 2-3 readable lines without overflowing
+// the card's height.
 function MobileOverlayCard({
   feature,
   index,
@@ -313,11 +317,11 @@ function MobileOverlayCard({
 }) {
   return (
     <div
-      className="absolute inset-x-0 bottom-0 z-10 px-2 pb-2 motion-safe:animate-fade-in"
+      className="absolute inset-x-2 bottom-2 z-10 motion-safe:animate-fade-in"
       aria-hidden="true"
     >
-      <div className="rounded-md bg-ink/[0.92] px-3 py-2 text-warm shadow-modal backdrop-blur-sm">
-        <div className="flex items-center gap-2">
+      <div className="rounded-md bg-ink/[0.92] px-3 py-2.5 text-warm shadow-modal backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-alarm">
             {PADDED(index + 1)}/{PADDED(total)}
           </span>
@@ -325,10 +329,36 @@ function MobileOverlayCard({
             {feature.eyebrow}
           </span>
         </div>
-        <h3 className="mt-0.5 text-sm font-semibold leading-snug tracking-tightest text-warm [text-wrap:balance]">
+        <h3 className="mt-1 text-[13px] font-semibold leading-tight tracking-tightest text-warm [text-wrap:balance]">
           <TitleAccent parts={feature.title} italicClassName="text-warm/90" />
         </h3>
       </div>
+    </div>
+  );
+}
+
+// ─── Vertical alarm progress pill on the right rim of the phone ─────────
+// Tracks `activeIndex / (total - 1)` so it steps cleanly between features
+// rather than jittering with raw scroll position. Used by both mobile and
+// desktop layouts.
+function ProgressPill({
+  activeIndex,
+  total,
+}: {
+  activeIndex: number;
+  total: number;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute -right-2 top-6 bottom-6 w-[3px] overflow-hidden rounded-full bg-hairline/60"
+    >
+      <div
+        className="w-full rounded-full bg-alarm transition-[height] duration-300 ease-out-quart motion-reduce:transition-none"
+        style={{
+          height: `${(activeIndex / Math.max(1, total - 1)) * 100}%`,
+        }}
+      />
     </div>
   );
 }

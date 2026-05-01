@@ -32,9 +32,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Hide native scrollbar without affecting scroll behaviour. Used by the
-   mobile features scroll-snap layer (an invisible gesture surface stacked
-   on top of the phone mock).
+   Hide native scrollbar utility — opt-in via class.
    ───────────────────────────────────────────────────────────────────── */
 .no-scrollbar {
   scrollbar-width: none;
@@ -42,4 +40,21 @@
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Below the `lg` breakpoint (< 1024px) the marketing surface uses the
+   alarm progress pill on the phone's right rim as its scroll indicator,
+   so the native browser scrollbar is redundant and visually competes
+   with the pill. iOS/Android already auto-hide the scrollbar on touch,
+   so this primarily affects desktop browsers emulating mobile.
+   ───────────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  html {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  html::-webkit-scrollbar {
+    display: none;
+  }
 }
