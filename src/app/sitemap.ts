@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/seo";
+import { siteUrl } from "@/lib/seo";
 
-// Canonical production host. Matches the Vercel domain with the apex
-// redirecting to www — don't list both or Search Console flags them
-// as duplicates.
-const BASE = SITE_URL;
+// Canonical production host. Resolved per-domain via the inbound
+// brand header — sirenfooty.com.au gets www.sirenfooty.com.au URLs;
+// sirennetball.com.au gets www.sirennetball.com.au URLs. Matches
+// the Vercel domain with the apex redirecting to www — don't list
+// both or Search Console flags them as duplicates.
 
 // Bump this when a substantive content change rolls out so search
 // engines see the lastmod move. Individual pages can override via
@@ -15,6 +16,7 @@ const DEFAULT_LAST_MODIFIED = new Date("2026-04-22");
 // src/app. Authed routes — /dashboard, /teams/**, /run/<token>,
 // /join/<token>, /auth/callback, /api/** — must NOT be indexed.
 export default function sitemap(): MetadataRoute.Sitemap {
+  const BASE = siteUrl();
   const entries: MetadataRoute.Sitemap = [
     { url: `${BASE}/`, priority: 1.0, changeFrequency: "monthly" },
     { url: `${BASE}/demo`, priority: 0.9, changeFrequency: "monthly" },

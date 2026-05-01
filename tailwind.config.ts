@@ -20,18 +20,22 @@ const config: Config = {
         "ink-mute":     "#8A948C",   // tertiary / hints
         hairline:       "#E3DFD7",   // hairlines / subtle borders
 
-        // Accent — field green (the primary action colour)
+        // Accent — brand ladder. Values come from CSS variables
+        // declared in globals.css. The :root block defines the AFL
+        // field-green defaults; [data-brand="netball"] flips them to
+        // the court-blue ladder. Components keep `bg-brand-600` etc.
+        // and the value flips at runtime per domain.
         brand: {
-          50:  "#E4EEE4",
-          100: "#CDDFCD",
-          200: "#A7C7A7",
-          300: "#7CAA7D",
-          400: "#568C57",
-          500: "#357840",
-          600: "#2F6B3E",   // the design token
-          700: "#275834",
-          800: "#1F4528",
-          900: "#183420",
+          50:  "var(--brand-50)",
+          100: "var(--brand-100)",
+          200: "var(--brand-200)",
+          300: "var(--brand-300)",
+          400: "var(--brand-400)",
+          500: "var(--brand-500)",
+          600: "var(--brand-600)",   // the design token
+          700: "var(--brand-700)",
+          800: "var(--brand-800)",
+          900: "var(--brand-900)",
         },
 
         // Signals
@@ -52,8 +56,13 @@ const config: Config = {
         draw:           "#8A6F2A",
         "draw-soft":    "#F2E8C9",
 
-        // Domain
-        field:          "#3C8050",
+        // Domain — playing-surface fills. `field` is AFL oval green;
+        // `court` is netball community-court sky blue. Both come from
+        // CSS vars so a future "darker turf" variant could flip them
+        // without touching the components that consume them.
+        field:          "var(--field)",
+        court:          "var(--court)",
+        "court-line":   "var(--court-line)",
         // Colourblind-safe zone palette — three hue families roughly
         // 70–80° apart (orange / fuchsia / blue) so adjacent zones stay
         // distinguishable. Violet (#6D28D9) was too close on the hue
@@ -64,6 +73,33 @@ const config: Config = {
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
         "zone-c":       "#A21CAF",   // centre — fuchsia / warm purple
         "zone-b":       "#1D4ED8",   // back — royal blue
+
+        // Thirds (netball domain language). Additive — not a rename
+        // of the zone-* AFL tokens. Centre is violet (not fuchsia)
+        // so the trio still satisfies the colourblind-safe constraint
+        // when paired with the new netball court-blue brand.
+        "third-a":      "var(--third-a)",
+        "third-c":      "var(--third-c)",
+        "third-d":      "var(--third-d)",
+        "third-a-soft": "var(--third-a-soft)",
+        "third-c-soft": "var(--third-c-soft)",
+        "third-d-soft": "var(--third-d-soft)",
+
+        // Bib namespace — marketing illustration only. Each position
+        // is a `{ fill, ink }` pair so a Tailwind class like
+        // `bg-bib-gs-fill text-bib-gs-ink` paints the chip with the
+        // tuned-for-AA pairing. The 7-step ladder runs A → D in
+        // lightness/hue so the bench reads left-to-right as a
+        // position spectrum, with C centred.
+        bib: {
+          gs: { fill: "var(--bib-gs-fill)", ink: "var(--bib-gs-ink)" },
+          ga: { fill: "var(--bib-ga-fill)", ink: "var(--bib-ga-ink)" },
+          wa: { fill: "var(--bib-wa-fill)", ink: "var(--bib-wa-ink)" },
+          c:  { fill: "var(--bib-c-fill)",  ink: "var(--bib-c-ink)"  },
+          wd: { fill: "var(--bib-wd-fill)", ink: "var(--bib-wd-ink)" },
+          gd: { fill: "var(--bib-gd-fill)", ink: "var(--bib-gd-ink)" },
+          gk: { fill: "var(--bib-gk-fill)", ink: "var(--bib-gk-ink)" },
+        },
       },
       fontFamily: {
         sans: ["var(--font-geist)", "system-ui", "sans-serif"],
