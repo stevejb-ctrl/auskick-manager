@@ -7,6 +7,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { waitForAdminHydration } from "../helpers/admin-hydration";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -46,15 +47,9 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   // Toggle role="switch" with aria-label "Deactivate player" when
   // active. Single-row page → no filter needed.
   //
-  // Post-merge: the per-row Toggle disables itself for non-admins
-  // (Toggle's `disabled={isPending || !isAdmin}`). Under parallel
-  // workers we occasionally render before the membership-driven
-  // `isAdmin` lookup has hydrated, leaving the switch [disabled] and
-  // making the click a no-op. Wait for the admin-enabled state via a
-  // Web-First assertion before clicking — same pattern landed in
-  // settings.spec.ts (commit b014ef9) for the track-scoring toggle.
+  // Wait for admin-membership hydration — see e2e/helpers/admin-hydration.ts.
   const deactivateSwitch = page.getByRole("switch", { name: /deactivate player/i });
-  await expect(deactivateSwitch).toBeEnabled({ timeout: 5_000 });
+  await waitForAdminHydration(deactivateSwitch);
   await deactivateSwitch.click();
 
   // Wait for the row to reappear in the inactive section. PlayerList
@@ -78,11 +73,11 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   // ── Reactivate ─────────────────────────────────────────────
   // Same Toggle, aria-label is now "Reactivate player". Player
   // moved to the inactive section but is still the only <li> on
-  // the page. Same admin-membership race guard as the deactivate
-  // click above — see settings.spec.ts commit b014ef9 for the
-  // pattern rationale.
+  // the page.
+  //
+  // Wait for admin-membership hydration — see e2e/helpers/admin-hydration.ts.
   const reactivateSwitch = page.getByRole("switch", { name: /reactivate player/i });
-  await expect(reactivateSwitch).toBeEnabled({ timeout: 5_000 });
+  await waitForAdminHydration(reactivateSwitch);
   await reactivateSwitch.click();
 
   // ── Verify final state via DB ──────────────────────────────
