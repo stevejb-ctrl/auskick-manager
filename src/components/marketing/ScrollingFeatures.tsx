@@ -155,40 +155,44 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
             </div>
           </div>
 
-          {/* Copy blocks — generous min-height so each feature dominates
-              one screen worth of scroll while the phone stays pinned. */}
-          <div className="space-y-0">
+          {/* Invisible scroll spacers — one per feature. The overlay card
+              on the phone carries the visible copy (eyebrow + italic title);
+              full body and bullets are kept in a sr-only list below for
+              screen readers. Visible copy blocks were removed because they
+              overlapped the centred sticky phone column at narrow widths.
+              Each spacer is 50vh — enough page-scroll for the phone to
+              dwell on each feature without making the section feel endless
+              (8 × 50vh ≈ 4 viewport heights total). */}
+          <div className="space-y-0" aria-hidden="true">
             {features.map((f, i) => (
-              <article
+              <div
                 key={f.id}
                 data-index={i}
                 ref={setMobileRef[i]}
-                className={`flex min-h-[70vh] flex-col justify-center py-8 transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
-                  i === activeIndex ? "opacity-100" : "opacity-50"
-                }`}
-              >
-                <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-alarm">
-                  <span className="mr-3">{PADDED(i + 1)}</span>
-                  <span className="text-ink-mute">{f.eyebrow}</span>
-                </p>
-                <h3 className="mt-3 text-2xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-3xl">
-                  <TitleAccent parts={f.title} />
-                </h3>
-                <p className="mt-4 text-base text-ink-dim sm:text-lg">{f.body}</p>
-                <ul className="mt-5 space-y-2.5">
-                  {f.bullets.map((bullet) => (
-                    <li key={bullet} className="flex gap-3 text-sm text-ink sm:text-base">
-                      <span
-                        aria-hidden="true"
-                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-alarm"
-                      />
-                      <span>{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
+                className="h-[50vh]"
+              />
             ))}
           </div>
+
+          {/* Screen-reader-only feature list — full body + bullets so
+              assistive tech gets the same content desktop users see. */}
+          <ul className="sr-only">
+            {features.map((f) => (
+              <li key={f.id}>
+                <h3>
+                  {f.title.before}
+                  {f.title.italic}
+                  {f.title.after}
+                </h3>
+                <p>{f.body}</p>
+                <ul>
+                  {f.bullets.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* DESKTOP LAYOUT — sticky phone (right) + scrolling copy (left) */}
