@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
@@ -15,9 +16,10 @@ const LAST_UPDATED = "22 April 2026";
 export default function TermsPage() {
   return (
     <>
+      <MarketingBanner />
       <MarketingHeader />
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-        <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+        <h1 className="text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
           Terms of Service
         </h1>
         <p className="mt-2 text-sm text-ink-mute">Last updated: {LAST_UPDATED}</p>
