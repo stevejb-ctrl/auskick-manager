@@ -114,15 +114,15 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
           {/* Sticky offset is `top-16` (64px) to clear the marketing
               header (sticky top-0, ~52px tall + hairline). At top-4 the
               phone slid behind the header on mobile. */}
-          <div className="sticky top-16 z-10 mx-auto mb-6 w-full max-w-[300px]">
-            <PhoneFrame className="relative">
+          <div className="sticky top-16 z-10 mx-auto mb-6 flex w-full flex-col items-center">
+            <PhoneFrame className="relative" size="fluid">
               {features.map((f, i) => (
                 <Image
                   key={f.id}
                   src={f.image}
                   alt={f.imageAlt}
                   fill
-                  sizes="300px"
+                  sizes="(max-width: 1023px) 360px, 280px"
                   priority={i === 0}
                   className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
                     i === activeIndex ? "opacity-100" : "opacity-0"
