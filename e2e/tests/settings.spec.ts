@@ -10,6 +10,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { waitForAdminHydration } from "../helpers/admin-hydration";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -69,15 +70,10 @@ test("toggle track-scoring flag", async ({ page }) => {
     .eq("id", team.id)
     .single();
 
-  // Post-merge: TrackScoringToggle disables itself for non-admins
-  // (Toggle's `disabled={isPending || !isAdmin}`). Under parallel
-  // workers we occasionally render before the membership-driven
-  // `isAdmin` lookup has hydrated, leaving the switch [disabled] and
-  // making the click a no-op. Wait for the page to settle into its
-  // admin-enabled state before clicking — a Web-First assertion is
-  // the right tool here per Playwright best practices.
+  // Wait for admin-membership hydration before clicking — see
+  // e2e/helpers/admin-hydration.ts for the race rationale.
   const toggle = page.getByRole("switch", { name: /track scoring/i });
-  await expect(toggle).toBeEnabled({ timeout: 5_000 });
+  await waitForAdminHydration(toggle);
   await toggle.click();
 
   // Poll for the persisted change instead of a fixed waitForTimeout —
