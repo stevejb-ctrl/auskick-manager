@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Divergence inventory & merge plan** - Produce a written inventory of both branches, capture pre-merge tags, and document the conflict surface before any code changes
 - [x] **Phase 2: Schema reconciliation** - Renumber/interleave migrations, add backfill, write the e2e spec exercising new columns through the UI — COMPLETE 2026-04-29
 - [x] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved — COMPLETE 2026-04-30
-- [ ] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly
+- [x] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly — COMPLETE 2026-05-01
 - [ ] **Phase 5: Test + type green** - Achieve full CI green: Vitest, Playwright e2e, TypeScript, lint, and seed team intact
 - [ ] **Phase 6: Preview deploy + manual validation** - Deploy merged trunk to Vercel preview against a Supabase prod clone; manually validate both sports end-to-end
 - [ ] **Phase 7: Production cutover + smoke test** - Fast-forward main, apply migrations to prod Supabase, verify production is healthy for existing AFL teams and new netball capability
@@ -184,7 +184,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Divergence inventory & merge plan | 1/1 | ✓ Complete | 2026-04-29 |
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
-| 4. Netball verification on merged trunk | 0/7 | Plans authored | - |
+| 4. Netball verification on merged trunk | 7/7 | ✓ Complete | 2026-05-01 |
 | 5. Test + type green | 0/TBD | Not started | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |

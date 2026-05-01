@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Phase 3 complete (2026-04-30) — merge trunk green, MERGE-LOG finalized; ready to begin Phase 4 (netball verification)
-last_updated: "2026-04-30T00:00:00Z"
-last_activity: 2026-04-30
+stopped_at: Phase 4 complete (2026-05-01) — netball verification done; full gauntlet 169 vitest + 51 e2e + tsc + lint all green; 8/8 NETBALL-N + ABSTRACT-03 covered; TEST-05 Kotara absent (Phase 5 hand-off); Phase 3 invariants intact
+last_updated: "2026-05-01T00:00:00Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 7
-  completed_phases: 3
-  total_plans: 16
-  completed_plans: 10
-  percent: 57
+  completed_phases: 4
+  total_plans: 23
+  completed_plans: 17
+  percent: 71
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Live-game time-on-ground fairness must be effortless and trustworthy across both AFL and netball — coaches end every match confident every kid got their fair share.
-**Current focus:** Phase 04 — netball-verification-on-merged-trunk
+**Current focus:** Phase 05 — test-and-type-green
 
 ## Current Position
 
-Phase: 04 (netball-verification-on-merged-trunk) — NOT STARTED
+Phase: 05 (test-and-type-green) — NOT STARTED
 Plan: 0 of TBD
-Status: Phase 3 closed; merge/multi-sport-trunk has all-green gauntlet (29 specs / 1 skipped). Phase 4 picks up from `03-06-SUMMARY.md` Phase 4 hand-off block: keep both branches and PR merge/multi-sport-trunk into main at Phase 7 (don't fast-forward multi-sport here).
-Resume file: .planning/ROADMAP.md (next: /gsd-discuss-phase 4)
-Last activity: 2026-04-30
+Status: Phase 4 closed; full gauntlet (tsc + vitest 169/169 + lint + e2e 51 PASS / 2 intentional SKIP) all green on merge/multi-sport-trunk. Phase 5's TEST-01..04 gates are essentially already met by Phase 4's 04-EVIDENCE.md gauntlet. Phase 5 will mostly aggregate evidence + handle deferred items (TEST-05 Kotara seeding, revalidatePath gap, router.refresh gap, side-findings #2 + #3).
+Resume file: .planning/phases/04-netball-verification-on-merged-trunk/04-EVIDENCE.md (next: /gsd-discuss-phase 5)
+Last activity: 2026-05-01
 
-Progress: [██████░░░░] 57%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
