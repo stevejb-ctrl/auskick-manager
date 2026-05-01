@@ -12,6 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
@@ -124,6 +125,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   } = props;
 
   const [isPending, startTransition] = useTransition();
+  // Phase 5: router.refresh() after server-action success so the live
+  // page re-fetches game_events and rerenders into the new branch
+  // (Q-break / Q4-finalise / next-quarter live state) without a manual
+  // reload. Pairs with revalidatePath calls in netball-actions.ts.
+  // (Phase 4 deferred items #1 + #2 / 04-EVIDENCE.md §5.)
+  const router = useRouter();
 
   // ─── Live clock — wall-clock anchored ────────────────────────
   // We DERIVE clockMs on every render from `Date.now() -
@@ -209,7 +216,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
     hooterFiredForQuarterRef.current = currentQuarter;
     startTransition(async () => {
-      await endNetballQuarter(auth, game.id, currentQuarter, quarterLengthMs);
+      const result = await endNetballQuarter(
+        auth,
+        game.id,
+        currentQuarter,
+        quarterLengthMs,
+      );
+      if (result.success) {
+        // Phase 5: re-fetch so the page derives `quarterEnded` from the
+        // freshly-inserted quarter_end event and rerenders into the
+        // Q-break shell (or the Q4-finalise branch). Pairs with the
+        // server-side revalidatePath in netball-actions.ts.
+        router.refresh();
+      }
     });
   }, [
     remainingMs,
@@ -219,6 +238,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     auth,
     game.id,
     quarterLengthMs,
+    router,
   ]);
 
   // ─── Injured / loaned — derived from events ─────────────────
@@ -1084,7 +1104,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           type="button"
           onClick={() =>
             startTransition(async () => {
-              await startNetballQuarter(auth, game.id, 1);
+              const result = await startNetballQuarter(auth, game.id, 1);
+              if (result.success) {
+                // Phase 5: re-fetch so the page rerenders into Q1's live
+                // state without a manual reload (pairs with revalidatePath
+                // in netball-actions.ts startNetballQuarter).
+                router.refresh();
+              }
             })
           }
           disabled={isPending}
@@ -1117,7 +1143,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           type="button"
           onClick={() =>
             startTransition(async () => {
-              await endNetballQuarter(auth, game.id, 4, clockMs);
+              const result = await endNetballQuarter(
+                auth,
+                game.id,
+                4,
+                clockMs,
+              );
+              if (result.success) {
+                // Phase 5: re-fetch so the page rerenders post-finalise
+                // (pairs with the existing final-quarter revalidatePath
+                // block in netball-actions.ts).
+                router.refresh();
+              }
             })
           }
           disabled={isPending}
