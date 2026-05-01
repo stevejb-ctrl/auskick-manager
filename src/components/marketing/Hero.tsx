@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { FieldOval } from "@/components/marketing/FieldOval";
+import { CourtMotif } from "@/components/marketing/CourtMotif";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
@@ -16,14 +17,19 @@ export function Hero() {
   const copy = getBrandCopy(brand.id);
   return (
     <section className="relative overflow-hidden border-b border-hairline">
-      {/* Field-oval motif behind the hero on desktop only — quiet
-          target/oval cue, off-canvas to the right, ultra-low opacity. */}
+      {/* Decorative court / oval motif behind the hero on desktop
+          only — quiet target/oval cue on AFL, court rectangle on
+          netball, ultra-low opacity in both cases. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
         style={{ transform: "translate(15%, 0)" }}
       >
-        <FieldOval size={900} className="opacity-[0.07]" />
+        {brand.id === "netball" ? (
+          <CourtMotif size={900} className="opacity-[0.07]" />
+        ) : (
+          <FieldOval size={900} className="opacity-[0.07]" />
+        )}
       </div>
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
@@ -71,7 +77,11 @@ export function Hero() {
               />
               <PhoneFrame tilt={2} className="relative">
                 <Image
-                  src="/marketing/screenshots/live-game.png"
+                  src={
+                    brand.id === "netball"
+                      ? "/marketing/screenshots/netball/live-game.png"
+                      : "/marketing/screenshots/live-game.png"
+                  }
                   alt={`${copy.productName} live game view`}
                   fill
                   sizes="280px"
