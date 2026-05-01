@@ -401,9 +401,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       undoToastTimerRef.current = null;
     }
     startTransition(async () => {
-      await undoNetballScore(auth, game.id);
+      const result = await undoNetballScore(auth, game.id);
+      if (!result.success) return;
+      // Refresh so the rolled-back goal disappears from the
+      // scorebug + PositionToken chip on the next render. Pairs
+      // with the revalidatePath in undoNetballScore.
+      router.refresh();
     });
-  }, [lastScore, auth, game.id]);
+  }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
   useEffect(() => {
@@ -552,7 +557,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
     startTransition(async () => {
-      await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
+      const result = await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
+      if (!result.success) return;
+      // Refresh so the new goal lands in the scorebug + the
+      // PositionToken chip without a manual reload. Pairs with
+      // the revalidatePath in recordNetballGoal.
+      router.refresh();
     });
     setPendingGoal(null);
     startUndoToast("team", playerName);
@@ -562,10 +572,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   const handleOpponentGoal = useCallback(() => {
     startTransition(async () => {
-      await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
+      const result = await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
+      if (!result.success) return;
+      // Refresh so the opponent's goal lands in the scorebug
+      // without a manual reload. Pairs with the revalidatePath
+      // in recordNetballOpponentGoal.
+      router.refresh();
     });
     startUndoToast("opp", null);
-  }, [auth, game.id, currentQuarter, clockMs, startUndoToast]);
+  }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
   // long-press on any token (court OR bench strip) → open the player
   // actions modal. Bench tiles pass positionId=null; the modal hides

@@ -239,6 +239,12 @@ export async function endNetballQuarter(
 }
 
 // ─── recordNetballGoal / opponent goal ───────────────────────
+// Each scoring action revalidates the live page so the server-
+// rendered playerGoals + teamScore props refresh on next render —
+// without it, the scorebug + PositionToken goal chip stay at zero
+// even though the event is correctly persisted. Pairs with
+// router.refresh() in the client handler. Mirrors the AFL fix in
+// 96d5edd; the netball actions were missed by that pass.
 export async function recordNetballGoal(
   auth: LiveAuth,
   gameId: string,
@@ -246,10 +252,12 @@ export async function recordNetballGoal(
   quarter: number,
   elapsedMs: number,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "goal", {
+  const result = await insertEvent(auth, gameId, "goal", {
     player_id: playerId,
     metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
   });
+  if (!result.success) return result;
+  return revalidateAfterScore(auth, gameId);
 }
 
 export async function recordNetballOpponentGoal(
@@ -258,9 +266,11 @@ export async function recordNetballOpponentGoal(
   quarter: number,
   elapsedMs: number,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "opponent_goal", {
+  const result = await insertEvent(auth, gameId, "opponent_goal", {
     metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
   });
+  if (!result.success) return result;
+  return revalidateAfterScore(auth, gameId);
 }
 
 // ─── scoreUndo ───────────────────────────────────────────────
@@ -273,7 +283,25 @@ export async function undoNetballScore(
   gameId: string,
   targetEventId?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "score_undo", {
+  const result = await insertEvent(auth, gameId, "score_undo", {
     metadata: { target: targetEventId, sport: "netball" },
   });
+  if (!result.success) return result;
+  return revalidateAfterScore(auth, gameId);
+}
+
+// Shared revalidate helper for score actions. Same shape as the
+// quarter-start / quarter-end revalidate blocks above.
+async function revalidateAfterScore(
+  auth: LiveAuth,
+  gameId: string,
+): Promise<ActionResult> {
+  if (auth.kind === "team") {
+    const w = await resolveWriter(auth, gameId);
+    if (w.error) return { success: false, error: w.error };
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
 }

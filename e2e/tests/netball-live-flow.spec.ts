@@ -413,6 +413,60 @@ test("NETBALL-03: undo writes score_undo event after a goal", async ({ page }) =
     .toBeGreaterThanOrEqual(1);
 });
 
+test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh", async ({
+  page,
+}) => {
+  // Regression: recordNetballGoal / recordNetballOpponentGoal /
+  // undoNetballScore inserted the event but neither revalidated the
+  // server-rendered events list nor refreshed the router on the
+  // client. NetballLiveGame derives the scorebug team total and the
+  // PositionToken goal chip from `playerGoals` / `teamScore` props
+  // computed by replayNetballGame on the server — so without a
+  // refresh, both stayed at zero until a manual reload, even though
+  // the goal event was correctly persisted. Same shape as the AFL
+  // fix in 96d5edd (Plan 05-04 → Phase 7) — the netball score
+  // actions were missed by that pass.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const gsPlayer = players[0];
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+    })
+    .click();
+  await page
+    .getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i })
+    .click({ timeout: 5_000 });
+
+  // PositionToken renders a chip with aria-label "1 goal" when the
+  // player's playerGoals count hits 1 (PositionToken.tsx:162-167).
+  // Pre-fix, playerGoals stays empty and the chip never renders, so
+  // this assertion fails red within the timeout.
+  await expect(
+    page.getByLabel(/^1 goal$/i),
+  ).toBeVisible({ timeout: 3_000 });
+
+  // The scorebug's team-total integer renders inside a 36px span.
+  // Pre-fix, team.goals stays 0 and "1" never appears in that span.
+  // Post-fix, the integer flips to "1" once router.refresh() lands.
+  // Use a class-based locator so the team name (which can also
+  // contain digits in the test factory's "NB-LF-{ts}-{rand}" naming)
+  // doesn't accidentally match.
+  await expect(
+    page
+      .locator('span.text-\\[36px\\]')
+      .filter({ hasText: /^1$/ }),
+  ).toBeVisible({ timeout: 3_000 });
+});
+
 // ─── NETBALL-08: long-press, replacement, late-arrival ────
 
 test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal", async ({
