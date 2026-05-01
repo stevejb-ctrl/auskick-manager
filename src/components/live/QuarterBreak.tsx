@@ -12,6 +12,7 @@ import {
   suggestStartingLineup,
   zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
+  type SeasonAvailability,
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
@@ -34,6 +35,13 @@ interface QuarterBreakProps {
   gameId: string;
   players: Player[];
   season: PlayerZoneMinutes;
+  /**
+   * Per-player played-vs-available quarter counts across PRIOR
+   * games. Drives the suggester's tiebreak so an under-utilised
+   * regular climbs the queue ahead of a teammate with similar
+   * in-game minutes today.
+   */
+  seasonAvailability: Record<string, SeasonAvailability>;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   onStarted: () => void;
@@ -58,6 +66,7 @@ export function QuarterBreak({
   gameId,
   players,
   season,
+  seasonAvailability,
   zoneCaps,
   positionModel,
   onStarted,
@@ -232,7 +241,8 @@ export function QuarterBreak({
       currentGameZoneMins,
       pinnedPositions,
       lastStintZone,
-      previousZoneTeammates
+      previousZoneTeammates,
+      seasonAvailability
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -252,6 +262,7 @@ export function QuarterBreak({
     pinnedPositions,
     lastStintZone,
     previousZoneTeammates,
+    seasonAvailability,
   ]);
 
   useEffect(() => {

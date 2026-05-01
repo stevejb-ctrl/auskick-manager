@@ -298,6 +298,76 @@ export function zoneTeammatesFromLineup(
   return out;
 }
 
+// ─── Per-player season availability (played vs available) ────
+/**
+ * For each player, count quarters they were on court vs quarters
+ * they were "available" (on court OR on the bench). The ratio
+ * playedQuarters / availableQuarters drives the suggester's
+ * sort tiebreak — among players tied on this-game minutes, the
+ * one with the LOWER played/available ratio gets court priority.
+ *
+ * Steve's framing: "If someone is away this is not available time."
+ * Missed games don't count against a player; they just don't appear
+ * in the totals. So a kid who turned up to 5 games at 100% court
+ * time and a kid who turned up to 5 games at 60% court time are
+ * compared on their respective ratios.
+ *
+ * Implementation: walk every `lineup_set` event in the input. Each
+ * one represents one quarter's starting roster (AFL writes a
+ * `lineup_set` at game start AND at every Q-break where the lineup
+ * actually changed). Players in zones get +1 played + +1 available;
+ * players on bench get +1 available only.
+ *
+ * Caveat: AFL skips the lineup_set write at a Q-break when the
+ * lineup is unchanged from the prior quarter, so a kid who played
+ * the full 4 quarters of a game at the same zone may show as
+ * "1 quarter played, 1 available" rather than 4/4. Acceptable for
+ * v1: the ratio (1.0) is correct, just the absolute counts are
+ * lower than they could be — which doesn't change the tiebreak
+ * outcome since this function is only used as a comparator.
+ *
+ * Mirrors src/lib/sports/netball/fairness.ts seasonAvailability,
+ * scaled to AFL's lineup shape.
+ */
+export interface SeasonAvailability {
+  /** Quarters spent on court across all games in the input. */
+  playedQuarters: number;
+  /** Quarters spent on either court or bench (i.e. attended). */
+  availableQuarters: number;
+}
+export function seasonAvailability(
+  events: GameEvent[]
+): Record<string, SeasonAvailability> {
+  const out: Record<string, SeasonAvailability> = {};
+  const ensure = (pid: string): SeasonAvailability => {
+    let s = out[pid];
+    if (!s) {
+      s = { playedQuarters: 0, availableQuarters: 0 };
+      out[pid] = s;
+    }
+    return s;
+  };
+  for (const ev of events) {
+    if (ev.type !== "lineup_set") continue;
+    const meta = ev.metadata as { lineup?: Partial<Lineup> } | null;
+    if (!meta?.lineup) continue;
+    const lineup = normalizeLineup(meta.lineup);
+    for (const z of ALL_ZONES) {
+      for (const pid of lineup[z]) {
+        if (!pid) continue;
+        const s = ensure(pid);
+        s.playedQuarters++;
+        s.availableQuarters++;
+      }
+    }
+    for (const pid of lineup.bench) {
+      if (!pid) continue;
+      ensure(pid).availableQuarters++;
+    }
+  }
+  return out;
+}
+
 // ─── Sum zone minutes across many games ──────────────────────
 export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
   const byGame = new Map<string, GameEvent[]>();
@@ -366,9 +436,18 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 //   the bench all of Q1 climbs ahead of teammates who played the full
 //   quarter, even if their season totals are similar. Steve's rule:
 //   "those who have had the least game time should have the least subs."
-//   Ties fall back to a deterministic seeded shuffle. When `currentGame`
-//   is empty (start of Q1, simple unit tests), the sort falls back to
-//   season totals so legacy callers behave the same as before.
+//
+//   When `seasonAvail` is also provided, ms-tied players fall back to
+//   their season-utilisation ratio: lower played/available ratio sorts
+//   first, so consistent attendees who keep drawing the bench start
+//   collecting court priority that nudges them onto the field next
+//   time. A teammate who attended the same number of games but had a
+//   normal share of court time moves down to balance it.
+//
+//   Final fallback (both keys tied) is the deterministic seeded shuffle.
+//   When `currentGame` is empty (start of Q1, simple unit tests), the
+//   sort falls back to season totals so legacy callers behave the same
+//   as before.
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
@@ -377,7 +456,8 @@ export function suggestStartingLineup(
   currentGame: PlayerZoneMinutes = {},
   pinnedPositions: Record<string, Zone> = {},
   previousQuarterZones: Record<string, Zone> = {},
-  previousZoneTeammates: Record<string, Set<string>> = {}
+  previousZoneTeammates: Record<string, Set<string>> = {},
+  seasonAvail: Record<string, SeasonAvailability> = {}
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -493,11 +573,28 @@ export function suggestStartingLineup(
     return penalty;
   };
 
+  // Season utilisation tiebreak: fraction of attended quarters
+  // spent on court. Lower ratio = more bench history = court
+  // priority next time. Returns 1.0 (no signal) when we have no
+  // data — a brand-new player doesn't get artificial priority
+  // over the squad regulars.
+  const seasonRatio = (pid: string) => {
+    const s = seasonAvail[pid];
+    if (!s || s.availableQuarters === 0) return 1.0;
+    return s.playedQuarters / s.availableQuarters;
+  };
+
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
-  const sortedPlayers = shuffled.sort(
-    (a, b) => sortKey(a.id) - sortKey(b.id)
-  );
+  const sortedPlayers = shuffled.sort((a, b) => {
+    // Primary: this-game minutes ascending (least-played gets
+    // first court priority).
+    const msDiff = sortKey(a.id) - sortKey(b.id);
+    if (msDiff !== 0) return msDiff;
+    // Tiebreak: season utilisation ratio ascending. Lower ratio
+    // = more historical bench time = climb the queue.
+    return seasonRatio(a.id) - seasonRatio(b.id);
+  });
 
   for (const p of sortedPlayers) {
     const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);

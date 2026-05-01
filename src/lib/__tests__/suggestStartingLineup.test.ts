@@ -24,11 +24,12 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  seasonAvailability,
   suggestStartingLineup,
   zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
 } from "@/lib/fairness";
-import { emptyLineup, type Lineup, type Player, type Zone } from "@/lib/types";
+import { emptyLineup, type GameEvent, type Lineup, type Player, type Zone } from "@/lib/types";
 
 function makePlayer(id: string): Player {
   return {
@@ -295,6 +296,149 @@ describe("suggestStartingLineup — sort key prioritises kids with least in-game
     const lineup = suggestStartingLineup(all, season, 0, caps);
     // All 3 placed — no errors when `currentGame` is empty.
     expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+});
+
+describe("suggestStartingLineup — season-utilisation tiebreak", () => {
+  // Two players tied on this-game minutes (both at zero, pre-game).
+  // One has been benched a lot historically (low played/available
+  // ratio), the other has had normal court time. The under-utilised
+  // kid should sort first → court priority. Steve's "consistent
+  // attendees who keep drawing the bench start collecting priority"
+  // rule.
+  it("among ms-tied players, lower season-utilisation ratio sorts first", () => {
+    // 4 players, 3 slots — exactly one goes to the bench. The
+    // tiebreak decides which one.
+    const all = players(["Veteran", "Regular", "BenchKid", "Newbie"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    // All zero in-game minutes (pre-game). Identical season totals
+    // so the season fallback would shuffle randomly. Only the
+    // utilisation tiebreak can rank them.
+    const balanced = { back: 30 * 60_000, hback: 0, mid: 30 * 60_000, hfwd: 0, fwd: 30 * 60_000 };
+    const season: PlayerZoneMinutes = {};
+    for (const p of all) season[p.id] = { ...balanced };
+    const seasonAvail: Record<string, { playedQuarters: number; availableQuarters: number }> = {
+      // Veteran has played 16/20 quarters → ratio 0.8 (high
+      // utilisation, has been on court a lot).
+      Veteran: { playedQuarters: 16, availableQuarters: 20 },
+      // Regular has played 12/20 → ratio 0.6 (normal share).
+      Regular: { playedQuarters: 12, availableQuarters: 20 },
+      // BenchKid has played 5/20 → ratio 0.25 (lots of bench
+      // history → court priority).
+      BenchKid: { playedQuarters: 5, availableQuarters: 20 },
+      // Newbie has no history → ratio defaults to 1.0 (no signal,
+      // doesn't get artificial priority over the regulars).
+    };
+
+    // Run across multiple seeds. Without the tiebreak, the seeded
+    // shuffle could put any of them on the bench. With it,
+    // BenchKid (lowest ratio) MUST be on the field every time.
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      const lineup = suggestStartingLineup(
+        all,
+        season,
+        seed,
+        caps,
+        {}, // currentGame: empty pre-game
+        {},
+        {},
+        {},
+        seasonAvail,
+      );
+      expect(
+        zoneOf(lineup, "BenchKid"),
+        `seed ${seed}: BenchKid (ratio 0.25) was benched`,
+      ).not.toBeNull();
+    }
+  });
+
+  // No seasonAvailability arg → tiebreak silently skipped (no
+  // crash, no implicit ranking).
+  it("works with no seasonAvailability argument (backward-compat)", () => {
+    const all = players(["A", "B", "C"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    const lineup = suggestStartingLineup(all, {}, 0, caps);
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+
+  // Players with no entry in seasonAvail (brand-new attendee) get
+  // ratio 1.0 — no artificial priority over regulars. This stops a
+  // never-recorded player from accidentally jumping the queue.
+  it("missing players default to 1.0 ratio (no priority for unseen kids)", () => {
+    const all = players(["Known", "Unknown"]);
+    const caps = { back: 1, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+    const seasonAvail = {
+      // Known: high utilisation, would normally lose the tiebreak.
+      Known: { playedQuarters: 18, availableQuarters: 20 },
+      // Unknown not present → defaults to 1.0 ratio.
+    };
+    // 2 players, 1 slot. Without seasonAvail, the seeded shuffle
+    // picks one. With seasonAvail, Known (0.9) sorts first vs
+    // Unknown's default 1.0 → Known plays.
+    const lineup = suggestStartingLineup(
+      all,
+      {},
+      0,
+      caps,
+      {},
+      {},
+      {},
+      {},
+      seasonAvail,
+    );
+    expect(zoneOf(lineup, "Known")).toBe("back");
+    expect(zoneOf(lineup, "Unknown")).toBeNull(); // benched
+  });
+});
+
+describe("seasonAvailability", () => {
+  // Helper to build a lineup_set event with a given lineup.
+  function lineupSetEvent(lineup: Partial<Lineup>, ts: string): GameEvent {
+    return {
+      id: `e-${ts}`,
+      game_id: "G",
+      type: "lineup_set",
+      player_id: null,
+      metadata: { lineup },
+      created_by: "owner",
+      created_at: ts,
+    };
+  }
+
+  it("counts on-court quarters as played + available, bench as available only", () => {
+    const events: GameEvent[] = [
+      // Q1: A in back, B in mid, C in fwd, D on bench.
+      lineupSetEvent(
+        { back: ["A"], mid: ["B"], fwd: ["C"], bench: ["D"] },
+        "2026-01-01T10:00:00Z",
+      ),
+      // Q2: A still back, B → bench, C still fwd, D on field at mid.
+      lineupSetEvent(
+        { back: ["A"], mid: ["D"], fwd: ["C"], bench: ["B"] },
+        "2026-01-01T10:15:00Z",
+      ),
+    ];
+    const out = seasonAvailability(events);
+    expect(out.A).toEqual({ playedQuarters: 2, availableQuarters: 2 });
+    expect(out.B).toEqual({ playedQuarters: 1, availableQuarters: 2 });
+    expect(out.C).toEqual({ playedQuarters: 2, availableQuarters: 2 });
+    expect(out.D).toEqual({ playedQuarters: 1, availableQuarters: 2 });
+  });
+
+  it("ignores non-lineup_set events", () => {
+    const events: GameEvent[] = [
+      {
+        id: "e1",
+        game_id: "G",
+        type: "goal",
+        player_id: "A",
+        metadata: {},
+        created_by: "owner",
+        created_at: "2026-01-01T10:00:00Z",
+      },
+    ];
+    const out = seasonAvailability(events);
+    expect(out).toEqual({});
   });
 });
 

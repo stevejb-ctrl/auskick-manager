@@ -6,7 +6,7 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
-import { replayGame, seasonZoneMinutes, seasonLoanMinutes, zoneCapsFor } from "@/lib/fairness";
+import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -89,6 +89,7 @@ export default async function RunPage({ params }: RunPageProps) {
       : { data: [] as GameEvent[] };
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
+    const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
 
     return (
       <div className="space-y-3 p-3">
@@ -104,6 +105,7 @@ export default async function RunPage({ params }: RunPageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
+          seasonAvailability={seasonAvail}
           seasonLoanMinutes={loanMins}
           zoneCaps={zoneCapsFor(g.on_field_size, positionModel)}
           positionModel={positionModel}

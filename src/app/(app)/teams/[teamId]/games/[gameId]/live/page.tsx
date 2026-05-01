@@ -9,6 +9,7 @@ import {
   replayGame,
   seasonZoneMinutes,
   seasonLoanMinutes,
+  seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -298,6 +299,7 @@ export default async function LivePage({ params }: LivePageProps) {
       : { data: [] as GameEvent[] };
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
+    const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
 
     return (
       <div className="space-y-3">
@@ -312,6 +314,7 @@ export default async function LivePage({ params }: LivePageProps) {
           squadPlayers={allSquad}
           initialState={state}
           season={season}
+          seasonAvailability={seasonAvail}
           seasonLoanMinutes={loanMins}
           zoneCaps={zoneCaps}
           positionModel={positionModel}

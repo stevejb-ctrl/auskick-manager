@@ -44,6 +44,7 @@ import {
   suggestSwaps,
   type GameState,
   type PlayerZoneMinutes,
+  type SeasonAvailability,
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
@@ -101,6 +102,13 @@ interface LiveGameProps {
   initialState: GameState;
   season: PlayerZoneMinutes;
   /**
+   * Per-player season utilisation (played vs available quarters
+   * across PRIOR games). Drives the suggester's tiebreak so a
+   * consistent attendee who keeps drawing the bench climbs the
+   * queue ahead of teammates with similar in-game minutes today.
+   */
+  seasonAvailability: Record<string, SeasonAvailability>;
+  /**
    * Minutes each player has been lent to the opposition across the season
    * (completed games only). Shown in the long-press loan menu so the coach
    * can spread the favour evenly.
@@ -141,6 +149,7 @@ export function LiveGame({
   squadPlayers,
   initialState,
   season,
+  seasonAvailability,
   seasonLoanMinutes,
   zoneCaps,
   positionModel,
@@ -842,6 +851,7 @@ export function LiveGame({
         gameId={gameId}
         players={squadPlayers}
         season={season}
+        seasonAvailability={seasonAvailability}
         zoneCaps={zoneCaps}
         positionModel={positionModel}
         onStarted={() => beginNextQuarter()}
