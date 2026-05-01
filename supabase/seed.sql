@@ -38,6 +38,15 @@ declare
   v_super_id   uuid := '00000000-0000-0000-0000-00000000bbbb';
   v_super_email text := 'super-admin@siren.test';
   v_super_pw    text := 'test-pw-12345';  -- mirrors .env.test TEST_SUPER_ADMIN_PASSWORD
+  -- screenshots@siren.local — local-only account used by
+  -- scripts/seed-screenshot-team.mjs and the /dev/login route
+  -- handler. NEVER deployed (the route 404s in production). The
+  -- raw-SQL insert pattern is identical to super-admin's so the
+  -- "Database error checking email" GoTrue failure mode that
+  -- afflicts admin.createUser doesn't apply here.
+  v_screenshot_id uuid := '00000000-0000-0000-0000-00000000cccc';
+  v_screenshot_email text := 'screenshots@siren.local';
+  v_screenshot_pw    text := 'screenshots-pw-12345';
   v_team_id     uuid := '5ba1eb72-ee23-4b8e-9f9c-22a12fd0fc11';
   v_player_ids  uuid[];
   v_game_ids    uuid[];
@@ -136,6 +145,46 @@ begin
   insert into public.profiles (id, email, full_name, is_super_admin)
   values (v_super_id, v_super_email, 'Super Admin', true)
   on conflict (id) do update set is_super_admin = true;
+
+  -- 1c. screenshots-user auth.users row (idempotent). Real bcrypt
+  --     password so /dev/login (a localhost-gated route handler)
+  --     can call signInWithPassword and land the user on Bondi
+  --     Bandits with no manual login. Same column-population
+  --     pattern as super-admin so listUsers() / getUserByEmail
+  --     don't trip the GoTrue NULL-token bug noted above.
+  insert into auth.users (
+    id, email, instance_id, aud, role,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token,
+    email_change_token_new, email_change, email_change_token_current,
+    reauthentication_token,
+    phone_change, phone_change_token,
+    created_at, updated_at,
+    is_super_admin, is_sso_user, is_anonymous
+  )
+  values (
+    v_screenshot_id,
+    v_screenshot_email,
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    crypt(v_screenshot_pw, gen_salt('bf', 10)),
+    now(),
+    jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+    jsonb_build_object('full_name', 'Screenshot Steve'),
+    '', '', '', '', '',
+    '',
+    '', '',
+    now(), now(),
+    false, false, false
+  )
+  on conflict (id) do nothing;
+
+  insert into public.profiles (id, email, full_name)
+  values (v_screenshot_id, v_screenshot_email, 'Screenshot Steve')
+  on conflict (id) do nothing;
 
   -- 2. Team row. handle_new_team trigger auto-inserts the seed-bot's
   --    admin team_membership (idempotent on re-run via the unique

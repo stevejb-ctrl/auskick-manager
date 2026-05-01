@@ -84,7 +84,13 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/contact") ||
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms") ||
-    pathname.startsWith("/why-siren");
+    pathname.startsWith("/why-siren") ||
+    // /dev/* — local-only auth bypass shortcuts. The route handlers
+    // themselves 404 in production (NODE_ENV check + host check),
+    // but the middleware needs to LET them run for the auth
+    // shortcut to work; otherwise the redirect-to-/login fires
+    // first and the user never reaches the sign-in handler.
+    pathname.startsWith("/dev/");
 
   if (!user && !isPublicRoute) {
     // Preserve the intended destination so sign-in lands the user back
