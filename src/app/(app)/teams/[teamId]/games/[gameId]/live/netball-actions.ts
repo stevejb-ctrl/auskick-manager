@@ -173,9 +173,23 @@ export async function startNetballQuarter(
   gameId: string,
   quarter: number,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "quarter_start", {
+  const result = await insertEvent(auth, gameId, "quarter_start", {
     metadata: { quarter, sport: "netball" },
   });
+  if (!result.success) return result;
+
+  // Phase 5: revalidate so the live page picks up the quarter_start
+  // event on next render — pairs with router.refresh() in the client.
+  // (Phase 4 deferred item #2 / 04-EVIDENCE.md §5.)
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
 }
 
 // ─── endNetballQuarter ───────────────────────────────────────
@@ -203,6 +217,20 @@ export async function endNetballQuarter(
     if (auth.kind === "team") {
       revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
       revalidatePath(`/teams/${w.teamId}/games`);
+    } else {
+      revalidatePath(`/run/${auth.token}`, "layout");
+    }
+  } else {
+    // ── Phase 5: non-final revalidate so the live page picks up
+    //    the quarter_end event on next render. Without this, a
+    //    parent-runner connecting to /run/[token] post-hooter sees
+    //    stale Q-state until cache TTL or manual reload. (Phase 4
+    //    deferred item #1 / 04-EVIDENCE.md §5.)
+    const w = await resolveWriter(auth, gameId);
+    if (w.error) return { success: false, error: w.error };
+
+    if (auth.kind === "team") {
+      revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
     } else {
       revalidatePath(`/run/${auth.token}`, "layout");
     }
