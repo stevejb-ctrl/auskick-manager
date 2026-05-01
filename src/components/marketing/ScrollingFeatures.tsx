@@ -115,37 +115,45 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
               header (sticky top-0, ~52px tall + hairline). At top-4 the
               phone slid behind the header on mobile. */}
           <div className="sticky top-16 z-10 mx-auto mb-6 w-full max-w-[260px]">
-            <div className="relative">
-              <PhoneFrame className="relative">
-                {features.map((f, i) => (
-                  <Image
-                    key={f.id}
-                    src={f.image}
-                    alt={f.imageAlt}
-                    fill
-                    sizes="260px"
-                    priority={i === 0}
-                    className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
-                      i === activeIndex ? "opacity-100" : "opacity-0"
-                    }`}
-                    aria-hidden={i !== activeIndex}
-                  />
-                ))}
-                {/* Dark overlay card pinned to the phone's bottom edge —
-                    crossfades as activeIndex changes via the keyed wrapper. */}
-                <MobileOverlayCard
-                  key={`overlay-${activeIndex}`}
-                  feature={features[activeIndex]}
-                  index={activeIndex}
-                  total={features.length}
+            <PhoneFrame className="relative">
+              {features.map((f, i) => (
+                <Image
+                  key={f.id}
+                  src={f.image}
+                  alt={f.imageAlt}
+                  fill
+                  sizes="260px"
+                  priority={i === 0}
+                  className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
+                    i === activeIndex ? "opacity-100" : "opacity-0"
+                  }`}
+                  aria-hidden={i !== activeIndex}
                 />
-              </PhoneFrame>
-
-              <ProgressPill
-                activeIndex={activeIndex}
+              ))}
+              {/* Dark overlay card lifted high enough on the phone screen
+                  to clear the rounded bottom corners on iPhone Safari. */}
+              <MobileOverlayCard
+                key={`overlay-${activeIndex}`}
+                feature={features[activeIndex]}
+                index={activeIndex}
                 total={features.length}
               />
-            </div>
+            </PhoneFrame>
+
+            {/* Horizontal dot-stepper underneath the phone — replaces
+                the right-rim vertical bar. Tap a dot to jump to that
+                feature; the IO updates activeIndex automatically. */}
+            <DotStepper
+              activeIndex={activeIndex}
+              total={features.length}
+              features={features}
+              onJump={(i) => {
+                mobileRefs.current[i]?.scrollIntoView({
+                  block: "center",
+                  behavior: prefersReducedMotion() ? "auto" : "smooth",
+                });
+              }}
+            />
           </div>
 
           {/* Invisible scroll spacers — one per feature. The overlay card
@@ -225,9 +233,9 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
           </div>
 
           {/* RIGHT — sticky phone */}
-          <div className="relative" aria-hidden="true">
-            <div className="sticky top-[12vh] flex items-center justify-center">
-              <div className="relative w-full max-w-[280px]">
+          <div className="relative">
+            <div className="sticky top-[12vh] flex flex-col items-center">
+              <div className="w-full max-w-[280px]">
                 <PhoneFrame className="relative">
                   {features.map((f, i) => (
                     <Image
@@ -244,9 +252,16 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                     />
                   ))}
                 </PhoneFrame>
-                <ProgressPill
+                <DotStepper
                   activeIndex={activeIndex}
                   total={features.length}
+                  features={features}
+                  onJump={(i) => {
+                    desktopRefs.current[i]?.scrollIntoView({
+                      block: "center",
+                      behavior: prefersReducedMotion() ? "auto" : "smooth",
+                    });
+                  }}
                 />
               </div>
             </div>
@@ -298,14 +313,13 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
   );
 }
 
-// ─── Overlay card pinned to the phone's bottom edge on mobile ──────────
+// ─── Overlay card sitting on the phone screen on mobile ────────────────
 //
-// Inset on all four sides so the card stays clear of the phone screen's
-// rounded corners (`rounded-[2.1rem]` on PhoneFrame). At zero inset the
-// card's bottom corners get diagonally clipped by the curve and look
-// chopped on iPhones. Text is sized so titles like "Set your squad
-// before you leave home." wrap to 2-3 readable lines without overflowing
-// the card's height.
+// Lifted well above the phone's rounded bottom corners
+// (`rounded-[2.1rem]` ≈ 33.6px curve radius on PhoneFrame). At low
+// `bottom-*` values the card's flat bottom corners get diagonally clipped
+// by the curve and look chopped on iPhone Safari. `bottom-12` (48px)
+// keeps the whole card inside the rectangular safe zone.
 function MobileOverlayCard({
   feature,
   index,
@@ -317,7 +331,7 @@ function MobileOverlayCard({
 }) {
   return (
     <div
-      className="absolute inset-x-2 bottom-2 z-10 motion-safe:animate-fade-in"
+      className="absolute inset-x-3 bottom-12 z-10 motion-safe:animate-fade-in"
       aria-hidden="true"
     >
       <div className="rounded-md bg-ink/[0.92] px-3 py-2.5 text-warm shadow-modal backdrop-blur-sm">
@@ -337,28 +351,48 @@ function MobileOverlayCard({
   );
 }
 
-// ─── Vertical alarm progress pill on the right rim of the phone ─────────
-// Tracks `activeIndex / (total - 1)` so it steps cleanly between features
-// rather than jittering with raw scroll position. Used by both mobile and
-// desktop layouts.
-function ProgressPill({
+// ─── Horizontal dot-stepper rendered underneath the phone ──────────────
+// Replaces the previous vertical bar on the phone's right rim. Inactive
+// items are 6×6 hairline dots; the active item is a 22×6 alarm pill.
+// Tapping a dot scrolls the corresponding spacer/article into the centre
+// of the viewport — the IO then updates activeIndex automatically.
+function DotStepper({
   activeIndex,
   total,
+  features,
+  onJump,
 }: {
   activeIndex: number;
   total: number;
+  features: FeatureCopy[];
+  onJump: (index: number) => void;
 }) {
   return (
-    <div
-      aria-hidden="true"
-      className="absolute -right-2 top-6 bottom-6 w-[3px] overflow-hidden rounded-full bg-hairline/60"
-    >
-      <div
-        className="w-full rounded-full bg-alarm transition-[height] duration-300 ease-out-quart motion-reduce:transition-none"
-        style={{
-          height: `${(activeIndex / Math.max(1, total - 1)) * 100}%`,
-        }}
-      />
+    <div className="mt-5 flex items-center justify-center gap-2">
+      {Array.from({ length: total }).map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          aria-label={`Feature ${i + 1} of ${total}: ${features[i]?.eyebrow ?? ""}`}
+          aria-current={i === activeIndex ? "true" : undefined}
+          onClick={() => onJump(i)}
+          className="flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart"
+        >
+          <span
+            aria-hidden="true"
+            className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
+              i === activeIndex
+                ? "h-1.5 w-[22px] bg-alarm"
+                : "h-1.5 w-1.5 bg-hairline"
+            }`}
+          />
+        </button>
+      ))}
     </div>
   );
+}
+
+function prefersReducedMotion() {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
