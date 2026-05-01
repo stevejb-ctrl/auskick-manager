@@ -8,18 +8,36 @@
 --
 -- HOWEVER: the Kotara Koalas netball validation team (TEST-05) is
 -- a deterministic seed that several specs benefit from. We seed it
--- here using a synthetic NEVER-LOGIN service account — the seed-bot
--- only owns rows; it never authenticates, so we don't touch
--- encrypted_password / email_confirmed_at / token columns. The
--- minimal auth.users INSERT below is the documented fragile path;
--- if this ever breaks on a Supabase CLI bump, the fallback is
--- scripts/seed-kotara-koalas.mjs (Option B per Plan 05-01 CONTEXT).
+-- here using two synthetic auth.users rows:
+--
+--   1. seed-bot (NEVER LOGS IN) — owns Kotara's rows so the FK chain
+--      to public.profiles resolves cleanly for team / players /
+--      games / events.
+--   2. test-super-admin — pre-creates the row that auth.setup.ts
+--      later flips is_super_admin=true on. We use a deterministic
+--      UUID + real bcrypt('test-pw-12345', cost=10) hash via the
+--      pgcrypto crypt() function so the e2e UI login path
+--      (e2e/tests/auth.setup.ts) succeeds against this row, and
+--      ensureTestUser (e2e/fixtures/supabase.ts) finds it via
+--      listUsers() rather than creating a new one. We also add the
+--      super-admin to Kotara's team_memberships as admin so the
+--      page route at /teams/{kotara}/games/{...}/live renders for
+--      them (RLS is_team_member needs the membership row; super-
+--      admin alone doesn't bypass team RLS in the current schema).
+--
+-- If this auth.users INSERT pattern ever breaks on a Supabase CLI
+-- bump, the fallback is scripts/seed-kotara-koalas.mjs (Option B
+-- per Plan 05-01 CONTEXT) which uses supabase.auth.admin.createUser
+-- to safely produce the same rows.
 -- =============================================================
 
 -- ─── Kotara Koalas netball seed (TEST-05) ────────────────────
 do $$
 declare
   v_seed_bot_id uuid := '00000000-0000-0000-0000-00000000aaaa';
+  v_super_id   uuid := '00000000-0000-0000-0000-00000000bbbb';
+  v_super_email text := 'super-admin@siren.test';
+  v_super_pw    text := 'test-pw-12345';  -- mirrors .env.test TEST_SUPER_ADMIN_PASSWORD
   v_team_id     uuid := '5ba1eb72-ee23-4b8e-9f9c-22a12fd0fc11';
   v_player_ids  uuid[];
   v_game_ids    uuid[];
@@ -28,12 +46,27 @@ declare
   i             integer;
   q             integer;
 begin
-  -- 1. seed-bot auth.users row (idempotent). No password — never
-  --    authenticates. handle_new_user trigger creates the profile
-  --    automatically; the explicit upsert below is a belt-and-braces
-  --    safety net for older trigger variants.
+  -- 1a. seed-bot auth.users row (idempotent). No real password — never
+  --     authenticates. handle_new_user trigger creates the profile
+  --     automatically; the explicit upsert below is a belt-and-braces
+  --     safety net for older trigger variants.
+  --
+  --     IMPORTANT: GoTrue's admin.listUsers() scans every text/varchar
+  --     column on auth.users and concatenates NULL-bearing rows can
+  --     surface as `Database error finding users`. Populate the token
+  --     columns with empty strings + raw_app_meta_data/raw_user_meta_data
+  --     with empty jsonb so listUsers() and getUserById() both succeed.
   insert into auth.users (
-    id, email, instance_id, aud, role, created_at, updated_at
+    id, email, instance_id, aud, role,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token,
+    email_change_token_new, email_change, email_change_token_current,
+    reauthentication_token,
+    phone_change, phone_change_token,
+    created_at, updated_at,
+    is_super_admin, is_sso_user, is_anonymous
   )
   values (
     v_seed_bot_id,
@@ -41,14 +74,68 @@ begin
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    now(),
-    now()
+    '',                                   -- encrypted_password (never logs in)
+    now(),                                -- email_confirmed_at (skip flow)
+    jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+    '{}'::jsonb,
+    '', '', '', '', '',                   -- 5 token columns
+    '',                                   -- reauthentication_token
+    '', '',                               -- phone_change, phone_change_token
+    now(), now(),
+    false, false, false
   )
   on conflict (id) do nothing;
 
   insert into public.profiles (id, email, full_name)
   values (v_seed_bot_id, 'seed-bot@siren.local', 'Kotara Seed Bot')
   on conflict (id) do nothing;
+
+  -- 1b. test-super-admin auth.users row (idempotent). REAL bcrypt
+  --     password hash via pgcrypto crypt() so e2e/tests/auth.setup.ts
+  --     can sign in via the UI form. Cost factor 10 matches GoTrue's
+  --     default (verified against admin.createUser output on this
+  --     Supabase CLI version). If a future CLI bump rotates the
+  --     algorithm, the auth.setup spec will fail loudly on login —
+  --     that's the canary signal to switch to the Option B fallback
+  --     script which uses admin.createUser.
+  insert into auth.users (
+    id, email, instance_id, aud, role,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token,
+    email_change_token_new, email_change, email_change_token_current,
+    reauthentication_token,
+    phone_change, phone_change_token,
+    created_at, updated_at,
+    is_super_admin, is_sso_user, is_anonymous
+  )
+  values (
+    v_super_id,
+    v_super_email,
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    crypt(v_super_pw, gen_salt('bf', 10)),
+    now(),
+    jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+    jsonb_build_object('full_name', 'Super Admin'),
+    '', '', '', '', '',
+    '',
+    '', '',
+    now(), now(),
+    false, false, false
+  )
+  on conflict (id) do nothing;
+
+  -- handle_new_user creates the profile; the upsert below is a safety
+  -- net AND flips is_super_admin=true so any spec that queries the
+  -- super-admin profile sees the canonical state. auth.setup.ts also
+  -- flips this via ensureTestUser({ superAdmin: true }) — both paths
+  -- converge on the same row.
+  insert into public.profiles (id, email, full_name, is_super_admin)
+  values (v_super_id, v_super_email, 'Super Admin', true)
+  on conflict (id) do update set is_super_admin = true;
 
   -- 2. Team row. handle_new_team trigger auto-inserts the seed-bot's
   --    admin team_membership (idempotent on re-run via the unique
@@ -61,6 +148,16 @@ begin
     v_team_id, 'Kotara Koalas', 'go', 'netball', false, v_seed_bot_id
   )
   on conflict (id) do nothing;
+
+  -- 2b. Add the test-super-admin as a Kotara admin so the live-game
+  --     page route is_team_member RLS allows them to load the page.
+  --     Without this, the Kotara-optional NETBALL-02 spec at
+  --     netball-quarter-break.spec.ts:380 navigates to a "Not found"
+  --     page even though Kotara exists — the super-admin alone
+  --     doesn't bypass team RLS in the current schema.
+  insert into public.team_memberships (team_id, user_id, role)
+  values (v_team_id, v_super_id, 'admin')
+  on conflict (team_id, user_id) do nothing;
 
   -- 3. 9 active players — jersey 1..9, single-word names matching
   --    e2e/fixtures/factories.ts pool convention. enforce_max_players
