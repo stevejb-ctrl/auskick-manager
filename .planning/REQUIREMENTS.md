@@ -50,7 +50,7 @@ Requirements for this milestone (Multi-sport merge to production). Each maps to 
 - [ ] **TEST-02**: `npm run e2e` (Playwright) — all e2e specs green on merged trunk
 - [ ] **TEST-03**: `npx tsc --noEmit` clean across merged trunk
 - [ ] **TEST-04**: `npm run lint` clean across merged trunk
-- [ ] **TEST-05**: Test team Kotara Koalas (`5ba1eb72-ee23-4b8e-9f9c-22a12fd0fc11`, netball, "Go", 9 players, 5 simulated games) survives the merge as a usable seed for ongoing netball validation
+- [x] **TEST-05**: Test team Kotara Koalas (`5ba1eb72-ee23-4b8e-9f9c-22a12fd0fc11`, netball, "Go", 9 players, 5 simulated games) survives the merge as a usable seed for ongoing netball validation ✓ Phase 5 Plan 01 (2026-04-30) — `supabase/seed.sql` extended; `auditKotaraKoalas()` returns `{ present: true, gameCount: 5, playerCount: 9 }`; netball-quarter-break.spec.ts:380 Kotara-optional test FLIPPED from SKIP to PASS
 
 ### Preview deploy + production cutover
 
@@ -128,7 +128,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 | TEST-02 | Phase 5 | Pending |
 | TEST-03 | Phase 5 | Pending |
 | TEST-04 | Phase 5 | Pending |
-| TEST-05 | Phase 5 | Pending |
+| TEST-05 | Phase 5 | Complete |
 | DEPLOY-01 | Phase 6 | Pending |
 | DEPLOY-02 | Phase 6 | Pending |
 | DEPLOY-03 | Phase 7 | Pending |

@@ -153,7 +153,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 5 plans
 
 **Wave 1** *(seed-data — TEST-05 closure)*:
-- [ ] 05-01-PLAN.md — Add Kotara Koalas seed to `supabase/seed.sql` (Option A pure-SQL DO-block; falls back to `scripts/seed-kotara-koalas.mjs` if `auth.users` direct INSERT fragile across Supabase CLI versions). Closes TEST-05; flips netball-quarter-break.spec.ts:380 Kotara-optional test from SKIP to PASS.
+- [x] 05-01-PLAN.md — Added Kotara Koalas seed to `supabase/seed.sql` (Option A pure-SQL DO-block worked; Option B fallback not triggered). Closes TEST-05; netball-quarter-break.spec.ts:380 Kotara-optional test FLIPPED from SKIP to PASS. Full e2e suite now 52 PASS / 1 SKIP (PROD-04 fixme only). ✓ 2026-04-30
 
 **Wave 2** *(blocked on 05-01 — pure refactor)*:
 - [ ] 05-02-PLAN.md — Extract `waitForAdminHydration(switchLocator, opts?)` to `e2e/helpers/admin-hydration.ts`; refactor settings.spec.ts (×1) + roster.spec.ts (×2) + game-edit.spec.ts cross-reference comment. Closes Phase-3 deferred Side-finding #3.
@@ -215,6 +215,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Schema reconciliation | 3/3 | ✓ Complete | 2026-04-29 |
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
 | 4. Netball verification on merged trunk | 7/7 | ✓ Complete | 2026-05-01 |
-| 5. Test + type green | 0/5 | Planned | - |
+| 5. Test + type green | 1/5 | In progress | - |
 | 6. Preview deploy + manual validation | 0/TBD | Not started | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
