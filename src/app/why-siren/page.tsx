@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 export default function WhySirenPage() {
   return (
     <>
+      <MarketingBanner />
       <MarketingHeader />
       <main>
         {/* Page hero — short, no CTA. The whole page is the setup. */}
@@ -30,11 +32,13 @@ export default function WhySirenPage() {
           />
           <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-24">
             <RevealOnScroll>
-              <span className="inline-flex items-center rounded-full border border-warn/30 bg-warn-soft px-3 py-1 text-[11px] font-bold uppercase tracking-micro text-warn">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
                 Why Siren
-              </span>
-              <h1 className="mt-5 text-4xl font-bold tracking-tightest text-ink sm:text-5xl md:text-6xl">
-                Built for the kid who&apos;s been at full-back all quarter.
+              </p>
+              <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl">
+                Built for the kid who&apos;s been at{" "}
+                <em className="font-serif font-normal italic">full-back</em>{" "}
+                all quarter.
               </h1>
               <p className="mt-6 max-w-2xl text-lg text-ink-dim sm:text-xl">
                 The sideline tool that tracks where every kid has played,
@@ -48,11 +52,12 @@ export default function WhySirenPage() {
         <section className="border-b border-hairline bg-warm">
           <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
-              <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
                 The sideline reality
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
-                Three minutes until the next siren.
+              </p>
+              <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
+                Three minutes until the next{" "}
+                <em className="font-serif font-normal italic">siren</em>.
               </h2>
               <div className="mt-6 space-y-5 text-lg leading-relaxed text-ink-dim">
                 <p>
@@ -78,11 +83,12 @@ export default function WhySirenPage() {
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-28">
             <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-2 lg:gap-16">
               <RevealOnScroll>
-                <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
                   The difference
-                </span>
-                <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
-                  Zones, not just minutes.
+                </p>
+                <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
+                  Zones, not just{" "}
+                  <em className="font-serif font-normal italic">minutes</em>.
                 </h2>
                 <div className="mt-6 space-y-5 text-base leading-relaxed text-ink-dim sm:text-lg">
                   <p>
@@ -125,11 +131,13 @@ export default function WhySirenPage() {
         <section className="border-b border-hairline bg-warm">
           <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
-              <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
                 Built for our game
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
-                Not a generic rotation tracker.
+              </p>
+              <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
+                Not a{" "}
+                <em className="font-serif font-normal italic">generic</em>{" "}
+                rotation tracker.
               </h2>
               <div className="mt-6 space-y-5 text-lg leading-relaxed text-ink-dim">
                 <p>
@@ -149,9 +157,9 @@ export default function WhySirenPage() {
           <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
               <div className="rounded-lg border border-hairline bg-surface p-6 shadow-card sm:p-8">
-                <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
                   A note from the coach who built it
-                </span>
+                </p>
                 <div className="mt-4 space-y-4 text-base leading-relaxed text-ink-dim">
                   <p>
                     I built Siren because I got sick of juggling a clipboard on
