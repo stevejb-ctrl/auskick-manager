@@ -191,7 +191,36 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A human has run an actual AFL game flow end-to-end on the preview (lineup, scoring, quarter-break, summary card, share link) and confirmed no errors
   3. A human has run an actual netball game flow end-to-end on the preview (lineup, scoring, quarter-break, stats dashboard, summary card) and confirmed no errors
   4. Existing AFL share links (`/run/[token]` pattern) resolve correctly on the preview — no RLS errors, no 404s
-**Plans**: TBD
+**Plans**: 5 plans (3 autonomous prep + 2 BLOCKED on user creds per 06-CONTEXT.md)
+
+**Wave 1** *(autonomous — pre-deploy hygiene)*:
+- [ ] 06-01-PLAN.md — Author `06-DEPLOY-CHECKLIST.md` — env-var matrix (3 critical + 7 optional), `vercel.json` audit, `next.config.mjs` audit, build-step sanity, 27-migration enumeration
+
+**Wave 2** *(autonomous — runbook authoring; blocked on 06-01)*:
+- [ ] 06-02-PLAN.md — Author `06-DEPLOY-RUNBOOK.md` — step-by-step Phase A (Supabase clone) → Phase B (apply 0024..0027) → Phase C (Vercel preview env) → Phase D (deploy trigger; both git-push + CLI paths) → Phase E (smoke check) → Rollback path
+
+**Wave 3** *(autonomous — verify script; blocked on 06-01 + 06-02)*:
+- [ ] 06-03-PLAN.md — Author `scripts/verify-prod-clone.mjs` — read-only Node ESM script, runs Phase 2 §6 acceptance queries (Q1 migration count, Q3 no null sports, Q4 distinct sports include 'afl', Q5 share-token sample), exits 0 only if all pass
+
+**Wave 4** *(autonomous: false; BLOCKED on user creds — Supabase prod clone + Vercel preview env)*:
+- [ ] 06-04-PLAN.md — Execute the runbook end-to-end with user; record evidence in `06-04-SUMMARY.md` (preview URL + clone project ref + verify-script output). Closes DEPLOY-01.
+
+**Wave 5** *(autonomous: false; BLOCKED on 06-04 completion)*:
+- [ ] 06-05-PLAN.md — Manual AFL flow + netball flow + share-link smoke walkthrough on the live preview; record per-surface PASS/FAIL in `06-VALIDATION.md`. Closes DEPLOY-02.
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- `pre-merge/main` (`e9073dd…`) and `pre-merge/multi-sport` (`e13e787c…`) tags MUST stay frozen (D-21 carried forward)
+- Phase 5 baseline gauntlet (tsc + vitest 169/169 + lint + e2e 52/1) MUST stay green — Plans 06-01..03 author DOCUMENTATION + ONE script only; `src/`, `supabase/migrations/`, `e2e/tests/`, `e2e/fixtures/`, `e2e/helpers/` MUST NOT be touched
+- `supabase/seed.sql` MUST NOT be modified (Kotara local-dev seed; prod clone uses backup-restore)
+- `scripts/verify-prod-clone.mjs` MUST be read-only (zero `.insert` / `.update` / `.delete` / `.rpc` calls)
+- Plans 06-04 + 06-05 MUST NOT touch the Vercel "Production" environment scope — only "Preview" (D-CONTEXT-no-prod-touch carry-forward)
+- Plan 06-04 + 06-05 evidence files MUST NOT log JWTs (defensive grep for `eyJ…` pattern at end of each)
+- DEPLOY-04 (post-cutover smoke test) is Phase 7's job — Phase 6 plans MUST NOT include it
+- pause-event persistence bug stays deferred (Phase 3 CONTEXT carry-forward)
+- `deleteTestUser` cleanup race stays deferred (Phase 5 deferred carry-forward)
+- ABSTRACT-01 / PROD-04 CI guards stay backlog (Phase 3 CONTEXT carry-forward)
+
+**UI hint**: yes (manual validation on the live preview at Plan 06-05)
 
 ### Phase 7: Production cutover + smoke test
 **Goal**: `main` is fast-forwarded to the merged trunk, production Supabase has executed the new migrations, and the production environment is confirmed healthy for both existing AFL teams and new netball capability
@@ -216,5 +245,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
 | 4. Netball verification on merged trunk | 7/7 | ✓ Complete | 2026-05-01 |
 | 5. Test + type green | 5/5 | ✓ Complete | 2026-05-01 |
-| 6. Preview deploy + manual validation | 0/TBD | Ready to plan | - |
+| 6. Preview deploy + manual validation | 0/5 | In progress (planning complete; Plans 06-01..03 ready; Plans 06-04 + 06-05 BLOCKED on user creds) | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
