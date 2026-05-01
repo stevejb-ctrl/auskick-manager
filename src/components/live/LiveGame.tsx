@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   clockElapsedMs,
@@ -200,6 +201,7 @@ export function LiveGame({
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
@@ -681,6 +683,10 @@ export function LiveGame({
       // both advances the quarter and starts the clock. The StartQuarterModal
       // only gates Q2–Q4, since those run through the QuarterBreak screen.
       startClock();
+      // Server-rendered events list is now stale; refresh so the page
+      // picks up the new quarter_start event and re-renders into LIVE state.
+      // Mirrors Plan 05-04's netball fix.
+      router.refresh();
     });
   }
 
@@ -699,7 +705,14 @@ export function LiveGame({
     endCurrentQuarter(quarterMs);
     startTransition(async () => {
       const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
-      if (!result.success) setError(result.error);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      // Refresh so the page picks up the quarter_end event and re-renders
+      // into the Q-break shell (or finalised state for Q4). Plan 05-04
+      // applied the same pattern to netball.
+      router.refresh();
     });
   }
 

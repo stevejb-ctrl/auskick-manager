@@ -126,9 +126,17 @@ export async function startQuarter(
   gameId: string,
   quarter: number
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "quarter_start", {
+  const result = await insertEvent(auth, gameId, "quarter_start", {
     metadata: { quarter },
   });
+  if (!result.success) return result;
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${auth.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return result;
 }
 
 export async function endQuarter(
@@ -141,6 +149,20 @@ export async function endQuarter(
     metadata: { quarter, elapsed_ms: elapsedMs },
   });
   if (!result.success) return result;
+
+  // Non-final quarter ends still need to revalidate so the live page rerenders
+  // into the Q-break shell. Q4 finalisation falls through to its own
+  // revalidate block below (which also revalidates /games + /stats).
+  if (quarter < 4) {
+    if (auth.kind === "team") {
+      const w = await resolveWriter(auth, gameId);
+      if (w.error) return { success: false, error: w.error };
+      revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+    } else {
+      revalidatePath(`/run/${auth.token}`, "layout");
+    }
+    return { success: true };
+  }
 
   // Q4 end finalises the match: append a game_finalised event (so the replay
   // state reflects it) and flip the game row to "completed" so the dashboard

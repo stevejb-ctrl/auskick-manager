@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
@@ -112,6 +113,7 @@ export function QuarterBreak({
 
   const [draft, setDraft] = useState<Lineup>(lineup);
   const [selected, setSelected] = useState<string | null>(null);
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [useReshuffle, setUseReshuffle] = useState(true);
@@ -278,6 +280,10 @@ export function QuarterBreak({
         return;
       }
       onStarted();
+      // Server-rendered events list is now stale; refresh so the page
+      // picks up the new quarter_start event and re-renders into LIVE.
+      // Mirrors Plan 05-04's netball fix.
+      router.refresh();
     });
   }
 
