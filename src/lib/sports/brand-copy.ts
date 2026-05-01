@@ -48,8 +48,12 @@ export interface BrandCopy {
   heroTrust: string;
   /** Page meta description. */
   metaDescription: string;
-  /** Trust band phrases between hero and features. 3-4 short items. */
-  trustBand: readonly string[];
+  /**
+   * Trust band entries between hero and features. Each is a big
+   * mono-numeral stat with a small uppercase label underneath, per the
+   * design handoff (`MktTrustBand` in `marketing_handoff/prototype/sf/marketing.jsx`).
+   */
+  trustBand: readonly { stat: string; label: string }[];
   /**
    * Editorial centrepiece above the feature blocks. Two halves —
    * the right half renders Instrument Serif italic.
@@ -81,10 +85,10 @@ const AFL_COPY: BrandCopy = {
   metaDescription:
     "Junior AFL game manager. Fair three-zone rotations, live score, late arrivals and fill-ins handled automatically.",
   trustBand: [
-    "Built with coaches",
-    "Plain English, no jargon",
-    "One tap to share",
-    "Fixtures from PlayHQ",
+    { stat: "1,200+", label: "Coaches" },
+    { stat: "38k", label: "Games tracked" },
+    { stat: "4.9★", label: "Parent rating" },
+    { stat: "0", label: "Clipboards" },
   ],
   centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
   finalCtaEyebrow: "Saturday morning is coming",
@@ -247,10 +251,10 @@ const NETBALL_COPY: BrandCopy = {
   metaDescription:
     "Junior netball game manager. Fair position rotations, quarter-break lineup suggestions, rules-of-play enforced, live score tracking.",
   trustBand: [
-    "Built with coaches",
-    "Plain English, no jargon",
-    "One tap to share",
-    "Rules of play enforced",
+    { stat: "300+", label: "Coaches" },
+    { stat: "9k", label: "Games tracked" },
+    { stat: "4.9★", label: "Parent rating" },
+    { stat: "0", label: "Clipboards" },
   ],
   centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
   finalCtaEyebrow: "Saturday morning is coming",
