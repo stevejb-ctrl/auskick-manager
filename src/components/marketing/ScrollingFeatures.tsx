@@ -114,7 +114,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
           {/* Sticky offset is `top-16` (64px) to clear the marketing
               header (sticky top-0, ~52px tall + hairline). At top-4 the
               phone slid behind the header on mobile. */}
-          <div className="sticky top-16 z-10 mx-auto mb-6 w-full max-w-[260px]">
+          <div className="sticky top-16 z-10 mx-auto mb-6 w-full max-w-[300px]">
             <PhoneFrame className="relative">
               {features.map((f, i) => (
                 <Image
@@ -122,7 +122,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                   src={f.image}
                   alt={f.imageAlt}
                   fill
-                  sizes="260px"
+                  sizes="300px"
                   priority={i === 0}
                   className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
                     i === activeIndex ? "opacity-100" : "opacity-0"
@@ -315,11 +315,15 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
 
 // ─── Overlay card sitting on the phone screen on mobile ────────────────
 //
-// Lifted well above the phone's rounded bottom corners
-// (`rounded-[2.1rem]` ≈ 33.6px curve radius on PhoneFrame). At low
-// `bottom-*` values the card's flat bottom corners get diagonally clipped
-// by the curve and look chopped on iPhone Safari. `bottom-12` (48px)
-// keeps the whole card inside the rectangular safe zone.
+// Tap to expand — collapsed shows position counter + eyebrow + italic
+// title; expanded reveals the same body paragraph and bullet list the
+// desktop layout shows in its copy column. Resets to collapsed when
+// `activeIndex` changes (the parent re-keys this component).
+//
+// Lifted to `bottom-12` (48px) to clear the phone screen's
+// `rounded-[2.1rem]` (~33.6px) bottom corners — at lower offsets the
+// rectangular card's bottom corners get diagonally clipped by the curve
+// and look chopped on iPhone Safari.
 function MobileOverlayCard({
   feature,
   index,
@@ -329,12 +333,16 @@ function MobileOverlayCard({
   index: number;
   total: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div
-      className="absolute inset-x-3 bottom-12 z-10 motion-safe:animate-fade-in"
-      aria-hidden="true"
-    >
-      <div className="rounded-md bg-ink/[0.92] px-3 py-2.5 text-warm shadow-modal backdrop-blur-sm">
+    <div className="absolute inset-x-3 bottom-12 z-10 motion-safe:animate-fade-in">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        aria-label={expanded ? "Hide feature details" : "Show feature details"}
+        className="block w-full rounded-md bg-ink/[0.92] px-3 py-2.5 text-left text-warm shadow-modal backdrop-blur-sm transition-colors duration-fast ease-out-quart hover:bg-ink/[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alarm/60"
+      >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-alarm">
             {PADDED(index + 1)}/{PADDED(total)}
@@ -342,11 +350,48 @@ function MobileOverlayCard({
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-warm/55">
             {feature.eyebrow}
           </span>
+          {/* Expand/collapse affordance */}
+          <span
+            aria-hidden="true"
+            className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-full bg-warm/10 font-mono text-[11px] font-bold leading-none text-warm/70"
+          >
+            {expanded ? "−" : "+"}
+          </span>
         </div>
         <h3 className="mt-1 text-[13px] font-semibold leading-tight tracking-tightest text-warm [text-wrap:balance]">
           <TitleAccent parts={feature.title} italicClassName="text-warm/90" />
         </h3>
-      </div>
+
+        {/* Expandable body — uses the grid-template-rows accordion trick
+            so height animates smoothly between 0fr (collapsed) and 1fr
+            (auto-fitting expanded). The inner div has overflow:hidden so
+            partial heights clip cleanly during the transition. */}
+        <div
+          className={`grid transition-[grid-template-rows] duration-base ease-out-quart motion-reduce:transition-none ${
+            expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <p className="mt-2.5 text-[12px] leading-snug text-warm/75">
+              {feature.body}
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {feature.bullets.map((b) => (
+                <li
+                  key={b}
+                  className="flex gap-2 text-[12px] leading-snug text-warm/85"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-alarm"
+                  />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </button>
     </div>
   );
 }
