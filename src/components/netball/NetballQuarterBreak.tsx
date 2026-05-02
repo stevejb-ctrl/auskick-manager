@@ -301,10 +301,21 @@ export function NetballQuarterBreak({
     thirdMs,
   ]);
 
-  // ─── Draft state + reshuffle toggle ─────────────────────────
+  // ─── Draft state + lineup-build mode ─────────────────────────
+  // 3-mode toggle:
+  //   - "suggested": run the fairness rebalancer for the next quarter
+  //     (the default — what coaches who don't micromanage want).
+  //   - "keep": carry last quarter's lineup forward unchanged. Useful
+  //     when the rotation already feels right and the coach just
+  //     wants to keep playing.
+  //   - "manual": clear the court entirely, park the candidate pool
+  //     on the bench, and let the coach build the lineup themselves
+  //     position-by-position. Mirrors the AFL Q-break.
   const [draft, setDraft] = useState<GenericLineup>(suggestedLineup);
   const [selected, setSelected] = useState<string | null>(null);
-  const [useReshuffle, setUseReshuffle] = useState(true);
+  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">(
+    "suggested",
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   // Phase 5: router.refresh() after startNetballQuarter success so the
@@ -335,14 +346,29 @@ export function NetballQuarterBreak({
   // recorded. (Mirrors AFL's StartQuarterModal pattern.)
   const [pendingStartQuarter, setPendingStartQuarter] = useState<number | null>(null);
 
-  // Refresh draft when toggle flips or suggestion changes. Then post-
+  // Manual-mode seed: every position empty, candidatePool sitting on
+  // the bench. Coach builds the lineup from scratch via tap-tap-to-
+  // place. Memoised so the useEffect-driven draft swap doesn't
+  // rebuild a new bench-array every render and re-trigger itself.
+  const manualLineup = useMemo<GenericLineup>(() => {
+    const positionsObj: Record<string, string[]> = {};
+    for (const id of positions) positionsObj[id] = [];
+    return { positions: positionsObj, bench: [...candidatePool] };
+  }, [positions, candidatePool]);
+
+  // Refresh draft when mode flips or suggestion changes. Then post-
   // process: any forcedBenchIds (recently-recovered players) the
   // suggester put on court get SWAPPED with whoever's first on the
   // bench, so the slot stays filled and the recovered player lands on
   // bench by default. Coach can manually swap them back into a slot
   // if they want to.
   useEffect(() => {
-    const base = useReshuffle ? suggestedLineup : previousLineup;
+    const base =
+      lineupMode === "suggested"
+        ? suggestedLineup
+        : lineupMode === "manual"
+        ? manualLineup
+        : previousLineup;
     if (forcedBenchIds.size === 0) {
       setDraft(base);
       setSelected(null);
@@ -386,7 +412,7 @@ export function NetballQuarterBreak({
     });
     setDraft(next);
     setSelected(null);
-  }, [useReshuffle, suggestedLineup, previousLineup, forcedBenchIds]);
+  }, [lineupMode, suggestedLineup, previousLineup, manualLineup, forcedBenchIds]);
 
   // ─── Fairness score (combined season + this-game position counts) ──
   const fairness = useMemo(() => {
@@ -538,8 +564,10 @@ export function NetballQuarterBreak({
     setSelected(null);
   }
 
-  function handleToggleReshuffle() {
-    setUseReshuffle((v) => !v);
+  function handleModeChange(next: "suggested" | "keep" | "manual") {
+    if (next === lineupMode) return;
+    setLineupMode(next);
+    setSelected(null);
   }
 
   // ─── Sidelined-tile long-press → un-mark handlers ──────────
@@ -667,20 +695,36 @@ export function NetballQuarterBreak({
             </p>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            variant={useReshuffle ? "primary" : "secondary"}
-            onClick={handleToggleReshuffle}
+            variant={lineupMode === "suggested" ? "primary" : "secondary"}
+            onClick={() => handleModeChange("suggested")}
           >
-            {useReshuffle ? "✓ Using suggested reshuffle" : "Apply suggested reshuffle"}
+            {lineupMode === "suggested" ? "✓ Suggested reshuffle" : "Suggested reshuffle"}
           </Button>
-          <span className="text-xs text-ink-dim">
-            {useReshuffle
-              ? "Tap to keep last quarter's lineup instead."
-              : `Tap to auto-rebalance for Q${nextQuarter}.`}
-          </span>
+          <Button
+            size="sm"
+            variant={lineupMode === "keep" ? "primary" : "secondary"}
+            onClick={() => handleModeChange("keep")}
+          >
+            {lineupMode === "keep" ? "✓ Keep last quarter" : "Keep last quarter"}
+          </Button>
+          <Button
+            size="sm"
+            variant={lineupMode === "manual" ? "primary" : "secondary"}
+            onClick={() => handleModeChange("manual")}
+          >
+            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+          </Button>
         </div>
+        <p className="mt-2 text-xs text-ink-dim">
+          {lineupMode === "suggested"
+            ? `Auto-rebalanced for Q${nextQuarter} — players who've had less court time get priority.`
+            : lineupMode === "keep"
+            ? "Carrying last quarter's lineup forward unchanged."
+            : "Court is empty — tap a bench player, then a position to place them."}
+        </p>
       </div>
 
       <p className="px-1 text-xs text-ink-dim">
