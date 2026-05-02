@@ -280,25 +280,34 @@ const NETBALL_COPY: BrandCopy = {
         "Coefficient-of-variation fairness score (0–100)",
         "Suggests next-quarter lineup with one tap",
       ],
-      image: "/marketing/screenshots/netball/rotations.png",
-      imageAlt: "Netball player-statistics table — games, minutes, and per-third %, with GS/GA/WA/etc. breakdowns under each",
+      // Same screenshot as the desktop hero phone. Reused here so
+      // mobile visitors (where the hero phone is `hidden lg:block`)
+      // see the live court as the first product visual instead of
+      // a stats table. The rotations *story* still lands via the
+      // copy + bullets above; the screenshot just primes recognition.
+      image: "/marketing/screenshots/netball/live-game.png",
+      imageAlt: "Netball live court — Bondi Bandits vs Tamarama Tigers, Q4 in progress, all 7 positions filled",
     },
     {
-      id: "rules",
-      eyebrow: "Rules of play",
+      // Mirrors AFL's "scoring" feature copy, with the only tweak
+      // being "log goals for both sides" (netball is goals-only —
+      // no behinds, no points calc) per Steve's "same as footy
+      // tweaked for netball" direction.
+      id: "scoring",
+      eyebrow: "Score tracking",
       title: {
-        before: "The lineup builder already ",
-        italic: "knows",
-        after: " the rules.",
+        before: "Keep the scoreboard ",
+        italic: "honest",
+        after: " — if you want to.",
       },
-      body: "GS can’t leave the attack third. GK can’t leave defence. Wings can’t enter the goal circles. Siren’s lineup picker greys out ineligible positions so a new coach doesn’t field an illegal lineup on page one.",
+      body: "Scoring is completely optional. If you do use it, log goals for both sides with one tap. A goal song can play automatically — or not. Your call.",
       bullets: [
-        "Zone eligibility enforced for all 7 positions",
-        "Modified-netball age groups (Set, Go, 11u, 12u, 13u)",
-        "Open (14+) for standard 7-a-side",
+        "Score tracking is opt-in — skip it if you don’t need it",
+        "Opponent score tracked alongside yours",
+        "Optional goal song — enable it or leave it off",
       ],
-      image: "/marketing/screenshots/flexibility.png",
-      imageAlt: "Lineup picker with ineligible positions disabled",
+      image: "/marketing/screenshots/netball/scoring.png",
+      imageAlt: "Netball score view — tap +Goal for the home shooter, +G for the opposition",
     },
     {
       id: "quarterly",
@@ -308,11 +317,17 @@ const NETBALL_COPY: BrandCopy = {
         italic: "count",
         after: ".",
       },
-      body: "Netball gives you four chances to rotate — that’s it. At every break, Siren lines up the next quarter’s suggested squad, weighted by who’s played least and who hasn’t had a turn at their preferred position.",
+      // Reframed from "Netball gives you four chances to rotate"
+      // (which read as a hard rule) to a softer "most teams
+      // rotate at quarter breaks" — acknowledges that some teams
+      // do use mid-quarter subs, and the new third bullet pairs
+      // with that. Body + bullets aligned to the actual product:
+      // mid-quarter subs are supported.
+      body: "Most teams rotate positions at quarter breaks. At every break, Siren lines up the next quarter’s suggested squad, weighted by who’s played least and who hasn’t had a turn at their preferred position.",
       bullets: [
         "One tap to accept the suggested lineup",
         "Drag-and-drop to rearrange manually",
-        "No mid-play subs — Siren won’t let you break the rules",
+        "Mid-quarter subs available if this is how you do it",
       ],
       image: "/marketing/screenshots/netball/quarterly.png",
       imageAlt: "Netball Q-break with the suggested-reshuffle toggle on, showing per-third lineup cards and time bars",
@@ -406,8 +421,8 @@ const NETBALL_COPY: BrandCopy = {
         "Per-player breakdown of positions played",
         "Leading scorer across the season",
       ],
-      image: "/marketing/screenshots/stats.png",
-      imageAlt: "Netball season stats dashboard",
+      image: "/marketing/screenshots/netball/stats.png",
+      imageAlt: "Netball player-statistics table — games, minutes, and per-third %, with GS/GA/WA/etc. breakdowns under each",
     },
   ],
 };
