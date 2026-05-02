@@ -104,7 +104,7 @@ export function GameHeader({
           SirenPulseHalo so it briefly halos at sirenic moments
           (quarter-end hooter, FT). When clockPulseKey is null the
           halo span is omitted entirely — no animation, no DOM cost. */}
-      <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center">
+      <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
         <button
           type="button"
           onClick={onClockTap}

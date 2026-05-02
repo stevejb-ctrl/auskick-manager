@@ -186,7 +186,7 @@ export function GameSummaryCard({
   // appear (the "final siren" beat). The slide-up animation +
   // pulse compose into one arrival moment.
   return (
-    <SirenPulseHalo triggerKey="ft" size="lg" display="block">
+    <SirenPulseHalo triggerKey="ft" size="lg" display="block" className="rounded-md">
       <div className="animate-slide-up rounded-md border border-hairline bg-surface p-4 shadow-card">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Game summary</h3>
