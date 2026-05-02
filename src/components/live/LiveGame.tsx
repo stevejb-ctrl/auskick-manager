@@ -745,12 +745,15 @@ export function LiveGame({
   const isFinished = finalised || (currentQuarter >= 4 && quarterEnded);
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
-  // Tracks whether the GM has dismissed the await-kickoff modal so
-  // they can adjust the lineup before starting the clock. The modal
-  // auto-shows whenever conditions are met, but the GM can press
-  // "Back to lineup" to dismiss it; a small "Start Q{n}" page button
-  // re-shows it. Reset on every quarter transition so a new quarter's
-  // modal starts undismissed.
+  // Kickoff modal state. The modal opens by DEFAULT whenever the
+  // game is awaiting kickoff (pre-Q1, or post-QuarterBreak before
+  // the clock-start CTA fires) — that's the prominent "Ready for
+  // Q{n}" affordance the GM expects. If they tap "Back to lineup"
+  // the modal closes and a page-level "Start Q{n}" button surfaces
+  // so they can re-trigger when ready. The page button is
+  // INTENTIONALLY hidden while the modal is up — only one kickoff
+  // affordance visible at a time. Reset on every quarter transition
+  // so each new quarter's modal auto-shows.
   const [startModalDismissed, setStartModalDismissed] = useState(false);
   useEffect(() => {
     setStartModalDismissed(false);
@@ -980,10 +983,11 @@ export function LiveGame({
         </div>
       )}
 
-      {/* Re-trigger button for the await-kickoff modal. Only visible
-          when the modal has been dismissed via "Back to lineup" so
-          the GM can resume kickoff once they're done adjusting. Lives
-          above the field where the legacy "Start Q1" button sat. */}
+      {/* Page-level "Start Q{n}" trigger — appears ONLY when the
+          GM has dismissed the await-kickoff modal via "Back to
+          lineup", giving them a way to re-open it when they're
+          ready. Hidden while the modal is up so there's only one
+          kickoff affordance visible at a time. */}
       {!isFinished &&
         !quarterEnded &&
         !running &&

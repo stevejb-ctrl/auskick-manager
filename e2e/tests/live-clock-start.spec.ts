@@ -99,14 +99,15 @@ test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", 
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Modal renders on page load with "Ready for Q1". No need to tap
-  // a page-level button first — the modal IS the kickoff trigger.
+  // Modal auto-shows on page load with "Ready for Q1". The page-
+  // level "Start Q1" button is hidden while the modal is up — only
+  // ONE kickoff affordance visible at a time. The button only
+  // surfaces after the GM dismisses with "Back to lineup".
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
-  // Exactly one "Start Q1" button on the page (the modal's CTA).
-  // The duplicate page-level "Start Q1" button has been removed.
+  // Exactly one "Start Q1" button in the DOM — the modal's CTA.
   await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(1);
 
   // Tap it. Single tap = server quarter_start + local clock start.
