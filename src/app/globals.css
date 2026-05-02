@@ -133,6 +133,27 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   One-shot variant of the same halo. Used inside the live-game UI to
+   acknowledge moments that ARE a siren going off — quarter-end hooter,
+   game finalised, sub committed. Same colour stops, same radius
+   custom property; the only differences from the infinite variant are
+   `iteration-count: 1` and `forwards` so the halo lands and fades to
+   nothing rather than looping. The SirenPulseHalo React atom toggles
+   this class via a re-key trick so each new triggerKey value restarts
+   the animation cleanly.
+   ───────────────────────────────────────────────────────────────────── */
+@keyframes siren-pulse-once {
+  0%   { box-shadow: 0 0 0 0   var(--siren-pulse-from, rgba(217, 68, 45, 0.55)); }
+  100% { box-shadow: 0 0 0 var(--siren-pulse-r, 30px) var(--siren-pulse-to, rgba(217, 68, 45, 0)); }
+}
+.siren-pulse-once {
+  animation: siren-pulse-once 1.4s ease-out forwards 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .siren-pulse-once { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    Hide native scrollbar utility — opt-in via class.
    ───────────────────────────────────────────────────────────────────── */
 .no-scrollbar {

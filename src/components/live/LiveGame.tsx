@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
@@ -220,6 +221,12 @@ export function LiveGame({
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
+  // Bumped from the hooter trigger below so GameHeader's clock pill
+  // halos with the brand siren pulse exactly when the quarter ends.
+  // Initial null suppresses the pulse on first render (a fresh page
+  // load shouldn't auto-pulse — only sirenic moments should).
+  // Mirrors NetballLiveGame's clockPulseKey state.
+  const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
   // When set, the coach is choosing a replacement for an on-field player about
   // to be marked injured. Null means no picker open.
@@ -843,6 +850,9 @@ export function LiveGame({
         // accruing while the GM reads the modal.
         pauseClock();
         setShowQuarterEndModal(true);
+        // Brand pulse on the GameHeader clock pill — re-keys per
+        // quarter so each hooter event fires exactly one halo.
+        setClockPulseKey(currentQuarter);
         if (window.matchMedia("(hover: none)").matches) {
           navigator.vibrate?.([200, 100, 200]);
         }
@@ -939,23 +949,31 @@ export function LiveGame({
         isFinished={isFinished}
         clockMultiplier={clockMultiplier}
         isPending={isPending}
+        clockPulseKey={clockPulseKey}
       />
 
-      {/* Swap-done toast — flashes briefly after a substitution lands */}
+      {/* Swap-done toast — flashes briefly after a substitution lands.
+          Wrapped in SirenPulseHalo so the brand pulse halos the toast
+          on appearance. The toast is conditionally rendered (mounts +
+          unmounts each swap), so a constant triggerKey is enough — the
+          halo's inner span re-mounts with the wrapper and the
+          animation restarts each time. */}
       {swapToast && !isPreGame && !isFinished && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card"
-        >
-          <span
-            aria-hidden
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
+        <SirenPulseHalo triggerKey="swap" size="sm" display="block">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card"
           >
-            ✓
-          </span>
-          <span className="text-xs font-semibold">{swapToast}</span>
-        </div>
+            <span
+              aria-hidden
+              className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
+            >
+              ✓
+            </span>
+            <span className="text-xs font-semibold">{swapToast}</span>
+          </div>
+        </SirenPulseHalo>
       )}
 
       {/* Undo last score — toast (8 s) then persistent chip */}

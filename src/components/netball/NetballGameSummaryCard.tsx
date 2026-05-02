@@ -18,6 +18,7 @@
 import { useState } from "react";
 import type { Player } from "@/lib/types";
 import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 interface Props {
   teamName: string;
@@ -203,10 +204,15 @@ export function NetballGameSummaryCard({
     }
   }
 
+  // The card only mounts at FT — wrapping it in SirenPulseHalo
+  // with a constant triggerKey makes the brand halo fire once on
+  // appear (the "final siren" beat). The slide-up animation +
+  // pulse compose into one arrival moment.
   return (
-    <div className="animate-slide-up rounded-md border border-hairline bg-surface p-4 shadow-card">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink">Game summary</h3>
+    <SirenPulseHalo triggerKey="ft" size="lg" display="block">
+      <div className="animate-slide-up rounded-md border border-hairline bg-surface p-4 shadow-card">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-ink">Game summary</h3>
         <button
           type="button"
           onClick={handleCopy}
@@ -224,6 +230,7 @@ export function NetballGameSummaryCard({
       <p className="mt-2 text-xs text-ink-mute">
         Tap the text to select it, or use the button above.
       </p>
-    </div>
+      </div>
+    </SirenPulseHalo>
   );
 }
