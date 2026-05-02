@@ -126,7 +126,14 @@ export function QuarterBreak({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [useReshuffle, setUseReshuffle] = useState(true);
+  // Q-break lineup-build mode:
+  //   "suggested" — auto-rebalance via the fairness suggester (default).
+  //   "keep"      — carry last quarter's lineup through unchanged.
+  //   "manual"    — wipe to a blank field, all players on bench, coach
+  //                 builds the next quarter from scratch.
+  // All three are fully editable via tap-tap below; the toggle just
+  // sets the starting state when the coach lands on the Q-break.
+  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">("suggested");
 
   const playersById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -265,15 +272,31 @@ export function QuarterBreak({
     seasonAvailability,
   ]);
 
+  // Manual-mode draft: wipe positions, park every healthy player on
+  // the bench (sidelined players stay on bench too — they're appended
+  // separately below). Coach builds from this blank slate via tap-tap.
+  const manualLineup = useMemo<Lineup>(() => {
+    return {
+      back: [],
+      hback: [],
+      mid: [],
+      hfwd: [],
+      fwd: [],
+      bench: healthyForLineup.map((p) => p.id),
+    };
+  }, [healthyForLineup]);
+
   useEffect(() => {
     if (availableForLineup.length === 0) return;
-    setDraft(useReshuffle ? suggestedLineup : lineup);
+    const next =
+      lineupMode === "suggested"
+        ? suggestedLineup
+        : lineupMode === "manual"
+          ? manualLineup
+          : lineup;
+    setDraft(next);
     setSelected(null);
-  }, [useReshuffle, suggestedLineup, lineup, availableForLineup.length]);
-
-  function handleToggleReshuffle() {
-    setUseReshuffle((v) => !v);
-  }
+  }, [lineupMode, suggestedLineup, manualLineup, lineup, availableForLineup.length]);
 
   function lineupsEqual(a: Lineup, b: Lineup): boolean {
     const keys: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
@@ -349,20 +372,36 @@ export function QuarterBreak({
             </div>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            variant={useReshuffle ? "primary" : "secondary"}
-            onClick={handleToggleReshuffle}
+            variant={lineupMode === "suggested" ? "primary" : "secondary"}
+            onClick={() => setLineupMode("suggested")}
           >
-            {useReshuffle ? "✓ Using suggested reshuffle" : "Apply suggested reshuffle"}
+            {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
           </Button>
-          <span className="text-xs text-ink-dim">
-            {useReshuffle
-              ? "Tap to keep last quarter's lineup instead."
-              : "Tap to auto-rebalance zones for Q" + nextQuarter + "."}
-          </span>
+          <Button
+            size="sm"
+            variant={lineupMode === "keep" ? "primary" : "secondary"}
+            onClick={() => setLineupMode("keep")}
+          >
+            {lineupMode === "keep" ? "✓ Keep last quarter" : "Keep last quarter"}
+          </Button>
+          <Button
+            size="sm"
+            variant={lineupMode === "manual" ? "primary" : "secondary"}
+            onClick={() => setLineupMode("manual")}
+          >
+            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+          </Button>
         </div>
+        <p className="mt-2 text-xs text-ink-dim">
+          {lineupMode === "suggested"
+            ? `Auto-rebalanced for Q${nextQuarter} — least-played zones get priority.`
+            : lineupMode === "keep"
+              ? `Carries last quarter's lineup straight into Q${nextQuarter} — no rotation.`
+              : `Blank field for Q${nextQuarter}. Tap a position, then a bench player to fill it.`}
+        </p>
       </div>
 
       {availableForLineup.length > 0 && (

@@ -94,6 +94,15 @@ export function LineupPicker({
 }: LineupPickerProps) {
   const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
 
+  // Lineup-build mode. "suggested" runs the fairness suggester to
+  // pre-fill the field (the legacy default — coaches who don't
+  // micromanage just accept it). "manual" leaves every position
+  // empty and parks all players on the bench so the coach can
+  // build the lineup themselves position-by-position. Either mode
+  // is fully editable via tap-tap-to-swap; the toggle just decides
+  // the starting point.
+  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
+
   // displayZoneCaps — always the default formation, used to render the
   // structural grid. Empty slots = displayCap - actual placements.
   const displayZoneCaps = useMemo(
@@ -101,29 +110,45 @@ export function LineupPicker({
     [defaultOnFieldSize, positionModel],
   );
 
+  // Build a lineup for a given mode + on-field size. Suggested →
+  // run the fairness suggester. Manual → all players on bench.
+  const buildLineup = (mode: "suggested" | "manual", size: number): Lineup => {
+    if (mode === "manual") {
+      return {
+        back: [],
+        hback: [],
+        mid: [],
+        hfwd: [],
+        fwd: [],
+        bench: players.map((p) => p.id),
+      };
+    }
+    return suggestStartingLineup(
+      players,
+      season,
+      0,
+      zoneCapsFor(size, positionModel),
+    );
+  };
+
   // The suggester targets `onFieldSize` players via zoneCapsFor —
   // those caps sum to onFieldSize. When onFieldSize < default the
   // resulting zones come up short of displayZoneCaps, and the
   // difference is rendered as empty "OPEN" slots.
   const [lineup, setLineup] = useState<Lineup>(() =>
-    suggestStartingLineup(
-      players,
-      season,
-      0,
-      zoneCapsFor(defaultOnFieldSize, positionModel),
-    ),
+    buildLineup("suggested", defaultOnFieldSize),
   );
 
   function handleSizeChange(next: number) {
     setOnFieldSize(next);
-    setLineup(
-      suggestStartingLineup(
-        players,
-        season,
-        0,
-        zoneCapsFor(next, positionModel),
-      ),
-    );
+    setLineup(buildLineup(lineupMode, next));
+  }
+
+  function handleModeChange(next: "suggested" | "manual") {
+    if (next === lineupMode) return;
+    setLineupMode(next);
+    setLineup(buildLineup(next, onFieldSize));
+    setSelected(null);
   }
 
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -295,20 +320,58 @@ export function LineupPicker({
         </Link>
       )}
 
-      {/* ── Auto-suggest banner ──────────────────────────────────────── */}
+      {/* ── Build-mode toggle + banner ────────────────────────────────
+          Two-button group lets the coach choose between the fairness-
+          suggested rotation and a from-scratch manual lineup. Either
+          mode is fully editable via tap-tap-to-swap below; this just
+          picks the starting point. The banner copy adapts to the
+          chosen mode. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <SFButton
+          variant={lineupMode === "suggested" ? "primary" : "subtle"}
+          size="sm"
+          disabled={isPending}
+          onClick={() => handleModeChange("suggested")}
+        >
+          {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
+        </SFButton>
+        <SFButton
+          variant={lineupMode === "manual" ? "primary" : "subtle"}
+          size="sm"
+          disabled={isPending}
+          onClick={() => handleModeChange("manual")}
+        >
+          {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+        </SFButton>
+      </div>
+
       <div className="flex items-start gap-3 rounded-lg border border-warn/30 bg-warn-soft p-4 sm:p-5">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warn text-white">
           <SFIcon.whistle color="white" size={18} />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-tight text-warn">
-            Auto-suggested starting lineup
+            {lineupMode === "suggested"
+              ? "Auto-suggested starting lineup"
+              : "Manual lineup — start from a blank field"}
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-ink/85">
-            Players who&apos;ve had less zone time across the season get
-            priority — fairer rotations, fewer kids stuck on the bench.
-            Tap any two players to swap them; tap a player and then an
-            empty slot to move them.
+            {lineupMode === "suggested" ? (
+              <>
+                Players who&apos;ve had less zone time across the season
+                get priority — fairer rotations, fewer kids stuck on
+                the bench. Tap any two players to swap them; tap a
+                player and then an empty slot to move them.
+              </>
+            ) : (
+              <>
+                Every position starts open and the whole squad sits on
+                the bench. Tap an empty slot, then a bench player to
+                place them. Switch back to{" "}
+                <strong className="text-ink">Suggested rotation</strong>{" "}
+                any time to reset.
+              </>
+            )}
             {onFieldCount < effectiveOnFieldTarget &&
               ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
           </p>

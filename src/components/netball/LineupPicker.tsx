@@ -18,6 +18,7 @@ import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { SFButton } from "@/components/sf";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -86,17 +87,25 @@ export function NetballLineupPicker({
   disabled,
   backHref,
 }: LineupPickerProps) {
-  // Initial lineup state. When the parent passes one (e.g. a Q-break
-  // seed lineup, or a previously-saved draft), we use that. Otherwise
-  // — i.e. the pre-game flow where the picker would have opened
-  // empty — we pre-fill with the suggester's output so the coach
-  // sees a sensible starting lineup right away (same behaviour as
-  // Siren Footy's pre-game flow). They can still drag it around or
-  // tap "Suggest fair lineup" to reshuffle if they don't like it.
-  const [lineup, setLineup] = useState<GenericLineup>(() => {
-    if (initialLineup) return initialLineup;
-    if (availableIds.length === 0) {
-      return emptyGenericLineup(ageGroup.positions);
+  // Lineup-build mode. "suggested" runs the fairness suggester to
+  // pre-fill the court (the legacy default). "manual" leaves every
+  // position empty and parks the whole squad on the bench so the
+  // coach can build the lineup themselves position-by-position.
+  // Either mode is fully editable via tap-tap below; the toggle
+  // just decides the starting point.
+  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
+
+  // Build a lineup for the chosen mode. Suggested → run the
+  // fairness suggester. Manual → empty positions, all available
+  // players on bench. When the parent supplies an explicit
+  // initialLineup (Q-break seed, restored draft) we use it as-is
+  // and the toggle is irrelevant on first render.
+  const buildLineup = (mode: "suggested" | "manual"): GenericLineup => {
+    if (mode === "manual" || availableIds.length === 0) {
+      return {
+        ...emptyGenericLineup(ageGroup.positions),
+        bench: [...availableIds],
+      };
     }
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
@@ -119,7 +128,19 @@ export function NetballLineupPicker({
       lastQuarterThird: lastThirds,
       previousTeammates: prevTeammates,
     });
+  };
+
+  const [lineup, setLineup] = useState<GenericLineup>(() => {
+    if (initialLineup) return initialLineup;
+    return buildLineup("suggested");
   });
+
+  function handleModeChange(next: "suggested" | "manual") {
+    if (next === lineupMode) return;
+    setLineupMode(next);
+    setLineup(buildLineup(next));
+    setSelected(null);
+  }
   // Two-tap-to-swap selection: tap a player → highlighted; tap another
   // player (or an empty position / bench) → swap. Mirrors the
   // NetballQuarterBreak interaction so the pre-game and Q-break
@@ -329,17 +350,56 @@ export function NetballLineupPicker({
           Back to availability
         </Link>
       )}
-      {/* Auto-suggested callout. Copy explains WHY the suggestion
-          looks the way it does (season-rarity for who gets first
-          pick) AND how to interact (tap-to-swap + tap-empty-slot to
-          place). Mirrors AFL's pattern but uses netball language. */}
+      {/* Build-mode toggle. Two-button group lets the coach choose
+          between the fairness-suggested rotation and a from-scratch
+          manual lineup. Either mode is fully editable via tap-tap-to-
+          swap below; this just picks the starting point. Mirrors the
+          AFL pre-game LineupPicker affordance for consistency. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <SFButton
+          variant={lineupMode === "suggested" ? "primary" : "subtle"}
+          size="sm"
+          disabled={disabled || saving}
+          onClick={() => handleModeChange("suggested")}
+        >
+          {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
+        </SFButton>
+        <SFButton
+          variant={lineupMode === "manual" ? "primary" : "subtle"}
+          size="sm"
+          disabled={disabled || saving}
+          onClick={() => handleModeChange("manual")}
+        >
+          {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+        </SFButton>
+      </div>
+
+      {/* Mode-aware callout. Suggested explains the fairness logic;
+          manual explains how to fill the empty court. Both surface the
+          tap-to-swap interaction so coaches don't have to guess. */}
       <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
-        <p className="font-semibold">Auto-suggested starting lineup</p>
+        <p className="font-semibold">
+          {lineupMode === "suggested"
+            ? "Auto-suggested starting lineup"
+            : "Manual lineup — start from a blank court"}
+        </p>
         <p className="mt-0.5 text-xs">
-          Players who&apos;ve had less zone time across the season get
-          priority — fairer rotations, fewer kids stuck on the bench.
-          Tap any two players to swap them; tap a player and then an
-          empty slot to move them.
+          {lineupMode === "suggested" ? (
+            <>
+              Players who&apos;ve had less zone time across the season
+              get priority — fairer rotations, fewer kids stuck on the
+              bench. Tap any two players to swap them; tap a player and
+              then an empty slot to move them.
+            </>
+          ) : (
+            <>
+              Every position starts open and the whole squad sits on
+              the bench. Tap a player, then an empty position to place
+              them. Switch back to{" "}
+              <strong className="text-ink">Suggested rotation</strong>{" "}
+              any time to reset.
+            </>
+          )}
         </p>
       </div>
 
