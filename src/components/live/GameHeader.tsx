@@ -7,6 +7,7 @@ import {
   QUARTER_MS,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 interface GameHeaderProps {
   teamName: string;
@@ -22,6 +23,15 @@ interface GameHeaderProps {
   clockMultiplier?: number;
   /** True while a server action from this header (e.g. opponent score) is in flight. */
   isPending?: boolean;
+  /**
+   * Bump this whenever a moment that ARE a siren going off occurs —
+   * quarter-end hooter, game finalised. The clock pill pulses once
+   * with the brand's siren halo. Pass `null` (the default) to
+   * suppress the pulse on header instances that aren't tied to a
+   * sirenic moment. Mirrors the same prop on netball's
+   * NetballScoreBug.
+   */
+  clockPulseKey?: string | number | null;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -44,6 +54,7 @@ export function GameHeader({
   isFinished,
   clockMultiplier = 1,
   isPending = false,
+  clockPulseKey = null,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -89,26 +100,31 @@ export function GameHeader({
         </p>
       </div>
 
-      {/* Center: dark clock pill (tap to pause/resume) */}
-      <button
-        type="button"
-        onClick={onClockTap}
-        disabled={isPreGame || isFinished || !onClockTap}
-        className="self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-        aria-label={running ? "Pause clock" : "Resume clock"}
-      >
-        <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-          <span>{quarterLabel}</span>
-          {stateIcon && <span>{stateIcon}</span>}
-        </span>
-        <span
-          className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
-            overtime ? "text-warn" : "text-warm"
-          }`}
+      {/* Center: dark clock pill (tap to pause/resume). Wrapped in
+          SirenPulseHalo so it briefly halos at sirenic moments
+          (quarter-end hooter, FT). When clockPulseKey is null the
+          halo span is omitted entirely — no animation, no DOM cost. */}
+      <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center">
+        <button
+          type="button"
+          onClick={onClockTap}
+          disabled={isPreGame || isFinished || !onClockTap}
+          className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+          aria-label={running ? "Pause clock" : "Resume clock"}
         >
-          {formatClock(remaining)}
-        </span>
-      </button>
+          <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+            <span>{quarterLabel}</span>
+            {stateIcon && <span>{stateIcon}</span>}
+          </span>
+          <span
+            className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
+              overtime ? "text-warn" : "text-warm"
+            }`}
+          >
+            {formatClock(remaining)}
+          </span>
+        </button>
+      </SirenPulseHalo>
 
       {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">

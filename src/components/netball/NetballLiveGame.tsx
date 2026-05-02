@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
@@ -222,6 +223,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const quarterLengthMs = quarterLengthSeconds * 1000;
   const remainingMs = Math.max(0, quarterLengthMs - clockMs);
 
+  // ─── Pulse triggers ─────────────────────────────────────────
+  // The Siren brand pulse fires at moments that ARE a siren going
+  // off — quarter-end hooter + game finalised. Bumped from the
+  // useEffects below; consumed by NetballScoreBug's clock pill via
+  // its `clockPulseKey` prop. State (not ref) so React re-renders
+  // and the wrapped pill picks up the new key.
+  //
+  // Initial null (not 0) so a fresh page load doesn't auto-pulse —
+  // the SirenPulseHalo atom skips rendering its halo span when
+  // triggerKey is null.
+  const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
+
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
   // (which uses a ref to ensure single-fire). The coach doesn't need to
@@ -234,6 +247,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (remainingMs > 0) return;
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
     hooterFiredForQuarterRef.current = currentQuarter;
+    // Bump the pulse key so the next render (Q-break score-bug for
+    // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
+    // Re-keys per quarter so the pulse fires once per hooter.
+    setClockPulseKey(currentQuarter);
     startTransition(async () => {
       const result = await endNetballQuarter(
         auth,
@@ -745,6 +762,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // break confirms via period_break_swap.
   const handlePickReplacement = (replacementId: string) => {
     if (!replacingTarget) return;
+    // TODO: brand-pulse on the swapped-in player's position token.
+    // Deferred from the initial Siren-pulse rollout because netball
+    // doesn't have a swap toast (the AFL pulse landed on the swap
+    // toast). Wiring a per-tile pulse needs the recent-sub key to
+    // flow through CourtDisplay → PositionToken; revisit when adding
+    // that surface.
     const { positionId, vacatingPlayerId } = replacingTarget;
     setLocalOverlay((prev) => {
       const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
@@ -1007,6 +1030,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarterLabel="FT"
           clockText="—"
           showScores={trackScoring}
+          clockPulseKey={clockPulseKey}
         />
         <CourtDisplay
           lineup={onCourt}
@@ -1059,6 +1083,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarterLabel={`Q${currentQuarter} BRK`}
           clockText="—"
           showScores={trackScoring}
+          clockPulseKey={clockPulseKey}
         />
         <NetballQuarterBreak
           auth={auth}
@@ -1190,6 +1215,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarterLabel="Q4 END"
           clockText="—"
           showScores={trackScoring}
+          clockPulseKey={clockPulseKey}
         />
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         <button
@@ -1441,6 +1467,7 @@ function NetballScoreBug({
   onClockTap,
   paused = false,
   showScores = true,
+  clockPulseKey = null,
 }: {
   teamName: string;
   opponentName: string;
@@ -1471,6 +1498,14 @@ function NetballScoreBug({
    * unchanged at every call site that doesn't pass the prop.
    */
   showScores?: boolean;
+  /**
+   * Bump this whenever a moment that ARE a siren going off
+   * occurs — quarter-end hooter, game finalised. The clock pill
+   * pulses once with the brand's siren halo. Pass `null` (the
+   * default) to suppress the pulse on score-bug instances that
+   * aren't tied to a sirenic moment.
+   */
+  clockPulseKey?: string | number | null;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
@@ -1511,8 +1546,9 @@ function NetballScoreBug({
         );
         const baseClass =
           "relative self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop";
-        if (!onClockTap) return <div className={baseClass}>{inner}</div>;
-        return (
+        const pill = !onClockTap ? (
+          <div className={baseClass}>{inner}</div>
+        ) : (
           <button
             type="button"
             onClick={onClockTap}
@@ -1529,6 +1565,15 @@ function NetballScoreBug({
             )}
             {inner}
           </button>
+        );
+        // Wrap in SirenPulseHalo so the clock pill briefly halos
+        // when a sirenic moment fires (quarter-end hooter, game
+        // finalised). When clockPulseKey is null (every render
+        // before the first hooter), the halo renders inert.
+        return (
+          <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center">
+            {pill}
+          </SirenPulseHalo>
         );
       })()}
 
