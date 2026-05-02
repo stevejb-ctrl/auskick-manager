@@ -6,14 +6,16 @@ import { HelpFigure } from "@/components/help/HelpPage";
 import { HELP_PAGES } from "@/lib/help/pages";
 
 export const metadata = {
-  title: "Help · Siren Footy",
-  description: "Guides and documentation for Siren Footy.",
+  title: "Help · Siren",
+  description: "Guides and documentation for Siren.",
   alternates: { canonical: "/help" },
 };
 
 const QUICK_LINKS = [
   { slug: "getting-started", emoji: "🚀" },
-  { slug: "live-game", emoji: "🏈" },
+  // 🏟️ reads as "the venue / the sideline" — sport-neutral. Older
+  // versions used 🏈 here, which only worked on the football brand.
+  { slug: "live-game", emoji: "🏟️" },
   { slug: "rotations", emoji: "🔄" },
   { slug: "stats", emoji: "📊" },
   { slug: "faq", emoji: "❓" },
@@ -28,18 +30,18 @@ export default function HelpOverviewPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Siren Footy Help</h1>
+        <h1 className="text-2xl font-bold text-ink">Siren Help</h1>
         <p className="mt-3 text-base leading-relaxed text-ink-dim">
-          Siren Footy helps coaches run their junior AFL season, from setting up
-          squads and scheduling games, to running rotations live on the sideline and
-          reviewing fairness stats after the game. Use the topics on the left (or the
-          menu above on mobile) to find what you need.
+          Siren helps coaches run their junior football or netball season, from
+          setting up squads and scheduling games, to running rotations live on
+          the sideline and reviewing fairness stats after the game. Use the
+          topics on the left (or the menu above on mobile) to find what you need.
         </p>
       </div>
 
       {/* CTA */}
       <div className="rounded-lg border border-brand-200 bg-brand-50 px-5 py-4">
-        <p className="text-sm font-semibold text-brand-700">New to Siren Footy?</p>
+        <p className="text-sm font-semibold text-brand-700">New to Siren?</p>
         <p className="mt-1 text-sm text-brand-600">
           Start with the Getting Started guide. It walks you through signing in,
           creating your team, adding players, and running your first game.
@@ -54,7 +56,7 @@ export default function HelpOverviewPage() {
 
       <HelpFigure
         src="/help-screenshots/overview-landing.png"
-        alt="Siren Footy dashboard showing your team cards and recent games"
+        alt="Siren dashboard showing your team cards and recent games"
         caption="The dashboard, your home screen once signed in."
       />
 

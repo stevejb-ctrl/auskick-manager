@@ -7,9 +7,9 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Rotations · Help · Siren Footy",
+  title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work, pair badges, zone colours, and player locks.",
+    "How suggested rotations work, badges, position colours, and locks.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -18,81 +18,95 @@ export default function RotationsPage() {
     <HelpPage>
       <h1 className="text-2xl font-bold text-ink">Rotations</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
-        The rotation engine watches how much time every player has spent in each
-        zone, both in the current game and across the whole season, and suggests
-        swaps that balance things out. You never have to do the maths yourself.
+        The rotation engine watches how much time every player has spent in
+        each position, both in the current game and across the whole season,
+        and suggests swaps that balance things out. You never have to do the
+        maths yourself.
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+        How rotations are <em>applied</em> depends on your sport. Football
+        teams rotate continuously: the app prompts a swap each time the sub
+        timer fires. Netball teams rotate at quarter breaks: the app suggests
+        a fresh lineup at every break, with optional mid-quarter subs if
+        you&apos;d rather not wait. The fairness algorithm is the same — only
+        the moment of action differs.
       </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">How the algorithm works</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Every time the clock ticks, the app tracks which zone each player is in.
-          When the sub timer is due, it ranks all possible field ↔ bench swaps by
-          how much they would improve overall fairness, considering:
+          Whenever the app needs to suggest a lineup, it ranks all possible
+          placements by how much they would improve overall fairness,
+          considering:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Season zone minutes</strong>:time in each
-            zone across all completed games this year
+            <strong className="text-ink">Season position minutes</strong>:
+            time in each position area across all completed games this year
           </li>
           <li>
-            <strong className="text-ink">Current-game minutes</strong>:time accrued
-            so far in this game
+            <strong className="text-ink">Current-game minutes</strong>: time
+            accrued so far in this game
           </li>
           <li>
-            <strong className="text-ink">Recent arrival pinning</strong>:players
-            who only just came on are not immediately swapped back off (pinned for
-            ~3 minutes)
+            <strong className="text-ink">Recent arrival pinning</strong>:
+            players who only just came on are not immediately swapped back
+            off (football only — pinned for ~3 minutes during rolling subs)
           </li>
           <li>
-            <strong className="text-ink">Player locks</strong>:field-locked players
-            never leave; zone-locked players stay in their assigned zone
+            <strong className="text-ink">Player locks</strong>: always-on
+            locked players never leave; position-locked players stay in their
+            assigned position
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          The algorithm produces a set of swap pairs (typically one or two at a
-          time) targeting the zone where the imbalance is greatest.
+          The result is a small set of swap pairs (usually one or two at a
+          time during football&apos;s rolling subs) or a complete next-quarter
+          lineup (for netball at the break).
         </p>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The SwapCard</h2>
+        <h2 className="text-xl font-semibold text-ink">The SwapCard (rolling subs)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Suggested swaps appear in the dark{" "}
-          <strong className="text-ink">SwapCard</strong> above the field. It has two
-          states:
+          On football&apos;s rolling-sub model, suggested swaps appear in the
+          dark <strong className="text-ink">SwapCard</strong> above the
+          playing area. It has two states:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Collapsed</strong>:shows a sparkle icon (or
-            countdown ring), the number of suggested swaps, and a one-line summary
-            (e.g. <em>Alex→Sam · Jordan→Blake</em>). Tap to expand.
+            <strong className="text-ink">Collapsed</strong>: shows a sparkle
+            icon (or countdown ring), the number of suggested swaps, and a
+            one-line summary (e.g. <em>Alex→Sam · Jordan→Blake</em>). Tap to
+            expand.
           </li>
           <li>
-            <strong className="text-ink">Expanded</strong>:shows each pair in a row
-            with the zone label colour-coded, a <strong className="text-ink">Do</strong>{" "}
-            button per pair, and a <strong className="text-ink">Do all N swaps</strong>{" "}
-            button at the bottom.
+            <strong className="text-ink">Expanded</strong>: shows each pair
+            in a row with the position label colour-coded, a{" "}
+            <strong className="text-ink">Do</strong> button per pair, and a{" "}
+            <strong className="text-ink">Do all N swaps</strong> button at
+            the bottom.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          After you commit a swap (via <strong className="text-ink">Do</strong> or{" "}
-          <strong className="text-ink">Do all</strong>), the card collapses
+          After you commit a swap (via <strong className="text-ink">Do</strong>{" "}
+          or <strong className="text-ink">Do all</strong>), the card collapses
           automatically and the sub timer resets.
         </p>
 
         <HelpFigure
           src="/help-screenshots/rotations-swap-card.png"
-          alt="The SwapCard expanded showing two swap pairs with zone labels, Do buttons, and a Do all 2 swaps button"
-          caption="The SwapCard expanded. Zone labels are colour-coded: orange = Forward, purple = Centre, blue = Back."
+          alt="The SwapCard expanded showing two swap pairs with position labels, Do buttons, and a Do all 2 swaps button"
+          caption="The SwapCard expanded. Position labels are colour-coded — see the colour key below."
         />
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">The countdown ring and NOW badge</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          The SwapCard header includes a circular progress ring that fills as the
-          sub interval counts down. When it reaches zero:
+          On rolling subs, the SwapCard header includes a circular progress
+          ring that fills as the sub interval counts down. When it reaches
+          zero:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
@@ -103,79 +117,91 @@ export default function RotationsPage() {
           <li>The card expands automatically to show the suggestions.</li>
         </ul>
         <HelpCallout type="tip">
-          You can make a swap at any time, not just when the timer fires. Tapping
-          any field + bench player pair opens the confirmation dialog and resets the
-          timer on commit.
+          You can make a swap at any time, not just when the timer fires.
+          Tapping any on-area + bench player pair opens the confirmation
+          dialog and resets the timer on commit.
         </HelpCallout>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Quarter-break rotation (netball)</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          For netball, the rotation engine runs at the break instead. When a
+          quarter ends, the app shows a <strong className="text-ink">Set
+          positions for Q{"{n}"}</strong> screen with the suggested next
+          lineup already in place. The reshuffle is weighted by who&apos;s
+          played least, who hasn&apos;t had a turn at their preferred
+          position, and the rules of play (which positions each player can
+          enter). Tap two players to swap them, or accept the suggestion and
+          start the quarter.
+        </p>
+        <p className="mt-2 text-sm text-ink-dim">
+          Netball teams that prefer to sub mid-quarter can do that too — the
+          app supports both models.
+        </p>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Player tiles and badges</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Each player tile on the field shows:
+          Each player tile shows:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Jersey number</strong> in a small green
-            circle
+            <strong className="text-ink">Jersey number</strong> in a small
+            chip (football only — netball squads typically don&apos;t use
+            them)
           </li>
           <li>
             <strong className="text-ink">First name</strong> and last initial
           </li>
           <li>
-            <strong className="text-ink">Zone label</strong> (FWD / H-FWD / CEN /
-            H-BCK / BCK) in small caps at the top
+            <strong className="text-ink">Position label</strong> at the top
+            (e.g. FWD / CEN / BCK for football, GS / GA / WA / C / WD / GD /
+            GK for netball)
           </li>
           <li>
-            A <strong className="text-ink">zone-minute bar</strong> at the bottom:
-            a thin horizontal bar colour-coded by zone showing how much time this
-            player has spent where (blue = back, purple = centre, orange = forward)
+            A <strong className="text-ink">time bar</strong> at the bottom: a
+            thin horizontal bar colour-coded by area showing how much time
+            this player has spent where
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          When a player is part of a pending swap suggestion:
+          When a player is part of a pending swap suggestion (rolling subs):
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>
-            A <strong className="text-ink">↓</strong> badge marks the player coming
-            off the field
+            A <strong className="text-ink">↓</strong> badge marks the player
+            coming off
           </li>
           <li>
-            A <strong className="text-ink">↑</strong> badge marks the player coming
-            on from the bench
+            A <strong className="text-ink">↑</strong> badge marks the player
+            coming on from the bench
           </li>
           <li>Both tiles show a pair number so you can match them up</li>
         </ul>
 
         <HelpFigure
           src="/help-screenshots/rotations-player-tile.png"
-          alt="A player tile showing jersey number, name, zone label, up/down badges, and a zone-minute bar at the bottom"
-          caption="Player tile anatomy: jersey number, zone label, swap badges, and zone-minute bar."
+          alt="A player tile showing jersey number, name, position label, up/down badges, and a time bar at the bottom"
+          caption="Player tile anatomy: number (where used), position label, swap badges, and time bar."
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Zone colour coding</h2>
+        <h2 className="text-xl font-semibold text-ink">Position colour coding</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Colours are consistent across every zone indicator in the app:
+          Colours are consistent across every position indicator in the app.
+          The exact palette differs by sport (each is tuned to the sport&apos;s
+          identity), but within a sport the same colour means the same
+          position area everywhere — the live tile, the time bar, the stats
+          cards.
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
-          <li>
-            <span className="font-semibold text-zone-f">Orange</span>:Forward /
-            H-Forward
-          </li>
-          <li>
-            <span className="font-semibold text-zone-c">Purple</span>:Centre
-          </li>
-          <li>
-            <span className="font-semibold text-zone-b">Blue</span>:Back / H-Back
-          </li>
-        </ul>
 
         <HelpFigure
           src="/help-screenshots/rotations-zone-bar.png"
-          alt="Zone-minute bars on several player tiles showing the orange, purple, and blue colour coding"
-          caption="Zone bars use the same colours across the field and the Stats tab."
+          alt="Time bars on several player tiles showing the per-position colour coding"
+          caption="Time bars use the same colours across the playing area and the Stats tab."
         />
       </section>
 
@@ -183,46 +209,49 @@ export default function RotationsPage() {
         <h2 className="text-xl font-semibold text-ink">Player locks</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Long-press any player to open the{" "}
-          <strong className="text-ink">Player actions</strong> sheet. Two lock options
-          are available:
+          <strong className="text-ink">Player actions</strong> sheet. Lock
+          options are available there:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Lock to field</strong>:the player is
-            excluded from all rotation suggestions and never leaves the field for the
-            rest of the game.
+            <strong className="text-ink">Always-on lock</strong>: the player
+            is excluded from rotation suggestions and never leaves the playing
+            area for the rest of the game (football&apos;s &quot;lock to
+            field&quot;).
           </li>
           <li>
-            <strong className="text-ink">Lock to zone</strong>:the player can rotate
-            off temporarily (e.g. for water) but the algorithm will always put them
-            back into the same zone. Tap <strong className="text-ink">Unlock player</strong>{" "}
-            to remove the lock.
+            <strong className="text-ink">Position lock</strong>: the player
+            can rotate off temporarily but the algorithm always returns them
+            to the same position. For netball this presents as &quot;Keep at{" "}
+            <em>position</em> next break&quot;.
           </li>
         </ul>
         <HelpCallout type="note">
-          Field-locked and zone-locked players are pinned in the quarter-break
-          reshuffle too. The algorithm keeps them in their current zone.
+          Locked players are pinned in the quarter-break reshuffle too. The
+          algorithm keeps them in their assigned position.
         </HelpCallout>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">The fairness score</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          The quarter-break screen shows a <strong className="text-ink">Fairness</strong>{" "}
-          score from 0 to 100. It measures how evenly zone minutes are spread across
-          the whole squad. 100 is perfectly equal; lower means some kids have had
-          noticeably more or less time in certain positions.
+          The quarter-break screen shows a{" "}
+          <strong className="text-ink">Fairness</strong> score from 0 to 100.
+          It measures how evenly time is spread across the whole squad. 100 is
+          perfectly equal; lower means some kids have had noticeably more or
+          less time in certain positions.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
-          Aim for a high score by the end of the season, not every single game.
-          Individual games often sit lower; that&apos;s normal and expected.
+          Aim for a high score by the end of the season, not every single
+          game. Individual games often sit lower; that&apos;s normal and
+          expected.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
           The{" "}
           <Link href="/help/stats" className="font-medium text-brand-600 hover:underline">
             Stats tab
           </Link>{" "}
-          shows per-player zone minute breakdowns for the full season.
+          shows per-player position breakdowns for the full season.
         </p>
       </section>
     </HelpPage>

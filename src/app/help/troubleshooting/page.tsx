@@ -4,7 +4,7 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Troubleshooting · Help · Siren Footy",
+  title: "Troubleshooting · Help · Siren",
   description: "Common issues and how to fix them.",
   alternates: { canonical: "/help/troubleshooting" },
 };
@@ -23,7 +23,10 @@ export default function TroubleshootingPage() {
           The Sub Due modal isn&apos;t firing
         </h2>
         <p className="mt-3 text-sm text-ink-dim">
-          The sub timer requires an active, running quarter. Check the following:
+          Sub Due alerts apply to football&apos;s rolling-sub model only —
+          netball teams sub at the quarter break, so this alert never appears
+          for them. For football, the sub timer requires an active, running
+          quarter. Check the following:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
@@ -33,20 +36,20 @@ export default function TroubleshootingPage() {
             timer doesn&apos;t run during a break.
           </li>
           <li>
-            <strong className="text-ink">Clock is not paused.</strong> The clock
-            pill in the header shows a <em>▶</em> icon when paused. Tap it to
-            resume. The timer only counts while the clock runs.
+            <strong className="text-ink">Clock is not paused.</strong> The
+            clock pill in the header shows a <em>▶</em> icon when paused. Tap
+            it to resume. The timer only counts while the clock runs.
           </li>
           <li>
-            <strong className="text-ink">Sub interval is set.</strong> Go to your
-            team <strong className="text-ink">Settings</strong> and confirm a
-            non-zero sub interval is configured. A value of 0 disables automatic
-            sub alerts.
+            <strong className="text-ink">Sub interval is set.</strong> Go to
+            your team <strong className="text-ink">Settings</strong> and
+            confirm a non-zero sub interval is configured. A value of 0
+            disables automatic sub alerts.
           </li>
           <li>
             <strong className="text-ink">There are bench players available.</strong>{" "}
-            If everyone is on the field, there&apos;s nobody to swap in so no
-            suggestion is generated.
+            If everyone is on the playing area, there&apos;s nobody to swap in
+            so no suggestion is generated.
           </li>
         </ul>
       </section>
@@ -56,11 +59,12 @@ export default function TroubleshootingPage() {
           The quarter clock is counting up past 0:00
         </h2>
         <p className="mt-3 text-sm text-ink-dim">
-          This is expected behaviour. The clock counts down from the set quarter
-          duration to 0:00, then switches to an orange overtime display that
-          counts up so you can see how long over time the quarter has run. Tap{" "}
-          <strong className="text-ink">End Q{"{n}"}</strong> when the siren sounds
-          to end the quarter and move to the break screen.
+          This is expected behaviour. The clock counts down from the set
+          quarter duration to 0:00, then switches to an orange overtime
+          display that counts up so you can see how long over time the quarter
+          has run. Tap <strong className="text-ink">End Q{"{n}"}</strong> when
+          the umpire&apos;s siren or whistle sounds to end the quarter and
+          move to the break screen.
         </p>
       </section>
 
@@ -69,9 +73,9 @@ export default function TroubleshootingPage() {
           Scores appear to have reset after navigating away
         </h2>
         <p className="mt-3 text-sm text-ink-dim">
-          Scores are saved to the server as events when you tap Goal, Behind, or
-          any rotation action. If you navigate away and come back, the game replays
-          all saved events on load. If scores look wrong:
+          Scores are saved to the server as events when you record a score or
+          any rotation action. If you navigate away and come back, the game
+          replays all saved events on load. If scores look wrong:
         </p>
         <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
           <li>
@@ -94,22 +98,24 @@ export default function TroubleshootingPage() {
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">
-          An injured or lent player keeps appearing on the field at quarter breaks
+          An injured or lent player keeps appearing on the playing area at quarter breaks
         </h2>
         <p className="mt-3 text-sm text-ink-dim">
           Injured (<strong className="text-ink">INJ</strong>) and lent (
-          <strong className="text-ink">LENT</strong>) players are excluded from the
-          reshuffle algorithm and always placed on the bench at quarter breaks. If a
-          player with one of these badges still appears in a zone column:
+          <strong className="text-ink">LENT</strong>) players are excluded
+          from the reshuffle algorithm and always placed on the bench at
+          quarter breaks. If a player with one of these badges still appears
+          in a position slot:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            Check the player tile: their name should be greyed out (60% opacity)
-            and tapping them should have no effect.
+            Check the player tile: their name should be greyed out (60%
+            opacity) and tapping them should have no effect.
           </li>
           <li>
-            If the tile appears fully interactive, refresh the page and check whether
-            the injury/loan was properly saved (look for the badge in the live game view).
+            If the tile appears fully interactive, refresh the page and check
+            whether the injury/loan was properly saved (look for the badge in
+            the live game view).
           </li>
         </ul>
       </section>
@@ -120,16 +126,17 @@ export default function TroubleshootingPage() {
         </h2>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            The SwapCard only appears when there are bench players to swap in. If
-            the whole squad is on the field, no suggestion can be generated.
+            The SwapCard only appears when there are bench players to swap in.
+            If the whole squad is on the playing area, no suggestion can be
+            generated.
           </li>
           <li>
-            If all bench players are injured or lent, they&apos;re excluded from
-            rotation and the card will be empty.
+            If all bench players are injured or lent, they&apos;re excluded
+            from rotation and the card will be empty.
           </li>
           <li>
-            All field players might be within their lock rules (field-locked or
-            zone-locked players can&apos;t be moved).
+            All players on the playing area might be within their lock rules
+            (always-on or position-locked players can&apos;t be moved).
           </li>
         </ul>
       </section>
@@ -152,7 +159,7 @@ export default function TroubleshootingPage() {
           <li>
             Scoring stats require the{" "}
             <Link href="/help/track-scoring" className="font-medium underline">
-              Track goals &amp; behinds
+              Track scoring
             </Link>{" "}
             toggle to have been on for those games.
           </li>
@@ -168,8 +175,8 @@ export default function TroubleshootingPage() {
           <li>Hard-refresh the page (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows/Android).</li>
           <li>Try opening the app in an incognito/private window.</li>
           <li>
-            If the problem persists, clear your browser cache for
-            auskick-manager.vercel.app.
+            If the problem persists, clear your browser cache for the Siren
+            site.
           </li>
         </ol>
       </section>

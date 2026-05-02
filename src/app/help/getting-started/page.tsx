@@ -8,7 +8,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Getting Started · Help · Siren Footy",
+  title: "Getting Started · Help · Siren",
   description: "Sign in, create your first team, add players, and schedule a game.",
   alternates: { canonical: "/help/getting-started" },
 };
@@ -28,16 +28,16 @@ export default function GettingStartedPage() {
         <h2 className="text-xl font-semibold text-ink">1. Create your account</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>
-            Go to{" "}
+            Go to the{" "}
             <Link href="/login" className="font-medium text-brand-600 hover:underline">
-              sirenfooty.com.au/login
+              login page
             </Link>
             .
           </li>
           <li>Enter your email address and tap <strong className="text-ink">Continue</strong>.</li>
           <li>
-            Open the sign-in link we email you. New email? You&apos;ll
-            land on your dashboard straight away. No password to remember.
+            Open the sign-in link we email you. New email? You&apos;ll land on
+            your dashboard straight away. No password to remember.
           </li>
         </ol>
         <p className="mt-3 text-sm text-ink-dim">
@@ -50,7 +50,7 @@ export default function GettingStartedPage() {
 
         <HelpFigure
           src="/help-screenshots/getting-started-signup.png"
-          alt="The Siren Footy sign-up form with email and password fields"
+          alt="The Siren sign-up form with email and password fields"
           caption="The sign-up form. Fill in your email and password to get started."
         />
       </section>
@@ -63,9 +63,10 @@ export default function GettingStartedPage() {
             On the dashboard, tap <strong className="text-ink">New team</strong>.
           </li>
           <li>
-            Give your team a name (e.g. <em>Brunswick U10s</em>) and select the
-            age group / position model. The position model controls how many zones
-            appear on the field and how rotation suggestions are generated.
+            Give your team a name (e.g. <em>Brunswick U10s</em>), pick a sport,
+            and select the age group. The age group controls how many positions
+            appear during a live game and how rotation suggestions are
+            generated.
           </li>
           <li>
             Tap <strong className="text-ink">Create team</strong>. Your new team
@@ -76,7 +77,7 @@ export default function GettingStartedPage() {
         <HelpFigure
           src="/help-screenshots/getting-started-create-team.png"
           alt="The create team form showing a team name field and age group selector"
-          caption="Name your team and pick the position model before saving."
+          caption="Name your team and pick the age group before saving."
         />
 
         <HelpCallout type="tip">
@@ -95,8 +96,10 @@ export default function GettingStartedPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Add player</strong>. Enter the player&apos;s
-            full name and jersey number, then tap <strong className="text-ink">Save</strong>.
+            Tap <strong className="text-ink">Add player</strong>. Enter the
+            player&apos;s full name and (optionally) a jersey number, then tap{" "}
+            <strong className="text-ink">Save</strong>. Football teams typically
+            assign numbers; netball teams usually leave them blank.
           </li>
           <li>Repeat for every player in your squad.</li>
         </ol>
