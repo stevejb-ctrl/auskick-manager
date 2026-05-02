@@ -22,6 +22,14 @@ interface LockModalProps {
   onUnlock: () => void;
   onToggleInjury: () => void;
   onToggleLoan: () => void;
+  /**
+   * Enter "switch" mode — closes the modal and selects this player so
+   * the next tap on another field tile or bench tile completes the
+   * swap. Hooks into the existing tap-tap flow in LiveGame so we don't
+   * duplicate the swap logic; the modal is just a more discoverable
+   * entry point than tap-then-tap-elsewhere.
+   */
+  onSwitch: () => void;
   onClose: () => void;
 }
 
@@ -38,6 +46,7 @@ export function LockModal({
   onUnlock,
   onToggleInjury,
   onToggleLoan,
+  onSwitch,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -143,12 +152,29 @@ export function LockModal({
             </div>
           </>
         ) : (
-          /* Unlocked, on the team — offer lock / injure / loan */
+          /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              Lock them in place, flag an injury, or lend them to the opposition.
+              Switch them out, lock them in place, flag an injury, or
+              lend them to the opposition.
             </p>
             <div className="flex flex-col gap-2">
+              {/* Switch — most common quick action, lives at the top.
+                  Closes the modal and selects this player so the next
+                  tap on a teammate completes the swap (zone-to-zone if
+                  field player tapped; sub-on/off if bench player tapped). */}
+              <button
+                type="button"
+                onClick={onSwitch}
+                className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+              >
+                <span className="text-sm font-bold">Switch player</span>
+                <span className="mt-0.5 text-xs opacity-90">
+                  {currentZone
+                    ? "Tap a teammate to swap zones, or a bench player to sub off"
+                    : "Tap a field player to bring them on"}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={onLockField}

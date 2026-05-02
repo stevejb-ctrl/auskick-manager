@@ -1262,6 +1262,26 @@ export function LiveGame({
               handleLoanToggle(lockModal.playerId, !isLoaned);
               setLockModal(null);
             }}
+            onSwitch={() => {
+              // Enter the existing tap-tap selection so the user's
+              // next tap completes the swap. Resolve field-vs-bench
+              // from the live lineup (NOT from lockModal.zone, which
+              // falls back to lastStintZone — that'd misroute a
+              // bench player who played earlier in the game). Field
+              // players become a "field" selection; bench players a
+              // "bench" selection. handleTapField/handleTapBench
+              // already wire this through to applyFieldZoneSwap or
+              // setPendingSwap → SwapConfirmDialog.
+              const currentZone = ALL_ZONES.find((z) =>
+                lineup[z].includes(lockModal.playerId),
+              );
+              if (currentZone) {
+                selectField(lockModal.playerId, currentZone);
+              } else {
+                selectBench(lockModal.playerId);
+              }
+              setLockModal(null);
+            }}
             onClose={() => setLockModal(null)}
           />
         );

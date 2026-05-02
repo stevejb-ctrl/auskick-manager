@@ -31,6 +31,15 @@ interface Props {
   onUnLoan: () => void;
   onLockForNextBreak: () => void;
   onUnlock: () => void;
+  /**
+   * Mid-quarter switch — vacate this player's position and open the
+   * Pick Replacement sheet so the GM can sub a bench player in.
+   * Optional: only wired for FIELD players (positionId !== null).
+   * Bench-initiated switches aren't supported yet because netball
+   * doesn't have a tap-a-position picker — the existing
+   * vacateAndPromptReplacement flow only goes field → bench.
+   */
+  onSwitch?: () => void;
   onClose: () => void;
 }
 
@@ -46,6 +55,7 @@ export function NetballPlayerActions({
   onUnLoan,
   onLockForNextBreak,
   onUnlock,
+  onSwitch,
   onClose,
 }: Props) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -77,6 +87,16 @@ export function NetballPlayerActions({
         </h2>
 
         <div className="flex flex-col gap-2">
+          {/* Switch — mid-quarter sub. Only for field players (the
+              vacate-and-prompt flow is field → bench). Hide if the
+              player's already injured or loaned because those flows
+              already triggered a replacement picker. */}
+          {onSwitch && positionId && !isInjured && !isLoaned && (
+            <ActionButton variant="primary" onClick={onSwitch}>
+              🔄 Switch player
+            </ActionButton>
+          )}
+
           {/* Lock for next break — only meaningful when the player is
               actually on the court right now. Hide for bench players
               since they're not in a position to lock yet. */}
@@ -86,7 +106,7 @@ export function NetballPlayerActions({
                 🔓 Unlock for next break
               </ActionButton>
             ) : (
-              <ActionButton variant="primary" onClick={onLockForNextBreak}>
+              <ActionButton variant="ghost" onClick={onLockForNextBreak}>
                 🔒 Keep at {positionLabel} next break
               </ActionButton>
             )

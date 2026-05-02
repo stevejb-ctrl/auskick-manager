@@ -660,6 +660,69 @@ test("NETBALL-08: marking a court player injured prompts replacement and writes 
     .toBeGreaterThanOrEqual(1);
 });
 
+test("NETBALL-08: long-press → Switch swaps a court player for a bench player without an injury event", async ({
+  page,
+}) => {
+  // Mid-quarter sub via the "Switch player" action in the long-
+  // press menu. Same vacate-and-prompt flow as injury/loan, but
+  // WITHOUT writing an injury or loan event — pure substitution.
+  // The change is local-overlay only until the next quarter break
+  // confirms via period_break_swap.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({
+    admin,
+    gameId: game.id,
+    ownerId,
+    playerIds: players.map((p) => p.id),
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Open the actions modal for GS via long-press.
+  await page
+    .getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+    })
+    .click({ delay: 600 });
+
+  // The new "Switch player" CTA renders at the top of the actions
+  // modal for field players (positionId !== null) who aren't
+  // injured/loaned.
+  await expect(
+    page.getByRole("button", { name: /switch player/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /switch player/i }).click();
+
+  // PickReplacementSheet opens — same dialog as the injury flow.
+  const replaceDialog = page.getByRole("dialog");
+  await expect(replaceDialog).toBeVisible({ timeout: 5_000 });
+  // Pick the first bench player.
+  const benchPlayer = players[7];
+  await replaceDialog
+    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}$`, "i") })
+    .click({ timeout: 5_000 });
+
+  // The GS court tile should now show the replacement (Brendan
+  // moved into GS via the local overlay). Players[7]'s name appears
+  // in the Goal Shooter aria-label.
+  await expect(
+    page.getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${benchPlayer.full_name}`, "i"),
+    }),
+  ).toBeVisible({ timeout: 3_000 });
+
+  // No injury OR loan event landed — Switch is pure substitution.
+  // Wait briefly to give server actions a chance to land if they
+  // were going to (false-positive guard).
+  await page.waitForTimeout(500);
+  const { data: injuryEvents } = await admin
+    .from("game_events")
+    .select("type")
+    .eq("game_id", game.id)
+    .in("type", ["injury", "loan"]);
+  expect(injuryEvents ?? []).toHaveLength(0);
+});
+
 test("NETBALL-08: late arrival adds a previously-unavailable squad member and writes player_arrived event", async ({
   page,
 }) => {

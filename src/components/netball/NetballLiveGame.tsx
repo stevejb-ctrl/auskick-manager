@@ -1343,6 +1343,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onUnLoan={handleUnLoan}
           onLockForNextBreak={handleLockForNextBreak}
           onUnlock={handleUnlock}
+          onSwitch={() => {
+            // Switch = mid-quarter sub: vacate this player's
+            // position and surface the Pick Replacement sheet so the
+            // GM can sub a bench player in. Field-only path —
+            // NetballPlayerActions hides the Switch button when
+            // positionId is null. Reuses the same vacateAndPrompt
+            // flow that injury/loan use, minus the injury/loan
+            // event itself.
+            if (!actionsTarget?.positionId) return;
+            const { playerId, positionId } = actionsTarget;
+            closeActions();
+            vacateAndPromptReplacement(playerId, positionId);
+          }}
           onClose={closeActions}
         />
       )}
