@@ -6,7 +6,7 @@
 //   1. Q-break entry path works (Q1 auto-end → quarter_end DB event
 //      → page.reload() → NetballQuarterBreak shell renders)
 //   2. The suggester runs and populates a 7-position lineup; the
-//      "Apply suggested reshuffle" button + position chips (GS/GA/WA/
+//      "Suggested reshuffle" button + position chips (GS/GA/WA/
 //      C/WD/GD/GK) are observable in the rendered DOM
 //   3. The unplayed-third +100k tier is observable in the suggester's
 //      output — players who never played Q1 appear in the rendered
@@ -215,16 +215,15 @@ async function enterQBreakView(
 }
 
 /**
- * The suggested-reshuffle toggle button. Rule-1 deviation from the
- * plan source: NetballQuarterBreak initializes useReshuffle to true
- * (NetballQuarterBreak.tsx:305: `useState(true)`), so on first
- * render the toggle's accessible text is "✓ Using suggested
- * reshuffle". Clicking flips it to "Apply suggested reshuffle". This
- * regex matches BOTH variants so the locator is one-shot regardless
- * of initial / toggled state — useful both as a "Q-break component
- * mounted" canary and as the click target for the toggle test.
+ * The suggested-reshuffle toggle button. NetballQuarterBreak now
+ * uses a 3-mode toggle (suggested / keep / manual) where the
+ * suggested button always reads "Suggested reshuffle", with a
+ * leading "✓ " when active (lineupMode === "suggested" by default).
+ * The regex is intentionally loose so it locates the button in
+ * either state — useful both as a "Q-break component mounted"
+ * canary and as the click target for the toggle test.
  */
-const RESHUFFLE_TOGGLE = /(apply|using) suggested reshuffle/i;
+const RESHUFFLE_TOGGLE = /suggested reshuffle/i;
 
 // ─── NETBALL-02 mandatory tests ───────────────────────────
 
@@ -238,11 +237,11 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
 
   // The suggester runs on mount of the Q-break component and populates
   // suggestedLineup. The reshuffle-toggle button is the canonical
-  // evidence — it only renders inside NetballQuarterBreak (line 643).
-  // Initial useReshuffle state is `true` (line 305), so the visible
-  // copy is "✓ Using suggested reshuffle" on first render; the
-  // RESHUFFLE_TOGGLE regex matches both variants for robustness
-  // against any future default-state change.
+  // evidence — it only renders inside NetballQuarterBreak. The 3-mode
+  // toggle defaults to "suggested" so the active button reads
+  // "✓ Suggested reshuffle"; RESHUFFLE_TOGGLE matches both the active
+  // and inactive variants for robustness against any future
+  // default-state change.
   await expect(
     page.getByRole("button", { name: RESHUFFLE_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
@@ -290,9 +289,11 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  // Toggle is in the Using state on initial render. Confirm it.
+  // Suggested-reshuffle button is active by default (lineupMode
+  // initializes to "suggested" — the active state shows a "✓ "
+  // prefix). Confirm the active variant is on screen.
   await expect(
-    page.getByRole("button", { name: /using suggested reshuffle/i }),
+    page.getByRole("button", { name: /✓ Suggested reshuffle/ }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Each unplayed player's tile must include "Bench → ${POSITION}"
