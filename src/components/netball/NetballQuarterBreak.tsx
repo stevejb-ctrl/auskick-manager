@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import {
   periodBreakSwap,
   startNetballQuarter,
@@ -328,6 +329,12 @@ export function NetballQuarterBreak({
   // can mark recovered or bring back from loan from the Q-break view
   // without bouncing back to the live court.
   const [actionsTarget, setActionsTarget] = useState<string | null>(null);
+  // Position the coach is filling via the SlotFillSheet. Set when
+  // they tap an empty position with no player pre-selected; cleared
+  // on pick or cancel.
+  const [fillTargetPosition, setFillTargetPosition] = useState<string | null>(
+    null,
+  );
   // Players whom the coach has just un-injured / un-loaned during this
   // Q-break session. They re-enter the candidate pool, which means the
   // suggester would otherwise put them straight back on court — but a
@@ -493,25 +500,48 @@ export function NetballQuarterBreak({
   // gets vacated — leaving its own empty placeholder if they came from
   // court, or just removing them from the bench list. No-op without
   // a selection.
-  function handleTapEmpty(positionId: string) {
-    if (!selected) return;
-    if (sidelinedSet.has(selected)) {
-      setSelected(null);
-      return;
-    }
+  // Place a specific player into a specific position — pulls them
+  // out of any current slot first so we don't double-book. Shared
+  // by the legacy "tap player + tap empty" flow and the
+  // SlotFillSheet pick handler.
+  function placeInPosition(pid: string, positionId: string) {
     setDraft((prev) => {
       const next: GenericLineup = {
         positions: Object.fromEntries(
           Object.entries(prev.positions).map(([k, v]) => [
             k,
-            v.filter((p) => p !== selected),
+            v.filter((p) => p !== pid),
           ]),
         ),
-        bench: prev.bench.filter((p) => p !== selected),
+        bench: prev.bench.filter((p) => p !== pid),
       };
-      next.positions[positionId] = [selected];
+      next.positions[positionId] = [pid];
       return next;
     });
+  }
+
+  // Tap on an empty position. No selection → open the
+  // SlotFillSheet so the coach can pick a bench player in one tap.
+  // Selection → fall through to the legacy "move selected player
+  // into the empty slot" behaviour for coaches who already started
+  // swapping.
+  function handleTapEmpty(positionId: string) {
+    if (!selected) {
+      setFillTargetPosition(positionId);
+      return;
+    }
+    if (sidelinedSet.has(selected)) {
+      setSelected(null);
+      return;
+    }
+    placeInPosition(selected, positionId);
+    setSelected(null);
+  }
+
+  function handleFillPick(playerId: string) {
+    if (!fillTargetPosition) return;
+    placeInPosition(playerId, fillTargetPosition);
+    setFillTargetPosition(null);
     setSelected(null);
   }
 
@@ -771,14 +801,17 @@ export function NetballQuarterBreak({
                 <ul className="space-y-1.5">
                   {items.map(({ pid, positionId }) => {
                     if (!pid) {
-                      // Empty position placeholder — tappable when a
-                      // player is currently selected, drops them into
-                      // this slot. Keyed by positionId since pid is null.
+                      // Empty position placeholder — always tappable.
+                      // No selection → opens the SlotFillSheet so the
+                      // coach can pick a bench player in one tap.
+                      // Selection → drops the selected player here
+                      // (legacy two-tap path). Keyed by positionId
+                      // since pid is null.
                       return (
                         <li key={`empty-${positionId}`}>
                           <EmptySlotTile
                             positionId={positionId!}
-                            disabled={!selected}
+                            disabled={false}
                             onTap={() => positionId && handleTapEmpty(positionId)}
                           />
                         </li>
@@ -920,15 +953,37 @@ export function NetballQuarterBreak({
           />
         );
       })()}
+
+      {/* Empty-position picker sheet — opens when the coach taps an
+          unfilled court position with no player pre-selected. Lists
+          every bench player so they can place someone in one tap. */}
+      {fillTargetPosition && (() => {
+        const pos = netballSport.allPositions.find(
+          (p) => p.id === fillTargetPosition,
+        );
+        const slotLabel = pos?.shortLabel ?? fillTargetPosition.toUpperCase();
+        return (
+          <SlotFillSheet
+            slotLabel={slotLabel}
+            candidates={draft.bench
+              .filter((pid) => !sidelinedSet.has(pid))
+              .map((pid) => playersById.get(pid))
+              .filter((p): p is Player => !!p)
+              .map((p) => ({ id: p.id, name: p.full_name }))}
+            onPick={handleFillPick}
+            onCancel={() => setFillTargetPosition(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
 
 // ─── Empty-slot tile ─────────────────────────────────────────
 // Renders for an unfilled position so the coach has something to
-// tap. Visually a dashed-border placeholder with the position label.
-// Active state (when a player is currently selected) gets a brand
-// outline + hint copy; idle state (no selection) is muted + disabled.
+// tap. Visually a dashed-border placeholder with the position label
+// — always tappable now that tapping opens the SlotFillSheet (or
+// fills with the currently-selected player as a fallback).
 function EmptySlotTile({
   positionId,
   disabled,
@@ -956,7 +1011,7 @@ function EmptySlotTile({
         {posLabel}
       </span>
       <span className="font-medium">
-        {disabled ? "Empty" : `Tap to place here`}
+        {disabled ? "Empty" : "Tap to fill"}
       </span>
     </button>
   );
