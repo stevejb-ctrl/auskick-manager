@@ -4,9 +4,9 @@ import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Siren Footy",
+  title: "Privacy Policy · Siren",
   description:
-    "How Siren Footy collects, uses, stores, and shares information about coaches, team managers, parents, and the players they manage.",
+    "How Siren collects, uses, stores, and shares information about coaches, team managers, parents, and the players they manage.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -28,17 +28,11 @@ export default function PrivacyPage() {
         <div className="prose-siren mt-8 space-y-8 text-ink-dim">
           <section>
             <p className="text-base leading-relaxed">
-              Siren Footy (&ldquo;Siren&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is a team
-              and game management app for junior Australian rules football. This
-              policy explains what information we collect when you use the app
-              at{" "}
-              <a
-                href="https://sirenfooty.com.au"
-                className="text-brand-700 underline-offset-2 hover:underline"
-              >
-                sirenfooty.com.au
-              </a>
-              , how we use it, and the choices you have. We follow the
+              Siren (&ldquo;Siren&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;)
+              is a team and game management app for junior football and
+              netball. This policy explains what information we collect when
+              you use the app — at sirenfooty.com.au or sirennetball.com.au —
+              how we use it, and the choices you have. We follow the
               Australian Privacy Principles set out in the{" "}
               <em>Privacy Act 1988</em> (Cth).
             </p>
@@ -46,9 +40,9 @@ export default function PrivacyPage() {
 
           <Section title="1. Who we are">
             <p>
-              Siren Footy is an independent product operated from Australia. If
-              you have any questions about this policy or your data, contact us
-              at{" "}
+              Siren is an independent product operated from Australia. If
+              you have any questions about this policy or your data, contact
+              us at{" "}
               <a
                 href="mailto:privacy@sirenfooty.com.au"
                 className="text-brand-700 underline-offset-2 hover:underline"

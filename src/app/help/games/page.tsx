@@ -7,7 +7,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Games · Help · Siren Footy",
+  title: "Games · Help · Siren",
   description: "Creating games, editing details, and tracking game status.",
   alternates: { canonical: "/help/games" },
 };
@@ -89,10 +89,10 @@ export default function GamesPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>See the final or current score</li>
-          <li>View goal kickers (if scoring was tracked)</li>
+          <li>View top scorers (if scoring was tracked)</li>
           <li>Start or re-enter the live game view</li>
           <li>Edit game details (opponent, round, date, etc.)</li>
-          <li>Toggle the <strong className="text-ink">Track goals &amp; behinds</strong> setting</li>
+          <li>Toggle the <strong className="text-ink">Track scoring</strong> setting</li>
         </ul>
 
         <HelpFigure
@@ -102,8 +102,9 @@ export default function GamesPage() {
         />
 
         <HelpCallout type="tip">
-          The <strong>Track goals &amp; behinds</strong> toggle on the game detail page
-          controls whether player goal tallies appear during the live game. See{" "}
+          The <strong>Track scoring</strong> toggle on the game detail page
+          controls whether per-player goal tallies appear during the live game.
+          See{" "}
           <Link href="/help/track-scoring" className="font-medium underline">
             Track Scoring
           </Link>{" "}
@@ -128,8 +129,8 @@ export default function GamesPage() {
           events recorded for that game and cannot be undone.
         </p>
         <HelpCallout type="warning">
-          Deleting a game removes all recorded rotations, scores, and stats for it. Season
-          fairness scores will be recalculated without that game.
+          Deleting a game removes all recorded rotations, scores, and stats for
+          it. Season fairness scores will be recalculated without that game.
         </HelpCallout>
       </section>
     </HelpPage>

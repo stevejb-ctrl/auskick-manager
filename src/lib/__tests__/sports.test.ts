@@ -16,6 +16,7 @@ import {
   netballSport,
   isPositionAllowedInZone,
 } from "@/lib/sports";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 describe("sport registry", () => {
   it("returns AFL by default for unknown / missing sport", () => {
@@ -101,6 +102,37 @@ describe("netball sport config", () => {
     const open = netballSport.ageGroups.find((a) => a.id === "open");
     expect(open?.defaultOnFieldSize).toBe(7);
     expect(open?.positions).toHaveLength(7);
+  });
+
+  it("declares the netball palette key + sirennetball.com.au host", () => {
+    // The marketing CSS-variable theming layer keys off
+    // brand.palette and brand.host. If either drifts (rename, host
+    // change, etc.) the netball domain's court-blue ladder won't
+    // apply and the site silently falls back to AFL field-green.
+    expect(netballSport.brand.palette).toBe("netball");
+    expect(netballSport.brand.host).toBe("sirennetball.com.au");
+    expect(netballSport.brand.id).toBe("netball");
+  });
+});
+
+describe("brand-aware marketing copy", () => {
+  it("returns the netball product name + hero eyebrow + trust band", () => {
+    const copy = getBrandCopy("netball");
+    expect(copy.productName).toBe("Siren Netball");
+    expect(copy.heroEyebrow).toBe("Built for junior netball");
+    // Banner is shared (Free for the entire 2026 season) but
+    // structurally needs to be a {prefix, linkText} pair on
+    // both brands so MarketingBanner can render it.
+    expect(copy.banner.prefix.length).toBeGreaterThan(0);
+    expect(copy.banner.linkText.length).toBeGreaterThan(0);
+    // Trust band is a non-empty array on both brands.
+    expect(copy.trustBand.length).toBeGreaterThan(0);
+  });
+
+  it("returns the AFL product name + hero eyebrow", () => {
+    const copy = getBrandCopy("afl");
+    expect(copy.productName).toBe("Siren Footy");
+    expect(copy.heroEyebrow).toBe("Built for junior AFL");
   });
 });
 

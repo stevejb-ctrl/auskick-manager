@@ -5,11 +5,15 @@ export interface HelpPage {
   href: string;
 }
 
+// Sport-neutral copy: this registry is the single source of truth for help-page
+// titles and descriptions across every brand (sirenfooty.com.au and
+// sirennetball.com.au). Avoid sport-specific wording — pages themselves cover
+// both football and netball mechanics in unified prose.
 export const HELP_PAGES: HelpPage[] = [
   {
     slug: "overview",
     title: "Overview",
-    description: "Introduction to Siren Footy and quick links to key topics.",
+    description: "Introduction to Siren and quick links to key topics.",
     href: "/help",
   },
   {
@@ -39,13 +43,13 @@ export const HELP_PAGES: HelpPage[] = [
   {
     slug: "live-game",
     title: "Live Game",
-    description: "Running a game: the on-field view, scoring, subs, and quarter breaks.",
+    description: "Running a game: the on-area view, scoring, subs, and quarter breaks.",
     href: "/help/live-game",
   },
   {
     slug: "rotations",
     title: "Rotations",
-    description: "How suggested rotations work, pair badges, zone colours, and locks.",
+    description: "How suggested rotations work, badges, position colours, and locks.",
     href: "/help/rotations",
   },
   {
@@ -57,7 +61,7 @@ export const HELP_PAGES: HelpPage[] = [
   {
     slug: "track-scoring",
     title: "Track Scoring",
-    description: "The Track goals & behinds toggle and what it unlocks.",
+    description: "The Track scoring toggle and what it unlocks.",
     href: "/help/track-scoring",
   },
   {

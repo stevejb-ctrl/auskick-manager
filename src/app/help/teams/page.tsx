@@ -6,7 +6,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Teams · Help · Siren Footy",
+  title: "Teams · Help · Siren",
   description: "Creating and managing teams, age groups, admin roles, and settings.",
   alternates: { canonical: "/help/teams" },
 };
@@ -35,9 +35,10 @@ export default function TeamsPage() {
           </li>
           <li>Enter a team name (e.g. <em>Brunswick U10s Blue</em>).</li>
           <li>
-            Choose a <strong className="text-ink">position model</strong>. This sets
-            which zones appear on the field and how many players go in each zone.
-            For standard AFL U10s with five zones, use the default model.
+            Choose a <strong className="text-ink">sport</strong> and{" "}
+            <strong className="text-ink">age group</strong>. These set which
+            positions appear during a live game and how rotation suggestions are
+            generated.
           </li>
           <li>
             Tap <strong className="text-ink">Create team</strong>.
@@ -55,30 +56,18 @@ export default function TeamsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Age groups and position models</h2>
+        <h2 className="text-xl font-semibold text-ink">Age groups and position layouts</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          The position model controls the five zones that appear during a live game:
+          The age group sets the position layout that appears during a live game.
+          Younger football age groups use a 3-zone layout (FORWARD / CENTRE /
+          BACK); older groups expand to 5 zones with the addition of H-FWD and
+          H-BCK. Netball teams always use 7 fixed positions across three thirds:
+          GS, GA, WA, C, WD, GD, GK.
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
-          <li>
-            <strong className="text-ink">FORWARD</strong>:attacking end
-          </li>
-          <li>
-            <strong className="text-ink">H-FWD</strong> (Half-Forward): between centre and forward
-          </li>
-          <li>
-            <strong className="text-ink">CENTRE</strong>:middle of the ground
-          </li>
-          <li>
-            <strong className="text-ink">H-BCK</strong> (Half-Back): between centre and back
-          </li>
-          <li>
-            <strong className="text-ink">BACK</strong>:defensive end
-          </li>
-        </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          The rotation algorithm tracks how many minutes each player has spent in each
-          zone so it can suggest fair swaps. See{" "}
+          The rotation algorithm tracks how many minutes (or quarters, for
+          netball) each player has spent in each position so it can suggest
+          fair swaps. See{" "}
           <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">
             Rotations
           </Link>{" "}
@@ -118,8 +107,8 @@ export default function TeamsPage() {
 
         <HelpFigure
           src="/help-screenshots/teams-settings.png"
-          alt="The team settings page showing name, position model, and a delete team button at the bottom"
-          caption="Team settings: rename, change the position model, or delete the team."
+          alt="The team settings page showing name, age group, and a delete team button at the bottom"
+          caption="Team settings: rename, change the age group, or delete the team."
         />
       </section>
     </HelpPage>

@@ -5,9 +5,9 @@ import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · Siren Footy",
+  title: "Terms of Service · Siren",
   description:
-    "The terms that govern your use of Siren Footy, the junior Australian rules football team and game manager.",
+    "The terms that govern your use of Siren, the junior football and netball team and game manager.",
   alternates: { canonical: "/terms" },
 };
 
@@ -27,24 +27,18 @@ export default function TermsPage() {
         <div className="mt-8 space-y-8 text-ink-dim">
           <section>
             <p className="text-base leading-relaxed">
-              These terms are a contract between you and Siren Footy
+              These terms are a contract between you and Siren
               (&ldquo;Siren&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By
-              creating an account or otherwise using the app at{" "}
-              <a
-                href="https://sirenfooty.com.au"
-                className="text-brand-700 underline-offset-2 hover:underline"
-              >
-                sirenfooty.com.au
-              </a>
-              , you agree to these terms. If you don&rsquo;t agree, please
-              don&rsquo;t use the app.
+              creating an account or otherwise using the app — at
+              sirenfooty.com.au or sirennetball.com.au — you agree to these
+              terms. If you don&rsquo;t agree, please don&rsquo;t use the app.
             </p>
           </section>
 
           <Section title="1. What Siren is">
             <p>
-              Siren is a web app that helps coaches and team managers run junior
-              Australian rules football teams: rotating players fairly,
+              Siren is a web app that helps coaches and team managers run
+              junior football and netball teams: rotating players fairly,
               tracking availability, managing game-day subs, and keeping a
               simple record of each season. It is a tool for adults managing
               junior teams; it is not for use by children directly.

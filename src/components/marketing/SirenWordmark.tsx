@@ -55,12 +55,19 @@ export function SirenWordmark({
 
   // Custom property consumed by the .siren-dot--pulsing keyframe.
   // Inline-style + custom-property typing in React requires the cast.
+  //
+  // Both the dot fill (`background`) and the keyframe colour stops
+  // come from CSS variables defined in globals.css. The default
+  // values are the brand alarm-orange (#D9442D); under
+  // `[data-brand="netball"]` they flip to court-blue. So this
+  // component stays sport-agnostic — it just inherits the right
+  // hue from the cascade.
   const dotStyle: CSSProperties = {
     display: "inline-block",
     width: s.dot,
     height: s.dot,
     borderRadius: "50%",
-    background: "#D9442D",
+    background: "var(--siren-mark, #D9442D)",
     marginTop: "0.32em",
     flexShrink: 0,
     ["--siren-pulse-r" as string]: `${s.pulseR}px`,

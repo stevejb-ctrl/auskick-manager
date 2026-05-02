@@ -7,7 +7,7 @@ import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "Squads · Help · Siren Footy",
+  title: "Squads · Help · Siren",
   description: "Adding players, editing details, managing availability.",
   alternates: { canonical: "/help/squads" },
 };
@@ -36,7 +36,8 @@ export default function SquadsPage() {
           </li>
           <li>
             Enter the player&apos;s <strong className="text-ink">full name</strong> and
-            their <strong className="text-ink">jersey number</strong>.
+            their <strong className="text-ink">jersey number</strong>. Jersey numbers
+            are optional — netball squads typically leave them blank.
           </li>
           <li>
             Tap <strong className="text-ink">Save</strong>. The player appears in the
@@ -51,8 +52,10 @@ export default function SquadsPage() {
         />
 
         <HelpCallout type="tip">
-          Jersey numbers help you identify players quickly during a live game. You
-          can use any number; it does not need to be unique.
+          Jersey numbers help you identify football players quickly during a live
+          game. You can use any number; it does not need to be unique. Netball
+          uses bib position codes (GS, GA, etc.) instead, so jersey numbers can
+          be left blank.
         </HelpCallout>
       </section>
 
@@ -74,7 +77,7 @@ export default function SquadsPage() {
         </p>
         <HelpCallout type="note">
           Removing a player does not delete their game history. Their minutes and
-          zone data remain in the Stats tab.
+          per-position data remain in the Stats tab.
         </HelpCallout>
       </section>
 

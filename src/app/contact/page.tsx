@@ -5,9 +5,9 @@ import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { ContactForm } from "@/components/marketing/ContactForm";
 
 export const metadata: Metadata = {
-  title: "Contact · Siren Footy",
+  title: "Contact · Siren",
   description:
-    "Get in touch with the Siren Footy team. Questions, feedback, bug reports, or feature requests welcome.",
+    "Get in touch with the Siren team. Questions, feedback, bug reports, or feature requests welcome.",
   alternates: { canonical: "/contact" },
 };
 

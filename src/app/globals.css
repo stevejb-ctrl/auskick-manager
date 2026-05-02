@@ -2,6 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Brand theming via CSS variables ────────────────────────
+ * The `brand.*` Tailwind colours below all reference these
+ * variables. Default values (the AFL field-green ladder) live on
+ * `:root` so the AFL marketing site keeps its existing look with
+ * zero changes. The `[data-brand="netball"]` block redefines the
+ * same vars to the community-court sky-blue ladder; middleware
+ * resolves the inbound host and `app/layout.tsx` writes the
+ * matching `data-brand` attribute onto `<html>`. Every component
+ * that uses `bg-brand-600`, `text-brand-700`, etc. flips palette
+ * automatically — no per-component changes.
+ *
+ * `field` / `court` / `third-*` / `bib-*` are additive (not
+ * renames). The AFL `PlayerTile` and the existing netball
+ * `PositionToken` keep their `bg-zone-*` references untouched —
+ * that migration is out of scope for the marketing-site swap.
+ *
+ * The Siren wordmark dot also flips: `--siren-mark` is the dot
+ * fill, and `--siren-pulse-from / --siren-pulse-to` are the rgba
+ * stops the halo keyframe interpolates between. Both AFL alarm-
+ * orange and netball court-blue fall out of one brand block.
+ */
+:root {
+  /* AFL field-green ladder — values unchanged from the previous
+     hard-coded Tailwind config; just promoted to variables. */
+  --brand-50:  #E4EEE4;
+  --brand-100: #CDDFCD;
+  --brand-200: #A7C7A7;
+  --brand-300: #7CAA7D;
+  --brand-400: #568C57;
+  --brand-500: #357840;
+  --brand-600: #2F6B3E;
+  --brand-700: #275834;
+  --brand-800: #1F4528;
+  --brand-900: #183420;
+
+  /* Domain-specific surface fills. `field` is AFL oval green;
+     `court` is the netball community-court sky blue; `court-line`
+     paints the thirds + goal semicircles + centre circle white. */
+  --field: #3C8050;
+  --court: #4A9FD1;
+  --court-line: #FFFFFF;
+
+  /* Thirds palette (netball domain language). Centre is violet
+     (#7B5AA6) — the design's deliberate swap away from fuchsia
+     to open the hue gap against the new court-blue brand and
+     the defensive royal-blue. AFL's `zone-c` (fuchsia) stays
+     untouched on its own token so the AFL Field/PlayerTile
+     keep their existing colours. */
+  --third-a: #B83A2E;
+  --third-c: #7B5AA6;
+  --third-d: #1F5BAE;
+  --third-a-soft: #F4DBD7;
+  --third-c-soft: #E6DEEE;
+  --third-d-soft: #D8E1F0;
+
+  /* Bib namespace — marketing illustration only. Each position
+     has a fill + ink pair tuned for AA contrast against the
+     monogram. GS / C / GD / GK alias their respective thirds;
+     GA / WA / WD are intermediate steps so the 7-bib bench reads
+     as a smooth A → D position spectrum at a glance. */
+  --bib-gs-fill: #B83A2E; --bib-gs-ink: #FFFFFF;
+  --bib-ga-fill: #D96A4F; --bib-ga-ink: #1A1410;
+  --bib-wa-fill: #C8751F; --bib-wa-ink: #FFFFFF;
+  --bib-c-fill:  #7B5AA6; --bib-c-ink:  #FFFFFF;
+  --bib-wd-fill: #3F73A8; --bib-wd-ink: #FFFFFF;
+  --bib-gd-fill: #1F5BAE; --bib-gd-ink: #FFFFFF;
+  --bib-gk-fill: #0F3357; --bib-gk-ink: #FFFFFF;
+
+  /* Siren mark (dot in the wordmark) + halo pulse colour. Default
+     is alarm-orange (#D9442D) on the AFL domain; the netball
+     block flips both the dot fill and the halo's rgba stops. */
+  --siren-mark: #D9442D;
+  --siren-pulse-from: rgba(217, 68, 45, 0.55);
+  --siren-pulse-to:   rgba(217, 68, 45, 0);
+}
+
+/* Netball brand override — only the brand ladder + Siren-mark
+   colours flip. `field`, `third-*`, and `bib-*` are sport-stable
+   so they don't need a per-brand block. */
+[data-brand="netball"] {
+  --brand-50:  #EAF4FB;
+  --brand-100: #CFE6F4;
+  --brand-200: #A6D0EA;
+  --brand-300: #7BB8DD;
+  --brand-400: #5BA5D7;
+  --brand-500: #4A9FD1;
+  --brand-600: #2E7FB8;
+  --brand-700: #236397;
+  --brand-800: #194B76;
+  --brand-900: #0F3357;
+
+  /* Wordmark dot follows the brand identity (court blue) on the
+     netball domain. Halo keyframe interpolates the same hue.
+     0x4A 0x9F 0xD1 = rgb(74, 159, 209). */
+  --siren-mark: #4A9FD1;
+  --siren-pulse-from: rgba(74, 159, 209, 0.55);
+  --siren-pulse-to:   rgba(74, 159, 209, 0);
+}
+
 @layer base {
   body {
     @apply bg-warm text-ink antialiased;
@@ -19,10 +118,12 @@
    Siren wordmark dot — single box-shadow halo, exactly per the brand's
    siren-logo-animated.html. The pulse radius is supplied per-instance via
    --siren-pulse-r so each scale (sm/md/lg) gets a proportional ripple.
+   `--siren-pulse-from / --siren-pulse-to` come from the brand block above
+   so the halo flips hue on the netball domain.
    ───────────────────────────────────────────────────────────────────── */
 @keyframes siren-pulse {
-  0%   { box-shadow: 0 0 0 0   rgba(217, 68, 45, 0.55); }
-  100% { box-shadow: 0 0 0 var(--siren-pulse-r, 30px) rgba(217, 68, 45, 0); }
+  0%   { box-shadow: 0 0 0 0   var(--siren-pulse-from, rgba(217, 68, 45, 0.55)); }
+  100% { box-shadow: 0 0 0 var(--siren-pulse-r, 30px) var(--siren-pulse-to, rgba(217, 68, 45, 0)); }
 }
 .siren-dot--pulsing {
   animation: siren-pulse 1.5s ease-out infinite;

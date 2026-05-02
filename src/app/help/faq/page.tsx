@@ -4,8 +4,8 @@ import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
-  title: "FAQ · Help · Siren Footy",
-  description: "Quick answers to the most common questions about Siren Footy.",
+  title: "FAQ · Help · Siren",
+  description: "Quick answers to the most common questions about Siren.",
   alternates: { canonical: "/help/faq" },
 };
 
@@ -32,13 +32,13 @@ const FAQ: FAQItem[] = [
     ),
   },
   {
-    q: "How do I undo a goal?",
+    q: "How do I undo a score?",
     a: (
       <>
-        After tapping Goal or Behind, an <strong>Undo</strong> toast appears at
-        the bottom of the screen for 8 seconds. Tap it immediately to reverse the
-        score. If you miss the toast, the score is saved. Contact your admin to
-        manually correct the game data.
+        After tapping a scoring action, an <strong>Undo</strong> toast appears
+        at the bottom of the screen for 8 seconds. Tap it immediately to
+        reverse the score. If you miss the toast, the score is saved. Contact
+        your admin to manually correct the game data.
       </>
     ),
   },
@@ -46,11 +46,11 @@ const FAQ: FAQItem[] = [
     q: "Why isn't a stat showing up?",
     a: (
       <>
-        Stats only populate for <strong>completed</strong> games (all four quarters
-        ended properly). Stats that depend on scoring (winning combinations, position
-        fit, quarter scoring) also require the{" "}
+        Stats only populate for <strong>completed</strong> games (all four
+        quarters ended properly). Stats that depend on scoring (winning
+        combinations, position fit, quarter scoring) also require the{" "}
         <Link href="/help/track-scoring" className="font-medium underline">
-          Track goals &amp; behinds
+          Track scoring
         </Link>{" "}
         toggle to have been on for those games.
       </>
@@ -72,11 +72,14 @@ const FAQ: FAQItem[] = [
     q: "Why isn't the Sub Due alert firing?",
     a: (
       <>
-        The sub timer only runs while a quarter is <strong>active</strong> (not
-        paused and not in a quarter break). Make sure you&apos;ve tapped{" "}
-        <strong>Start Q{"{n}"}</strong> on the quarter break screen. If the clock
-        isn&apos;t running, the timer doesn&apos;t count. Also check that the sub
-        interval is set in your team settings (a value of 0 disables the timer).
+        Sub Due alerts apply to football&apos;s rolling-sub model only — netball
+        teams sub at the quarter break instead, so the alert never appears.
+        For football: the sub timer only runs while a quarter is{" "}
+        <strong>active</strong> (not paused and not in a quarter break). Make
+        sure you&apos;ve tapped <strong>Start Q{"{n}"}</strong> on the quarter
+        break screen. If the clock isn&apos;t running, the timer doesn&apos;t
+        count. Also check that the sub interval is set in your team settings
+        (a value of 0 disables the timer).
       </>
     ),
   },
@@ -104,11 +107,11 @@ const FAQ: FAQItem[] = [
     q: "What does the fairness score mean?",
     a: (
       <>
-        It&apos;s a 0–100 index that measures how evenly zone minutes are distributed
-        across the whole squad. 100 is perfectly equal; lower scores mean some players
-        have had significantly more or less time in certain positions. Aim for a high
-        score by the end of the season. Individual games often sit lower, which is
-        normal. See{" "}
+        It&apos;s a 0–100 index that measures how evenly time is distributed
+        across the whole squad. 100 is perfectly equal; lower scores mean some
+        players have had significantly more or less time in certain positions.
+        Aim for a high score by the end of the season. Individual games often
+        sit lower, which is normal. See{" "}
         <Link href="/help/rotations" className="font-medium underline">
           Rotations
         </Link>{" "}
@@ -127,12 +130,13 @@ const FAQ: FAQItem[] = [
     ),
   },
   {
-    q: "Why is a player still showing on the field after I marked them injured?",
+    q: "Why is a player still showing on the playing area after I marked them injured?",
     a: (
       <>
-        After you tap <strong>Mark injured</strong> in the player actions sheet, the
-        player moves to the bench immediately. If their tile is still visible on the
-        field, try refreshing the page. If the issue persists, see{" "}
+        After you tap <strong>Mark injured</strong> in the player actions
+        sheet, the player moves to the bench immediately. If their tile is
+        still visible on the playing area, try refreshing the page. If the
+        issue persists, see{" "}
         <Link href="/help/troubleshooting" className="font-medium underline">
           Troubleshooting
         </Link>

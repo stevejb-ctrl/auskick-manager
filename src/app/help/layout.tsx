@@ -3,8 +3,8 @@ import { HelpNav } from "@/components/help/HelpNav";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 export const metadata = {
-  title: "Help · Siren Footy",
-  description: "Documentation and guides for Siren Footy.",
+  title: "Help · Siren",
+  description: "Documentation and guides for Siren.",
 };
 
 export default function HelpLayout({ children }: { children: React.ReactNode }) {
@@ -38,7 +38,7 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       <footer className="mt-12 border-t border-hairline py-6 text-center text-xs text-ink-mute">
-        <span>Siren Footy · </span>
+        <span>Siren · </span>
         <Link href="/login" className="hover:text-ink-dim">
           Sign in
         </Link>

@@ -5,7 +5,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
-import { SITE_URL } from "@/lib/seo";
+import { siteUrl } from "@/lib/seo";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -55,7 +55,7 @@ export function generateMetadata(): Metadata {
   const brand = getBrand();
   const copy = getBrandCopy(brand.id);
   return {
-    metadataBase: new URL(SITE_URL),
+    metadataBase: new URL(siteUrl()),
     title: copy.productName,
     description: copy.metaDescription,
     icons: {
@@ -80,8 +80,20 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // `data-brand` drives the CSS-variable theming layer in
+  // globals.css — sirennetball.com.au gets the court-blue palette
+  // and a court-blue Siren wordmark dot, sirenfooty.com.au keeps
+  // the field-green default with the alarm-orange dot. Middleware
+  // has already resolved the inbound host into the x-brand request
+  // header by the time we render here, so getBrand() is the source
+  // of truth.
+  const brand = getBrand();
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}>
+    <html
+      lang="en"
+      data-brand={brand.brand.id}
+      className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
+    >
 
       {/* Analytics components must live INSIDE <body>. Rendering
           <SpeedInsights /> (or <GoogleAnalytics />) as a sibling of
