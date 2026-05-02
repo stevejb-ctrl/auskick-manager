@@ -8,7 +8,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // POSTing again is safe — both the AFL and netball demos are
 // upserted independently and the response reports which were
 // created vs already present.
-export async function POST(req: NextRequest) {
+//
+// Wired in two places:
+//   - POST /api/admin/seed-demo  (manual curl)
+//   - GET  /api/admin/seed-demo  (Vercel cron — schedule in
+//     vercel.json runs daily, idempotent so it just no-ops once
+//     both demos exist)
+async function handle(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,6 +50,12 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// Two methods, one handler. Vercel cron always sends GET; manual
+// curl normally uses POST. Both share the same secret check + seed
+// logic so re-runs are safe regardless of who triggered them.
+export const GET = handle;
+export const POST = handle;
 
 interface SeedResult {
   teamId: string;
