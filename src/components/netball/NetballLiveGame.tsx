@@ -100,6 +100,16 @@ interface NetballLiveGameProps {
    * (`teamRow?.track_scoring ?? false` at every call site).
    */
   trackScoring?: boolean;
+  /**
+   * Speed-up factor for the perceived clock — used by the demo flow
+   * (8× = a 10-min quarter ticks down in 1m15s of wall-clock). The
+   * raw wall-clock elapsed is multiplied by this; the hooter, the
+   * countdown display, and per-third minute accounting all consume
+   * the multiplied value so they stay in sync. Defaults to 1
+   * (real-time) to mirror AFL's `clockMultiplier` semantics in
+   * `LiveGame.tsx` and the migration default in 0021_demo.sql.
+   */
+  clockMultiplier?: number;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -123,6 +133,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     thisGameEvents,
     seasonEvents,
     trackScoring = false,
+    clockMultiplier = 1,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -184,7 +195,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // When paused, freeze at the moment of pause (subtract any
     // already-accumulated pause time from prior pauses this quarter).
     const refMs = pausedAtMs ?? Date.now();
-    return Math.max(0, refMs - startedAtMs - accumulatedPauseMs);
+    const rawElapsed = Math.max(0, refMs - startedAtMs - accumulatedPauseMs);
+    // clockMultiplier scales perceived elapsed time. Default 1 (real-
+    // time); 8 for the demo flow so a 10-min quarter ticks down in
+    // 1m15s of wall-clock. Per-third minute accounting + the hooter
+    // trigger downstream consume the multiplied value, so all three
+    // surfaces (countdown, dashboard time bars, auto-end) stay in
+    // sync. Mirrors AFL's clockMultiplier semantics in LiveGame.tsx.
+    return rawElapsed * clockMultiplier;
   })();
   const isPaused = pausedAtMs !== null;
   const handleClockTap = useCallback(() => {

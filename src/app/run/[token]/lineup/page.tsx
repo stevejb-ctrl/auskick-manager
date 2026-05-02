@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +25,20 @@ export default async function LineupPage({ params }: LineupPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, age_group")
+    .select("name, sport, age_group")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
+  const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
+
+  // Netball runner-token flow doesn't use this separate /lineup step —
+  // NetballLiveGame has a built-in pre-kickoff lineup picker that
+  // shows on /run/[token] when no lineup_set has been recorded yet.
+  // Bounce there so the netball flow stays single-page.
+  if (sport === "netball") {
+    redirect(`/run/${params.token}`);
+  }
+
   const ageGroup = ageGroupOf((teamRow as { age_group?: string } | null)?.age_group);
   const ageCfg = AGE_GROUPS[ageGroup];
   const positionModel = ageCfg.positionModel;

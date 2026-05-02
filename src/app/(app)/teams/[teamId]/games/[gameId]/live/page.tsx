@@ -214,6 +214,7 @@ export default async function LivePage({ params }: LivePageProps) {
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={(seasonEvents ?? []) as GameEvent[]}
           trackScoring={trackScoring}
+          clockMultiplier={g.clock_multiplier ?? 1}
         />
         {isAdmin && !isPreKickoff && (
           <div className="border-t border-hairline pt-4">
