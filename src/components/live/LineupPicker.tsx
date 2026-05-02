@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import {
   Eyebrow,
   Guernsey,
@@ -152,6 +153,10 @@ export function LineupPicker({
   }
 
   const [selected, setSelected] = useState<Selection | null>(null);
+  // When the coach taps an empty slot with no player pre-selected,
+  // we open a modal sheet listing every bench player so they can
+  // place someone in one tap. Null when the sheet is closed.
+  const [fillTargetZone, setFillTargetZone] = useState<Zone | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [subMinInput, setSubMinInput] = useState<string | null>(null);
@@ -256,8 +261,13 @@ export function LineupPicker({
   }
 
   function tapEmpty(zone: Zone) {
+    // No selection → open the bench-pick sheet so the coach can
+    // place someone in one tap (faster than the legacy "tap empty,
+    // then tap a bench player" two-step). Coaches who prefer the
+    // old flow can still tap a player first; that path is handled
+    // below.
     if (!selected) {
-      setSelected({ kind: "empty", zone });
+      setFillTargetZone(zone);
       return;
     }
     if (selected.kind === "empty") {
@@ -272,6 +282,15 @@ export function LineupPicker({
     }
     // player + empty: move that player into the target zone
     movePlayerToZone(selected.id, zone);
+    setSelected(null);
+  }
+
+  // Pick handler for the SlotFillSheet — places the chosen player
+  // into the slot the sheet was opened for, then closes the sheet.
+  function handleFillPick(playerId: string) {
+    if (!fillTargetZone) return;
+    movePlayerToZone(playerId, fillTargetZone);
+    setFillTargetZone(null);
     setSelected(null);
   }
 
@@ -586,6 +605,25 @@ export function LineupPicker({
           </SFButton>
         </div>
       </div>
+
+      {/* Empty-slot picker sheet — opens when the coach taps an
+          unfilled position with no player pre-selected. Lists every
+          bench player so the coach can place someone in one tap. */}
+      {fillTargetZone && (
+        <SlotFillSheet
+          slotLabel={ZONE_SHORT_LABELS[fillTargetZone]}
+          candidates={lineup.bench
+            .map((pid) => playerById.get(pid))
+            .filter((p): p is Player => !!p)
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={handleFillPick}
+          onCancel={() => setFillTargetZone(null)}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { Guernsey } from "@/components/sf";
 import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
@@ -123,6 +124,10 @@ export function QuarterBreak({
 
   const [draft, setDraft] = useState<Lineup>(lineup);
   const [selected, setSelected] = useState<string | null>(null);
+  // Slot the coach is filling via the SlotFillSheet. Set when they
+  // tap an empty zone slot; cleared when they pick or cancel. Null
+  // means the sheet is closed.
+  const [fillTargetZone, setFillTargetZone] = useState<Zone | null>(null);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +204,29 @@ export function QuarterBreak({
       }
       return next;
     });
+    setSelected(null);
+  }
+
+  // Move a bench player into a target zone — shared between the
+  // SlotFillSheet pick path and any future direct-place affordances.
+  // Pulls the player out of wherever they currently live (zone or
+  // bench) so we don't double-count.
+  function placeInZone(pid: string, target: Zone) {
+    setDraft((prev) => ({
+      back: prev.back.filter((p) => p !== pid),
+      hback: prev.hback.filter((p) => p !== pid),
+      mid: prev.mid.filter((p) => p !== pid),
+      hfwd: prev.hfwd.filter((p) => p !== pid),
+      fwd: prev.fwd.filter((p) => p !== pid),
+      bench: prev.bench.filter((p) => p !== pid),
+      [target]: [...prev[target], pid],
+    }));
+  }
+
+  function handleFillPick(playerId: string) {
+    if (!fillTargetZone) return;
+    placeInZone(playerId, fillTargetZone);
+    setFillTargetZone(null);
     setSelected(null);
   }
 
@@ -426,7 +454,29 @@ export function QuarterBreak({
               </span>
             </div>
             {draft[slot].length === 0 ? (
-              <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
+              slot === "bench" ? (
+                <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
+              ) : (
+                // Tappable empty-zone placeholder. Opens the
+                // SlotFillSheet so the coach can pick a bench player
+                // for this zone without going through the two-tap
+                // swap dance — the only viable path in manual mode
+                // where every zone starts empty.
+                <button
+                  type="button"
+                  onClick={() => setFillTargetZone(slot)}
+                  className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-3 py-2.5 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
+                  aria-label={`Empty ${slotLabel(slot)} — tap to fill`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
+                  >
+                    +
+                  </span>
+                  <span className="font-medium">Tap to fill</span>
+                </button>
+              )
             ) : (
               <ul className="space-y-1.5">
                 {draft[slot].map((pid) => {
@@ -503,6 +553,29 @@ export function QuarterBreak({
                     </li>
                   );
                 })}
+                {/* Spare-capacity affordance — when a non-bench zone
+                    has fewer players than its cap, surface a "+ Add"
+                    row that opens the SlotFillSheet. Lets the coach
+                    grow a short-handed zone without juggling swaps.
+                    Bench has no cap, so it never renders. */}
+                {slot !== "bench" && draft[slot].length < zoneCaps[slot] && (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setFillTargetZone(slot)}
+                      className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-2.5 py-2 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
+                      aria-label={`Add player to ${slotLabel(slot)}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
+                      >
+                        +
+                      </span>
+                      <span className="font-medium">Add player</span>
+                    </button>
+                  </li>
+                )}
               </ul>
             )}
           </div>
@@ -520,6 +593,26 @@ export function QuarterBreak({
           Start Q{nextQuarter}
         </Button>
       </div>
+
+      {/* Empty-zone picker sheet — opens when the coach taps a
+          "Tap to fill" / "Add player" affordance. Lists every bench
+          player so they can place someone in one tap. */}
+      {fillTargetZone && (
+        <SlotFillSheet
+          slotLabel={slotLabel(fillTargetZone)}
+          candidates={draft.bench
+            .filter((pid) => !sidelinedSet.has(pid))
+            .map((pid) => playersById.get(pid))
+            .filter((p): p is Player => !!p)
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={handleFillPick}
+          onCancel={() => setFillTargetZone(null)}
+        />
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -147,6 +148,12 @@ export function NetballLineupPicker({
   // pickers behave identically, and matches the AFL pattern.
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Position the coach is filling via the SlotFillSheet. Set when
+  // they tap an empty position with no player pre-selected; cleared
+  // on pick or cancel.
+  const [fillTargetPosition, setFillTargetPosition] = useState<string | null>(
+    null,
+  );
 
   // Per-game quarter-length override input. Stored as a free-text
   // string (rather than a number) so the user can clear the field
@@ -218,30 +225,44 @@ export function NetballLineupPicker({
     setSelected(null);
   };
 
-  // Tap on an empty position (no player there). With nothing selected
-  // this is a no-op. With a player selected, that player moves into
-  // the empty slot and whoever they used to be with goes there
-  // (effectively: selected leaves their old slot, fills this one).
-  const handleTapEmpty = (positionId: string) => {
-    if (!selected) return;
-    const fromSlot = playerSlot.get(selected);
-    if (!fromSlot) {
-      setSelected(null);
-      return;
-    }
+  // Place a specific player into a specific position — pulls them
+  // out of their current slot (zone or bench) so we don't double-
+  // book. Shared between the legacy "tap player + tap empty" flow
+  // and the SlotFillSheet pick handler.
+  const placeInPosition = (pid: string, positionId: string) => {
     setLineup((prev) => {
       const next: GenericLineup = {
         positions: Object.fromEntries(
           Object.entries(prev.positions).map(([k, v]) => [
             k,
-            v.filter((p) => p !== selected),
+            v.filter((p) => p !== pid),
           ]),
         ),
-        bench: prev.bench.filter((p) => p !== selected),
+        bench: prev.bench.filter((p) => p !== pid),
       };
-      next.positions[positionId] = [...(next.positions[positionId] ?? []), selected];
+      next.positions[positionId] = [...(next.positions[positionId] ?? []), pid];
       return next;
     });
+  };
+
+  // Tap on an empty position (no player there). No selection → open
+  // the SlotFillSheet so the coach can pick a bench player in one
+  // tap (faster than the legacy two-tap path). Selection → fall
+  // through to the legacy "move selected player into empty slot"
+  // behaviour for coaches who already started swapping.
+  const handleTapEmpty = (positionId: string) => {
+    if (!selected) {
+      setFillTargetPosition(positionId);
+      return;
+    }
+    placeInPosition(selected, positionId);
+    setSelected(null);
+  };
+
+  const handleFillPick = (playerId: string) => {
+    if (!fillTargetPosition) return;
+    placeInPosition(playerId, fillTargetPosition);
+    setFillTargetPosition(null);
     setSelected(null);
   };
 
@@ -463,6 +484,39 @@ export function NetballLineupPicker({
       >
         {saving ? "Saving…" : confirmLabel}
       </button>
+
+      {/* Empty-position picker sheet — opens when the coach taps an
+          unfilled court position with no player pre-selected. Lists
+          every bench / unassigned player so they can place someone
+          in one tap. */}
+      {fillTargetPosition && (() => {
+        const onCourtSet = new Set(
+          Array.from(playerSlot.entries())
+            .filter(([, slot]) => slot !== "bench")
+            .map(([pid]) => pid),
+        );
+        const candidatePool = [
+          ...lineup.bench,
+          ...availableIds.filter(
+            (pid) => !onCourtSet.has(pid) && !lineup.bench.includes(pid),
+          ),
+        ];
+        const pos = netballSport.allPositions.find(
+          (p) => p.id === fillTargetPosition,
+        );
+        const slotLabel = pos?.shortLabel ?? fillTargetPosition.toUpperCase();
+        return (
+          <SlotFillSheet
+            slotLabel={slotLabel}
+            candidates={candidatePool
+              .map((pid) => squadById.get(pid))
+              .filter((p): p is Player => !!p)
+              .map((p) => ({ id: p.id, name: p.full_name }))}
+            onPick={handleFillPick}
+            onCancel={() => setFillTargetPosition(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
