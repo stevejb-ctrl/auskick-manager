@@ -698,10 +698,13 @@ export function LiveGame({
         return;
       }
       beginNextQuarter();
-      // Don't auto-start the clock — the StartQuarterModal below renders
-      // a "Ready for Q1, tap when the hooter goes" CTA so the GM controls
-      // the kickoff moment. Q1, Q2, Q3, Q4 all flow through the same
-      // modal-gated pattern.
+      // Q1 is gated on the StartQuarterModal — the modal is the only
+      // kickoff affordance in pre-game (we removed the duplicate
+      // "Start Q1" button that used to sit on the main UI). The
+      // single tap on the modal both writes the server quarter_start
+      // event AND starts the local clock so the GM doesn't have to
+      // confirm twice.
+      startClock();
       router.refresh();
     });
   }
@@ -966,12 +969,6 @@ export function LiveGame({
         </div>
       )}
 
-      {/* Start Q1 */}
-      {isPreGame && (
-        <Button className="w-full" onClick={handleStartFirstQuarter} loading={isPending}>
-          Start Q1
-        </Button>
-      )}
       {isFinished && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Full time
@@ -1159,21 +1156,25 @@ export function LiveGame({
         />
       )}
 
-      {/* Await-kickoff modal for every quarter. Q1's "Start Q1" button
-          advances the quarter without auto-starting the clock; Q2–Q4
-          come through QuarterBreak which does the same. The GM taps the
-          modal CTA when the hooter goes — gives them control of the
-          kickoff moment instead of the clock starting on the lineup tap. */}
-      {!isPreGame &&
-        !isFinished &&
+      {/* Await-kickoff modal — the ONLY kickoff affordance for every
+          quarter. In pre-game (cQ=0, lineup committed via startGame)
+          the modal opens on page load so the GM has a single CTA to
+          tap when the hooter goes — not a duplicate "Start Q1" button
+          on the page that just opens the modal. For Q2–Q4, the modal
+          renders after QuarterBreak commits the lineup + advances the
+          quarter, gating the local clock start on the GM's whistle
+          tap. handleStartFirstQuarter (Q1) writes the server
+          quarter_start AND starts the clock in one step; startClock
+          (Q2–Q4) only starts the local clock since QuarterBreak
+          already wrote the server event. */}
+      {!isFinished &&
         !quarterEnded &&
         !running &&
-        accumulatedMs === 0 &&
-        currentQuarter >= 1 && (
+        accumulatedMs === 0 && (
           <StartQuarterModal
-            quarter={currentQuarter}
+            quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
-            onStart={() => startClock()}
+            onStart={isPreGame ? handleStartFirstQuarter : () => startClock()}
           />
         )}
 
