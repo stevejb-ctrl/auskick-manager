@@ -745,6 +745,17 @@ export function LiveGame({
   const isFinished = finalised || (currentQuarter >= 4 && quarterEnded);
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
+  // Tracks whether the GM has dismissed the await-kickoff modal so
+  // they can adjust the lineup before starting the clock. The modal
+  // auto-shows whenever conditions are met, but the GM can press
+  // "Back to lineup" to dismiss it; a small "Start Q{n}" page button
+  // re-shows it. Reset on every quarter transition so a new quarter's
+  // modal starts undismissed.
+  const [startModalDismissed, setStartModalDismissed] = useState(false);
+  useEffect(() => {
+    setStartModalDismissed(false);
+  }, [currentQuarter]);
+
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
   const displayNowMs = Math.min(nowMs, quarterMs);
 
@@ -969,6 +980,24 @@ export function LiveGame({
         </div>
       )}
 
+      {/* Re-trigger button for the await-kickoff modal. Only visible
+          when the modal has been dismissed via "Back to lineup" so
+          the GM can resume kickoff once they're done adjusting. Lives
+          above the field where the legacy "Start Q1" button sat. */}
+      {!isFinished &&
+        !quarterEnded &&
+        !running &&
+        accumulatedMs === 0 &&
+        startModalDismissed && (
+          <Button
+            className="w-full"
+            onClick={() => setStartModalDismissed(false)}
+            loading={isPending}
+          >
+            Start Q{isPreGame ? 1 : currentQuarter}
+          </Button>
+        )}
+
       {isFinished && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Full time
@@ -1170,11 +1199,13 @@ export function LiveGame({
       {!isFinished &&
         !quarterEnded &&
         !running &&
-        accumulatedMs === 0 && (
+        accumulatedMs === 0 &&
+        !startModalDismissed && (
           <StartQuarterModal
             quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
             onStart={isPreGame ? handleStartFirstQuarter : () => startClock()}
+            onCancel={() => setStartModalDismissed(true)}
           />
         )}
 

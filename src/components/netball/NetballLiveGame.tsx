@@ -1169,6 +1169,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 router.refresh();
               });
             }}
+            onCancel={() => setPendingQuarterStart(null)}
           />
         )}
       </div>

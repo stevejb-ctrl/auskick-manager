@@ -139,6 +139,83 @@ test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", 
     .toBe(1);
 });
 
+test("AFL: 'Back to lineup' on the kickoff modal dismisses to a page-level Start Q1 button", async ({
+  page,
+}) => {
+  // Regression for "GM accidentally taps Start before the lineup is
+  // ready" — the modal MUST offer an escape back to the lineup. Not
+  // a destructive reset; just dismiss-and-re-trigger.
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 15,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  const lineup = await buildLineup({
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+  });
+  await admin.from("game_events").insert({
+    game_id: game.id,
+    type: "lineup_set",
+    metadata: { lineup },
+    created_by: ownerId,
+  });
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Modal auto-shows in pre-Q1.
+  await expect(
+    page.getByRole("heading", { name: /^ready for q1$/i }),
+  ).toBeVisible({ timeout: 10_000 });
+  // No page-level "Start Q1" button while modal is up — the modal IS
+  // the kickoff CTA.
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(1);
+
+  // Tap "Back to lineup" — modal dismisses.
+  await page.getByRole("button", { name: /^back to lineup$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^ready for q1$/i }),
+  ).toBeHidden({ timeout: 2_000 });
+
+  // Page-level "Start Q1" button now visible — re-trigger affordance.
+  await expect(
+    page.getByRole("button", { name: /^start q1$/i }),
+  ).toBeVisible({ timeout: 2_000 });
+
+  // No quarter_start event yet — the dismiss is purely client-side,
+  // nothing was committed.
+  await page.waitForTimeout(500);
+  const { data: pre } = await admin
+    .from("game_events")
+    .select("type")
+    .eq("game_id", game.id)
+    .eq("type", "quarter_start");
+  expect(pre ?? []).toHaveLength(0);
+
+  // Tap the page button → modal re-shows.
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^ready for q1$/i }),
+  ).toBeVisible({ timeout: 2_000 });
+
+  // Modal's CTA now starts the clock for real.
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await expect(
+    page.getByRole("button", { name: /^pause clock$/i }),
+  ).toBeVisible({ timeout: 3_000 });
+});
+
 test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap", async ({
   page,
 }) => {

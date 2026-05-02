@@ -847,6 +847,7 @@ export function NetballQuarterBreak({
           quarter={pendingStartQuarter}
           loading={isPending}
           onStart={handleConfirmQuarterStart}
+          onCancel={() => setPendingStartQuarter(null)}
         />
       )}
 
