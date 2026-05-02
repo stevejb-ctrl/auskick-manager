@@ -69,11 +69,16 @@ test("netball game-detail scorers card uses 'Goal shooters / Who put it in', omi
   await expect(page.getByText(/who put it through/i)).toHaveCount(0);
   await expect(page.getByText(/^pts$/i)).toHaveCount(0);
 
-  // Top scorer is players[0] with 3 goals — the "3 goals" suffix
-  // proves the netball renderer (no `× 6` points calc, no "g · b").
-  await expect(page.getByText(/^3 goals$/i)).toBeVisible();
-  // Singular "goal" suffix for players[1] with 1 goal.
-  await expect(page.getByText(/^1 goal$/i)).toBeVisible();
+  // Top scorer is players[0] with 3 goals; players[1] has 1.
+  // The netball renderer puts the count and "goal(s)" suffix in
+  // adjacent spans (no whitespace text node between them), so we
+  // anchor on the singular/plural suffix and the count separately.
+  // Plural "goals" appears once (top scorer with 3); singular
+  // "goal" appears once (players[1] with 1) — together they prove
+  // the netball branch is rendering, since the AFL branch would
+  // show "g" / "b" / "pts" instead.
+  await expect(page.getByText(/^goals$/i)).toBeVisible();
+  await expect(page.getByText(/^goal$/i)).toBeVisible();
 
   // Scorer count chip: 2 distinct scorers.
   await expect(page.getByText(/^2 scorers$/i)).toBeVisible();
