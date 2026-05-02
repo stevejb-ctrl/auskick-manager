@@ -398,9 +398,10 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     previousTeammates,
     thisGameTotalMs,
     // seasonAvailability prop kept for back-compat with existing
-    // callers but no longer drives the sort. Destructure with `_`
-    // prefix so the unused-vars lint rule is happy.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // callers but no longer drives the sort. The `_seasonAvail`
+    // alias's leading underscore satisfies TS's noUnusedParameters
+    // check; Next's eslint config doesn't define
+    // @typescript-eslint/no-unused-vars so we don't disable it here.
     seasonAvailability: _seasonAvail,
   } = input;
   const lineup = emptyGenericLineup(positions);

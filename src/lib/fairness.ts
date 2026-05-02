@@ -466,7 +466,9 @@ export function suggestStartingLineup(
   previousQuarterZones: Record<string, Zone> = {},
   previousZoneTeammates: Record<string, Set<string>> = {},
   // Deprecated — kept for back-compat, no longer drives sorting.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // The leading underscore signals "intentionally unused" to TS's
+  // noUnusedParameters check; Next's eslint config doesn't define
+  // @typescript-eslint/no-unused-vars so we don't disable it here.
   _seasonAvail: Record<string, SeasonAvailability> = {}
 ): Lineup {
   const lineup = emptyLineup();
