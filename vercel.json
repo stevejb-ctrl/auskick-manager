@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-playhq",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/admin/seed-demo",
+      "schedule": "30 3 * * *"
     }
   ]
 }
