@@ -375,16 +375,12 @@ export interface NetballSuggestInput {
    */
   thisGameTotalMs?: Record<string, number>;
   /**
-   * Per-player season utilisation — quarters played vs available
-   * across all PRIOR games. Used as a tiebreak in the who-plays
-   * sort: among players with equal in-game ms, the under-utilised
-   * (lower played/available ratio) get court priority. So a
-   * consistent attendee who's been benched twice already this
-   * season starts moving up the queue ahead of teammates who've
-   * had similar attendance but more court time. Steve's rule:
-   * "those who have had the least game time should have the least
-   * subs." When absent, the tiebreak is skipped and the seeded
-   * shuffle decides ms-tied players.
+   * @deprecated No longer used. Was previously a sort tiebreak but
+   * removed per Steve's clarified rule: "A player who turns up every
+   * week should not be benched because another player only turns up
+   * half the time." Position-level diversity over the season still
+   * lives in tier 5 of `owed()`. Param is retained for back-compat
+   * with existing callers; ignored internally.
    */
   seasonAvailability?: Record<string, SeasonAvailability>;
 }
@@ -401,7 +397,11 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     lastQuarterThird,
     previousTeammates,
     thisGameTotalMs,
-    seasonAvailability: seasonAvail,
+    // seasonAvailability prop kept for back-compat with existing
+    // callers but no longer drives the sort. Destructure with `_`
+    // prefix so the unused-vars lint rule is happy.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    seasonAvailability: _seasonAvail,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
@@ -540,29 +540,21 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     if (thisGameTotalMs) return thisGameTotalMs[pid] ?? 0;
     return Object.values(thisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
   };
-  // Season utilisation tiebreak: ratio of quarters-played to
-  // quarters-available across prior games. Returns 1.0 (fully
-  // utilised, no signal) when we have no data — a brand-new player
-  // doesn't get artificial priority over the squad regulars.
-  const seasonRatio = (pid: string): number => {
-    if (!seasonAvail) return 1.0;
-    const s = seasonAvail[pid];
-    if (!s || s.availableQuarters === 0) return 1.0;
-    return s.playedQuarters / s.availableQuarters;
-  };
-
+  // ATTENDANCE-HISTORY IS NOT A FACTOR in the sort. Per Steve's
+  // clarified rule: "It is ok to penalise players who have missed
+  // games on total game time. Over the season the split between
+  // positions should be balanced, but not total game time. A
+  // player who turns up every week should not be benched because
+  // another player only turns up half the time."
+  //
+  // So `seasonAvail` is no longer used as a tiebreak (it was
+  // previously — that gave low-attendance kids court priority and
+  // crowded out regulars). The seasonAvailability helper below
+  // stays available for stats display, but the suggester's sort
+  // is purely in-game ms ascending, with the seeded shuffle as
+  // the only fallback.
   const shuffled = seededShuffle(playerIds, seed + 41);
-  shuffled.sort((a, b) => {
-    // Primary: in-game ms played. Less first.
-    const msDiff = sortKey(a) - sortKey(b);
-    if (msDiff !== 0) return msDiff;
-    // Tiebreak: season utilisation. Lower ratio (more bench history
-    // when present) sorts first → court priority. So a consistent
-    // attendee who keeps drawing the bench starts climbing the
-    // queue, and a teammate who's had a normal share of court time
-    // moves down to balance it.
-    return seasonRatio(a) - seasonRatio(b);
-  });
+  shuffled.sort((a, b) => sortKey(a) - sortKey(b));
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);

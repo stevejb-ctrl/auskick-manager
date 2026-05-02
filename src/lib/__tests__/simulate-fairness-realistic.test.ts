@@ -174,9 +174,10 @@ function simulateGame(
   // The squad available to the suggester evolves: starts as
   // attended-and-not-late, adds late arrivals at Q2, removes
   // injured / loaned players.
-  const presentIds = new Set<string>(
-    [...plan.attended].filter((id) => !plan.lateArrivals.has(id)),
-  );
+  const presentIds = new Set<string>();
+  plan.attended.forEach((id) => {
+    if (!plan.lateArrivals.has(id)) presentIds.add(id);
+  });
   const injuredIds = new Set<string>();
   const loanedIds = new Set<string>();
 
@@ -187,7 +188,7 @@ function simulateGame(
   for (let q = 1; q <= QUARTERS_PER_GAME; q++) {
     // Q2: bring in late arrivals.
     if (q === 2) {
-      for (const id of plan.lateArrivals) presentIds.add(id);
+      plan.lateArrivals.forEach((id) => presentIds.add(id));
     }
     // End of the loaned quarter: bring the loaned player back.
     if (plan.loanedThisQuarter !== null && q === plan.loanedThisQuarter + 1) {
@@ -302,11 +303,14 @@ function simulateGame(
           if (z) zoneMsByPlayer[pid][z] += elapsed - start;
         }
 
+        const blocked: string[] = [];
+        injuredIds.forEach((id) => blocked.push(id));
+        loanedIds.forEach((id) => blocked.push(id));
         const suggestions = suggestSwaps(
           lineup,
           totalsByPlayer,
           swapCount++,
-          [...injuredIds, ...loanedIds],
+          blocked,
           ACTIVE_ZONES,
           [],
           zoneMsByPlayer,
@@ -363,7 +367,9 @@ function simulateGame(
 
   // Tally up disruption counts for the report.
   let injuredCount = 0;
-  for (const arr of plan.injuriesByQuarter.values()) injuredCount += arr.filter((s) => s !== "@TBD").length;
+  plan.injuriesByQuarter.forEach((arr: string[]) => {
+    injuredCount += arr.filter((s) => s !== "@TBD").length;
+  });
   const loanedCount = plan.loanedPlayerId ? 1 : 0;
   const lateCount = plan.lateArrivals.size;
 

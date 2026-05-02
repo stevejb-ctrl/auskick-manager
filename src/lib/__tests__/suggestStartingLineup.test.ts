@@ -299,82 +299,81 @@ describe("suggestStartingLineup — sort key prioritises kids with least in-game
   });
 });
 
-describe("suggestStartingLineup — season-utilisation tiebreak", () => {
-  // Two players tied on this-game minutes (both at zero, pre-game).
-  // One has been benched a lot historically (low played/available
-  // ratio), the other has had normal court time. The under-utilised
-  // kid should sort first → court priority. Steve's "consistent
-  // attendees who keep drawing the bench start collecting priority"
-  // rule.
-  it("among ms-tied players, lower season-utilisation ratio sorts first", () => {
-    // 4 players, 3 slots — exactly one goes to the bench. The
-    // tiebreak decides which one.
-    const all = players(["Veteran", "Regular", "BenchKid", "Newbie"]);
-    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
-    // All zero in-game minutes (pre-game). Identical season totals
-    // so the season fallback would shuffle randomly. Only the
-    // utilisation tiebreak can rank them.
+describe("suggestStartingLineup — attendance-history is NOT a sort factor", () => {
+  // Steve's clarified rule: "It is ok to penalise players who have
+  // missed games on total game time. Over the season the split
+  // between positions should be balanced, but not total game time.
+  // A player who turns up every week should not be benched because
+  // another player only turns up half the time."
+  //
+  // So a low-attendance kid does NOT get priority over a regular
+  // when both show up to a game. Position-level diversity
+  // (SEASON_DIVERSITY in owed()) still applies — that's about
+  // WHICH zone, not how MUCH.
+  it("does not give low-attendance kids court priority over regulars", () => {
+    // 2 players, 1 slot — exactly one is benched at Q1.
+    // Both have zero in-game ms (pre-game) and identical season
+    // totals. The only difference is one missed half the season.
+    // Pre-clarification, the under-utilised kid would have won the
+    // sort. Post-clarification, neither has priority — the seeded
+    // shuffle decides, and across many seeds the attendance kid
+    // gets benched roughly half the time, NOT 0% of the time.
+    const all = players(["Regular", "Absentee"]);
+    const caps = { back: 1, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
     const balanced = { back: 30 * 60_000, hback: 0, mid: 30 * 60_000, hfwd: 0, fwd: 30 * 60_000 };
-    const season: PlayerZoneMinutes = {};
-    for (const p of all) season[p.id] = { ...balanced };
-    const seasonAvail: Record<string, { playedQuarters: number; availableQuarters: number }> = {
-      // Veteran has played 16/20 quarters → ratio 0.8 (high
-      // utilisation, has been on court a lot).
-      Veteran: { playedQuarters: 16, availableQuarters: 20 },
-      // Regular has played 12/20 → ratio 0.6 (normal share).
-      Regular: { playedQuarters: 12, availableQuarters: 20 },
-      // BenchKid has played 5/20 → ratio 0.25 (lots of bench
-      // history → court priority).
-      BenchKid: { playedQuarters: 5, availableQuarters: 20 },
-      // Newbie has no history → ratio defaults to 1.0 (no signal,
-      // doesn't get artificial priority over the regulars).
+    const season: PlayerZoneMinutes = {
+      Regular: { ...balanced },
+      Absentee: { ...balanced },
+    };
+    const seasonAvail = {
+      // Regular: played 20/20 (high attendance, would have lost
+      // the old tiebreak).
+      Regular: { playedQuarters: 20, availableQuarters: 20 },
+      // Absentee: played 5/20 (low attendance, would have won the
+      // old tiebreak — given court priority over Regular).
+      Absentee: { playedQuarters: 5, availableQuarters: 20 },
     };
 
-    // Run across multiple seeds. Without the tiebreak, the seeded
-    // shuffle could put any of them on the bench. With it,
-    // BenchKid (lowest ratio) MUST be on the field every time.
-    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
+    // Across seeds the attendance-history kid should get benched
+    // some of the time. Pre-removal, Absentee had ratio 0.25 and
+    // would always win the bench fight. Post-removal, the seeded
+    // shuffle decides → roughly even split.
+    let regularBenchedCount = 0;
+    let absenteeBenchedCount = 0;
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
       const lineup = suggestStartingLineup(
         all,
         season,
         seed,
         caps,
-        {}, // currentGame: empty pre-game
+        {},
         {},
         {},
         {},
         seasonAvail,
       );
-      expect(
-        zoneOf(lineup, "BenchKid"),
-        `seed ${seed}: BenchKid (ratio 0.25) was benched`,
-      ).not.toBeNull();
+      if (zoneOf(lineup, "Regular") === null) regularBenchedCount++;
+      if (zoneOf(lineup, "Absentee") === null) absenteeBenchedCount++;
     }
+    // Both should land on bench at least once across 10 seeds —
+    // proves attendance history doesn't lock either of them onto
+    // the field. (The exact split depends on the seed sequence,
+    // but neither side should be 0/10.)
+    expect(
+      regularBenchedCount,
+      "Regular was never benched — old attendance-tiebreak still active?",
+    ).toBeGreaterThan(0);
+    expect(
+      absenteeBenchedCount,
+      "Absentee was never benched — old attendance-tiebreak still active?",
+    ).toBeGreaterThan(0);
   });
 
-  // No seasonAvailability arg → tiebreak silently skipped (no
-  // crash, no implicit ranking).
-  it("works with no seasonAvailability argument (backward-compat)", () => {
+  // The seasonAvailability param remains accepted for back-compat
+  // but is silently ignored.
+  it("seasonAvailability arg is accepted but ignored (back-compat)", () => {
     const all = players(["A", "B", "C"]);
     const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
-    const lineup = suggestStartingLineup(all, {}, 0, caps);
-    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
-  });
-
-  // Players with no entry in seasonAvail (brand-new attendee) get
-  // ratio 1.0 — no artificial priority over regulars. This stops a
-  // never-recorded player from accidentally jumping the queue.
-  it("missing players default to 1.0 ratio (no priority for unseen kids)", () => {
-    const all = players(["Known", "Unknown"]);
-    const caps = { back: 1, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
-    const seasonAvail = {
-      // Known: high utilisation, would normally lose the tiebreak.
-      Known: { playedQuarters: 18, availableQuarters: 20 },
-      // Unknown not present → defaults to 1.0 ratio.
-    };
-    // 2 players, 1 slot. Without seasonAvail, the seeded shuffle
-    // picks one. With seasonAvail, Known (0.9) sorts first vs
-    // Unknown's default 1.0 → Known plays.
     const lineup = suggestStartingLineup(
       all,
       {},
@@ -384,10 +383,14 @@ describe("suggestStartingLineup — season-utilisation tiebreak", () => {
       {},
       {},
       {},
-      seasonAvail,
+      // Lopsided seasonAvailability — should NOT affect placement.
+      {
+        A: { playedQuarters: 0, availableQuarters: 20 },
+        B: { playedQuarters: 20, availableQuarters: 20 },
+      },
     );
-    expect(zoneOf(lineup, "Known")).toBe("back");
-    expect(zoneOf(lineup, "Unknown")).toBeNull(); // benched
+    // All 3 placed (3 slots, 3 players). No crashes.
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
   });
 });
 

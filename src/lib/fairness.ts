@@ -431,23 +431,31 @@ export function seasonZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
 //                            for the canonical builder. Empty/missing for Q1.
 //
 // Sort key (who plays vs who benches):
-//   When `currentGame` is provided, the placement loop iterates players
-//   in ASCENDING order of in-game zone minutes — the kid who's been on
-//   the bench all of Q1 climbs ahead of teammates who played the full
-//   quarter, even if their season totals are similar. Steve's rule:
-//   "those who have had the least game time should have the least subs."
+//   The placement loop iterates players in ASCENDING order of in-game
+//   zone minutes — the kid who's been on the bench all of Q1 climbs
+//   ahead of teammates who played the full quarter. Steve's rule:
+//   "those who have had the least game time should have the least
+//   subs."
 //
-//   When `seasonAvail` is also provided, ms-tied players fall back to
-//   their season-utilisation ratio: lower played/available ratio sorts
-//   first, so consistent attendees who keep drawing the bench start
-//   collecting court priority that nudges them onto the field next
-//   time. A teammate who attended the same number of games but had a
-//   normal share of court time moves down to balance it.
+//   Attendance-history is DELIBERATELY NOT a factor in this sort.
+//   Per Steve: "It is ok to penalise players who have missed games on
+//   total game time. Over the season the split between positions
+//   should be balanced, but not total game time. A player who turns up
+//   every week should not be benched because another player only turns
+//   up half the time." So a kid who's missed 5 games doesn't get
+//   priority over the regulars when they show up — they just rotate
+//   like everyone else who attended today. (Position-level season
+//   diversity is still enforced by SEASON_DIVERSITY in the owed-score
+//   below — that's about WHICH ZONE each kid plays, not how MUCH.)
 //
-//   Final fallback (both keys tied) is the deterministic seeded shuffle.
-//   When `currentGame` is empty (start of Q1, simple unit tests), the
-//   sort falls back to season totals so legacy callers behave the same
-//   as before.
+//   When `currentGame` is empty (start of Q1, simple unit tests), all
+//   players have zero ms played → ties → seeded shuffle decides Q1's
+//   starting bench (3 of 15 in U10). That's intentional: arbitrary at
+//   Q1, but the in-game ms sort fully evens out by Q4.
+//
+//   `seasonAvail` was previously a tiebreak (commit 8727109) — REMOVED
+//   per the rule above. The param stays optional/ignored for
+//   backward-compat with any external test caller.
 export function suggestStartingLineup(
   availablePlayers: Player[],
   season: PlayerZoneMinutes,
@@ -457,7 +465,9 @@ export function suggestStartingLineup(
   pinnedPositions: Record<string, Zone> = {},
   previousQuarterZones: Record<string, Zone> = {},
   previousZoneTeammates: Record<string, Set<string>> = {},
-  seasonAvail: Record<string, SeasonAvailability> = {}
+  // Deprecated — kept for back-compat, no longer drives sorting.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _seasonAvail: Record<string, SeasonAvailability> = {}
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -521,28 +531,26 @@ export function suggestStartingLineup(
   // who played the full quarter — Steve's "those who have had the
   // least game time should have the least subs" rule.
   //
-  // We deliberately use IN-GAME minutes, not season totals: a kid
-  // who missed the last 5 games and shows up today shouldn't crowd
-  // out a teammate who's at zero minutes today. Position-level
-  // season fairness lives in the `owed()` scoring (SEASON_DIVERSITY
-  // + FAIRNESS_TERM), not the who-plays-vs-who-benches sort.
+  // ATTENDANCE-HISTORY IS NOT A FACTOR. Per Steve's clarified rule:
+  // "It is ok to penalise players who have missed games on total
+  // game time. Over the season the split between positions should
+  // be balanced, but not total game time. A player who turns up
+  // every week should not be benched because another player only
+  // turns up half the time." So a kid who missed last week doesn't
+  // crowd out a regular today; they just rotate among today's
+  // attendees on equal footing. (Position-level season fairness
+  // still lives in `owed()`'s SEASON_DIVERSITY + FAIRNESS_TERM —
+  // that's about WHICH ZONE, not how MUCH.)
   //
-  // When `currentGame` is empty (every value sums to 0), we fall
-  // back to season totals — preserves the legacy "rank by season
-  // load" behaviour for pre-game / unit-test callers that don't
-  // pass in-game data.
+  // When `currentGame` is empty (start of Q1, simple unit tests),
+  // every value is zero → ties → the seeded shuffle alone decides
+  // the Q1 starting bench. Intentional: arbitrary at Q1, evens out
+  // by Q4 via the in-game ms sort.
   const inGameTotal = (pid: string) => {
     let t = 0;
     for (const z of zones) t += currentGame[pid]?.[z] ?? 0;
     return t;
   };
-  const seasonTotal = (pid: string) => {
-    let t = 0;
-    for (const z of zones) t += season[pid]?.[z] ?? 0;
-    return t;
-  };
-  const anyInGameMinutes = availablePlayers.some((p) => inGameTotal(p.id) > 0);
-  const sortKey = anyInGameMinutes ? inGameTotal : seasonTotal;
 
   // For the partnership penalty: track exactly which players have already
   // been placed in each target zone. When evaluating (pid, target) we look
@@ -573,28 +581,11 @@ export function suggestStartingLineup(
     return penalty;
   };
 
-  // Season utilisation tiebreak: fraction of attended quarters
-  // spent on court. Lower ratio = more bench history = court
-  // priority next time. Returns 1.0 (no signal) when we have no
-  // data — a brand-new player doesn't get artificial priority
-  // over the squad regulars.
-  const seasonRatio = (pid: string) => {
-    const s = seasonAvail[pid];
-    if (!s || s.availableQuarters === 0) return 1.0;
-    return s.playedQuarters / s.availableQuarters;
-  };
-
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
-  const sortedPlayers = shuffled.sort((a, b) => {
-    // Primary: this-game minutes ascending (least-played gets
-    // first court priority).
-    const msDiff = sortKey(a.id) - sortKey(b.id);
-    if (msDiff !== 0) return msDiff;
-    // Tiebreak: season utilisation ratio ascending. Lower ratio
-    // = more historical bench time = climb the queue.
-    return seasonRatio(a.id) - seasonRatio(b.id);
-  });
+  const sortedPlayers = shuffled.sort(
+    (a, b) => inGameTotal(a.id) - inGameTotal(b.id),
+  );
 
   for (const p of sortedPlayers) {
     const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
