@@ -240,14 +240,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         </SFCard>
       )}
 
-      {/* ── Goal kickers (existing data, refreshed surface) ──────────── */}
+      {/* ── Scorers (sport-aware: AFL = goal kickers w/ behinds + Guernsey;
+            netball = goal shooters, goals only, no jersey numbers) ─────── */}
       {scorerRows.length > 0 && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Eyebrow>Goal kickers</Eyebrow>
+              <Eyebrow>
+                {sport === "netball" ? "Goal shooters" : "Goal kickers"}
+              </Eyebrow>
               <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">
-                Who put it through
+                {sport === "netball" ? "Who put it in" : "Who put it through"}
               </h3>
             </div>
             <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
@@ -268,20 +271,33 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <Guernsey num={r.player!.jersey_number} size={32} />
+                  {sport !== "netball" && (
+                    <Guernsey num={r.player!.jersey_number} size={32} />
+                  )}
                   <span className="font-semibold text-ink">
                     {r.player!.full_name}
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
-                  <span className="font-bold text-ink">{r.goals}</span> g ·{" "}
-                  <span className="font-bold text-ink">{r.behinds}</span> b
-                  <span className="ml-2 font-bold text-ink">
-                    {r.goals * 6 + r.behinds}
-                  </span>
-                  <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
-                    pts
-                  </span>
+                  {sport === "netball" ? (
+                    <>
+                      <span className="font-bold text-ink">{r.goals}</span>
+                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
+                        {r.goals === 1 ? "goal" : "goals"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold text-ink">{r.goals}</span> g ·{" "}
+                      <span className="font-bold text-ink">{r.behinds}</span> b
+                      <span className="ml-2 font-bold text-ink">
+                        {r.goals * 6 + r.behinds}
+                      </span>
+                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
+                        pts
+                      </span>
+                    </>
+                  )}
                 </span>
               </li>
             ))}

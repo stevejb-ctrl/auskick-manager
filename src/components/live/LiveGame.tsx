@@ -44,6 +44,7 @@ import {
   suggestSwaps,
   type GameState,
   type PlayerZoneMinutes,
+  type SeasonAvailability,
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
@@ -101,6 +102,13 @@ interface LiveGameProps {
   initialState: GameState;
   season: PlayerZoneMinutes;
   /**
+   * Per-player season utilisation (played vs available quarters
+   * across PRIOR games). Drives the suggester's tiebreak so a
+   * consistent attendee who keeps drawing the bench climbs the
+   * queue ahead of teammates with similar in-game minutes today.
+   */
+  seasonAvailability: Record<string, SeasonAvailability>;
+  /**
    * Minutes each player has been lent to the opposition across the season
    * (completed games only). Shown in the long-press loan menu so the coach
    * can spread the favour evenly.
@@ -141,6 +149,7 @@ export function LiveGame({
   squadPlayers,
   initialState,
   season,
+  seasonAvailability,
   seasonLoanMinutes,
   zoneCaps,
   positionModel,
@@ -340,7 +349,17 @@ export function LiveGame({
     // wipe accumulated zone minutes, scores, locks, and so on. Without
     // this check, restart-game just left the in-memory state from before
     // the reset visible on screen.
-    const storeAheadOfServer = currentQuarter > initialState.currentQuarter;
+    //
+    // Read the store's currentQuarter via getState() rather than the
+    // selector subscription so this effect is NOT re-triggered by normal
+    // forward progress (Start Q1, Start Q2, …). That mistake caused a
+    // regression where the user had to tap "Start Qn" twice: the first
+    // tap advanced the store, the effect re-fired before initialState
+    // had refreshed, storeAheadOfServer was true, and init() reset the
+    // store back to the pre-tap state. The legitimate trigger for re-init
+    // is initialState changing — that's already in the dep array.
+    const storeQuarter = useLiveGame.getState().currentQuarter;
+    const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
     if (activeGameId === gameId && !storeAheadOfServer) {
       setHydrated(true);
       return;
@@ -376,7 +395,7 @@ export function LiveGame({
       accumulatedMs,
     });
     setHydrated(true);
-  }, [init, initialState, gameId, activeGameId, currentQuarter]);
+  }, [init, initialState, gameId, activeGameId]);
 
   function currentElapsedMs() {
     return clockElapsedMs({ clockStartedAt, accumulatedMs });
@@ -679,13 +698,13 @@ export function LiveGame({
         return;
       }
       beginNextQuarter();
-      // Keep the existing single-tap Q1 kickoff: the "Start Q1" button
-      // both advances the quarter and starts the clock. The StartQuarterModal
-      // only gates Q2–Q4, since those run through the QuarterBreak screen.
+      // Q1 is gated on the StartQuarterModal — the modal is the only
+      // kickoff affordance in pre-game (we removed the duplicate
+      // "Start Q1" button that used to sit on the main UI). The
+      // single tap on the modal both writes the server quarter_start
+      // event AND starts the local clock so the GM doesn't have to
+      // confirm twice.
       startClock();
-      // Server-rendered events list is now stale; refresh so the page
-      // picks up the new quarter_start event and re-renders into LIVE state.
-      // Mirrors Plan 05-04's netball fix.
       router.refresh();
     });
   }
@@ -835,6 +854,7 @@ export function LiveGame({
         gameId={gameId}
         players={squadPlayers}
         season={season}
+        seasonAvailability={seasonAvailability}
         zoneCaps={zoneCaps}
         positionModel={positionModel}
         onStarted={() => beginNextQuarter()}
@@ -949,12 +969,6 @@ export function LiveGame({
         </div>
       )}
 
-      {/* Start Q1 */}
-      {isPreGame && (
-        <Button className="w-full" onClick={handleStartFirstQuarter} loading={isPending}>
-          Start Q1
-        </Button>
-      )}
       {isFinished && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Full time
@@ -1142,19 +1156,25 @@ export function LiveGame({
         />
       )}
 
-      {/* Await-kickoff modal for Q2–Q4. QuarterBreak advances the quarter
-          without auto-starting the clock; the manager taps Start when the
-          hooter goes. Q1 keeps its single-tap "Start Q1" button above. */}
-      {!isPreGame &&
-        !isFinished &&
+      {/* Await-kickoff modal — the ONLY kickoff affordance for every
+          quarter. In pre-game (cQ=0, lineup committed via startGame)
+          the modal opens on page load so the GM has a single CTA to
+          tap when the hooter goes — not a duplicate "Start Q1" button
+          on the page that just opens the modal. For Q2–Q4, the modal
+          renders after QuarterBreak commits the lineup + advances the
+          quarter, gating the local clock start on the GM's whistle
+          tap. handleStartFirstQuarter (Q1) writes the server
+          quarter_start AND starts the clock in one step; startClock
+          (Q2–Q4) only starts the local clock since QuarterBreak
+          already wrote the server event. */}
+      {!isFinished &&
         !quarterEnded &&
         !running &&
-        accumulatedMs === 0 &&
-        currentQuarter >= 2 && (
+        accumulatedMs === 0 && (
           <StartQuarterModal
-            quarter={currentQuarter}
+            quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
-            onStart={() => startClock()}
+            onStart={isPreGame ? handleStartFirstQuarter : () => startClock()}
           />
         )}
 

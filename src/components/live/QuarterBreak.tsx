@@ -10,7 +10,9 @@ import {
   ALL_ZONES,
   fairnessScore,
   suggestStartingLineup,
+  zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
+  type SeasonAvailability,
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
@@ -33,6 +35,13 @@ interface QuarterBreakProps {
   gameId: string;
   players: Player[];
   season: PlayerZoneMinutes;
+  /**
+   * Per-player played-vs-available quarter counts across PRIOR
+   * games. Drives the suggester's tiebreak so an under-utilised
+   * regular climbs the queue ahead of a teammate with similar
+   * in-game minutes today.
+   */
+  seasonAvailability: Record<string, SeasonAvailability>;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
   onStarted: () => void;
@@ -57,6 +66,7 @@ export function QuarterBreak({
   gameId,
   players,
   season,
+  seasonAvailability,
   zoneCaps,
   positionModel,
   onStarted,
@@ -204,14 +214,25 @@ export function QuarterBreak({
     return pins;
   }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
 
+  // Q-just-ended teammate cohorts, keyed by player id. Built from
+  // the END-of-quarter lineup (already in the live store) so it
+  // captures exactly who shared a zone (or sat the bench) with whom
+  // when the hooter went. Drives the suggester's partnership penalty
+  // — see fairness.ts PARTNERSHIP_PENALTY.
+  const previousZoneTeammates = useMemo(
+    () => zoneTeammatesFromLineup(lineup),
+    [lineup]
+  );
+
   const suggestedLineup = useMemo(() => {
     if (availableForLineup.length === 0) return lineup;
     // `lastStintZone` is the zone each player ended the just-finished
     // quarter in (set by endCurrentQuarter when stints flush). The
-    // suggester uses it to (a) penalise re-using the same zone two
-    // quarters running and (b) avoid the whole zone group migrating
-    // together (cluster penalty). Players who were on the bench at
-    // end-of-Q simply aren't in the map → no penalty contribution.
+    // suggester uses it to penalise re-using the same zone two
+    // quarters running. The partnership penalty (driven by
+    // `previousZoneTeammates`) handles the don't-clump-together rule
+    // — replacing the older cluster penalty that compared source
+    // zones in aggregate.
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,
@@ -219,7 +240,9 @@ export function QuarterBreak({
       zoneCaps,
       currentGameZoneMins,
       pinnedPositions,
-      lastStintZone
+      lastStintZone,
+      previousZoneTeammates,
+      seasonAvailability
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -238,6 +261,8 @@ export function QuarterBreak({
     currentGameZoneMins,
     pinnedPositions,
     lastStintZone,
+    previousZoneTeammates,
+    seasonAvailability,
   ]);
 
   useEffect(() => {

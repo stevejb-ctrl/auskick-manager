@@ -21,6 +21,7 @@ import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
+import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
@@ -367,6 +368,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playerId: string;
     positionId: string;
   } | null>(null);
+  // Pre-Q1 await-kickoff: "Start Q1" no longer writes the
+  // quarter_start event directly. It sets this state, which surfaces
+  // the NetballStartQuarterModal so the GM can wait for the umpire's
+  // whistle before kicking off the clock. The modal's CTA fires the
+  // server action — until then no event has been written, so a reload
+  // returns the user to the pre-Q1 picker. (Mirrors AFL's modal-gated
+  // pattern from feat(afl-live) — gate Q1 clock-start on the same
+  // await-kickoff modal as Q2-Q4.)
+  const [pendingQuarterStart, setPendingQuarterStart] = useState<number | null>(null);
   // Undo last goal — mirrors AFL's pattern at LiveGame.tsx:206. After a
   // goal is recorded a "[Team] goal — Player · Undo" chip appears for
   // 8 seconds (toast); after the toast fades the chip stays as a
@@ -401,9 +411,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       undoToastTimerRef.current = null;
     }
     startTransition(async () => {
-      await undoNetballScore(auth, game.id);
+      const result = await undoNetballScore(auth, game.id);
+      if (!result.success) return;
+      // Refresh so the rolled-back goal disappears from the
+      // scorebug + PositionToken chip on the next render. Pairs
+      // with the revalidatePath in undoNetballScore.
+      router.refresh();
     });
-  }, [lastScore, auth, game.id]);
+  }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
   useEffect(() => {
@@ -552,7 +567,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
     startTransition(async () => {
-      await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
+      const result = await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
+      if (!result.success) return;
+      // Refresh so the new goal lands in the scorebug + the
+      // PositionToken chip without a manual reload. Pairs with
+      // the revalidatePath in recordNetballGoal.
+      router.refresh();
     });
     setPendingGoal(null);
     startUndoToast("team", playerName);
@@ -562,10 +582,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
   const handleOpponentGoal = useCallback(() => {
     startTransition(async () => {
-      await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
+      const result = await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
+      if (!result.success) return;
+      // Refresh so the opponent's goal lands in the scorebug
+      // without a manual reload. Pairs with the revalidatePath
+      // in recordNetballOpponentGoal.
+      router.refresh();
     });
     startUndoToast("opp", null);
-  }, [auth, game.id, currentQuarter, clockMs, startUndoToast]);
+  }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
   // long-press on any token (court OR bench strip) → open the player
   // actions modal. Bench tiles pass positionId=null; the modal hides
@@ -1095,30 +1120,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           showScores={trackScoring}
         />
         <p className="text-center text-sm text-neutral-600">
-          Lineup locked. Tap when the umpires call play.
+          Lineup locked. Tap below to ready the kickoff.
         </p>
         {/* Start-Q1 button sits ABOVE the court, mirroring AFL's
             LiveGame layout (between header/toasts and the field). Keeps
-            the action prominent rather than burying it below the court. */}
+            the action prominent rather than burying it below the court.
+            Tap surfaces the await-kickoff modal — the server's
+            quarter_start event is only written when the GM confirms
+            from the modal, so the umpire's whistle (not the lineup tap)
+            decides when the clock kicks off. */}
         <button
           type="button"
-          onClick={() =>
-            startTransition(async () => {
-              const result = await startNetballQuarter(auth, game.id, 1);
-              if (result.success) {
-                // Phase 5: re-fetch so the page rerenders into Q1's live
-                // state without a manual reload (pairs with revalidatePath
-                // in netball-actions.ts startNetballQuarter).
-                router.refresh();
-              }
-            })
-          }
+          onClick={() => setPendingQuarterStart(1)}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
-          {isPending ? "Starting…" : "Start Q1"}
+          Start Q1
         </button>
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
+        {pendingQuarterStart !== null && (
+          <NetballStartQuarterModal
+            quarter={pendingQuarterStart}
+            loading={isPending}
+            onStart={() => {
+              const quarter = pendingQuarterStart;
+              startTransition(async () => {
+                const result = await startNetballQuarter(auth, game.id, quarter);
+                if (!result.success) return;
+                setPendingQuarterStart(null);
+                router.refresh();
+              });
+            }}
+          />
+        )}
       </div>
     );
   }

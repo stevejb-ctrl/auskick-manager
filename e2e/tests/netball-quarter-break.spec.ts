@@ -330,13 +330,21 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   await enterQBreakView(page, admin, game.id);
 
   // The suggested reshuffle is ALREADY applied on initial render
-  // (NetballQuarterBreak line 305: useReshuffle=true). So clicking
-  // Start Q2 commits the suggester's lineup directly via
-  // periodBreakSwap. handleStart in NetballQuarterBreak (~line
-  // 595-610) writes both period_break_swap (Q1) and quarter_start
-  // (Q2). Neither call uses revalidatePath so the page state
-  // doesn't auto-flip — DB events are the canonical evidence.
+  // (NetballQuarterBreak line 305: useReshuffle=true). The flow is
+  // now two-tap: first tap writes period_break_swap and surfaces the
+  // await-kickoff modal; second tap (the modal CTA) writes
+  // quarter_start. Splitting the flow gives the GM control of the
+  // clock-start moment — the umpire's whistle, not the lineup tap.
+  // First tap on the lineup picker's "Start Q2" button — there's
+  // only one in the DOM at this point.
   await page.getByRole("button", { name: /^start q2$/i }).click();
+  // Modal renders "Ready for Q2". The CTA inside also reads
+  // "Start Q2" (same accessible name) so anchor on the heading
+  // before clicking the second instance.
+  await expect(
+    page.getByRole("heading", { name: /^ready for q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start q2$/i }).last().click();
 
   // Rule-1 fix from the plan source: periodBreakSwap is called with
   // `nextQuarter` (= 2), and netball-actions.ts:160-167 writes

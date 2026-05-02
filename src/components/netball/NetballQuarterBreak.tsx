@@ -28,6 +28,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
+import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import {
   netballSport,
   primaryThirdFor,
@@ -325,6 +326,14 @@ export function NetballQuarterBreak({
   // what the suggester chose. Cleared implicitly when the component
   // unmounts (next quarter starts a fresh instance).
   const [forcedBenchIds, setForcedBenchIds] = useState<Set<string>>(new Set());
+  // Two-step start: handleStart commits the lineup snapshot
+  // (period_break_swap) then surfaces the await-kickoff modal so the
+  // GM can wait for the umpire's whistle. The modal's CTA fires the
+  // actual quarter_start. Splitting the flow this way means the clock
+  // doesn't tick from the lineup-confirm tap — it ticks from when the
+  // umpire calls play, which is the moment a coach actually wants
+  // recorded. (Mirrors AFL's StartQuarterModal pattern.)
+  const [pendingStartQuarter, setPendingStartQuarter] = useState<number | null>(null);
 
   // Refresh draft when toggle flips or suggestion changes. Then post-
   // process: any forcedBenchIds (recently-recovered players) the
@@ -594,6 +603,10 @@ export function NetballQuarterBreak({
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
+    // Step 1: commit the lineup snapshot. Surface the await-kickoff
+    // modal once it lands. quarter_start is deferred to the modal CTA
+    // (handleConfirmQuarterStart) so the umpire's whistle — not the
+    // lineup tap — decides when the clock kicks off.
     startTransition(async () => {
       const r1 = await periodBreakSwap(
         auth,
@@ -606,11 +619,21 @@ export function NetballQuarterBreak({
         setError(r1.error);
         return;
       }
-      const r2 = await startNetballQuarter(auth, gameId, nextQuarter);
-      if (!r2.success) {
-        setError(r2.error);
+      setPendingStartQuarter(nextQuarter);
+    });
+  }
+
+  function handleConfirmQuarterStart() {
+    if (pendingStartQuarter === null) return;
+    const quarter = pendingStartQuarter;
+    setError(null);
+    startTransition(async () => {
+      const result = await startNetballQuarter(auth, gameId, quarter);
+      if (!result.success) {
+        setError(result.error);
         return;
       }
+      setPendingStartQuarter(null);
       onStarted();
       // Phase 5: re-fetch so the page renders into Q(n+1)'s live state
       // without needing a manual reload. Pairs with revalidatePath in
@@ -814,10 +837,18 @@ export function NetballQuarterBreak({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={handleStart} loading={isPending}>
+        <Button onClick={handleStart} loading={isPending && pendingStartQuarter === null}>
           Start Q{nextQuarter}
         </Button>
       </div>
+
+      {pendingStartQuarter !== null && (
+        <NetballStartQuarterModal
+          quarter={pendingStartQuarter}
+          loading={isPending}
+          onStart={handleConfirmQuarterStart}
+        />
+      )}
 
       {/* Actions modal — opens on long-press of a sidelined tile.
           Reuses the same NetballPlayerActions the live court uses,

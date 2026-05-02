@@ -1,13 +1,19 @@
-// Behavioural coverage for suggestStartingLineup, focused on the three
+// Behavioural coverage for suggestStartingLineup, focused on the four
 // quarter-break properties Steve wants the algorithm to enforce:
 //
 //   1. ANTI-CLUSTER: an end-of-quarter zone shouldn't migrate as a
 //      group — if 3 players were all in mid in Q1, ≥ 2 of them should
 //      end up in DIFFERENT new zones in Q2, not all flock to fwd.
-//   2. ROTATION:    a player shouldn't be assigned to the same zone
+//      Now driven by the partnership penalty (formerly CLUSTER_PENALTY).
+//   2. PARTNERSHIP: two players who shared a zone or both sat the
+//      bench last quarter shouldn't both be placed in the same zone
+//      next quarter. Same intent as anti-cluster but tracked at the
+//      individual-pair level instead of aggregated by source zone, so
+//      bench cohorts are protected too.
+//   3. ROTATION:    a player shouldn't be assigned to the same zone
 //      they ended the previous quarter in, when a viable alternative
 //      exists.
-//   3. SEASON DIVERSITY: a player who has played < 1 full quarter of
+//   4. SEASON DIVERSITY: a player who has played < 1 full quarter of
 //      a given zone all season gets a strong nudge toward that zone,
 //      so by the end of the season every player has played all three
 //      zones for ≥ 1 quarter.
@@ -18,10 +24,12 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  seasonAvailability,
   suggestStartingLineup,
+  zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
 } from "@/lib/fairness";
-import type { Player, Zone } from "@/lib/types";
+import { emptyLineup, type GameEvent, type Lineup, type Player, type Zone } from "@/lib/types";
 
 function makePlayer(id: string): Player {
   return {
@@ -87,6 +95,19 @@ describe("suggestStartingLineup — anti-cluster at quarter breaks", () => {
       F1: "fwd",  F2: "fwd",  F3: "fwd",
     };
 
+    // Build the previous-quarter lineup so the partnership penalty has
+    // teammate cohorts to work with. Without this the suggester has
+    // no signal to break the cluster (we replaced the older
+    // CLUSTER_PENALTY which read from previousQuarterZones in aggregate
+    // — see fairness.ts comment block).
+    const prevLineup: Lineup = {
+      ...emptyLineup(),
+      back: ["B1", "B2", "B3"],
+      mid: ["M1", "M2", "M3"],
+      fwd: ["F1", "F2", "F3"],
+    };
+    const previousZoneTeammates = zoneTeammatesFromLineup(prevLineup);
+
     for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
       const lineup = suggestStartingLineup(
         all,
@@ -96,6 +117,7 @@ describe("suggestStartingLineup — anti-cluster at quarter breaks", () => {
         currentGame,
         {},
         previousQuarterZones,
+        previousZoneTeammates,
       );
       const midDestinations = ["M1", "M2", "M3"]
         .map((id) => zoneOf(lineup, id))
@@ -106,6 +128,345 @@ describe("suggestStartingLineup — anti-cluster at quarter breaks", () => {
         `seed ${seed}: expected ex-mid trio to split across ≥ 2 zones, got all in ${Array.from(distinct).join(",")}`,
       ).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe("suggestStartingLineup — partnership-breaking penalty", () => {
+  // Two ex-mid players with identical Q1 profiles. With partnership
+  // tracking, when M1 lands first the second (M2) sees M1 already in
+  // that zone and gets a strong nudge to a different one. Without
+  // partnership the algorithm has no per-pair signal and may pile
+  // them together.
+  it("two Q1 zone-mates don't both end up in the same Q2 zone", () => {
+    const all = players(["B1", "B2", "B3", "M1", "M2", "F1", "F2", "F3", "F4"]);
+    const prevLineup: Lineup = {
+      ...emptyLineup(),
+      back: ["B1", "B2", "B3"],
+      mid: ["M1", "M2"],
+      fwd: ["F1", "F2", "F3", "F4"],
+    };
+    const previousZoneTeammates = zoneTeammatesFromLineup(prevLineup);
+    const previousQuarterZones: Record<string, Zone> = {
+      B1: "back", B2: "back", B3: "back",
+      M1: "mid", M2: "mid",
+      F1: "fwd", F2: "fwd", F3: "fwd", F4: "fwd",
+    };
+    // Identical M1/M2 profiles so the only signal that can split them
+    // is the partnership penalty.
+    const midOnly = { back: 0, hback: 0, mid: QUARTER_MINS, hfwd: 0, fwd: 0 };
+    const currentGame: PlayerZoneMinutes = { M1: midOnly, M2: midOnly };
+
+    for (const seed of [0, 1, 2, 3, 4]) {
+      const lineup = suggestStartingLineup(
+        all,
+        {},
+        seed,
+        ZONE_CAPS_3,
+        currentGame,
+        {},
+        previousQuarterZones,
+        previousZoneTeammates,
+      );
+      expect(
+        zoneOf(lineup, "M1"),
+        `seed ${seed}: M1 vs M2 collision — both in ${zoneOf(lineup, "M1")}`,
+      ).not.toBe(zoneOf(lineup, "M2"));
+    }
+  });
+
+  // Bench cohort variant: two players who sat the bench together in
+  // Q1 should be split across different Q2 zones. CLUSTER_PENALTY
+  // couldn't see the bench (it keyed off `previousQuarterZones`,
+  // which had no entry for benched players) — partnership does.
+  it("two Q1 bench-mates don't both end up in the same Q2 zone", () => {
+    const all = players(["A", "B", "C", "D", "E", "F", "G", "H", "I"]);
+    // Q1 lineup: A,B,C in back; D,E,F in mid; G in fwd. H+I on bench.
+    // Caps below give 3 slots per zone (= 9 on field), so H+I both
+    // get placed somewhere this quarter.
+    const prevLineup: Lineup = {
+      ...emptyLineup(),
+      back: ["A", "B", "C"],
+      mid: ["D", "E", "F"],
+      fwd: ["G"],
+      bench: ["H", "I"],
+    };
+    const previousZoneTeammates = zoneTeammatesFromLineup(prevLineup);
+    const previousQuarterZones: Record<string, Zone> = {
+      A: "back", B: "back", C: "back",
+      D: "mid", E: "mid", F: "mid",
+      G: "fwd",
+      // H, I have no previous zone (they were on bench) — only the
+      // partnership penalty can keep them apart.
+    };
+    const fullQ = (z: Zone): Record<Zone, number> => {
+      const r = { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+      r[z] = QUARTER_MINS;
+      return r;
+    };
+    const currentGame: PlayerZoneMinutes = {
+      A: fullQ("back"), B: fullQ("back"), C: fullQ("back"),
+      D: fullQ("mid"), E: fullQ("mid"), F: fullQ("mid"),
+      G: fullQ("fwd"),
+    };
+
+    // Check several seeds — without partnership, H + I have identical
+    // owed-scores at every zone and the seeded shuffle picks the same
+    // zone for both at least sometimes.
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      const lineup = suggestStartingLineup(
+        all,
+        {},
+        seed,
+        ZONE_CAPS_3,
+        currentGame,
+        {},
+        previousQuarterZones,
+        previousZoneTeammates,
+      );
+      expect(
+        zoneOf(lineup, "H"),
+        `seed ${seed}: bench-mates H + I clumped in ${zoneOf(lineup, "H")}`,
+      ).not.toBe(zoneOf(lineup, "I"));
+    }
+  });
+
+  // Backward-compat: when previousZoneTeammates is missing/empty, the
+  // suggester runs without partnership penalty (no crash, no implicit
+  // anti-cluster — that's now the partnership penalty's job).
+  it("works with no previousZoneTeammates argument (backward-compat)", () => {
+    const all = players(["A", "B", "C"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    const lineup = suggestStartingLineup(all, {}, 0, caps);
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+});
+
+describe("suggestStartingLineup — sort key prioritises kids with least in-game minutes", () => {
+  // Steve's "Maximise game time" rule: a kid who got benched all of
+  // Q1 should get court priority over teammates who played the full
+  // quarter, even when season totals are similar. The sort key uses
+  // `currentGame` minutes ascending, with season totals as a fallback
+  // when no in-game data is present (pre-game / unit-test callers).
+  it("under-played-this-game kids get court priority over fully-played teammates", () => {
+    // 9 players, 9 slots — everyone is technically placeable. The
+    // question is WHICH zones the under-played kid (Z) gets first
+    // crack at vs the over-played kids who already played a zone.
+    // We narrow the cap to leave one bench seat so the sort key
+    // actually decides someone's fate.
+    const all = players(["A", "B", "C", "D", "E", "F", "G", "H", "Z"]);
+    const caps = { back: 3, hback: 0, mid: 3, hfwd: 0, fwd: 2 };
+    // 8 of the 9 played Q1 (a full quarter each). Z was benched.
+    const fullQ = (z: Zone): Record<Zone, number> => {
+      const r = { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+      r[z] = QUARTER_MINS;
+      return r;
+    };
+    const currentGame: PlayerZoneMinutes = {
+      A: fullQ("back"), B: fullQ("back"), C: fullQ("back"),
+      D: fullQ("mid"), E: fullQ("mid"), F: fullQ("mid"),
+      G: fullQ("fwd"), H: fullQ("fwd"),
+      // Z has 0 minutes — sort key puts them first.
+    };
+    // Identical season totals so the season fallback would shuffle
+    // them randomly. Only the in-game ms key keeps Z deterministic.
+    const balanced = { back: 30 * 60_000, hback: 0, mid: 30 * 60_000, hfwd: 0, fwd: 30 * 60_000 };
+    const season: PlayerZoneMinutes = {};
+    for (const p of all) season[p.id] = { ...balanced };
+
+    const lineup = suggestStartingLineup(all, season, 0, caps, currentGame);
+    // Z must be on the field. With 8 caps and 9 players, exactly one
+    // player goes to the bench — and the sort puts Z first, so Z is
+    // the LAST candidate to be benched. (Specifically, Z gets first
+    // pick of zones, so they always land somewhere.)
+    expect(zoneOf(lineup, "Z"), "Z (0-min kid) should land on the field, not the bench").not.toBeNull();
+  });
+
+  it("when no in-game minutes are present, falls back to season totals (backward-compat)", () => {
+    // Pre-game scenario: currentGame={}, season has data. Sort
+    // should fall back to season totals, lowest first. With 3
+    // players and 3 slots there's no bench pressure, so this
+    // mostly proves we don't crash + don't regress legacy callers.
+    const all = players(["A", "B", "C"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    const season: PlayerZoneMinutes = {
+      A: { back: 60_000, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+      B: { back: 30_000, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+      C: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 },
+    };
+    const lineup = suggestStartingLineup(all, season, 0, caps);
+    // All 3 placed — no errors when `currentGame` is empty.
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+});
+
+describe("suggestStartingLineup — season-utilisation tiebreak", () => {
+  // Two players tied on this-game minutes (both at zero, pre-game).
+  // One has been benched a lot historically (low played/available
+  // ratio), the other has had normal court time. The under-utilised
+  // kid should sort first → court priority. Steve's "consistent
+  // attendees who keep drawing the bench start collecting priority"
+  // rule.
+  it("among ms-tied players, lower season-utilisation ratio sorts first", () => {
+    // 4 players, 3 slots — exactly one goes to the bench. The
+    // tiebreak decides which one.
+    const all = players(["Veteran", "Regular", "BenchKid", "Newbie"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    // All zero in-game minutes (pre-game). Identical season totals
+    // so the season fallback would shuffle randomly. Only the
+    // utilisation tiebreak can rank them.
+    const balanced = { back: 30 * 60_000, hback: 0, mid: 30 * 60_000, hfwd: 0, fwd: 30 * 60_000 };
+    const season: PlayerZoneMinutes = {};
+    for (const p of all) season[p.id] = { ...balanced };
+    const seasonAvail: Record<string, { playedQuarters: number; availableQuarters: number }> = {
+      // Veteran has played 16/20 quarters → ratio 0.8 (high
+      // utilisation, has been on court a lot).
+      Veteran: { playedQuarters: 16, availableQuarters: 20 },
+      // Regular has played 12/20 → ratio 0.6 (normal share).
+      Regular: { playedQuarters: 12, availableQuarters: 20 },
+      // BenchKid has played 5/20 → ratio 0.25 (lots of bench
+      // history → court priority).
+      BenchKid: { playedQuarters: 5, availableQuarters: 20 },
+      // Newbie has no history → ratio defaults to 1.0 (no signal,
+      // doesn't get artificial priority over the regulars).
+    };
+
+    // Run across multiple seeds. Without the tiebreak, the seeded
+    // shuffle could put any of them on the bench. With it,
+    // BenchKid (lowest ratio) MUST be on the field every time.
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      const lineup = suggestStartingLineup(
+        all,
+        season,
+        seed,
+        caps,
+        {}, // currentGame: empty pre-game
+        {},
+        {},
+        {},
+        seasonAvail,
+      );
+      expect(
+        zoneOf(lineup, "BenchKid"),
+        `seed ${seed}: BenchKid (ratio 0.25) was benched`,
+      ).not.toBeNull();
+    }
+  });
+
+  // No seasonAvailability arg → tiebreak silently skipped (no
+  // crash, no implicit ranking).
+  it("works with no seasonAvailability argument (backward-compat)", () => {
+    const all = players(["A", "B", "C"]);
+    const caps = { back: 1, hback: 0, mid: 1, hfwd: 0, fwd: 1 };
+    const lineup = suggestStartingLineup(all, {}, 0, caps);
+    expect(["A", "B", "C"].every((id) => zoneOf(lineup, id) !== null)).toBe(true);
+  });
+
+  // Players with no entry in seasonAvail (brand-new attendee) get
+  // ratio 1.0 — no artificial priority over regulars. This stops a
+  // never-recorded player from accidentally jumping the queue.
+  it("missing players default to 1.0 ratio (no priority for unseen kids)", () => {
+    const all = players(["Known", "Unknown"]);
+    const caps = { back: 1, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
+    const seasonAvail = {
+      // Known: high utilisation, would normally lose the tiebreak.
+      Known: { playedQuarters: 18, availableQuarters: 20 },
+      // Unknown not present → defaults to 1.0 ratio.
+    };
+    // 2 players, 1 slot. Without seasonAvail, the seeded shuffle
+    // picks one. With seasonAvail, Known (0.9) sorts first vs
+    // Unknown's default 1.0 → Known plays.
+    const lineup = suggestStartingLineup(
+      all,
+      {},
+      0,
+      caps,
+      {},
+      {},
+      {},
+      {},
+      seasonAvail,
+    );
+    expect(zoneOf(lineup, "Known")).toBe("back");
+    expect(zoneOf(lineup, "Unknown")).toBeNull(); // benched
+  });
+});
+
+describe("seasonAvailability", () => {
+  // Helper to build a lineup_set event with a given lineup.
+  function lineupSetEvent(lineup: Partial<Lineup>, ts: string): GameEvent {
+    return {
+      id: `e-${ts}`,
+      game_id: "G",
+      type: "lineup_set",
+      player_id: null,
+      metadata: { lineup },
+      created_by: "owner",
+      created_at: ts,
+    };
+  }
+
+  it("counts on-court quarters as played + available, bench as available only", () => {
+    const events: GameEvent[] = [
+      // Q1: A in back, B in mid, C in fwd, D on bench.
+      lineupSetEvent(
+        { back: ["A"], mid: ["B"], fwd: ["C"], bench: ["D"] },
+        "2026-01-01T10:00:00Z",
+      ),
+      // Q2: A still back, B → bench, C still fwd, D on field at mid.
+      lineupSetEvent(
+        { back: ["A"], mid: ["D"], fwd: ["C"], bench: ["B"] },
+        "2026-01-01T10:15:00Z",
+      ),
+    ];
+    const out = seasonAvailability(events);
+    expect(out.A).toEqual({ playedQuarters: 2, availableQuarters: 2 });
+    expect(out.B).toEqual({ playedQuarters: 1, availableQuarters: 2 });
+    expect(out.C).toEqual({ playedQuarters: 2, availableQuarters: 2 });
+    expect(out.D).toEqual({ playedQuarters: 1, availableQuarters: 2 });
+  });
+
+  it("ignores non-lineup_set events", () => {
+    const events: GameEvent[] = [
+      {
+        id: "e1",
+        game_id: "G",
+        type: "goal",
+        player_id: "A",
+        metadata: {},
+        created_by: "owner",
+        created_at: "2026-01-01T10:00:00Z",
+      },
+    ];
+    const out = seasonAvailability(events);
+    expect(out).toEqual({});
+  });
+});
+
+describe("zoneTeammatesFromLineup", () => {
+  it("groups zone-mates and includes the bench cohort", () => {
+    const lineup: Lineup = {
+      ...emptyLineup(),
+      back: ["A", "B"],
+      mid: ["C"],
+      fwd: ["D", "E", "F"],
+      bench: ["G", "H"],
+    };
+    const out = zoneTeammatesFromLineup(lineup);
+    // Zone-mates
+    expect(out.A).toEqual(new Set(["B"]));
+    expect(out.B).toEqual(new Set(["A"]));
+    // Solo zone has no teammates
+    expect(out.C).toEqual(new Set());
+    // Larger zone — pairwise minus self
+    expect(out.D).toEqual(new Set(["E", "F"]));
+    expect(out.F).toEqual(new Set(["D", "E"]));
+    // Bench — included as its own cohort
+    expect(out.G).toEqual(new Set(["H"]));
+    expect(out.H).toEqual(new Set(["G"]));
+  });
+
+  it("returns empty for an empty lineup", () => {
+    expect(zoneTeammatesFromLineup(emptyLineup())).toEqual({});
   });
 });
 
