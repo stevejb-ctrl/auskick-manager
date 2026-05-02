@@ -374,6 +374,27 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   useEffect(() => {
     setMidQuarterSubs([]);
   }, [currentQuarter]);
+  // Per-position pulse keys for the brand halo on PositionToken.
+  // Each entry maps a positionId to the atMs of the most recent
+  // mid-quarter sub at that position. When a new sub commits the
+  // map gets a new value for that position → the token re-keys
+  // its SirenPulseHalo → halo fires once. Re-renders that don't
+  // change midQuarterSubs (e.g. clock ticks) reuse the same keys
+  // → no spurious pulse. Quarter transitions reset midQuarterSubs
+  // to [] → all per-position keys clear, ready for the next
+  // quarter's subs.
+  //
+  // In-memory only — fresh page load starts with no keys, so a
+  // refresh during a quarter doesn't replay halos for already-
+  // applied subs. (The subs themselves persist via period_break_swap
+  // events written at the next break.)
+  const positionPulseKeys = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const sub of midQuarterSubs) {
+      map[sub.positionId] = String(sub.atMs);
+    }
+    return map;
+  }, [midQuarterSubs]);
   // Modal target: long-press opens player actions for this player.
   const [actionsTarget, setActionsTarget] = useState<{
     playerId: string;
@@ -762,12 +783,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // break confirms via period_break_swap.
   const handlePickReplacement = (replacementId: string) => {
     if (!replacingTarget) return;
-    // TODO: brand-pulse on the swapped-in player's position token.
-    // Deferred from the initial Siren-pulse rollout because netball
-    // doesn't have a swap toast (the AFL pulse landed on the swap
-    // toast). Wiring a per-tile pulse needs the recent-sub key to
-    // flow through CourtDisplay → PositionToken; revisit when adding
-    // that surface.
+    // The brand halo fires automatically on the new tile —
+    // setMidQuarterSubs below grows the array, positionPulseKeys
+    // useMemo re-derives, and the matching PositionToken gets a
+    // fresh pulseKey on its next render. No extra trigger
+    // needed here.
     const { positionId, vacatingPlayerId } = replacingTarget;
     setLocalOverlay((prev) => {
       const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
@@ -1326,6 +1346,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         nextBreakLocks={nextBreakLocks}
         playerStats={playerStats}
         playerGoals={playerGoals}
+        positionPulseKeys={positionPulseKeys}
       />
 
       <NetballBenchStrip
@@ -1571,7 +1592,7 @@ function NetballScoreBug({
         // finalised). When clockPulseKey is null (every render
         // before the first hooter), the halo renders inert.
         return (
-          <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center">
+          <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
             {pill}
           </SirenPulseHalo>
         );
@@ -1622,6 +1643,7 @@ function CourtDisplay({
   nextBreakLocks,
   playerStats,
   playerGoals,
+  positionPulseKeys,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -1650,6 +1672,14 @@ function CourtDisplay({
   playerStats?: Map<string, PlayerThirdMs>;
   /** Per-player goals scored this game — drives the dark chip in each token's top-right corner. */
   playerGoals?: Record<string, number>;
+  /**
+   * Per-position pulse keys — when a value is present for a
+   * positionId, the token at that position halos with the brand
+   * pulse on its next render. Driven by the parent's
+   * midQuarterSubs state so each mid-quarter sub fires exactly
+   * one halo on the position that just changed.
+   */
+  positionPulseKeys?: Record<string, string>;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
@@ -1689,6 +1719,7 @@ function CourtDisplay({
                   ? () => onTokenLongPress(positionId, pid)
                   : undefined
               }
+              pulseKey={positionPulseKeys?.[positionId]}
             />
           </div>
         );

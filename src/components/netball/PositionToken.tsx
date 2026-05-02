@@ -18,6 +18,7 @@
 import { useRef } from "react";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 interface PositionTokenProps {
   positionId: string;
@@ -47,6 +48,14 @@ interface PositionTokenProps {
   totalMs?: number;
   /** Goals scored by this player this game — drives the dark chip in the top-right corner. */
   goalCount?: number;
+  /**
+   * Pulse trigger — when this changes (e.g. a mid-quarter sub
+   * commits at this position), the brand halo fires once on the
+   * tile. Passed null/undefined to suppress (every tile that
+   * hasn't been touched in this quarter). Mirrors the
+   * clockPulseKey pattern on GameHeader / NetballScoreBug.
+   */
+  pulseKey?: string | number | null;
 }
 
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
@@ -80,6 +89,7 @@ export function PositionToken({
   stats,
   totalMs,
   goalCount,
+  pulseKey,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -140,7 +150,18 @@ export function PositionToken({
     ? "border-sky-700 bg-white ring-1 ring-amber-300/70 shadow-card hover:bg-amber-50"
     : "border-hairline bg-white shadow-card hover:border-ink-mute";
 
+  // The button is what visually IS the tile. SirenPulseHalo wraps
+  // it so a brand halo can fire when this position takes a sub
+  // (handled by the parent — passes a fresh pulseKey when the
+  // sub commits). When pulseKey is null/undefined the halo
+  // wrapper's halo span is omitted entirely — zero DOM cost on
+  // tiles that haven't been subbed this quarter.
+  //
+  // `rounded-md` on the wrapper matches the button's `rounded-md`
+  // so the halo's box-shadow follows the tile's curve instead of
+  // emanating from a square wrapper.
   return (
+    <SirenPulseHalo triggerKey={pulseKey} size="sm" className="rounded-md">
     <button
       type="button"
       onClick={handleClick}
@@ -256,5 +277,6 @@ export function PositionToken({
         })()}
       </div>
     </button>
+    </SirenPulseHalo>
   );
 }

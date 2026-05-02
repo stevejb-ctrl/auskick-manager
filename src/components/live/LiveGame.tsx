@@ -959,7 +959,7 @@ export function LiveGame({
           halo's inner span re-mounts with the wrapper and the
           animation restarts each time. */}
       {swapToast && !isPreGame && !isFinished && (
-        <SirenPulseHalo triggerKey="swap" size="sm" display="block">
+        <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
           <div
             role="status"
             aria-live="polite"
