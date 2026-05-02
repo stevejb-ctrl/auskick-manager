@@ -843,6 +843,51 @@ export function replayGame(events: GameEvent[]): GameState {
       }
       state.stintStartMs[on] = elapsed;
       state.stintZone[on] = z;
+    } else if (ev.type === "field_zone_swap" && state.lineup) {
+      // Two on-field players swap zones (e.g. mid ↔ fwd). Mirrors the
+      // store's applyFieldZoneSwap action: close each player's open
+      // stint at their CURRENT zone, then re-open at their new zone
+      // post-swap. Without this branch the lineup_set/swap-driven
+      // replay never reflects field-to-field rotations, so any
+      // refresh that has to re-init the store from the server's
+      // computed state (cold mount, restart-game reset, etc.) snaps
+      // the lineup back to the un-swapped state — losing all
+      // mid-quarter zone rotations the GM did via tap-tap or the
+      // long-press → Switch action.
+      const meta2 = ev.metadata as {
+        player_a_id?: string;
+        zone_a?: Zone;
+        player_b_id?: string;
+        zone_b?: Zone;
+      };
+      const pidA = meta2.player_a_id;
+      const zoneA = meta2.zone_a;
+      const pidB = meta2.player_b_id;
+      const zoneB = meta2.zone_b;
+      if (pidA && zoneA && pidB && zoneB) {
+        // Close both open stints at their current zones (using the
+        // store's stintZone fallback for safety — defaults to the
+        // event's recorded zone if stintZone isn't tracking them).
+        for (const [pid, fromZone] of [
+          [pidA, zoneA],
+          [pidB, zoneB],
+        ] as [string, Zone][]) {
+          const fromZ = state.stintZone[pid] ?? fromZone;
+          addPlayed(pid, fromZ, elapsed - (state.stintStartMs[pid] ?? 0));
+        }
+        // Swap the two players in the lineup arrays.
+        state.lineup[zoneA] = state.lineup[zoneA].map((p) =>
+          p === pidA ? pidB : p,
+        );
+        state.lineup[zoneB] = state.lineup[zoneB].map((p) =>
+          p === pidB ? pidA : p,
+        );
+        // Open new stints at the swapped zones.
+        state.stintStartMs[pidA] = elapsed;
+        state.stintZone[pidA] = zoneB;
+        state.stintStartMs[pidB] = elapsed;
+        state.stintZone[pidB] = zoneA;
+      }
     } else if (ev.type === "player_arrived" && state.lineup && ev.player_id) {
       if (!state.lineup.bench.includes(ev.player_id)) {
         state.lineup.bench.push(ev.player_id);
