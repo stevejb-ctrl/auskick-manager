@@ -137,11 +137,21 @@ export function LineupPicker({
         bench: players.map((p) => p.id),
       };
     }
+    // Build chip-by-id map from the available players list — picked
+    // up by the suggester's chip-spread penalty (Phase D).
+    const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const p of players) chipByPlayerId[p.id] = p.chip;
     return suggestStartingLineup(
       players,
       season,
       0,
       zoneCapsFor(size, positionModel),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipByPlayerId,
     );
   };
 

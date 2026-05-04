@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { Guernsey } from "@/components/sf";
+import { ChipPicker } from "@/components/squad/ChipPicker";
+import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import type { Player } from "@/lib/types";
 
 interface PlayerRowProps {
@@ -24,12 +26,24 @@ interface PlayerRowProps {
    * behaviour.
    */
   showJersey?: boolean;
+  /** Optional team-defined labels for chip A/B/C — drives the edit picker. */
+  chipLabels?: { a: string | null; b: string | null; c: string | null };
 }
 
-export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = true }: PlayerRowProps) {
+export function PlayerRow({
+  player,
+  teamId,
+  takenJerseys,
+  canEdit,
+  showJersey = true,
+  chipLabels,
+}: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.full_name);
   const [jersey, setJersey] = useState(player.jersey_number != null ? String(player.jersey_number) : "");
+  const [chip, setChip] = useState<ChipKey | "">(
+    (player.chip ?? "") as ChipKey | "",
+  );
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -38,6 +52,7 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = 
   function cancelEdit() {
     setName(player.full_name);
     setJersey(player.jersey_number != null ? String(player.jersey_number) : "");
+    setChip((player.chip ?? "") as ChipKey | "");
     setNameError(undefined);
     setJerseyError(undefined);
     setServerError(null);
@@ -72,6 +87,7 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = 
       const result = await updatePlayer(teamId, player.id, {
         full_name: name.trim(),
         jersey_number: jerseyNum,
+        chip: chip === "" ? null : chip,
       });
       if (!result.success) {
         setServerError(result.error);
@@ -134,6 +150,17 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = 
               aria-label="Jersey number"
             />
           )}
+          {chipLabels &&
+            (chipLabels.a || chipLabels.b || chipLabels.c) && (
+              <div className="basis-full">
+                <ChipPicker
+                  value={chip}
+                  onChange={setChip}
+                  labels={chipLabels}
+                  disabled={isPending}
+                />
+              </div>
+            )}
           {serverError && (
             <p className="w-full text-xs text-danger">{serverError}</p>
           )}
@@ -147,6 +174,17 @@ export function PlayerRow({ player, teamId, takenJerseys, canEdit, showJersey = 
       ) : (
         <>
           <span className="flex-1 text-sm font-medium text-ink">
+            {player.chip && (
+              <span
+                aria-hidden
+                title={
+                  chipLabels?.[player.chip as ChipKey] ?? `Chip ${player.chip.toUpperCase()}`
+                }
+                className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${
+                  CHIP_COLORS[player.chip as ChipKey].dot
+                }`}
+              />
+            )}
             {player.full_name}
           </span>
           {canEdit && (

@@ -43,7 +43,8 @@ async function squadCapFor(
 export async function addPlayer(
   teamId: string,
   fullName: string,
-  jerseyNumber: number | null
+  jerseyNumber: number | null,
+  chip: "a" | "b" | "c" | null = null,
 ): Promise<ActionResult> {
   const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
@@ -67,6 +68,7 @@ export async function addPlayer(
     team_id: teamId,
     full_name: fullName,
     jersey_number: jerseyNumber,
+    chip,
     created_by: user.id,
   });
 
@@ -84,7 +86,12 @@ export async function addPlayer(
 export async function updatePlayer(
   teamId: string,
   playerId: string,
-  patch: { full_name?: string; jersey_number?: number | null; is_active?: boolean }
+  patch: {
+    full_name?: string;
+    jersey_number?: number | null;
+    is_active?: boolean;
+    chip?: "a" | "b" | "c" | null;
+  },
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };

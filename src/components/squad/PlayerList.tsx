@@ -22,7 +22,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group, sport")
+      .select("age_group, sport, chip_a_label, chip_b_label, chip_c_label")
       .eq("id", teamId)
       .single(),
   ]);
@@ -37,6 +37,18 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   );
   const maxPlayers = ageGroupCfg.maxSquadSize;
   const showJersey = sport === "afl";
+  const teamRow = team as
+    | {
+        chip_a_label: string | null;
+        chip_b_label: string | null;
+        chip_c_label: string | null;
+      }
+    | null;
+  const chipLabels = {
+    a: teamRow?.chip_a_label ?? null,
+    b: teamRow?.chip_b_label ?? null,
+    c: teamRow?.chip_c_label ?? null,
+  };
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -59,6 +71,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               maxPlayers={maxPlayers}
               takenJerseys={takenJerseys}
               showJersey={showJersey}
+              chipLabels={chipLabels}
             />
           </div>
         </SFCard>
@@ -85,6 +98,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
+                chipLabels={chipLabels}
               />
             ))}
           </ul>
@@ -108,6 +122,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
+                chipLabels={chipLabels}
               />
             ))}
           </ul>

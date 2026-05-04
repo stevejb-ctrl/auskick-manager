@@ -249,3 +249,35 @@ export async function deleteSong(teamId: string): Promise<ActionResult> {
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
 }
+
+
+/** Update the team-level chip labels. Empty strings are normalised to NULL. */
+export async function updateTeamChipLabels(
+  teamId: string,
+  patch: {
+    chip_a_label: string | null;
+    chip_b_label: string | null;
+    chip_c_label: string | null;
+  },
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const norm = (v: string | null) => {
+    const trimmed = (v ?? "").trim();
+    return trimmed === "" ? null : trimmed.slice(0, 32);
+  };
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({
+      chip_a_label: norm(patch.chip_a_label),
+      chip_b_label: norm(patch.chip_b_label),
+      chip_c_label: norm(patch.chip_c_label),
+    })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  revalidatePath(`/teams/${teamId}/squad`);
+  return { success: true };
+}

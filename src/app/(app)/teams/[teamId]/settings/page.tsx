@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
+import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import {
@@ -26,7 +27,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label")
       .eq("id", params.teamId)
       .single(),
     user
@@ -129,6 +130,18 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         currentStartSeconds={team.song_start_seconds ?? 0}
         currentDurationSeconds={team.song_duration_seconds ?? 15}
         currentEnabled={team.song_enabled ?? true}
+        isAdmin={isAdmin}
+      />
+      <CohortChipsSettings
+        teamId={params.teamId}
+        initialLabels={{
+          a:
+            (team as { chip_a_label?: string | null }).chip_a_label ?? null,
+          b:
+            (team as { chip_b_label?: string | null }).chip_b_label ?? null,
+          c:
+            (team as { chip_c_label?: string | null }).chip_c_label ?? null,
+        }}
         isAdmin={isAdmin}
       />
     </div>

@@ -289,6 +289,11 @@ export function QuarterBreak({
     // `previousZoneTeammates`) handles the don't-clump-together rule
     // — replacing the older cluster penalty that compared source
     // zones in aggregate.
+    // Phase D: chip-by-id map drives the chip-spread penalty so the
+    // suggester scatters older/younger (or whatever the coach labels
+    // each chip) across zones rather than bunching them.
+    const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const p of players) chipByPlayerId[p.id] = p.chip;
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,
@@ -298,7 +303,8 @@ export function QuarterBreak({
       pinnedPositions,
       lastStintZone,
       previousZoneTeammates,
-      seasonAvailability
+      seasonAvailability,
+      chipByPlayerId,
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.

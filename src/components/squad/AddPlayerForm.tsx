@@ -5,6 +5,7 @@ import { addPlayer } from "@/app/(app)/teams/[teamId]/squad/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { ChipPicker } from "@/components/squad/ChipPicker";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -17,6 +18,8 @@ interface AddPlayerFormProps {
    * preserve AFL behaviour.
    */
   showJersey?: boolean;
+  /** Optional team-defined labels for the three chip slots. */
+  chipLabels?: { a: string | null; b: string | null; c: string | null };
 }
 
 export function AddPlayerForm({
@@ -25,9 +28,11 @@ export function AddPlayerForm({
   maxPlayers,
   takenJerseys,
   showJersey = true,
+  chipLabels,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
+  const [chip, setChip] = useState<"a" | "b" | "c" | "">("");
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -66,12 +71,18 @@ export function AddPlayerForm({
 
     startTransition(async () => {
       const jerseyValue = jersey.trim() === "" ? null : parseInt(jersey, 10);
-      const result = await addPlayer(teamId, name.trim(), jerseyValue);
+      const result = await addPlayer(
+        teamId,
+        name.trim(),
+        jerseyValue,
+        chip === "" ? null : chip,
+      );
       if (!result.success) {
         setServerError(result.error);
       } else {
         setName("");
         setJersey("");
+        setChip("");
       }
     });
   }
@@ -116,6 +127,16 @@ export function AddPlayerForm({
           </div>
         )}
       </div>
+
+      {chipLabels &&
+        (chipLabels.a || chipLabels.b || chipLabels.c) && (
+          <ChipPicker
+            value={chip}
+            onChange={setChip}
+            labels={chipLabels}
+            disabled={isPending}
+          />
+        )}
 
       {serverError && (
         <p className="text-sm text-danger" role="alert">

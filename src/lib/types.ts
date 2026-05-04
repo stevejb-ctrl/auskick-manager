@@ -96,6 +96,11 @@ export interface Team {
   quarter_length_seconds: number | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
+  /** Optional human labels for the three player chip slots. Coach
+   *  decides what each chip means; suggester just balances the keys. */
+  chip_a_label: string | null;
+  chip_b_label: string | null;
+  chip_c_label: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -124,12 +129,27 @@ export interface TeamInvite {
   revoked_at: string | null;
 }
 
+/**
+ * Player cohort chip — one of three coach-labeled tags. Used by the
+ * fairness suggester to spread chips evenly across zones (e.g. so
+ * a coach who marked "older / younger" gets a mix in each line).
+ * The semantic meaning of A/B/C lives on the team (chip_a_label etc).
+ */
+export type PlayerChip = "a" | "b" | "c";
+
 export interface Player {
   id: string;
   team_id: string;
   full_name: string;
   jersey_number: number | null;
   is_active: boolean;
+  /**
+   * Optional cohort tag — see PlayerChip + Team.chip_*_label.
+   * Optional in the type so existing test fixtures (and rows from
+   * before migration 0030) don't have to specify it. At runtime the
+   * DB column returns null when unset; treat undefined identically.
+   */
+  chip?: PlayerChip | null;
   created_by: string;
   created_at: string;
   updated_at: string;

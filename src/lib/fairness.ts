@@ -469,7 +469,14 @@ export function suggestStartingLineup(
   // The leading underscore signals "intentionally unused" to TS's
   // noUnusedParameters check; Next's eslint config doesn't define
   // @typescript-eslint/no-unused-vars so we don't disable it here.
-  _seasonAvail: Record<string, SeasonAvailability> = {}
+  _seasonAvail: Record<string, SeasonAvailability> = {},
+  /**
+   * Per-player chip key (a | b | c | null). Triggers the chip-spread
+   * penalty so chips of the same kind don't bunch up in one zone.
+   * Soft constraint: never blocks a placement. Empty map = no
+   * chip awareness, which is the legacy behaviour.
+   */
+  chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {},
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -582,6 +589,9 @@ export function suggestStartingLineup(
     });
     return penalty;
   };
+  // Phase D chip-spread penalty — driven by the same placedByZone map
+  // so it sees players placed earlier in this same suggester pass.
+  const chipPenaltyFor = buildChipPenaltyFor(chipByPlayerId, placedByZone);
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
@@ -597,8 +607,8 @@ export function suggestStartingLineup(
     }
     const shuffledZones = seededShuffle(openZones, seed + p.id.charCodeAt(0));
     shuffledZones.sort((a, b) => {
-      const scoreA = owed(p.id, a) - partnershipPenaltyFor(p.id, a);
-      const scoreB = owed(p.id, b) - partnershipPenaltyFor(p.id, b);
+      const scoreA = owed(p.id, a) - partnershipPenaltyFor(p.id, a) - chipPenaltyFor(p.id, a);
+      const scoreB = owed(p.id, b) - partnershipPenaltyFor(p.id, b) - chipPenaltyFor(p.id, b);
       const diff = scoreB - scoreA;
       if (diff !== 0) return diff;
       return zoneFill[a] - zoneFill[b];
@@ -610,6 +620,31 @@ export function suggestStartingLineup(
   }
 
   return lineup;
+}
+
+// ─── Chip-spread penalty (Phase D) ────────────────────────────
+// Soft constraint applied during placement so the same chip
+// doesn't bunch up in one zone. Quadratic in the count already
+// placed: 1st same-chip = no penalty, 2nd = 50, 3rd = 200, etc.
+// 50 is well below IN_GAME_DIVERSITY (1000) so it never overrides
+// a fresh-zone placement, just acts as a tiebreaker between
+// otherwise-equivalent zones.
+const CHIP_PENALTY_BASE = 50;
+function buildChipPenaltyFor(
+  chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
+  placedByZone: Map<Zone, Set<string>>,
+) {
+  return (pid: string, target: Zone): number => {
+    const myChip = chipByPlayerId[pid];
+    if (!myChip) return 0;
+    const placed = placedByZone.get(target);
+    if (!placed) return 0;
+    let sameChip = 0;
+    placed.forEach((other) => {
+      if (chipByPlayerId[other] === myChip) sameChip++;
+    });
+    return sameChip * sameChip * CHIP_PENALTY_BASE;
+  };
 }
 
 // ─── Suggest the next swap during play ───────────────────────
