@@ -319,6 +319,10 @@ export default async function LivePage({ params }: LivePageProps) {
           seasonLoanMinutes={loanMins}
           zoneCaps={zoneCaps}
           positionModel={positionModel}
+          currentOnFieldSize={g.on_field_size}
+          minOnFieldSize={ageCfgSport.minOnFieldSize}
+          maxOnFieldSize={ageCfgSport.maxOnFieldSize}
+          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}

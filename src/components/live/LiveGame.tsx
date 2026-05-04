@@ -117,6 +117,15 @@ interface LiveGameProps {
   seasonLoanMinutes: Record<string, number>;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
+  /** Currently-persisted on-field size (= sum of zoneCaps). Surfaces
+   *  on the QuarterBreak's size dropdown so the coach can drop it
+   *  mid-game (lent player, opp short-handed, etc). */
+  currentOnFieldSize: number;
+  /** Sport+age min/max bounds for the QuarterBreak size dropdown. */
+  minOnFieldSize: number;
+  maxOnFieldSize: number;
+  /** Sport+age default — shown as a "(default)" tag on the dropdown. */
+  defaultOnFieldSize: number;
   exitHref?: string;
   /** Public URL of the team song audio file, if configured. */
   songUrl?: string | null;
@@ -154,6 +163,10 @@ export function LiveGame({
   seasonLoanMinutes,
   zoneCaps,
   positionModel,
+  currentOnFieldSize,
+  minOnFieldSize,
+  maxOnFieldSize,
+  defaultOnFieldSize,
   exitHref,
   songUrl,
   songStartSeconds = 0,
@@ -881,6 +894,10 @@ export function LiveGame({
         seasonAvailability={seasonAvailability}
         zoneCaps={zoneCaps}
         positionModel={positionModel}
+        currentOnFieldSize={currentOnFieldSize}
+        minOnFieldSize={minOnFieldSize}
+        maxOnFieldSize={maxOnFieldSize}
+        defaultOnFieldSize={defaultOnFieldSize}
         onStarted={() => beginNextQuarter()}
       />
     );

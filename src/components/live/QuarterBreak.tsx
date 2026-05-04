@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { Guernsey } from "@/components/sf";
-import { recordLineupSet, startQuarter as startQuarterAction } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import {
+  markLoan,
+  recordLineupSet,
+  setOnFieldSize as setOnFieldSizeAction,
+  startQuarter as startQuarterAction,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   ALL_ZONES,
   fairnessScore,
@@ -45,6 +50,13 @@ interface QuarterBreakProps {
   seasonAvailability: Record<string, SeasonAvailability>;
   zoneCaps: ZoneCaps;
   positionModel: PositionModel;
+  /** Current persisted on-field size — drives the size dropdown. */
+  currentOnFieldSize: number;
+  /** Sport+age legal range for the on-field size dropdown. */
+  minOnFieldSize: number;
+  maxOnFieldSize: number;
+  /** Default on-field size for the team's age group (shown as a hint). */
+  defaultOnFieldSize: number;
   onStarted: () => void;
 }
 
@@ -70,6 +82,10 @@ export function QuarterBreak({
   seasonAvailability,
   zoneCaps,
   positionModel,
+  currentOnFieldSize,
+  minOnFieldSize,
+  maxOnFieldSize,
+  defaultOnFieldSize,
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
@@ -82,6 +98,7 @@ export function QuarterBreak({
   const zoneLockedPlayers = useLiveGame((s) => s.zoneLockedPlayers);
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const loanedIds = useLiveGame((s) => s.loanedIds);
+  const setLoaned = useLiveGame((s) => s.setLoaned);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -326,6 +343,73 @@ export function QuarterBreak({
     setSelected(null);
   }, [lineupMode, suggestedLineup, manualLineup, lineup, availableForLineup.length]);
 
+  // ─── Match-adjustment panel state ─────────────────────────────
+  // The size dropdown is locally controlled — Q-break is a "stage"
+  // moment, so we don't optimistically rerender the lineup picker
+  // grid for the new caps. The coach sees "Q3 will play 10 a side"
+  // confirmation instead, and the next quarter's render picks up
+  // the new caps via router refresh after they hit Resume.
+  const sizeOptions = useMemo(() => {
+    const out: number[] = [];
+    for (let s = maxOnFieldSize; s >= minOnFieldSize; s--) out.push(s);
+    return out;
+  }, [minOnFieldSize, maxOnFieldSize]);
+  const [pendingSize, setPendingSize] = useState<number>(currentOnFieldSize);
+  // Sync local state if the server-side currentOnFieldSize changes.
+  useEffect(() => {
+    setPendingSize(currentOnFieldSize);
+  }, [currentOnFieldSize]);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+  const [sizePending, startSizeTransition] = useTransition();
+
+  function handleSizeChange(next: number) {
+    if (next === currentOnFieldSize) {
+      setPendingSize(next);
+      return;
+    }
+    setSizeError(null);
+    setPendingSize(next);
+    startSizeTransition(async () => {
+      const result = await setOnFieldSizeAction(auth, gameId, next);
+      if (!result.success) {
+        setSizeError(result.error);
+        setPendingSize(currentOnFieldSize);
+        return;
+      }
+      // The new caps come down via router.refresh after the user
+      // taps Resume next quarter — handleStart already calls it.
+      // Here we just confirm to the coach that the change took.
+      router.refresh();
+    });
+  }
+
+  // ─── Lend-player panel state ──────────────────────────────────
+  // Tap a player chip to flip their loan flag for the upcoming
+  // quarter. Optimistic store update + persistent player_loan event.
+  const [loanPending, startLoanTransition] = useTransition();
+  const [loanError, setLoanError] = useState<string | null>(null);
+
+  function handleLoanToggle(pid: string, nextLoaned: boolean) {
+    setLoanError(null);
+    setLoaned(pid, nextLoaned);
+    startLoanTransition(async () => {
+      const result = await markLoan(auth, gameId, {
+        player_id: pid,
+        loaned: nextLoaned,
+        // Loan stints flip at the boundary between quarters. The
+        // coach is staging Q{nextQuarter}; the event semantically
+        // applies "from the start of Q{nextQuarter}".
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+      if (!result.success) {
+        // Roll back the optimistic flip.
+        setLoaned(pid, !nextLoaned);
+        setLoanError(result.error);
+      }
+    });
+  }
+
   function lineupsEqual(a: Lineup, b: Lineup): boolean {
     const keys: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
     for (const k of keys) {
@@ -430,6 +514,99 @@ export function QuarterBreak({
               ? `Carries last quarter's lineup straight into Q${nextQuarter} — no rotation.`
               : `Blank field for Q${nextQuarter}. Tap a position, then a bench player to fill it.`}
         </p>
+      </div>
+
+      {/* Match adjustments — change the on-field size and lend players
+          to the opposition before the next quarter kicks off. Both are
+          common short-handed scenarios in junior footy / netball. */}
+      <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+          Match adjustments
+        </p>
+        <p className="mt-1 text-xs text-ink-dim">
+          Set how many on the field for Q{nextQuarter} and lend any players to the opposition. Stays the same as last quarter unless you change it.
+        </p>
+
+        {/* On-field size dropdown */}
+        <div className="mt-3">
+          <label
+            htmlFor="qb-on-field-size"
+            className="block text-xs font-semibold text-ink"
+          >
+            On-field size
+          </label>
+          <div className="mt-1 flex items-center gap-2">
+            <select
+              id="qb-on-field-size"
+              value={pendingSize}
+              onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+              disabled={sizePending || isPending}
+              className="rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+            >
+              {sizeOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                  {s === defaultOnFieldSize ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-ink-mute">
+              {currentOnFieldSize === defaultOnFieldSize
+                ? `Default for this age group.`
+                : `Currently playing ${currentOnFieldSize} a side.`}
+            </span>
+          </div>
+          {sizeError && (
+            <p className="mt-1 text-xs text-danger" role="alert">
+              {sizeError}
+            </p>
+          )}
+        </div>
+
+        {/* Lend players */}
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-ink">Lend a player</p>
+          <p className="mt-0.5 text-xs text-ink-mute">
+            Lent players sit out for the rest of the game until you tap them again.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {players.length === 0 && (
+              <p className="text-xs text-ink-mute">No players in the squad.</p>
+            )}
+            {players.map((p) => {
+              const isLoaned = loanedSet.has(p.id);
+              const isInjured = injuredSet.has(p.id);
+              if (isInjured) return null;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleLoanToggle(p.id, !isLoaned)}
+                  disabled={loanPending}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    isLoaned
+                      ? "border-warn/50 bg-warn-soft text-warn"
+                      : "border-hairline bg-surface text-ink-dim hover:border-brand-500/40 hover:bg-brand-50"
+                  } disabled:opacity-60`}
+                  aria-pressed={isLoaned}
+                >
+                  {p.jersey_number != null && (
+                    <span className="tabular-nums font-semibold">
+                      {p.jersey_number}
+                    </span>
+                  )}
+                  <span>{p.full_name}</span>
+                  {isLoaned && <span aria-hidden>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+          {loanError && (
+            <p className="mt-1 text-xs text-danger" role="alert">
+              {loanError}
+            </p>
+          )}
+        </div>
       </div>
 
       {availableForLineup.length > 0 && (

@@ -241,6 +241,10 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonLoanMinutes={loanMins}
           zoneCaps={zoneCapsFor(g.on_field_size, positionModel)}
           positionModel={positionModel}
+          currentOnFieldSize={g.on_field_size}
+          minOnFieldSize={ageCfgSport.minOnFieldSize}
+          maxOnFieldSize={ageCfgSport.maxOnFieldSize}
+          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}

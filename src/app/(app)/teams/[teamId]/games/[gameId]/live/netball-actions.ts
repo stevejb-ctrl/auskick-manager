@@ -10,8 +10,29 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAgeGroupConfig } from "@/lib/sports/registry";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
+
+// Same clamp as live/actions.ts — duplicated rather than imported to
+// keep these two server-action modules independent. Reads team
+// sport+age and returns the legal floor/ceiling.
+async function clampOnFieldSize(
+  supabase: SupabaseClient,
+  teamId: string,
+  requested: number,
+): Promise<{ value: number; min: number; max: number }> {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("sport, age_group")
+    .eq("id", teamId)
+    .maybeSingle();
+  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const min = ageCfg.minOnFieldSize;
+  const max = ageCfg.maxOnFieldSize;
+  const value = Math.max(min, Math.min(max, Math.floor(requested)));
+  return { value, min, max };
+}
 
 interface Writer {
   supabase: SupabaseClient;
@@ -91,6 +112,13 @@ export async function startNetballGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
+  // Backstop the picker — clamp to the team's sport+age legal range.
+  const { value: clampedSize } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    onFieldSize,
+  );
+
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
@@ -104,7 +132,7 @@ export async function startNetballGame(
   // sent `null` / `undefined` (i.e. coach left the team default).
   const update: { status: "in_progress"; on_field_size: number; quarter_length_seconds?: number | null } = {
     status: "in_progress",
-    on_field_size: onFieldSize,
+    on_field_size: clampedSize,
   };
   if (quarterLengthSeconds != null) {
     if (

@@ -5,7 +5,30 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAgeGroupConfig } from "@/lib/sports/registry";
 import type { ActionResult, LiveAuth, Lineup, Zone } from "@/lib/types";
+
+// Clamp a coach-supplied on-field size to the legal range for the
+// team's sport + age group. Returns the clamped value alongside the
+// resolved age-group config so callers can react if the caller asked
+// for something outside the legal band (we silently coerce; the form
+// shouldn't have offered an out-of-band option in the first place).
+async function clampOnFieldSize(
+  supabase: SupabaseClient,
+  teamId: string,
+  requested: number,
+): Promise<{ value: number; min: number; max: number }> {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("sport, age_group")
+    .eq("id", teamId)
+    .maybeSingle();
+  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const min = ageCfg.minOnFieldSize;
+  const max = ageCfg.maxOnFieldSize;
+  const value = Math.max(min, Math.min(max, Math.floor(requested)));
+  return { value, min, max };
+}
 
 interface Writer {
   supabase: SupabaseClient;
@@ -95,6 +118,15 @@ export async function startGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
+  // Backstop the picker's dropdown — clamp to the team's sport+age
+  // legal range so a stale or hand-crafted client request can't shove
+  // an illegal size past validation.
+  const { value: clampedSize } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    onFieldSize,
+  );
+
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
@@ -108,7 +140,7 @@ export async function startGame(
     .update({
       status: "in_progress",
       sub_interval_seconds: subIntervalSeconds,
-      on_field_size: onFieldSize,
+      on_field_size: clampedSize,
     })
     .eq("id", gameId);
 
@@ -118,6 +150,49 @@ export async function startGame(
     redirect(`/teams/${w.teamId}/games/${gameId}/live`);
   }
   revalidatePath(`/run/${auth.token}`, "layout");
+  return { success: true };
+}
+
+// ─── setOnFieldSize ──────────────────────────────────────────
+// Mid-game adjustment. When two teams agree to shorten / extend the
+// field count between quarters (lent player, opposition short-handed,
+// etc), the coach hits this from QuarterBreak. Updates the games row
+// only — no event written; replayGame reads g.on_field_size directly.
+// The next quarter's zoneCaps come from the new value.
+export async function setOnFieldSize(
+  auth: LiveAuth,
+  gameId: string,
+  nextSize: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { value, min, max } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    nextSize,
+  );
+  if (!Number.isFinite(nextSize)) {
+    return { success: false, error: "Invalid size." };
+  }
+  if (Math.floor(nextSize) < min || Math.floor(nextSize) > max) {
+    return {
+      success: false,
+      error: `On-field size must be between ${min} and ${max} for this age group.`,
+    };
+  }
+
+  const { error } = await w.supabase
+    .from("games")
+    .update({ on_field_size: value })
+    .eq("id", gameId);
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
   return { success: true };
 }
 
