@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
-import type { ActionResult, LiveAuth, Lineup, Zone } from "@/lib/types";
+import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
 // team's sport + age group. Returns the clamped value alongside the
@@ -144,6 +144,11 @@ export async function startGame(
     })
     .eq("id", gameId);
 
+  // The lineup_set event is now the source of truth; any pre-game
+  // draft is stale. Clean it up so the game card stops showing the
+  // "Plan saved" indicator.
+  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
@@ -151,6 +156,65 @@ export async function startGame(
   }
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
+}
+
+// ─── Pre-game lineup draft ───────────────────────────────────
+// Save / load the night-before plan. One row per game keyed by
+// game_id. Auth: writes are admin/game_manager (resolveWriter
+// already checks); reads return null if there's nothing saved.
+
+export async function saveLineupDraft(
+  auth: LiveAuth,
+  gameId: string,
+  lineup: Lineup,
+  subIntervalSeconds: number,
+  onFieldSize: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { value: clampedSize } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    onFieldSize,
+  );
+
+  const { error } = await w.supabase
+    .from("game_lineup_drafts")
+    .upsert(
+      {
+        game_id: gameId,
+        lineup,
+        on_field_size: clampedSize,
+        sub_interval_seconds: subIntervalSeconds,
+        updated_by: w.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "game_id" },
+    );
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  }
+  return { success: true };
+}
+
+export async function getLineupDraft(
+  auth: LiveAuth,
+  gameId: string,
+): Promise<ActionResult & { draft?: LineupDraft | null }> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { data, error } = await w.supabase
+    .from("game_lineup_drafts")
+    .select("*")
+    .eq("game_id", gameId)
+    .maybeSingle();
+  if (error) return { success: false, error: error.message };
+  return { success: true, draft: (data as LineupDraft | null) ?? null };
 }
 
 // ─── setOnFieldSize ──────────────────────────────────────────

@@ -397,6 +397,15 @@ export default async function LivePage({ params }: LivePageProps) {
 
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
 
+  // Pre-game saved lineup. Picker pre-populates from this if present;
+  // null/missing falls back to the fairness suggester.
+  const { data: draftRow } = await supabase
+    .from("game_lineup_drafts")
+    .select("*")
+    .eq("game_id", params.gameId)
+    .maybeSingle();
+  const initialDraft = draftRow as import("@/lib/types").LineupDraft | null;
+
   return (
     <div className="space-y-4">
       {availablePlayers.length === 0 ? (
@@ -415,6 +424,7 @@ export default async function LivePage({ params }: LivePageProps) {
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          initialDraft={initialDraft}
         />
       )}
     </div>

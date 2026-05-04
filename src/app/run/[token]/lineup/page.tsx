@@ -72,6 +72,14 @@ export default async function LineupPage({ params }: LineupPageProps) {
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
 
+  // Pre-game saved lineup, if the coach built one ahead of game day.
+  const { data: draftRow } = await admin
+    .from("game_lineup_drafts")
+    .select("*")
+    .eq("game_id", g.id)
+    .maybeSingle();
+  const initialDraft = draftRow as import("@/lib/types").LineupDraft | null;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
       <div>
@@ -107,6 +115,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
+          initialDraft={initialDraft}
         />
       )}
     </div>

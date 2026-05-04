@@ -220,6 +220,17 @@ export interface Lineup {
   bench: string[];
 }
 
+// Pre-game saved lineup. One per game; deleted at kickoff so the
+// lineup_set event takes over as the source of truth.
+export interface LineupDraft {
+  game_id: string;
+  lineup: Lineup;
+  on_field_size: number;
+  sub_interval_seconds: number;
+  updated_by: string | null;
+  updated_at: string;
+}
+
 // Normalise a lineup read from event metadata — legacy events only have
 // back/mid/fwd/bench. Ensures hback/hfwd are always present arrays.
 export function normalizeLineup(l: Partial<Lineup> | null | undefined): Lineup {

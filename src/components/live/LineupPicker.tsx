@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { saveLineupDraft, startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -53,6 +53,13 @@ interface LineupPickerProps {
   gameMinutes: number;
   /** Optional href for the Back button shown above the picker. */
   backHref?: string;
+  /**
+   * Pre-game saved lineup. When present, the picker pre-populates
+   * with the saved lineup + size + sub-interval instead of running
+   * the fairness suggester. Coach can still adjust before kickoff.
+   * Cleared at startGame() — the lineup_set event takes over.
+   */
+  initialDraft?: import("@/lib/types").LineupDraft | null;
 }
 
 type Slot = Zone | "bench";
@@ -92,8 +99,14 @@ export function LineupPicker({
   positionModel,
   gameMinutes,
   backHref,
+  initialDraft,
 }: LineupPickerProps) {
-  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
+  // If the coach saved a plan ahead of game day, those values seed
+  // the picker. Otherwise we fall back to the age-group default
+  // (size) and the suggester (lineup) at first render.
+  const [onFieldSize, setOnFieldSize] = useState(
+    initialDraft?.on_field_size ?? defaultOnFieldSize,
+  );
 
   // Lineup-build mode. "suggested" runs the fairness suggester to
   // pre-fill the field (the legacy default — coaches who don't
@@ -137,7 +150,17 @@ export function LineupPicker({
   // resulting zones come up short of displayZoneCaps, and the
   // difference is rendered as empty "OPEN" slots.
   const [lineup, setLineup] = useState<Lineup>(() =>
-    buildLineup("suggested", defaultOnFieldSize),
+    initialDraft?.lineup
+      ? // Defensive normalise — initialDraft.lineup comes from JSONB.
+        {
+          back: initialDraft.lineup.back ?? [],
+          hback: initialDraft.lineup.hback ?? [],
+          mid: initialDraft.lineup.mid ?? [],
+          hfwd: initialDraft.lineup.hfwd ?? [],
+          fwd: initialDraft.lineup.fwd ?? [],
+          bench: initialDraft.lineup.bench ?? [],
+        }
+      : buildLineup("suggested", defaultOnFieldSize),
   );
 
   function handleSizeChange(next: number) {
@@ -159,7 +182,13 @@ export function LineupPicker({
   const [fillTargetZone, setFillTargetZone] = useState<Zone | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [subMinInput, setSubMinInput] = useState<string | null>(null);
+  const [savePending, startSaveTransition] = useTransition();
+  const [savedAt, setSavedAt] = useState<string | null>(
+    initialDraft?.updated_at ?? null,
+  );
+  const [subMinInput, setSubMinInput] = useState<string | null>(
+    initialDraft ? String(initialDraft.sub_interval_seconds / 60) : null,
+  );
 
   // Sorted dropdown options. The default size is marked as recommended.
   const sizeOptions = useMemo(() => {
@@ -322,6 +351,28 @@ export function LineupPicker({
       if (auth.kind === "token") {
         window.location.assign(`/run/${auth.token}`);
       }
+    });
+  }
+
+  // Save the current picker state as a pre-game draft. The game
+  // stays "upcoming" — no lineup_set event is written. Re-opening
+  // the picker will pre-populate from this draft.
+  function handleSavePlan() {
+    setServerError(null);
+    const subSeconds = Math.round(effectiveSubMin * 60);
+    startSaveTransition(async () => {
+      const result = await saveLineupDraft(
+        auth,
+        gameId,
+        lineup,
+        subSeconds,
+        onFieldSize,
+      );
+      if (!result.success) {
+        setServerError(result.error);
+        return;
+      }
+      setSavedAt(new Date().toISOString());
     });
   }
 
@@ -594,15 +645,37 @@ export function LineupPicker({
               <span className="text-ink-dim">bench</span>
             </span>
           </div>
-          <SFButton
-            onClick={handleStart}
-            disabled={onFieldCount === 0 || isPending}
-            variant="primary"
-            size="md"
-            iconAfter={<SFIcon.chevronRight color="currentColor" />}
-          >
-            {isPending ? "Starting…" : "Start game"}
-          </SFButton>
+          <div className="flex items-center gap-2">
+            {savedAt && (
+              <span
+                className="hidden text-[11px] text-ink-mute sm:inline"
+                title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
+              >
+                Plan saved
+              </span>
+            )}
+            <SFButton
+              onClick={handleSavePlan}
+              disabled={onFieldCount === 0 || savePending || isPending}
+              variant="ghost"
+              size="md"
+            >
+              {savePending
+                ? "Saving…"
+                : savedAt
+                ? "Update plan"
+                : "Save plan"}
+            </SFButton>
+            <SFButton
+              onClick={handleStart}
+              disabled={onFieldCount === 0 || isPending}
+              variant="primary"
+              size="md"
+              iconAfter={<SFIcon.chevronRight color="currentColor" />}
+            >
+              {isPending ? "Starting…" : "Start game"}
+            </SFButton>
+          </div>
         </div>
       </div>
 

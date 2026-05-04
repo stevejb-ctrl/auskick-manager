@@ -69,6 +69,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   if (!game) notFound();
 
+  // Pre-game saved lineup (Phase C). Drives the "Plan saved" chip
+  // for upcoming games so the coach knows their armchair plan
+  // persisted. Cleared at startGame.
+  const { data: draftRow } =
+    (game as Game).status === "upcoming"
+      ? await supabase
+          .from("game_lineup_drafts")
+          .select("updated_at")
+          .eq("game_id", params.gameId)
+          .maybeSingle()
+      : { data: null };
+  const planSavedAt = (draftRow as { updated_at?: string } | null)?.updated_at ?? null;
+
   const g = game as Game;
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
@@ -223,6 +236,18 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {isUp ? "Start game" : "Open live game"}
               </SFButton>
               <ShareRunnerLink token={g.share_token} />
+              {/* Pre-game lineup-plan indicator. Surfaces only when
+                  the coach has saved a draft and the game's still
+                  upcoming. Cleared automatically at kickoff. */}
+              {isUp && planSavedAt && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-3 py-1 text-xs font-semibold text-ok"
+                  title={`Last saved ${new Date(planSavedAt).toLocaleString()}`}
+                >
+                  <span aria-hidden>✓</span>
+                  Plan saved
+                </span>
+              )}
               {role === "admin" && !isUp && (
                 <ResetGameButton
                   auth={{ kind: "team", teamId: params.teamId }}

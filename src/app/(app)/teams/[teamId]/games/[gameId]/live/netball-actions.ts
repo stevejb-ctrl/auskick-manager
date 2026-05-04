@@ -150,6 +150,10 @@ export async function startNetballGame(
 
   await w.supabase.from("games").update(update).eq("id", gameId);
 
+  // Mirror the AFL startGame: kickoff invalidates any pre-game
+  // lineup draft. Same table for both sports.
+  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
     redirect(`/teams/${w.teamId}/games/${gameId}/live`);
