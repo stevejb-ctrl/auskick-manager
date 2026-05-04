@@ -717,12 +717,25 @@ export function suggestSwaps(
 }
 
 // ─── Replay events → current game state ─────────────────────
+export interface QuarterScore {
+  goals: number;
+  behinds: number;
+}
 export interface GameState {
   lineup: Lineup | null;
   currentQuarter: number;
   quarterEnded: boolean;
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
+  /**
+   * Per-quarter team / opponent scores. Index 1..4 for Q1..Q4
+   * (index 0 reserved / unused so coach-friendly indexing maps
+   * straight through). Lazily extended as quarters fire. Score
+   * events outside any quarter (pre-Q1, post-Q4 retroactive
+   * adds without intended_quarter) are dropped from this
+   * breakdown but still counted in cumulative teamScore.
+   */
+  scoreByQuarter: Array<{ ours: QuarterScore; theirs: QuarterScore }>;
   playerScores: Record<string, { goals: number; behinds: number }>;
   finalised: boolean;
   basePlayedZoneMs: Record<string, ZoneMinutes>;
@@ -736,6 +749,15 @@ export interface GameState {
   quarterStartedAt: string | null;
 }
 
+// Empty per-quarter score record. Used both during replay and by the
+// live store when it seeds scoreByQuarter from initialState.
+function emptyQuarterScore(): { ours: QuarterScore; theirs: QuarterScore } {
+  return {
+    ours: { goals: 0, behinds: 0 },
+    theirs: { goals: 0, behinds: 0 },
+  };
+}
+
 export function replayGame(events: GameEvent[]): GameState {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at)
@@ -746,6 +768,7 @@ export function replayGame(events: GameEvent[]): GameState {
     quarterEnded: false,
     teamScore: { goals: 0, behinds: 0 },
     opponentScore: { goals: 0, behinds: 0 },
+    scoreByQuarter: [],
     playerScores: {},
     finalised: false,
     basePlayedZoneMs: {},
@@ -756,6 +779,16 @@ export function replayGame(events: GameEvent[]): GameState {
     loanStartMs: {},
     basePlayedLoanMs: {},
     quarterStartedAt: null,
+  };
+
+  // Ensure scoreByQuarter[q] exists. Quarters are 1-indexed; we pad
+  // index 0 with an empty slot so callers can use sBQ[1..4] directly.
+  const ensureQuarter = (q: number) => {
+    if (q < 1) return null;
+    while (state.scoreByQuarter.length <= q) {
+      state.scoreByQuarter.push(emptyQuarterScore());
+    }
+    return state.scoreByQuarter[q];
   };
   let quarterStartedAt: string | null = null;
   const addPlayed = (pid: string, zone: Zone, ms: number) => {
@@ -784,6 +817,9 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "quarter_start" && meta.quarter) {
       state.currentQuarter = meta.quarter;
       state.quarterEnded = false;
+      // Materialise the per-quarter score slot so it exists even
+      // for quarters that never see a score event.
+      ensureQuarter(meta.quarter);
       quarterStartedAt = ev.created_at;
       state.stintStartMs = {};
       state.stintZone = {};
@@ -931,16 +967,72 @@ export function replayGame(events: GameEvent[]): GameState {
         state.playerScores[ev.player_id] ??= { goals: 0, behinds: 0 };
         state.playerScores[ev.player_id].goals++;
       }
+      // Attribute to a specific quarter — coach-supplied
+      // `intended_quarter` (set by retroactive add) wins over the
+      // current replay quarter so a goal added at full-time gets
+      // booked back to the period it actually happened in.
+      const meta3 = ev.metadata as { intended_quarter?: number } | null;
+      const q = meta3?.intended_quarter ?? state.currentQuarter;
+      const slot = ensureQuarter(q);
+      if (slot) slot.ours.goals++;
     } else if (ev.type === "behind") {
       state.teamScore.behinds++;
       if (ev.player_id) {
         state.playerScores[ev.player_id] ??= { goals: 0, behinds: 0 };
         state.playerScores[ev.player_id].behinds++;
       }
+      const meta3 = ev.metadata as { intended_quarter?: number } | null;
+      const q = meta3?.intended_quarter ?? state.currentQuarter;
+      const slot = ensureQuarter(q);
+      if (slot) slot.ours.behinds++;
     } else if (ev.type === "opponent_goal") {
       state.opponentScore.goals++;
+      const meta3 = ev.metadata as { intended_quarter?: number } | null;
+      const q = meta3?.intended_quarter ?? state.currentQuarter;
+      const slot = ensureQuarter(q);
+      if (slot) slot.theirs.goals++;
     } else if (ev.type === "opponent_behind") {
       state.opponentScore.behinds++;
+      const meta3 = ev.metadata as { intended_quarter?: number } | null;
+      const q = meta3?.intended_quarter ?? state.currentQuarter;
+      const slot = ensureQuarter(q);
+      if (slot) slot.theirs.behinds++;
+    } else if (ev.type === "score_undo") {
+      // Decrement the counter the original event incremented. Mirrors
+      // the proven logic in src/lib/dashboard/eventReplay.ts:277-310.
+      // The undo metadata carries `original_type` (the event type
+      // being reversed) and `quarter` (the period the original was
+      // booked to — written by undoLastScore, may differ from the
+      // replay's currentQuarter for retroactive deletions).
+      const meta3 = ev.metadata as {
+        original_type?: string;
+        quarter?: number;
+      } | null;
+      const orig = meta3?.original_type;
+      const q = meta3?.quarter ?? state.currentQuarter;
+      const slot = q >= 1 && q < state.scoreByQuarter.length
+        ? state.scoreByQuarter[q]
+        : null;
+      const pid = ev.player_id;
+      if (orig === "goal") {
+        state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
+        if (pid && state.playerScores[pid]) {
+          state.playerScores[pid].goals = Math.max(0, state.playerScores[pid].goals - 1);
+        }
+        if (slot) slot.ours.goals = Math.max(0, slot.ours.goals - 1);
+      } else if (orig === "behind") {
+        state.teamScore.behinds = Math.max(0, state.teamScore.behinds - 1);
+        if (pid && state.playerScores[pid]) {
+          state.playerScores[pid].behinds = Math.max(0, state.playerScores[pid].behinds - 1);
+        }
+        if (slot) slot.ours.behinds = Math.max(0, slot.ours.behinds - 1);
+      } else if (orig === "opponent_goal") {
+        state.opponentScore.goals = Math.max(0, state.opponentScore.goals - 1);
+        if (slot) slot.theirs.goals = Math.max(0, slot.theirs.goals - 1);
+      } else if (orig === "opponent_behind") {
+        state.opponentScore.behinds = Math.max(0, state.opponentScore.behinds - 1);
+        if (slot) slot.theirs.behinds = Math.max(0, slot.theirs.behinds - 1);
+      }
     } else if (ev.type === "game_finalised") {
       state.finalised = true;
       // Close any open loan stints so final totals are correct.

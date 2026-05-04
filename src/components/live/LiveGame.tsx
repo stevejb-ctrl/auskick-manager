@@ -403,6 +403,7 @@ export function LiveGame({
       finalised: initialState.finalised,
       teamScore: initialState.teamScore,
       opponentScore: initialState.opponentScore,
+      scoreByQuarter: initialState.scoreByQuarter,
       playerScores: initialState.playerScores,
       basePlayedZoneMs: initialState.basePlayedZoneMs,
       stintStartMs: initialState.stintStartMs,

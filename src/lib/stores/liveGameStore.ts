@@ -39,6 +39,17 @@ export interface LiveGameState {
 
   teamScore: { goals: number; behinds: number };
   opponentScore: { goals: number; behinds: number };
+  /**
+   * Per-quarter team / opponent scores. Index 1..4 for Q1..Q4 with
+   * index 0 reserved (empty placeholder) so quarter numbers map
+   * straight through. Updated optimistically alongside teamScore /
+   * opponentScore so QuarterBreak's period recap stays in sync with
+   * the live tally without re-fetching events.
+   */
+  scoreByQuarter: Array<{
+    ours: { goals: number; behinds: number };
+    theirs: { goals: number; behinds: number };
+  }>;
   playerScores: Record<string, { goals: number; behinds: number }>;
 
   basePlayedZoneMs: Record<string, ZoneMs>;
@@ -94,11 +105,11 @@ export interface LiveGameState {
   beginNextQuarter: () => void;
   endCurrentQuarter: (quarterMs: number) => void;
   finaliseGame: () => void;
-  incTeam: (kind: "goals" | "behinds") => void;
-  incOpponent: (kind: "goals" | "behinds") => void;
+  incTeam: (kind: "goals" | "behinds", intendedQuarter?: number) => void;
+  incOpponent: (kind: "goals" | "behinds", intendedQuarter?: number) => void;
   incPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
-  undoTeamScore: (kind: "goals" | "behinds") => void;
-  undoOpponentScore: (kind: "goals" | "behinds") => void;
+  undoTeamScore: (kind: "goals" | "behinds", quarter?: number) => void;
+  undoOpponentScore: (kind: "goals" | "behinds", quarter?: number) => void;
   undoPlayerScore: (playerId: string, kind: "goals" | "behinds") => void;
   addBenchPlayer: (playerId: string) => void;
   setInjured: (playerId: string, injured: boolean) => void;
@@ -115,6 +126,34 @@ export interface LiveGameState {
 
 function cloneLineup(l: Lineup): Lineup {
   return normalizeLineup(l);
+}
+
+// Immutably ±1 a single per-quarter score slot, growing the array if
+// the requested quarter is past current length. Returns a new array.
+// Quarters < 1 are treated as a no-op (e.g. retro-add with no intended
+// quarter when game hasn't started).
+type QSlotArr = Array<{
+  ours: { goals: number; behinds: number };
+  theirs: { goals: number; behinds: number };
+}>;
+function bumpQuarterSlot(
+  arr: QSlotArr,
+  quarter: number,
+  side: "ours" | "theirs",
+  kind: "goals" | "behinds",
+  delta: number,
+): QSlotArr {
+  if (quarter < 1) return arr;
+  const next: QSlotArr = arr.map((s) => ({
+    ours: { ...s.ours },
+    theirs: { ...s.theirs },
+  }));
+  while (next.length <= quarter) {
+    next.push({ ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } });
+  }
+  const slot = next[quarter];
+  slot[side][kind] = Math.max(0, slot[side][kind] + delta);
+  return next;
 }
 
 // Every data field of LiveGameState at its blank-slate value. Used by the
@@ -135,6 +174,10 @@ const DEFAULT_LIVE_STATE_DATA = {
   selected: null as LiveGameState["selected"],
   teamScore: { goals: 0, behinds: 0 },
   opponentScore: { goals: 0, behinds: 0 },
+  scoreByQuarter: [] as Array<{
+    ours: { goals: number; behinds: number };
+    theirs: { goals: number; behinds: number };
+  }>,
   playerScores: {} as Record<string, { goals: number; behinds: number }>,
   basePlayedZoneMs: {} as Record<string, ZoneMs>,
   stintStartMs: {} as Record<string, number>,
@@ -383,17 +426,31 @@ export const useLiveGame = create<LiveGameState>((set) => ({
 
   finaliseGame: () => set({ finalised: true, clockStartedAt: null }),
 
-  incTeam: (kind) =>
-    set((prev) => ({
-      teamScore: { ...prev.teamScore, [kind]: prev.teamScore[kind] + 1 },
-    })),
-  incOpponent: (kind) =>
-    set((prev) => ({
-      opponentScore: {
-        ...prev.opponentScore,
-        [kind]: prev.opponentScore[kind] + 1,
-      },
-    })),
+  // Score helpers maintain `scoreByQuarter` alongside the cumulative
+  // tally. `intendedQuarter` lets the retroactive-add path (Phase B
+  // edit panel) attribute the score back to the quarter the coach
+  // says it actually happened in, even though we're running through
+  // it at full-time. Without it we fall back to the current quarter,
+  // which is what live in-game scoring uses.
+  incTeam: (kind, intendedQuarter) =>
+    set((prev) => {
+      const q = intendedQuarter ?? prev.currentQuarter;
+      return {
+        teamScore: { ...prev.teamScore, [kind]: prev.teamScore[kind] + 1 },
+        scoreByQuarter: bumpQuarterSlot(prev.scoreByQuarter, q, "ours", kind, +1),
+      };
+    }),
+  incOpponent: (kind, intendedQuarter) =>
+    set((prev) => {
+      const q = intendedQuarter ?? prev.currentQuarter;
+      return {
+        opponentScore: {
+          ...prev.opponentScore,
+          [kind]: prev.opponentScore[kind] + 1,
+        },
+        scoreByQuarter: bumpQuarterSlot(prev.scoreByQuarter, q, "theirs", kind, +1),
+      };
+    }),
   incPlayerScore: (playerId, kind) =>
     set((prev) => {
       const cur = prev.playerScores[playerId] ?? { goals: 0, behinds: 0 };
@@ -405,14 +462,22 @@ export const useLiveGame = create<LiveGameState>((set) => ({
       };
     }),
 
-  undoTeamScore: (kind) =>
-    set((prev) => ({
-      teamScore: { ...prev.teamScore, [kind]: Math.max(0, prev.teamScore[kind] - 1) },
-    })),
-  undoOpponentScore: (kind) =>
-    set((prev) => ({
-      opponentScore: { ...prev.opponentScore, [kind]: Math.max(0, prev.opponentScore[kind] - 1) },
-    })),
+  undoTeamScore: (kind, quarter) =>
+    set((prev) => {
+      const q = quarter ?? prev.currentQuarter;
+      return {
+        teamScore: { ...prev.teamScore, [kind]: Math.max(0, prev.teamScore[kind] - 1) },
+        scoreByQuarter: bumpQuarterSlot(prev.scoreByQuarter, q, "ours", kind, -1),
+      };
+    }),
+  undoOpponentScore: (kind, quarter) =>
+    set((prev) => {
+      const q = quarter ?? prev.currentQuarter;
+      return {
+        opponentScore: { ...prev.opponentScore, [kind]: Math.max(0, prev.opponentScore[kind] - 1) },
+        scoreByQuarter: bumpQuarterSlot(prev.scoreByQuarter, q, "theirs", kind, -1),
+      };
+    }),
   undoPlayerScore: (playerId, kind) =>
     set((prev) => {
       const cur = prev.playerScores[playerId] ?? { goals: 0, behinds: 0 };

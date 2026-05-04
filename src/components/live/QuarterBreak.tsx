@@ -7,10 +7,14 @@ import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { Guernsey } from "@/components/sf";
 import {
+  addRetroScore,
+  deleteScore,
+  getGameScoreLog,
   markLoan,
   recordLineupSet,
   setOnFieldSize as setOnFieldSizeAction,
   startQuarter as startQuarterAction,
+  type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   ALL_ZONES,
@@ -410,6 +414,136 @@ export function QuarterBreak({
     });
   }
 
+  // ─── Period recap (read from store) ───────────────────────────
+  const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
+  // Surface "Q{currentQuarter}: us X.Y (pts) — them X.Y (pts)" plus
+  // running totals. Coach reads this to sync up with the opposition's
+  // record before resuming. Team is the LEFT, opp is the RIGHT.
+  const justEndedQuarter = currentQuarter; // QuarterBreak shows AFTER Q ends.
+  const thisQuarterScore = scoreByQuarter[justEndedQuarter] ?? null;
+  const totalUs = useLiveGame((s) => s.teamScore);
+  const totalThem = useLiveGame((s) => s.opponentScore);
+  const aflPts = (g: number, b: number) => g * 6 + b;
+
+  // ─── Fix-scores panel state ───────────────────────────────────
+  const [showFixScores, setShowFixScores] = useState(false);
+  const [scoreLog, setScoreLog] = useState<ScoreLogEntry[] | null>(null);
+  const [scoreLogError, setScoreLogError] = useState<string | null>(null);
+  const [scoreLogLoading, setScoreLogLoading] = useState(false);
+  const [_scoreActionPending, startScoreActionTransition] = useTransition();
+  // Add-score form state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addKind, setAddKind] = useState<
+    "goal" | "behind" | "opponent_goal" | "opponent_behind"
+  >("goal");
+  const [addPlayerId, setAddPlayerId] = useState<string>("");
+  const [addQuarter, setAddQuarter] = useState<number>(currentQuarter || 1);
+
+  async function refreshScoreLog() {
+    setScoreLogLoading(true);
+    setScoreLogError(null);
+    const result = await getGameScoreLog(auth, gameId);
+    setScoreLogLoading(false);
+    if (!result.success) {
+      setScoreLogError(result.error);
+      return;
+    }
+    setScoreLog(result.entries ?? []);
+  }
+
+  useEffect(() => {
+    if (showFixScores && scoreLog === null) refreshScoreLog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFixScores]);
+
+  function handleDeleteScore(entry: ScoreLogEntry) {
+    setScoreLogError(null);
+    // Optimistically decrement the per-quarter slot in the store
+    // alongside the cumulative. Pass the original quarter so the
+    // right slot is touched even if we're past that period now.
+    const q = entry.quarter ?? currentQuarter;
+    const isOurs = entry.type === "goal" || entry.type === "behind";
+    const kind = entry.type === "goal" || entry.type === "opponent_goal"
+      ? "goals"
+      : "behinds";
+    if (isOurs) useLiveGame.getState().undoTeamScore(kind, q);
+    else useLiveGame.getState().undoOpponentScore(kind, q);
+
+    startScoreActionTransition(async () => {
+      const result = await deleteScore(auth, gameId, entry.id);
+      if (!result.success) {
+        // Roll back optimistic.
+        if (isOurs) useLiveGame.getState().incTeam(kind, q);
+        else useLiveGame.getState().incOpponent(kind, q);
+        setScoreLogError(result.error);
+        return;
+      }
+      await refreshScoreLog();
+      router.refresh();
+    });
+  }
+
+  function handleAddScore() {
+    setScoreLogError(null);
+    const isOurs = addKind === "goal" || addKind === "behind";
+    if (isOurs && !addPlayerId) {
+      setScoreLogError("Pick a player.");
+      return;
+    }
+    // Optimistic store bump.
+    const kind = addKind === "goal" || addKind === "opponent_goal" ? "goals" : "behinds";
+    if (isOurs) useLiveGame.getState().incTeam(kind, addQuarter);
+    else useLiveGame.getState().incOpponent(kind, addQuarter);
+
+    startScoreActionTransition(async () => {
+      const result = await addRetroScore(auth, gameId, {
+        kind: addKind,
+        playerId: isOurs ? addPlayerId : null,
+        intendedQuarter: addQuarter,
+      });
+      if (!result.success) {
+        // Roll back.
+        if (isOurs) useLiveGame.getState().undoTeamScore(kind, addQuarter);
+        else useLiveGame.getState().undoOpponentScore(kind, addQuarter);
+        setScoreLogError(result.error);
+        return;
+      }
+      setAddOpen(false);
+      setAddPlayerId("");
+      await refreshScoreLog();
+      router.refresh();
+    });
+  }
+
+  // Map to scrub event lookup for "this score was already deleted by an undo".
+  const undoneEventIds = useMemo(() => {
+    if (!scoreLog) return new Set<string>();
+    const out = new Set<string>();
+    for (const e of scoreLog) {
+      if (e.type === "score_undo" && e.target_event_id) out.add(e.target_event_id);
+    }
+    return out;
+  }, [scoreLog]);
+
+  // Active scoring events grouped by quarter (newest first), filtering
+  // out ones that were already deleted via score_undo.
+  const scoreLogByQuarter = useMemo(() => {
+    if (!scoreLog) return null;
+    const groups: Record<number, ScoreLogEntry[]> = { 1: [], 2: [], 3: [], 4: [] };
+    for (const e of scoreLog) {
+      if (e.type === "score_undo") continue;
+      if (undoneEventIds.has(e.id)) continue;
+      const q = e.quarter ?? 1;
+      if (!groups[q]) groups[q] = [];
+      groups[q].push(e);
+    }
+    // Newest first within each quarter.
+    for (const q of Object.keys(groups)) {
+      groups[+q].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+    return groups;
+  }, [scoreLog, undoneEventIds]);
+
   function lineupsEqual(a: Lineup, b: Lineup): boolean {
     const keys: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
     for (const k of keys) {
@@ -608,6 +742,224 @@ export function QuarterBreak({
           )}
         </div>
       </div>
+
+      {/* Period recap — read-only summary of the just-finished
+          quarter alongside the running total. Coach uses this to
+          reconcile with the opposition before resuming. */}
+      {currentQuarter >= 1 && (
+        <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Q{justEndedQuarter} score
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFixScores((v) => !v)}
+              className="text-xs font-medium text-brand-700 hover:text-brand-800"
+            >
+              {showFixScores ? "Hide fix scores" : "Fix scores"}
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md border border-hairline bg-surface-alt p-3">
+              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                Us — Q{justEndedQuarter}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {thisQuarterScore?.ours.goals ?? 0}.{thisQuarterScore?.ours.behinds ?? 0}{" "}
+                <span className="text-sm font-normal text-ink-mute">
+                  ({aflPts(thisQuarterScore?.ours.goals ?? 0, thisQuarterScore?.ours.behinds ?? 0)})
+                </span>
+              </p>
+            </div>
+            <div className="rounded-md border border-hairline bg-surface-alt p-3">
+              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                Them — Q{justEndedQuarter}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {thisQuarterScore?.theirs.goals ?? 0}.{thisQuarterScore?.theirs.behinds ?? 0}{" "}
+                <span className="text-sm font-normal text-ink-mute">
+                  ({aflPts(thisQuarterScore?.theirs.goals ?? 0, thisQuarterScore?.theirs.behinds ?? 0)})
+                </span>
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-ink-dim">
+            Running total — Us {totalUs.goals}.{totalUs.behinds} ({aflPts(totalUs.goals, totalUs.behinds)})
+            {" · "}
+            Them {totalThem.goals}.{totalThem.behinds} ({aflPts(totalThem.goals, totalThem.behinds)})
+          </p>
+
+          {/* Expandable Fix-scores panel */}
+          {showFixScores && (
+            <div className="mt-4 border-t border-hairline pt-4">
+              <p className="text-xs font-semibold text-ink">Fix scores</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Delete a wrong score with ×, or add one that was missed.
+              </p>
+
+              {scoreLogLoading && (
+                <p className="mt-2 text-xs text-ink-mute">Loading…</p>
+              )}
+              {scoreLogError && (
+                <p className="mt-2 text-xs text-danger" role="alert">
+                  {scoreLogError}
+                </p>
+              )}
+
+              {scoreLogByQuarter && (
+                <div className="mt-3 space-y-3">
+                  {[1, 2, 3, 4].map((q) => {
+                    const entries = scoreLogByQuarter[q] ?? [];
+                    if (entries.length === 0) return null;
+                    return (
+                      <div key={q}>
+                        <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                          Q{q}
+                        </p>
+                        <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
+                          {entries.map((e) => {
+                            const isOurs = e.type === "goal" || e.type === "behind";
+                            const isGoal = e.type === "goal" || e.type === "opponent_goal";
+                            const playerName = e.player_id
+                              ? playersById.get(e.player_id)?.full_name ?? "—"
+                              : null;
+                            return (
+                              <li
+                                key={e.id}
+                                className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                                      isOurs
+                                        ? "bg-brand-100 text-brand-700"
+                                        : "bg-warn-soft text-warn"
+                                    }`}
+                                  >
+                                    {isGoal ? "G" : "B"}
+                                  </span>
+                                  <span className="font-medium text-ink">
+                                    {isOurs ? playerName ?? "Player" : "Opposition"}
+                                  </span>
+                                  {e.retro && (
+                                    <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-micro text-ink-mute">
+                                      Added
+                                    </span>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteScore(e)}
+                                  disabled={isPending}
+                                  className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                                  aria-label="Delete this score"
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                  {[1, 2, 3, 4].every((q) => (scoreLogByQuarter[q] ?? []).length === 0) && (
+                    <p className="text-xs text-ink-mute">No scores yet.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-3">
+                {!addOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddOpen(true);
+                      setAddQuarter(currentQuarter || 1);
+                    }}
+                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:text-brand-700"
+                  >
+                    + Add a missed score
+                  </button>
+                ) : (
+                  <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
+                    <p className="text-xs font-semibold text-ink">Add missed score</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <label className="text-[11px] text-ink-mute">
+                        Type
+                        <select
+                          value={addKind}
+                          onChange={(e) =>
+                            setAddKind(e.target.value as typeof addKind)
+                          }
+                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
+                        >
+                          <option value="goal">Goal (us)</option>
+                          <option value="behind">Behind (us)</option>
+                          <option value="opponent_goal">Goal (them)</option>
+                          <option value="opponent_behind">Behind (them)</option>
+                        </select>
+                      </label>
+                      <label className="text-[11px] text-ink-mute">
+                        Quarter
+                        <select
+                          value={addQuarter}
+                          onChange={(e) => setAddQuarter(parseInt(e.target.value, 10))}
+                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
+                        >
+                          {[1, 2, 3, 4].map((q) => (
+                            <option key={q} value={q}>
+                              Q{q}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    {(addKind === "goal" || addKind === "behind") && (
+                      <label className="mt-2 block text-[11px] text-ink-mute">
+                        Player
+                        <select
+                          value={addPlayerId}
+                          onChange={(e) => setAddPlayerId(e.target.value)}
+                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
+                        >
+                          <option value="">— pick —</option>
+                          {players.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.jersey_number != null ? `#${p.jersey_number} ` : ""}
+                              {p.full_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleAddScore}
+                        disabled={isPending}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setAddOpen(false);
+                          setAddPlayerId("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {availableForLineup.length > 0 && (
         <p className="px-1 text-xs text-ink-dim">

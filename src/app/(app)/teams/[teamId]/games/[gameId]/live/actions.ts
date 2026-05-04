@@ -439,6 +439,138 @@ export async function undoLastScore(
   });
 }
 
+// ─── Score-log fetch / delete-any / retro-add ────────────────
+// Powers the QuarterBreak "Fix scores" panel. Three actions, all
+// auth-checked through the same resolveWriter path as the live
+// scoring flow above.
+export interface ScoreLogEntry {
+  id: string;
+  type: "goal" | "behind" | "opponent_goal" | "opponent_behind" | "score_undo";
+  player_id: string | null;
+  /** For score_undo: the original_type from metadata. */
+  original_type: string | null;
+  /** Quarter the event was booked to. For undo, copied from the original's metadata.quarter. */
+  quarter: number | null;
+  /** Whether this was added retroactively from the Fix-scores panel. */
+  retro: boolean;
+  /** target_event_id for score_undo entries — lets the UI grey-out the row it cancelled. */
+  target_event_id: string | null;
+  created_at: string;
+}
+
+export async function getGameScoreLog(
+  auth: LiveAuth,
+  gameId: string,
+): Promise<ActionResult & { entries?: ScoreLogEntry[] }> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { data, error } = await w.supabase
+    .from("game_events")
+    .select("id, type, player_id, metadata, created_at")
+    .eq("game_id", gameId)
+    .in("type", ["goal", "behind", "opponent_goal", "opponent_behind", "score_undo"])
+    .order("created_at", { ascending: true });
+  if (error) return { success: false, error: error.message };
+
+  const entries: ScoreLogEntry[] = (data ?? []).map((row) => {
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    const isUndo = row.type === "score_undo";
+    return {
+      id: row.id as string,
+      type: row.type as ScoreLogEntry["type"],
+      player_id: (row.player_id as string | null) ?? null,
+      original_type: isUndo ? ((meta.original_type as string) ?? null) : null,
+      quarter:
+        typeof meta.quarter === "number"
+          ? (meta.quarter as number)
+          : typeof meta.intended_quarter === "number"
+          ? (meta.intended_quarter as number)
+          : null,
+      retro: meta.retro === true,
+      target_event_id: isUndo ? ((meta.target_event_id as string) ?? null) : null,
+      created_at: row.created_at as string,
+    };
+  });
+  return { success: true, entries };
+}
+
+// Delete any past scoring event by inserting a score_undo that
+// targets it. Mirrors undoLastScore but lets the caller pick which
+// event to reverse — used by the "Fix scores" panel's × button.
+export async function deleteScore(
+  auth: LiveAuth,
+  gameId: string,
+  eventId: string,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { data: target } = await w.supabase
+    .from("game_events")
+    .select("id, type, player_id, metadata")
+    .eq("id", eventId)
+    .eq("game_id", gameId)
+    .maybeSingle();
+  if (!target) return { success: false, error: "Score event not found." };
+
+  const validTypes = ["goal", "behind", "opponent_goal", "opponent_behind"];
+  if (!validTypes.includes(target.type as string)) {
+    return { success: false, error: "Only scoring events can be deleted." };
+  }
+  const meta = (target.metadata ?? {}) as Record<string, unknown>;
+  // Preserve the original event's quarter attribution so the replay
+  // correctly decrements the right per-quarter slot.
+  const quarter =
+    typeof meta.quarter === "number"
+      ? (meta.quarter as number)
+      : typeof meta.intended_quarter === "number"
+      ? (meta.intended_quarter as number)
+      : null;
+
+  return insertEvent(auth, gameId, "score_undo", {
+    player_id: target.player_id as string | null,
+    metadata: {
+      target_event_id: target.id,
+      original_type: target.type,
+      quarter: quarter ?? undefined,
+    },
+  });
+}
+
+// Add a missed score retroactively. Records a goal/behind/opp_goal/
+// opp_behind event with `metadata.retro = true` and
+// `metadata.intended_quarter` so replayGame attributes it to the
+// quarter the coach picks, even though we're recording it later.
+export async function addRetroScore(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    kind: "goal" | "behind" | "opponent_goal" | "opponent_behind";
+    playerId: string | null;
+    intendedQuarter: number;
+  },
+): Promise<ActionResult> {
+  if (input.intendedQuarter < 1 || input.intendedQuarter > 4) {
+    return { success: false, error: "Quarter must be 1–4." };
+  }
+  const isOurs = input.kind === "goal" || input.kind === "behind";
+  if (isOurs && !input.playerId) {
+    return { success: false, error: "Pick a player." };
+  }
+  return insertEvent(auth, gameId, input.kind, {
+    player_id: isOurs ? input.playerId : null,
+    metadata: {
+      retro: true,
+      intended_quarter: input.intendedQuarter,
+      // Mirror the live-scoring metadata shape so anything that
+      // reads quarter from metadata (eventReplay, dashboard, future
+      // exports) gets the right number too.
+      quarter: input.intendedQuarter,
+    },
+  });
+}
+
 export async function recordFieldZoneSwap(
   auth: LiveAuth,
   gameId: string,
