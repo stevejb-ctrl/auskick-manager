@@ -226,67 +226,72 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             </div>
           </div>
           {canRun && (
-            <div className="flex flex-col gap-2 border-t border-hairline bg-surface-alt px-5 py-4 sm:flex-row sm:items-center sm:px-7">
-              {isUp ? (
-                // Upcoming games get TWO entry points into the
-                // LineupPicker so the night-before planning flow has
-                // its own button. Both routes land on the same picker
-                // — the coach picks the right action inside (Save plan
-                // vs. Start game). "Set lineup" reads as the natural
-                // primary action on Saturday night; "Start game" stays
-                // available for one-tap kickoff on game day.
-                <>
+            <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
+              {/* Primary CTAs first, stacked. On upcoming games we
+                  surface BOTH "Start game" (hero, black) and "Set
+                  lineup" (white, matches Share gameday link) so the
+                  Saturday-night planning flow is discoverable
+                  without sacrificing the one-tap kickoff path. */}
+              <div className="flex flex-col gap-2">
+                {isUp ? (
+                  <>
+                    <SFButton
+                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                      variant="primary"
+                      iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                      className="w-full sm:w-auto"
+                    >
+                      Start game
+                    </SFButton>
+                    <SFButton
+                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                      variant="ghost"
+                      className="w-full sm:w-auto"
+                    >
+                      {planSavedAt ? "Edit lineup plan" : "Set lineup"}
+                    </SFButton>
+                  </>
+                ) : (
                   <SFButton
                     href={`/teams/${params.teamId}/games/${params.gameId}/live`}
                     variant="primary"
                     iconAfter={<SFIcon.chevronRight color="currentColor" />}
                     className="w-full sm:w-auto"
                   >
-                    {planSavedAt ? "Edit lineup plan" : "Set lineup"}
+                    Open live game
                   </SFButton>
-                  <SFButton
-                    href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-                    variant="ghost"
-                    className="w-full sm:w-auto"
+                )}
+              </div>
+
+              {/* Secondary affordances — Share link, plan-saved chip,
+                  Reset / Delete (admin). Wraps to a row on desktop. */}
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+                <ShareRunnerLink token={g.share_token} />
+                {/* Pre-game lineup-plan indicator. Surfaces only when
+                    the coach has saved a draft and the game's still
+                    upcoming. Cleared automatically at kickoff. */}
+                {isUp && planSavedAt && (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-3 py-1 text-xs font-semibold text-ok"
+                    title={`Last saved ${new Date(planSavedAt).toLocaleString()}`}
                   >
-                    Start game
-                  </SFButton>
-                </>
-              ) : (
-                <SFButton
-                  href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-                  variant="primary"
-                  iconAfter={<SFIcon.chevronRight color="currentColor" />}
-                  className="w-full sm:w-auto"
-                >
-                  Open live game
-                </SFButton>
-              )}
-              <ShareRunnerLink token={g.share_token} />
-              {/* Pre-game lineup-plan indicator. Surfaces only when
-                  the coach has saved a draft and the game's still
-                  upcoming. Cleared automatically at kickoff. */}
-              {isUp && planSavedAt && (
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-3 py-1 text-xs font-semibold text-ok"
-                  title={`Last saved ${new Date(planSavedAt).toLocaleString()}`}
-                >
-                  <span aria-hidden>✓</span>
-                  Plan saved
-                </span>
-              )}
-              {role === "admin" && !isUp && (
-                <ResetGameButton
-                  auth={{ kind: "team", teamId: params.teamId }}
-                  gameId={params.gameId}
-                />
-              )}
-              {role === "admin" && (
-                <DeleteGameButton
-                  teamId={params.teamId}
-                  gameId={params.gameId}
-                />
-              )}
+                    <span aria-hidden>✓</span>
+                    Plan saved
+                  </span>
+                )}
+                {role === "admin" && !isUp && (
+                  <ResetGameButton
+                    auth={{ kind: "team", teamId: params.teamId }}
+                    gameId={params.gameId}
+                  />
+                )}
+                {role === "admin" && (
+                  <DeleteGameButton
+                    teamId={params.teamId}
+                    gameId={params.gameId}
+                  />
+                )}
+              </div>
             </div>
           )}
         </SFCard>
