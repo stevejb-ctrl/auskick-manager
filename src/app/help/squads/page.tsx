@@ -82,6 +82,77 @@ export default function SquadsPage() {
       </section>
 
       <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Player chips — mixing or grouping kids</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Chips are coloured tags you can attach to any player. The lineup
+          suggester reads them when it builds a starting lineup or rebalances
+          at a quarter break. You decide both <strong className="text-ink">what
+          each chip means</strong> and <strong className="text-ink">how the
+          suggester should treat chip-mates</strong>:
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-ink-dim">
+          <li>
+            <strong className="text-ink">Split</strong> spreads chip-mates
+            across zones / positions. Use this when you want a mix in every
+            line — for example, label one chip <em>older</em> and another{" "}
+            <em>younger</em>, and Siren will put older and younger kids in
+            each zone rather than bunching all the older ones in mid.
+          </li>
+          <li>
+            <strong className="text-ink">Group</strong> keeps chip-mates
+            together. Use this when a player needs to be paired with familiar
+            teammates — for example, a kid with social needs who plays better
+            next to their best mate. Tag both with the same chip and Siren
+            will put them in the same zone where it can.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 text-base font-semibold text-ink">Step 1 — name your chips</h3>
+        <ol className="mt-2 list-decimal space-y-2 pl-5 text-ink-dim">
+          <li>Open <strong className="text-ink">Settings</strong> on your team.</li>
+          <li>
+            Scroll to the <strong className="text-ink">Player chips</strong> card.
+          </li>
+          <li>
+            For each chip you want to use, type a label (e.g.{" "}
+            <em>Older</em>, <em>Younger</em>, <em>Stays with friends</em>) and
+            pick <strong className="text-ink">Split</strong> or{" "}
+            <strong className="text-ink">Group</strong>.
+          </li>
+          <li>Tap <strong className="text-ink">Save chip settings</strong>.</li>
+        </ol>
+        <p className="mt-2 text-xs text-ink-mute">
+          Leave a label blank to hide that chip slot — only labelled chips
+          appear in the player picker.
+        </p>
+
+        <h3 className="mt-5 text-base font-semibold text-ink">Step 2 — tag your players</h3>
+        <ol className="mt-2 list-decimal space-y-2 pl-5 text-ink-dim">
+          <li>
+            Go back to <strong className="text-ink">Squad</strong>. The chip
+            row now appears in the Add player form.
+          </li>
+          <li>
+            For an existing player, tap their row to open the edit form. Pick
+            a chip swatch (or leave it on <em>Unset</em>) and tap{" "}
+            <strong className="text-ink">Save</strong>.
+          </li>
+          <li>
+            A small coloured dot now appears before the player&apos;s name in
+            the squad list, on the lineup picker, on the live-game tile —
+            anywhere they show up.
+          </li>
+        </ol>
+
+        <HelpCallout type="tip">
+          Chips are a soft constraint. They influence the suggester but never
+          block a placement, so you can always tap-tap to override. If a chip
+          isn&apos;t doing what you want, change its mode in Settings — no
+          need to retag every player.
+        </HelpCallout>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Setting availability before a game</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Before starting a live game, you&apos;ll be asked to mark which players are

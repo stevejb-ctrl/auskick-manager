@@ -165,6 +165,23 @@ const AFL_COPY: BrandCopy = {
       imageAlt: "Player actions sheet showing lock, injury, and lend options",
     },
     {
+      id: "chips",
+      eyebrow: "Player chips",
+      title: {
+        before: "Mix the right kids in every ",
+        italic: "line",
+        after: ".",
+      },
+      body: "Tag your squad with up to three coloured chips — you decide what each one means. \"Older / younger\" so every line has a mix of experience. \"Stays with these kids\" for a player who does better next to their familiar teammates. Siren weaves the rules into every starting lineup and quarter-break shuffle.",
+      bullets: [
+        "Three coach-defined chips per team — name them whatever you want",
+        "Split mode spreads chip-mates across zones (mix older / younger)",
+        "Group mode keeps chip-mates together (kids with social needs, partner pairs)",
+      ],
+      image: "/marketing/screenshots/rotations.png",
+      imageAlt: "Player rotation view with coloured chip dots beside each player's name",
+    },
+    {
       id: "quarterly",
       eyebrow: "Quarter breaks",
       title: {
@@ -355,6 +372,23 @@ const NETBALL_COPY: BrandCopy = {
       ],
       image: "/marketing/screenshots/netball/flexibility.png",
       imageAlt: "Netball player-actions sheet over the live court — lock, injury, and lend options for the selected player",
+    },
+    {
+      id: "chips",
+      eyebrow: "Player chips",
+      title: {
+        before: "Get the right ",
+        italic: "mix",
+        after: " on every third.",
+      },
+      body: "Tag your squad with up to three coloured chips — you decide what each one means. \"Shooter / mid / defender preference\" so every quarter has the right balance. \"Stays with these kids\" for a player who shoots better next to a familiar GA. Siren reads the chips into every quarter-break suggestion.",
+      bullets: [
+        "Three coach-defined chips per team — name them whatever you want",
+        "Split mode spreads chip-mates across positions (mix shooters / defenders)",
+        "Group mode keeps chip-mates together (kids with social needs, partner pairs)",
+      ],
+      image: "/marketing/screenshots/netball/live-game.png",
+      imageAlt: "Netball live court with coloured chip dots beside each player's name",
     },
     {
       id: "availability",

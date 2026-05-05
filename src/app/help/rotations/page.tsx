@@ -58,6 +58,16 @@ export default function RotationsPage() {
             locked players never leave; position-locked players stay in their
             assigned position
           </li>
+          <li>
+            <strong className="text-ink">Player chips</strong>: optional
+            coloured tags that either spread chip-mates across zones (mix
+            older with younger) or keep them together (a kid who needs to
+            stay paired with familiar teammates). See the{" "}
+            <Link href="/help/squads" className="font-medium underline">
+              Squads
+            </Link>{" "}
+            help page for setup.
+          </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
           The result is a small set of swap pairs (usually one or two at a
