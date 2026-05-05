@@ -246,7 +246,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     <SFButton
                       href={`/teams/${params.teamId}/games/${params.gameId}/live`}
                       variant="ghost"
-                      className="w-full sm:w-auto"
+                      className="w-full bg-surface sm:w-auto"
                     >
                       {planSavedAt ? "Edit lineup plan" : "Set lineup"}
                     </SFButton>

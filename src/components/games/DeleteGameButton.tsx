@@ -33,10 +33,10 @@ export function DeleteGameButton({ teamId, gameId }: DeleteGameButtonProps) {
     return (
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="md"
         onClick={() => setStage("confirm")}
-        className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+        className="text-danger hover:bg-danger/10 hover:text-danger"
       >
         Delete game
       </Button>

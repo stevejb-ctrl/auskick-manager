@@ -16,6 +16,7 @@ import {
   startQuarter as startQuarterAction,
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import {
   ALL_ZONES,
   fairnessScore,
@@ -1049,6 +1050,14 @@ export function QuarterBreak({
                           <span className="flex flex-col items-start">
                             <span className="flex items-center gap-1.5">
                               <span className="font-medium text-ink">
+                                {p.chip && (
+                                  <span
+                                    aria-hidden
+                                    className={`mr-1 inline-block h-2 w-2 rounded-full align-middle ${
+                                      CHIP_COLORS[p.chip as ChipKey].dot
+                                    }`}
+                                  />
+                                )}
                                 {p.full_name}
                               </span>
                               {isInjured && (

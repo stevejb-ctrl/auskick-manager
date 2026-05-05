@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
+import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -240,8 +241,16 @@ export function PlayerTile({
         </span>
       )}
 
-      {/* Name */}
+      {/* Name (with leading chip dot if the player has a cohort chip) */}
       <span className="truncate text-sm font-bold leading-tight text-ink">
+        {player.chip && (
+          <span
+            aria-hidden
+            className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+              CHIP_COLORS[player.chip as ChipKey].dot
+            }`}
+          />
+        )}
         {lastInitial ? `${firstName} ${lastInitial}` : firstName}
       </span>
 
