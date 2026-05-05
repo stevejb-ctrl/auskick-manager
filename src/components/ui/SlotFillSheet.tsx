@@ -33,6 +33,20 @@ interface Props {
    * surfaces that want a more specific verb ("Place", "Assign").
    */
   titleVerb?: string;
+  /**
+   * Optional override for the small instruction line under the
+   * heading. Defaults to "Pick a player to place in the {slotLabel}
+   * slot." Pass a custom string for non-positional uses (e.g. "Pick
+   * a player to lend to the opposition.").
+   */
+  subtitle?: string;
+  /**
+   * Optional override for the empty-state message. Defaults to
+   * "Nobody available — every player is already on field." Pass a
+   * custom string when the default doesn't fit (e.g. "Everyone is
+   * already lent or injured.").
+   */
+  emptyMessage?: string;
 }
 
 export function SlotFillSheet({
@@ -41,6 +55,8 @@ export function SlotFillSheet({
   onPick,
   onCancel,
   titleVerb = "Fill",
+  subtitle,
+  emptyMessage,
 }: Props) {
   return (
     <div
@@ -65,13 +81,13 @@ export function SlotFillSheet({
             {titleVerb} {slotLabel}
           </h2>
           <p className="mt-1 text-xs text-ink-mute">
-            Pick a player to place in the {slotLabel} slot.
+            {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}
           </p>
         </div>
 
         {candidates.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-mute">
-            Nobody available — every player is already on field.
+            {emptyMessage ?? "Nobody available — every player is already on field."}
           </p>
         ) : (
           <ul className="max-h-72 divide-y divide-hairline overflow-y-auto">

@@ -399,10 +399,11 @@ export function QuarterBreak({
   }
 
   // ─── Lend-player panel state ──────────────────────────────────
-  // Tap a player chip to flip their loan flag for the upcoming
-  // quarter. Optimistic store update + persistent player_loan event.
+  // Tap a chip to un-lend a current loaner; tap "Lend a player" to
+  // open a SlotFillSheet listing only available squad members.
   const [loanPending, startLoanTransition] = useTransition();
   const [loanError, setLoanError] = useState<string | null>(null);
+  const [lendPickerOpen, setLendPickerOpen] = useState(false);
 
   function handleLoanToggle(pid: string, nextLoaned: boolean) {
     setLoanError(null);
@@ -424,6 +425,19 @@ export function QuarterBreak({
       }
     });
   }
+
+  // ─── Match-adjustments collapse state ─────────────────────────
+  // Collapsed by default — most coaches won't change size or lend a
+  // player in any given quarter, so we keep the screen quiet. When
+  // the section is closed we surface a one-line summary so the
+  // coach knows whether anything is currently set.
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
+  const lentPlayers = useMemo(
+    () =>
+      players
+        .filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id)),
+    [players, loanedSet, injuredSet],
+  );
 
   // ─── Period recap (read from store) ───────────────────────────
   const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
@@ -661,98 +675,168 @@ export function QuarterBreak({
         </p>
       </div>
 
-      {/* Match adjustments — change the on-field size and lend players
-          to the opposition before the next quarter kicks off. Both are
-          common short-handed scenarios in junior footy / netball. */}
-      <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-          Match adjustments
-        </p>
-        <p className="mt-1 text-xs text-ink-dim">
-          Set how many on the field for Q{nextQuarter} and lend any players to the opposition. Stays the same as last quarter unless you change it.
-        </p>
-
-        {/* On-field size dropdown */}
-        <div className="mt-3">
-          <label
-            htmlFor="qb-on-field-size"
-            className="block text-xs font-semibold text-ink"
-          >
-            On-field size
-          </label>
-          <div className="mt-1 flex items-center gap-2">
-            <select
-              id="qb-on-field-size"
-              value={pendingSize}
-              onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
-              disabled={sizePending || isPending}
-              className="rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
-            >
-              {sizeOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                  {s === defaultOnFieldSize ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-ink-mute">
-              {currentOnFieldSize === defaultOnFieldSize
-                ? `Default for this age group.`
-                : `Currently playing ${currentOnFieldSize} a side.`}
+      {/* Match adjustments — collapsed by default. Expanded view
+          contains the on-field size dropdown and the lend-player
+          control. Both are common short-handed scenarios in junior
+          footy / netball, but most quarters don't need either, so
+          we keep this small until the coach asks for it. */}
+      <div className="rounded-md border border-hairline bg-surface shadow-card">
+        <button
+          type="button"
+          onClick={() => setMatchAdjustmentsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
+          aria-expanded={matchAdjustmentsOpen}
+          aria-controls="qb-match-adjustments"
+        >
+          <span className="flex flex-1 items-center gap-3 text-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Match adjustments
             </span>
-          </div>
-          {sizeError && (
-            <p className="mt-1 text-xs text-danger" role="alert">
-              {sizeError}
-            </p>
-          )}
-        </div>
+            <span className="text-xs text-ink-mute">
+              {currentOnFieldSize} on field
+              {lentPlayers.length > 0 ? ` · ${lentPlayers.length} lent` : ""}
+            </span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`transition-transform duration-fast ease-out-quart ${
+                matchAdjustmentsOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
 
-        {/* Lend players */}
-        <div className="mt-4">
-          <p className="text-xs font-semibold text-ink">Lend a player</p>
-          <p className="mt-0.5 text-xs text-ink-mute">
-            Lent players sit out for the rest of the game until you tap them again.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {players.length === 0 && (
-              <p className="text-xs text-ink-mute">No players in the squad.</p>
-            )}
-            {players.map((p) => {
-              const isLoaned = loanedSet.has(p.id);
-              const isInjured = injuredSet.has(p.id);
-              if (isInjured) return null;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleLoanToggle(p.id, !isLoaned)}
-                  disabled={loanPending}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    isLoaned
-                      ? "border-warn/50 bg-warn-soft text-warn"
-                      : "border-hairline bg-surface text-ink-dim hover:border-brand-500/40 hover:bg-brand-50"
-                  } disabled:opacity-60`}
-                  aria-pressed={isLoaned}
+        {matchAdjustmentsOpen && (
+          <div
+            id="qb-match-adjustments"
+            className="space-y-4 border-t border-hairline px-4 py-3"
+          >
+            {/* On-field size dropdown */}
+            <div>
+              <label
+                htmlFor="qb-on-field-size"
+                className="block text-xs font-semibold text-ink"
+              >
+                On-field size
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <select
+                  id="qb-on-field-size"
+                  value={pendingSize}
+                  onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+                  disabled={sizePending || isPending}
+                  className="rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
                 >
-                  {p.jersey_number != null && (
-                    <span className="tabular-nums font-semibold">
-                      {p.jersey_number}
-                    </span>
-                  )}
-                  <span>{p.full_name}</span>
-                  {isLoaned && <span aria-hidden>✓</span>}
+                  {sizeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                      {s === defaultOnFieldSize ? " (default)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-ink-mute">
+                  {currentOnFieldSize === defaultOnFieldSize
+                    ? `Default for this age group.`
+                    : `Currently playing ${currentOnFieldSize} a side.`}
+                </span>
+              </div>
+              {sizeError && (
+                <p className="mt-1 text-xs text-danger" role="alert">
+                  {sizeError}
+                </p>
+              )}
+            </div>
+
+            {/* Lend players — chips for current loaners + a picker
+                button. Listing only the lent players (rather than
+                every squad member) keeps the surface small even with
+                a 22-player squad. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Lend a player</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Lent players sit out for the rest of the game until you bring
+                them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {lentPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                  >
+                    {p.jersey_number != null && (
+                      <span className="tabular-nums font-semibold">
+                        {p.jersey_number}
+                      </span>
+                    )}
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLoanToggle(p.id, false)}
+                      disabled={loanPending}
+                      aria-label={`Bring ${p.full_name} back`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLendPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Lend a player
                 </button>
-              );
-            })}
+              </div>
+              {loanError && (
+                <p className="mt-1 text-xs text-danger" role="alert">
+                  {loanError}
+                </p>
+              )}
+            </div>
           </div>
-          {loanError && (
-            <p className="mt-1 text-xs text-danger" role="alert">
-              {loanError}
-            </p>
-          )}
-        </div>
+        )}
       </div>
+
+      {/* Lend-player picker modal — opens from the "+ Lend a player"
+          button above. Lists every healthy, not-already-lent squad
+          member; tap one to lend them for the rest of the game. */}
+      {lendPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Lend"
+          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
+          emptyMessage="Everyone is already lent or injured."
+          candidates={players
+            .filter(
+              (p) => !loanedSet.has(p.id) && !injuredSet.has(p.id),
+            )
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => {
+            handleLoanToggle(pid, true);
+            setLendPickerOpen(false);
+          }}
+          onCancel={() => setLendPickerOpen(false)}
+        />
+      )}
 
       {/* Period recap — read-only summary of the just-finished
           quarter alongside the running total. Coach uses this to
