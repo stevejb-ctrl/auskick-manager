@@ -45,7 +45,7 @@ describe("Phase D — chip-spread", () => {
     for (let i = 0; i < 6; i++) players.push(p(`a${i}`, "a"));
     for (let i = 0; i < 6; i++) players.push(p(`b${i}`, "b"));
 
-    const chipMap: Record<string, "a" | "b" | null> = {};
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
     for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
 
     const lineup = suggestStartingLineup(
@@ -76,7 +76,7 @@ describe("Phase D — chip-spread", () => {
     for (let i = 0; i < 8; i++) players.push(p(`a${i}`, "a"));
     for (let i = 0; i < 4; i++) players.push(p(`u${i}`));
 
-    const chipMap: Record<string, "a" | "b" | null> = {};
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
     for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
 
     const lineup = suggestStartingLineup(

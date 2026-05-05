@@ -227,14 +227,41 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </div>
           {canRun && (
             <div className="flex flex-col gap-2 border-t border-hairline bg-surface-alt px-5 py-4 sm:flex-row sm:items-center sm:px-7">
-              <SFButton
-                href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-                variant="primary"
-                iconAfter={<SFIcon.chevronRight color="currentColor" />}
-                className="w-full sm:w-auto"
-              >
-                {isUp ? "Start game" : "Open live game"}
-              </SFButton>
+              {isUp ? (
+                // Upcoming games get TWO entry points into the
+                // LineupPicker so the night-before planning flow has
+                // its own button. Both routes land on the same picker
+                // — the coach picks the right action inside (Save plan
+                // vs. Start game). "Set lineup" reads as the natural
+                // primary action on Saturday night; "Start game" stays
+                // available for one-tap kickoff on game day.
+                <>
+                  <SFButton
+                    href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                    variant="primary"
+                    iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                    className="w-full sm:w-auto"
+                  >
+                    {planSavedAt ? "Edit lineup plan" : "Set lineup"}
+                  </SFButton>
+                  <SFButton
+                    href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                    variant="ghost"
+                    className="w-full sm:w-auto"
+                  >
+                    Start game
+                  </SFButton>
+                </>
+              ) : (
+                <SFButton
+                  href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                  variant="primary"
+                  iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                  className="w-full sm:w-auto"
+                >
+                  Open live game
+                </SFButton>
+              )}
               <ShareRunnerLink token={g.share_token} />
               {/* Pre-game lineup-plan indicator. Surfaces only when
                   the coach has saved a draft and the game's still
