@@ -101,6 +101,12 @@ export interface Team {
   chip_a_label: string | null;
   chip_b_label: string | null;
   chip_c_label: string | null;
+  /** Per-chip behaviour: "split" spreads chip-mates across zones,
+   *  "group" funnels them into the same zone. Defaults to "split"
+   *  on existing teams (Phase D launched behaviour). */
+  chip_a_mode: import("@/lib/chips").ChipMode;
+  chip_b_mode: import("@/lib/chips").ChipMode;
+  chip_c_mode: import("@/lib/chips").ChipMode;
   created_by: string;
   created_at: string;
   updated_at: string;

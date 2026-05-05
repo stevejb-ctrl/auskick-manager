@@ -126,6 +126,8 @@ interface LiveGameProps {
   maxOnFieldSize: number;
   /** Sport+age default — shown as a "(default)" tag on the dropdown. */
   defaultOnFieldSize: number;
+  /** Per-chip mode (split/group) — passed to QuarterBreak's suggester. */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
   exitHref?: string;
   /** Public URL of the team song audio file, if configured. */
   songUrl?: string | null;
@@ -167,6 +169,7 @@ export function LiveGame({
   minOnFieldSize,
   maxOnFieldSize,
   defaultOnFieldSize,
+  chipModeByKey,
   exitHref,
   songUrl,
   songStartSeconds = 0,
@@ -899,6 +902,7 @@ export function LiveGame({
         minOnFieldSize={minOnFieldSize}
         maxOnFieldSize={maxOnFieldSize}
         defaultOnFieldSize={defaultOnFieldSize}
+        chipModeByKey={chipModeByKey}
         onStarted={() => beginNextQuarter()}
       />
     );

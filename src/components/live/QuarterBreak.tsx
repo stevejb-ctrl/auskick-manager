@@ -61,6 +61,8 @@ interface QuarterBreakProps {
   maxOnFieldSize: number;
   /** Default on-field size for the team's age group (shown as a hint). */
   defaultOnFieldSize: number;
+  /** Per-chip mode (split / group) — drives the suggester's chip cost. */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
   onStarted: () => void;
 }
 
@@ -90,6 +92,7 @@ export function QuarterBreak({
   minOnFieldSize,
   maxOnFieldSize,
   defaultOnFieldSize,
+  chipModeByKey = {},
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
@@ -305,6 +308,7 @@ export function QuarterBreak({
       previousZoneTeammates,
       seasonAvailability,
       chipByPlayerId,
+      chipModeByKey,
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.

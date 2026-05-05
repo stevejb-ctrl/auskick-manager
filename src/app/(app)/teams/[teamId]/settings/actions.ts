@@ -251,28 +251,39 @@ export async function deleteSong(teamId: string): Promise<ActionResult> {
 }
 
 
-/** Update the team-level chip labels. Empty strings are normalised to NULL. */
-export async function updateTeamChipLabels(
+/**
+ * Update the team-level chip labels and per-chip behaviour modes.
+ * Empty label strings normalise to NULL; modes default to 'split'
+ * to match Phase D launched behaviour.
+ */
+export async function updateTeamChipSettings(
   teamId: string,
   patch: {
     chip_a_label: string | null;
     chip_b_label: string | null;
     chip_c_label: string | null;
+    chip_a_mode: "split" | "group";
+    chip_b_mode: "split" | "group";
+    chip_c_mode: "split" | "group";
   },
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
-  const norm = (v: string | null) => {
+  const normLabel = (v: string | null) => {
     const trimmed = (v ?? "").trim();
     return trimmed === "" ? null : trimmed.slice(0, 32);
   };
+  const normMode = (v: string) => (v === "group" ? "group" : "split");
   const { error: updateError } = await supabase
     .from("teams")
     .update({
-      chip_a_label: norm(patch.chip_a_label),
-      chip_b_label: norm(patch.chip_b_label),
-      chip_c_label: norm(patch.chip_c_label),
+      chip_a_label: normLabel(patch.chip_a_label),
+      chip_b_label: normLabel(patch.chip_b_label),
+      chip_c_label: normLabel(patch.chip_c_label),
+      chip_a_mode: normMode(patch.chip_a_mode),
+      chip_b_mode: normMode(patch.chip_b_mode),
+      chip_c_mode: normMode(patch.chip_c_mode),
     })
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };

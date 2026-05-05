@@ -477,6 +477,14 @@ export function suggestStartingLineup(
    * chip awareness, which is the legacy behaviour.
    */
   chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {},
+  /**
+   * Per-chip behaviour mode. "split" (default) is the launched Phase
+   * D behaviour — chip-mates spread across zones. "group" inverts
+   * the penalty into a bonus so chip-mates funnel into the same zone
+   * (e.g. a player who needs to stay paired with specific teammates).
+   * Missing keys default to "split".
+   */
+  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">> = {},
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -589,9 +597,14 @@ export function suggestStartingLineup(
     });
     return penalty;
   };
-  // Phase D chip-spread penalty — driven by the same placedByZone map
-  // so it sees players placed earlier in this same suggester pass.
-  const chipPenaltyFor = buildChipPenaltyFor(chipByPlayerId, placedByZone);
+  // Phase D chip-spread / chip-group penalty — driven by the same
+  // placedByZone map so it sees players placed earlier in this same
+  // suggester pass. Mode flips sign per chip key.
+  const chipPenaltyFor = buildChipPenaltyFor(
+    chipByPlayerId,
+    chipModeByKey,
+    placedByZone,
+  );
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
@@ -623,15 +636,21 @@ export function suggestStartingLineup(
 }
 
 // ─── Chip-spread penalty (Phase D) ────────────────────────────
-// Soft constraint applied during placement so the same chip
-// doesn't bunch up in one zone. Quadratic in the count already
-// placed: 1st same-chip = no penalty, 2nd = 50, 3rd = 200, etc.
-// 50 is well below IN_GAME_DIVERSITY (1000) so it never overrides
-// a fresh-zone placement, just acts as a tiebreaker between
-// otherwise-equivalent zones.
+// Soft constraint applied during placement so chip-mates either
+// spread (default) or group together (per chip's `mode`).
+//
+// Split mode (default): quadratic POSITIVE penalty in the count
+// already placed in the target zone. 1st same-chip = 0, 2nd = 50,
+// 3rd = 200, 4th = 450. Well below IN_GAME_DIVERSITY (1000) so it
+// never overrides a fresh-zone placement; acts as a tiebreaker.
+//
+// Group mode: same magnitude but NEGATIVE so the same-chip zone
+// becomes the cheapest option. 1st = 0, 2nd = -50, 3rd = -200,
+// 4th = -450. Funnels chip-mates into one zone (subject to caps).
 const CHIP_PENALTY_BASE = 50;
 function buildChipPenaltyFor(
   chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
+  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">>,
   placedByZone: Map<Zone, Set<string>>,
 ) {
   return (pid: string, target: Zone): number => {
@@ -643,7 +662,10 @@ function buildChipPenaltyFor(
     placed.forEach((other) => {
       if (chipByPlayerId[other] === myChip) sameChip++;
     });
-    return sameChip * sameChip * CHIP_PENALTY_BASE;
+    if (sameChip === 0) return 0;
+    const magnitude = sameChip * sameChip * CHIP_PENALTY_BASE;
+    const mode = chipModeByKey[myChip] ?? "split";
+    return mode === "group" ? -magnitude : magnitude;
   };
 }
 

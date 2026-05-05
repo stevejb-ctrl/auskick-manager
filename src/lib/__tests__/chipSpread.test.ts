@@ -95,4 +95,77 @@ describe("Phase D — chip-spread", () => {
     const onField = lineup.back.length + lineup.mid.length + lineup.fwd.length;
     expect(onField).toBe(12);
   });
+
+  it("group mode bunches chip-mates into the same zone (subject to cap)", () => {
+    // 4 A in group mode + 8 unset, at 4-4-4. The chip-A players
+    // should converge on a single zone. Soft constraint: a few
+    // unset players may fill the target zone before all A's queue
+    // up (placement order is shuffled), but the top zone should
+    // hold the MAJORITY of A's — markedly more than the ~1-2
+    // even split would produce.
+    const players: Player[] = [];
+    for (let i = 0; i < 4; i++) players.push(p(`a${i}`, "a"));
+    for (let i = 0; i < 8; i++) players.push(p(`u${i}`));
+
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      7, // arbitrary seed
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "group" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aCounts = (Object.values(byZone) as Array<("a" | "b" | null)[]>).map(
+      (zoneChips) => zoneChips.filter((c) => c === "a").length,
+    );
+    aCounts.sort((x, y) => y - x);
+    // At least 3 of 4 in the same zone — well above the ~1-2 even
+    // split would yield without the chip-group bonus.
+    expect(aCounts[0]).toBeGreaterThanOrEqual(3);
+    // And the smallest cluster shouldn't be 2 (which would mean
+    // they actually split evenly, not grouped).
+    expect(aCounts[2]).toBeLessThanOrEqual(1);
+  });
+
+  it("split mode (explicit) matches default behaviour", () => {
+    // Same fixture as the spreads test but explicitly passing
+    // {a: 'split', b: 'split'} — should produce equivalent
+    // mix-across-zones output.
+    const players: Player[] = [];
+    for (let i = 0; i < 6; i++) players.push(p(`a${i}`, "a"));
+    for (let i = 0; i < 6; i++) players.push(p(`b${i}`, "b"));
+
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      42,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "split", b: "split" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    for (const z of ["back", "mid", "fwd"] as const) {
+      expect(byZone[z]).toContain("a");
+      expect(byZone[z]).toContain("b");
+    }
+  });
 });

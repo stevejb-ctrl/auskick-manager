@@ -60,6 +60,13 @@ interface LineupPickerProps {
    * Cleared at startGame() — the lineup_set event takes over.
    */
   initialDraft?: import("@/lib/types").LineupDraft | null;
+  /**
+   * Per-chip behaviour (split / group). Drives the suggester so a
+   * chip configured as "group" funnels its mates into the same zone
+   * (e.g. a player who needs to stay paired with specific teammates),
+   * while "split" (default) spreads them across zones.
+   */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
 }
 
 type Slot = Zone | "bench";
@@ -100,6 +107,7 @@ export function LineupPicker({
   gameMinutes,
   backHref,
   initialDraft,
+  chipModeByKey = {},
 }: LineupPickerProps) {
   // If the coach saved a plan ahead of game day, those values seed
   // the picker. Otherwise we fall back to the age-group default
@@ -138,7 +146,7 @@ export function LineupPicker({
       };
     }
     // Build chip-by-id map from the available players list — picked
-    // up by the suggester's chip-spread penalty (Phase D).
+    // up by the suggester's chip-spread / chip-group penalty (Phase D).
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
     for (const p of players) chipByPlayerId[p.id] = p.chip;
     return suggestStartingLineup(
@@ -152,6 +160,7 @@ export function LineupPicker({
       {},
       {},
       chipByPlayerId,
+      chipModeByKey,
     );
   };
 

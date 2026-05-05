@@ -5,6 +5,15 @@
 export const CHIP_KEYS = ["a", "b", "c"] as const;
 export type ChipKey = (typeof CHIP_KEYS)[number];
 
+/**
+ * Per-chip behaviour. "split" spreads chip-mates across zones (the
+ * Phase D default — useful for "mix older with younger"). "group"
+ * funnels chip-mates into the same zone where possible — useful for
+ * a player who needs to stay paired with specific teammates.
+ */
+export type ChipMode = "split" | "group";
+export const CHIP_MODES: ChipMode[] = ["split", "group"];
+
 export interface ChipPalette {
   /** Filled dot for the chip swatch / inline rendering. */
   dot: string;

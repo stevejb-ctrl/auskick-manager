@@ -52,7 +52,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
@@ -199,6 +199,14 @@ export default async function RunPage({ params }: RunPageProps) {
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
 
+  // Per-chip mode for the QuarterBreak suggester (mid-game) and the
+  // pre-game LineupPicker further down. Defaults to "split".
+  const teamChipModes = {
+    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
+    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
+    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+  };
+
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
     const [{ data: squadPlayers }, { data: teamGames }] = await Promise.all([
@@ -245,6 +253,7 @@ export default async function RunPage({ params }: RunPageProps) {
           minOnFieldSize={ageCfgSport.minOnFieldSize}
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          chipModeByKey={teamChipModes}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}

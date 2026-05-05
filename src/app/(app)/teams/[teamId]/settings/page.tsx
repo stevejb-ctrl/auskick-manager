@@ -27,7 +27,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     user
@@ -141,6 +141,17 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             (team as { chip_b_label?: string | null }).chip_b_label ?? null,
           c:
             (team as { chip_c_label?: string | null }).chip_c_label ?? null,
+        }}
+        initialModes={{
+          a:
+            ((team as { chip_a_mode?: "split" | "group" }).chip_a_mode ??
+              "split") as import("@/lib/chips").ChipMode,
+          b:
+            ((team as { chip_b_mode?: "split" | "group" }).chip_b_mode ??
+              "split") as import("@/lib/chips").ChipMode,
+          c:
+            ((team as { chip_c_mode?: "split" | "group" }).chip_c_mode ??
+              "split") as import("@/lib/chips").ChipMode,
         }}
         isAdmin={isAdmin}
       />

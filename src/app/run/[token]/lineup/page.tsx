@@ -25,7 +25,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, age_group")
+    .select("name, sport, age_group, chip_a_mode, chip_b_mode, chip_c_mode")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
@@ -79,6 +79,11 @@ export default async function LineupPage({ params }: LineupPageProps) {
     .eq("game_id", g.id)
     .maybeSingle();
   const initialDraft = draftRow as import("@/lib/types").LineupDraft | null;
+  const teamChipModes = {
+    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
+    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
+    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
@@ -116,6 +121,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
           initialDraft={initialDraft}
+          chipModeByKey={teamChipModes}
         />
       )}
     </div>

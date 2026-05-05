@@ -74,7 +74,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -259,6 +259,15 @@ export default async function LivePage({ params }: LivePageProps) {
   ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
 
+  // Per-chip mode (split / group). Both branches below use this:
+  // hasStarted → LiveGame (mid-game suggester via QuarterBreak),
+  // !hasStarted → LineupPicker (pre-game suggester).
+  const teamChipModes = {
+    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
+    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
+    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+  };
+
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
     const [
@@ -323,6 +332,7 @@ export default async function LivePage({ params }: LivePageProps) {
           minOnFieldSize={ageCfgSport.minOnFieldSize}
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          chipModeByKey={teamChipModes}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
@@ -425,6 +435,7 @@ export default async function LivePage({ params }: LivePageProps) {
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           initialDraft={initialDraft}
+          chipModeByKey={teamChipModes}
         />
       )}
     </div>
