@@ -923,7 +923,7 @@ export function LiveGame({
     setLockModal({ playerId, zone });
   }
 
-  const suggestions =
+  const rawSuggestions =
     isPreGame || isFinished
       ? []
       : suggestSwaps(
@@ -937,6 +937,21 @@ export function LiveGame({
           zoneMsByPlayer,
           zoneLockedPlayers
         );
+
+  // Hide the SwapCard when the next sub-due moment would fall AFTER
+  // the hooter — the suggestion would never fire as a mid-quarter
+  // sub, and the same kids tend to cycle in via the QuarterBreak
+  // suggester anyway, which made the UI misleading. Steve flagged
+  // this on a real game where the SwapCard kept showing "next subs"
+  // right up to the hooter without ever firing. When msUntilDue is
+  // null (pre-game / between quarters / finished) the SwapCard is
+  // already suppressed by other guards, so we leave suggestions
+  // alone in that case.
+  const subPastHooter =
+    msUntilDue !== null &&
+    quarterMs > 0 &&
+    nowMs + msUntilDue >= quarterMs;
+  const suggestions = subPastHooter ? [] : rawSuggestions;
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
