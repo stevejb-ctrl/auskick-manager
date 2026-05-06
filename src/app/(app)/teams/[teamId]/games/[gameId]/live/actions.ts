@@ -292,41 +292,52 @@ export async function endQuarter(
   // Non-final quarter ends still need to revalidate so the live page rerenders
   // into the Q-break shell. Q4 finalisation falls through to its own
   // revalidate block below (which also revalidates /games + /stats).
-  if (quarter < 4) {
-    if (auth.kind === "team") {
-      const w = await resolveWriter(auth, gameId);
-      if (w.error) return { success: false, error: w.error };
-      revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
-    } else {
-      revalidatePath(`/run/${auth.token}`, "layout");
-    }
-    return { success: true };
-  }
-
-  // Q4 end finalises the match: append a game_finalised event (so the replay
-  // state reflects it) and flip the game row to "completed" so the dashboard
-  // and season stats pick it up.
-  if (quarter >= 4) {
-    const finaliseResult = await insertEvent(auth, gameId, "game_finalised", {
-      metadata: { quarter, elapsed_ms: elapsedMs },
-    });
-    if (!finaliseResult.success) return finaliseResult;
-
+  // For ANY quarter (including Q4), we just write quarter_end and
+  // revalidate. The Q4 → game_finalised + status=completed transition
+  // is now an explicit second step (`finaliseGame` below) so the
+  // coach can review and fix scores at full time before the summary
+  // locks in. Without this split, "End game" auto-finalised the game
+  // and skipped the review window Steve wanted.
+  if (auth.kind === "team") {
     const w = await resolveWriter(auth, gameId);
     if (w.error) return { success: false, error: w.error };
-    const { error: updateError } = await w.supabase
-      .from("games")
-      .update({ status: "completed" })
-      .eq("id", gameId);
-    if (updateError) return { success: false, error: updateError.message };
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
 
-    if (auth.kind === "team") {
-      revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
-      revalidatePath(`/teams/${w.teamId}/games`);
-      revalidatePath(`/teams/${w.teamId}/stats`);
-    } else {
-      revalidatePath(`/run/${auth.token}`, "layout");
-    }
+// ─── finaliseGame ────────────────────────────────────────────
+// Writes the `game_finalised` event and flips the games row to
+// "completed". Called by the Full-Time review screen after the coach
+// has had a chance to fix any missed / wrong scores. Idempotent:
+// re-firing on an already-finalised game is a no-op (insert just
+// adds another event; status stays completed).
+export async function finaliseGame(
+  auth: LiveAuth,
+  gameId: string,
+  elapsedMs: number,
+): Promise<ActionResult> {
+  const finalise = await insertEvent(auth, gameId, "game_finalised", {
+    metadata: { quarter: 4, elapsed_ms: elapsedMs },
+  });
+  if (!finalise.success) return finalise;
+
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const { error: updateError } = await w.supabase
+    .from("games")
+    .update({ status: "completed" })
+    .eq("id", gameId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
+    revalidatePath(`/teams/${w.teamId}/games`);
+    revalidatePath(`/teams/${w.teamId}/stats`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
   }
   return { success: true };
 }

@@ -39,6 +39,7 @@ import {
   type InjuryReplacementCandidate,
 } from "@/components/live/InjuryReplacementModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
+import { FullTimeReview } from "@/components/live/FullTimeReview";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -766,7 +767,16 @@ export function LiveGame({
 
   const running = clockStartedAt !== null;
   const isPreGame = currentQuarter === 0;
-  const isFinished = finalised || (currentQuarter >= 4 && quarterEnded);
+  // Full time has TWO phases: REVIEW (Q4 ended, not yet finalised)
+  // and FINISHED (game_finalised event fired). Review shows a
+  // FullTimeReview panel where the coach can fix scores; tapping
+  // "Finalise game" writes game_finalised → flips us to FINISHED →
+  // GameSummaryCard takes over. `isFinished` covers BOTH phases for
+  // UI-suppression purposes (no more SwapCard / scoring buttons /
+  // start-quarter modal once Q4 is over). The summary itself
+  // renders only when `finalised` is true.
+  const isAtFullTime = !finalised && currentQuarter >= 4 && quarterEnded;
+  const isFinished = finalised || isAtFullTime;
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   // Kickoff modal state. The modal opens by DEFAULT whenever the
@@ -1042,7 +1052,17 @@ export function LiveGame({
           </Button>
         )}
 
-      {isFinished && (
+      {isAtFullTime && (
+        <FullTimeReview
+          auth={auth}
+          gameId={gameId}
+          trackScoring={trackScoring}
+          players={squadPlayers}
+          finalisedElapsedMs={accumulatedMs}
+        />
+      )}
+
+      {finalised && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Full time
         </p>
@@ -1397,8 +1417,11 @@ export function LiveGame({
         );
       })()}
 
-      {/* Full-time game summary */}
-      {isFinished && (
+      {/* Full-time game summary — renders only AFTER the coach has
+          tapped "Finalise game" in the FullTimeReview panel above.
+          Until then `finalised` is false and the review takes the
+          place of the summary. */}
+      {finalised && (
         <GameSummaryCard
           teamName={teamName}
           opponentName={opponentName}

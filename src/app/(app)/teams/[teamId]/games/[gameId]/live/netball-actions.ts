@@ -237,18 +237,13 @@ export async function endNetballQuarter(
   if (!result.success) return result;
 
   if (quarter >= 4) {
-    const finalise = await insertEvent(auth, gameId, "game_finalised", {
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
-    });
-    if (!finalise.success) return finalise;
-
+    // Phase B+: end-of-Q4 no longer auto-finalises. The coach goes
+    // through a Full-Time review (fix scores) before tapping
+    // "Finalise game", which is its own action below.
     const w = await resolveWriter(auth, gameId);
     if (w.error) return { success: false, error: w.error };
-    await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
-
     if (auth.kind === "team") {
-      revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
-      revalidatePath(`/teams/${w.teamId}/games`);
+      revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
     } else {
       revalidatePath(`/run/${auth.token}`, "layout");
     }
@@ -277,6 +272,39 @@ export async function endNetballQuarter(
 // even though the event is correctly persisted. Pairs with
 // router.refresh() in the client handler. Mirrors the AFL fix in
 // 96d5edd; the netball actions were missed by that pass.
+
+// ─── finaliseNetballGame ─────────────────────────────────────
+// Mirrors the AFL finaliseGame action — writes game_finalised and
+// flips status to "completed" as a separate step from the Q4
+// quarter_end event. Lets the coach review / fix scores at full
+// time before locking in the result.
+export async function finaliseNetballGame(
+  auth: LiveAuth,
+  gameId: string,
+  elapsedMs: number,
+): Promise<ActionResult> {
+  const finalise = await insertEvent(auth, gameId, "game_finalised", {
+    metadata: { quarter: 4, elapsed_ms: elapsedMs, sport: "netball" },
+  });
+  if (!finalise.success) return finalise;
+
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const { error: updateError } = await w.supabase
+    .from("games")
+    .update({ status: "completed" })
+    .eq("id", gameId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
+    revalidatePath(`/teams/${w.teamId}/games`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
 export async function recordNetballGoal(
   auth: LiveAuth,
   gameId: string,
