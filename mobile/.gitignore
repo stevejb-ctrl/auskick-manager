@@ -1,0 +1,32 @@
+# Capacitor / Node
+node_modules/
+.cap/
+
+# ── Android ────────────────────────────────────────────────────
+# Build outputs and IDE-local state. Capacitor convention is to
+# commit android/app/src and android/app/build.gradle but ignore
+# everything Gradle generates.
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/captures/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+
+# ── iOS ────────────────────────────────────────────────────────
+# Same idea: commit App.xcodeproj + Info.plist, ignore Pods +
+# DerivedData + signing assets that should never live in git.
+ios/App/Pods/
+ios/App/build/
+ios/App/Podfile.lock
+ios/DerivedData/
+ios/.xcode/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+*.mobileprovision
+*.p12
+*.cer
