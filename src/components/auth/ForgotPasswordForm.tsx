@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { publicOrigin } from "@/lib/platform";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -22,13 +23,13 @@ export function ForgotPasswordForm() {
     // without Supabase env vars — the client is only needed on
     // submit.
     const supabase = createClient();
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
+    // The reset URL travels via email, so it must always point at
+    // the public web host — even if the user requested the reset
+    // from inside the native shell.
+    const redirectTo = `${publicOrigin()}/auth/reset`;
     // Swallow the error intentionally — we don't surface whether the email
     // was on file. Supabase already rate-limits this endpoint.
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/reset`,
-    });
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     setSubmitted(true);
     setLoading(false);
   }
