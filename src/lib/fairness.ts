@@ -586,6 +586,15 @@ export function suggestStartingLineup(
     if (!z) continue;
     trackPlaced(p.id, z);
   }
+  // Cap partnership penalty at IN_GAME_DIVERSITY + SEASON_DIVERSITY
+  // (1500). With this cap, a fresh-zone-with-mates always outscores
+  // a stale-zone-without-mates (1500 cap vs. -800 sameAsLastQ +
+  // ~500 season = -300). Without the cap, two mates in a fresh
+  // zone compounds to -4000 which can lock a player into their
+  // last-quarter zone — Steve hit this on a chip-bearing squad
+  // where the chip-spread pushed his Q1 zone-mates evenly across
+  // the other two zones.
+  const PARTNERSHIP_CAP = IN_GAME_DIVERSITY + SEASON_DIVERSITY;
   const partnershipPenaltyFor = (pid: string, target: Zone) => {
     const myMates = previousZoneTeammates[pid];
     if (!myMates || myMates.size === 0) return 0;
@@ -595,7 +604,7 @@ export function suggestStartingLineup(
     placed.forEach((other) => {
       if (myMates.has(other)) penalty += PARTNERSHIP_PENALTY;
     });
-    return penalty;
+    return Math.min(penalty, PARTNERSHIP_CAP);
   };
   // Phase D chip-spread / chip-group penalty — driven by the same
   // placedByZone map so it sees players placed earlier in this same
