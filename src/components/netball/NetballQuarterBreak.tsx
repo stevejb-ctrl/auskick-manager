@@ -30,6 +30,7 @@ import {
 import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import {
   netballSport,
   primaryThirdFor,
@@ -90,6 +91,9 @@ interface Props {
   loanedIds: Set<string>;
   /** Per-player goals scored this game — drives the score chip on each tile. */
   playerGoals: Record<string, number>;
+  /** Whether the team has scoring tracked on. Hides the recap + Fix-scores
+   *  panel when false. */
+  trackScoring?: boolean;
   /**
    * Per-player time-by-third map computed by the parent. Includes
    * mid-quarter substitutions via the segment-based accounting in
@@ -136,6 +140,7 @@ export function NetballQuarterBreak({
   playerGoals,
   playerStats,
   midQuarterSubs,
+  trackScoring = true,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -700,6 +705,50 @@ export function NetballQuarterBreak({
     });
   }
 
+  // ─── Per-quarter score recap (driven by thisGameEvents) ────
+  // Counts goal / opponent_goal events per quarter so the coach
+  // can reconcile each break's scoreline with the opposition.
+  // score_undo events with target_event_id cancel a paired score.
+  // Mirrors AFL replayGame's scoreByQuarter computation but lives
+  // here to avoid coupling NetballQuarterBreak to the AFL store.
+  const scoreByQuarter = useMemo(() => {
+    const periods: Array<{ ours: number; theirs: number }> = [
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+    ];
+    const undoneTargets = new Set<string>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "score_undo") continue;
+      const target = (ev.metadata as { target_event_id?: string } | null)
+        ?.target_event_id;
+      if (target) undoneTargets.add(target);
+    }
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
+      if (undoneTargets.has(ev.id)) continue;
+      const meta = ev.metadata as
+        | { quarter?: number; intended_quarter?: number }
+        | null;
+      const q =
+        typeof meta?.intended_quarter === "number"
+          ? meta.intended_quarter
+          : typeof meta?.quarter === "number"
+            ? meta.quarter
+            : 0;
+      if (q < 1 || q > 4) continue;
+      if (ev.type === "goal") periods[q - 1].ours++;
+      else periods[q - 1].theirs++;
+    }
+    return periods;
+  }, [thisGameEvents]);
+
+  const cumUs = scoreByQuarter.reduce((a, p) => a + p.ours, 0);
+  const cumThem = scoreByQuarter.reduce((a, p) => a + p.theirs, 0);
+
+  const [showFixScores, setShowFixScores] = useState(false);
+
   // ─── Render ────────────────────────────────────────────────
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
@@ -756,6 +805,58 @@ export function NetballQuarterBreak({
             : "Court is empty — tap a bench player, then a position to place them."}
         </p>
       </div>
+
+      {/* Per-quarter score recap — drives reconciliation with the
+          opposition each break. Mirrors AFL's QuarterBreak recap
+          card. Tap "Fix scores" to expand a per-quarter editor. */}
+      {trackScoring && currentQuarter >= 1 && (
+        <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Q{currentQuarter} score
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFixScores((v) => !v)}
+              className="text-xs font-medium text-brand-700 hover:text-brand-800"
+            >
+              {showFixScores ? "Hide fix scores" : "Fix scores"}
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md border border-hairline bg-surface-alt p-3">
+              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                Us — Q{currentQuarter}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {scoreByQuarter[currentQuarter - 1]?.ours ?? 0}
+              </p>
+            </div>
+            <div className="rounded-md border border-hairline bg-surface-alt p-3">
+              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                Them — Q{currentQuarter}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {scoreByQuarter[currentQuarter - 1]?.theirs ?? 0}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-ink-dim">
+            Running total — Us {cumUs} · Them {cumThem}
+          </p>
+          {showFixScores && (
+            <div className="mt-4 border-t border-hairline pt-4">
+              <ScoreReviewPanel
+                auth={auth}
+                gameId={gameId}
+                players={squad}
+                includeBehinds={false}
+                defaultQuarter={currentQuarter}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="px-1 text-xs text-ink-dim">
         Tap any two players to swap them — even across thirds or to the bench.

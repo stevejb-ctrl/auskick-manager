@@ -99,7 +99,13 @@ function simulateFour(playerIds: string[]) {
       });
     }
     previousTeammates = nextPrev;
-    lastQuarterThird = thirds;
+    // lastQuarterThird only includes players who actually played
+    // last quarter. Strip any nulls (bench players).
+    const filtered: Record<string, "attack-third" | "centre-third" | "defence-third"> = {};
+    for (const [pid, t] of Object.entries(thirds)) {
+      if (t !== null) filtered[pid] = t;
+    }
+    lastQuarterThird = filtered;
   }
 
   return history;

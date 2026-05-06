@@ -24,6 +24,7 @@ import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions"
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
+import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
@@ -1083,6 +1084,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }
 
+  // ─── Full-time review (Q4 ended, not yet finalised) ───────
+  // Mirrors AFL's FullTimeReview: gives the coach a chance to
+  // reconcile / fix scores before locking the result. Ends with a
+  // "Finalise game" button that fires game_finalised → flips us
+  // into the finalised branch above on next render.
+  if (quarterEnded && currentQuarter >= 4) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
+        {walkthroughOverlay}
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel="FT"
+          clockText="—"
+          showScores={trackScoring}
+          clockPulseKey={clockPulseKey}
+        />
+        <NetballFullTimeReview
+          auth={auth}
+          gameId={game.id}
+          trackScoring={trackScoring}
+          teamScore={teamScore}
+          opponentScore={opponentScore}
+          players={squad}
+          finalisedElapsedMs={_quarterElapsedMs ?? 0}
+        />
+      </div>
+    );
+  }
+
   // ─── Quarter break — Siren Footy-style reshuffle ──────────
   // Replaced the position-by-position lineup picker with the
   // NetballQuarterBreak component (mirrors AFL's QuarterBreak design):
@@ -1136,6 +1170,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerGoals={playerGoals}
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
+          trackScoring={trackScoring}
           onStarted={() => {
             // Local overlay is durable now via the period_break_swap
             // event the component just wrote.
