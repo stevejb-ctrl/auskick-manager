@@ -93,16 +93,34 @@ test("ending Q4 completes the game and renders the summary card", async ({
   // quarter the modal's CTA reads "End game".
   await page.getByRole("button", { name: /^end game$/i }).click();
 
-  // Summary card content — "final score" / "MVP" / similar.
+  // The Phase B+ change split Q4 into TWO steps. Tapping "End game"
+  // writes quarter_end and renders the FullTimeReview screen — the
+  // shareable summary doesn't appear until the coach explicitly
+  // taps "Finalise game" so they can fix scores in between.
   await expect(
-    page.getByText(/full time|final score|game summary/i).first()
+    page.getByRole("button", { name: /finalise game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
-  // handleEndQuarter for Q4 flips the store synchronously (which is
-  // why the summary card already renders) but the server action that
-  // writes game_finalised + flips status="completed" runs in
-  // startTransition. Poll until the DB catches up rather than
-  // hard-coding a sleep.
+  // The game's status should still be "in_progress" at this point —
+  // games.status doesn't flip to "completed" until finalise fires.
+  const { data: midReview } = await admin
+    .from("games")
+    .select("status")
+    .eq("id", game.id)
+    .single();
+  expect(midReview?.status).toBe("in_progress");
+
+  // Tap Finalise. That writes game_finalised + flips status to
+  // completed; the GameSummaryCard renders below.
+  await page.getByRole("button", { name: /finalise game/i }).click();
+
+  // Summary card content — "full time" / "game summary" / similar.
+  await expect(
+    page.getByText(/full time|final score|game summary/i).first(),
+  ).toBeVisible({ timeout: 10_000 });
+
+  // finaliseGame runs in startTransition. Poll until the DB catches
+  // up rather than hard-coding a sleep.
   await expect
     .poll(
       async () => {
