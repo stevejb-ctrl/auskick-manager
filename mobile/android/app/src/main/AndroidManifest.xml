@@ -22,6 +22,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Custom URL scheme for OAuth deep-link callbacks. The
+                 system browser bounces to siren://auth/callback?code=…
+                 after Google / Apple sign-in completes; the OS routes
+                 that intent here, NativeAuthBridge picks it up via
+                 App.addListener('appUrlOpen'), and the WebView is
+                 navigated to /auth/callback?code=… to exchange the
+                 code for a session cookie on the same origin. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="siren" />
+            </intent-filter>
+
         </activity>
 
         <provider
