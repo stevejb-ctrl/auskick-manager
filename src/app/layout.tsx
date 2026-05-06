@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
+import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -105,6 +106,11 @@ export default function RootLayout({
           tryToClaimNextHydratableSuspenseInstance). Keeping them
           inside <body> avoids the parser fix-up entirely. */}
       <body className="font-sans">
+        {/* Listens for siren:// OAuth callbacks inside the Capacitor
+            shell. No-op on web — internally guarded by isNative()
+            and dynamically imports @capacitor/* so the web bundle
+            doesn't pay for code it never runs. */}
+        <NativeAuthBridge />
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />

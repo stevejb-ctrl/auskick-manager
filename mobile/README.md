@@ -52,7 +52,85 @@ npx cap sync ios
 cd ios/App && pod install
 ```
 
+After `cap add ios`, edit `ios/App/App/Info.plist` to register the
+`siren://` URL scheme so OAuth deep links route back to the app
+(matches the Android intent-filter in
+`android/app/src/main/AndroidManifest.xml`):
+
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key>
+    <string>au.com.sirenfooty.app</string>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>siren</string>
+    </array>
+  </dict>
+</array>
+```
+
 Then commit `ios/` (excluding the paths in `.gitignore`).
+
+## OAuth provider setup
+
+Native Google + Apple sign-in goes via the **system browser**, not
+the app's WebView (Google rejects WebView user-agents and the
+NativeAuthBridge needs cookies to land on the app's origin, not on
+the system browser's separate cookie jar). Configure these once:
+
+### Supabase dashboard
+
+**Authentication → URL Configuration → Redirect URLs**
+
+Add (alongside the existing web entries):
+
+```
+siren://auth/callback
+```
+
+Without this, Supabase will refuse to redirect to the deep link and
+the OAuth flow will dead-end on the provider's "redirect URL not
+allowed" error page.
+
+**Authentication → Providers → Apple**
+
+Required for iOS App Review (guideline 4.8): if the app offers
+Google sign-in, it must also offer Sign in with Apple. Configure:
+
+| Field            | Where to get it                                           |
+| ---------------- | --------------------------------------------------------- |
+| Services ID      | Apple Developer → Identifiers → Services IDs (e.g. `au.com.sirenfooty.app.signin`) |
+| Team ID          | Apple Developer → Membership                              |
+| Key ID + Private | Apple Developer → Keys → "+" → enable Sign in with Apple. Download the .p8 once; paste contents into Supabase |
+
+The Services ID's **Return URLs** must include
+`https://<your-project>.supabase.co/auth/v1/callback`.
+
+### Google Cloud Console
+
+**APIs & Services → Credentials → OAuth 2.0 Client IDs → Web**
+
+Add `https://<your-project>.supabase.co/auth/v1/callback` to
+**Authorised redirect URIs**. Same client ID is reused for the
+native flow because the redirect lives on Supabase's host, not the
+app's.
+
+### Verifying
+
+After config, on a real device or emulator:
+
+1. Install the app and tap **Continue with Google** on `/login`.
+2. System browser opens; sign in with a Google account.
+3. Browser bounces to `siren://auth/callback?code=…`.
+4. App comes to front; WebView navigates to `/dashboard`.
+
+If step 3 dead-ends in the browser with "redirect URL not allowed",
+Supabase didn't get the `siren://` URL added (see above). If step 4
+lands the user back on `/login`, the cookie didn't transfer —
+inspect Chrome DevTools → Network on the WebView (Android: `chrome://inspect`,
+iOS: Safari → Develop) for the failed `/auth/callback` response.
 
 ## Daily workflow
 
