@@ -119,20 +119,21 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  // Set clock_multiplier so the in-game clock runs 60× wall time —
-  // a 12-min quarter ticks down in 12 seconds. Lets the test drive
-  // every quarter through the UI in real time without backdating
-  // events. The whole 4-quarter playthrough finishes in ~75s.
+  // Speed up the in-game clock + push the sub interval out past
+  // the quarter length so:
+  //   • a 12-min quarter ticks down in 12 real seconds (multiplier=60)
+  //   • the sub-due modal NEVER fires within a quarter — sub_interval
+  //     900s ÷ 60 = 15s real > 12s quarter. Without this, the
+  //     SubDueModal pops up every 3s with the default 180s interval
+  //     scaled, intercepting all the test's modal clicks.
   await admin
     .from("games")
-    .update({ clock_multiplier: 60 })
+    .update({ clock_multiplier: 60, sub_interval_seconds: 900 })
     .eq("id", game.id);
 
-  // Mark every player available so the LineupPicker renders. The
-  // live page filters by game_availability and shows a "go back
-  // and set availability" empty-state when nothing's marked. We
-  // skip the availability UI in this spec — it's covered by
-  // availability.spec.ts — so seed directly.
+  // Mark every player available — the live page filters by
+  // game_availability. Skipped here (availability.spec.ts covers
+  // it) by seeding directly.
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,
@@ -142,34 +143,31 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     })),
   );
 
-  // Seed a pre-kickoff lineup draft so the LineupPicker pre-
-  // populates the field on first render — saves the test from
-  // having to drag every player into a zone via tap-tap.
-  const draftLineup = buildDefaultLineup(
+  // Skip the LineupPicker → Start game UI flow (covered by
+  // lineup.spec.ts and live-scoring.spec.ts). Seed lineup_set +
+  // status=in_progress directly so we land on the LiveGame view
+  // with the StartQuarterModal ready for Q1. This keeps the
+  // playthrough focused on the four quarter cycles + Q-break +
+  // FullTimeReview surfaces.
+  const startingLineup = buildDefaultLineup(
     players.map((p) => p.id),
     game.on_field_size,
     team.ageGroup as AgeGroup,
   );
-  await admin.from("game_lineup_drafts").upsert(
-    {
-      game_id: game.id,
-      lineup: draftLineup,
-      on_field_size: game.on_field_size,
-      sub_interval_seconds: 180,
-      updated_by: ownerId,
-    },
-    { onConflict: "game_id" },
-  );
+  await admin.from("game_events").insert({
+    game_id: game.id,
+    type: "lineup_set",
+    metadata: { lineup: startingLineup },
+    created_by: ownerId,
+  });
+  await admin
+    .from("games")
+    .update({ status: "in_progress" })
+    .eq("id", game.id);
 
-  // ─── Phase 1: pre-game → Start game ───────────────────────
+  // ─── Phase 1: kickoff → Q1 in progress ────────────────────
+  // Live page lands on LiveGame with StartQuarterModal open.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(
-    page.getByRole("button", { name: /^start game$/i }).first(),
-  ).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^start game$/i }).first().click();
-
-  // ─── Phase 2: Q1 → start clock, score a goal ──────────────
-  // StartQuarterModal opens automatically on landing.
   await expect(
     page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
