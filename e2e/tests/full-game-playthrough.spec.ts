@@ -114,6 +114,20 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
+  // Mark every player available so the LineupPicker renders. The
+  // live page filters by game_availability and shows a "go back
+  // and set availability" empty-state when nothing's marked. We
+  // skip the availability UI in this spec — it's covered by
+  // availability.spec.ts — so seed directly.
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available",
+      updated_by: ownerId,
+    })),
+  );
+
   // Seed a pre-kickoff lineup draft so the LineupPicker pre-
   // populates the field on first render — saves the test from
   // having to drag every player into a zone via tap-tap.
