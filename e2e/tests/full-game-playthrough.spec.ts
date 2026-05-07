@@ -246,13 +246,40 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     )
     .toBeGreaterThanOrEqual(1);
 
-  // Resume — write Q2 + Q3 events directly so we land at Q4
-  // hooter without driving the rest of the game through the UI.
-  // The Q-break itself wrote a quarter_start event for Q2, so we
-  // start from there.
+  // Wait for the UI-written Q2 quarter_start (fired when we
+  // tapped "Select team for Q2") to land before we backdate it.
+  // Without this, the UPDATE below races and silently no-ops.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("id")
+          .eq("game_id", game.id)
+          .eq("type", "quarter_start")
+          .eq("metadata->>quarter", "2");
+        return data?.length ?? 0;
+      },
+      { timeout: 5_000 },
+    )
+    .toBeGreaterThanOrEqual(1);
+
+  // Resume — backdate the UI-written Q2 quarter_start, then write
+  // Q2 end + Q3 + Q4 events directly so we land at Q4 hooter
+  // without driving 36 minutes of UI. Without backdating Q2's
+  // quarter_start (created_at = now), it sorts AFTER our backdated
+  // Q2 quarter_end and replayGame thinks Q2 ended before it
+  // started.
   const now = Date.now();
+  await admin
+    .from("game_events")
+    .update({ created_at: new Date(now - 38 * 60_000).toISOString() })
+    .eq("game_id", game.id)
+    .eq("type", "quarter_start")
+    .eq("metadata->>quarter", "2");
+
   await admin.from("game_events").insert([
-    // Q2 end (backdated)
+    // Q2 end (~26 min ago)
     {
       game_id: game.id,
       type: "quarter_end",
@@ -260,6 +287,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       created_by: ownerId,
       created_at: new Date(now - 26 * 60_000).toISOString(),
     },
+    // Q3 lineup + start + end
     {
       game_id: game.id,
       type: "lineup_set",
@@ -267,7 +295,6 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       created_by: ownerId,
       created_at: new Date(now - 26 * 60_000 + 100).toISOString(),
     },
-    // Q3 start + end
     {
       game_id: game.id,
       type: "quarter_start",
@@ -282,6 +309,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       created_by: ownerId,
       created_at: new Date(now - 14 * 60_000).toISOString(),
     },
+    // Q4 lineup + start (backdated 13 min so the hooter auto-fires)
     {
       game_id: game.id,
       type: "lineup_set",
@@ -289,7 +317,6 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       created_by: ownerId,
       created_at: new Date(now - 14 * 60_000 + 100).toISOString(),
     },
-    // Q4 start, backdated 13 min so the hooter auto-fires.
     {
       game_id: game.id,
       type: "quarter_start",
