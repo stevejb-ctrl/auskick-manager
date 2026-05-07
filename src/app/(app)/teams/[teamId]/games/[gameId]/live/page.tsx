@@ -338,6 +338,7 @@ export default async function LivePage({ params }: LivePageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
+          clockMultiplier={g.clock_multiplier ?? 1}
         />
         {isAdmin && (
           <div className="border-t border-hairline pt-4">
