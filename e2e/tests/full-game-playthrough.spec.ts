@@ -91,6 +91,11 @@ function buildDefaultLineup(
 test("full game playthrough: start → score → Q-break recap + fix → finalise", async ({
   page,
 }) => {
+  // Default 30s per-test timeout is too tight — at clock_multiplier=60
+  // each 12-min quarter takes ~12s real-time, plus per-Q-break
+  // interactions. Whole spec runs in ~75–90s.
+  test.setTimeout(180_000);
+
   const consoleErrors: string[] = [];
   attachConsoleErrorWatcher(page, consoleErrors);
 
@@ -113,6 +118,15 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     count: 15,
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  // Set clock_multiplier so the in-game clock runs 60× wall time —
+  // a 12-min quarter ticks down in 12 seconds. Lets the test drive
+  // every quarter through the UI in real time without backdating
+  // events. The whole 4-quarter playthrough finishes in ~75s.
+  await admin
+    .from("games")
+    .update({ clock_multiplier: 60 })
+    .eq("id", game.id);
 
   // Mark every player available so the LineupPicker renders. The
   // live page filters by game_availability and shows a "go back
@@ -147,86 +161,48 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     { onConflict: "game_id" },
   );
 
-  // ─── Phase 1: pre-game → start ─────────────────────────────
+  // ─── Phase 1: pre-game → Start game ───────────────────────
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-
-  // LineupPicker: 12 players on field, "Start game" CTA visible.
   await expect(
-    page.getByRole("button", { name: /start game/i }).first(),
+    page.getByRole("button", { name: /^start game$/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /start game/i }).first().click();
+  await page.getByRole("button", { name: /^start game$/i }).first().click();
 
-  // ─── Phase 2: Q1 in progress → score a goal ───────────────
-  // After startGame, redirect lands on /live with the kickoff
-  // modal open ("Start Q1"). Tap to start the clock.
+  // ─── Phase 2: Q1 → start clock, score a goal ──────────────
+  // StartQuarterModal opens automatically on landing.
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }).first(),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^start q1$/i }).first().click();
+  await page.getByRole("button", { name: /^start q1$/i }).click();
 
-  // Tap a field player and record a goal. PlayerTile carries a
-  // testid we can target deterministically — names render as
-  // "First L" abbreviations and would clash with SwapCard rows.
-  const scorer = players[0]; // Alicia, in back per buildDefaultLineup.
+  // Tap a field player and record a goal. The PlayerTile carries
+  // a testid we can target deterministically — names render
+  // abbreviated and would clash with SwapCard rows.
+  const scorer = players[0];
   await page.getByTestId(`player-tile-${scorer.id}`).click();
-  await page.getByRole("button", { name: /\+ goal/i }).click();
+  await page.getByRole("button", { name: /^\+ goal$/i }).click();
 
-  // Wait for the goal event to land in the DB so the next step
-  // (backdate quarter_start) doesn't race the optimistic store.
-  await expect
-    .poll(
-      async () => {
-        const { data } = await admin
-          .from("game_events")
-          .select("id")
-          .eq("game_id", game.id)
-          .eq("type", "goal");
-        return data?.length ?? 0;
-      },
-      { timeout: 5_000 },
-    )
-    .toBeGreaterThanOrEqual(1);
-
-  // ─── Phase 3: trigger Q1 hooter → end Q1 ──────────────────
-  // Backdate quarter_start to 13 min ago — LiveGame's auto-end
-  // effect fires on mount when the running clock has passed
-  // QUARTER_MS, opening the QuarterEndModal.
-  const thirteenMinAgo = new Date(Date.now() - 13 * 60_000).toISOString();
-  await admin
-    .from("game_events")
-    .update({ created_at: thirteenMinAgo })
-    .eq("game_id", game.id)
-    .eq("type", "quarter_start")
-    .eq("metadata->>quarter", "1");
-  await page.reload();
-
+  // ─── Phase 3: Q1 hooter (~12s real-time at 60× clock) ─────
+  // QuarterEndModal fires automatically when the scaled clock
+  // crosses the quarter threshold. 25s timeout = comfortable
+  // buffer for CI machines.
   await expect(
     page.getByRole("button", { name: /select team for q2/i }),
-  ).toBeVisible({ timeout: 10_000 });
+  ).toBeVisible({ timeout: 25_000 });
   await page.getByRole("button", { name: /select team for q2/i }).click();
 
   // ─── Phase 4: Q-break recap + Fix scores ──────────────────
-  // Per-quarter recap shows. Header is "Q1 score" (the just-ended
-  // quarter), followed by Us / Them cards.
   await expect(page.getByText(/q1 score/i).first()).toBeVisible({
     timeout: 10_000,
   });
-
-  // Expand the Fix-scores panel and assert our goal is listed.
   await page.getByRole("button", { name: /^fix scores$/i }).click();
   await expect(page.getByText(scorer.full_name).first()).toBeVisible();
 
-  // Add a retroactive opponent goal in Q1 so we know retro-add
-  // attributes correctly even after Q1 has ended.
+  // Add a retro opponent goal in Q1 — exercises addRetroScore +
+  // metadata.intended_quarter=1 attribution.
   await page.getByRole("button", { name: /\+ add a missed score/i }).click();
-  // Pick "Goal (them)" in the Type dropdown.
   await page.locator("select").nth(0).selectOption("opponent_goal");
-  // Quarter dropdown — already defaults to currentQuarter (=1) at
-  // this break, leave it. Hit Add.
   await page.getByRole("button", { name: /^add$/i }).click();
-
-  // Poll for the retro opponent_goal to land. metadata.intended_quarter
-  // pins it to Q1.
   await expect
     .poll(
       async () => {
@@ -235,95 +211,42 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
           .select("metadata")
           .eq("game_id", game.id)
           .eq("type", "opponent_goal");
-        const matches = (data ?? []).filter(
+        return (data ?? []).filter(
           (e) =>
             (e.metadata as { intended_quarter?: number } | null)
               ?.intended_quarter === 1,
-        );
-        return matches.length;
+        ).length;
       },
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
 
-  // Resume — seed Q2 + Q3 + Q4 events directly. We don't tap
-  // "Start Q2" inside QuarterBreak because we want to skip
-  // ahead to Q4 without driving 36 minutes of UI; that means
-  // the UI never wrote a Q2 quarter_start, so we own the whole
-  // post-Q1 timeline. All events are backdated relative to `now`
-  // so created_at sorts in the correct play order (Q2 start →
-  // Q2 end → Q3 ... → Q4 backdated 13 min so the hooter fires
-  // on next render).
-  const now = Date.now();
-  await admin.from("game_events").insert([
-    // Q2 lineup_set + start + end
-    {
-      game_id: game.id,
-      type: "lineup_set",
-      metadata: { lineup: draftLineup },
-      created_by: ownerId,
-      created_at: new Date(now - 38 * 60_000).toISOString(),
-    },
-    {
-      game_id: game.id,
-      type: "quarter_start",
-      metadata: { quarter: 2 },
-      created_by: ownerId,
-      created_at: new Date(now - 38 * 60_000 + 100).toISOString(),
-    },
-    {
-      game_id: game.id,
-      type: "quarter_end",
-      metadata: { quarter: 2, elapsed_ms: 12 * 60 * 1000 },
-      created_by: ownerId,
-      created_at: new Date(now - 26 * 60_000).toISOString(),
-    },
-    // Q3 lineup + start + end
-    {
-      game_id: game.id,
-      type: "lineup_set",
-      metadata: { lineup: draftLineup },
-      created_by: ownerId,
-      created_at: new Date(now - 26 * 60_000 + 100).toISOString(),
-    },
-    {
-      game_id: game.id,
-      type: "quarter_start",
-      metadata: { quarter: 3 },
-      created_by: ownerId,
-      created_at: new Date(now - 26 * 60_000 + 200).toISOString(),
-    },
-    {
-      game_id: game.id,
-      type: "quarter_end",
-      metadata: { quarter: 3, elapsed_ms: 12 * 60 * 1000 },
-      created_by: ownerId,
-      created_at: new Date(now - 14 * 60_000).toISOString(),
-    },
-    // Q4 lineup + start (backdated 13 min so the hooter auto-fires)
-    {
-      game_id: game.id,
-      type: "lineup_set",
-      metadata: { lineup: draftLineup },
-      created_by: ownerId,
-      created_at: new Date(now - 14 * 60_000 + 100).toISOString(),
-    },
-    {
-      game_id: game.id,
-      type: "quarter_start",
-      metadata: { quarter: 4 },
-      created_by: ownerId,
-      created_at: new Date(now - 13 * 60_000).toISOString(),
-    },
-  ]);
+  // Resume Q2 from the QuarterBreak's primary CTA.
+  await page.getByRole("button", { name: /^start q2$/i }).click();
 
-  await page.reload();
+  // ─── Phases 5–7: Q2 → Q3 → Q4 (real-time at 60× clock) ────
+  // For Q2 and Q3 we just confirm the hooter cycles correctly
+  // and resume to the next quarter. Phase B+ details (recap +
+  // Fix scores) are already exercised at Q1.
+  for (const next of [3, 4]) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(`select team for q${next}`, "i") }),
+    ).toBeVisible({ timeout: 25_000 });
+    await page
+      .getByRole("button", { name: new RegExp(`select team for q${next}`, "i") })
+      .click();
+    await expect(page.getByText(new RegExp(`q${next - 1} score`, "i")).first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await page
+      .getByRole("button", { name: new RegExp(`^start q${next}$`, "i") })
+      .click();
+  }
 
-  // ─── Phase 5: Q4 hooter → FullTimeReview ──────────────────
-  // QuarterEndModal CTA reads "End game" on Q4 only.
+  // ─── Phase 8: Q4 hooter → "End game" → FullTimeReview ────
   await expect(
     page.getByRole("button", { name: /^end game$/i }),
-  ).toBeVisible({ timeout: 10_000 });
+  ).toBeVisible({ timeout: 25_000 });
   await page.getByRole("button", { name: /^end game$/i }).click();
 
   // FullTimeReview renders. "Finalise game" button is the marker.
