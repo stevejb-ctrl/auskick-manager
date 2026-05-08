@@ -148,29 +148,32 @@ export function NetballLineupPicker({
   // while the LineupPicker is mounted (the availability section sits
   // ABOVE the picker on the same page). Without this, the picker
   // state stays frozen at its initial empty-bench state — Stagehand
-  // 2026-05-09 game-day-flow showed the agent marking 7 players
+  // 2026-05-09 game-day-flow showed the agent marking players
   // Available, then tapping "Suggested rotation" expecting it to
   // populate, getting nothing because the toggle is a no-op when
   // already in suggested mode.
   //
-  // Narrow trigger: only re-derive when (a) we're in suggested mode
-  // AND (b) the current lineup has zero players placed (court +
-  // bench combined). That way a coach who has already arranged
-  // players manually doesn't get their work wiped when one more
-  // player turns up.
+  // Trigger: re-run the suggester whenever there are AVAILABLE
+  // players NOT YET represented in the lineup (court or bench),
+  // and we're in suggested mode (so a coach in manual mode keeps
+  // their work). This handles incremental availability flips —
+  // mark 1 player available, suggester runs once with 1 player;
+  // mark a 2nd, suggester re-runs with 2; etc. — without needing
+  // an explicit "regenerate" tap.
   useEffect(() => {
     if (lineupMode !== "suggested") return;
     if (initialLineup) return;
-    const placed =
-      Object.values(lineup.positions).reduce((s, ids) => s + ids.length, 0) +
-      lineup.bench.length;
-    if (placed === 0 && availableIds.length > 0) {
+    const placedIds = new Set<string>([
+      ...Object.values(lineup.positions).flat(),
+      ...lineup.bench,
+    ]);
+    const unplaced = availableIds.filter((id) => !placedIds.has(id));
+    if (unplaced.length > 0) {
       setLineup(buildLineup("suggested"));
     }
-    // buildLineup closes over availableIds via the suggester so it
-    // always reads the latest list. Excluded from deps to avoid
-    // re-running on every render — `availableIds` itself is the
-    // signal we care about.
+    // buildLineup closes over availableIds via the suggester so
+    // it always reads the latest list. Excluded from deps so the
+    // effect runs on availability changes only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableIds, lineupMode]);
   // Two-tap-to-swap selection: tap a player → highlighted; tap another
