@@ -148,6 +148,14 @@ export function NetballLineupPicker({
   // pickers behave identically, and matches the AFL pattern.
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Inline validation error. Replaces native window.alert() — Stagehand
+  // exploration (2026-05-09) found that alert() on the runner-token URL
+  // (where availability is skipped, so the lineup starts empty and
+  // validation always fails) blocked the entire page until the user
+  // dismissed it, making it impossible to navigate back. A real coach
+  // hits the same wall on mobile where the alert dialog can be hard to
+  // dismiss with one tap. Inline error keeps the page interactive.
+  const [error, setError] = useState<string | null>(null);
   // Position the coach is filling via the SlotFillSheet. Set when
   // they tap an empty position with no player pre-selected; cleared
   // on pick or cancel.
@@ -268,12 +276,10 @@ export function NetballLineupPicker({
 
   const handleConfirm = async () => {
     if (disabled || saving) return;
+    setError(null);
     const validation = netballSport.validateLineup?.(lineup, ageGroup);
     if (validation && !validation.ok) {
-      // Surface the first error in the UI briefly. In a richer version
-      // we'd render inline, but a single alert is plenty to un-block
-      // first cut of the UI.
-      alert(validation.issues[0]?.message ?? "Lineup is not valid.");
+      setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
     // Resolve the quarter-length override. Only emit a non-null value
@@ -295,7 +301,7 @@ export function NetballLineupPicker({
           quarterOverrideSeconds = seconds;
         }
       } else {
-        alert("Quarter length must be a whole number between 1 and 30 minutes.");
+        setError("Quarter length must be a whole number between 1 and 30 minutes.");
         return;
       }
     }
@@ -474,6 +480,15 @@ export function NetballLineupPicker({
             </div>
           </div>
         </div>
+      )}
+
+      {error && (
+        <p
+          role="alert"
+          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
+          {error}
+        </p>
       )}
 
       <button
