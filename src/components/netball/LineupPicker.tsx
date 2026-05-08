@@ -12,7 +12,7 @@
 // this component is only used for the very first lineup.)
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
@@ -142,6 +142,37 @@ export function NetballLineupPicker({
     setLineup(buildLineup(next));
     setSelected(null);
   }
+
+  // Re-derive lineup when more players become available AFTER mount.
+  // The runner-token netball flow lets a parent mark players Available
+  // while the LineupPicker is mounted (the availability section sits
+  // ABOVE the picker on the same page). Without this, the picker
+  // state stays frozen at its initial empty-bench state — Stagehand
+  // 2026-05-09 game-day-flow showed the agent marking 7 players
+  // Available, then tapping "Suggested rotation" expecting it to
+  // populate, getting nothing because the toggle is a no-op when
+  // already in suggested mode.
+  //
+  // Narrow trigger: only re-derive when (a) we're in suggested mode
+  // AND (b) the current lineup has zero players placed (court +
+  // bench combined). That way a coach who has already arranged
+  // players manually doesn't get their work wiped when one more
+  // player turns up.
+  useEffect(() => {
+    if (lineupMode !== "suggested") return;
+    if (initialLineup) return;
+    const placed =
+      Object.values(lineup.positions).reduce((s, ids) => s + ids.length, 0) +
+      lineup.bench.length;
+    if (placed === 0 && availableIds.length > 0) {
+      setLineup(buildLineup("suggested"));
+    }
+    // buildLineup closes over availableIds via the suggester so it
+    // always reads the latest list. Excluded from deps to avoid
+    // re-running on every render — `availableIds` itself is the
+    // signal we care about.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableIds, lineupMode]);
   // Two-tap-to-swap selection: tap a player → highlighted; tap another
   // player (or an empty position / bench) → swap. Mirrors the
   // NetballQuarterBreak interaction so the pre-game and Q-break
