@@ -262,14 +262,20 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // For Q2 and Q3 we just confirm the hooter cycles correctly and
   // resume to the next quarter. Q-break details (recap + Fix scores)
   // are already exercised at Q1.
+  //
+  // Why we wait on "Q{n-1} score" instead of the generic "Quarter
+  // break" header: after startNextQuarter, router.refresh() is in
+  // flight client-side and the previous Q-break is briefly still
+  // mounted. A generic "Quarter break" wait would resolve INSTANTLY
+  // against the stale render, then the per-quarter score check
+  // would fail because the previous break shows "Q{n-2} score".
+  // The per-quarter "Q{n-1} score" label only renders in the Q(n-1)
+  // break specifically, so it's the right barrier marker for "we've
+  // fully transitioned into the next Q-break".
   for (const next of [3, 4]) {
-    // Wait for the Q(prev) hooter to land us in the next Q-break.
-    await expect(page.getByText(/quarter break/i).first()).toBeVisible({
-      timeout: 25_000,
-    });
     await expect(
       page.getByText(new RegExp(`^q${next - 1} score$`, "i")).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 25_000 });
     await startNextQuarter(next);
   }
 
