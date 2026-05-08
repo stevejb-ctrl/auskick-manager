@@ -150,6 +150,13 @@ export function FullTimeReview({
         setFinaliseError(result.error);
         return;
       }
+      // Flip the live store's `finalised` flag locally so LiveGame's
+      // render branches re-evaluate immediately (isAtFullTime → false,
+      // GameSummaryCard mounts). Without this, router.refresh()
+      // re-fetches initialState but LiveGame's init effect bails early
+      // (`activeGameId === gameId && hydrated`), so the store stays at
+      // finalised=false and the summary card never appears.
+      useLiveGame.getState().finaliseGame();
       router.refresh();
     });
   }
