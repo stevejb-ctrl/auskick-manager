@@ -149,6 +149,32 @@ export default async function RunPage({ params }: RunPageProps) {
     return (
       <div className="space-y-3 p-3">
         {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
+        {/* Pre-kickoff availability section — landing here from a runner
+            link, the parent expects to mark who's playing FIRST, then
+            set the lineup. Stagehand 2026-05-09 found that without this
+            section the runner-token URL dropped them straight onto an
+            empty lineup picker (no availability rows yet → empty bench
+            → "Start game" failed validation). Once a player is marked
+            available, setAvailability's revalidatePath kicks in and
+            this server component rerenders so the picker below picks
+            up the new availability. Hidden once the lineup is set
+            (game underway). showJerseyNumber=false because netball
+            squads don't carry jersey numbers (NETBALL-06). */}
+        {isPreKickoff && (
+          <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              Who&apos;s here today?
+            </h3>
+            <AvailabilityList
+              auth={auth}
+              teamId={g.team_id}
+              gameId={g.id}
+              canMarkAvailability
+              canManageMatch
+              showJerseyNumber={false}
+            />
+          </section>
+        )}
         <NetballLiveGame
           auth={auth}
           game={g}
