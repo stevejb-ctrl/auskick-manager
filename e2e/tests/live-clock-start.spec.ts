@@ -237,7 +237,9 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   // Seed lineup_set + quarter_start(1) + quarter_end(1) so the live
   // page mounts in the between-quarters phase. replayGame returns
   // currentQuarter=1, quarterEnded=true → isBetweenQuarters=true →
-  // <QuarterBreak> is rendered with the "Start Q2" CTA.
+  // <QuarterBreak> is rendered with the "Confirm lineup" CTA
+  // (renamed 2026-05-08 from "Start Q{n}" to disambiguate from the
+  // modal's CTA).
   const lineup = await buildLineup({
     playerIds: players.map((p) => p.id),
     onFieldSize: game.on_field_size,
@@ -271,11 +273,12 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // QuarterBreak's CTA is "Start Q2".
-  const startQ2InBreak = page.getByRole("button", { name: /^start q2$/i });
-  await expect(startQ2InBreak).toBeVisible({ timeout: 10_000 });
+  // QuarterBreak's CTA is "Confirm lineup" (renamed from "Start Q2"
+  // 2026-05-08 to distinguish it from the modal's "Start Q2" CTA).
+  const confirmLineupInBreak = page.getByRole("button", { name: /^confirm lineup$/i });
+  await expect(confirmLineupInBreak).toBeVisible({ timeout: 10_000 });
 
-  await startQ2InBreak.click();
+  await confirmLineupInBreak.click();
 
   // Post-fix: a single tap commits the lineup + quarter_start(2) and
   // calls beginNextQuarter() in the store. quarterEnded becomes false,
