@@ -195,10 +195,11 @@ These are external dependencies the code can't provide:
 
 - **Apple Developer Program** enrolment (\$US99 / yr, 24–48 hr lead)
 - **Google Play Console** account (\$US25 once)
-- **APNs auth key** (Apple) and **FCM project** (Google) — needed
-  only when push notifications land in slice 4
-- **Sign in with Apple** Services ID + private key — needed only
-  when slice 3 (auth) lands
+- **APNs auth key** (Apple) and **FCM project** (Google) — see
+  [`docs/push-notifications.md`](../docs/push-notifications.md)
+  for the Firebase + Supabase setup walkthrough that gates phase 4e.
+- **Sign in with Apple** Services ID + private key — already wired
+  up; renewal every 6 months via `scripts/apple-oauth-secret.mjs`.
 
 Document them under `mobile/store/` once acquired (don't commit
 the `.p8` / `.p12` files themselves — paths are gitignored).
