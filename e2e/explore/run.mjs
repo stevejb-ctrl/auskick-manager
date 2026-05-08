@@ -35,7 +35,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     const eq = trimmed.indexOf("=");
     if (eq < 1) continue;
     const key = trimmed.slice(0, eq).trim();
-    if (process.env[key] !== undefined) continue;
+    // Truthy check, NOT `!== undefined`. Some shells (e.g. the
+    // Claude Code wrapper) export `ANTHROPIC_API_KEY=""` to prevent
+    // accidental key reuse — and an `!== undefined` guard would skip
+    // it, leaving the script stuck on "Need ANTHROPIC_API_KEY". An
+    // explicit non-empty export still wins.
+    if (process.env[key]) continue;
     let value = trimmed.slice(eq + 1).trim();
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
@@ -56,7 +61,11 @@ function flag(name, defaultValue) {
 const mission = flag("mission", "coach-onboarding");
 const startUrl = flag("url", "http://localhost:3000/login");
 const maxSteps = parseInt(flag("max-steps", "25"), 10);
-const modelName = flag("model", "claude-sonnet-4-5");
+// Stagehand v3's agent uses AISDK provider routing — model names need
+// a `provider/model` prefix (e.g. "anthropic/claude-sonnet-4-5-20250929").
+// Default to the latest Sonnet snapshot from the CUA-supported list so
+// it works in both DOM and hybrid modes.
+const modelName = flag("model", "anthropic/claude-sonnet-4-5-20250929");
 const headed = flag("headed", "true") !== "false";
 
 // ─── Load mission prompt ───────────────────────────────────────
@@ -81,6 +90,12 @@ console.log(`▶ Model: ${modelName}`);
 console.log(`▶ Max steps: ${maxSteps}\n`);
 
 // ─── Bootstrap Stagehand ───────────────────────────────────────
+// Stagehand v3 splits model config: the constructor's modelName /
+// modelClientOptions feeds act()/extract()/observe() (legacy direct
+// calls), while the agent has its OWN model config passed at
+// stagehand.agent({ model }) time. We wire both so either path
+// works — and if a future version drops the legacy plumbing the
+// agent side is still configured.
 const stagehand = new Stagehand({
   env: "LOCAL",
   modelName,
@@ -97,23 +112,37 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
-const page = stagehand.page;
 
-await page.goto(startUrl);
+// Stagehand v3 dropped the top-level `stagehand.page` accessor —
+// pages now hang off `stagehand.context`. `newPage(url)` opens a
+// page already navigated to the start URL, which we then thread
+// into the agent via `execute({ page })` so the agent acts on
+// this page instead of opening its own.
+const page = await stagehand.context.newPage(startUrl);
 
 // ─── Run the agent ─────────────────────────────────────────────
+// v3 fields are `systemPrompt` (not v2's `instructions`) and `model`
+// (the agent's own model config — separate from the constructor's
+// legacy modelName). AgentModelConfig is `{ modelName }` plus
+// arbitrary keys, so we pass apiKey there to override AISDK's
+// default env-var lookup.
 const agent = stagehand.agent({
-  instructions:
+  systemPrompt:
     "You are an exploratory tester for a junior football and netball app. " +
     "You think like a volunteer coach using the app for the first time. " +
     "You're MORE interested in usability, broken flows, and confusing UI " +
     "than in completing the task perfectly. Report what you observe " +
     "alongside the actions you took.",
+  model: {
+    modelName,
+    apiKey: process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY,
+  },
 });
 
 const result = await agent.execute({
   instruction: missionPrompt,
   maxSteps,
+  page,
 });
 
 // ─── Capture report ────────────────────────────────────────────
