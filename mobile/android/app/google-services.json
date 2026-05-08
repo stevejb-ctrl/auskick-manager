@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "487838848838",
+    "project_id": "siren-footy",
+    "storage_bucket": "siren-footy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:487838848838:android:9defe75ea1eb168c6e7747",
+        "android_client_info": {
+          "package_name": "au.com.sirenfooty.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAuqgA-M-bvrUxBQTEnu85P9woXlmaSD4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
