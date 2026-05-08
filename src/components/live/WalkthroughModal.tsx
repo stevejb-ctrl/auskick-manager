@@ -86,8 +86,19 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
         role="dialog"
         aria-modal="true"
         aria-labelledby="wt-welcome-title"
+        // Backdrop tap dismisses — the walkthrough is purely
+        // informational and a parent on a phone shouldn't have to
+        // hunt for the Skip button. Stagehand exploration 2026-05-09
+        // also showed an agent persona tapping items on the page
+        // BEHIND this modal (because the modal looked dismissable);
+        // backdrop dismiss makes those taps register correctly on
+        // the second go.
+        onClick={onClose}
       >
-        <div className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal">
+        <div
+          className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="mb-4 text-center text-5xl">👋</div>
           <h2 id="wt-welcome-title" className="mb-2 text-center text-xl font-bold text-ink">
             Welcome to Game Manager
@@ -126,8 +137,12 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
       role="dialog"
       aria-modal="true"
       aria-labelledby="wt-step-title"
+      onClick={onClose}
     >
-      <div className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal">
+      <div
+        className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Progress dots */}
         <div className="mb-5 flex justify-center gap-1.5">
           {steps.map((_, i) => (

@@ -196,6 +196,13 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={(seasonEventsNetball ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
+          // Pre-kickoff on the runner-token URL also renders the
+          // AvailabilityList above. The walkthrough modal at
+          // z-50 inset-0 would block its buttons, so suppress
+          // auto-open here. Coach can still tap "?" to view it,
+          // and the first auto-open happens on the next render
+          // once the lineup is set (isPreKickoff flips false).
+          suppressAutoWalkthrough={isPreKickoff}
         />
         <div className="border-t border-hairline pt-4">
           <ResetGameButton auth={auth} gameId={g.id} />

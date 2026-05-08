@@ -143,6 +143,16 @@ interface LiveGameProps {
    * Computed by parent via getEffectiveQuarterSeconds(team, ageGroup, game) * 1000.
    * D-26 / D-27: replaces hardcoded QUARTER_MS at the countdown cap and hooter trigger. */
   quarterMs: number;
+  /**
+   * Suppress the first-visit walkthrough auto-open. Used by the
+   * runner-token page when it ALSO renders an availability section
+   * above LiveGame — without this, the welcome modal opens at
+   * z-50 fixed inset-0 and silently swallows clicks meant for the
+   * availability buttons underneath. Coaches still see the
+   * walkthrough on the team-auth live page (default behaviour).
+   * The "?" button always remains as a manual trigger.
+   */
+  suppressAutoWalkthrough?: boolean;
 }
 
 type LastScore = {
@@ -178,6 +188,7 @@ export function LiveGame({
   songDurationSeconds = 15,
   clockMultiplier = 1,
   quarterMs,
+  suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -358,10 +369,17 @@ export function LiveGame({
   );
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("gm-walkthrough-seen")) {
-      setWalkthroughOpen(true);
-    }
-  }, []);
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("gm-walkthrough-seen")) return;
+    // Caller can suppress auto-open on first visit — used by the
+    // runner-token page when it's also rendering an availability
+    // section above this component, since the modal would block
+    // the availability buttons underneath. The "?" button still
+    // surfaces it manually. Default behaviour (auto-open on first
+    // visit) is unchanged when the prop isn't passed.
+    if (suppressAutoWalkthrough) return;
+    setWalkthroughOpen(true);
+  }, [suppressAutoWalkthrough]);
 
   function handleWalkthroughClose() {
     localStorage.setItem("gm-walkthrough-seen", "1");

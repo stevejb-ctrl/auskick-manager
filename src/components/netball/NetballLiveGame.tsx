@@ -112,6 +112,16 @@ interface NetballLiveGameProps {
    * `LiveGame.tsx` and the migration default in 0021_demo.sql.
    */
   clockMultiplier?: number;
+  /**
+   * Suppress the first-visit walkthrough auto-open. Used by the
+   * runner-token page when it ALSO renders an availability section
+   * above this component — without this, the welcome modal opens
+   * at z-50 fixed inset-0 and silently swallows clicks meant for
+   * the availability buttons underneath. Default behaviour
+   * (auto-open on first visit) is unchanged when omitted. The "?"
+   * button stays as a manual trigger.
+   */
+  suppressAutoWalkthrough?: boolean;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -136,6 +146,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
+    suppressAutoWalkthrough = false,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -936,8 +947,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("nb-walkthrough-seen")) return;
+    // Caller can suppress auto-open. Used by the runner-token page
+    // when it ALSO renders an availability section above this
+    // component — without it the welcome modal opens at z-50 fixed
+    // inset-0 and swallows clicks meant for the availability
+    // buttons. Coaches on the team-auth live page still see the
+    // walkthrough (default). The "?" button is the manual trigger.
+    if (suppressAutoWalkthrough) return;
     setWalkthroughOpen(true);
-  }, []);
+  }, [suppressAutoWalkthrough]);
   function handleWalkthroughClose() {
     if (typeof window !== "undefined") {
       localStorage.setItem("nb-walkthrough-seen", "1");
