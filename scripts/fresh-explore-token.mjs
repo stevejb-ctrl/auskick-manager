@@ -62,7 +62,10 @@ const port = flag("port", "3000");
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const teamId = process.env.SCREENSHOT_TEAM_ID;
+// Default to SCREENSHOT_TEAM_ID (the AFL test team) but accept a
+// CLI override so the same script can host netball sandboxes too.
+//   node scripts/fresh-explore-token.mjs --team-id=<uuid>
+const teamId = flag("team-id", process.env.SCREENSHOT_TEAM_ID);
 if (!url || !serviceKey) {
   console.error(
     "Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env.local",
@@ -71,9 +74,9 @@ if (!url || !serviceKey) {
 }
 if (!teamId) {
   console.error(
-    "Missing SCREENSHOT_TEAM_ID in .env.local — pick a team to host the " +
-      "exploration sandbox under. (The team won't be modified, just a new " +
-      "game inserted under it.)",
+    "Need a team to host the sandbox under. Either set SCREENSHOT_TEAM_ID " +
+      "in .env.local OR pass --team-id=<uuid>. (The team won't be modified, " +
+      "just a new game inserted under it.)",
   );
   process.exit(1);
 }
