@@ -172,6 +172,11 @@ export default async function RunPage({ params }: RunPageProps) {
               canMarkAvailability
               canManageMatch
               showJerseyNumber={false}
+              // Netball court positions for this age group (7 for "go").
+              // Drives the "X of 7 available" pill + the helper text
+              // that prompts the runner to mark MORE players Available
+              // before "Start game" can succeed.
+              requiredAvailable={ageCfgN.positions.length}
             />
           </section>
         )}
@@ -314,6 +319,9 @@ export default async function RunPage({ params }: RunPageProps) {
           canMarkAvailability
           canManageMatch
           showJerseyNumber
+          // AFL needs g.on_field_size players available (12 for U10).
+          // Drives the "X of 12 available" pill + helper hint.
+          requiredAvailable={g.on_field_size}
         />
       </section>
 
