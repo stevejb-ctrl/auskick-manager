@@ -16,10 +16,12 @@
 //      panel. We open Fix-scores and add a retro opponent goal in
 //      Q1 — exercises the same ScoreReviewPanel the AFL flow does
 //      but with includeBehinds=false.
-//   5. Two-tap kickoff: Q-break "Start Q2" → NetballStartQuarterModal
-//      "Start Q2" — mirrors AFL's pattern (handleStart writes
-//      period_break_swap then surfaces the modal; the modal CTA
-//      writes quarter_start).
+//   5. Two-tap kickoff: Q-break "Confirm lineup" →
+//      NetballStartQuarterModal "Start Q2" — mirrors AFL's pattern
+//      (handleStart writes period_break_swap then surfaces the
+//      modal; the modal CTA writes quarter_start). Labels were
+//      distinguished 2026-05-08 after Stagehand exploration showed
+//      the previous "Start Q2"/"Start Q2" pair confused the agent.
 //   6. Repeat for Q3 + Q4. NetballLiveGame's Q4 branch renders
 //      NetballFullTimeReview (not a Q-break) so we expect a
 //      "Finalise game" button instead of "Start Q5".
@@ -235,23 +237,21 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
     )
     .toBeGreaterThanOrEqual(1);
 
-  // Two-tap kickoff helper. Mirrors the AFL playthrough's
-  // startNextQuarter — the Q-break's "Start Qn" button fires
-  // periodBreakSwap and surfaces NetballStartQuarterModal; the
-  // modal's CTA fires startNetballQuarter (writing quarter_start).
-  // The modal body text "Tap when the umpires call play." gates
-  // the second tap (so we don't double-click before the modal
-  // mounts).
+  // Two-tap kickoff helper with DISTINCT labels:
+  //   1. Q-break "Confirm lineup" — fires periodBreakSwap, surfaces
+  //      NetballStartQuarterModal.
+  //   2. Modal "Start Q{n}" — fires startNetballQuarter (quarter_start).
+  // Labels were renamed (2026-05-08) after Stagehand exploration
+  // showed the previous "Start Q{n}" + "Start Q{n}" pair confused
+  // the agent. The modal body text "Tap when the umpires call play."
+  // gates the second tap.
   async function startNextQuarter(n: number): Promise<void> {
-    await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
-      .click();
+    await page.getByRole("button", { name: /^confirm lineup$/i }).click();
     await page
       .getByText(/tap when the umpires call play/i)
       .waitFor({ timeout: 5_000 });
     await page
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
-      .last()
       .click();
   }
 

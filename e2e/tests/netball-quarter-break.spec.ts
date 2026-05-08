@@ -208,9 +208,11 @@ async function enterQBreakView(
 
   // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
   // self-rerenders the live shell into the Q-break branch when quarterEnded
-  // flips. NO page.reload() required.
+  // flips. NO page.reload() required. The Q-break's primary CTA was
+  // renamed from "Start Q{n}" → "Confirm lineup" (2026-05-08) to
+  // disambiguate it from the StartQuarterModal's CTA.
   await expect(
-    page.getByRole("button", { name: /^start q2$/i }),
+    page.getByRole("button", { name: /^confirm lineup$/i }),
   ).toBeVisible({ timeout: 10_000 });
 }
 
@@ -332,20 +334,17 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
 
   // The suggested reshuffle is ALREADY applied on initial render
   // (NetballQuarterBreak line 305: useReshuffle=true). The flow is
-  // now two-tap: first tap writes period_break_swap and surfaces the
-  // await-kickoff modal; second tap (the modal CTA) writes
-  // quarter_start. Splitting the flow gives the GM control of the
-  // clock-start moment — the umpire's whistle, not the lineup tap.
-  // First tap on the lineup picker's "Start Q2" button — there's
-  // only one in the DOM at this point.
-  await page.getByRole("button", { name: /^start q2$/i }).click();
-  // Modal renders "Ready for Q2". The CTA inside also reads
-  // "Start Q2" (same accessible name) so anchor on the heading
-  // before clicking the second instance.
+  // two-tap with DISTINCT labels (renamed 2026-05-08):
+  //   1. Q-break "Confirm lineup" — writes period_break_swap and
+  //      surfaces the await-kickoff modal.
+  //   2. Modal "Start Q2" — writes quarter_start.
+  // Splitting the flow gives the GM control of the clock-start
+  // moment — the umpire's whistle, not the lineup tap.
+  await page.getByRole("button", { name: /^confirm lineup$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start q2$/i }).last().click();
+  await page.getByRole("button", { name: /^start q2$/i }).click();
 
   // Rule-1 fix from the plan source: periodBreakSwap is called with
   // `nextQuarter` (= 2), and netball-actions.ts:160-167 writes

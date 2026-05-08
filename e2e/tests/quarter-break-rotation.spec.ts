@@ -106,7 +106,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // suggester chose — the test's contract is "what you see here is
   // what you get in Q2", not "the suggester picked X".
   await expect(
-    page.getByRole("button", { name: /^start q2$/i }),
+    page.getByRole("button", { name: /^confirm lineup$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Read the rendered FWD slot's player tiles. The slot heading
@@ -146,13 +146,15 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     "no fwd player tiles found in QuarterBreak — selector or DOM mismatch",
   ).toBeGreaterThan(0);
 
-  // Tap "Start Q2" in the lineup picker, then "Start Q2" in the
-  // await-kickoff modal to actually start the clock.
-  await page.getByRole("button", { name: /^start q2$/i }).first().click();
+  // Two-tap kickoff: "Confirm lineup" in the Q-break picker
+  // commits the snapshot + opens the modal; the modal's "Start Q2"
+  // CTA actually kicks off the clock. Distinct labels (renamed
+  // 2026-05-08) eliminate the previous same-name confusion.
+  await page.getByRole("button", { name: /^confirm lineup$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start q2$/i }).last().click();
+  await page.getByRole("button", { name: /^start q2$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
   ).toBeHidden({ timeout: 3_000 });

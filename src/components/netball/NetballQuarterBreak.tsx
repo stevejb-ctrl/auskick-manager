@@ -1015,8 +1015,15 @@ export function NetballQuarterBreak({
       )}
 
       <div className="flex justify-end">
+        {/* Two-stage kickoff: this button COMMITS the lineup snapshot
+            (period_break_swap), then surfaces NetballStartQuarterModal
+            so the GM can wait for the umpire's whistle. The label is
+            "Confirm lineup" so the distinct stages are unambiguous —
+            the modal's CTA is "Start Q{n}". Stagehand finding
+            (2026-05-08): two buttons with identical accessible names
+            confused the agent persona, mirrors a real coach's confusion. */}
         <Button onClick={handleStart} loading={isPending && pendingStartQuarter === null}>
-          Start Q{nextQuarter}
+          Confirm lineup
         </Button>
       </div>
 

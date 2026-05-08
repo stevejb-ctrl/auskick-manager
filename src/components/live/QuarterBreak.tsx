@@ -1221,8 +1221,16 @@ export function QuarterBreak({
       )}
 
       <div className="flex justify-end">
+        {/* Two-stage kickoff: this button COMMITS the lineup snapshot
+            (period_break_swap event), then surfaces the StartQuarterModal
+            so the GM can wait for the umpire's whistle before the clock
+            actually ticks. The label is "Confirm lineup" rather than
+            "Start Q{n}" so it's distinguishable from the modal's CTA
+            (which IS labeled "Start Q{n}"). Stagehand exploration found
+            that two buttons with the same accessible name confused
+            even an LLM agent — a real coach has the same problem. */}
         <Button onClick={handleStart} loading={isPending}>
-          Start Q{nextQuarter}
+          Confirm lineup
         </Button>
       </div>
 
