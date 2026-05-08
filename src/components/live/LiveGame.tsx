@@ -1500,6 +1500,11 @@ export function LiveGame({
             titleVerb="Who scored the"
             subtitle={`Pick the player who scored the ${slotLabel.toLowerCase()}.`}
             emptyMessage="No eligible players — every available player is sidelined."
+            // Backdrop tap is a no-op here — the coach must either pick
+            // a player or hit Cancel. Stagehand 2026-05-09 found that
+            // tapping a different chip while this picker was open
+            // dismissed it silently and lost the goal attribution.
+            dismissOnBackdrop={false}
             onPick={(playerId) => {
               recordPlayerScore(playerId, pickScorerKind);
               setPickScorerKind(null);

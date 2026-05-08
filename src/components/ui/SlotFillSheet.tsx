@@ -47,6 +47,18 @@ interface Props {
    * already lent or injured.").
    */
   emptyMessage?: string;
+  /**
+   * Whether tapping the dimmed backdrop calls `onCancel`. Default
+   * `true` — matches the natural-feeling bottom-sheet behaviour
+   * for slot-filling flows. Set `false` when an accidental tap-
+   * outside would lose substantive state — e.g. the score-
+   * attribution picker on the live scorebug, where dismissing
+   * silently when the coach taps the next +G chip caused the
+   * goal-attribution to vanish without feedback (Stagehand
+   * exploration 2026-05-09). The X/Cancel button remains the
+   * only dismissal path in that mode.
+   */
+  dismissOnBackdrop?: boolean;
 }
 
 export function SlotFillSheet({
@@ -57,6 +69,7 @@ export function SlotFillSheet({
   titleVerb = "Fill",
   subtitle,
   emptyMessage,
+  dismissOnBackdrop = true,
 }: Props) {
   return (
     <div
@@ -64,7 +77,7 @@ export function SlotFillSheet({
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
-      onClick={onCancel}
+      onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div
         className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal"
