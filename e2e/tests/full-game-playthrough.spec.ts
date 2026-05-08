@@ -44,8 +44,10 @@ test.describe.configure({ mode: "serial" });
 // the page-error listener can flag REAL crashes. If a future
 // commit accidentally introduces a runtime error, the test fails.
 const KNOWN_INNOCUOUS_PATTERNS: RegExp[] = [
-  // Add patterns here as we encounter them. Keep the allow-list
-  // small — every entry weakens the safety net.
+  // 404s from missing static assets (favicons, etc.) in the dev
+  // server — pre-existing, not Phase B+. Real app fetch failures
+  // log richer errors with a URL fragment we'd recognise.
+  /Failed to load resource: the server responded with a status of 404/,
 ];
 
 function attachConsoleErrorWatcher(
