@@ -40,6 +40,7 @@ import {
 } from "@/components/live/InjuryReplacementModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { FullTimeReview } from "@/components/live/FullTimeReview";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -260,6 +261,16 @@ export function LiveGame({
   // Swap-done toast — confirms that a substitution landed.
   const [swapToast, setSwapToast] = useState<string | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When the coach taps the own-team `+G`/`+B` chip in the
+  // scorebug header, this is set to the kind of score they're
+  // attributing. Open ↔ SlotFillSheet visible. The coach picks a
+  // player; we then run the same score-recording path as the
+  // tap-player-then-tap-+G flow. Stagehand exploration found that
+  // a fresh runner expects symmetric +G/+B controls per team, so
+  // we route through this picker rather than forcing them to
+  // discover the long-press / tap-tile path first. Nullable.
+  const [pickScorerKind, setPickScorerKind] = useState<"goal" | "behind" | null>(null);
 
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -535,15 +546,19 @@ export function LiveGame({
     }
   }
 
-  function handleScore(kind: "goal" | "behind") {
-    if (!selected || selected.kind !== "field") return;
-    const playerId = selected.playerId;
+  // Core score-recording path. Shared by:
+  //   • handleScore() — the existing tap-player-tile + tap "+ Goal"
+  //     flow (uses `selected` from the live store).
+  //   • the +G/+B picker on the scorebug — tap chip → pick scorer
+  //     in SlotFillSheet → fires this directly with the picked id.
+  // Optimistic store updates + undo-toast wiring live here so both
+  // paths get them for free.
+  function recordPlayerScore(playerId: string, kind: "goal" | "behind") {
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     const p = playersById.get(playerId);
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
-    clearSelection();
     if (kind === "goal") playSong();
     startUndoToast({
       kind,
@@ -561,6 +576,13 @@ export function LiveGame({
       });
       if (!result.success) setError(result.error);
     });
+  }
+
+  function handleScore(kind: "goal" | "behind") {
+    if (!selected || selected.kind !== "field") return;
+    const playerId = selected.playerId;
+    clearSelection();
+    recordPlayerScore(playerId, kind);
   }
 
   function handleInjuryToggle(playerId: string, injured: boolean) {
@@ -989,6 +1011,11 @@ export function LiveGame({
         teamName={teamName}
         opponentName={opponentName}
         trackScoring={trackScoring}
+        onTeam={
+          !isPreGame && !isFinished
+            ? (kind) => setPickScorerKind(kind)
+            : undefined
+        }
         onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
         onClockTap={handleClockTap}
         running={running}
@@ -1428,6 +1455,56 @@ export function LiveGame({
               setInjuryReplacementModal(null);
             }}
             onCancel={() => setInjuryReplacementModal(null)}
+          />
+        );
+      })()}
+
+      {/* Pick-scorer sheet — opens when the coach taps the own-team
+          `+G`/`+B` chip in the scorebug. Lists every on-field
+          player followed by the bench (kept eligible because a goal
+          can be credited to a player who just rotated off). Sub-
+          label = the player's current zone or "Bench" so the coach
+          can find the scorer at a glance. Picking fires the same
+          recordPlayerScore path as the tap-tile flow.
+          Stagehand finding (2026-05-08): a fresh runner expects
+          symmetric per-team `+G`/`+B` and didn't discover the
+          tap-player path on their own. */}
+      {pickScorerKind && (() => {
+        const fieldIds = ALL_ZONES.flatMap((z) => lineup[z]);
+        const benchIds = lineup.bench;
+        // Filter out injured/loaned — they're not on field and
+        // shouldn't be credited with a goal in their absence.
+        const eligible = [...fieldIds, ...benchIds].filter(
+          (id) => !injuredIds.includes(id) && !loanedIds.includes(id),
+        );
+        const candidates = eligible
+          .map((id) => {
+            const p = playersById.get(id);
+            if (!p) return null;
+            const onFieldZone = ALL_ZONES.find((z) => lineup[z].includes(id));
+            return {
+              id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+              subLabel: onFieldZone
+                ? onFieldZone.toUpperCase()
+                : "Bench",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        const slotLabel = pickScorerKind === "goal" ? "Goal" : "Behind";
+        return (
+          <SlotFillSheet
+            slotLabel={slotLabel}
+            candidates={candidates}
+            titleVerb="Who scored the"
+            subtitle={`Pick the player who scored the ${slotLabel.toLowerCase()}.`}
+            emptyMessage="No eligible players — every available player is sidelined."
+            onPick={(playerId) => {
+              recordPlayerScore(playerId, pickScorerKind);
+              setPickScorerKind(null);
+            }}
+            onCancel={() => setPickScorerKind(null)}
           />
         );
       })()}

@@ -13,6 +13,15 @@ interface GameHeaderProps {
   teamName: string;
   opponentName: string;
   trackScoring: boolean;
+  /**
+   * Tap on the OWN-team `+G`/`+B` chip. Parent opens a player-picker
+   * sheet — the chip itself doesn't record a score until the coach
+   * picks a scorer. Mirrors `onOpponent` shape so callers can wire
+   * both with the same signature. Stagehand exploration found that
+   * a fresh runner expects symmetric +G/+B controls per team and
+   * couldn't discover the tap-player-to-score path on their own.
+   */
+  onTeam?: (kind: "goal" | "behind") => void;
   onOpponent?: (kind: "goal" | "behind") => void;
   /** Fires when the user taps the clock pill — parent decides whether to pause/resume. */
   onClockTap?: () => void;
@@ -47,6 +56,7 @@ export function GameHeader({
   teamName,
   opponentName,
   trackScoring,
+  onTeam,
   onOpponent,
   onClockTap,
   running,
@@ -83,7 +93,11 @@ export function GameHeader({
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
-      {/* Left: home team — total points dominate, like a broadcast scorebug */}
+      {/* Left: home team — total points dominate, like a broadcast scorebug.
+          +G/+B chips mirror the opponent side; tapping opens a
+          player picker (the parent owns the picker UI) so the
+          coach can attribute the score to whoever just scored
+          without first having to tap the player tile. */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {teamName}
@@ -98,6 +112,26 @@ export function GameHeader({
             {points(team)}
           </span>
         </p>
+        {onTeam && trackScoring && (
+          <div className="mt-0.5 flex gap-1">
+            <button
+              type="button"
+              onClick={() => onTeam("goal")}
+              disabled={isPending}
+              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+            >
+              +G
+            </button>
+            <button
+              type="button"
+              onClick={() => onTeam("behind")}
+              disabled={isPending}
+              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+            >
+              +B
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Center: dark clock pill (tap to pause/resume). Wrapped in
