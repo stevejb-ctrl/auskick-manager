@@ -77,9 +77,29 @@ if (!existsSync(missionPath)) {
 }
 const missionPrompt = readFileSync(missionPath, "utf8");
 
-if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+// Resolve which provider key to use based on the model's `provider/`
+// prefix. Stagehand v3 routes by AISDK provider, so the api key has
+// to match the model — passing an Anthropic key with a Google model
+// would silently fall through to AISDK's default env-var lookup.
+function resolveApiKey(model) {
+  if (model.startsWith("anthropic/")) return process.env.ANTHROPIC_API_KEY;
+  if (model.startsWith("openai/") || model.startsWith("gpt-"))
+    return process.env.OPENAI_API_KEY;
+  if (model.startsWith("google/") || model.startsWith("gemini-"))
+    return process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  // Unprefixed legacy model name — fall back through provider order.
+  return (
+    process.env.ANTHROPIC_API_KEY ??
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.OPENAI_API_KEY
+  );
+}
+
+const apiKey = resolveApiKey(modelName);
+if (!apiKey) {
   console.error(
-    "Need ANTHROPIC_API_KEY (or OPENAI_API_KEY for GPT models) in env.",
+    `No API key in env for model "${modelName}". Set ANTHROPIC_API_KEY, ` +
+      `OPENAI_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY (in .env.local or shell).`,
   );
   process.exit(1);
 }
@@ -99,9 +119,7 @@ console.log(`▶ Max steps: ${maxSteps}\n`);
 const stagehand = new Stagehand({
   env: "LOCAL",
   modelName,
-  modelClientOptions: {
-    apiKey: process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY,
-  },
+  modelClientOptions: { apiKey },
   verbose: 1,
   localBrowserLaunchOptions: {
     headless: !headed,
@@ -133,10 +151,7 @@ const agent = stagehand.agent({
     "You're MORE interested in usability, broken flows, and confusing UI " +
     "than in completing the task perfectly. Report what you observe " +
     "alongside the actions you took.",
-  model: {
-    modelName,
-    apiKey: process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY,
-  },
+  model: { modelName, apiKey },
 });
 
 const result = await agent.execute({
