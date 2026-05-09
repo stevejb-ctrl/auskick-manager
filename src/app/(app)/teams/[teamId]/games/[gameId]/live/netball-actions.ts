@@ -78,6 +78,7 @@ async function insertEvent(
   gameId: string,
   type: string,
   payload: { player_id?: string | null; metadata?: Record<string, unknown> },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -88,8 +89,16 @@ async function insertEvent(
     player_id: payload.player_id ?? null,
     metadata: payload.metadata ?? {},
     created_by: w.userId,
+    idempotency_key: idempotencyKey ?? null,
   });
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    // Unique violation on idempotency_key means the client is
+    // replaying an op that already landed. Treat as success.
+    if (error.code === "23505" && idempotencyKey) {
+      return { success: true };
+    }
+    return { success: false, error: error.message };
+  }
   return { success: true };
 }
 

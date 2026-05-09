@@ -92,7 +92,8 @@ async function insertEvent(
   auth: LiveAuth,
   gameId: string,
   type: string,
-  payload: { player_id?: string | null; metadata?: Record<string, unknown> }
+  payload: { player_id?: string | null; metadata?: Record<string, unknown> },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -103,8 +104,18 @@ async function insertEvent(
     player_id: payload.player_id ?? null,
     metadata: payload.metadata ?? {},
     created_by: w.userId,
+    idempotency_key: idempotencyKey ?? null,
   });
-  if (insertError) return { success: false, error: insertError.message };
+  if (insertError) {
+    // Unique violation on idempotency_key means the client is
+    // replaying an op that already landed (e.g. native write
+    // queue retry after a flaky network). Treat as success — the
+    // event is already in the log.
+    if (insertError.code === "23505" && idempotencyKey) {
+      return { success: true };
+    }
+    return { success: false, error: insertError.message };
+  }
   return { success: true };
 }
 
