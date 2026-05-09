@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
+import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
@@ -198,6 +199,10 @@ export function LiveGame({
   const accumulatedMs = useLiveGame((s) => s.accumulatedMs);
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const quarterEnded = useLiveGame((s) => s.quarterEnded);
+  // Drives the QuarterScoreStrip below the GameHeader during live
+  // play. Already populated by replay + the live store's
+  // incTeam/incOpponent paths, so just read it here.
+  const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
   const finalised = useLiveGame((s) => s.finalised);
   const selectField = useLiveGame((s) => s.selectField);
   const selectBench = useLiveGame((s) => s.selectBench);
@@ -1055,6 +1060,20 @@ export function LiveGame({
         isPending={isPending}
         clockPulseKey={clockPulseKey}
       />
+
+      {/* Running per-quarter scoreboard. Hidden in Q1 (nothing
+          completed yet) and pre-game / FT branches (handled
+          separately). At Q3 it shows Q1 + Q2 totals so the coach
+          can see the game's shape mid-play without reaching the
+          break recap. Steve's user feedback 2026-05-09. */}
+      {trackScoring && !isPreGame && !isFinished && (
+        <QuarterScoreStrip
+          sport="afl"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+        />
+      )}
 
       {/* Swap-done toast — flashes briefly after a substitution lands.
           Wrapped in SirenPulseHalo so the brand pulse halos the toast

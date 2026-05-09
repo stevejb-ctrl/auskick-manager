@@ -27,6 +27,7 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
+import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -333,6 +334,49 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     });
     return set;
   }, [thisGameEvents]);
+
+  // Per-quarter scoreboard for the live QuarterScoreStrip. Mirrors
+  // the netball QuarterBreak's scoreByQuarter computation but
+  // exposes results indexed 1..4 (index 0 unused) to match the
+  // strip's expected shape and the AFL store convention.
+  const scoreByQuarter = useMemo(() => {
+    // Index 0 unused — coach-friendly Q1=index1, Q2=index2, etc.
+    const periods: Array<{
+      ours: { goals: number; behinds: number };
+      theirs: { goals: number; behinds: number };
+    }> = [
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+    ];
+    const undoneTargets = new Set<string>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "score_undo") continue;
+      const target = (ev.metadata as { target_event_id?: string } | null)
+        ?.target_event_id;
+      if (target) undoneTargets.add(target);
+    }
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
+      if (undoneTargets.has(ev.id)) continue;
+      const meta = ev.metadata as
+        | { quarter?: number; intended_quarter?: number }
+        | null;
+      const q =
+        typeof meta?.intended_quarter === "number"
+          ? meta.intended_quarter
+          : typeof meta?.quarter === "number"
+            ? meta.quarter
+            : 0;
+      if (q < 1 || q > 4) continue;
+      if (ev.type === "goal") periods[q].ours.goals++;
+      else periods[q].theirs.goals++;
+    }
+    return periods;
+  }, [thisGameEvents]);
+
   // Late arrivals: squad players who weren't marked available pre-game
   // but turned up after the umpire's first whistle. addLateArrival
   // upserts game_availability + writes a player_arrived event for audit.
@@ -1351,6 +1395,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         paused={isPaused}
         showScores={trackScoring}
       />
+
+      {/* Running per-quarter scoreboard. Hidden in Q1 with no break
+          yet (nothing completed to show). Steve's user feedback
+          2026-05-09: coaches reconcile each break but mid-quarter
+          they want to glance back at past totals without scrolling
+          through events. */}
+      {trackScoring && (
+        <QuarterScoreStrip
+          sport="netball"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+        />
+      )}
 
       {/* Undo last score — toast (8s, dark bg) then persistent chip
           (muted bg) until the next score replaces it. Mirrors AFL's
