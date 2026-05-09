@@ -113,12 +113,12 @@ export function GameHeader({
           </span>
         </p>
         {onTeam && trackScoring && (
-          <div className="mt-0.5 flex gap-1">
+          <div className="mt-1 flex gap-2">
             <button
               type="button"
               onClick={() => onTeam("goal")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +G
             </button>
@@ -126,7 +126,7 @@ export function GameHeader({
               type="button"
               onClick={() => onTeam("behind")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +B
             </button>
@@ -176,12 +176,12 @@ export function GameHeader({
           </span>
         </p>
         {onOpponent && trackScoring && (
-          <div className="mt-0.5 flex justify-end gap-1">
+          <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => onOpponent("goal")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +G
             </button>
@@ -189,7 +189,7 @@ export function GameHeader({
               type="button"
               onClick={() => onOpponent("behind")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +B
             </button>

@@ -1667,12 +1667,12 @@ function NetballScoreBug({
           </span>
         </p>
         {onOpponentGoal && (
-          <div className="mt-0.5 flex justify-end gap-1">
+          <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={onOpponentGoal}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
               aria-label="Record opponent goal"
             >
               +G
