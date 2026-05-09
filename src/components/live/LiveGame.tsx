@@ -283,6 +283,18 @@ export function LiveGame({
   // discover the long-press / tap-tile path first. Nullable.
   const [pickScorerKind, setPickScorerKind] = useState<"goal" | "behind" | null>(null);
 
+  // When the coach taps "Sub off" in the action drawer for a
+  // currently-selected field player, this captures their slot so
+  // the bench picker knows where to swap into. Stagehand 2026-05-09
+  // (afl-u8-auskick) found the action drawer surfaces only "+ Goal"
+  // / "+ Behind" / "Cancel" when track_scoring=true — the
+  // tap-a-bench-player-to-swap path is invisible. An Auskick coach
+  // (where rotation > scoring) interpreted the drawer as
+  // scoring-only and gave up. Adding an explicit "Sub off" button
+  // surfaces the substitution path. On pick → setPendingSwap fires
+  // the same swap-confirm dialog as the tap-bench flow.
+  const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
+
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1267,6 +1279,30 @@ export function LiveGame({
                   + Behind
                 </button>
               </div>
+              {/* Sub off — surfaces the substitution path explicitly
+                  in the action drawer. Stagehand 2026-05-09
+                  (afl-u8-auskick) found that with track_scoring=true,
+                  the drawer showed only Goal/Behind/Cancel and the
+                  "tap a bench player to swap" hint at line ~1281
+                  was hidden by the canScore conditional. An Auskick
+                  coach, where rotation > scoring, gave up trying to
+                  substitute. This button opens a bench picker so the
+                  same swap-confirm flow fires either way. */}
+              {selected?.kind === "field" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSubOffSelected({
+                      playerId: selected.playerId,
+                      zone: selected.zone,
+                    })
+                  }
+                  disabled={isPending}
+                  className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
+                >
+                  Sub off (or tap a bench player)
+                </button>
+              )}
             </div>
           </div>
         );
@@ -1528,6 +1564,53 @@ export function LiveGame({
               setPickScorerKind(null);
             }}
             onCancel={() => setPickScorerKind(null)}
+          />
+        );
+      })()}
+
+      {/* Sub-off picker — opens when the coach taps "Sub off" in the
+          action drawer for a selected field player. Lists bench
+          players (excluding injured/loaned). Picking fires the
+          existing setPendingSwap flow → SwapConfirmDialog renders
+          → coach confirms, persistSwap commits the substitution.
+          Same shape as the score-attribution picker just above. */}
+      {subOffSelected && (() => {
+        const offPlayer = playersById.get(subOffSelected.playerId);
+        const offName = offPlayer?.full_name ?? "Player";
+        const candidates = lineup.bench
+          .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
+          .map((id) => {
+            const p = playersById.get(id);
+            if (!p) return null;
+            return {
+              id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+              subLabel: "Bench",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        return (
+          <SlotFillSheet
+            slotLabel={`${offName}'s spot`}
+            candidates={candidates}
+            titleVerb="Sub on for"
+            subtitle={`Pick a bench player to swap in for ${offName}.`}
+            emptyMessage="No bench players available — every available player is on the field or sidelined."
+            // Backdrop tap is OK to dismiss this picker — unlike the
+            // score-attribution case, an accidental dismiss here just
+            // returns the coach to the prior selected state with no
+            // data loss.
+            onPick={(picked) => {
+              setPendingSwap({
+                off: subOffSelected.playerId,
+                on: picked,
+                zone: subOffSelected.zone,
+              });
+              clearSelection();
+              setSubOffSelected(null);
+            }}
+            onCancel={() => setSubOffSelected(null)}
           />
         );
       })()}
