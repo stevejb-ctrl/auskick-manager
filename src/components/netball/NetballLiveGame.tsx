@@ -1415,6 +1415,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           teamName={teamName}
           opponentName={game.opponent}
           onClose={() => setQuarterScoresOpen(false)}
+          // Wire fix-scores so coach can unwind a misattributed
+          // goal mid-quarter without waiting for the break.
+          auth={auth}
+          gameId={game.id}
+          players={squad}
         />
       )}
 

@@ -1090,6 +1090,11 @@ export function LiveGame({
           teamName={teamName}
           opponentName={opponentName}
           onClose={() => setQuarterScoresOpen(false)}
+          // Wire fix-scores so coach can unwind a misattributed
+          // goal mid-quarter without waiting for the break.
+          auth={auth}
+          gameId={gameId}
+          players={squadPlayers}
         />
       )}
 

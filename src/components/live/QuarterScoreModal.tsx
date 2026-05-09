@@ -13,8 +13,11 @@
 //   AFL      — "2.1 (13)"  (goals.behinds + total points)
 //   Netball  — "3"         (goals only)
 
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
+import type { LiveAuth, Player } from "@/lib/types";
 
 interface QuarterScore {
   ours: { goals: number; behinds?: number };
@@ -37,6 +40,23 @@ interface QuarterScoreModalProps {
   totalQuarters?: number;
   /** Tap outside / close-button → fire this. */
   onClose: () => void;
+  /**
+   * Optional fix-scores integration. When provided, a "Fix scores"
+   * collapsible section opens at the bottom of the modal so the
+   * coach can delete an accidental double-tap or add a missed
+   * score without waiting for the next quarter break. Steve's
+   * follow-up 2026-05-09 (after QuarterScoreModal shipped):
+   * "Perhaps the modal could be used for in-quarter score
+   * adjustments too — if you accidentally give someone a goal
+   * twice, you can unwind it from there." Reuses the same
+   * ScoreReviewPanel the Q-break already exposes so the audit
+   * trail (retro flag, score_undo events) is consistent.
+   *
+   * Omit these props to keep the modal read-only.
+   */
+  auth?: LiveAuth;
+  gameId?: string;
+  players?: Player[];
 }
 
 function fmtScore(
@@ -65,7 +85,15 @@ export function QuarterScoreModal({
   opponentName,
   totalQuarters = 4,
   onClose,
+  auth,
+  gameId,
+  players,
 }: QuarterScoreModalProps) {
+  // Fix-scores section starts collapsed — most of the time the
+  // coach is just glancing at the breakdown. Expanding mounts
+  // ScoreReviewPanel, which fetches its own log on first open.
+  const [showFixScores, setShowFixScores] = useState(false);
+  const fixScoresAvailable = !!auth && !!gameId && !!players;
   type Row = {
     label: string;
     state: "done" | "current" | "future";
@@ -200,6 +228,35 @@ export function QuarterScoreModal({
             ? " Format: goals.behinds (points). 6 points per goal, 1 per behind."
             : " Format: goals."}
         </p>
+
+        {fixScoresAvailable && (
+          <div className="rounded-md border border-hairline bg-surface-alt">
+            <button
+              type="button"
+              onClick={() => setShowFixScores((v) => !v)}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-ink-dim hover:bg-surface"
+              aria-expanded={showFixScores}
+            >
+              <span>
+                {showFixScores ? "Hide fix scores" : "Fix scores"}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-micro text-ink-mute">
+                {showFixScores ? "▾" : "▸"}
+              </span>
+            </button>
+            {showFixScores && (
+              <div className="border-t border-hairline bg-surface px-3 py-3">
+                <ScoreReviewPanel
+                  auth={auth!}
+                  gameId={gameId!}
+                  players={players!}
+                  includeBehinds={sport === "afl"}
+                  defaultQuarter={Math.max(1, currentQuarter)}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <Button className="w-full" variant="secondary" onClick={onClose}>
           Close
