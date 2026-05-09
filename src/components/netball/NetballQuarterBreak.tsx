@@ -1015,15 +1015,18 @@ export function NetballQuarterBreak({
       )}
 
       <div className="flex justify-end">
-        {/* Two-stage kickoff: this button COMMITS the lineup snapshot
-            (period_break_swap), then surfaces NetballStartQuarterModal
-            so the GM can wait for the umpire's whistle. The label is
-            "Confirm lineup" so the distinct stages are unambiguous —
-            the modal's CTA is "Start Q{n}". Stagehand finding
-            (2026-05-08): two buttons with identical accessible names
-            confused the agent persona, mirrors a real coach's confusion. */}
+        {/* Two-stage kickoff narrative:
+              Q-break button     "Ready for Q{n}"
+              NetballStartModal  heading "Ready for Q{n}"
+                                  body    "Tap when the umpires call play."
+                                  CTA     "Start Q{n}"
+            "Ready for Q{n}" reads as "lineup is set, we're ready
+            for the next quarter" and matches the modal heading so
+            the transition feels continuous. Distinct from the
+            modal CTA so each tap signals a different intent
+            (commit-lineup → start-clock-on-whistle). */}
         <Button onClick={handleStart} loading={isPending && pendingStartQuarter === null}>
-          Confirm lineup
+          Ready for Q{nextQuarter}
         </Button>
       </div>
 

@@ -859,10 +859,11 @@ test("ABSTRACT-03: team.quarter_length_seconds=480 fires the auto-hooter at the 
   // quarterEnded path renders the Q-break shell (NetballLiveGame.tsx:986-1054)
   // — there's NO intermediate "Select team for Q2" modal (AFL-only, from
   // QuarterEndModal.tsx). Assert one of the two Q-break CTAs is visible:
-  // "Confirm lineup" or "Suggested reshuffle". (Q-break primary CTA was
-  // renamed from "Start Q{n}" 2026-05-08 — see plan in commit 95aca9b.)
+  // "Ready for Q2" or "Suggested reshuffle". (Q-break primary CTA
+  // matches the modal heading "Ready for Q2" and is distinct from
+  // the modal CTA "Start Q2".)
   await expect(
-    page.getByRole("button", { name: /confirm lineup|suggested reshuffle/i }).first(),
+    page.getByRole("button", { name: /ready for q2|suggested reshuffle/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 

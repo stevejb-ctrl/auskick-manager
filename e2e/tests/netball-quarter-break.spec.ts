@@ -208,11 +208,11 @@ async function enterQBreakView(
 
   // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
   // self-rerenders the live shell into the Q-break branch when quarterEnded
-  // flips. NO page.reload() required. The Q-break's primary CTA was
-  // renamed from "Start Q{n}" → "Confirm lineup" (2026-05-08) to
-  // disambiguate it from the StartQuarterModal's CTA.
+  // flips. NO page.reload() required. The Q-break's primary CTA reads
+  // "Ready for Q2" — matches the StartQuarterModal heading "Ready for
+  // Q2" while staying distinct from its CTA "Start Q2".
   await expect(
-    page.getByRole("button", { name: /^confirm lineup$/i }),
+    page.getByRole("button", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 }
 
@@ -333,14 +333,13 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   await enterQBreakView(page, admin, game.id);
 
   // The suggested reshuffle is ALREADY applied on initial render
-  // (NetballQuarterBreak line 305: useReshuffle=true). The flow is
-  // two-tap with DISTINCT labels (renamed 2026-05-08):
-  //   1. Q-break "Confirm lineup" — writes period_break_swap and
+  // (NetballQuarterBreak line 305: useReshuffle=true). Two-stage:
+  //   1. Q-break "Ready for Q2" — writes period_break_swap and
   //      surfaces the await-kickoff modal.
   //   2. Modal "Start Q2" — writes quarter_start.
   // Splitting the flow gives the GM control of the clock-start
   // moment — the umpire's whistle, not the lineup tap.
-  await page.getByRole("button", { name: /^confirm lineup$/i }).click();
+  await page.getByRole("button", { name: /^ready for q2$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 5_000 });

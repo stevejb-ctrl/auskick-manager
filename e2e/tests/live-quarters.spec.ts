@@ -79,16 +79,17 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
     .getByRole("button", { name: /select team for q2/i })
     .click();
 
-  // Expect "Confirm lineup" button on the QuarterBreak screen
-  // (renamed 2026-05-08 from "Start Q{n}" to disambiguate from the
-  // StartQuarterModal's CTA).
-  await expect(page.getByRole("button", { name: /^confirm lineup$/i })).toBeVisible({
+  // Expect "Ready for Q2" button on the QuarterBreak screen
+  // (Q-break commit-CTA, renamed iteratively to disambiguate from
+  // the StartQuarterModal's "Start Q{n}" CTA and to match the modal
+  // heading for a continuous narrative).
+  await expect(page.getByRole("button", { name: /^ready for q2$/i })).toBeVisible({
     timeout: 5_000,
   });
 
   // handleEndQuarter() flips the store synchronously (so the UI
-  // transitions to QuarterBreak immediately, which is why "Confirm
-  // lineup" shows up before the server action commits) and then fires
+  // transitions to QuarterBreak immediately, which is why "Ready
+  // for Q2" shows up before the server action commits) and then fires
   // endQuarterAction in startTransition. Poll the DB until the
   // quarter_end event lands rather than hard-coding a sleep — the
   // transition usually completes in <500ms but CI runners can be

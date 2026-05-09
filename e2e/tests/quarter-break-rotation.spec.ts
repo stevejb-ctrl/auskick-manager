@@ -106,7 +106,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // suggester chose — the test's contract is "what you see here is
   // what you get in Q2", not "the suggester picked X".
   await expect(
-    page.getByRole("button", { name: /^confirm lineup$/i }),
+    page.getByRole("button", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Read the rendered FWD slot's player tiles. The slot heading
@@ -146,11 +146,11 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     "no fwd player tiles found in QuarterBreak — selector or DOM mismatch",
   ).toBeGreaterThan(0);
 
-  // Two-tap kickoff: "Confirm lineup" in the Q-break picker
-  // commits the snapshot + opens the modal; the modal's "Start Q2"
-  // CTA actually kicks off the clock. Distinct labels (renamed
-  // 2026-05-08) eliminate the previous same-name confusion.
-  await page.getByRole("button", { name: /^confirm lineup$/i }).click();
+  // Two-tap kickoff: "Ready for Q2" in the Q-break picker commits
+  // the snapshot + opens the modal; the modal's "Start Q2" CTA
+  // actually kicks off the clock. The Q-break label matches the
+  // modal heading; the modal CTA stays distinct.
+  await page.getByRole("button", { name: /^ready for q2$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
   ).toBeVisible({ timeout: 5_000 });

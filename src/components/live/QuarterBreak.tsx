@@ -1221,16 +1221,19 @@ export function QuarterBreak({
       )}
 
       <div className="flex justify-end">
-        {/* Two-stage kickoff: this button COMMITS the lineup snapshot
-            (period_break_swap event), then surfaces the StartQuarterModal
-            so the GM can wait for the umpire's whistle before the clock
-            actually ticks. The label is "Confirm lineup" rather than
-            "Start Q{n}" so it's distinguishable from the modal's CTA
-            (which IS labeled "Start Q{n}"). Stagehand exploration found
-            that two buttons with the same accessible name confused
-            even an LLM agent — a real coach has the same problem. */}
+        {/* Two-stage kickoff narrative:
+              Q-break button "Ready for Q{n}"  → opens StartQuarterModal
+              Modal heading   "Ready for Q{n}"
+              Modal body      "Tap when the hooter goes."
+              Modal CTA       "Start Q{n}"
+            "Ready for Q{n}" reads as "lineup is set, we're ready for
+            the next quarter" — and matches the modal heading so the
+            transition feels continuous. Distinct from the modal's
+            "Start Q{n}" CTA so a coach taps each one knowing what
+            they do (commit-lineup vs start-clock). Stagehand showed
+            same-label buttons broke even an LLM agent. */}
         <Button onClick={handleStart} loading={isPending}>
-          Confirm lineup
+          Ready for Q{nextQuarter}
         </Button>
       </div>
 

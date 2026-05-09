@@ -222,16 +222,19 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     .toBeGreaterThanOrEqual(1);
 
   // Each Q→Q+1 transition is a TWO-tap kickoff with DISTINCT labels:
-  //   1. Q-break "Confirm lineup" — commits the lineup snapshot
+  //   1. Q-break "Ready for Q{n}" — commits the lineup snapshot
   //      (period_break_swap event) and surfaces the StartQuarterModal.
   //   2. Modal "Start Q{n}" — fires quarter_start, ticks the clock.
-  // Labels were renamed (2026-05-08) after Stagehand exploration
-  // showed the previous "Start Q{n}" + "Start Q{n}" pair confused the
-  // agent — and would confuse a real coach for the same reason. The
-  // body text "Tap when the hooter goes" gates the second tap so we
-  // don't double-click before the modal mounts.
+  // The Q-break label was iteratively renamed (most recent: 2026-05-09
+  // "Confirm lineup" → "Ready for Q{n}") so it both reads as a
+  // distinct intent from the modal CTA AND matches the modal's
+  // heading "Ready for Q{n}" — the transition feels continuous to a
+  // coach. The body text "Tap when the hooter goes" gates the second
+  // tap so we don't double-click before the modal mounts.
   async function startNextQuarter(n: number): Promise<void> {
-    await page.getByRole("button", { name: /^confirm lineup$/i }).click();
+    await page
+      .getByRole("button", { name: new RegExp(`^ready for q${n}$`, "i") })
+      .click();
     await page.getByText(/tap when the hooter goes/i).waitFor({ timeout: 5_000 });
     await page
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
