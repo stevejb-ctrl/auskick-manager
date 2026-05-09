@@ -21,6 +21,7 @@ import {
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { Button } from "@/components/ui/Button";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
 
 interface FullTimeReviewProps {
@@ -31,6 +32,9 @@ interface FullTimeReviewProps {
   /** Total ms elapsed at full-time, used as the metadata.elapsed_ms
    *  for the game_finalised event. */
   finalisedElapsedMs: number;
+  /** Team / opponent display names for the per-quarter table headers. */
+  teamName?: string;
+  opponentName?: string;
 }
 
 const aflPts = (g: number, b: number) => g * 6 + b;
@@ -41,10 +45,13 @@ export function FullTimeReview({
   trackScoring,
   players,
   finalisedElapsedMs,
+  teamName = "Us",
+  opponentName = "Them",
 }: FullTimeReviewProps) {
   const router = useRouter();
   const teamScore = useLiveGame((s) => s.teamScore);
   const opponentScore = useLiveGame((s) => s.opponentScore);
+  const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
   const incTeam = useLiveGame((s) => s.incTeam);
   const incOpponent = useLiveGame((s) => s.incOpponent);
   const undoTeamScore = useLiveGame((s) => s.undoTeamScore);
@@ -220,6 +227,25 @@ export function FullTimeReview({
                 </span>
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Per-quarter breakdown — coach reconciles with the
+            opposition AFTER full time. Same QuarterScoreTable
+            component the Q-break recap + in-game modal use, so
+            the data shape is consistent across surfaces.
+            quarterEnded=true so Q4 renders its final tally
+            instead of "in play". */}
+        {trackScoring && (
+          <div className="mt-4">
+            <QuarterScoreTable
+              scoreByQuarter={scoreByQuarter}
+              currentQuarter={4}
+              quarterEnded={true}
+              sport="afl"
+              teamName={teamName}
+              opponentName={opponentName}
+            />
           </div>
         )}
 

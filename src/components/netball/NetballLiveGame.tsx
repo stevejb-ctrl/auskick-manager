@@ -1185,8 +1185,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           trackScoring={trackScoring}
           teamScore={teamScore}
           opponentScore={opponentScore}
+          scoreByQuarter={scoreByQuarter}
           players={squad}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
+          opponentName={game.opponent}
         />
       </div>
     );

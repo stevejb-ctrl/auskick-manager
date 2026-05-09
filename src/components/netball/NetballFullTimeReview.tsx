@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { Button } from "@/components/ui/Button";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
 
 interface NetballFullTimeReviewProps {
@@ -21,10 +22,21 @@ interface NetballFullTimeReviewProps {
   /** Current cumulative team / opponent goal counts (netball is goals-only). */
   teamScore: { goals: number };
   opponentScore: { goals: number };
+  /** Per-quarter score breakdown shaped to match the AFL store / QuarterScoreTable
+   *  contract: index 0 unused, indices 1..4 carry the per-quarter totals. The
+   *  inner `{goals, behinds}` shape lets us share the table component with AFL —
+   *  netball just always reports 0 behinds. */
+  scoreByQuarter: Array<{
+    ours: { goals: number; behinds: number };
+    theirs: { goals: number; behinds: number };
+  }>;
   /** Squad players for the add-score picker. */
   players: Player[];
   /** ms elapsed at full time — passed to game_finalised event. */
   finalisedElapsedMs: number;
+  /** Display names for the per-quarter table headers. */
+  teamName?: string;
+  opponentName?: string;
 }
 
 export function NetballFullTimeReview({
@@ -33,8 +45,11 @@ export function NetballFullTimeReview({
   trackScoring,
   teamScore,
   opponentScore,
+  scoreByQuarter,
   players,
   finalisedElapsedMs,
+  teamName = "Us",
+  opponentName = "Them",
 }: NetballFullTimeReviewProps) {
   const router = useRouter();
   const [finalisePending, startFinaliseTransition] = useTransition();
@@ -79,6 +94,19 @@ export function NetballFullTimeReview({
               {opponentScore.goals}
             </p>
           </div>
+        </div>
+      )}
+
+      {trackScoring && (
+        <div className="mt-4">
+          <QuarterScoreTable
+            scoreByQuarter={scoreByQuarter}
+            currentQuarter={4}
+            quarterEnded={true}
+            sport="netball"
+            teamName={teamName}
+            opponentName={opponentName}
+          />
         </div>
       )}
 
