@@ -31,6 +31,7 @@ import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import {
   netballSport,
   primaryThirdFor,
@@ -821,53 +822,79 @@ export function NetballQuarterBreak({
         </p>
       </div>
 
-      {/* Per-quarter score recap — drives reconciliation with the
-          opposition each break. Mirrors AFL's QuarterBreak recap
-          card. Tap "Fix scores" to expand a per-quarter editor. */}
+      {/* Score panel — collapsed by default to save Q-break real
+          estate. Tap to expand. The collapsed summary shows the
+          running total + this quarter's tally so the coach can
+          sanity-check at a glance. The expansion shows the full
+          per-quarter breakdown table + the per-player event log
+          (review/delete/add). Steve's user feedback 2026-05-09:
+          "the Score section takes up a fair bit of real estate
+          ... rather than 'Fix scores' it can be something like
+          'review and update scores'". */}
       {trackScoring && currentQuarter >= 1 && (
-        <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Q{currentQuarter} score
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowFixScores((v) => !v)}
-              className="text-xs font-medium text-brand-700 hover:text-brand-800"
-            >
-              {showFixScores ? "Hide fix scores" : "Fix scores"}
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Us — Q{currentQuarter}
+        <div className="rounded-md border border-hairline bg-surface shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowFixScores((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            aria-expanded={showFixScores}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                Score
               </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {scoreByQuarter[currentQuarter - 1]?.ours ?? 0}
+              <p className="mt-0.5 truncate text-sm font-semibold text-ink">
+                Total — Us {cumUs} · Them {cumThem}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-ink-mute">
+                Q{currentQuarter} — Us {scoreByQuarter[currentQuarter - 1]?.ours ?? 0}{" "}
+                · Them {scoreByQuarter[currentQuarter - 1]?.theirs ?? 0}
               </p>
             </div>
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Them — Q{currentQuarter}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {scoreByQuarter[currentQuarter - 1]?.theirs ?? 0}
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-ink-dim">
-            Running total — Us {cumUs} · Them {cumThem}
-          </p>
+            <span className="shrink-0 text-xs font-medium text-brand-700">
+              {showFixScores ? "▾ Hide" : "▸ Review and update scores"}
+            </span>
+          </button>
+
           {showFixScores && (
-            <div className="mt-4 border-t border-hairline pt-4">
-              <ScoreReviewPanel
-                auth={auth}
-                gameId={gameId}
-                players={squad}
-                includeBehinds={false}
-                defaultQuarter={currentQuarter}
+            <div className="space-y-4 border-t border-hairline px-4 py-4">
+              <QuarterScoreTable
+                // Adapter: netball's local scoreByQuarter is
+                // Array<{ours: number, theirs: number}> indexed
+                // 0..3 (Q1..Q4). QuarterScoreTable expects the
+                // AFL shape with .goals nested + 1..N indexing
+                // (index 0 unused). Pre-built inline since the
+                // table is only rendered when showFixScores is on.
+                scoreByQuarter={[
+                  { ours: { goals: 0 }, theirs: { goals: 0 } },
+                  ...scoreByQuarter.map((q) => ({
+                    ours: { goals: q.ours },
+                    theirs: { goals: q.theirs },
+                  })),
+                ]}
+                currentQuarter={currentQuarter}
+                quarterEnded={true}
+                sport="netball"
+                teamName="Us"
+                opponentName="Them"
               />
+              <div className="border-t border-hairline pt-4">
+                <p className="text-xs font-semibold text-ink">
+                  Per-player events
+                </p>
+                <p className="mt-0.5 text-xs text-ink-mute">
+                  Delete a wrong score with ×, or add one that was missed.
+                </p>
+                <div className="mt-3">
+                  <ScoreReviewPanel
+                    auth={auth}
+                    gameId={gameId}
+                    players={squad}
+                    includeBehinds={false}
+                    defaultQuarter={currentQuarter}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>

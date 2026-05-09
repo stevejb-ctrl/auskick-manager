@@ -36,6 +36,7 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
@@ -856,60 +857,64 @@ export function QuarterBreak({
         />
       )}
 
-      {/* Period recap — read-only summary of the just-finished
-          quarter alongside the running total. Coach uses this to
-          reconcile with the opposition before resuming. */}
+      {/* Score panel — collapsed by default to save Q-break real
+          estate. Tap to expand. The collapsed summary shows just
+          the running total + the just-ended quarter's tally so the
+          coach can sanity-check at a glance. The expansion shows
+          the full per-quarter breakdown table + the per-player
+          event log (review/delete/add). Steve's user feedback
+          2026-05-09: "the Score section takes up a fair bit of
+          real estate ... rather than 'Fix scores' it can be
+          something like 'review and update scores'". */}
       {currentQuarter >= 1 && (
-        <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Q{justEndedQuarter} score
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowFixScores((v) => !v)}
-              className="text-xs font-medium text-brand-700 hover:text-brand-800"
-            >
-              {showFixScores ? "Hide fix scores" : "Fix scores"}
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Us — Q{justEndedQuarter}
+        <div className="rounded-md border border-hairline bg-surface shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowFixScores((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            aria-expanded={showFixScores}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                Score
               </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {thisQuarterScore?.ours.goals ?? 0}.{thisQuarterScore?.ours.behinds ?? 0}{" "}
-                <span className="text-sm font-normal text-ink-mute">
-                  ({aflPts(thisQuarterScore?.ours.goals ?? 0, thisQuarterScore?.ours.behinds ?? 0)})
-                </span>
+              <p className="mt-0.5 truncate text-sm font-semibold text-ink">
+                Total — Us {totalUs.goals}.{totalUs.behinds} ({aflPts(totalUs.goals, totalUs.behinds)})
+                {" · "}
+                Them {totalThem.goals}.{totalThem.behinds} ({aflPts(totalThem.goals, totalThem.behinds)})
+              </p>
+              <p className="mt-0.5 truncate text-xs text-ink-mute">
+                Q{justEndedQuarter} — Us {thisQuarterScore?.ours.goals ?? 0}.{thisQuarterScore?.ours.behinds ?? 0} ({aflPts(thisQuarterScore?.ours.goals ?? 0, thisQuarterScore?.ours.behinds ?? 0)})
+                {" · "}
+                Them {thisQuarterScore?.theirs.goals ?? 0}.{thisQuarterScore?.theirs.behinds ?? 0} ({aflPts(thisQuarterScore?.theirs.goals ?? 0, thisQuarterScore?.theirs.behinds ?? 0)})
               </p>
             </div>
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Them — Q{justEndedQuarter}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {thisQuarterScore?.theirs.goals ?? 0}.{thisQuarterScore?.theirs.behinds ?? 0}{" "}
-                <span className="text-sm font-normal text-ink-mute">
-                  ({aflPts(thisQuarterScore?.theirs.goals ?? 0, thisQuarterScore?.theirs.behinds ?? 0)})
-                </span>
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-ink-dim">
-            Running total — Us {totalUs.goals}.{totalUs.behinds} ({aflPts(totalUs.goals, totalUs.behinds)})
-            {" · "}
-            Them {totalThem.goals}.{totalThem.behinds} ({aflPts(totalThem.goals, totalThem.behinds)})
-          </p>
+            <span className="shrink-0 text-xs font-medium text-brand-700">
+              {showFixScores ? "▾ Hide" : "▸ Review and update scores"}
+            </span>
+          </button>
 
-          {/* Expandable Fix-scores panel */}
           {showFixScores && (
-            <div className="mt-4 border-t border-hairline pt-4">
-              <p className="text-xs font-semibold text-ink">Fix scores</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Delete a wrong score with ×, or add one that was missed.
-              </p>
+            <div className="space-y-4 border-t border-hairline px-4 py-4">
+              {/* Quarter-by-quarter breakdown table — same shape as
+                  the in-game QuarterScoreModal so the coach gets a
+                  consistent view of the game's shape. */}
+              <QuarterScoreTable
+                scoreByQuarter={scoreByQuarter}
+                currentQuarter={currentQuarter}
+                quarterEnded={true}
+                sport="afl"
+                teamName="Us"
+                opponentName="Them"
+              />
+
+              <div className="border-t border-hairline pt-4">
+                <p className="text-xs font-semibold text-ink">
+                  Per-player events
+                </p>
+                <p className="mt-0.5 text-xs text-ink-mute">
+                  Delete a wrong score with ×, or add one that was missed.
+                </p>
 
               {scoreLogLoading && (
                 <p className="mt-2 text-xs text-ink-mute">Loading…</p>
@@ -1069,6 +1074,7 @@ export function QuarterBreak({
                   </div>
                 )}
               </div>
+            </div>
             </div>
           )}
         </div>
