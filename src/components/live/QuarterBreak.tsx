@@ -857,40 +857,53 @@ export function QuarterBreak({
         />
       )}
 
-      {/* Score panel — collapsed by default to save Q-break real
-          estate. Tap to expand. The collapsed summary shows just
-          the running total + the just-ended quarter's tally so the
-          coach can sanity-check at a glance. The expansion shows
-          the full per-quarter breakdown table + the per-player
-          event log (review/delete/add). Steve's user feedback
-          2026-05-09: "the Score section takes up a fair bit of
-          real estate ... rather than 'Fix scores' it can be
-          something like 'review and update scores'". */}
-      {currentQuarter >= 1 && (
+      {/* Score panel — collapsed by default. Single-line score
+          summary so the coach can reconcile with the opposition
+          at a glance without the panel taking real estate.
+          Tapping the row anywhere expands to the full per-quarter
+          breakdown table + per-player event log. */}
+      {currentQuarter >= 1 && (() => {
+        const usPts = aflPts(totalUs.goals, totalUs.behinds);
+        const themPts = aflPts(totalThem.goals, totalThem.behinds);
+        const lead = usPts - themPts;
+        const leadLabel =
+          lead === 0 ? "level" : lead > 0 ? `+${lead}` : `${lead}`;
+        const leadClass =
+          lead > 0
+            ? "text-ok"
+            : lead < 0
+              ? "text-warn"
+              : "text-ink-mute";
+        return (
         <div className="rounded-md border border-hairline bg-surface shadow-card">
           <button
             type="button"
             onClick={() => setShowFixScores((v) => !v)}
             className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
             aria-expanded={showFixScores}
+            aria-label={
+              showFixScores
+                ? "Hide score review"
+                : "Review and update scores"
+            }
           >
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-                Score
-              </p>
-              <p className="mt-0.5 truncate text-sm font-semibold text-ink">
-                Total — Us {totalUs.goals}.{totalUs.behinds} ({aflPts(totalUs.goals, totalUs.behinds)})
-                {" · "}
-                Them {totalThem.goals}.{totalThem.behinds} ({aflPts(totalThem.goals, totalThem.behinds)})
-              </p>
-              <p className="mt-0.5 truncate text-xs text-ink-mute">
-                Q{justEndedQuarter} — Us {thisQuarterScore?.ours.goals ?? 0}.{thisQuarterScore?.ours.behinds ?? 0} ({aflPts(thisQuarterScore?.ours.goals ?? 0, thisQuarterScore?.ours.behinds ?? 0)})
-                {" · "}
-                Them {thisQuarterScore?.theirs.goals ?? 0}.{thisQuarterScore?.theirs.behinds ?? 0} ({aflPts(thisQuarterScore?.theirs.goals ?? 0, thisQuarterScore?.theirs.behinds ?? 0)})
-              </p>
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+                {totalUs.goals}.{totalUs.behinds} ({usPts})
+                <span className="mx-1.5 text-ink-mute">–</span>
+                {totalThem.goals}.{totalThem.behinds} ({themPts})
+              </span>
+              <span
+                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+              >
+                {leadLabel}
+              </span>
             </div>
-            <span className="shrink-0 text-xs font-medium text-brand-700">
-              {showFixScores ? "▾ Hide" : "▸ Review and update scores"}
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
+              {showFixScores ? "Hide" : "Review"}
+              <span className="font-mono text-[10px]">
+                {showFixScores ? "▾" : "▸"}
+              </span>
             </span>
           </button>
 
@@ -1078,7 +1091,8 @@ export function QuarterBreak({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {availableForLineup.length > 0 && (
         <p className="px-1 text-xs text-ink-dim">

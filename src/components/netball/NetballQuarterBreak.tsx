@@ -822,37 +822,50 @@ export function NetballQuarterBreak({
         </p>
       </div>
 
-      {/* Score panel — collapsed by default to save Q-break real
-          estate. Tap to expand. The collapsed summary shows the
-          running total + this quarter's tally so the coach can
-          sanity-check at a glance. The expansion shows the full
-          per-quarter breakdown table + the per-player event log
-          (review/delete/add). Steve's user feedback 2026-05-09:
-          "the Score section takes up a fair bit of real estate
-          ... rather than 'Fix scores' it can be something like
-          'review and update scores'". */}
-      {trackScoring && currentQuarter >= 1 && (
+      {/* Score panel — collapsed by default. Single-line score
+          summary so the coach can reconcile with the opposition
+          at a glance. Tap row to expand into the full per-quarter
+          breakdown + per-player event log. */}
+      {trackScoring && currentQuarter >= 1 && (() => {
+        const lead = cumUs - cumThem;
+        const leadLabel =
+          lead === 0 ? "level" : lead > 0 ? `+${lead}` : `${lead}`;
+        const leadClass =
+          lead > 0
+            ? "text-ok"
+            : lead < 0
+              ? "text-warn"
+              : "text-ink-mute";
+        return (
         <div className="rounded-md border border-hairline bg-surface shadow-card">
           <button
             type="button"
             onClick={() => setShowFixScores((v) => !v)}
             className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
             aria-expanded={showFixScores}
+            aria-label={
+              showFixScores
+                ? "Hide score review"
+                : "Review and update scores"
+            }
           >
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-                Score
-              </p>
-              <p className="mt-0.5 truncate text-sm font-semibold text-ink">
-                Total — Us {cumUs} · Them {cumThem}
-              </p>
-              <p className="mt-0.5 truncate text-xs text-ink-mute">
-                Q{currentQuarter} — Us {scoreByQuarter[currentQuarter - 1]?.ours ?? 0}{" "}
-                · Them {scoreByQuarter[currentQuarter - 1]?.theirs ?? 0}
-              </p>
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+                {cumUs}
+                <span className="mx-1.5 text-ink-mute">–</span>
+                {cumThem}
+              </span>
+              <span
+                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+              >
+                {leadLabel}
+              </span>
             </div>
-            <span className="shrink-0 text-xs font-medium text-brand-700">
-              {showFixScores ? "▾ Hide" : "▸ Review and update scores"}
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
+              {showFixScores ? "Hide" : "Review"}
+              <span className="font-mono text-[10px]">
+                {showFixScores ? "▾" : "▸"}
+              </span>
             </span>
           </button>
 
@@ -898,7 +911,8 @@ export function NetballQuarterBreak({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       <p className="px-1 text-xs text-ink-dim">
         Tap any two players to swap them — even across thirds or to the bench.
