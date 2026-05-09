@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
-import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
@@ -1095,20 +1094,6 @@ export function LiveGame({
           auth={auth}
           gameId={gameId}
           players={squadPlayers}
-        />
-      )}
-
-      {/* Running per-quarter scoreboard. Hidden in Q1 (nothing
-          completed yet) and pre-game / FT branches (handled
-          separately). At Q3 it shows Q1 + Q2 totals so the coach
-          can see the game's shape mid-play without reaching the
-          break recap. Steve's user feedback 2026-05-09. */}
-      {trackScoring && !isPreGame && !isFinished && (
-        <QuarterScoreStrip
-          sport="afl"
-          scoreByQuarter={scoreByQuarter}
-          currentQuarter={currentQuarter}
-          quarterEnded={quarterEnded}
         />
       )}
 

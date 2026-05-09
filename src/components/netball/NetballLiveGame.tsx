@@ -27,7 +27,6 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
-import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
@@ -1420,20 +1419,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           auth={auth}
           gameId={game.id}
           players={squad}
-        />
-      )}
-
-      {/* Running per-quarter scoreboard. Hidden in Q1 with no break
-          yet (nothing completed to show). Steve's user feedback
-          2026-05-09: coaches reconcile each break but mid-quarter
-          they want to glance back at past totals without scrolling
-          through events. */}
-      {trackScoring && (
-        <QuarterScoreStrip
-          sport="netball"
-          scoreByQuarter={scoreByQuarter}
-          currentQuarter={currentQuarter}
-          quarterEnded={quarterEnded}
         />
       )}
 
