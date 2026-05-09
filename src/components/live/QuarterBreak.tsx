@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -346,8 +346,26 @@ export function QuarterBreak({
     };
   }, [healthyForLineup]);
 
+  // Only re-derive `draft` when the user EXPLICITLY changes the
+  // lineup mode. Without this guard, the effect re-fires whenever
+  // any of suggestedLineup / manualLineup / lineup recomputes
+  // underneath — and they DO recompute on:
+  //   • The live store re-hydrating post-mount (basePlayedZoneMs
+  //     ticks → currentGameZoneMins → combinedZoneMins →
+  //     suggestedLineup)
+  //   • setLineup() in handleStart() before router.refresh() —
+  //     the store mutation makes `lineup` change, the effect
+  //     fires, and the user's just-committed draft gets briefly
+  //     overwritten by a freshly-recomputed suggestion.
+  // Steve's user feedback 2026-05-09: at Q-break the lineup
+  // "starts with a suggested lineup and then refreshes to a new
+  // lineup a few seconds later", and on tap-to-start-next-quarter
+  // it flickers similarly. Both traced to this useEffect.
+  const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
   useEffect(() => {
     if (availableForLineup.length === 0) return;
+    if (lastAppliedModeRef.current === lineupMode) return;
+    lastAppliedModeRef.current = lineupMode;
     const next =
       lineupMode === "suggested"
         ? suggestedLineup

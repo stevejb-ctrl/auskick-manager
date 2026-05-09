@@ -374,7 +374,22 @@ export function NetballQuarterBreak({
   // bench, so the slot stays filled and the recovered player lands on
   // bench by default. Coach can manually swap them back into a slot
   // if they want to.
+  // Only re-derive `draft` when the user explicitly changes
+  // lineup mode OR when forcedBenchIds shifts (un-injuring a
+  // player on the Q-break should push them onto bench by default).
+  // Without this guard, ambient prop changes (suggestedLineup
+  // recomputing as thisGameEvents updates) cause the user's
+  // committed draft to be overwritten with a fresh suggestion —
+  // visible as a "lineup flickers a few seconds after Q-break
+  // mounts" bug Steve reported 2026-05-09.
+  const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
+  const lastForcedBenchSizeRef = useRef(0);
   useEffect(() => {
+    const modeChanged = lastAppliedModeRef.current !== lineupMode;
+    const forcedChanged = lastForcedBenchSizeRef.current !== forcedBenchIds.size;
+    if (!modeChanged && !forcedChanged) return;
+    lastAppliedModeRef.current = lineupMode;
+    lastForcedBenchSizeRef.current = forcedBenchIds.size;
     const base =
       lineupMode === "suggested"
         ? suggestedLineup
