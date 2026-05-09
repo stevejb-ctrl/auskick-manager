@@ -180,17 +180,29 @@ async function sendFcm(
 // ─── Request handler ──────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  // Service-role-only. The Supabase Functions runtime injects
-  // SUPABASE_SERVICE_ROLE_KEY automatically, and Functions
-  // already require an apikey header that matches the project's
-  // anon or service key. We additionally enforce that the
-  // *service* key is what was passed, so anon-key callers get a
-  // 401 even though Supabase let them reach the function.
+  // Service-role-only. The Functions gateway has already verified
+  // the JWT signature (verify_jwt defaults to true), so we trust
+  // the payload claims and just check that the caller is the
+  // service-role principal — anon and authenticated user JWTs
+  // get rejected even though they passed the gateway. Robust to
+  // Supabase's legacy-vs-new key rollout: as long as the gateway
+  // accepts the JWT, the role claim tells us who's calling.
   const auth = req.headers.get("authorization") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!serviceKey || auth !== `Bearer ${serviceKey}`) {
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  let role: string | null = null;
+  if (token.split(".").length === 3) {
+    try {
+      const segment = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(atob(segment));
+      role = typeof payload.role === "string" ? payload.role : null;
+    } catch {
+      // Fall through; role stays null and we 401 below.
+    }
+  }
+  if (role !== "service_role") {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
   let body: PushRequest;
   try {
