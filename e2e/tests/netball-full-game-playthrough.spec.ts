@@ -201,15 +201,16 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
     page.getByText(/quarter break/i).first(),
   ).toBeVisible({ timeout: 25_000 });
 
-  // ─── Phase 4: Q-break recap + Fix scores ──────────────────
-  // Per-quarter score recap card renders when trackScoring && Q≥1.
-  // The "Q1 score" label inside the recap is the cleanest marker.
-  await expect(page.getByText(/^q1 score$/i).first()).toBeVisible({
-    timeout: 5_000,
+  // ─── Phase 4: Q-break recap + Review and update scores ────
+  // Score panel is collapsed by default — coach taps the "Review
+  // and update scores" header to expand the per-Q breakdown +
+  // per-player events log. aria-label is the deterministic
+  // matcher (visible text is just "Review").
+  const reviewToggle = page.getByRole("button", {
+    name: /review and update scores/i,
   });
-  // Toggle Fix-scores panel open. The button is text-only ("Fix
-  // scores") so getByRole("button") is the right matcher.
-  await page.getByRole("button", { name: /^fix scores$/i }).click();
+  await expect(reviewToggle).toBeVisible({ timeout: 10_000 });
+  await reviewToggle.click();
 
   // Add a retro opponent goal in Q1 — exercises addRetroScore via
   // ScoreReviewPanel, with metadata.intended_quarter=1. Same shape

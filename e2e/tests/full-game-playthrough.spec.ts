@@ -191,11 +191,17 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   ).toBeVisible({ timeout: 25_000 });
   await page.getByRole("button", { name: /select team for q2/i }).click();
 
-  // ─── Phase 4: Q-break recap + Fix scores ──────────────────
-  await expect(page.getByText(/q1 score/i).first()).toBeVisible({
-    timeout: 10_000,
+  // ─── Phase 4: Q-break recap + Review and update scores ────
+  // Score panel is collapsed by default — coach taps "Review and
+  // update scores" to expand the per-Q breakdown + per-player
+  // events log. The aria-label on the toggle is the cleanest
+  // matcher (visible text is just "Review", which is too generic
+  // and clashes with anything else).
+  const reviewToggle = page.getByRole("button", {
+    name: /review and update scores/i,
   });
-  await page.getByRole("button", { name: /^fix scores$/i }).click();
+  await expect(reviewToggle).toBeVisible({ timeout: 10_000 });
+  await reviewToggle.click();
   await expect(page.getByText(scorer.full_name).first()).toBeVisible();
 
   // Add a retro opponent goal in Q1 — exercises addRetroScore +
