@@ -807,6 +807,21 @@ export interface GameState {
   basePlayedZoneMs: Record<string, ZoneMinutes>;
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
+  /**
+   * Per-player zone they ENDED the most-recent finished quarter in.
+   * Drives the suggester's `previousQuarterZones` (-800 SAME_AS_LAST_Q
+   * penalty so a kid doesn't get parked in the same line two quarters
+   * running). Rebuilt from events on every replay so a page reload
+   * during the Q-break doesn't lose this signal.
+   *
+   * Bug fix 2026-05-09: previously this was ONLY populated by the
+   * live store's endCurrentQuarter action, which meant after any
+   * router.refresh / cold mount the suggester ran with empty
+   * previousQuarterZones and the same-zone penalty silently no-op'd.
+   * Steve hit this on a Brunswick Bears game where Jimmy J and
+   * Johnny B stayed in their Q2 zones for Q3.
+   */
+  lastStintZone: Record<string, Zone>;
   injuredIds: string[];
   loanedIds: string[];
   loanStartMs: Record<string, number>;
@@ -838,6 +853,7 @@ export function replayGame(events: GameEvent[]): GameState {
     playerScores: {},
     finalised: false,
     basePlayedZoneMs: {},
+    lastStintZone: {},
     stintStartMs: {},
     stintZone: {},
     injuredIds: [],
@@ -902,9 +918,18 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "quarter_end") {
       state.quarterEnded = true;
       quarterStartedAt = null;
+      // Rebuild lastStintZone from scratch each Q-end so it only
+      // contains players who were on-field when the hooter went.
+      // Mirrors the live store's endCurrentQuarter action so a
+      // hydrate-from-events render produces the same signal a
+      // never-reloaded session would have.
+      state.lastStintZone = {};
       for (const [pid, start] of Object.entries(state.stintStartMs)) {
         const z = state.stintZone[pid];
-        if (z) addPlayed(pid, z, elapsed - start);
+        if (z) {
+          addPlayed(pid, z, elapsed - start);
+          state.lastStintZone[pid] = z;
+        }
       }
       state.stintStartMs = {};
       state.stintZone = {};

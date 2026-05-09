@@ -463,6 +463,15 @@ export function LiveGame({
       scoreByQuarter: initialState.scoreByQuarter,
       playerScores: initialState.playerScores,
       basePlayedZoneMs: initialState.basePlayedZoneMs,
+      // Bug fix 2026-05-09: previously omitted from init, which
+      // meant the live store's lastStintZone was {} on every
+      // hydrate (cold mount, router.refresh after period_break_swap,
+      // tab-switch reload). The suggester's same-zone-as-last-
+      // quarter penalty silently no-op'd, leaving players parked
+      // in identical zones two quarters running. Replay now
+      // computes this at every quarter_end so we just thread it
+      // through.
+      lastStintZone: initialState.lastStintZone,
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
       injuredIds: initialState.injuredIds,
