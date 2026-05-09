@@ -20,6 +20,7 @@
     "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.3.1",
     "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.4",
     "@next/third-parties": "^14.2.29",
     "@supabase/ssr": "^0.5.2",

@@ -13,6 +13,8 @@
 // the recovery is exact.
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { liveGameStorage } from "@/lib/live/persistStorage";
 
 export const QUARTER_MS = 12 * 60 * 1000;
 import {
@@ -193,7 +195,9 @@ const DEFAULT_LIVE_STATE_DATA = {
   zoneLockedPlayers: {} as Record<string, Zone>,
 };
 
-export const useLiveGame = create<LiveGameState>((set) => ({
+export const useLiveGame = create<LiveGameState>()(
+  persist(
+    (set) => ({
   ...DEFAULT_LIVE_STATE_DATA,
 
   // init replaces ALL data fields. Caller passes only what they have from
@@ -201,8 +205,41 @@ export const useLiveGame = create<LiveGameState>((set) => ({
   // defaults. This is what makes "Restart game" actually clear the slate
   // — without it, fields the caller didn't pass (swapCount, lockedIds,
   // lastStintMs/Zone, zoneLockedPlayers, selected) leaked across resets.
+  //
+  // Persistence carve-out (slice 5 phase 5c): when the call is for the
+  // same activeGameId that's already in the store AND the server isn't
+  // signalling a restart, keep the in-memory-only fields that the
+  // persist middleware just rehydrated from disk (lockedIds /
+  // zoneLockedPlayers / swapCount / lastStintMs/Zone) — those aren't
+  // reconstructable from the server's event log, so a wipe-and-replace
+  // would silently drop coach-set state across an app force-quit.
+  //
+  // Restart-game detection mirrors LiveGame.tsx's existing
+  // storeAheadOfServer check: a Restart deletes every event so the
+  // server's currentQuarter regresses below the store's. Quarters can
+  // only ever advance during normal play, so prev.currentQuarter >
+  // state.currentQuarter is the unambiguous "user just hit restart"
+  // signal — and in that case we DO want the full wipe.
+  //
+  // Different gameId (or activeGameId nullish) is also a wipe.
   init: (state) =>
-    set((prev) => ({ ...prev, ...DEFAULT_LIVE_STATE_DATA, ...state })),
+    set((prev) => {
+      const sameGame =
+        state.activeGameId != null && prev.activeGameId === state.activeGameId;
+      const stateQuarter = state.currentQuarter ?? 0;
+      const isRestart = sameGame && stateQuarter < prev.currentQuarter;
+      const carryOver: Partial<LiveGameState> =
+        sameGame && !isRestart
+          ? {
+              lockedIds: prev.lockedIds,
+              zoneLockedPlayers: prev.zoneLockedPlayers,
+              swapCount: prev.swapCount,
+              lastStintMs: prev.lastStintMs,
+              lastStintZone: prev.lastStintZone,
+            }
+          : {};
+      return { ...prev, ...DEFAULT_LIVE_STATE_DATA, ...carryOver, ...state };
+    }),
 
   selectField: (playerId, zone) =>
     set({ selected: { kind: "field", playerId, zone } }),
@@ -625,7 +662,40 @@ export const useLiveGame = create<LiveGameState>((set) => ({
         lockedIds: prev.lockedIds.filter((p) => p !== playerId),
       };
     }),
-}));
+}),
+    {
+      // ─── persist config ───────────────────────────────────────
+      // Bumps the version when the persisted shape changes
+      // (rename a field, change the type of zoneLockedPlayers, etc.).
+      // Old persisted blobs with mismatched versions are dropped
+      // on rehydration.
+      name: "siren-live-game-v1",
+      version: 1,
+      storage: createJSONStorage(() => liveGameStorage),
+      // Persist ONLY the in-memory-only fields plus the gameId
+      // ownership marker. Server-replayable state (lineup, scores,
+      // currentQuarter, played minutes) is reconstructed by
+      // LiveGame.tsx via initialState on mount, so persisting it
+      // here would just race the server replay. The set below
+      // covers the fields the server's event log doesn't carry —
+      // game-locks, zone-locks, and the swap counter — so a
+      // force-quit mid-game restores them on relaunch instead of
+      // silently dropping coach-set state.
+      //
+      // When phase 5d's write queue lands, unflushed writes will
+      // live in their own persisted store; this partialize stays
+      // narrow on purpose.
+      partialize: (state) => ({
+        activeGameId: state.activeGameId,
+        lockedIds: state.lockedIds,
+        zoneLockedPlayers: state.zoneLockedPlayers,
+        swapCount: state.swapCount,
+        lastStintMs: state.lastStintMs,
+        lastStintZone: state.lastStintZone,
+      }),
+    },
+  ),
+);
 
 export function clockElapsedMs(
   state: Pick<LiveGameState, "clockStartedAt" | "accumulatedMs">

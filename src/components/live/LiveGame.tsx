@@ -381,9 +381,26 @@ export function LiveGame({
     // had refreshed, storeAheadOfServer was true, and init() reset the
     // store back to the pre-tap state. The legitimate trigger for re-init
     // is initialState changing — that's already in the dep array.
-    const storeQuarter = useLiveGame.getState().currentQuarter;
+    const fullStoreState = useLiveGame.getState();
+    const storeQuarter = fullStoreState.currentQuarter;
     const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
-    if (activeGameId === gameId && !storeAheadOfServer) {
+    // Phase 5c: after a force-quit, the persist middleware
+    // rehydrates `activeGameId` (plus a few in-memory-only fields
+    // like lockedIds) but NOT the server-replayable bits — lineup
+    // is empty defaults, scores are 0, currentQuarter is 0. The
+    // skip below was designed for a fully populated store; without
+    // this guard, a rehydrated session would skip init and the
+    // user would see an empty lineup. Treat "lineup has any player
+    // anywhere" as the signal that init has actually run in this
+    // session.
+    const lineupHasAnyPlayer =
+      fullStoreState.lineup.bench.length > 0 ||
+      ALL_ZONES.some((z) => fullStoreState.lineup[z].length > 0);
+    if (
+      activeGameId === gameId &&
+      !storeAheadOfServer &&
+      lineupHasAnyPlayer
+    ) {
       setHydrated(true);
       return;
     }
