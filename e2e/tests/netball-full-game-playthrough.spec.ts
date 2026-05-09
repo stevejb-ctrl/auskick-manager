@@ -262,21 +262,22 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
 
   // ─── Phases 5–6: Q2 → Q3 (real-time at 60× clock) ─────────
   // For Q2 and Q3 we just confirm the hooter cycles correctly and
-  // resume to the next quarter. Q-break details (recap + Fix scores)
-  // are already exercised at Q1.
+  // resume to the next quarter. Q-break details (recap + Review/
+  // update scores) are already exercised at Q1.
   //
-  // Why we wait on "Q{n-1} score" instead of the generic "Quarter
-  // break" header: after startNextQuarter, router.refresh() is in
+  // Why we wait on "Ready for Q{n}" instead of a generic "Quarter
+  // break" marker: after startNextQuarter, router.refresh() is in
   // flight client-side and the previous Q-break is briefly still
   // mounted. A generic "Quarter break" wait would resolve INSTANTLY
-  // against the stale render, then the per-quarter score check
-  // would fail because the previous break shows "Q{n-2} score".
-  // The per-quarter "Q{n-1} score" label only renders in the Q(n-1)
-  // break specifically, so it's the right barrier marker for "we've
-  // fully transitioned into the next Q-break".
+  // against the stale render, then the next click would race the
+  // wrong button. The "Ready for Q{n}" CTA only mounts in the
+  // Q{n-1} break specifically, so it's the right barrier marker
+  // for "we've fully transitioned into the next Q-break".
   for (const next of [3, 4]) {
     await expect(
-      page.getByText(new RegExp(`^q${next - 1} score$`, "i")).first(),
+      page.getByRole("button", {
+        name: new RegExp(`^ready for q${next}$`, "i"),
+      }),
     ).toBeVisible({ timeout: 25_000 });
     await startNextQuarter(next);
   }

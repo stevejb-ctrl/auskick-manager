@@ -261,9 +261,18 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     await page
       .getByRole("button", { name: new RegExp(`select team for q${next}`, "i") })
       .click();
-    await expect(page.getByText(new RegExp(`q${next - 1} score`, "i")).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    // Wait for the NEW Q-break to render before kicking off the next
+    // quarter. Old marker was "Q{n-1} score" text, but that lived in
+    // the un-collapsed score panel which is now gated behind a
+    // "Review and update scores" toggle. The "Ready for Q{next}"
+    // CTA is quarter-specific and only mounts in the Q{next-1}
+    // break, so it's the right barrier to distinguish "new Q-break
+    // is fully rendered" from "previous Q-break still mounted".
+    await expect(
+      page.getByRole("button", {
+        name: new RegExp(`^ready for q${next}$`, "i"),
+      }),
+    ).toBeVisible({ timeout: 10_000 });
     await startNextQuarter(next);
   }
 
