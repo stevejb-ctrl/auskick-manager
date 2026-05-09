@@ -134,8 +134,14 @@ export function QuarterScoreModal({
 
   return (
     <Modal size="md">
-      <div className="space-y-4">
-        <div>
+      {/* Flex column inside the Modal's max-h-capped card so a long
+          Fix-scores list can scroll without pushing the Close
+          button off-screen. Steve's bug 2026-05-09: "If [the
+          modal] extends long it can't be closed. Need to lock
+          the close button on screen." */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {/* Header — fixed at top */}
+        <div className="flex-shrink-0">
           <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
             Quarter scores
           </p>
@@ -144,6 +150,11 @@ export function QuarterScoreModal({
           </h2>
         </div>
 
+        {/* Scrollable middle: table + parenthetical + Fix-scores
+            panel. min-h-0 is required so flex-1 actually allows
+            this region to shrink and scroll inside the parent
+            flex column. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <div className="overflow-x-auto rounded-md border border-hairline">
           <table className="w-full text-sm">
             <thead>
@@ -257,8 +268,12 @@ export function QuarterScoreModal({
             )}
           </div>
         )}
+        </div>
 
-        <Button className="w-full" variant="secondary" onClick={onClose}>
+        {/* Footer — pinned at the bottom of the modal card, never
+            scrolls off-screen no matter how long the Fix-scores
+            list grows. */}
+        <Button className="w-full flex-shrink-0" variant="secondary" onClick={onClose}>
           Close
         </Button>
       </div>
