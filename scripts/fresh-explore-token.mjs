@@ -110,6 +110,15 @@ const { data: game, error: gameErr } = await admin
     opponent,
     scheduled_at: scheduledAt,
     created_by: team.created_by,
+    // 60× clock + 900s sub interval mirror the e2e Playwright
+    // setup (full-game-playthrough.spec.ts). At 60× a 12-min
+    // quarter elapses in ~12 real seconds, and pushing
+    // sub_interval past the quarter length keeps the SubDueModal
+    // out of the way during exploratory runs. Without these the
+    // explore agent waits ~12 real minutes per quarter, which
+    // bottlenecks every mission to half an hour+.
+    clock_multiplier: 60,
+    sub_interval_seconds: 900,
     // sport is on the team, not the game — `games` rows inherit
     // it transitively through team_id. on_field_size defaults to
     // 12 (U10) per migration 0007.
