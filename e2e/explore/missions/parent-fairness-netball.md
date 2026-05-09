@@ -50,17 +50,23 @@ Walk through:
    getting roughly the same court time? Whether the zones (the
    THIRDS, in netball terms) are being shared?
 
+All your concerns are about THIS GAME. Season totals are
+deliberately not shown — kids who miss games naturally have lower
+season minutes, and the coach isn't expected to compensate for
+that this Saturday. Don't push for a season-totals view; do push
+for clear THIS-GAME visibility.
+
 Report in PARENT voice — emotional is allowed, but be specific:
 
-- Is there a visible "minutes played" figure per kid at the
-  Q-break? At full time? If not, that's a fairness blind spot
-  and you'd notice it.
+- Is there a visible "minutes played THIS GAME" figure per kid
+  at the Q-break? At full time? If not, that's a fairness blind
+  spot and you'd notice it.
 - Does the suggester rotate THIRDS — i.e. moves a kid from
   defence to attack across quarters? Or does it keep putting
   the same kid in the same third?
-- Is there anywhere the coach can see "Holly has played 8 minutes
-  total, Sam has played 28" at a glance — at a Q-break, at the
-  full-time review, in the post-game share?
+- Is there anywhere the coach can see "Holly has played 8
+  minutes so far in this game, Sam has played 28" at a glance —
+  at a Q-break, at the full-time review, in the post-game share?
 - If the suggester made a recommendation a parent would dispute,
   name it and say why.
 - Was the post-game share-message accurate, fair, and embarrassment-
@@ -69,12 +75,13 @@ Report in PARENT voice — emotional is allowed, but be specific:
 
 Wrap up with three bullets:
 
-(a) The single fairness problem most likely to cause a parent
-    complaint after a netball game (sport-specific — court time,
-    third rotation, GS/GA exposure).
+(a) The single THIS-GAME fairness problem most likely to cause
+    a parent complaint after a netball game (sport-specific —
+    court time today, third rotation, GS/GA exposure today).
 (b) The one stat that, if visible at every Q-break, would calm
-    the parents on the boundary — and why.
+    the parents on the boundary about today's game — and why.
 (c) Would you trust this app's rotation suggester to make the
     fair call when the coach's own daughter is a borderline
     shooter? Or would the parent-coach dynamic still bias the
-    decision because the app doesn't surface enough hard data?
+    decision because the app doesn't surface enough hard data
+    about THIS GAME?
