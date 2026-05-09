@@ -190,6 +190,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     setPausedAtMs(null);
     setAccumulatedPauseMs(0);
   }, [currentQuarter]);
+  // Scroll to the top of the page (= top of the scorebug) when a
+  // new quarter goes live. Without this the page inherits the
+  // Q-break scroll position and the coach lands mid-page as the
+  // action restarts. Mirrors AFL's LiveGame fix.
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentQuarter, quarterEnded, finalised]);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;

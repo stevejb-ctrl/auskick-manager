@@ -866,6 +866,20 @@ export function LiveGame({
     setStartModalDismissed(false);
   }, [currentQuarter]);
 
+  // Scroll to the top of the page (= top of the scorebug) when a
+  // new quarter goes live. Without this the page inherits the
+  // scroll position from the Q-break (often scrolled deep into the
+  // rotation chips / lineup grid / score panel) and the coach
+  // lands mid-page just as the action restarts. Steve's UX bug
+  // 2026-05-09. Only fires when transitioning INTO live play
+  // (currentQuarter > 0 AND !quarterEnded), not on the initial
+  // pre-game render.
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentQuarter, quarterEnded, finalised]);
+
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
   const displayNowMs = Math.min(nowMs, quarterMs);
 
