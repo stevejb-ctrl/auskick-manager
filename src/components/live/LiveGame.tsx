@@ -25,6 +25,7 @@ import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
+import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
@@ -299,6 +300,13 @@ export function LiveGame({
   // surfaces the substitution path. On pick → setPendingSwap fires
   // the same swap-confirm dialog as the tap-bench flow.
   const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
+
+  // Modal-open state for the quarter-by-quarter score breakdown.
+  // Triggered from the "Q-by-Q" chip under the clock pill. The
+  // modal renders a richer view (table + cumulative running
+  // totals + lead/margin per quarter) than the always-visible
+  // QuarterScoreStrip below the scorebug.
+  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
 
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1059,7 +1067,31 @@ export function LiveGame({
         clockMultiplier={clockMultiplier}
         isPending={isPending}
         clockPulseKey={clockPulseKey}
+        // Q-by-Q chip surfaces only when there's something to show
+        // — i.e. once Q1 is in flight or later. Hidden pre-game and
+        // post-FT (the GameSummaryCard handles those views).
+        onShowQuarterScores={
+          trackScoring && !isPreGame && !isFinished
+            ? () => setQuarterScoresOpen(true)
+            : undefined
+        }
       />
+
+      {/* Quarter-by-quarter modal — drill-down view triggered by
+          the chip under the clock pill. Mirrors the glance-level
+          QuarterScoreStrip below but with more detail (cumulative
+          running totals, per-quarter margin). */}
+      {quarterScoresOpen && (
+        <QuarterScoreModal
+          sport="afl"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+          teamName={teamName}
+          opponentName={opponentName}
+          onClose={() => setQuarterScoresOpen(false)}
+        />
+      )}
 
       {/* Running per-quarter scoreboard. Hidden in Q1 (nothing
           completed yet) and pre-game / FT branches (handled

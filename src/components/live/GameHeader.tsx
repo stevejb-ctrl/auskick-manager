@@ -41,6 +41,13 @@ interface GameHeaderProps {
    * NetballScoreBug.
    */
   clockPulseKey?: string | number | null;
+  /**
+   * Tap the small "Q-by-Q" chip below the clock pill. Parent owns
+   * the modal so the same data the strip uses can be reused
+   * without re-passing the full scoreByQuarter array down here.
+   * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
+   */
+  onShowQuarterScores?: () => void;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -65,6 +72,7 @@ export function GameHeader({
   clockMultiplier = 1,
   isPending = false,
   clockPulseKey = null,
+  onShowQuarterScores,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -138,27 +146,47 @@ export function GameHeader({
           SirenPulseHalo so it briefly halos at sirenic moments
           (quarter-end hooter, FT). When clockPulseKey is null the
           halo span is omitted entirely — no animation, no DOM cost. */}
-      <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
-        <button
-          type="button"
-          onClick={onClockTap}
-          disabled={isPreGame || isFinished || !onClockTap}
-          className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-          aria-label={running ? "Pause clock" : "Resume clock"}
-        >
-          <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-            <span>{quarterLabel}</span>
-            {stateIcon && <span>{stateIcon}</span>}
-          </span>
-          <span
-            className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
-              overtime ? "text-warn" : "text-warm"
-            }`}
+      <div className="flex flex-col items-center gap-1 self-center">
+        <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
+          <button
+            type="button"
+            onClick={onClockTap}
+            disabled={isPreGame || isFinished || !onClockTap}
+            className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+            aria-label={running ? "Pause clock" : "Resume clock"}
           >
-            {formatClock(remaining)}
-          </span>
-        </button>
-      </SirenPulseHalo>
+            <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+              <span>{quarterLabel}</span>
+              {stateIcon && <span>{stateIcon}</span>}
+            </span>
+            <span
+              className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
+                overtime ? "text-warn" : "text-warm"
+              }`}
+            >
+              {formatClock(remaining)}
+            </span>
+          </button>
+        </SirenPulseHalo>
+        {/* Quarter-by-quarter trigger. Sits directly under the clock
+            pill so it reads as part of the centre score-and-clock
+            cluster. Tap → opens QuarterScoreModal with the full
+            breakdown + cumulative running totals. Steve's user
+            feedback 2026-05-09 (after the QuarterScoreStrip below
+            the scorebug shipped): "There's room in the in-game
+            scorebug under the score to open a quarter by quarter
+            modal" — the strip is a glance, this is drill-down. */}
+        {onShowQuarterScores && (
+          <button
+            type="button"
+            onClick={onShowQuarterScores}
+            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+            aria-label="Show quarter-by-quarter scores"
+          >
+            Q-by-Q
+          </button>
+        )}
+      </div>
 
       {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">

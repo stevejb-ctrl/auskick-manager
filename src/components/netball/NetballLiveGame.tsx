@@ -28,6 +28,7 @@ import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeRevie
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { QuarterScoreStrip } from "@/components/live/QuarterScoreStrip";
+import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -979,6 +980,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
+  // Q-by-Q modal trigger — set to true when the coach taps the
+  // small chip under the clock pill in NetballScoreBug. Mirrors
+  // AFL's quarterScoresOpen in LiveGame.tsx.
+  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
   // NETBALL-07: walkthrough scoring-step gate is wired to the team's
   // actual track_scoring (was hard-coded `true` before plan 04-04).
   // The "Recording scores" step is dropped when trackScoring=false so
@@ -1392,9 +1397,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         // hides the +G affordance (no opponent-goal button visible).
         onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
         onClockTap={handleClockTap}
+        // Q-by-Q chip surfaces only when there's something to show.
+        // trackScoring=false hides it entirely (would be empty).
+        onShowQuarterScores={
+          trackScoring ? () => setQuarterScoresOpen(true) : undefined
+        }
         paused={isPaused}
         showScores={trackScoring}
       />
+
+      {quarterScoresOpen && (
+        <QuarterScoreModal
+          sport="netball"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+          teamName={teamName}
+          opponentName={game.opponent}
+          onClose={() => setQuarterScoresOpen(false)}
+        />
+      )}
 
       {/* Running per-quarter scoreboard. Hidden in Q1 with no break
           yet (nothing completed to show). Steve's user feedback
@@ -1602,6 +1624,7 @@ function NetballScoreBug({
   onOpponentGoal,
   isPending,
   onClockTap,
+  onShowQuarterScores,
   paused = false,
   showScores = true,
   clockPulseKey = null,
@@ -1623,6 +1646,14 @@ function NetballScoreBug({
    * When undefined, the pill renders as a plain div (no affordance).
    */
   onClockTap?: () => void;
+  /**
+   * Tap the small "Q-by-Q" chip below the clock pill. Parent owns
+   * the modal so the same data the strip uses can be reused
+   * without re-passing the full scoreByQuarter array down here.
+   * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
+   * Mirrors AFL's GameHeader.onShowQuarterScores prop.
+   */
+  onShowQuarterScores?: () => void;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
   /**
@@ -1707,10 +1738,25 @@ function NetballScoreBug({
         // when a sirenic moment fires (quarter-end hooter, game
         // finalised). When clockPulseKey is null (every render
         // before the first hooter), the halo renders inert.
+        // The flex-col wrapper is so the new "Q-by-Q" chip sits
+        // immediately below the pill (mirrors AFL GameHeader's
+        // arrangement).
         return (
-          <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
-            {pill}
-          </SirenPulseHalo>
+          <div className="flex flex-col items-center gap-1 self-center">
+            <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
+              {pill}
+            </SirenPulseHalo>
+            {onShowQuarterScores && (
+              <button
+                type="button"
+                onClick={onShowQuarterScores}
+                className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+                aria-label="Show quarter-by-quarter scores"
+              >
+                Q-by-Q
+              </button>
+            )}
+          </div>
         );
       })()}
 
