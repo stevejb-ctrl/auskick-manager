@@ -1279,15 +1279,17 @@ export function LiveGame({
                   + Behind
                 </button>
               </div>
-              {/* Sub off — surfaces the substitution path explicitly
-                  in the action drawer. Stagehand 2026-05-09
-                  (afl-u8-auskick) found that with track_scoring=true,
-                  the drawer showed only Goal/Behind/Cancel and the
-                  "tap a bench player to swap" hint at line ~1281
-                  was hidden by the canScore conditional. An Auskick
-                  coach, where rotation > scoring, gave up trying to
-                  substitute. This button opens a bench picker so the
-                  same swap-confirm flow fires either way. */}
+              {/* Swap player — covers both cases:
+                    1. Sub off (pick a bench player → field-to-bench)
+                    2. Rotate position (pick another field player in
+                       a different zone → field-to-field zone swap)
+                  Stagehand 2026-05-09 (afl-u8-auskick) initially
+                  surfaced this button as "Sub off" only — but Steve
+                  flagged the gap: a coach often wants to rotate a
+                  forward to back without subbing them off. The
+                  picker now lists both bench AND other-zone field
+                  players, with the chosen player's location
+                  deciding which swap action fires. */}
               {selected?.kind === "field" && (
                 <button
                   type="button"
@@ -1300,7 +1302,7 @@ export function LiveGame({
                   disabled={isPending}
                   className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
                 >
-                  Sub off (or tap a bench player)
+                  Swap player
                 </button>
               )}
             </div>
@@ -1568,16 +1570,27 @@ export function LiveGame({
         );
       })()}
 
-      {/* Sub-off picker — opens when the coach taps "Sub off" in the
-          action drawer for a selected field player. Lists bench
-          players (excluding injured/loaned). Picking fires the
-          existing setPendingSwap flow → SwapConfirmDialog renders
-          → coach confirms, persistSwap commits the substitution.
-          Same shape as the score-attribution picker just above. */}
+      {/* Swap-player picker — opens when the coach taps "Swap player"
+          in the action drawer for a selected field player. Lists
+          BOTH bench players AND other-zone field players (excluding
+          the selected player, same-zone players, injured/loaned).
+          Sub-label tells the coach where each candidate is
+          ("Bench" / zone short label like "FWD"/"BCK") so they can
+          pick a sub OR a rotation in one place.
+
+          On pick:
+            - Bench player    → setPendingSwap → SwapConfirmDialog
+                                → field-to-bench substitution
+            - Field player    → applyFieldZoneSwap + recordFieldZoneSwap
+                                → direct field-to-field zone swap
+                                  (no confirm dialog; same path the
+                                  tap-two-field-players flow takes) */}
       {subOffSelected && (() => {
         const offPlayer = playersById.get(subOffSelected.playerId);
         const offName = offPlayer?.full_name ?? "Player";
-        const candidates = lineup.bench
+        const offZone = subOffSelected.zone;
+        // Bench candidates — eligible (not injured/loaned).
+        const benchCandidates = lineup.bench
           .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
           .map((id) => {
             const p = playersById.get(id);
@@ -1587,26 +1600,98 @@ export function LiveGame({
               name: p.full_name,
               jerseyNumber: p.jersey_number,
               subLabel: "Bench",
+              kind: "bench" as const,
+              zone: null as Zone | null,
             };
           })
           .filter((c): c is NonNullable<typeof c> => !!c);
+        // Field candidates — every other-zone field player except the
+        // selected one. Same-zone "swap" is meaningless (zones don't
+        // preserve internal order), so we filter by zone !== offZone.
+        const fieldCandidates = ALL_ZONES.flatMap((z) =>
+          z === offZone
+            ? []
+            : lineup[z]
+                .filter(
+                  (id) =>
+                    id !== subOffSelected.playerId &&
+                    !injuredIds.includes(id) &&
+                    !loanedIds.includes(id),
+                )
+                .map((id) => {
+                  const p = playersById.get(id);
+                  if (!p) return null;
+                  return {
+                    id,
+                    name: p.full_name,
+                    jerseyNumber: p.jersey_number,
+                    subLabel: z.toUpperCase(),
+                    kind: "field" as const,
+                    zone: z,
+                  };
+                }),
+        ).filter((c): c is NonNullable<typeof c> => !!c);
+        // Bench first (the more common substitution case), then
+        // field rotations grouped by zone.
+        const candidates = [...benchCandidates, ...fieldCandidates];
+        // Map id → kind/zone so the onPick handler knows which
+        // action to fire without re-deriving the lists.
+        const candidateById = new Map(candidates.map((c) => [c.id, c]));
         return (
           <SlotFillSheet
             slotLabel={`${offName}'s spot`}
-            candidates={candidates}
-            titleVerb="Sub on for"
-            subtitle={`Pick a bench player to swap in for ${offName}.`}
-            emptyMessage="No bench players available — every available player is on the field or sidelined."
-            // Backdrop tap is OK to dismiss this picker — unlike the
-            // score-attribution case, an accidental dismiss here just
-            // returns the coach to the prior selected state with no
-            // data loss.
+            candidates={candidates.map(({ id, name, jerseyNumber, subLabel }) => ({
+              id,
+              name,
+              jerseyNumber,
+              subLabel,
+            }))}
+            titleVerb="Swap"
+            subtitle={`Pick a bench player to sub on for ${offName}, or another on-field player to rotate positions.`}
+            emptyMessage="No eligible players — every available player is on this zone, sidelined, or injured."
+            // Backdrop tap is OK to dismiss this picker — accidental
+            // dismiss returns the coach to the prior selected state
+            // with no data loss.
             onPick={(picked) => {
-              setPendingSwap({
-                off: subOffSelected.playerId,
-                on: picked,
-                zone: subOffSelected.zone,
-              });
+              const c = candidateById.get(picked);
+              if (!c) {
+                setSubOffSelected(null);
+                return;
+              }
+              if (c.kind === "bench") {
+                // Field-to-bench: existing SwapConfirmDialog path.
+                setPendingSwap({
+                  off: subOffSelected.playerId,
+                  on: picked,
+                  zone: subOffSelected.zone,
+                });
+              } else if (c.kind === "field" && c.zone) {
+                // Field-to-field zone rotation: same path as
+                // tap-A-then-tap-B-in-different-zone. Direct
+                // store mutation + server event, no confirm.
+                const quarter = Math.max(1, currentQuarter);
+                const elapsed_ms = scaledElapsedMs();
+                applyFieldZoneSwap(
+                  subOffSelected.playerId,
+                  subOffSelected.zone,
+                  picked,
+                  c.zone,
+                );
+                showSwapToast(
+                  `${shortName(subOffSelected.playerId)} ⇄ ${shortName(picked)} — zones swapped`,
+                );
+                startTransition(async () => {
+                  const result = await recordFieldZoneSwap(auth, gameId, {
+                    player_a_id: subOffSelected.playerId,
+                    zone_a: subOffSelected.zone,
+                    player_b_id: picked,
+                    zone_b: c.zone!,
+                    quarter,
+                    elapsed_ms,
+                  });
+                  if (!result.success) setError(result.error);
+                });
+              }
               clearSelection();
               setSubOffSelected(null);
             }}
