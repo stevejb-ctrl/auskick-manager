@@ -1238,20 +1238,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <p className="text-center text-sm text-neutral-600">
           Lineup locked. Tap below to ready the kickoff.
         </p>
-        {/* Start-Q1 button sits ABOVE the court, mirroring AFL's
-            LiveGame layout (between header/toasts and the field). Keeps
-            the action prominent rather than burying it below the court.
-            Tap surfaces the await-kickoff modal — the server's
-            quarter_start event is only written when the GM confirms
-            from the modal, so the umpire's whistle (not the lineup tap)
-            decides when the clock kicks off. */}
+        {/* Page-level kickoff button sits ABOVE the court, mirroring
+            AFL's LiveGame layout. Tap surfaces the await-kickoff modal
+            — the server's quarter_start event is only written when the
+            GM confirms from the modal, so the umpire's whistle (not
+            the lineup tap) decides when the clock kicks off.
+            Label is "Ready for Q1" so it matches the modal heading
+            ("Ready for Q1") and stays distinct from the modal CTA
+            ("Start Q1"). Stagehand 2026-05-09 (run "everything") found
+            agents looping on "Start Q1" because Stagehand's selector
+            resolved to the page-level button (still mounted under the
+            modal overlay) instead of the modal CTA — both shared the
+            same accessible name. Same shape as the Q-break rename. */}
         <button
           type="button"
           onClick={() => setPendingQuarterStart(1)}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
-          Start Q1
+          Ready for Q1
         </button>
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         {pendingQuarterStart !== null && (

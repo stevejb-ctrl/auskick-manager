@@ -164,19 +164,18 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   });
 
   // ─── Phase 1: kickoff → Q1 in progress ────────────────────
-  // NetballLiveGame's pre-Q1 branch renders the page-level "Start Q1"
-  // button; tapping it surfaces NetballStartQuarterModal whose CTA
-  // writes the quarter_start event. After modal.lastButton click,
-  // currentQuarter=1 and the live court mounts.
+  // NetballLiveGame's pre-Q1 branch renders the page-level "Ready for Q1"
+  // button (renamed 2026-05-09 from "Start Q1"). Tapping surfaces the
+  // NetballStartQuarterModal whose CTA "Start Q1" writes the
+  // quarter_start event. Distinct labels avoid the looping issue
+  // Stagehand caught where both buttons shared an accessible name.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const startQ1Initial = page.getByRole("button", { name: /^start q1$/i }).first();
-  await expect(startQ1Initial).toBeVisible({ timeout: 10_000 });
-  await startQ1Initial.click();
-  // Modal CTA (.last() — the page-level button is still mounted
-  // underneath the modal overlay in DOM order).
+  const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
+  await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
+  await readyForQ1.click();
+  // Modal CTA "Start Q1" — distinct from the page-level button.
   await page
     .getByRole("button", { name: /^start q1$/i })
-    .last()
     .click({ timeout: 5_000 });
 
   // ─── Phase 2: Q1 goal ─────────────────────────────────────

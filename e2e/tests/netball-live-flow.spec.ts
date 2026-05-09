@@ -279,15 +279,17 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — quarter_start is
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // First tap on the page-level "Start Q1" button — only one in
-  // the DOM at this point.
-  const startQ1Initial = page.getByRole("button", { name: /^start q1$/i }).first();
-  await expect(startQ1Initial).toBeVisible({ timeout: 10_000 });
-  await startQ1Initial.click();
+  // First tap on the page-level "Ready for Q1" button — surfaces
+  // the await-kickoff modal. Renamed from "Start Q1" 2026-05-09
+  // to disambiguate from the modal's "Start Q1" CTA (Stagehand
+  // showed agents looping when both shared the accessible name).
+  const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
+  await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
+  await readyForQ1.click();
 
-  // The modal renders "Ready for Q1". Pre-modal-feature, the button
-  // would have fired startNetballQuarter directly and the page would
-  // already be in LIVE state; the heading would never appear.
+  // The modal renders "Ready for Q1" as a heading. Pre-modal-feature
+  // the button would have fired startNetballQuarter directly and the
+  // page would already be in LIVE state; the heading would never appear.
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
   ).toBeVisible({ timeout: 2_000 });
@@ -301,12 +303,9 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — quarter_start is
     .eq("type", "quarter_start");
   expect(preEvents ?? []).toHaveLength(0);
 
-  // Tap the modal's CTA. Two buttons in the DOM share the
-  // accessible name "Start Q1" (the page-level pre-Q1 button still
-  // mounted underneath, occluded by the modal overlay; and the
-  // modal's CTA on top). The modal renders later in DOM order, so
-  // .last() picks the modal one.
-  await page.getByRole("button", { name: /^start q1$/i }).last().click();
+  // Tap the modal CTA "Start Q1" — distinct from the page-level
+  // "Ready for Q1" button.
+  await page.getByRole("button", { name: /^start q1$/i }).click();
 
   // quarter_start lands now.
   await expect
