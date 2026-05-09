@@ -1820,7 +1820,6 @@ export function LiveGame({
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
-          playerCount={squadPlayers.length}
         />
       )}
 

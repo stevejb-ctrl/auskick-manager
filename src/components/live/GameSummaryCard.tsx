@@ -11,7 +11,6 @@ interface GameSummaryCardProps {
   opponentName: string;
   trackScoring: boolean;
   playersById: Map<string, Player>;
-  playerCount: number;
 }
 
 const ZONE_ABBREV: Record<string, string> = {
@@ -79,7 +78,6 @@ function buildSummary(
   opponentScore: { goals: number; behinds: number },
   playerScores: Record<string, { goals: number; behinds: number }>,
   playersById: Map<string, Player>,
-  playerCount: number,
   swapCount: number,
   basePlayedZoneMs: Record<string, ZoneMs>
 ): string {
@@ -119,11 +117,20 @@ function buildSummary(
     }
   }
 
-  const stats: string[] = [`${playerCount} player${playerCount !== 1 ? "s" : ""}`];
+  // Derive the headline player count from buildPlayerStats so it matches
+  // the per-player rows below — i.e. only players who actually got on the
+  // field count. Earlier this was `squadPlayers.length` from the call site,
+  // which over-counted when a squad member was marked available but never
+  // came on (e.g. lent to opp before kickoff, or set up but not played).
+  const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
+  const playedCount = playerStats.length;
+
+  const stats: string[] = [
+    `${playedCount} player${playedCount !== 1 ? "s" : ""}`,
+  ];
   if (swapCount > 0) stats.push(`${swapCount} subs`);
   lines.push(`\n👟 ${stats.join(" · ")}`);
 
-  const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
   if (playerStats.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const ps of playerStats) {
@@ -141,7 +148,6 @@ export function GameSummaryCard({
   opponentName,
   trackScoring,
   playersById,
-  playerCount,
 }: GameSummaryCardProps) {
   const teamScore = useLiveGame((s) => s.teamScore);
   const opponentScore = useLiveGame((s) => s.opponentScore);
@@ -159,7 +165,6 @@ export function GameSummaryCard({
     opponentScore,
     playerScores,
     playersById,
-    playerCount,
     swapCount,
     basePlayedZoneMs
   );
