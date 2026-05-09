@@ -70,13 +70,39 @@ declare global {
   }
 }
 
+// Module-level singleton AudioContext for the sub-due beep. Modern
+// browsers (mobile Safari especially) create AudioContexts in
+// "suspended" state and silently no-op until a user gesture
+// resume()s them. The previous implementation created a FRESH
+// context inside playBeep() on each call — and because playBeep()
+// runs from a useEffect (sub-state transition), there's no user
+// gesture in the call stack and the context stays suspended.
+// Steve reported 2026-05-09: the sub-due sound used to play but
+// no longer does.
+//
+// Fix: keep a single context across the page lifetime, and unlock
+// it on the first user pointerdown anywhere on the page (see the
+// useEffect inside LiveGame). After that the context's `state`
+// flips to "running" and subsequent oscillator plays are audible.
+let _audioCtx: AudioContext | null = null;
+function getOrCreateAudioCtx(): AudioContext | null {
+  if (_audioCtx) return _audioCtx;
+  if (typeof window === "undefined") return null;
+  const Ctx =
+    (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  _audioCtx = new Ctx();
+  return _audioCtx;
+}
+
 function playBeep() {
+  const ctx = getOrCreateAudioCtx();
+  if (!ctx) return;
   try {
-    const Ctx =
-      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    // Re-attempt resume in case the context drifted back to
+    // suspended (some browsers do this on tab-blur / inactivity).
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -89,7 +115,6 @@ function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     osc.start(now);
     osc.stop(now + 0.45);
-    osc.onended = () => ctx.close();
   } catch {
     // ignore — some browsers block before user interaction
   }
@@ -879,6 +904,27 @@ export function LiveGame({
     if (typeof window === "undefined") return;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentQuarter, quarterEnded, finalised]);
+
+  // Unlock the singleton AudioContext on the first user pointer-
+  // down anywhere on the page. Modern browsers start AudioContexts
+  // in "suspended" state and only honour resume() when called
+  // from inside a user-gesture handler. Without this the
+  // sub-due beep silently no-ops (Steve's bug report 2026-05-09).
+  // Subscribed once per LiveGame mount; cleaned up on unmount so
+  // a stale listener doesn't survive navigation.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    function unlock() {
+      const ctx = getOrCreateAudioCtx();
+      if (ctx && ctx.state === "suspended") {
+        void ctx.resume().catch(() => {});
+      }
+    }
+    document.addEventListener("pointerdown", unlock, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+    };
+  }, []);
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
   const displayNowMs = Math.min(nowMs, quarterMs);
