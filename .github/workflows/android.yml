@@ -33,18 +33,14 @@ on:
       - "mobile/**"
       - "package.json"
       - "package-lock.json"
-      - "src/**"
-      - ".github/workflows/android.yml"
   pull_request:
     paths:
       - "mobile/**"
       - "package.json"
       - "package-lock.json"
-      - "src/**"
-      - ".github/workflows/android.yml"
   # Manual trigger from the Actions tab when you want a fresh APK
   # without pushing a commit (e.g. trying out a TestFlight-equivalent
-  # internal share flow on Play Console).
+  # internal share flow on Play Console, or testing a workflow edit).
   workflow_dispatch:
 
 concurrency:
