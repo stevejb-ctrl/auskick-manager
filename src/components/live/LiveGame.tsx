@@ -1012,6 +1012,16 @@ export function LiveGame({
       : "idle";
 
   useEffect(() => {
+    // Picker-race guard: don't open the SubDueModal on top of an
+    // active score-attribution picker. The coach is mid-pick;
+    // dropping the sub modal over them would either dismiss the
+    // picker or steal focus, in either case losing the goal
+    // attribution. The sub-due state stays "due" while the picker
+    // is open — once the coach resolves attribution and the
+    // picker closes, the modal opens automatically (subState
+    // didn't change, prevSubStateRef is still "due", but we
+    // re-check on every render via this effect's deps).
+    if (pickScorerKind !== null) return;
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playBeep();
       setSubModalOpen(true);
@@ -1023,7 +1033,7 @@ export function LiveGame({
       setSubModalOpen(false);
     }
     prevSubStateRef.current = subState;
-  }, [subState]);
+  }, [subState, pickScorerKind]);
 
   useEffect(() => {
     return () => {
@@ -1052,6 +1062,17 @@ export function LiveGame({
     if (quarterEnded || finalised || currentQuarter < 1) return;
 
     function maybeTrigger() {
+      // Picker-race guard: if the score-attribution picker is open
+      // (the coach tapped +G/+B and is mid-pick), DON'T fire the
+      // auto-hooter. Stagehand explore 2026-05-10 caught the
+      // pattern in netball: a goal scored at 11:55 with the picker
+      // open got eaten by the 12:00 hooter, the QuarterEndModal
+      // covered the picker, attribution was lost. Same race exists
+      // in AFL on a long-quarter age-group near the siren. The
+      // freeze is conservative — the picker dismisses on pick OR
+      // cancel, and the next interval tick fires the hooter once
+      // the user resolves attribution.
+      if (pickScorerKind !== null) return;
       const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
       if (elapsed * clockMultiplier >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
@@ -1072,7 +1093,7 @@ export function LiveGame({
     if (clockStartedAt === null) return;
     const id = setInterval(maybeTrigger, 500);
     return () => clearInterval(id);
-  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter]);
+  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter, pickScorerKind]);
 
   useEffect(() => {
     if (quarterEnded) setShowQuarterEndModal(false);

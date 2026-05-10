@@ -289,6 +289,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     });
   }
 
+  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
+  // it sets this and surfaces a confirm sheet (mirrors AFL's score
+  // sheet). Prevents accidental scoring from a stray tap during play.
+  // Declared before the hooter useEffect so the picker-race guard
+  // below can reference it.
+  const [pendingGoal, setPendingGoal] = useState<{
+    playerId: string;
+    positionId: string;
+  } | null>(null);
+
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
   // (which uses a ref to ensure single-fire). The coach doesn't need to
@@ -300,6 +310,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (remainingMs > 0) return;
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
+    // Picker-race guard: if the goal-confirm modal is open (coach
+    // tapped a player and is mid-confirm), DON'T fire the auto-
+    // hooter. Stagehand explore 2026-05-10 caught this in netball
+    // — the agent attempted to score at ~9:55 of a 10-min quarter,
+    // the picker opened, the 10:00 hooter fired before they could
+    // confirm, the goal was lost. With this gate the quarter
+    // doesn't end until the modal is resolved (confirmed or
+    // cancelled).
+    if (pendingGoal !== null) return;
     hooterFiredForQuarterRef.current = currentQuarter;
     // Bump the pulse key so the next render (Q-break score-bug for
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
@@ -329,6 +348,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     game.id,
     quarterLengthMs,
     router,
+    pendingGoal,
   ]);
 
   // ─── Injured / loaned — derived from events ─────────────────
@@ -513,13 +533,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
      * sub-out player to bench.
      */
     vacatingPlayerId: string | null;
-  } | null>(null);
-  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
-  // it sets this and surfaces a confirm sheet (mirrors AFL's score
-  // sheet). Prevents accidental scoring from a stray tap during play.
-  const [pendingGoal, setPendingGoal] = useState<{
-    playerId: string;
-    positionId: string;
   } | null>(null);
   // Pre-Q1 await-kickoff: "Start Q1" no longer writes the
   // quarter_start event directly. It sets this state, which surfaces
