@@ -51,6 +51,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { addLateArrival, markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { Button } from "@/components/ui/Button";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -256,6 +257,37 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the SirenPulseHalo atom skips rendering its halo span when
   // triggerKey is null.
   const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
+
+  // Manual "End Q early" confirmation gate. Opens when the coach
+  // taps the End-Q-early chip on the score-bug (only visible when
+  // paused). Confirming fires endNetballQuarter with the full
+  // quarter length so on-court players are credited the time they
+  // actually played, not the wall-clock that was paused.
+  const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
+  const manualEndFiredRef = useRef(false);
+  function handleManualEndQuarter() {
+    if (manualEndFiredRef.current) return;
+    manualEndFiredRef.current = true;
+    // Block the auto-hooter from also firing when we land on the
+    // Q-break next render; the ref above is enough for our handler
+    // but the hooter ref in the existing useEffect (line ~266) is
+    // gated on `remainingMs > 0` and a per-quarter sentinel, so
+    // it's already safe.
+    setClockPulseKey(currentQuarter);
+    startTransition(async () => {
+      const result = await endNetballQuarter(
+        auth,
+        game.id,
+        currentQuarter,
+        quarterLengthMs,
+      );
+      if (result.success) {
+        router.refresh();
+      } else {
+        manualEndFiredRef.current = false;
+      }
+    });
+  }
 
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
@@ -1412,9 +1444,57 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         onShowQuarterScores={
           trackScoring ? () => setQuarterScoresOpen(true) : undefined
         }
+        // Surface "End Q early" only when the coach paused at the
+        // start of a quarter and forgot to resume — the chip
+        // self-gates on `paused` inside NetballScoreBug, so passing
+        // it here unconditionally is fine.
+        onEndQuarterEarly={() => setShowManualEndConfirm(true)}
         paused={isPaused}
         showScores={trackScoring}
       />
+
+      {/* End-Q-early confirm. Mirrors the AFL one at
+          src/components/live/LiveGame.tsx — destructive, full
+          quarter credit per Steve's spec ("apply all the
+          remaining minutes of the quarter to the players on
+          field"). */}
+      {showManualEndConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/40"
+            onClick={() => setShowManualEndConfirm(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <p className="text-center text-sm font-semibold text-ink">
+              End Q{currentQuarter} now?
+            </p>
+            <p className="mt-2 text-center text-xs text-ink-mute">
+              On-court players will be credited the full quarter time, even
+              though the clock is paused. Use this when the game played on
+              but the clock didn&rsquo;t.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                className="flex-1"
+                variant="danger"
+                onClick={() => {
+                  setShowManualEndConfirm(false);
+                  handleManualEndQuarter();
+                }}
+              >
+                End Q{currentQuarter}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="secondary"
+                onClick={() => setShowManualEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {quarterScoresOpen && (
         <QuarterScoreModal
@@ -1626,6 +1706,7 @@ function NetballScoreBug({
   isPending,
   onClockTap,
   onShowQuarterScores,
+  onEndQuarterEarly,
   paused = false,
   showScores = true,
   clockPulseKey = null,
@@ -1655,6 +1736,13 @@ function NetballScoreBug({
    * Mirrors AFL's GameHeader.onShowQuarterScores prop.
    */
   onShowQuarterScores?: () => void;
+  /**
+   * Tap the "End Q early" chip — only rendered when paused. Parent
+   * owns the confirmation flow. Mirrors AFL's GameHeader prop of
+   * the same name. Real-game scenario: paused at the start of the
+   * quarter, forgot to resume, need to skip to the Q-break.
+   */
+  onEndQuarterEarly?: () => void;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
   /**
@@ -1755,6 +1843,20 @@ function NetballScoreBug({
                 aria-label="Show quarter-by-quarter scores"
               >
                 Q-by-Q
+              </button>
+            )}
+            {/* End-Q-early — paused-only "rescue" affordance.
+                Mirrors AFL's GameHeader behaviour. Coach paused
+                at the start of the quarter, forgot to resume,
+                game played on; this is how they recover. */}
+            {onEndQuarterEarly && paused && (
+              <button
+                type="button"
+                onClick={onEndQuarterEarly}
+                className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
+                aria-label="End the current quarter now"
+              >
+                End Q early
               </button>
             )}
           </div>

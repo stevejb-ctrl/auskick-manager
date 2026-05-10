@@ -765,6 +765,62 @@ export function NetballQuarterBreak({
 
   const [showFixScores, setShowFixScores] = useState(false);
 
+  // ─── Match-adjustments (lend / mark injured at break) ──────
+  // Mirrors the AFL QuarterBreak panel. Auto-expands when there's
+  // already an active loan or injury so the coach can see and
+  // change them without hunting for a closed section. Steve's
+  // real-game complaint ("the UX only allows lending while the
+  // quarter is running") was pure discoverability.
+  const lentPlayers = useMemo(
+    () =>
+      squad.filter((p) => loanedIds.has(p.id) && !injuredIds.has(p.id)),
+    [squad, loanedIds, injuredIds],
+  );
+  const injuredPlayersList = useMemo(
+    () => squad.filter((p) => injuredIds.has(p.id)),
+    [squad, injuredIds],
+  );
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
+    () => lentPlayers.length > 0 || injuredPlayersList.length > 0,
+  );
+  const [lendPickerOpen, setLendPickerOpen] = useState(false);
+  const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [_adjustPending, startAdjustTransition] = useTransition();
+
+  // Toggle handlers — both follow the optimistic pattern: flip the
+  // local store first so the chip updates instantly, then write the
+  // event. The next page revalidate rebuilds injuredIds/loanedIds
+  // from events and the local flip becomes durable. We don't need
+  // to roll back on failure — the action returns ActionResult and
+  // the worst case is a stale chip until the next refresh. (AFL's
+  // QuarterBreak does the same.)
+  function handleLendToggleAtBreak(pid: string, nextLoaned: boolean) {
+    setAdjustError(null);
+    startAdjustTransition(async () => {
+      const result = await markLoan(auth, gameId, {
+        player_id: pid,
+        loaned: nextLoaned,
+        // Loan applies from the start of Q{nextQuarter}.
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+      if (!result.success) setAdjustError(result.error);
+    });
+  }
+  function handleInjuryToggleAtBreak(pid: string, nextInjured: boolean) {
+    setAdjustError(null);
+    startAdjustTransition(async () => {
+      const result = await markInjury(auth, gameId, {
+        player_id: pid,
+        injured: nextInjured,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+      if (!result.success) setAdjustError(result.error);
+    });
+  }
+
   // ─── Render ────────────────────────────────────────────────
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
@@ -821,6 +877,182 @@ export function NetballQuarterBreak({
             : "Court is empty — tap a bench player, then a position to place them."}
         </p>
       </div>
+
+      {/* Match adjustments — collapsed by default, auto-opens when
+          there's already an active loan or injury so the coach can
+          manage both at the boundary between quarters (Steve's
+          real-world request 2026-05-10). On-field size isn't
+          surfaced for netball — it's fixed at 7 per the rules. */}
+      <div className="rounded-md border border-hairline bg-surface shadow-card">
+        <button
+          type="button"
+          onClick={() => setMatchAdjustmentsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
+          aria-expanded={matchAdjustmentsOpen}
+          aria-controls="netball-qb-match-adjustments"
+        >
+          <span className="flex flex-1 items-center gap-3 text-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Match adjustments
+            </span>
+            <span className="text-xs text-ink-mute">
+              {lentPlayers.length > 0 ? `${lentPlayers.length} lent` : ""}
+              {lentPlayers.length > 0 && injuredPlayersList.length > 0
+                ? " · "
+                : ""}
+              {injuredPlayersList.length > 0
+                ? `${injuredPlayersList.length} injured`
+                : ""}
+              {lentPlayers.length === 0 && injuredPlayersList.length === 0
+                ? "Lend / injured"
+                : ""}
+            </span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`transition-transform duration-fast ease-out-quart ${
+                matchAdjustmentsOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+
+        {matchAdjustmentsOpen && (
+          <div
+            id="netball-qb-match-adjustments"
+            className="space-y-4 border-t border-hairline px-4 py-3"
+          >
+            {/* Lend a player */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Lend a player</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Lent players sit out for the rest of the game until you bring
+                them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {lentPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                  >
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLendToggleAtBreak(p.id, false)}
+                      aria-label={`Bring ${p.full_name} back`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLendPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <span aria-hidden>+</span>
+                  Lend a player
+                </button>
+              </div>
+            </div>
+
+            {/* Mark injured / left early */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Injured / left early
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Injured players sit out for the rest of the game until you
+                bring them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {injuredPlayersList.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-danger/50 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+                  >
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleInjuryToggleAtBreak(p.id, false)}
+                      aria-label={`Mark ${p.full_name} fit`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setInjuredPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                >
+                  <span aria-hidden>+</span>
+                  Mark injured
+                </button>
+              </div>
+            </div>
+
+            {adjustError && (
+              <p className="text-xs text-danger" role="alert">
+                {adjustError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Lend-player picker modal — same shape as AFL's. Lists every
+          healthy, not-already-lent squad member. */}
+      {lendPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Lend"
+          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
+          emptyMessage="Everyone is already lent or injured."
+          candidates={squad
+            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.full_name }))}
+          onPick={(pid) => {
+            handleLendToggleAtBreak(pid, true);
+            setLendPickerOpen(false);
+          }}
+          onCancel={() => setLendPickerOpen(false)}
+        />
+      )}
+
+      {/* Injured-player picker — for the "kid had to leave at the
+          break" case. Same shape as the lend picker but flips the
+          injury flag. */}
+      {injuredPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark injured"
+          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
+          emptyMessage="Everyone is already injured or lent."
+          candidates={squad
+            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.full_name }))}
+          onPick={(pid) => {
+            handleInjuryToggleAtBreak(pid, true);
+            setInjuredPickerOpen(false);
+          }}
+          onCancel={() => setInjuredPickerOpen(false)}
+        />
+      )}
 
       {/* Score panel — collapsed by default. Single-line score
           summary so the coach can reconcile with the opposition
