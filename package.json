@@ -11,6 +11,7 @@
     "test": "vitest run",
     "e2e": "node scripts/e2e-setup.mjs",
     "explore": "node e2e/explore/run.mjs",
+    "postinstall": "node scripts/copy-capacitor-bridge.mjs",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --yes",

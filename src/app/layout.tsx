@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import Script from "next/script";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
@@ -106,6 +107,22 @@ export default function RootLayout({
           tryToClaimNextHydratableSuspenseInstance). Keeping them
           inside <body> avoids the parser fix-up entirely. */}
       <body className="font-sans">
+        {/* Capacitor JS bridge. Slice 7 fix for the
+            `disallowed_useragent` OAuth error in the native shell.
+            The Android Bridge.java injects `window.androidBridge`
+            into the WebView regardless of which URL is loaded, but
+            the `window.Capacitor` facade — which our isNative()
+            check reads — only exists once @capacitor/core's
+            capacitor.js has run. With `server.url` pointing at the
+            remote site, Capacitor does NOT auto-inject this script;
+            we have to serve it from our own origin. The file under
+            /public/capacitor.js is copied from
+            node_modules/@capacitor/core by the postinstall script.
+            On web the script still runs but `getPlatform()`
+            correctly returns "web" because there's no androidBridge
+            to detect. beforeInteractive so the bridge is up before
+            any client component mounts and calls isNative(). */}
+        <Script src="/capacitor.js" strategy="beforeInteractive" />
         {/* Listens for siren:// OAuth callbacks inside the Capacitor
             shell. No-op on web — internally guarded by isNative()
             and dynamically imports @capacitor/* so the web bundle

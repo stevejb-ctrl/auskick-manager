@@ -73,6 +73,36 @@ After `cap add ios`, edit `ios/App/App/Info.plist` to register the
 
 Then commit `ios/` (excluding the paths in `.gitignore`).
 
+## Why `/capacitor.js` is served from the web app
+
+`server.url` loads the remote Vercel deploy directly. In that
+mode, Capacitor does NOT auto-inject the JS facade that exposes
+`window.Capacitor` to the page — the native shell only injects
+`window.androidBridge` (Android) / `window.webkit.messageHandlers.bridge`
+(iOS), but `capacitor.js` itself has to be on the page for the
+plugin facade to wire those up.
+
+The fix lives in the web codebase:
+
+- `scripts/copy-capacitor-bridge.mjs` copies
+  `node_modules/@capacitor/core/dist/capacitor.js` into `public/`
+  during `npm install` (postinstall).
+- `app/layout.tsx` loads `/capacitor.js` via `<Script
+  strategy="beforeInteractive">` so the bridge is up before any
+  client component mounts and calls `isNative()`.
+- On web, the same script runs but `getPlatform()` returns
+  "web" because there's no `androidBridge` to detect — no
+  functional change for web users.
+
+If `isNative()` ever stops returning true inside the WebView,
+this is the first place to look:
+
+1. View the page source in `chrome://inspect` while the app is
+   running on a device/emulator.
+2. Confirm `<script src="/capacitor.js">` is present.
+3. In the inspector console, run `typeof window.Capacitor`,
+   `Capacitor.getPlatform()`, `Capacitor.isNativePlatform()`.
+
 ## OAuth provider setup
 
 Native Google + Apple sign-in goes via the **system browser**, not
