@@ -140,18 +140,35 @@ describe("writeQueue", () => {
     expect(useWriteQueue.getState().queue).toEqual([]);
   });
 
-  it("drops ops with no registered handler instead of blocking the queue", async () => {
+  it("pauses (does not drop) when the head op's handler isn't registered yet", async () => {
+    // Models the cold-start race: persisted ops exist, network-online
+    // fires drain before registerLiveActions runs. We must NOT lose
+    // those ops — the next drain trigger after handlers load picks
+    // up where we left off.
     const okHandler = vi.fn(async (): Promise<ActionResult> => ({ success: true }));
     registerActionHandler("ok", okHandler);
 
-    // Silence the warn for the unknown kind.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     useWriteQueue.getState().enqueue("nonexistent", []);
     useWriteQueue.getState().enqueue("ok", []);
     await flushMicrotasks();
 
+    // "nonexistent" stays at the head; "ok" sits behind it,
+    // un-attempted, until the missing handler shows up.
     expect(warnSpy).toHaveBeenCalled();
+    expect(okHandler).not.toHaveBeenCalled();
+    const queue = useWriteQueue.getState().queue;
+    expect(queue).toHaveLength(2);
+    expect(queue[0].kind).toBe("nonexistent");
+    expect(queue[1].kind).toBe("ok");
+
+    // Once the handler shows up and a drain fires, both ops flush.
+    registerActionHandler(
+      "nonexistent",
+      async (): Promise<ActionResult> => ({ success: true }),
+    );
+    await useWriteQueue.getState().drain();
     expect(okHandler).toHaveBeenCalledTimes(1);
     expect(useWriteQueue.getState().queue).toEqual([]);
     warnSpy.mockRestore();

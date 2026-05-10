@@ -140,14 +140,19 @@ export const useWriteQueue = create<WriteQueueState>()(
 
             const handler = handlers[head.kind];
             if (!handler) {
-              // Persisted op from an older app version that
-              // referenced an action we've since removed. Drop it
-              // rather than blocking the queue forever.
+              // No handler registered yet for this kind. This can
+              // legitimately happen on app cold-start if the queue
+              // has persisted ops and the network-online listener
+              // races registerLiveActions's import side effect.
+              // Pausing is safer than dropping — the next drain
+              // trigger after handlers load will pick up where we
+              // left off. (For genuinely-removed action kinds from
+              // an older app version, the user can clearQueue()
+              // manually.)
               console.warn(
-                `[writeQueue] no handler for kind=${head.kind}, dropping op id=${head.id}`,
+                `[writeQueue] no handler for kind=${head.kind} — pausing drain at op id=${head.id}`,
               );
-              set((s) => ({ queue: s.queue.slice(1) }));
-              continue;
+              break;
             }
 
             let result: ActionResult;
