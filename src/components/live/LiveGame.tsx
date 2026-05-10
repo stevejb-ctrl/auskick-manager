@@ -466,7 +466,6 @@ export function LiveGame({
       setHydrated(true);
       return;
     }
-    let clockStartedAt: number | null = null;
     let accumulatedMs = 0;
     if (
       !initialState.quarterEnded &&
@@ -474,8 +473,17 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
+      // Preserve the elapsed-since-server-quarter-start for reload
+      // resilience, but DON'T auto-resume the clock. Steve 2026-05-10:
+      // tapping "Ready for Q{n+1}" then watching the StartQuarterModal
+      // pop up and silently auto-close after ~2 seconds was confusing
+      // — the coach expected an explicit kickoff tap. Now the clock
+      // stays paused until the coach taps "Start Q{n}" on the modal.
+      // On a mid-quarter reload, accumulatedMs still carries the real
+      // elapsed time so the displayed clock is correct after the
+      // coach re-taps Start; the only UX cost is one extra tap on
+      // page reload, which beats unexplained auto-progression.
       accumulatedMs = Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime());
-      clockStartedAt = Date.now();
     }
     init({
       activeGameId: gameId,
@@ -503,7 +511,11 @@ export function LiveGame({
       loanedIds: initialState.loanedIds,
       loanStartMs: initialState.loanStartMs,
       basePlayedLoanMs: initialState.basePlayedLoanMs,
-      clockStartedAt,
+      // clockStartedAt deliberately omitted — init() merges over the
+      // store's blank-slate default of null, so the clock stays
+      // paused until the coach taps "Start Q{n}". See accumulatedMs
+      // comment above for why this trades a single re-tap on reload
+      // for a removed auto-progression bug.
       accumulatedMs,
     });
     setHydrated(true);
@@ -925,8 +937,26 @@ export function LiveGame({
   // affordance visible at a time. Reset on every quarter transition
   // so each new quarter's modal auto-shows.
   const [startModalDismissed, setStartModalDismissed] = useState(false);
+  // Per-quarter explicit kickoff acknowledgement. Tracks which
+  // quarter has had its "Start Q{n}" button tapped IN THIS SESSION.
+  // Earlier the modal-visibility logic inferred kickoff from
+  // (running && accumulatedMs === 0) — but with init() preserving
+  // accumulatedMs across reloads (so the displayed clock is right
+  // after a refresh), that gate let the modal silently auto-close
+  // a couple of seconds after the QuarterBreak commit. Steve
+  // 2026-05-10: "Rather than having to click 'Start Qx' to start
+  // the quarter, it shows the modal for a couple of seconds and
+  // then automatically starts it. I dont want this." Now the
+  // modal stays put until the coach explicitly taps Start (or
+  // Back to lineup). Page reload mid-quarter is handled by
+  // re-showing the modal — slight UX cost, but no more
+  // auto-progression.
+  const [kickoffAckQuarter, setKickoffAckQuarter] = useState<number | null>(
+    null,
+  );
   useEffect(() => {
     setStartModalDismissed(false);
+    setKickoffAckQuarter(null);
   }, [currentQuarter]);
 
   // Scroll to the top of the page (= top of the scorebug) when a
@@ -1602,13 +1632,20 @@ export function LiveGame({
           already wrote the server event. */}
       {!isFinished &&
         !quarterEnded &&
-        !running &&
-        accumulatedMs === 0 &&
+        kickoffAckQuarter !== currentQuarter &&
         !startModalDismissed && (
           <StartQuarterModal
             quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
-            onStart={isPreGame ? handleStartFirstQuarter : () => startClock()}
+            onStart={() => {
+              // Mark this quarter as kicked-off so a later
+              // pause/resume via clock-tap doesn't re-show the
+              // modal. The flag clears in the currentQuarter
+              // useEffect when the next Q-break advances quarter.
+              setKickoffAckQuarter(currentQuarter);
+              if (isPreGame) handleStartFirstQuarter();
+              else startClock();
+            }}
             onCancel={() => setStartModalDismissed(true)}
           />
         )}
