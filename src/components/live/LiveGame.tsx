@@ -875,7 +875,7 @@ export function LiveGame({
     // game continued anyway) credits on-field players the full
     // quarter — what they actually played, not what the clock saw.
     const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
-    endCurrentQuarter(quarterMs);
+    endCurrentQuarter(quarterMs, opts);
     startTransition(async () => {
       const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
       if (!result.success) {
