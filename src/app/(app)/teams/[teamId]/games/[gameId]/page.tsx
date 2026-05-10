@@ -18,7 +18,13 @@ import {
 } from "@/components/sf";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { replayGame } from "@/lib/fairness";
+import {
+  playerThirdMs,
+  replayNetballGame,
+} from "@/lib/sports/netball/fairness";
+import { primaryThirdFor } from "@/lib/sports/netball";
 import { GameSummaryView } from "@/components/live/GameSummaryCard";
+import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 
 interface GameDetailPageProps {
@@ -118,14 +124,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const isFinal = g.status === "completed";
   const isUp = g.status === "upcoming";
 
-  // Full event log for the post-completion summary card. Only
-  // fetched when the game is final + the sport has a matching
-  // summary view (AFL today). Light query above already loaded
-  // goal/behind events for the scorer rankings; this second
-  // round-trip is the price for the per-player game-time table.
-  // ~50–100 rows for a typical junior game so the cost is small.
+  // Full event log for the post-completion summary card. Fetched
+  // for both AFL and netball when the game is final — both sports
+  // now render their own summary view on the detail page so a
+  // coach revisiting a finished game gets the rotations + Copy
+  // for group chat without going back into /live.
   let summaryEvents: GameEvent[] | null = null;
-  if (isFinal && sport === "afl") {
+  if (isFinal) {
     const { data } = await supabase
       .from("game_events")
       .select("*")
@@ -387,7 +392,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           group chat" without going back into /live. AFL only for now;
           netball needs its own summary view component before this
           surfaces there too. */}
-      {isFinal && summaryEvents && (() => {
+      {isFinal && summaryEvents && sport === "afl" && (() => {
         const replay = replayGame(summaryEvents);
         const swapCount = summaryEvents.filter((e) => e.type === "swap").length;
         const teamRow = team as
@@ -405,6 +410,60 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               playersById={playerById}
               swapCount={swapCount}
               basePlayedZoneMs={replay.basePlayedZoneMs}
+            />
+          </SFCard>
+        );
+      })()}
+
+      {/* Netball post-completion summary. Same purpose as the AFL
+          branch above — render the GameSummaryCard the coach saw
+          at FT, including the copy-for-group-chat button. The
+          netball card already does the right thing (computes
+          playedCount from buildPlayerTimes); we just need to feed
+          it server-computed state via replayNetballGame +
+          playerThirdMs. periodSeconds passed to playerThirdMs only
+          matters for in-progress games (`inProgressMs` is null
+          here), so we use the age-group default — for a finalised
+          game the per-quarter durations come from each
+          quarter_end event's elapsed_ms. */}
+      {isFinal && summaryEvents && sport === "netball" && (() => {
+        const replay = replayNetballGame(summaryEvents);
+        const teamRow = team as
+          | {
+              name?: string;
+              track_scoring?: boolean;
+              quarter_length_seconds?: number | null;
+            }
+          | null;
+        const periodSeconds =
+          (teamRow?.quarter_length_seconds ?? null) ??
+          (g as Game & { quarter_length_seconds?: number | null })
+            .quarter_length_seconds ??
+          // Fallback: 600s (10 min). Only matters as a fallback for
+          // finalised replay; quarter_end events carry their own
+          // elapsed_ms which the replay reads directly.
+          600;
+        const stats = playerThirdMs(
+          summaryEvents,
+          null,
+          periodSeconds,
+          primaryThirdFor as (
+            posId: string,
+          ) => "attack-third" | "centre-third" | "defence-third" | null,
+        );
+        return (
+          <SFCard>
+            <NetballGameSummaryCard
+              teamName={teamRow?.name ?? "Us"}
+              opponentName={g.opponent}
+              teamScore={replay.teamScore}
+              opponentScore={replay.opponentScore}
+              playerGoals={replay.playerGoals}
+              playerStats={stats}
+              squad={
+                (players ?? []) as { id: string; full_name: string }[]
+              }
+              trackScoring={teamRow?.track_scoring ?? false}
             />
           </SFCard>
         );
