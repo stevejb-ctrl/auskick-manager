@@ -59,10 +59,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 22
+        # Capacitor 8.3+ CLI hard-fails with "requires NodeJS >=22.0.0"
+        # at sync time. Existing ci.yml stays on Node 20 because
+        # nothing else in the project needs 22 yet — Capacitor is the
+        # outlier.
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Set up JDK 21
