@@ -700,13 +700,18 @@ export function NetballQuarterBreak({
     if (pendingStartQuarter === null) return;
     const quarter = pendingStartQuarter;
     setError(null);
-    enqueueLiveAction("startNetballQuarter", [auth, gameId, quarter]);
+    const { flushed } = enqueueLiveAction("startNetballQuarter", [
+      auth,
+      gameId,
+      quarter,
+    ]);
     setPendingStartQuarter(null);
     onStarted();
-    // Refresh so the page renders into Q(n+1)'s live state. Offline:
-    // refresh is a no-op against cache; the queued events flush when
-    // the network returns.
-    router.refresh();
+    // Chain refresh after the queue flushes so SSR sees the
+    // quarter_start event and renders Q(n+1)'s live state.
+    // Without this, the init effect in NetballLiveGame would see
+    // storeAheadOfServer=true on first render and wipe state.
+    flushed.then(() => router.refresh());
   }
 
   // ─── Per-quarter score recap (driven by thisGameEvents) ────

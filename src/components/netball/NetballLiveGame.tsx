@@ -268,13 +268,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // gated on `remainingMs > 0` and a per-quarter sentinel, so
     // it's already safe.
     setClockPulseKey(currentQuarter);
-    enqueueLiveAction("endNetballQuarter", [
+    const { flushed } = enqueueLiveAction("endNetballQuarter", [
       auth,
       game.id,
       currentQuarter,
       quarterLengthMs,
     ]);
-    router.refresh();
+    flushed.then(() => router.refresh());
   }
 
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
@@ -312,17 +312,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.
     setClockPulseKey(currentQuarter);
-    enqueueLiveAction("endNetballQuarter", [
+    const { flushed: hooterFlushed } = enqueueLiveAction("endNetballQuarter", [
       auth,
       game.id,
       currentQuarter,
       quarterLengthMs,
     ]);
-    // Refresh so the page derives `quarterEnded` from the
-    // freshly-inserted quarter_end event and rerenders into the
-    // Q-break shell. Offline: refresh is a no-op against cache;
-    // the queued event flushes when the network returns.
-    router.refresh();
+    // Chain refresh after the queue flushes so SSR sees the
+    // quarter_end event and renders the Q-break shell.
+    hooterFlushed.then(() => router.refresh());
   }, [
     remainingMs,
     currentQuarter,
@@ -560,10 +558,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       clearTimeout(undoToastTimerRef.current);
       undoToastTimerRef.current = null;
     }
-    enqueueLiveAction("undoNetballScore", [auth, game.id]);
-    // Refresh so the rolled-back goal disappears from the
-    // scorebug + PositionToken chip on the next render.
-    router.refresh();
+    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id]);
+    // Refresh after flush so the rolled-back goal disappears from
+    // the scorebug + PositionToken chip on the next render.
+    flushed.then(() => router.refresh());
   }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
@@ -712,14 +710,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const player = squadById.get(playerId);
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
-    enqueueLiveAction("recordNetballGoal", [
+    const { flushed } = enqueueLiveAction("recordNetballGoal", [
       auth,
       game.id,
       playerId,
       currentQuarter,
       clockMs,
     ]);
-    router.refresh();
+    flushed.then(() => router.refresh());
     setPendingGoal(null);
     startUndoToast("team", playerName);
   };
@@ -727,13 +725,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleCancelGoal = () => setPendingGoal(null);
 
   const handleOpponentGoal = useCallback(() => {
-    enqueueLiveAction("recordNetballOpponentGoal", [
+    const { flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
       currentQuarter,
       clockMs,
     ]);
-    router.refresh();
+    flushed.then(() => router.refresh());
     startUndoToast("opp", null);
   }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
@@ -1358,13 +1356,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             loading={isPending}
             onStart={() => {
               const quarter = pendingQuarterStart;
-              enqueueLiveAction("startNetballQuarter", [
+              const { flushed } = enqueueLiveAction("startNetballQuarter", [
                 auth,
                 game.id,
                 quarter,
               ]);
               setPendingQuarterStart(null);
-              router.refresh();
+              flushed.then(() => router.refresh());
             }}
             onCancel={() => setPendingQuarterStart(null)}
           />
@@ -1393,16 +1391,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <button
           type="button"
           onClick={() => {
-            enqueueLiveAction("endNetballQuarter", [
+            const { flushed } = enqueueLiveAction("endNetballQuarter", [
               auth,
               game.id,
               4,
               clockMs,
             ]);
-            // Refresh so the page rerenders post-finalise.
-            // Offline: refresh is a no-op against cache; the
-            // finalise event flushes when the queue drains.
-            router.refresh();
+            // Refresh after flush so SSR sees the finalise events
+            // and the page rerenders into FT review.
+            flushed.then(() => router.refresh());
           }}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"

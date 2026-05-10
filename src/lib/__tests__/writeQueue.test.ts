@@ -49,7 +49,7 @@ describe("writeQueue", () => {
     });
     registerActionHandler("recordsKey", handler);
 
-    const id = useWriteQueue.getState().enqueue("recordsKey", ["a", "b"]);
+    const { id } = useWriteQueue.getState().enqueue("recordsKey", ["a", "b"]);
     await flushMicrotasks();
 
     expect(handler).toHaveBeenCalledWith("a", "b", id);
@@ -58,6 +58,47 @@ describe("writeQueue", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(receivedKey).toBe(id);
+  });
+
+  it("resolves the flushed promise after a successful drain", async () => {
+    const handler = vi.fn(async (): Promise<ActionResult> => ({ success: true }));
+    registerActionHandler("noop2", handler);
+
+    const { flushed } = useWriteQueue.getState().enqueue("noop2", []);
+    // Race a 200ms timeout against the flushed promise: if drain
+    // doesn't resolve us we'd time out, not finish in <1ms.
+    const winner = await Promise.race([
+      flushed.then(() => "flushed"),
+      new Promise<string>((r) => setTimeout(() => r("timeout"), 500)),
+    ]);
+    expect(winner).toBe("flushed");
+    expect(useWriteQueue.getState().queue).toEqual([]);
+  });
+
+  it("flushed promise stays pending while the op is parked on a transient failure, then resolves on retry", async () => {
+    let shouldFail = true;
+    registerActionHandler("flaky", async (): Promise<ActionResult> => {
+      if (shouldFail) return { success: false, error: "transient" };
+      return { success: true };
+    });
+
+    const { flushed } = useWriteQueue.getState().enqueue("flaky", []);
+    await flushMicrotasks();
+    // After the failed drain the op is still in the queue and the
+    // promise hasn't resolved.
+    expect(useWriteQueue.getState().queue).toHaveLength(1);
+    let resolved = false;
+    void flushed.then(() => {
+      resolved = true;
+    });
+    await flushMicrotasks();
+    expect(resolved).toBe(false);
+
+    // Network "comes back" — drain succeeds, promise resolves.
+    shouldFail = false;
+    await useWriteQueue.getState().drain();
+    await flushMicrotasks();
+    expect(resolved).toBe(true);
   });
 
   it("leaves a failed op at the head with attemptCount bumped and lastError set", async () => {

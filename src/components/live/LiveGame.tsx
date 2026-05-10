@@ -844,7 +844,7 @@ export function LiveGame({
 
   function handleStartFirstQuarter() {
     setError(null);
-    enqueueLiveAction("startQuarter", [auth, gameId, 1]);
+    const { flushed } = enqueueLiveAction("startQuarter", [auth, gameId, 1]);
     beginNextQuarter();
     // Q1 is gated on the StartQuarterModal — the modal is the only
     // kickoff affordance in pre-game (we removed the duplicate
@@ -853,11 +853,13 @@ export function LiveGame({
     // event AND starts the local clock so the GM doesn't have to
     // confirm twice.
     startClock();
-    // refresh() picks up the server-side event once the queue
-    // flushes. Offline first launch: refresh is a no-op, the
-    // local clock is still running, and the queue catches up
-    // when the network returns.
-    router.refresh();
+    // Wait for the queue to flush before refreshing — otherwise we
+    // refetch SSR state that doesn't yet include the quarter_start
+    // event, the init effect sees storeAheadOfServer=true and wipes
+    // the optimistic local state. Online: flush is sub-second; the
+    // refresh chains in immediately. Offline: refresh fires when
+    // the network comes back and the queue drains.
+    flushed.then(() => router.refresh());
   }
 
   function handlePause() {
@@ -878,12 +880,17 @@ export function LiveGame({
     // quarter — what they actually played, not what the clock saw.
     const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
     endCurrentQuarter(quarterMs, opts);
-    enqueueLiveAction("endQuarter", [auth, gameId, q, elapsed_ms]);
-    // Refresh so the page picks up the quarter_end event once the
-    // queue flushes. Offline: refresh is a no-op against cache;
-    // the Q-break shell still renders because endCurrentQuarter
-    // already flipped quarterEnded in the local store.
-    router.refresh();
+    const { flushed } = enqueueLiveAction("endQuarter", [
+      auth,
+      gameId,
+      q,
+      elapsed_ms,
+    ]);
+    // Chain refresh after the queue flushes so SSR sees the
+    // quarter_end event and renders the Q-break shell (or
+    // finalised state for Q4). Without this, refresh races the
+    // queue and the page re-mounts with stale server state.
+    flushed.then(() => router.refresh());
   }
 
   function handleQuarterEndConfirm() {

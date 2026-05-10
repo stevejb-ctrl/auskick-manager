@@ -56,15 +56,38 @@ interface QueueOp {
   lastError?: string;
 }
 
+export interface EnqueueResult {
+  /** UUID v4 — also written to game_events.idempotency_key. */
+  id: string;
+  /**
+   * Resolves when the op successfully drains to the server.
+   * Lets callers chain `router.refresh()` after the server has
+   * the new state without breaking the queue's fire-and-forget
+   * contract — fine for online users (resolves ~immediately) and
+   * for offline users (resolves when the network returns and the
+   * queue drains). Never rejects: transient failures keep
+   * retrying, and the only "permanent" failure path is a missing
+   * handler, which would have to be a programming error.
+   */
+  flushed: Promise<void>;
+}
+
 interface WriteQueueState {
   queue: QueueOp[];
   /** True while a drain is in flight. Prevents re-entrancy. */
   draining: boolean;
-  enqueue: (kind: string, args: unknown[]) => string;
+  enqueue: (kind: string, args: unknown[]) => EnqueueResult;
   drain: () => Promise<void>;
   /** Clear the entire queue. Test affordance + a "give up" option for users. */
   clearQueue: () => void;
 }
+
+// In-memory map of op id → flushed-promise resolver. Lives
+// outside the zustand store because Promise callbacks can't be
+// serialized to disk. Only populated for ops enqueued during the
+// current page session; rehydrated ops from a previous session
+// have no caller waiting, so they drain without resolving anyone.
+const flushedResolvers = new Map<string, () => void>();
 
 // ─── Handler registry ─────────────────────────────────────────
 // Keyed by the same `kind` the caller passes to enqueue(). Phase
@@ -116,6 +139,9 @@ export const useWriteQueue = create<WriteQueueState>()(
           attemptCount: 0,
           queuedAt: Date.now(),
         };
+        const flushed = new Promise<void>((resolve) => {
+          flushedResolvers.set(id, resolve);
+        });
         // Functional set so concurrent enqueues don't clobber each other.
         set((s) => ({ queue: [...s.queue, op] }));
         // Fire-and-forget drain attempt. If we're online and there
@@ -123,7 +149,7 @@ export const useWriteQueue = create<WriteQueueState>()(
         // offline, drain bails and the op waits for the next
         // network-online event.
         void get().drain();
-        return id;
+        return { id, flushed };
       },
 
       drain: async () => {
@@ -169,6 +195,15 @@ export const useWriteQueue = create<WriteQueueState>()(
             }
 
             if (result.success) {
+              // Resolve the caller's flushed-promise (if any —
+              // rehydrated ops from a previous session won't have
+              // an entry here) BEFORE popping the queue, so a
+              // .then() chain doesn't race a subsequent drain.
+              const resolve = flushedResolvers.get(head.id);
+              if (resolve) {
+                flushedResolvers.delete(head.id);
+                resolve();
+              }
               set((s) => ({ queue: s.queue.slice(1) }));
               continue;
             }
@@ -198,7 +233,16 @@ export const useWriteQueue = create<WriteQueueState>()(
         }
       },
 
-      clearQueue: () => set({ queue: [] }),
+      clearQueue: () => {
+        // Drop any flushed-promise resolvers too, otherwise they'd
+        // leak (their ops are gone, no one ever resolves them).
+        // For ops we drop here, callers awaiting `flushed` will
+        // hang forever — that's the same shape as "queue is
+        // permanently broken", which is the only situation where
+        // clearQueue is the right call.
+        flushedResolvers.clear();
+        set({ queue: [] });
+      },
     }),
     {
       name: "siren-write-queue-v1",

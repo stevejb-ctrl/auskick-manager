@@ -4,6 +4,7 @@ import {
   registerActionHandler,
   useWriteQueue,
   type ActionHandler,
+  type EnqueueResult,
 } from "./writeQueue";
 
 import {
@@ -93,7 +94,7 @@ for (const [kind, fn] of Object.entries(handlers)) {
 export function enqueueLiveAction(
   kind: keyof typeof handlers,
   args: unknown[],
-): string {
+): EnqueueResult {
   return useWriteQueue.getState().enqueue(kind, args);
 }
 
