@@ -68,6 +68,15 @@ export function FullTimeReview({
   const [_actionPending, startActionTransition] = useTransition();
   const [finalisePending, startFinaliseTransition] = useTransition();
   const [finaliseError, setFinaliseError] = useState<string | null>(null);
+  // Pending-delete confirm. The AFL FullTimeReview owns its own
+  // inline delete path (not via ScoreReviewPanel) — Stagehand
+  // exploration 2026-05-10 caught that the confirm modal shipped
+  // with the other two delete surfaces (ScoreReviewPanel,
+  // QuarterBreak inline) was missing here. Same pattern: stage
+  // the entry into pendingDelete instead of firing immediately.
+  const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
+    null,
+  );
 
   // Add-score form
   const [addOpen, setAddOpen] = useState(false);
@@ -313,7 +322,7 @@ export function FullTimeReview({
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteScore(e)}
+                                onClick={() => setPendingDelete(e)}
                                 disabled={finalisePending}
                                 className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
                                 aria-label="Delete this score"
@@ -445,6 +454,61 @@ export function FullTimeReview({
           </p>
         </div>
       </div>
+
+      {/* Delete-score confirmation. Same shape as the other two
+          delete surfaces (ScoreReviewPanel, QuarterBreak) — Stagehand
+          score-reconciler 2026-05-10 hit unguarded delete here
+          because this surface owns its own inline path rather than
+          going through ScoreReviewPanel. */}
+      {pendingDelete &&
+        (() => {
+          const e = pendingDelete;
+          const isOurs = e.type === "goal" || e.type === "behind";
+          const isGoal = e.type === "goal" || e.type === "opponent_goal";
+          const kindLabel = isGoal ? "goal" : "behind";
+          const playerName = e.player_id
+            ? playersById.get(e.player_id)?.full_name ?? "Player"
+            : null;
+          const subject = isOurs ? playerName ?? "Player" : "Opposition";
+          const q = e.quarter ?? 4;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-ink/40"
+                onClick={() => setPendingDelete(null)}
+              />
+              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+                <p className="text-center text-sm font-semibold text-ink">
+                  Delete this score?
+                </p>
+                <p className="mt-2 text-center text-xs text-ink-mute">
+                  {subject}&rsquo;s {kindLabel} in Q{q} will be removed from
+                  the scoreline.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    className="flex-1"
+                    variant="danger"
+                    onClick={() => {
+                      const entry = pendingDelete;
+                      setPendingDelete(null);
+                      if (entry) handleDeleteScore(entry);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    variant="secondary"
+                    onClick={() => setPendingDelete(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
