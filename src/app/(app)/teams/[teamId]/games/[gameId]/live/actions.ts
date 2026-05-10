@@ -390,11 +390,25 @@ export async function recordGoal(
 export async function recordBehind(
   auth: LiveAuth,
   gameId: string,
-  input: { player_id: string; quarter: number; elapsed_ms: number }
+  input: {
+    player_id: string | null;
+    quarter: number;
+    elapsed_ms: number;
+    /** True when the behind was rushed (deflected through by the
+     *  opposition or self-rushed). Counts for our team but has no
+     *  scorer — `player_id` will be null. Tagged in metadata so
+     *  reporting can distinguish "Smith kicked a behind" from "the
+     *  defender rushed it". */
+    rushed?: boolean;
+  }
 ): Promise<ActionResult> {
   return insertEvent(auth, gameId, "behind", {
     player_id: input.player_id,
-    metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    metadata: {
+      quarter: input.quarter,
+      elapsed_ms: input.elapsed_ms,
+      ...(input.rushed ? { rushed: true } : {}),
+    },
   });
 }
 

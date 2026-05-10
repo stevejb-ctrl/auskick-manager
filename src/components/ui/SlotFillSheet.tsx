@@ -59,6 +59,19 @@ interface Props {
    * only dismissal path in that mode.
    */
   dismissOnBackdrop?: boolean;
+  /**
+   * Optional non-player option rendered as a row above the player
+   * list. Used by the score-attribution picker for AFL rushed
+   * behinds — the ball deflects through off the opposition and the
+   * behind counts for our team but has no scorer. The handler is
+   * separate from `onPick` so the caller doesn't have to magic-
+   * string a sentinel id.
+   */
+  extraOption?: {
+    label: string;
+    subLabel?: string;
+    onSelect: () => void;
+  };
 }
 
 export function SlotFillSheet({
@@ -70,6 +83,7 @@ export function SlotFillSheet({
   subtitle,
   emptyMessage,
   dismissOnBackdrop = true,
+  extraOption,
 }: Props) {
   return (
     <div
@@ -97,6 +111,31 @@ export function SlotFillSheet({
             {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}
           </p>
         </div>
+
+        {extraOption && (
+          <button
+            type="button"
+            onClick={extraOption.onSelect}
+            className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+            >
+              —
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-ink">
+                {extraOption.label}
+              </span>
+              {extraOption.subLabel && (
+                <span className="block truncate text-[11px] text-ink-mute">
+                  {extraOption.subLabel}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
 
         {candidates.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-mute">

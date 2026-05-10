@@ -654,6 +654,32 @@ export function LiveGame({
     });
   }
 
+  // Rushed behind: ball deflects through off the opposition (or
+  // self-rushed). Counts +1 for our team but has no scorer, so it
+  // skips the per-player tally and never plays the goal song.
+  // Only called for `behind` — goals always have a scorer.
+  function recordRushedBehind() {
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = scaledElapsedMs();
+    incTeam("behinds");
+    startUndoToast({
+      kind: "behind",
+      forTeam: "us",
+      playerId: null,
+      playerName: null,
+      quarter,
+    });
+    startTransition(async () => {
+      const result = await recordBehind(auth, gameId, {
+        player_id: null,
+        quarter,
+        elapsed_ms,
+        rushed: true,
+      });
+      if (!result.success) setError(result.error);
+    });
+  }
+
   function handleScore(kind: "goal" | "behind") {
     if (!selected || selected.kind !== "field") return;
     const playerId = selected.playerId;
@@ -1671,6 +1697,27 @@ export function LiveGame({
             // tapping a different chip while this picker was open
             // dismissed it silently and lost the goal attribution.
             dismissOnBackdrop={false}
+            // For BEHINDS, surface a "Rushed (no scorer)" row at the
+            // top of the picker. AFL real-game scenario: the ball
+            // deflects through the small posts off the opposition or
+            // is rushed off our own boot. The behind counts for our
+            // team but has no individual scorer, so it can't go
+            // through the player-attribution path. Goals don't get
+            // this option — every goal in junior footy has a scorer
+            // (and an unattributed goal would always be a logging
+            // error worth catching).
+            extraOption={
+              pickScorerKind === "behind"
+                ? {
+                    label: "Rushed (no scorer)",
+                    subLabel: "Counts as a behind for our team",
+                    onSelect: () => {
+                      recordRushedBehind();
+                      setPickScorerKind(null);
+                    },
+                  }
+                : undefined
+            }
             onPick={(playerId) => {
               recordPlayerScore(playerId, pickScorerKind);
               setPickScorerKind(null);
