@@ -948,7 +948,15 @@ export function LiveGame({
   );
   useEffect(() => {
     setStartModalDismissed(false);
-    setKickoffAckQuarter(null);
+    // Preserve the ack if it points at the quarter we just entered.
+    // handleStartFirstQuarter / handleStartNextQuarter set the ack
+    // to the about-to-be-current quarter BEFORE calling
+    // beginNextQuarter, which then changes currentQuarter and
+    // triggers this effect. Without the prev-matches check, the
+    // ack would be reset to null right after being set, and the
+    // modal would re-render. (Saw this as a ~50ms flicker that
+    // failed the Q1 "modal hidden after Start tap" e2e spec.)
+    setKickoffAckQuarter((prev) => (prev === currentQuarter ? prev : null));
   }, [currentQuarter]);
 
   // Scroll to the top of the page (= top of the scorebug) when a
@@ -1630,11 +1638,17 @@ export function LiveGame({
             quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
             onStart={() => {
-              // Mark this quarter as kicked-off so a later
-              // pause/resume via clock-tap doesn't re-show the
-              // modal. The flag clears in the currentQuarter
-              // useEffect when the next Q-break advances quarter.
-              setKickoffAckQuarter(currentQuarter);
+              // Mark the quarter we're ABOUT to be in as
+              // kicked-off so a later pause/resume via clock-tap
+              // doesn't re-show the modal. For Q1 pre-game,
+              // handleStartFirstQuarter calls beginNextQuarter
+              // which advances currentQuarter from 0→1, so we
+              // ack 1, not 0. For Q2+, QuarterBreak has already
+              // advanced; currentQuarter is the right value.
+              // The flag is preserved across this advance by the
+              // useEffect's prev-matches check, then cleared on
+              // the NEXT real quarter transition.
+              setKickoffAckQuarter(isPreGame ? 1 : currentQuarter);
               if (isPreGame) handleStartFirstQuarter();
               else startClock();
             }}
