@@ -167,6 +167,30 @@ server: {
 
 Re-run `npx cap sync` after editing. Don't commit the dev URL.
 
+## Cloud APK build (when local Gradle doesn't cooperate)
+
+`.github/workflows/android.yml` builds a debug APK on every push
+that touches `mobile/`, `package.json`, `package-lock.json`,
+`src/`, or the workflow file itself. Output is uploaded as a
+workflow artifact named `siren-footy-debug-apk`.
+
+To grab a build without setting up Android Studio locally:
+
+1. Push the branch (or trigger **Actions → Android (debug APK) →
+   Run workflow** from the GitHub UI for an on-demand build).
+2. Open the run, scroll to **Artifacts** at the bottom.
+3. Download `siren-footy-debug-apk.zip`, extract the `.apk`.
+4. Sideload onto a real Android device:
+   - Enable **Settings → About phone → tap Build number 7 times**
+     to unlock developer options.
+   - **Settings → Developer options → USB debugging** on, plug in.
+   - Drag the APK onto the phone or `adb install <apk>`.
+5. Or load into a cloud emulator (Appetize.io has a free tier).
+
+The APK is unsigned debug — fine for sideloading and TestFlight-
+style internal testing, NOT for Play Console release. Production
+release builds need a separate signed-build job (out of v1 scope).
+
 ## Path-with-spaces / OneDrive warning (Windows)
 
 The repo currently lives at:

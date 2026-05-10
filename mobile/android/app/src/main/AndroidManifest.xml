@@ -52,4 +52,14 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- @capacitor/network needs ACCESS_NETWORK_STATE to expose
+         connectivity status to the offline write queue (slice 5d).
+         Without it Network.getStatus() returns unreliable data. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Required on Android 13+ (API 33+) for the OS to display
+         push notifications. The first @capacitor/push-notifications
+         registration call triggers the runtime permission prompt;
+         without this declaration the prompt is suppressed and pushes
+         arrive but never surface. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
