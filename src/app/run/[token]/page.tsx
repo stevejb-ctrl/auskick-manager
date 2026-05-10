@@ -149,6 +149,37 @@ export default async function RunPage({ params }: RunPageProps) {
     return (
       <div className="space-y-3 p-3">
         {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
+        {/* Pre-kickoff availability section — landing here from a runner
+            link, the parent expects to mark who's playing FIRST, then
+            set the lineup. Stagehand 2026-05-09 found that without this
+            section the runner-token URL dropped them straight onto an
+            empty lineup picker (no availability rows yet → empty bench
+            → "Start game" failed validation). Once a player is marked
+            available, setAvailability's revalidatePath kicks in and
+            this server component rerenders so the picker below picks
+            up the new availability. Hidden once the lineup is set
+            (game underway). showJerseyNumber=false because netball
+            squads don't carry jersey numbers (NETBALL-06). */}
+        {isPreKickoff && (
+          <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              Who&apos;s here today?
+            </h3>
+            <AvailabilityList
+              auth={auth}
+              teamId={g.team_id}
+              gameId={g.id}
+              canMarkAvailability
+              canManageMatch
+              showJerseyNumber={false}
+              // Netball court positions for this age group (7 for "go").
+              // Drives the "X of 7 available" pill + the helper text
+              // that prompts the runner to mark MORE players Available
+              // before "Start game" can succeed.
+              requiredAvailable={ageCfgN.positions.length}
+            />
+          </section>
+        )}
         <NetballLiveGame
           auth={auth}
           game={g}
@@ -170,6 +201,13 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={(seasonEventsNetball ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
+          // Pre-kickoff on the runner-token URL also renders the
+          // AvailabilityList above. The walkthrough modal at
+          // z-50 inset-0 would block its buttons, so suppress
+          // auto-open here. Coach can still tap "?" to view it,
+          // and the first auto-open happens on the next render
+          // once the lineup is set (isPreKickoff flips false).
+          suppressAutoWalkthrough={isPreKickoff}
         />
         <div className="border-t border-hairline pt-4">
           <ResetGameButton auth={auth} gameId={g.id} />
@@ -281,6 +319,9 @@ export default async function RunPage({ params }: RunPageProps) {
           canMarkAvailability
           canManageMatch
           showJerseyNumber
+          // AFL needs g.on_field_size players available (12 for U10).
+          // Drives the "X of 12 available" pill + helper hint.
+          requiredAvailable={g.on_field_size}
         />
       </section>
 

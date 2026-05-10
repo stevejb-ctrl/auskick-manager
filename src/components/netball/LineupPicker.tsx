@@ -12,7 +12,7 @@
 // this component is only used for the very first lineup.)
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
@@ -142,12 +142,54 @@ export function NetballLineupPicker({
     setLineup(buildLineup(next));
     setSelected(null);
   }
+
+  // Re-derive lineup when more players become available AFTER mount.
+  // The runner-token netball flow lets a parent mark players Available
+  // while the LineupPicker is mounted (the availability section sits
+  // ABOVE the picker on the same page). Without this, the picker
+  // state stays frozen at its initial empty-bench state — Stagehand
+  // 2026-05-09 game-day-flow showed the agent marking players
+  // Available, then tapping "Suggested rotation" expecting it to
+  // populate, getting nothing because the toggle is a no-op when
+  // already in suggested mode.
+  //
+  // Trigger: re-run the suggester whenever there are AVAILABLE
+  // players NOT YET represented in the lineup (court or bench),
+  // and we're in suggested mode (so a coach in manual mode keeps
+  // their work). This handles incremental availability flips —
+  // mark 1 player available, suggester runs once with 1 player;
+  // mark a 2nd, suggester re-runs with 2; etc. — without needing
+  // an explicit "regenerate" tap.
+  useEffect(() => {
+    if (lineupMode !== "suggested") return;
+    if (initialLineup) return;
+    const placedIds = new Set<string>([
+      ...Object.values(lineup.positions).flat(),
+      ...lineup.bench,
+    ]);
+    const unplaced = availableIds.filter((id) => !placedIds.has(id));
+    if (unplaced.length > 0) {
+      setLineup(buildLineup("suggested"));
+    }
+    // buildLineup closes over availableIds via the suggester so
+    // it always reads the latest list. Excluded from deps so the
+    // effect runs on availability changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableIds, lineupMode]);
   // Two-tap-to-swap selection: tap a player → highlighted; tap another
   // player (or an empty position / bench) → swap. Mirrors the
   // NetballQuarterBreak interaction so the pre-game and Q-break
   // pickers behave identically, and matches the AFL pattern.
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Inline validation error. Replaces native window.alert() — Stagehand
+  // exploration (2026-05-09) found that alert() on the runner-token URL
+  // (where availability is skipped, so the lineup starts empty and
+  // validation always fails) blocked the entire page until the user
+  // dismissed it, making it impossible to navigate back. A real coach
+  // hits the same wall on mobile where the alert dialog can be hard to
+  // dismiss with one tap. Inline error keeps the page interactive.
+  const [error, setError] = useState<string | null>(null);
   // Position the coach is filling via the SlotFillSheet. Set when
   // they tap an empty position with no player pre-selected; cleared
   // on pick or cancel.
@@ -268,12 +310,10 @@ export function NetballLineupPicker({
 
   const handleConfirm = async () => {
     if (disabled || saving) return;
+    setError(null);
     const validation = netballSport.validateLineup?.(lineup, ageGroup);
     if (validation && !validation.ok) {
-      // Surface the first error in the UI briefly. In a richer version
-      // we'd render inline, but a single alert is plenty to un-block
-      // first cut of the UI.
-      alert(validation.issues[0]?.message ?? "Lineup is not valid.");
+      setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
     // Resolve the quarter-length override. Only emit a non-null value
@@ -295,7 +335,7 @@ export function NetballLineupPicker({
           quarterOverrideSeconds = seconds;
         }
       } else {
-        alert("Quarter length must be a whole number between 1 and 30 minutes.");
+        setError("Quarter length must be a whole number between 1 and 30 minutes.");
         return;
       }
     }
@@ -474,6 +514,15 @@ export function NetballLineupPicker({
             </div>
           </div>
         </div>
+      )}
+
+      {error && (
+        <p
+          role="alert"
+          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
+          {error}
+        </p>
       )}
 
       <button

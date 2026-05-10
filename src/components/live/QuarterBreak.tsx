@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -10,6 +10,7 @@ import {
   addRetroScore,
   deleteScore,
   getGameScoreLog,
+  markInjury,
   markLoan,
   recordLineupSet,
   setOnFieldSize as setOnFieldSizeAction,
@@ -36,10 +37,25 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
+
+// Format a minute count (decimal — e.g. 12.5) as M:SS. Used for the
+// per-player THIS-GAME running total beside each time bar so a coach
+// (and any parent at their shoulder) can see at a glance who's
+// played 12:30 vs 4:00 today. Netball's PlayerTile already shows
+// this; AFL was the gap. Season totals are deliberately not shown
+// — kids who miss games naturally accrue lower season minutes and
+// surfacing that just invites the wrong complaint.
+function fmtMinSec(min: number): string {
+  const totalSec = Math.max(0, Math.floor(min * 60));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
@@ -107,6 +123,7 @@ export function QuarterBreak({
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
+  const setInjured = useLiveGame((s) => s.setInjured);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -346,8 +363,26 @@ export function QuarterBreak({
     };
   }, [healthyForLineup]);
 
+  // Only re-derive `draft` when the user EXPLICITLY changes the
+  // lineup mode. Without this guard, the effect re-fires whenever
+  // any of suggestedLineup / manualLineup / lineup recomputes
+  // underneath — and they DO recompute on:
+  //   • The live store re-hydrating post-mount (basePlayedZoneMs
+  //     ticks → currentGameZoneMins → combinedZoneMins →
+  //     suggestedLineup)
+  //   • setLineup() in handleStart() before router.refresh() —
+  //     the store mutation makes `lineup` change, the effect
+  //     fires, and the user's just-committed draft gets briefly
+  //     overwritten by a freshly-recomputed suggestion.
+  // Steve's user feedback 2026-05-09: at Q-break the lineup
+  // "starts with a suggested lineup and then refreshes to a new
+  // lineup a few seconds later", and on tap-to-start-next-quarter
+  // it flickers similarly. Both traced to this useEffect.
+  const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
   useEffect(() => {
     if (availableForLineup.length === 0) return;
+    if (lastAppliedModeRef.current === lineupMode) return;
+    lastAppliedModeRef.current = lineupMode;
     const next =
       lineupMode === "suggested"
         ? suggestedLineup
@@ -426,17 +461,59 @@ export function QuarterBreak({
     });
   }
 
+  // Mirror of handleLoanToggle for injuries — Steve's real-game
+  // scenario is "kid had to leave at quarter time" (parent took
+  // them home, hurt during the break, etc.). The injury event
+  // applies from the start of the next quarter.
+  function handleInjuryToggle(pid: string, nextInjured: boolean) {
+    setLoanError(null);
+    setInjured(pid, nextInjured);
+    startLoanTransition(async () => {
+      const result = await markInjury(auth, gameId, {
+        player_id: pid,
+        injured: nextInjured,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+      if (!result.success) {
+        setInjured(pid, !nextInjured);
+        setLoanError(result.error);
+      }
+    });
+  }
+
   // ─── Match-adjustments collapse state ─────────────────────────
   // Collapsed by default — most coaches won't change size or lend a
   // player in any given quarter, so we keep the screen quiet. When
   // the section is closed we surface a one-line summary so the
   // coach knows whether anything is currently set.
-  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
+  // Match-adjustments section: collapsed when fresh, but auto-
+  // expanded if the coach already has a non-default state set
+  // (lent or injured player, on-field-size override). Without
+  // this, Steve's real-game complaint was "the UX only allows a
+  // player to be lent while the quarter is running" — the section
+  // existed but was closed and so invisible. Auto-opening when
+  // there's an active state makes the management surface
+  // discoverable exactly when you need it.
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
+    () =>
+      loanedIds.length > 0 ||
+      injuredIds.length > 0 ||
+      (currentOnFieldSize !== defaultOnFieldSize),
+  );
+  // Lend picker (existing) and injured picker (new) both reuse the
+  // same SlotFillSheet shape. State is split so the two pickers
+  // don't fight if a coach somehow opens both.
+  const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
   const lentPlayers = useMemo(
     () =>
       players
         .filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id)),
     [players, loanedSet, injuredSet],
+  );
+  const injuredPlayers = useMemo(
+    () => players.filter((p) => injuredSet.has(p.id)),
+    [players, injuredSet],
   );
 
   // ─── Period recap (read from store) ───────────────────────────
@@ -456,6 +533,12 @@ export function QuarterBreak({
   const [scoreLogError, setScoreLogError] = useState<string | null>(null);
   const [scoreLogLoading, setScoreLogLoading] = useState(false);
   const [_scoreActionPending, startScoreActionTransition] = useTransition();
+  // Pending delete — confirmation gate so a misclick can't silently
+  // wipe a real goal during the post-Q reconcile flow. Mirrors the
+  // pattern in ScoreReviewPanel.
+  const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
+    null,
+  );
   // Add-score form state
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<
@@ -695,6 +778,9 @@ export function QuarterBreak({
             <span className="text-xs text-ink-mute">
               {currentOnFieldSize} on field
               {lentPlayers.length > 0 ? ` · ${lentPlayers.length} lent` : ""}
+              {injuredPlayers.length > 0
+                ? ` · ${injuredPlayers.length} injured`
+                : ""}
             </span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -808,6 +894,55 @@ export function QuarterBreak({
                 </p>
               )}
             </div>
+
+            {/* Injured / left-early — paralleling Lend. The common
+                Saturday case is a kid leaving at quarter time
+                (parent pulls them out, niggle from the prior
+                quarter, etc.); marking injured at the break excludes
+                them from the next-quarter rotation without needing
+                the long-press flow. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Injured / left early
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Injured players sit out for the rest of the game until you
+                bring them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {injuredPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-danger/50 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+                  >
+                    {p.jersey_number != null && (
+                      <span className="tabular-nums font-semibold">
+                        {p.jersey_number}
+                      </span>
+                    )}
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleInjuryToggle(p.id, false)}
+                      disabled={loanPending}
+                      aria-label={`Mark ${p.full_name} fit`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setInjuredPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Mark injured
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -838,60 +973,104 @@ export function QuarterBreak({
         />
       )}
 
-      {/* Period recap — read-only summary of the just-finished
-          quarter alongside the running total. Coach uses this to
-          reconcile with the opposition before resuming. */}
-      {currentQuarter >= 1 && (
-        <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Q{justEndedQuarter} score
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowFixScores((v) => !v)}
-              className="text-xs font-medium text-brand-700 hover:text-brand-800"
-            >
-              {showFixScores ? "Hide fix scores" : "Fix scores"}
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Us — Q{justEndedQuarter}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {thisQuarterScore?.ours.goals ?? 0}.{thisQuarterScore?.ours.behinds ?? 0}{" "}
-                <span className="text-sm font-normal text-ink-mute">
-                  ({aflPts(thisQuarterScore?.ours.goals ?? 0, thisQuarterScore?.ours.behinds ?? 0)})
-                </span>
-              </p>
-            </div>
-            <div className="rounded-md border border-hairline bg-surface-alt p-3">
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                Them — Q{justEndedQuarter}
-              </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {thisQuarterScore?.theirs.goals ?? 0}.{thisQuarterScore?.theirs.behinds ?? 0}{" "}
-                <span className="text-sm font-normal text-ink-mute">
-                  ({aflPts(thisQuarterScore?.theirs.goals ?? 0, thisQuarterScore?.theirs.behinds ?? 0)})
-                </span>
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-ink-dim">
-            Running total — Us {totalUs.goals}.{totalUs.behinds} ({aflPts(totalUs.goals, totalUs.behinds)})
-            {" · "}
-            Them {totalThem.goals}.{totalThem.behinds} ({aflPts(totalThem.goals, totalThem.behinds)})
-          </p>
+      {/* Injured-player picker — same shape as the lend picker but
+          flips the injury flag instead. Used when a player has to
+          leave at quarter time (parent pulls them out, niggle
+          flared up during the break). */}
+      {injuredPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark injured"
+          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
+          emptyMessage="Everyone is already injured or lent."
+          candidates={players
+            .filter(
+              (p) => !loanedSet.has(p.id) && !injuredSet.has(p.id),
+            )
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => {
+            handleInjuryToggle(pid, true);
+            setInjuredPickerOpen(false);
+          }}
+          onCancel={() => setInjuredPickerOpen(false)}
+        />
+      )}
 
-          {/* Expandable Fix-scores panel */}
+      {/* Score panel — collapsed by default. Single-line score
+          summary so the coach can reconcile with the opposition
+          at a glance without the panel taking real estate.
+          Tapping the row anywhere expands to the full per-quarter
+          breakdown table + per-player event log. */}
+      {currentQuarter >= 1 && (() => {
+        const usPts = aflPts(totalUs.goals, totalUs.behinds);
+        const themPts = aflPts(totalThem.goals, totalThem.behinds);
+        const lead = usPts - themPts;
+        const leadLabel =
+          lead === 0 ? "level" : lead > 0 ? `+${lead}` : `${lead}`;
+        const leadClass =
+          lead > 0
+            ? "text-ok"
+            : lead < 0
+              ? "text-warn"
+              : "text-ink-mute";
+        return (
+        <div className="rounded-md border border-hairline bg-surface shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowFixScores((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            aria-expanded={showFixScores}
+            aria-label={
+              showFixScores
+                ? "Hide score review"
+                : "Review and update scores"
+            }
+          >
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+                {totalUs.goals}.{totalUs.behinds} ({usPts})
+                <span className="mx-1.5 text-ink-mute">–</span>
+                {totalThem.goals}.{totalThem.behinds} ({themPts})
+              </span>
+              <span
+                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+              >
+                {leadLabel}
+              </span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
+              {showFixScores ? "Hide" : "Review"}
+              <span className="font-mono text-[10px]">
+                {showFixScores ? "▾" : "▸"}
+              </span>
+            </span>
+          </button>
+
           {showFixScores && (
-            <div className="mt-4 border-t border-hairline pt-4">
-              <p className="text-xs font-semibold text-ink">Fix scores</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Delete a wrong score with ×, or add one that was missed.
-              </p>
+            <div className="space-y-4 border-t border-hairline px-4 py-4">
+              {/* Quarter-by-quarter breakdown table — same shape as
+                  the in-game QuarterScoreModal so the coach gets a
+                  consistent view of the game's shape. */}
+              <QuarterScoreTable
+                scoreByQuarter={scoreByQuarter}
+                currentQuarter={currentQuarter}
+                quarterEnded={true}
+                sport="afl"
+                teamName="Us"
+                opponentName="Them"
+              />
+
+              <div className="border-t border-hairline pt-4">
+                <p className="text-xs font-semibold text-ink">
+                  Per-player events
+                </p>
+                <p className="mt-0.5 text-xs text-ink-mute">
+                  Delete a wrong score with ×, or add one that was missed.
+                </p>
 
               {scoreLogLoading && (
                 <p className="mt-2 text-xs text-ink-mute">Loading…</p>
@@ -945,7 +1124,7 @@ export function QuarterBreak({
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteScore(e)}
+                                  onClick={() => setPendingDelete(e)}
                                   disabled={isPending}
                                   className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
                                   aria-label="Delete this score"
@@ -1052,9 +1231,11 @@ export function QuarterBreak({
                 )}
               </div>
             </div>
+            </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {availableForLineup.length > 0 && (
         <p className="px-1 text-xs text-ink-dim">
@@ -1111,7 +1292,14 @@ export function QuarterBreak({
                   const isLoaned = loanedSet.has(pid);
                   const isSidelined = isInjured || isLoaned;
                   const zm = currentGameZoneMins[pid] ?? emptyZM();
-                  const total = zones.reduce((a, z) => a + zm[z], 0) || 1;
+                  // `realTotal` is the sum without the divide-by-zero
+                  // guard. Drives the visible "12:30" label so 0
+                  // shows nothing instead of "0:00 (1)" weirdness.
+                  // `total` keeps the |1 fallback for the bar's
+                  // proportion math (avoids a NaN when nobody has
+                  // played the player yet).
+                  const realTotal = zones.reduce((a, z) => a + zm[z], 0);
+                  const total = realTotal || 1;
                   const prevSlot = slotOf(pid, lineup);
                   const moved = prevSlot && prevSlot !== slot;
                   return (
@@ -1172,14 +1360,21 @@ export function QuarterBreak({
                             )}
                           </span>
                         </span>
-                        <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
-                          {zones.map((z) => (
-                            <span
-                              key={z}
-                              style={{ width: `${(zm[z] / total) * 100}%` }}
-                              className={ZONE_BAR_COLOR[z]}
-                            />
-                          ))}
+                        <span className="flex items-center gap-1.5">
+                          {realTotal > 0 && !isSidelined && (
+                            <span className="nums font-mono text-[10px] font-semibold tabular-nums text-ink-dim">
+                              {fmtMinSec(realTotal)}
+                            </span>
+                          )}
+                          <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
+                            {zones.map((z) => (
+                              <span
+                                key={z}
+                                style={{ width: `${(zm[z] / total) * 100}%` }}
+                                className={ZONE_BAR_COLOR[z]}
+                              />
+                            ))}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -1221,8 +1416,19 @@ export function QuarterBreak({
       )}
 
       <div className="flex justify-end">
+        {/* Two-stage kickoff narrative:
+              Q-break button "Ready for Q{n}"  → opens StartQuarterModal
+              Modal heading   "Ready for Q{n}"
+              Modal body      "Tap when the hooter goes."
+              Modal CTA       "Start Q{n}"
+            "Ready for Q{n}" reads as "lineup is set, we're ready for
+            the next quarter" — and matches the modal heading so the
+            transition feels continuous. Distinct from the modal's
+            "Start Q{n}" CTA so a coach taps each one knowing what
+            they do (commit-lineup vs start-clock). Stagehand showed
+            same-label buttons broke even an LLM agent. */}
         <Button onClick={handleStart} loading={isPending}>
-          Start Q{nextQuarter}
+          Ready for Q{nextQuarter}
         </Button>
       </div>
 
@@ -1245,6 +1451,60 @@ export function QuarterBreak({
           onCancel={() => setFillTargetZone(null)}
         />
       )}
+
+      {/* Delete-score confirmation. Same shape as the FullTimeReview
+          path's ScoreReviewPanel confirm — keeps the visual language
+          consistent and prevents an accidental tap on the × from
+          silently wiping a real goal during the Q-break reconcile. */}
+      {pendingDelete &&
+        (() => {
+          const e = pendingDelete;
+          const isOurs = e.type === "goal" || e.type === "behind";
+          const isGoal = e.type === "goal" || e.type === "opponent_goal";
+          const kindLabel = isGoal ? "goal" : "behind";
+          const playerName = e.player_id
+            ? playersById.get(e.player_id)?.full_name ?? "Player"
+            : null;
+          const subject = isOurs ? playerName ?? "Player" : "Opposition";
+          const q = e.quarter ?? currentQuarter;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-ink/40"
+                onClick={() => setPendingDelete(null)}
+              />
+              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+                <p className="text-center text-sm font-semibold text-ink">
+                  Delete this score?
+                </p>
+                <p className="mt-2 text-center text-xs text-ink-mute">
+                  {subject}&rsquo;s {kindLabel} in Q{q} will be removed from
+                  the scoreline.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    className="flex-1"
+                    variant="danger"
+                    onClick={() => {
+                      const entry = pendingDelete;
+                      setPendingDelete(null);
+                      if (entry) handleDeleteScore(entry);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    variant="secondary"
+                    onClick={() => setPendingDelete(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

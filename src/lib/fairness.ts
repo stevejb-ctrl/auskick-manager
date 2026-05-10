@@ -586,6 +586,15 @@ export function suggestStartingLineup(
     if (!z) continue;
     trackPlaced(p.id, z);
   }
+  // Cap partnership penalty at IN_GAME_DIVERSITY + SEASON_DIVERSITY
+  // (1500). With this cap, a fresh-zone-with-mates always outscores
+  // a stale-zone-without-mates (1500 cap vs. -800 sameAsLastQ +
+  // ~500 season = -300). Without the cap, two mates in a fresh
+  // zone compounds to -4000 which can lock a player into their
+  // last-quarter zone — Steve hit this on a chip-bearing squad
+  // where the chip-spread pushed his Q1 zone-mates evenly across
+  // the other two zones.
+  const PARTNERSHIP_CAP = IN_GAME_DIVERSITY + SEASON_DIVERSITY;
   const partnershipPenaltyFor = (pid: string, target: Zone) => {
     const myMates = previousZoneTeammates[pid];
     if (!myMates || myMates.size === 0) return 0;
@@ -595,7 +604,7 @@ export function suggestStartingLineup(
     placed.forEach((other) => {
       if (myMates.has(other)) penalty += PARTNERSHIP_PENALTY;
     });
-    return penalty;
+    return Math.min(penalty, PARTNERSHIP_CAP);
   };
   // Phase D chip-spread / chip-group penalty — driven by the same
   // placedByZone map so it sees players placed earlier in this same
@@ -798,6 +807,21 @@ export interface GameState {
   basePlayedZoneMs: Record<string, ZoneMinutes>;
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
+  /**
+   * Per-player zone they ENDED the most-recent finished quarter in.
+   * Drives the suggester's `previousQuarterZones` (-800 SAME_AS_LAST_Q
+   * penalty so a kid doesn't get parked in the same line two quarters
+   * running). Rebuilt from events on every replay so a page reload
+   * during the Q-break doesn't lose this signal.
+   *
+   * Bug fix 2026-05-09: previously this was ONLY populated by the
+   * live store's endCurrentQuarter action, which meant after any
+   * router.refresh / cold mount the suggester ran with empty
+   * previousQuarterZones and the same-zone penalty silently no-op'd.
+   * Steve hit this on a Brunswick Bears game where Jimmy J and
+   * Johnny B stayed in their Q2 zones for Q3.
+   */
+  lastStintZone: Record<string, Zone>;
   injuredIds: string[];
   loanedIds: string[];
   loanStartMs: Record<string, number>;
@@ -829,6 +853,7 @@ export function replayGame(events: GameEvent[]): GameState {
     playerScores: {},
     finalised: false,
     basePlayedZoneMs: {},
+    lastStintZone: {},
     stintStartMs: {},
     stintZone: {},
     injuredIds: [],
@@ -893,9 +918,18 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "quarter_end") {
       state.quarterEnded = true;
       quarterStartedAt = null;
+      // Rebuild lastStintZone from scratch each Q-end so it only
+      // contains players who were on-field when the hooter went.
+      // Mirrors the live store's endCurrentQuarter action so a
+      // hydrate-from-events render produces the same signal a
+      // never-reloaded session would have.
+      state.lastStintZone = {};
       for (const [pid, start] of Object.entries(state.stintStartMs)) {
         const z = state.stintZone[pid];
-        if (z) addPlayed(pid, z, elapsed - start);
+        if (z) {
+          addPlayed(pid, z, elapsed - start);
+          state.lastStintZone[pid] = z;
+        }
       }
       state.stintStartMs = {};
       state.stintZone = {};

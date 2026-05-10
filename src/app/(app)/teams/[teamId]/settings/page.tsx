@@ -124,14 +124,6 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           />
         );
       })()}
-      <TeamSongSettings
-        teamId={params.teamId}
-        currentSongUrl={team.song_url ?? null}
-        currentStartSeconds={team.song_start_seconds ?? 0}
-        currentDurationSeconds={team.song_duration_seconds ?? 15}
-        currentEnabled={team.song_enabled ?? true}
-        isAdmin={isAdmin}
-      />
       <CohortChipsSettings
         teamId={params.teamId}
         initialLabels={{
@@ -153,6 +145,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             ((team as { chip_c_mode?: "split" | "group" }).chip_c_mode ??
               "split") as import("@/lib/chips").ChipMode,
         }}
+        isAdmin={isAdmin}
+      />
+      <TeamSongSettings
+        teamId={params.teamId}
+        currentSongUrl={team.song_url ?? null}
+        currentStartSeconds={team.song_start_seconds ?? 0}
+        currentDurationSeconds={team.song_duration_seconds ?? 15}
+        currentEnabled={team.song_enabled ?? true}
         isAdmin={isAdmin}
       />
     </div>

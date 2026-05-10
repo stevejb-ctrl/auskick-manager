@@ -105,7 +105,10 @@ export interface LiveGameState {
   startClock: () => void;
   pauseClock: () => void;
   beginNextQuarter: () => void;
-  endCurrentQuarter: (quarterMs: number) => void;
+  endCurrentQuarter: (
+    quarterMs: number,
+    opts?: { creditFullQuarter?: boolean },
+  ) => void;
   finaliseGame: () => void;
   incTeam: (kind: "goals" | "behinds", intendedQuarter?: number) => void;
   incOpponent: (kind: "goals" | "behinds", intendedQuarter?: number) => void;
@@ -416,7 +419,7 @@ export const useLiveGame = create<LiveGameState>()(
       };
     }),
 
-  endCurrentQuarter: (quarterMs: number) =>
+  endCurrentQuarter: (quarterMs, opts) =>
     set((prev) => {
       const now = Date.now();
       const rawAccumulated =
@@ -428,7 +431,21 @@ export const useLiveGame = create<LiveGameState>()(
       // player stint durations don't leak past the hooter. AFL U10 default = 720s,
       // netball default = 600s; per-team and per-game overrides flow through
       // getEffectiveQuarterSeconds. ABSTRACT-03 / D-26 / D-27.
-      const accumulated = Math.min(rawAccumulated, quarterMs);
+      //
+      // creditFullQuarter override: the manual "End Q early" path needs
+      // on-field players credited the FULL quarter, not the real-clock
+      // elapsed (Steve 2026-05-10: paused at start of Q, forgot to
+      // resume, ended early — but the Q-break showed only the brief
+      // pre-pause elapsed instead of the full quarter the players
+      // actually played). The server-side quarter_end event already
+      // gets `elapsed_ms = quarterMs` via handleEndQuarter's
+      // creditFullQuarter opt; this mirror in the local store keeps
+      // the displayed values consistent BEFORE the page revalidates,
+      // and stays correct AFTER (the storeAheadOfServer guard skips
+      // re-hydration when the quarter hasn't advanced).
+      const accumulated = opts?.creditFullQuarter
+        ? quarterMs
+        : Math.min(rawAccumulated, quarterMs);
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const lastStintMs: Record<string, number> = {};
       const lastStintZone: Record<string, Zone> = {};

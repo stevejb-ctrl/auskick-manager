@@ -47,6 +47,31 @@ interface Props {
    * already lent or injured.").
    */
   emptyMessage?: string;
+  /**
+   * Whether tapping the dimmed backdrop calls `onCancel`. Default
+   * `true` — matches the natural-feeling bottom-sheet behaviour
+   * for slot-filling flows. Set `false` when an accidental tap-
+   * outside would lose substantive state — e.g. the score-
+   * attribution picker on the live scorebug, where dismissing
+   * silently when the coach taps the next +G chip caused the
+   * goal-attribution to vanish without feedback (Stagehand
+   * exploration 2026-05-09). The X/Cancel button remains the
+   * only dismissal path in that mode.
+   */
+  dismissOnBackdrop?: boolean;
+  /**
+   * Optional non-player option rendered as a row above the player
+   * list. Used by the score-attribution picker for AFL rushed
+   * behinds — the ball deflects through off the opposition and the
+   * behind counts for our team but has no scorer. The handler is
+   * separate from `onPick` so the caller doesn't have to magic-
+   * string a sentinel id.
+   */
+  extraOption?: {
+    label: string;
+    subLabel?: string;
+    onSelect: () => void;
+  };
 }
 
 export function SlotFillSheet({
@@ -57,6 +82,8 @@ export function SlotFillSheet({
   titleVerb = "Fill",
   subtitle,
   emptyMessage,
+  dismissOnBackdrop = true,
+  extraOption,
 }: Props) {
   return (
     <div
@@ -64,7 +91,7 @@ export function SlotFillSheet({
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
-      onClick={onCancel}
+      onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div
         className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal"
@@ -84,6 +111,31 @@ export function SlotFillSheet({
             {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}
           </p>
         </div>
+
+        {extraOption && (
+          <button
+            type="button"
+            onClick={extraOption.onSelect}
+            className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+            >
+              —
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-ink">
+                {extraOption.label}
+              </span>
+              {extraOption.subLabel && (
+                <span className="block truncate text-[11px] text-ink-mute">
+                  {extraOption.subLabel}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
 
         {candidates.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-mute">

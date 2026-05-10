@@ -13,6 +13,15 @@ interface GameHeaderProps {
   teamName: string;
   opponentName: string;
   trackScoring: boolean;
+  /**
+   * Tap on the OWN-team `+G`/`+B` chip. Parent opens a player-picker
+   * sheet — the chip itself doesn't record a score until the coach
+   * picks a scorer. Mirrors `onOpponent` shape so callers can wire
+   * both with the same signature. Stagehand exploration found that
+   * a fresh runner expects symmetric +G/+B controls per team and
+   * couldn't discover the tap-player-to-score path on their own.
+   */
+  onTeam?: (kind: "goal" | "behind") => void;
   onOpponent?: (kind: "goal" | "behind") => void;
   /** Fires when the user taps the clock pill — parent decides whether to pause/resume. */
   onClockTap?: () => void;
@@ -32,6 +41,22 @@ interface GameHeaderProps {
    * NetballScoreBug.
    */
   clockPulseKey?: string | number | null;
+  /**
+   * Tap the small "Q-by-Q" chip below the clock pill. Parent owns
+   * the modal so the same data the strip uses can be reused
+   * without re-passing the full scoreByQuarter array down here.
+   * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
+   */
+  onShowQuarterScores?: () => void;
+  /**
+   * Tap the small "End Q early" chip that appears under the clock
+   * pill ONLY when the clock is paused mid-quarter. Steve's real-
+   * game scenario: paused at the start of the quarter, forgot to
+   * resume, game continued without the clock; needs a way to skip
+   * to the Q-break. Parent owns the confirmation flow so the
+   * destructive action requires an explicit tap.
+   */
+  onEndQuarterEarly?: () => void;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -47,6 +72,7 @@ export function GameHeader({
   teamName,
   opponentName,
   trackScoring,
+  onTeam,
   onOpponent,
   onClockTap,
   running,
@@ -55,6 +81,8 @@ export function GameHeader({
   clockMultiplier = 1,
   isPending = false,
   clockPulseKey = null,
+  onShowQuarterScores,
+  onEndQuarterEarly,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -83,7 +111,11 @@ export function GameHeader({
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
-      {/* Left: home team — total points dominate, like a broadcast scorebug */}
+      {/* Left: home team — total points dominate, like a broadcast scorebug.
+          +G/+B chips mirror the opponent side; tapping opens a
+          player picker (the parent owns the picker UI) so the
+          coach can attribute the score to whoever just scored
+          without first having to tap the player tile. */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {teamName}
@@ -98,33 +130,88 @@ export function GameHeader({
             {points(team)}
           </span>
         </p>
+        {onTeam && trackScoring && (
+          <div className="mt-1 flex gap-2">
+            <button
+              type="button"
+              onClick={() => onTeam("goal")}
+              disabled={isPending}
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+            >
+              +G
+            </button>
+            <button
+              type="button"
+              onClick={() => onTeam("behind")}
+              disabled={isPending}
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+            >
+              +B
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Center: dark clock pill (tap to pause/resume). Wrapped in
           SirenPulseHalo so it briefly halos at sirenic moments
           (quarter-end hooter, FT). When clockPulseKey is null the
           halo span is omitted entirely — no animation, no DOM cost. */}
-      <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
-        <button
-          type="button"
-          onClick={onClockTap}
-          disabled={isPreGame || isFinished || !onClockTap}
-          className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-          aria-label={running ? "Pause clock" : "Resume clock"}
-        >
-          <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-            <span>{quarterLabel}</span>
-            {stateIcon && <span>{stateIcon}</span>}
-          </span>
-          <span
-            className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
-              overtime ? "text-warn" : "text-warm"
-            }`}
+      <div className="flex flex-col items-center gap-1 self-center">
+        <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
+          <button
+            type="button"
+            onClick={onClockTap}
+            disabled={isPreGame || isFinished || !onClockTap}
+            className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+            aria-label={running ? "Pause clock" : "Resume clock"}
           >
-            {formatClock(remaining)}
-          </span>
-        </button>
-      </SirenPulseHalo>
+            <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+              <span>{quarterLabel}</span>
+              {stateIcon && <span>{stateIcon}</span>}
+            </span>
+            <span
+              className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
+                overtime ? "text-warn" : "text-warm"
+              }`}
+            >
+              {formatClock(remaining)}
+            </span>
+          </button>
+        </SirenPulseHalo>
+        {/* Quarter-by-quarter trigger. Sits directly under the clock
+            pill so it reads as part of the centre score-and-clock
+            cluster. Tap → opens QuarterScoreModal with the full
+            breakdown + cumulative running totals. Steve's user
+            feedback 2026-05-09 (after the QuarterScoreStrip below
+            the scorebug shipped): "There's room in the in-game
+            scorebug under the score to open a quarter by quarter
+            modal" — the strip is a glance, this is drill-down. */}
+        {onShowQuarterScores && (
+          <button
+            type="button"
+            onClick={onShowQuarterScores}
+            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+            aria-label="Show quarter-by-quarter scores"
+          >
+            Q-by-Q
+          </button>
+        )}
+        {/* End-Q-early — paused-only "rescue" affordance. Surfaces
+            beside Q-by-Q only when the clock is paused mid-quarter
+            so it stays out of the way during normal play, but the
+            coach who paused at the start of the quarter and forgot
+            to resume has somewhere obvious to recover to. */}
+        {onEndQuarterEarly && !running && !isPreGame && !isFinished && (
+          <button
+            type="button"
+            onClick={onEndQuarterEarly}
+            className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
+            aria-label="End the current quarter now"
+          >
+            End Q early
+          </button>
+        )}
+      </div>
 
       {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">
@@ -142,12 +229,12 @@ export function GameHeader({
           </span>
         </p>
         {onOpponent && trackScoring && (
-          <div className="mt-0.5 flex justify-end gap-1">
+          <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => onOpponent("goal")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +G
             </button>
@@ -155,7 +242,7 @@ export function GameHeader({
               type="button"
               onClick={() => onOpponent("behind")}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
             >
               +B
             </button>

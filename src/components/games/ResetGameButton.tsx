@@ -3,15 +3,31 @@
 import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import type { LiveAuth } from "@/lib/types";
+
+// ─── Reset Game Button ─────────────────────────────────────────
+// Destructive action — wipes all events for a game so the coach
+// can re-set the lineup from scratch. Two-step gate (warning →
+// final confirm) so a stray tap can't nuke an in-progress game.
+//
+// Confirmation lives in a Modal (not an inline-expanding panel)
+// so the state change after the first tap is unmistakable.
+// Stagehand exploration (game-day-flow mission, 2026-05-08) showed
+// the inline expansion was easy to miss, especially when another
+// overlay (walkthrough modal) sat on top of the page — the agent
+// concluded "Restart game failed" because the inline confirmation
+// never visibly registered.
 
 interface ResetGameButtonProps {
   auth: LiveAuth;
   gameId: string;
 }
 
+type Stage = "idle" | "confirm" | "final";
+
 export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
-  const [stage, setStage] = useState<"idle" | "confirm" | "final">("idle");
+  const [stage, setStage] = useState<Stage>("idle");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -20,8 +36,8 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
     startTransition(async () => {
       // resetGame redirects on success (back to the pre-kick-off
       // screen so the coach can re-set availability + fill-ins) so
-      // `result` will be undefined on the happy path. Only treat it
-      // as a failure when the action came back with `{success: false}`.
+      // `result` will be undefined on the happy path. Only treat
+      // it as a failure when the action came back with `{success: false}`.
       const result = await resetGame(auth, gameId);
       if (result && !result.success) {
         setError(result.error);
@@ -32,8 +48,8 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
     });
   }
 
-  if (stage === "idle") {
-    return (
+  return (
+    <>
       <Button
         type="button"
         variant="secondary"
@@ -43,69 +59,78 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
       >
         Restart game
       </Button>
-    );
-  }
 
-  return (
-    <div className="w-full rounded-md border border-danger/30 bg-danger/10 p-3 text-sm">
-      <p className="font-semibold text-danger">
-        ⚠️ Restarting will permanently delete everything that happened in this game.
-      </p>
-      <ul className="mt-2 list-disc pl-5 text-xs text-danger/90">
-        <li>All quarters, swaps, goals, and behinds will be wiped.</li>
-        <li>The starting lineup will be cleared.</li>
-        <li>Player zone minutes from this game will no longer count.</li>
-        <li>This can&apos;t be undone.</li>
-      </ul>
-      {error && (
-        <p className="mt-2 rounded bg-danger/20 px-2 py-1 text-xs text-danger">
-          {error}
-        </p>
+      {stage !== "idle" && (
+        <Modal>
+          <h2 className="text-center text-lg font-bold text-danger">
+            Restart this game?
+          </h2>
+          <p className="mt-2 text-sm text-ink-dim">
+            Restarting will permanently delete everything that
+            happened in this game.
+          </p>
+          <ul className="mt-2 list-disc pl-5 text-xs text-ink-dim">
+            <li>All quarters, swaps, goals, and behinds will be wiped.</li>
+            <li>The starting lineup will be cleared.</li>
+            <li>Player zone minutes from this game will no longer count.</li>
+            <li>This can&apos;t be undone.</li>
+          </ul>
+
+          {error && (
+            <p
+              className="mt-3 rounded bg-danger/10 px-2 py-1 text-xs text-danger"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+
+          {stage === "confirm" ? (
+            <div className="mt-5 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={() => setStage("final")}
+                disabled={isPending}
+                className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+              >
+                I understand, continue
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setStage("idle")}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="danger"
+                size="md"
+                onClick={handleReset}
+                loading={isPending}
+              >
+                {isPending ? "Restarting…" : "Yes, restart this game"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setStage("idle")}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </Modal>
       )}
-      {stage === "confirm" ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setStage("final")}
-            disabled={isPending}
-            className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
-          >
-            I understand, continue
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setStage("idle")}
-            disabled={isPending}
-          >
-            Cancel
-          </Button>
-        </div>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            onClick={handleReset}
-            loading={isPending}
-          >
-            {isPending ? "Restarting…" : "Yes, restart this game"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setStage("idle")}
-            disabled={isPending}
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

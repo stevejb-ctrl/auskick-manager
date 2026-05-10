@@ -24,8 +24,10 @@ import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions"
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
+import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
+import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -43,6 +45,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { Button } from "@/components/ui/Button";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -105,6 +108,16 @@ interface NetballLiveGameProps {
    * `LiveGame.tsx` and the migration default in 0021_demo.sql.
    */
   clockMultiplier?: number;
+  /**
+   * Suppress the first-visit walkthrough auto-open. Used by the
+   * runner-token page when it ALSO renders an availability section
+   * above this component — without this, the welcome modal opens
+   * at z-50 fixed inset-0 and silently swallows clicks meant for
+   * the availability buttons underneath. Default behaviour
+   * (auto-open on first visit) is unchanged when omitted. The "?"
+   * button stays as a manual trigger.
+   */
+  suppressAutoWalkthrough?: boolean;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -129,6 +142,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
+    suppressAutoWalkthrough = false,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -171,6 +185,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     setPausedAtMs(null);
     setAccumulatedPauseMs(0);
   }, [currentQuarter]);
+  // Scroll to the top of the page (= top of the scorebug) when a
+  // new quarter goes live. Without this the page inherits the
+  // Q-break scroll position and the coach lands mid-page as the
+  // action restarts. Mirrors AFL's LiveGame fix.
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentQuarter, quarterEnded, finalised]);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;
@@ -229,6 +252,41 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // triggerKey is null.
   const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
 
+  // Manual "End Q early" confirmation gate. Opens when the coach
+  // taps the End-Q-early chip on the score-bug (only visible when
+  // paused). Confirming fires endNetballQuarter with the full
+  // quarter length so on-court players are credited the time they
+  // actually played, not the wall-clock that was paused.
+  const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
+  const manualEndFiredRef = useRef(false);
+  function handleManualEndQuarter() {
+    if (manualEndFiredRef.current) return;
+    manualEndFiredRef.current = true;
+    // Block the auto-hooter from also firing when we land on the
+    // Q-break next render; the ref above is enough for our handler
+    // but the hooter ref in the existing useEffect (line ~266) is
+    // gated on `remainingMs > 0` and a per-quarter sentinel, so
+    // it's already safe.
+    setClockPulseKey(currentQuarter);
+    enqueueLiveAction("endNetballQuarter", [
+      auth,
+      game.id,
+      currentQuarter,
+      quarterLengthMs,
+    ]);
+    router.refresh();
+  }
+
+  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
+  // it sets this and surfaces a confirm sheet (mirrors AFL's score
+  // sheet). Prevents accidental scoring from a stray tap during play.
+  // Declared before the hooter useEffect so the picker-race guard
+  // below can reference it.
+  const [pendingGoal, setPendingGoal] = useState<{
+    playerId: string;
+    positionId: string;
+  } | null>(null);
+
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
   // (which uses a ref to ensure single-fire). The coach doesn't need to
@@ -240,6 +298,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (remainingMs > 0) return;
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
+    // Picker-race guard: if the goal-confirm modal is open (coach
+    // tapped a player and is mid-confirm), DON'T fire the auto-
+    // hooter. Stagehand explore 2026-05-10 caught this in netball
+    // — the agent attempted to score at ~9:55 of a 10-min quarter,
+    // the picker opened, the 10:00 hooter fired before they could
+    // confirm, the goal was lost. With this gate the quarter
+    // doesn't end until the modal is resolved (confirmed or
+    // cancelled).
+    if (pendingGoal !== null) return;
     hooterFiredForQuarterRef.current = currentQuarter;
     // Bump the pulse key so the next render (Q-break score-bug for
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
@@ -265,6 +332,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     game.id,
     quarterLengthMs,
     router,
+    pendingGoal,
   ]);
 
   // ─── Injured / loaned — derived from events ─────────────────
@@ -311,6 +379,49 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     });
     return set;
   }, [thisGameEvents]);
+
+  // Per-quarter scoreboard for the live QuarterScoreStrip. Mirrors
+  // the netball QuarterBreak's scoreByQuarter computation but
+  // exposes results indexed 1..4 (index 0 unused) to match the
+  // strip's expected shape and the AFL store convention.
+  const scoreByQuarter = useMemo(() => {
+    // Index 0 unused — coach-friendly Q1=index1, Q2=index2, etc.
+    const periods: Array<{
+      ours: { goals: number; behinds: number };
+      theirs: { goals: number; behinds: number };
+    }> = [
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+      { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
+    ];
+    const undoneTargets = new Set<string>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "score_undo") continue;
+      const target = (ev.metadata as { target_event_id?: string } | null)
+        ?.target_event_id;
+      if (target) undoneTargets.add(target);
+    }
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
+      if (undoneTargets.has(ev.id)) continue;
+      const meta = ev.metadata as
+        | { quarter?: number; intended_quarter?: number }
+        | null;
+      const q =
+        typeof meta?.intended_quarter === "number"
+          ? meta.intended_quarter
+          : typeof meta?.quarter === "number"
+            ? meta.quarter
+            : 0;
+      if (q < 1 || q > 4) continue;
+      if (ev.type === "goal") periods[q].ours.goals++;
+      else periods[q].theirs.goals++;
+    }
+    return periods;
+  }, [thisGameEvents]);
+
   // Late arrivals: squad players who weren't marked available pre-game
   // but turned up after the umpire's first whistle. addLateArrival
   // upserts game_availability + writes a player_arrived event for audit.
@@ -406,13 +517,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
      * sub-out player to bench.
      */
     vacatingPlayerId: string | null;
-  } | null>(null);
-  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
-  // it sets this and surfaces a confirm sheet (mirrors AFL's score
-  // sheet). Prevents accidental scoring from a stray tap during play.
-  const [pendingGoal, setPendingGoal] = useState<{
-    playerId: string;
-    positionId: string;
   } | null>(null);
   // Pre-Q1 await-kickoff: "Start Q1" no longer writes the
   // quarter_start event directly. It sets this state, which surfaces
@@ -918,6 +1022,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
+  // Q-by-Q modal trigger — set to true when the coach taps the
+  // small chip under the clock pill in NetballScoreBug. Mirrors
+  // AFL's quarterScoresOpen in LiveGame.tsx.
+  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
   // NETBALL-07: walkthrough scoring-step gate is wired to the team's
   // actual track_scoring (was hard-coded `true` before plan 04-04).
   // The "Recording scores" step is dropped when trackScoring=false so
@@ -930,8 +1038,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("nb-walkthrough-seen")) return;
+    // Caller can suppress auto-open. Used by the runner-token page
+    // when it ALSO renders an availability section above this
+    // component — without it the welcome modal opens at z-50 fixed
+    // inset-0 and swallows clicks meant for the availability
+    // buttons. Coaches on the team-auth live page still see the
+    // walkthrough (default). The "?" button is the manual trigger.
+    if (suppressAutoWalkthrough) return;
     setWalkthroughOpen(true);
-  }, []);
+  }, [suppressAutoWalkthrough]);
   function handleWalkthroughClose() {
     if (typeof window !== "undefined") {
       localStorage.setItem("nb-walkthrough-seen", "1");
@@ -1078,6 +1193,41 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }
 
+  // ─── Full-time review (Q4 ended, not yet finalised) ───────
+  // Mirrors AFL's FullTimeReview: gives the coach a chance to
+  // reconcile / fix scores before locking the result. Ends with a
+  // "Finalise game" button that fires game_finalised → flips us
+  // into the finalised branch above on next render.
+  if (quarterEnded && currentQuarter >= 4) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        {topUtilityRow}
+        {walkthroughOverlay}
+        <NetballScoreBug
+          teamName={teamName}
+          opponentName={game.opponent}
+          team={teamScore}
+          opponent={opponentScore}
+          quarterLabel="FT"
+          clockText="—"
+          showScores={trackScoring}
+          clockPulseKey={clockPulseKey}
+        />
+        <NetballFullTimeReview
+          auth={auth}
+          gameId={game.id}
+          trackScoring={trackScoring}
+          teamScore={teamScore}
+          opponentScore={opponentScore}
+          scoreByQuarter={scoreByQuarter}
+          players={squad}
+          finalisedElapsedMs={_quarterElapsedMs ?? 0}
+          opponentName={game.opponent}
+        />
+      </div>
+    );
+  }
+
   // ─── Quarter break — Siren Footy-style reshuffle ──────────
   // Replaced the position-by-position lineup picker with the
   // NetballQuarterBreak component (mirrors AFL's QuarterBreak design):
@@ -1131,6 +1281,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerGoals={playerGoals}
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
+          trackScoring={trackScoring}
           onStarted={() => {
             // Local overlay is durable now via the period_break_swap
             // event the component just wrote.
@@ -1180,20 +1331,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <p className="text-center text-sm text-neutral-600">
           Lineup locked. Tap below to ready the kickoff.
         </p>
-        {/* Start-Q1 button sits ABOVE the court, mirroring AFL's
-            LiveGame layout (between header/toasts and the field). Keeps
-            the action prominent rather than burying it below the court.
-            Tap surfaces the await-kickoff modal — the server's
-            quarter_start event is only written when the GM confirms
-            from the modal, so the umpire's whistle (not the lineup tap)
-            decides when the clock kicks off. */}
+        {/* Page-level kickoff button sits ABOVE the court, mirroring
+            AFL's LiveGame layout. Tap surfaces the await-kickoff modal
+            — the server's quarter_start event is only written when the
+            GM confirms from the modal, so the umpire's whistle (not
+            the lineup tap) decides when the clock kicks off.
+            Label is "Ready for Q1" so it matches the modal heading
+            ("Ready for Q1") and stays distinct from the modal CTA
+            ("Start Q1"). Stagehand 2026-05-09 (run "everything") found
+            agents looping on "Start Q1" because Stagehand's selector
+            resolved to the page-level button (still mounted under the
+            modal overlay) instead of the modal CTA — both shared the
+            same accessible name. Same shape as the Q-break rename. */}
         <button
           type="button"
           onClick={() => setPendingQuarterStart(1)}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
-          Start Q1
+          Ready for Q1
         </button>
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         {pendingQuarterStart !== null && (
@@ -1282,9 +1438,79 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         // hides the +G affordance (no opponent-goal button visible).
         onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
         onClockTap={handleClockTap}
+        // Q-by-Q chip surfaces only when there's something to show.
+        // trackScoring=false hides it entirely (would be empty).
+        onShowQuarterScores={
+          trackScoring ? () => setQuarterScoresOpen(true) : undefined
+        }
+        // Surface "End Q early" only when the coach paused at the
+        // start of a quarter and forgot to resume — the chip
+        // self-gates on `paused` inside NetballScoreBug, so passing
+        // it here unconditionally is fine.
+        onEndQuarterEarly={() => setShowManualEndConfirm(true)}
         paused={isPaused}
         showScores={trackScoring}
       />
+
+      {/* End-Q-early confirm. Mirrors the AFL one at
+          src/components/live/LiveGame.tsx — destructive, full
+          quarter credit per Steve's spec ("apply all the
+          remaining minutes of the quarter to the players on
+          field"). */}
+      {showManualEndConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/40"
+            onClick={() => setShowManualEndConfirm(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <p className="text-center text-sm font-semibold text-ink">
+              End Q{currentQuarter} now?
+            </p>
+            <p className="mt-2 text-center text-xs text-ink-mute">
+              On-court players will be credited the full quarter time, even
+              though the clock is paused. Use this when the game played on
+              but the clock didn&rsquo;t.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                className="flex-1"
+                variant="danger"
+                onClick={() => {
+                  setShowManualEndConfirm(false);
+                  handleManualEndQuarter();
+                }}
+              >
+                End Q{currentQuarter}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="secondary"
+                onClick={() => setShowManualEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quarterScoresOpen && (
+        <QuarterScoreModal
+          sport="netball"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+          teamName={teamName}
+          opponentName={game.opponent}
+          onClose={() => setQuarterScoresOpen(false)}
+          // Wire fix-scores so coach can unwind a misattributed
+          // goal mid-quarter without waiting for the break.
+          auth={auth}
+          gameId={game.id}
+          players={squad}
+        />
+      )}
 
       {/* Undo last score — toast (8s, dark bg) then persistent chip
           (muted bg) until the next score replaces it. Mirrors AFL's
@@ -1478,6 +1704,8 @@ function NetballScoreBug({
   onOpponentGoal,
   isPending,
   onClockTap,
+  onShowQuarterScores,
+  onEndQuarterEarly,
   paused = false,
   showScores = true,
   clockPulseKey = null,
@@ -1499,6 +1727,21 @@ function NetballScoreBug({
    * When undefined, the pill renders as a plain div (no affordance).
    */
   onClockTap?: () => void;
+  /**
+   * Tap the small "Q-by-Q" chip below the clock pill. Parent owns
+   * the modal so the same data the strip uses can be reused
+   * without re-passing the full scoreByQuarter array down here.
+   * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
+   * Mirrors AFL's GameHeader.onShowQuarterScores prop.
+   */
+  onShowQuarterScores?: () => void;
+  /**
+   * Tap the "End Q early" chip — only rendered when paused. Parent
+   * owns the confirmation flow. Mirrors AFL's GameHeader prop of
+   * the same name. Real-game scenario: paused at the start of the
+   * quarter, forgot to resume, need to skip to the Q-break.
+   */
+  onEndQuarterEarly?: () => void;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
   /**
@@ -1583,10 +1826,39 @@ function NetballScoreBug({
         // when a sirenic moment fires (quarter-end hooter, game
         // finalised). When clockPulseKey is null (every render
         // before the first hooter), the halo renders inert.
+        // The flex-col wrapper is so the new "Q-by-Q" chip sits
+        // immediately below the pill (mirrors AFL GameHeader's
+        // arrangement).
         return (
-          <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="self-center rounded-md">
-            {pill}
-          </SirenPulseHalo>
+          <div className="flex flex-col items-center gap-1 self-center">
+            <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
+              {pill}
+            </SirenPulseHalo>
+            {onShowQuarterScores && (
+              <button
+                type="button"
+                onClick={onShowQuarterScores}
+                className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+                aria-label="Show quarter-by-quarter scores"
+              >
+                Q-by-Q
+              </button>
+            )}
+            {/* End-Q-early — paused-only "rescue" affordance.
+                Mirrors AFL's GameHeader behaviour. Coach paused
+                at the start of the quarter, forgot to resume,
+                game played on; this is how they recover. */}
+            {onEndQuarterEarly && paused && (
+              <button
+                type="button"
+                onClick={onEndQuarterEarly}
+                className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
+                aria-label="End the current quarter now"
+              >
+                End Q early
+              </button>
+            )}
+          </div>
         );
       })()}
 
@@ -1601,12 +1873,12 @@ function NetballScoreBug({
           </span>
         </p>
         {onOpponentGoal && (
-          <div className="mt-0.5 flex justify-end gap-1">
+          <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={onOpponentGoal}
               disabled={isPending}
-              className="rounded-xs bg-surface-alt px-1.5 py-0.5 font-mono text-[9px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
               aria-label="Record opponent goal"
             >
               +G

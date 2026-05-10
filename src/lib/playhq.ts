@@ -148,13 +148,69 @@ function formatVenue(g: GqlGame): string | null {
   return parts.length ? parts.join(", ") : null;
 }
 
-// Combine YYYY-MM-DD + HH:MM:SS into an ISO string. PlayHQ returns times in
-// the venue's local time without an offset, so we treat the combination as
-// local and let the browser render it in the user's zone.
+// Default timezone for PlayHQ wall-clock times. PlayHQ's API returns times
+// without an offset, but they're always venue-local. AFL + most junior
+// netball runs in VIC/NSW/ACT/TAS which share the AEST/AEDT zone — anchor
+// to Australia/Melbourne so DST is handled correctly. QLD users (UTC+10
+// year-round, no DST) drift ~1h during AEDT months; a per-team timezone
+// override is the right long-term fix and is tracked separately. Set
+// here as a constant so a future caller can pipe through a team-specific
+// override without further refactoring the helper signature.
+const DEFAULT_PLAYHQ_TIMEZONE = "Australia/Melbourne";
+
+// Convert wall-clock components (date + time, no offset) in the given IANA
+// timezone to a UTC ISO string. PlayHQ returns "2026-05-17" + "10:00:00"
+// meaning 10am venue-local; calling new Date("2026-05-17T10:00:00") parses
+// it as the SERVER's local time (Vercel runs UTC/US zones), so the saved
+// timestamp drifted ~10h east when the runtime didn't happen to be in
+// the venue's zone. We use Intl.DateTimeFormat to back-solve the UTC
+// instant whose wall-clock in `timeZone` matches the requested string;
+// two iterations converge at DST transitions.
+export function wallClockToUTC(
+  date: string,
+  time: string,
+  timeZone: string,
+): string {
+  // Treat the wall-clock as if it were UTC to seed the search. The actual
+  // UTC instant differs by the timezone's offset at that wall-clock.
+  const naive = new Date(`${date}T${time}Z`).getTime();
+  function wallClockMsInZone(instantMs: number): number {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(new Date(instantMs));
+    const m: Record<string, string> = {};
+    for (const p of parts) if (p.type !== "literal") m[p.type] = p.value;
+    return Date.UTC(
+      Number(m.year),
+      Number(m.month) - 1,
+      Number(m.day),
+      // Intl can emit "24" at midnight for some locales; clamp to 0.
+      Number(m.hour) % 24,
+      Number(m.minute),
+      Number(m.second),
+    );
+  }
+  let utcGuess = naive;
+  for (let i = 0; i < 2; i++) {
+    const offsetMs = wallClockMsInZone(utcGuess) - utcGuess;
+    utcGuess = naive - offsetMs;
+  }
+  return new Date(utcGuess).toISOString();
+}
+
+// Combine YYYY-MM-DD + HH:MM:SS into an ISO string anchored to the
+// venue's timezone. PlayHQ returns wall-clock times only — the previous
+// implementation used new Date(string).toISOString() which silently
+// adopted the SERVER's local zone (Steve 2026-05-10: "imports as GMT,
+// games show ~10 hours later"). Now resolves to the venue zone via
+// wallClockToUTC.
 function combineDateTime(date: string | null, time: string | null): string | null {
   if (!date) return null;
-  if (!time) return new Date(`${date}T00:00:00`).toISOString();
-  return new Date(`${date}T${time}`).toISOString();
+  if (!time) return wallClockToUTC(date, "00:00:00", DEFAULT_PLAYHQ_TIMEZONE);
+  return wallClockToUTC(date, time, DEFAULT_PLAYHQ_TIMEZONE);
 }
 
 export async function fetchPlayhqTeamPage(teamId: string): Promise<PlayHQTeamPage> {

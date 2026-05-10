@@ -42,14 +42,19 @@ test("team admin toggles a player's availability for a game", async ({
     .getByRole("listitem")
     .filter({ hasText: target.full_name })
     .first();
-  // Click 1: unknown → available. Button label is "Unavailable" until
-  // it flips, then becomes "Available".
-  await row.getByRole("button", { name: /^unavailable$/i }).click();
+  // Click 1: unknown → available. Button labels are now action verbs
+  // (renamed 2026-05-09 from current-state to "Mark available" /
+  // "Mark unavailable" — Stagehand showed the previous state-as-label
+  // pattern confused both the agent persona AND a kid persona, who
+  // tapped "Unavailable" thinking that was the action). The button
+  // reads "Mark available" until it flips, then becomes "Mark
+  // unavailable".
+  await row.getByRole("button", { name: /^mark available$/i }).click();
   // Wait for the round-trip to land before clicking again — otherwise
   // we race and may double-fire on stale state.
-  await expect(row.getByRole("button", { name: /^available$/i })).toBeVisible();
+  await expect(row.getByRole("button", { name: /^mark unavailable$/i })).toBeVisible();
   // Click 2: available → unavailable.
-  await row.getByRole("button", { name: /^available$/i }).click();
+  await row.getByRole("button", { name: /^mark unavailable$/i }).click();
 
   await expect
     .poll(

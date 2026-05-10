@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { GameHeader } from "@/components/live/GameHeader";
+import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
@@ -30,6 +31,8 @@ import {
   type InjuryReplacementCandidate,
 } from "@/components/live/InjuryReplacementModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
+import { FullTimeReview } from "@/components/live/FullTimeReview";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import {
   ALL_ZONES,
   emptyZoneMs,
@@ -58,13 +61,39 @@ declare global {
   }
 }
 
+// Module-level singleton AudioContext for the sub-due beep. Modern
+// browsers (mobile Safari especially) create AudioContexts in
+// "suspended" state and silently no-op until a user gesture
+// resume()s them. The previous implementation created a FRESH
+// context inside playBeep() on each call — and because playBeep()
+// runs from a useEffect (sub-state transition), there's no user
+// gesture in the call stack and the context stays suspended.
+// Steve reported 2026-05-09: the sub-due sound used to play but
+// no longer does.
+//
+// Fix: keep a single context across the page lifetime, and unlock
+// it on the first user pointerdown anywhere on the page (see the
+// useEffect inside LiveGame). After that the context's `state`
+// flips to "running" and subsequent oscillator plays are audible.
+let _audioCtx: AudioContext | null = null;
+function getOrCreateAudioCtx(): AudioContext | null {
+  if (_audioCtx) return _audioCtx;
+  if (typeof window === "undefined") return null;
+  const Ctx =
+    (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  _audioCtx = new Ctx();
+  return _audioCtx;
+}
+
 function playBeep() {
+  const ctx = getOrCreateAudioCtx();
+  if (!ctx) return;
   try {
-    const Ctx =
-      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    // Re-attempt resume in case the context drifted back to
+    // suspended (some browsers do this on tab-blur / inactivity).
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -77,7 +106,6 @@ function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     osc.start(now);
     osc.stop(now + 0.45);
-    osc.onended = () => ctx.close();
   } catch {
     // ignore — some browsers block before user interaction
   }
@@ -132,6 +160,16 @@ interface LiveGameProps {
    * Computed by parent via getEffectiveQuarterSeconds(team, ageGroup, game) * 1000.
    * D-26 / D-27: replaces hardcoded QUARTER_MS at the countdown cap and hooter trigger. */
   quarterMs: number;
+  /**
+   * Suppress the first-visit walkthrough auto-open. Used by the
+   * runner-token page when it ALSO renders an availability section
+   * above LiveGame — without this, the welcome modal opens at
+   * z-50 fixed inset-0 and silently swallows clicks meant for the
+   * availability buttons underneath. Coaches still see the
+   * walkthrough on the team-auth live page (default behaviour).
+   * The "?" button always remains as a manual trigger.
+   */
+  suppressAutoWalkthrough?: boolean;
 }
 
 type LastScore = {
@@ -167,6 +205,7 @@ export function LiveGame({
   songDurationSeconds = 15,
   clockMultiplier = 1,
   quarterMs,
+  suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   const init = useLiveGame((s) => s.init);
@@ -176,6 +215,10 @@ export function LiveGame({
   const accumulatedMs = useLiveGame((s) => s.accumulatedMs);
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const quarterEnded = useLiveGame((s) => s.quarterEnded);
+  // Drives the QuarterScoreStrip below the GameHeader during live
+  // play. Already populated by replay + the live store's
+  // incTeam/incOpponent paths, so just read it here.
+  const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
   const finalised = useLiveGame((s) => s.finalised);
   const selectField = useLiveGame((s) => s.selectField);
   const selectBench = useLiveGame((s) => s.selectBench);
@@ -250,6 +293,35 @@ export function LiveGame({
   // Swap-done toast — confirms that a substitution landed.
   const [swapToast, setSwapToast] = useState<string | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When the coach taps the own-team `+G`/`+B` chip in the
+  // scorebug header, this is set to the kind of score they're
+  // attributing. Open ↔ SlotFillSheet visible. The coach picks a
+  // player; we then run the same score-recording path as the
+  // tap-player-then-tap-+G flow. Stagehand exploration found that
+  // a fresh runner expects symmetric +G/+B controls per team, so
+  // we route through this picker rather than forcing them to
+  // discover the long-press / tap-tile path first. Nullable.
+  const [pickScorerKind, setPickScorerKind] = useState<"goal" | "behind" | null>(null);
+
+  // When the coach taps "Sub off" in the action drawer for a
+  // currently-selected field player, this captures their slot so
+  // the bench picker knows where to swap into. Stagehand 2026-05-09
+  // (afl-u8-auskick) found the action drawer surfaces only "+ Goal"
+  // / "+ Behind" / "Cancel" when track_scoring=true — the
+  // tap-a-bench-player-to-swap path is invisible. An Auskick coach
+  // (where rotation > scoring) interpreted the drawer as
+  // scoring-only and gave up. Adding an explicit "Sub off" button
+  // surfaces the substitution path. On pick → setPendingSwap fires
+  // the same swap-confirm dialog as the tap-bench flow.
+  const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
+
+  // Modal-open state for the quarter-by-quarter score breakdown.
+  // Triggered from the "Q-by-Q" chip under the clock pill. The
+  // modal renders a richer view (table + cumulative running
+  // totals + lead/margin per quarter) than the always-visible
+  // QuarterScoreStrip below the scorebug.
+  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
 
   // Team song — play songDurationSeconds from the configured start point on each goal
   const songAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -337,10 +409,17 @@ export function LiveGame({
   );
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("gm-walkthrough-seen")) {
-      setWalkthroughOpen(true);
-    }
-  }, []);
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("gm-walkthrough-seen")) return;
+    // Caller can suppress auto-open on first visit — used by the
+    // runner-token page when it's also rendering an availability
+    // section above this component, since the modal would block
+    // the availability buttons underneath. The "?" button still
+    // surfaces it manually. Default behaviour (auto-open on first
+    // visit) is unchanged when the prop isn't passed.
+    if (suppressAutoWalkthrough) return;
+    setWalkthroughOpen(true);
+  }, [suppressAutoWalkthrough]);
 
   function handleWalkthroughClose() {
     localStorage.setItem("gm-walkthrough-seen", "1");
@@ -395,7 +474,6 @@ export function LiveGame({
       setHydrated(true);
       return;
     }
-    let clockStartedAt: number | null = null;
     let accumulatedMs = 0;
     if (
       !initialState.quarterEnded &&
@@ -403,8 +481,17 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
+      // Preserve the elapsed-since-server-quarter-start for reload
+      // resilience, but DON'T auto-resume the clock. Steve 2026-05-10:
+      // tapping "Ready for Q{n+1}" then watching the StartQuarterModal
+      // pop up and silently auto-close after ~2 seconds was confusing
+      // — the coach expected an explicit kickoff tap. Now the clock
+      // stays paused until the coach taps "Start Q{n}" on the modal.
+      // On a mid-quarter reload, accumulatedMs still carries the real
+      // elapsed time so the displayed clock is correct after the
+      // coach re-taps Start; the only UX cost is one extra tap on
+      // page reload, which beats unexplained auto-progression.
       accumulatedMs = Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime());
-      clockStartedAt = Date.now();
     }
     init({
       activeGameId: gameId,
@@ -417,13 +504,26 @@ export function LiveGame({
       scoreByQuarter: initialState.scoreByQuarter,
       playerScores: initialState.playerScores,
       basePlayedZoneMs: initialState.basePlayedZoneMs,
+      // Bug fix 2026-05-09: previously omitted from init, which
+      // meant the live store's lastStintZone was {} on every
+      // hydrate (cold mount, router.refresh after period_break_swap,
+      // tab-switch reload). The suggester's same-zone-as-last-
+      // quarter penalty silently no-op'd, leaving players parked
+      // in identical zones two quarters running. Replay now
+      // computes this at every quarter_end so we just thread it
+      // through.
+      lastStintZone: initialState.lastStintZone,
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
       injuredIds: initialState.injuredIds,
       loanedIds: initialState.loanedIds,
       loanStartMs: initialState.loanStartMs,
       basePlayedLoanMs: initialState.basePlayedLoanMs,
-      clockStartedAt,
+      // clockStartedAt deliberately omitted — init() merges over the
+      // store's blank-slate default of null, so the clock stays
+      // paused until the coach taps "Start Q{n}". See accumulatedMs
+      // comment above for why this trades a single re-tap on reload
+      // for a removed auto-progression bug.
       accumulatedMs,
     });
     setHydrated(true);
@@ -543,15 +643,19 @@ export function LiveGame({
     }
   }
 
-  function handleScore(kind: "goal" | "behind") {
-    if (!selected || selected.kind !== "field") return;
-    const playerId = selected.playerId;
+  // Core score-recording path. Shared by:
+  //   • handleScore() — the existing tap-player-tile + tap "+ Goal"
+  //     flow (uses `selected` from the live store).
+  //   • the +G/+B picker on the scorebug — tap chip → pick scorer
+  //     in SlotFillSheet → fires this directly with the picked id.
+  // Optimistic store updates + undo-toast wiring live here so both
+  // paths get them for free.
+  function recordPlayerScore(playerId: string, kind: "goal" | "behind") {
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     const p = playersById.get(playerId);
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
-    clearSelection();
     if (kind === "goal") playSong();
     startUndoToast({
       kind,
@@ -565,6 +669,35 @@ export function LiveGame({
       gameId,
       { player_id: playerId, quarter, elapsed_ms },
     ]);
+  }
+
+  // Rushed behind: ball deflects through off the opposition (or
+  // self-rushed). Counts +1 for our team but has no scorer, so it
+  // skips the per-player tally and never plays the goal song.
+  // Only called for `behind` — goals always have a scorer.
+  function recordRushedBehind() {
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = scaledElapsedMs();
+    incTeam("behinds");
+    startUndoToast({
+      kind: "behind",
+      forTeam: "us",
+      playerId: null,
+      playerName: null,
+      quarter,
+    });
+    enqueueLiveAction("recordBehind", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, rushed: true },
+    ]);
+  }
+
+  function handleScore(kind: "goal" | "behind") {
+    if (!selected || selected.kind !== "field") return;
+    const playerId = selected.playerId;
+    clearSelection();
+    recordPlayerScore(playerId, kind);
   }
 
   function handleInjuryToggle(playerId: string, injured: boolean) {
@@ -735,11 +868,16 @@ export function LiveGame({
     startClock();
   }
 
-  function handleEndQuarter() {
+  function handleEndQuarter(opts?: { creditFullQuarter?: boolean }) {
     setError(null);
     const q = currentQuarter;
-    const elapsed_ms = scaledElapsedMs();
-    endCurrentQuarter(quarterMs);
+    // Auto-hooter path uses the actual scaled clock elapsed.
+    // Manual "End quarter early" path (Steve's real-game scenario:
+    // clock paused at the start of the quarter, forgot to resume,
+    // game continued anyway) credits on-field players the full
+    // quarter — what they actually played, not what the clock saw.
+    const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
+    endCurrentQuarter(quarterMs, opts);
     enqueueLiveAction("endQuarter", [auth, gameId, q, elapsed_ms]);
     // Refresh so the page picks up the quarter_end event once the
     // queue flushes. Offline: refresh is a no-op against cache;
@@ -753,9 +891,25 @@ export function LiveGame({
     handleEndQuarter();
   }
 
+  // Manual "End quarter early" — opens a confirm dialog rather
+  // than firing immediately. The action is destructive (writes a
+  // quarter_end event with full-credit elapsed_ms; on Q4 it
+  // transitions to FT review) so requiring an extra tap keeps a
+  // misclick from blowing up a real game.
+  const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
+
   const running = clockStartedAt !== null;
   const isPreGame = currentQuarter === 0;
-  const isFinished = finalised || (currentQuarter >= 4 && quarterEnded);
+  // Full time has TWO phases: REVIEW (Q4 ended, not yet finalised)
+  // and FINISHED (game_finalised event fired). Review shows a
+  // FullTimeReview panel where the coach can fix scores; tapping
+  // "Finalise game" writes game_finalised → flips us to FINISHED →
+  // GameSummaryCard takes over. `isFinished` covers BOTH phases for
+  // UI-suppression purposes (no more SwapCard / scoring buttons /
+  // start-quarter modal once Q4 is over). The summary itself
+  // renders only when `finalised` is true.
+  const isAtFullTime = !finalised && currentQuarter >= 4 && quarterEnded;
+  const isFinished = finalised || isAtFullTime;
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   // Kickoff modal state. The modal opens by DEFAULT whenever the
@@ -768,9 +922,62 @@ export function LiveGame({
   // affordance visible at a time. Reset on every quarter transition
   // so each new quarter's modal auto-shows.
   const [startModalDismissed, setStartModalDismissed] = useState(false);
+  // Per-quarter explicit kickoff acknowledgement. Tracks which
+  // quarter has had its "Start Q{n}" button tapped IN THIS SESSION.
+  // Earlier the modal-visibility logic inferred kickoff from
+  // (running && accumulatedMs === 0) — but with init() preserving
+  // accumulatedMs across reloads (so the displayed clock is right
+  // after a refresh), that gate let the modal silently auto-close
+  // a couple of seconds after the QuarterBreak commit. Steve
+  // 2026-05-10: "Rather than having to click 'Start Qx' to start
+  // the quarter, it shows the modal for a couple of seconds and
+  // then automatically starts it. I dont want this." Now the
+  // modal stays put until the coach explicitly taps Start (or
+  // Back to lineup). Page reload mid-quarter is handled by
+  // re-showing the modal — slight UX cost, but no more
+  // auto-progression.
+  const [kickoffAckQuarter, setKickoffAckQuarter] = useState<number | null>(
+    null,
+  );
   useEffect(() => {
     setStartModalDismissed(false);
+    setKickoffAckQuarter(null);
   }, [currentQuarter]);
+
+  // Scroll to the top of the page (= top of the scorebug) when a
+  // new quarter goes live. Without this the page inherits the
+  // scroll position from the Q-break (often scrolled deep into the
+  // rotation chips / lineup grid / score panel) and the coach
+  // lands mid-page just as the action restarts. Steve's UX bug
+  // 2026-05-09. Only fires when transitioning INTO live play
+  // (currentQuarter > 0 AND !quarterEnded), not on the initial
+  // pre-game render.
+  useEffect(() => {
+    if (currentQuarter < 1 || quarterEnded || finalised) return;
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentQuarter, quarterEnded, finalised]);
+
+  // Unlock the singleton AudioContext on the first user pointer-
+  // down anywhere on the page. Modern browsers start AudioContexts
+  // in "suspended" state and only honour resume() when called
+  // from inside a user-gesture handler. Without this the
+  // sub-due beep silently no-ops (Steve's bug report 2026-05-09).
+  // Subscribed once per LiveGame mount; cleaned up on unmount so
+  // a stale listener doesn't survive navigation.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    function unlock() {
+      const ctx = getOrCreateAudioCtx();
+      if (ctx && ctx.state === "suspended") {
+        void ctx.resume().catch(() => {});
+      }
+    }
+    document.addEventListener("pointerdown", unlock, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+    };
+  }, []);
 
   const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
   const displayNowMs = Math.min(nowMs, quarterMs);
@@ -799,16 +1006,37 @@ export function LiveGame({
     subBaseMs !== null && !isPreGame && !isFinished
       ? subBaseMs + effectiveSubIntervalMs - nowMs
       : null;
+  // Steve's real-game scenario: lent a player to the opposition,
+  // running 11 on field with the rest of the squad on bench. The
+  // sub interval kept ticking, sub-due modal popped up at every
+  // window because the time-only check thought a sub was viable.
+  // Gate the modal on having an actual healthy bench player to
+  // bring on — if everyone on the bench is injured or loaned,
+  // there's no rotation to suggest. Same `bench.some(...)`
+  // predicate used at the injury-replacement path elsewhere.
+  const hasSwappableBench = lineup.bench.some(
+    (id) => !injuredIds.includes(id) && !loanedIds.includes(id),
+  );
   const subState: "idle" | "soft" | "due" =
     msUntilDue === null
       ? "idle"
-      : msUntilDue <= 0
+      : msUntilDue <= 0 && hasSwappableBench
       ? "due"
-      : msUntilDue <= 30000
+      : msUntilDue <= 30000 && hasSwappableBench
       ? "soft"
       : "idle";
 
   useEffect(() => {
+    // Picker-race guard: don't open the SubDueModal on top of an
+    // active score-attribution picker. The coach is mid-pick;
+    // dropping the sub modal over them would either dismiss the
+    // picker or steal focus, in either case losing the goal
+    // attribution. The sub-due state stays "due" while the picker
+    // is open — once the coach resolves attribution and the
+    // picker closes, the modal opens automatically (subState
+    // didn't change, prevSubStateRef is still "due", but we
+    // re-check on every render via this effect's deps).
+    if (pickScorerKind !== null) return;
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playBeep();
       setSubModalOpen(true);
@@ -820,7 +1048,7 @@ export function LiveGame({
       setSubModalOpen(false);
     }
     prevSubStateRef.current = subState;
-  }, [subState]);
+  }, [subState, pickScorerKind]);
 
   useEffect(() => {
     return () => {
@@ -849,6 +1077,17 @@ export function LiveGame({
     if (quarterEnded || finalised || currentQuarter < 1) return;
 
     function maybeTrigger() {
+      // Picker-race guard: if the score-attribution picker is open
+      // (the coach tapped +G/+B and is mid-pick), DON'T fire the
+      // auto-hooter. Stagehand explore 2026-05-10 caught the
+      // pattern in netball: a goal scored at 11:55 with the picker
+      // open got eaten by the 12:00 hooter, the QuarterEndModal
+      // covered the picker, attribution was lost. Same race exists
+      // in AFL on a long-quarter age-group near the siren. The
+      // freeze is conservative — the picker dismisses on pick OR
+      // cancel, and the next interval tick fires the hooter once
+      // the user resolves attribution.
+      if (pickScorerKind !== null) return;
       const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
       if (elapsed * clockMultiplier >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
@@ -869,7 +1108,7 @@ export function LiveGame({
     if (clockStartedAt === null) return;
     const id = setInterval(maybeTrigger, 500);
     return () => clearInterval(id);
-  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter]);
+  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter, pickScorerKind]);
 
   useEffect(() => {
     if (quarterEnded) setShowQuarterEndModal(false);
@@ -902,7 +1141,7 @@ export function LiveGame({
     setLockModal({ playerId, zone });
   }
 
-  const suggestions =
+  const rawSuggestions =
     isPreGame || isFinished
       ? []
       : suggestSwaps(
@@ -916,6 +1155,21 @@ export function LiveGame({
           zoneMsByPlayer,
           zoneLockedPlayers
         );
+
+  // Hide the SwapCard when the next sub-due moment would fall AFTER
+  // the hooter — the suggestion would never fire as a mid-quarter
+  // sub, and the same kids tend to cycle in via the QuarterBreak
+  // suggester anyway, which made the UI misleading. Steve flagged
+  // this on a real game where the SwapCard kept showing "next subs"
+  // right up to the hooter without ever firing. When msUntilDue is
+  // null (pre-game / between quarters / finished) the SwapCard is
+  // already suppressed by other guards, so we leave suggestions
+  // alone in that case.
+  const subPastHooter =
+    msUntilDue !== null &&
+    quarterMs > 0 &&
+    nowMs + msUntilDue >= quarterMs;
+  const suggestions = subPastHooter ? [] : rawSuggestions;
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
@@ -953,6 +1207,11 @@ export function LiveGame({
         teamName={teamName}
         opponentName={opponentName}
         trackScoring={trackScoring}
+        onTeam={
+          !isPreGame && !isFinished
+            ? (kind) => setPickScorerKind(kind)
+            : undefined
+        }
         onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
         onClockTap={handleClockTap}
         running={running}
@@ -961,7 +1220,45 @@ export function LiveGame({
         clockMultiplier={clockMultiplier}
         isPending={isPending}
         clockPulseKey={clockPulseKey}
+        // Q-by-Q chip surfaces only when there's something to show
+        // — i.e. once Q1 is in flight or later. Hidden pre-game and
+        // post-FT (the GameSummaryCard handles those views).
+        onShowQuarterScores={
+          trackScoring && !isPreGame && !isFinished
+            ? () => setQuarterScoresOpen(true)
+            : undefined
+        }
+        // End-Q-early "rescue" path. The header only renders the
+        // chip when paused, but we still gate by !isPreGame here
+        // so a coach who pauses pre-Q1 (e.g. waiting on stragglers)
+        // can't accidentally end Q0.
+        onEndQuarterEarly={
+          !isPreGame && !isFinished
+            ? () => setShowManualEndConfirm(true)
+            : undefined
+        }
       />
+
+      {/* Quarter-by-quarter modal — drill-down view triggered by
+          the chip under the clock pill. Mirrors the glance-level
+          QuarterScoreStrip below but with more detail (cumulative
+          running totals, per-quarter margin). */}
+      {quarterScoresOpen && (
+        <QuarterScoreModal
+          sport="afl"
+          scoreByQuarter={scoreByQuarter}
+          currentQuarter={currentQuarter}
+          quarterEnded={quarterEnded}
+          teamName={teamName}
+          opponentName={opponentName}
+          onClose={() => setQuarterScoresOpen(false)}
+          // Wire fix-scores so coach can unwind a misattributed
+          // goal mid-quarter without waiting for the break.
+          auth={auth}
+          gameId={gameId}
+          players={squadPlayers}
+        />
+      )}
 
       {/* Swap-done toast — flashes briefly after a substitution lands.
           Wrapped in SirenPulseHalo so the brand pulse halos the toast
@@ -1031,7 +1328,17 @@ export function LiveGame({
           </Button>
         )}
 
-      {isFinished && (
+      {isAtFullTime && (
+        <FullTimeReview
+          auth={auth}
+          gameId={gameId}
+          trackScoring={trackScoring}
+          players={squadPlayers}
+          finalisedElapsedMs={accumulatedMs}
+        />
+      )}
+
+      {finalised && (
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
           Full time
         </p>
@@ -1176,6 +1483,32 @@ export function LiveGame({
                   + Behind
                 </button>
               </div>
+              {/* Swap player — covers both cases:
+                    1. Sub off (pick a bench player → field-to-bench)
+                    2. Rotate position (pick another field player in
+                       a different zone → field-to-field zone swap)
+                  Stagehand 2026-05-09 (afl-u8-auskick) initially
+                  surfaced this button as "Sub off" only — but Steve
+                  flagged the gap: a coach often wants to rotate a
+                  forward to back without subbing them off. The
+                  picker now lists both bench AND other-zone field
+                  players, with the chosen player's location
+                  deciding which swap action fires. */}
+              {selected?.kind === "field" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSubOffSelected({
+                      playerId: selected.playerId,
+                      zone: selected.zone,
+                    })
+                  }
+                  disabled={isPending}
+                  className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
+                >
+                  Swap player
+                </button>
+              )}
             </div>
           </div>
         );
@@ -1215,7 +1548,60 @@ export function LiveGame({
           quarter={currentQuarter}
           loading={isPending}
           onConfirm={handleQuarterEndConfirm}
+          // "Goal on the siren?" — Steve's real-game scenario:
+          // a goal lands at the moment the hooter sounds, the
+          // QuarterEndModal opens before the +G picker has a
+          // chance to fire. Surfacing the picker here keeps the
+          // attribution attached to THIS quarter (the picker
+          // reads currentQuarter, which is still the just-ended
+          // value until handleQuarterEndConfirm fires). The +B
+          // path covers a rushed behind on the siren too.
+          onLateScore={
+            trackScoring ? (kind) => setPickScorerKind(kind) : undefined
+          }
         />
+      )}
+
+      {/* End-quarter-early confirm. Destructive — credits all
+          on-field players the full quarter time and triggers the
+          Q-break (or FT review on Q4). Same shape as
+          SwapConfirmDialog so the visual language stays consistent. */}
+      {showManualEndConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/40"
+            onClick={() => setShowManualEndConfirm(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <p className="text-center text-sm font-semibold text-ink">
+              End Q{currentQuarter} now?
+            </p>
+            <p className="mt-2 text-center text-xs text-ink-mute">
+              On-field players will be credited the full quarter time, even
+              though the clock is paused. Use this when the game played on
+              but the clock didn&rsquo;t.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                className="flex-1"
+                variant="danger"
+                onClick={() => {
+                  setShowManualEndConfirm(false);
+                  handleEndQuarter({ creditFullQuarter: true });
+                }}
+              >
+                End Q{currentQuarter}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="secondary"
+                onClick={() => setShowManualEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Await-kickoff modal — the ONLY kickoff affordance for every
@@ -1231,13 +1617,20 @@ export function LiveGame({
           already wrote the server event. */}
       {!isFinished &&
         !quarterEnded &&
-        !running &&
-        accumulatedMs === 0 &&
+        kickoffAckQuarter !== currentQuarter &&
         !startModalDismissed && (
           <StartQuarterModal
             quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
-            onStart={isPreGame ? handleStartFirstQuarter : () => startClock()}
+            onStart={() => {
+              // Mark this quarter as kicked-off so a later
+              // pause/resume via clock-tap doesn't re-show the
+              // modal. The flag clears in the currentQuarter
+              // useEffect when the next Q-break advances quarter.
+              setKickoffAckQuarter(currentQuarter);
+              if (isPreGame) handleStartFirstQuarter();
+              else startClock();
+            }}
             onCancel={() => setStartModalDismissed(true)}
           />
         )}
@@ -1386,14 +1779,223 @@ export function LiveGame({
         );
       })()}
 
-      {/* Full-time game summary */}
-      {isFinished && (
+      {/* Pick-scorer sheet — opens when the coach taps the own-team
+          `+G`/`+B` chip in the scorebug. Lists every on-field
+          player followed by the bench (kept eligible because a goal
+          can be credited to a player who just rotated off). Sub-
+          label = the player's current zone or "Bench" so the coach
+          can find the scorer at a glance. Picking fires the same
+          recordPlayerScore path as the tap-tile flow.
+          Stagehand finding (2026-05-08): a fresh runner expects
+          symmetric per-team `+G`/`+B` and didn't discover the
+          tap-player path on their own. */}
+      {pickScorerKind && (() => {
+        const fieldIds = ALL_ZONES.flatMap((z) => lineup[z]);
+        const benchIds = lineup.bench;
+        // Filter out injured/loaned — they're not on field and
+        // shouldn't be credited with a goal in their absence.
+        const eligible = [...fieldIds, ...benchIds].filter(
+          (id) => !injuredIds.includes(id) && !loanedIds.includes(id),
+        );
+        const candidates = eligible
+          .map((id) => {
+            const p = playersById.get(id);
+            if (!p) return null;
+            const onFieldZone = ALL_ZONES.find((z) => lineup[z].includes(id));
+            return {
+              id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+              subLabel: onFieldZone
+                ? onFieldZone.toUpperCase()
+                : "Bench",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        const slotLabel = pickScorerKind === "goal" ? "Goal" : "Behind";
+        return (
+          <SlotFillSheet
+            slotLabel={slotLabel}
+            candidates={candidates}
+            titleVerb="Who scored the"
+            subtitle={`Pick the player who scored the ${slotLabel.toLowerCase()}.`}
+            emptyMessage="No eligible players — every available player is sidelined."
+            // Backdrop tap is a no-op here — the coach must either pick
+            // a player or hit Cancel. Stagehand 2026-05-09 found that
+            // tapping a different chip while this picker was open
+            // dismissed it silently and lost the goal attribution.
+            dismissOnBackdrop={false}
+            // For BEHINDS, surface a "Rushed (no scorer)" row at the
+            // top of the picker. AFL real-game scenario: the ball
+            // deflects through the small posts off the opposition or
+            // is rushed off our own boot. The behind counts for our
+            // team but has no individual scorer, so it can't go
+            // through the player-attribution path. Goals don't get
+            // this option — every goal in junior footy has a scorer
+            // (and an unattributed goal would always be a logging
+            // error worth catching).
+            extraOption={
+              pickScorerKind === "behind"
+                ? {
+                    label: "Rushed (no scorer)",
+                    subLabel: "Counts as a behind for our team",
+                    onSelect: () => {
+                      recordRushedBehind();
+                      setPickScorerKind(null);
+                    },
+                  }
+                : undefined
+            }
+            onPick={(playerId) => {
+              recordPlayerScore(playerId, pickScorerKind);
+              setPickScorerKind(null);
+            }}
+            onCancel={() => setPickScorerKind(null)}
+          />
+        );
+      })()}
+
+      {/* Swap-player picker — opens when the coach taps "Swap player"
+          in the action drawer for a selected field player. Lists
+          BOTH bench players AND other-zone field players (excluding
+          the selected player, same-zone players, injured/loaned).
+          Sub-label tells the coach where each candidate is
+          ("Bench" / zone short label like "FWD"/"BCK") so they can
+          pick a sub OR a rotation in one place.
+
+          On pick:
+            - Bench player    → setPendingSwap → SwapConfirmDialog
+                                → field-to-bench substitution
+            - Field player    → applyFieldZoneSwap + recordFieldZoneSwap
+                                → direct field-to-field zone swap
+                                  (no confirm dialog; same path the
+                                  tap-two-field-players flow takes) */}
+      {subOffSelected && (() => {
+        const offPlayer = playersById.get(subOffSelected.playerId);
+        const offName = offPlayer?.full_name ?? "Player";
+        const offZone = subOffSelected.zone;
+        // Bench candidates — eligible (not injured/loaned).
+        const benchCandidates = lineup.bench
+          .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
+          .map((id) => {
+            const p = playersById.get(id);
+            if (!p) return null;
+            return {
+              id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+              subLabel: "Bench",
+              kind: "bench" as const,
+              zone: null as Zone | null,
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        // Field candidates — every other-zone field player except the
+        // selected one. Same-zone "swap" is meaningless (zones don't
+        // preserve internal order), so we filter by zone !== offZone.
+        const fieldCandidates = ALL_ZONES.flatMap((z) =>
+          z === offZone
+            ? []
+            : lineup[z]
+                .filter(
+                  (id) =>
+                    id !== subOffSelected.playerId &&
+                    !injuredIds.includes(id) &&
+                    !loanedIds.includes(id),
+                )
+                .map((id) => {
+                  const p = playersById.get(id);
+                  if (!p) return null;
+                  return {
+                    id,
+                    name: p.full_name,
+                    jerseyNumber: p.jersey_number,
+                    subLabel: z.toUpperCase(),
+                    kind: "field" as const,
+                    zone: z,
+                  };
+                }),
+        ).filter((c): c is NonNullable<typeof c> => !!c);
+        // Bench first (the more common substitution case), then
+        // field rotations grouped by zone.
+        const candidates = [...benchCandidates, ...fieldCandidates];
+        // Map id → kind/zone so the onPick handler knows which
+        // action to fire without re-deriving the lists.
+        const candidateById = new Map(candidates.map((c) => [c.id, c]));
+        return (
+          <SlotFillSheet
+            slotLabel={`${offName}'s spot`}
+            candidates={candidates.map(({ id, name, jerseyNumber, subLabel }) => ({
+              id,
+              name,
+              jerseyNumber,
+              subLabel,
+            }))}
+            titleVerb="Swap"
+            subtitle={`Pick a bench player to sub on for ${offName}, or another on-field player to rotate positions.`}
+            emptyMessage="No eligible players — every available player is on this zone, sidelined, or injured."
+            // Backdrop tap is OK to dismiss this picker — accidental
+            // dismiss returns the coach to the prior selected state
+            // with no data loss.
+            onPick={(picked) => {
+              const c = candidateById.get(picked);
+              if (!c) {
+                setSubOffSelected(null);
+                return;
+              }
+              if (c.kind === "bench") {
+                // Field-to-bench: existing SwapConfirmDialog path.
+                setPendingSwap({
+                  off: subOffSelected.playerId,
+                  on: picked,
+                  zone: subOffSelected.zone,
+                });
+              } else if (c.kind === "field" && c.zone) {
+                // Field-to-field zone rotation: same path as
+                // tap-A-then-tap-B-in-different-zone. Direct
+                // store mutation + server event, no confirm.
+                const quarter = Math.max(1, currentQuarter);
+                const elapsed_ms = scaledElapsedMs();
+                applyFieldZoneSwap(
+                  subOffSelected.playerId,
+                  subOffSelected.zone,
+                  picked,
+                  c.zone,
+                );
+                showSwapToast(
+                  `${shortName(subOffSelected.playerId)} ⇄ ${shortName(picked)} — zones swapped`,
+                );
+                enqueueLiveAction("recordFieldZoneSwap", [
+                  auth,
+                  gameId,
+                  {
+                    player_a_id: subOffSelected.playerId,
+                    zone_a: subOffSelected.zone,
+                    player_b_id: picked,
+                    zone_b: c.zone!,
+                    quarter,
+                    elapsed_ms,
+                  },
+                ]);
+              }
+              clearSelection();
+              setSubOffSelected(null);
+            }}
+            onCancel={() => setSubOffSelected(null)}
+          />
+        );
+      })()}
+
+      {/* Full-time game summary — renders only AFTER the coach has
+          tapped "Finalise game" in the FullTimeReview panel above.
+          Until then `finalised` is false and the review takes the
+          place of the summary. */}
+      {finalised && (
         <GameSummaryCard
           teamName={teamName}
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
-          playerCount={squadPlayers.length}
         />
       )}
 

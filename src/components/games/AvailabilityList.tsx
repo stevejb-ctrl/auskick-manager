@@ -31,6 +31,16 @@ interface AvailabilityListProps {
    * unchanged callers keep their current behaviour.
    */
   showJerseyNumber?: boolean;
+  /**
+   * Minimum number of available players needed before the game can
+   * start (= court positions count). When provided, the count pill
+   * reads "X of N" and a hint surfaces below if the threshold isn't
+   * met. Stagehand 2026-05-09 found that without this hint, runners
+   * mark 3 of 7 players Available and then bash on "Start game"
+   * indefinitely because nothing tells them more are needed.
+   * Omit to keep the legacy "X available" rendering.
+   */
+  requiredAvailable?: number;
 }
 
 export async function AvailabilityList({
@@ -40,6 +50,7 @@ export async function AvailabilityList({
   canMarkAvailability,
   canManageMatch,
   showJerseyNumber = true,
+  requiredAvailable,
 }: AvailabilityListProps) {
   const supabase = auth.kind === "token" ? createAdminClient() : createClient();
 
@@ -75,16 +86,36 @@ export async function AvailabilityList({
   // Fill-ins are always available — addFillIn stamps an availability row for them.
   available += fillIns.length;
 
+  // When a required minimum is provided, show "X of N" and turn the
+  // pill warm-orange-ish until the threshold is met. The body hint
+  // below tells the user what to do next so they're not just staring
+  // at a stuck "Start game" button.
+  const needsMore =
+    typeof requiredAvailable === "number" && available < requiredAvailable;
   return (
     <div className="space-y-4">
       <div className="flex gap-2 text-sm">
-        <span className="inline-flex items-center gap-1 rounded-full border border-ok/30 bg-ok/10 px-3 py-1 font-semibold text-ok">
-          {available} available
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${
+            needsMore
+              ? "border-warn/30 bg-warn/10 text-warn"
+              : "border-ok/30 bg-ok/10 text-ok"
+          }`}
+        >
+          {typeof requiredAvailable === "number"
+            ? `${available} of ${requiredAvailable} available`
+            : `${available} available`}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-alt px-3 py-1 font-semibold text-ink-mute">
           {unavailable} unavailable
         </span>
       </div>
+      {needsMore && (
+        <p className="text-xs text-ink-dim">
+          Mark at least {requiredAvailable} players available before the
+          game can start.
+        </p>
+      )}
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">
         {squad.length === 0 && fillIns.length === 0 ? (

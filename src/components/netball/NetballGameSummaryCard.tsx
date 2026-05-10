@@ -20,6 +20,12 @@ import type { Player } from "@/lib/types";
 import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
+// Permissive subset — buildPlayerTimes only reads id + full_name.
+// Lets the game-detail page pass the slim projection it loads
+// (id, full_name, jersey_number) without dragging the full
+// Player type through every server query.
+type PlayerLike = Pick<Player, "id" | "full_name">;
+
 interface Props {
   teamName: string;
   opponentName: string;
@@ -31,7 +37,7 @@ interface Props {
   /** Per-player time spent in each third over the whole game. */
   playerStats: Map<string, PlayerThirdMs>;
   /** Active squad — drives name lookup AND the "N players" line. */
-  squad: Player[];
+  squad: PlayerLike[];
   /**
    * Whether this team records goals/scores. NETBALL-04 / NETBALL-06:
    * when false, the result line ("def" / "drew with" / "lost to") AND
@@ -60,7 +66,7 @@ interface PlayerTimeRow {
 
 function buildPlayerTimes(
   playerStats: Map<string, PlayerThirdMs>,
-  squad: Player[],
+  squad: PlayerLike[],
 ): PlayerTimeRow[] {
   const byId = new Map(squad.map((p) => [p.id, p]));
   const rows: PlayerTimeRow[] = [];
@@ -88,7 +94,7 @@ function buildSummary(
   opponentScore: { goals: number },
   playerGoals: Record<string, number>,
   playerStats: Map<string, PlayerThirdMs>,
-  squad: Player[],
+  squad: PlayerLike[],
   trackScoring: boolean,
 ): string {
   const lines: string[] = [];

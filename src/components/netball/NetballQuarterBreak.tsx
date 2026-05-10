@@ -26,6 +26,8 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
+import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import {
   netballSport,
   primaryThirdFor,
@@ -86,6 +88,9 @@ interface Props {
   loanedIds: Set<string>;
   /** Per-player goals scored this game — drives the score chip on each tile. */
   playerGoals: Record<string, number>;
+  /** Whether the team has scoring tracked on. Hides the recap + Fix-scores
+   *  panel when false. */
+  trackScoring?: boolean;
   /**
    * Per-player time-by-third map computed by the parent. Includes
    * mid-quarter substitutions via the segment-based accounting in
@@ -132,6 +137,7 @@ export function NetballQuarterBreak({
   playerGoals,
   playerStats,
   midQuarterSubs,
+  trackScoring = true,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -365,7 +371,22 @@ export function NetballQuarterBreak({
   // bench, so the slot stays filled and the recovered player lands on
   // bench by default. Coach can manually swap them back into a slot
   // if they want to.
+  // Only re-derive `draft` when the user explicitly changes
+  // lineup mode OR when forcedBenchIds shifts (un-injuring a
+  // player on the Q-break should push them onto bench by default).
+  // Without this guard, ambient prop changes (suggestedLineup
+  // recomputing as thisGameEvents updates) cause the user's
+  // committed draft to be overwritten with a fresh suggestion —
+  // visible as a "lineup flickers a few seconds after Q-break
+  // mounts" bug Steve reported 2026-05-09.
+  const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
+  const lastForcedBenchSizeRef = useRef(0);
   useEffect(() => {
+    const modeChanged = lastAppliedModeRef.current !== lineupMode;
+    const forcedChanged = lastForcedBenchSizeRef.current !== forcedBenchIds.size;
+    if (!modeChanged && !forcedChanged) return;
+    lastAppliedModeRef.current = lineupMode;
+    lastForcedBenchSizeRef.current = forcedBenchIds.size;
     const base =
       lineupMode === "suggested"
         ? suggestedLineup
@@ -688,6 +709,108 @@ export function NetballQuarterBreak({
     router.refresh();
   }
 
+  // ─── Per-quarter score recap (driven by thisGameEvents) ────
+  // Counts goal / opponent_goal events per quarter so the coach
+  // can reconcile each break's scoreline with the opposition.
+  // score_undo events with target_event_id cancel a paired score.
+  // Mirrors AFL replayGame's scoreByQuarter computation but lives
+  // here to avoid coupling NetballQuarterBreak to the AFL store.
+  const scoreByQuarter = useMemo(() => {
+    const periods: Array<{ ours: number; theirs: number }> = [
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+      { ours: 0, theirs: 0 },
+    ];
+    const undoneTargets = new Set<string>();
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "score_undo") continue;
+      const target = (ev.metadata as { target_event_id?: string } | null)
+        ?.target_event_id;
+      if (target) undoneTargets.add(target);
+    }
+    for (const ev of thisGameEvents) {
+      if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
+      if (undoneTargets.has(ev.id)) continue;
+      const meta = ev.metadata as
+        | { quarter?: number; intended_quarter?: number }
+        | null;
+      const q =
+        typeof meta?.intended_quarter === "number"
+          ? meta.intended_quarter
+          : typeof meta?.quarter === "number"
+            ? meta.quarter
+            : 0;
+      if (q < 1 || q > 4) continue;
+      if (ev.type === "goal") periods[q - 1].ours++;
+      else periods[q - 1].theirs++;
+    }
+    return periods;
+  }, [thisGameEvents]);
+
+  const cumUs = scoreByQuarter.reduce((a, p) => a + p.ours, 0);
+  const cumThem = scoreByQuarter.reduce((a, p) => a + p.theirs, 0);
+
+  const [showFixScores, setShowFixScores] = useState(false);
+
+  // ─── Match-adjustments (lend / mark injured at break) ──────
+  // Mirrors the AFL QuarterBreak panel. Auto-expands when there's
+  // already an active loan or injury so the coach can see and
+  // change them without hunting for a closed section. Steve's
+  // real-game complaint ("the UX only allows lending while the
+  // quarter is running") was pure discoverability.
+  const lentPlayers = useMemo(
+    () =>
+      squad.filter((p) => loanedIds.has(p.id) && !injuredIds.has(p.id)),
+    [squad, loanedIds, injuredIds],
+  );
+  const injuredPlayersList = useMemo(
+    () => squad.filter((p) => injuredIds.has(p.id)),
+    [squad, injuredIds],
+  );
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
+    () => lentPlayers.length > 0 || injuredPlayersList.length > 0,
+  );
+  const [lendPickerOpen, setLendPickerOpen] = useState(false);
+  const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [_adjustPending, startAdjustTransition] = useTransition();
+
+  // Toggle handlers — both follow the optimistic pattern: flip the
+  // local store first so the chip updates instantly, then write the
+  // event. The next page revalidate rebuilds injuredIds/loanedIds
+  // from events and the local flip becomes durable. We don't need
+  // to roll back on failure — the action returns ActionResult and
+  // the worst case is a stale chip until the next refresh. (AFL's
+  // QuarterBreak does the same.)
+  function handleLendToggleAtBreak(pid: string, nextLoaned: boolean) {
+    setAdjustError(null);
+    enqueueLiveAction("markLoan", [
+      auth,
+      gameId,
+      {
+        player_id: pid,
+        loaned: nextLoaned,
+        // Loan applies from the start of Q{nextQuarter}.
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      },
+    ]);
+  }
+  function handleInjuryToggleAtBreak(pid: string, nextInjured: boolean) {
+    setAdjustError(null);
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: pid,
+        injured: nextInjured,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      },
+    ]);
+  }
+
   // ─── Render ────────────────────────────────────────────────
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
@@ -744,6 +867,274 @@ export function NetballQuarterBreak({
             : "Court is empty — tap a bench player, then a position to place them."}
         </p>
       </div>
+
+      {/* Match adjustments — collapsed by default, auto-opens when
+          there's already an active loan or injury so the coach can
+          manage both at the boundary between quarters (Steve's
+          real-world request 2026-05-10). On-field size isn't
+          surfaced for netball — it's fixed at 7 per the rules. */}
+      <div className="rounded-md border border-hairline bg-surface shadow-card">
+        <button
+          type="button"
+          onClick={() => setMatchAdjustmentsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
+          aria-expanded={matchAdjustmentsOpen}
+          aria-controls="netball-qb-match-adjustments"
+        >
+          <span className="flex flex-1 items-center gap-3 text-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Match adjustments
+            </span>
+            <span className="text-xs text-ink-mute">
+              {lentPlayers.length > 0 ? `${lentPlayers.length} lent` : ""}
+              {lentPlayers.length > 0 && injuredPlayersList.length > 0
+                ? " · "
+                : ""}
+              {injuredPlayersList.length > 0
+                ? `${injuredPlayersList.length} injured`
+                : ""}
+              {lentPlayers.length === 0 && injuredPlayersList.length === 0
+                ? "Lend / injured"
+                : ""}
+            </span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`transition-transform duration-fast ease-out-quart ${
+                matchAdjustmentsOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+
+        {matchAdjustmentsOpen && (
+          <div
+            id="netball-qb-match-adjustments"
+            className="space-y-4 border-t border-hairline px-4 py-3"
+          >
+            {/* Lend a player */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Lend a player</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Lent players sit out for the rest of the game until you bring
+                them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {lentPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                  >
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLendToggleAtBreak(p.id, false)}
+                      aria-label={`Bring ${p.full_name} back`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLendPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <span aria-hidden>+</span>
+                  Lend a player
+                </button>
+              </div>
+            </div>
+
+            {/* Mark injured / left early */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Injured / left early
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Injured players sit out for the rest of the game until you
+                bring them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {injuredPlayersList.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-danger/50 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+                  >
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleInjuryToggleAtBreak(p.id, false)}
+                      aria-label={`Mark ${p.full_name} fit`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setInjuredPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                >
+                  <span aria-hidden>+</span>
+                  Mark injured
+                </button>
+              </div>
+            </div>
+
+            {adjustError && (
+              <p className="text-xs text-danger" role="alert">
+                {adjustError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Lend-player picker modal — same shape as AFL's. Lists every
+          healthy, not-already-lent squad member. */}
+      {lendPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Lend"
+          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
+          emptyMessage="Everyone is already lent or injured."
+          candidates={squad
+            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.full_name }))}
+          onPick={(pid) => {
+            handleLendToggleAtBreak(pid, true);
+            setLendPickerOpen(false);
+          }}
+          onCancel={() => setLendPickerOpen(false)}
+        />
+      )}
+
+      {/* Injured-player picker — for the "kid had to leave at the
+          break" case. Same shape as the lend picker but flips the
+          injury flag. */}
+      {injuredPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark injured"
+          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
+          emptyMessage="Everyone is already injured or lent."
+          candidates={squad
+            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.full_name }))}
+          onPick={(pid) => {
+            handleInjuryToggleAtBreak(pid, true);
+            setInjuredPickerOpen(false);
+          }}
+          onCancel={() => setInjuredPickerOpen(false)}
+        />
+      )}
+
+      {/* Score panel — collapsed by default. Single-line score
+          summary so the coach can reconcile with the opposition
+          at a glance. Tap row to expand into the full per-quarter
+          breakdown + per-player event log. */}
+      {trackScoring && currentQuarter >= 1 && (() => {
+        const lead = cumUs - cumThem;
+        const leadLabel =
+          lead === 0 ? "level" : lead > 0 ? `+${lead}` : `${lead}`;
+        const leadClass =
+          lead > 0
+            ? "text-ok"
+            : lead < 0
+              ? "text-warn"
+              : "text-ink-mute";
+        return (
+        <div className="rounded-md border border-hairline bg-surface shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowFixScores((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            aria-expanded={showFixScores}
+            aria-label={
+              showFixScores
+                ? "Hide score review"
+                : "Review and update scores"
+            }
+          >
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+                {cumUs}
+                <span className="mx-1.5 text-ink-mute">–</span>
+                {cumThem}
+              </span>
+              <span
+                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+              >
+                {leadLabel}
+              </span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
+              {showFixScores ? "Hide" : "Review"}
+              <span className="font-mono text-[10px]">
+                {showFixScores ? "▾" : "▸"}
+              </span>
+            </span>
+          </button>
+
+          {showFixScores && (
+            <div className="space-y-4 border-t border-hairline px-4 py-4">
+              <QuarterScoreTable
+                // Adapter: netball's local scoreByQuarter is
+                // Array<{ours: number, theirs: number}> indexed
+                // 0..3 (Q1..Q4). QuarterScoreTable expects the
+                // AFL shape with .goals nested + 1..N indexing
+                // (index 0 unused). Pre-built inline since the
+                // table is only rendered when showFixScores is on.
+                scoreByQuarter={[
+                  { ours: { goals: 0 }, theirs: { goals: 0 } },
+                  ...scoreByQuarter.map((q) => ({
+                    ours: { goals: q.ours },
+                    theirs: { goals: q.theirs },
+                  })),
+                ]}
+                currentQuarter={currentQuarter}
+                quarterEnded={true}
+                sport="netball"
+                teamName="Us"
+                opponentName="Them"
+              />
+              <div className="border-t border-hairline pt-4">
+                <p className="text-xs font-semibold text-ink">
+                  Per-player events
+                </p>
+                <p className="mt-0.5 text-xs text-ink-mute">
+                  Delete a wrong score with ×, or add one that was missed.
+                </p>
+                <div className="mt-3">
+                  <ScoreReviewPanel
+                    auth={auth}
+                    gameId={gameId}
+                    players={squad}
+                    includeBehinds={false}
+                    defaultQuarter={currentQuarter}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
 
       <p className="px-1 text-xs text-ink-dim">
         Tap any two players to swap them — even across thirds or to the bench.
@@ -902,8 +1293,18 @@ export function NetballQuarterBreak({
       )}
 
       <div className="flex justify-end">
+        {/* Two-stage kickoff narrative:
+              Q-break button     "Ready for Q{n}"
+              NetballStartModal  heading "Ready for Q{n}"
+                                  body    "Tap when the umpires call play."
+                                  CTA     "Start Q{n}"
+            "Ready for Q{n}" reads as "lineup is set, we're ready
+            for the next quarter" and matches the modal heading so
+            the transition feels continuous. Distinct from the
+            modal CTA so each tap signals a different intent
+            (commit-lineup → start-clock-on-whistle). */}
         <Button onClick={handleStart} loading={isPending && pendingStartQuarter === null}>
-          Start Q{nextQuarter}
+          Ready for Q{nextQuarter}
         </Button>
       </div>
 

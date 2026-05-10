@@ -222,18 +222,23 @@ function validateNetballLineup(
   }
 
   // Each active position in this age group must have exactly one player.
+  // Error copy uses the FULL position name ("Goal Shooter"), not the
+  // short code ("GS") — Stagehand 2026-05-09 kid-runner persona showed
+  // that "GS is empty" reads as jargon to anyone who doesn't know
+  // netball positions. The full name is self-explanatory and only
+  // adds a few characters to the modal.
   for (const pid of ageGroup.positions) {
     const occupants = l.positions[pid] ?? [];
     if (occupants.length === 0) {
       issues.push({
         kind: "error",
-        message: `${positionLabel(pid)} is empty.`,
+        message: `${positionFullLabel(pid)} is empty.`,
         positionId: pid,
       });
     } else if (occupants.length > 1) {
       issues.push({
         kind: "error",
-        message: `${positionLabel(pid)} has more than one player.`,
+        message: `${positionFullLabel(pid)} has more than one player.`,
         positionId: pid,
       });
     }
@@ -278,6 +283,15 @@ function validateNetballLineup(
 
 function positionLabel(id: string): string {
   return NETBALL_POSITIONS.find((p) => p.id === id)?.shortLabel ?? id;
+}
+
+// Full position name ("Goal Shooter") for user-facing error copy.
+// shortLabel ("GS") is fine for tile chips where space is tight,
+// but error messages should read as English to a parent runner
+// who doesn't know netball position codes.
+function positionFullLabel(id: string): string {
+  const pos = NETBALL_POSITIONS.find((p) => p.id === id);
+  return pos?.label ?? pos?.shortLabel ?? id;
 }
 
 // Utility: returns true if placing `positionId` into `zoneId` respects
