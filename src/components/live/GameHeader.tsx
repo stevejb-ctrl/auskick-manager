@@ -48,6 +48,15 @@ interface GameHeaderProps {
    * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
    */
   onShowQuarterScores?: () => void;
+  /**
+   * Tap the small "End Q early" chip that appears under the clock
+   * pill ONLY when the clock is paused mid-quarter. Steve's real-
+   * game scenario: paused at the start of the quarter, forgot to
+   * resume, game continued without the clock; needs a way to skip
+   * to the Q-break. Parent owns the confirmation flow so the
+   * destructive action requires an explicit tap.
+   */
+  onEndQuarterEarly?: () => void;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -73,6 +82,7 @@ export function GameHeader({
   isPending = false,
   clockPulseKey = null,
   onShowQuarterScores,
+  onEndQuarterEarly,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -184,6 +194,21 @@ export function GameHeader({
             aria-label="Show quarter-by-quarter scores"
           >
             Q-by-Q
+          </button>
+        )}
+        {/* End-Q-early — paused-only "rescue" affordance. Surfaces
+            beside Q-by-Q only when the clock is paused mid-quarter
+            so it stays out of the way during normal play, but the
+            coach who paused at the start of the quarter and forgot
+            to resume has somewhere obvious to recover to. */}
+        {onEndQuarterEarly && !running && !isPreGame && !isFinished && (
+          <button
+            type="button"
+            onClick={onEndQuarterEarly}
+            className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
+            aria-label="End the current quarter now"
+          >
+            End Q early
           </button>
         )}
       </div>

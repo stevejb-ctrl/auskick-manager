@@ -866,10 +866,15 @@ export function LiveGame({
     startClock();
   }
 
-  function handleEndQuarter() {
+  function handleEndQuarter(opts?: { creditFullQuarter?: boolean }) {
     setError(null);
     const q = currentQuarter;
-    const elapsed_ms = scaledElapsedMs();
+    // Auto-hooter path uses the actual scaled clock elapsed.
+    // Manual "End quarter early" path (Steve's real-game scenario:
+    // clock paused at the start of the quarter, forgot to resume,
+    // game continued anyway) credits on-field players the full
+    // quarter — what they actually played, not what the clock saw.
+    const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
     endCurrentQuarter(quarterMs);
     startTransition(async () => {
       const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
@@ -888,6 +893,13 @@ export function LiveGame({
     setShowQuarterEndModal(false);
     handleEndQuarter();
   }
+
+  // Manual "End quarter early" — opens a confirm dialog rather
+  // than firing immediately. The action is destructive (writes a
+  // quarter_end event with full-credit elapsed_ms; on Q4 it
+  // transitions to FT review) so requiring an extra tap keeps a
+  // misclick from blowing up a real game.
+  const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
 
   const running = clockStartedAt !== null;
   const isPreGame = currentQuarter === 0;
@@ -1178,6 +1190,15 @@ export function LiveGame({
         onShowQuarterScores={
           trackScoring && !isPreGame && !isFinished
             ? () => setQuarterScoresOpen(true)
+            : undefined
+        }
+        // End-Q-early "rescue" path. The header only renders the
+        // chip when paused, but we still gate by !isPreGame here
+        // so a coach who pauses pre-Q1 (e.g. waiting on stragglers)
+        // can't accidentally end Q0.
+        onEndQuarterEarly={
+          !isPreGame && !isFinished
+            ? () => setShowManualEndConfirm(true)
             : undefined
         }
       />
@@ -1491,7 +1512,60 @@ export function LiveGame({
           quarter={currentQuarter}
           loading={isPending}
           onConfirm={handleQuarterEndConfirm}
+          // "Goal on the siren?" — Steve's real-game scenario:
+          // a goal lands at the moment the hooter sounds, the
+          // QuarterEndModal opens before the +G picker has a
+          // chance to fire. Surfacing the picker here keeps the
+          // attribution attached to THIS quarter (the picker
+          // reads currentQuarter, which is still the just-ended
+          // value until handleQuarterEndConfirm fires). The +B
+          // path covers a rushed behind on the siren too.
+          onLateScore={
+            trackScoring ? (kind) => setPickScorerKind(kind) : undefined
+          }
         />
+      )}
+
+      {/* End-quarter-early confirm. Destructive — credits all
+          on-field players the full quarter time and triggers the
+          Q-break (or FT review on Q4). Same shape as
+          SwapConfirmDialog so the visual language stays consistent. */}
+      {showManualEndConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/40"
+            onClick={() => setShowManualEndConfirm(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <p className="text-center text-sm font-semibold text-ink">
+              End Q{currentQuarter} now?
+            </p>
+            <p className="mt-2 text-center text-xs text-ink-mute">
+              On-field players will be credited the full quarter time, even
+              though the clock is paused. Use this when the game played on
+              but the clock didn&rsquo;t.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                className="flex-1"
+                variant="danger"
+                onClick={() => {
+                  setShowManualEndConfirm(false);
+                  handleEndQuarter({ creditFullQuarter: true });
+                }}
+              >
+                End Q{currentQuarter}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="secondary"
+                onClick={() => setShowManualEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Await-kickoff modal — the ONLY kickoff affordance for every
