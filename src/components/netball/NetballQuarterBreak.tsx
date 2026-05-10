@@ -23,11 +23,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import {
-  periodBreakSwap,
-  startNetballQuarter,
-} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
-import { markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import {
@@ -621,14 +617,16 @@ export function NetballQuarterBreak({
     // events refresh. The draft useEffect post-processes this set
     // every time it rebuilds.
     setForcedBenchIds((prev) => new Set(prev).add(playerId));
-    startTransition(async () => {
-      await markInjury(auth, gameId, {
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
         player_id: playerId,
         injured: false,
         quarter: nextQuarter,
         elapsed_ms: 0,
-      });
-    });
+      },
+    ]);
   }
   function handleUnLoan() {
     if (!actionsTarget) return;
@@ -637,14 +635,16 @@ export function NetballQuarterBreak({
     // Same bench-default rationale as handleUnInjury — coach decides
     // when (and if) to slot them in.
     setForcedBenchIds((prev) => new Set(prev).add(playerId));
-    startTransition(async () => {
-      await markLoan(auth, gameId, {
+    enqueueLiveAction("markLoan", [
+      auth,
+      gameId,
+      {
         player_id: playerId,
         loaned: false,
         quarter: nextQuarter,
         elapsed_ms: 0,
-      });
-    });
+      },
+    ]);
   }
 
   function handleStart() {
@@ -665,39 +665,27 @@ export function NetballQuarterBreak({
     // modal once it lands. quarter_start is deferred to the modal CTA
     // (handleConfirmQuarterStart) so the umpire's whistle — not the
     // lineup tap — decides when the clock kicks off.
-    startTransition(async () => {
-      const r1 = await periodBreakSwap(
-        auth,
-        gameId,
-        nextQuarter,
-        draft,
-        midQuarterSubs,
-      );
-      if (!r1.success) {
-        setError(r1.error);
-        return;
-      }
-      setPendingStartQuarter(nextQuarter);
-    });
+    enqueueLiveAction("periodBreakSwap", [
+      auth,
+      gameId,
+      nextQuarter,
+      draft,
+      midQuarterSubs,
+    ]);
+    setPendingStartQuarter(nextQuarter);
   }
 
   function handleConfirmQuarterStart() {
     if (pendingStartQuarter === null) return;
     const quarter = pendingStartQuarter;
     setError(null);
-    startTransition(async () => {
-      const result = await startNetballQuarter(auth, gameId, quarter);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      setPendingStartQuarter(null);
-      onStarted();
-      // Phase 5: re-fetch so the page renders into Q(n+1)'s live state
-      // without needing a manual reload. Pairs with revalidatePath in
-      // netball-actions.ts startNetballQuarter.
-      router.refresh();
-    });
+    enqueueLiveAction("startNetballQuarter", [auth, gameId, quarter]);
+    setPendingStartQuarter(null);
+    onStarted();
+    // Refresh so the page renders into Q(n+1)'s live state. Offline:
+    // refresh is a no-op against cache; the queued events flush when
+    // the network returns.
+    router.refresh();
   }
 
   // ─── Render ────────────────────────────────────────────────

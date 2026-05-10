@@ -40,14 +40,8 @@ import {
 } from "@/lib/sports/netball/fairness";
 import {
   startNetballGame,
-  periodBreakSwap,
-  startNetballQuarter,
-  endNetballQuarter,
-  recordNetballGoal,
-  recordNetballOpponentGoal,
-  undoNetballScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
-import { addLateArrival, markInjury, markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 
 interface NetballLiveGameProps {
@@ -251,21 +245,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.
     setClockPulseKey(currentQuarter);
-    startTransition(async () => {
-      const result = await endNetballQuarter(
-        auth,
-        game.id,
-        currentQuarter,
-        quarterLengthMs,
-      );
-      if (result.success) {
-        // Phase 5: re-fetch so the page derives `quarterEnded` from the
-        // freshly-inserted quarter_end event and rerenders into the
-        // Q-break shell (or the Q4-finalise branch). Pairs with the
-        // server-side revalidatePath in netball-actions.ts.
-        router.refresh();
-      }
-    });
+    enqueueLiveAction("endNetballQuarter", [
+      auth,
+      game.id,
+      currentQuarter,
+      quarterLengthMs,
+    ]);
+    // Refresh so the page derives `quarterEnded` from the
+    // freshly-inserted quarter_end event and rerenders into the
+    // Q-break shell. Offline: refresh is a no-op against cache;
+    // the queued event flushes when the network returns.
+    router.refresh();
   }, [
     remainingMs,
     currentQuarter,
@@ -466,14 +456,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       clearTimeout(undoToastTimerRef.current);
       undoToastTimerRef.current = null;
     }
-    startTransition(async () => {
-      const result = await undoNetballScore(auth, game.id);
-      if (!result.success) return;
-      // Refresh so the rolled-back goal disappears from the
-      // scorebug + PositionToken chip on the next render. Pairs
-      // with the revalidatePath in undoNetballScore.
-      router.refresh();
-    });
+    enqueueLiveAction("undoNetballScore", [auth, game.id]);
+    // Refresh so the rolled-back goal disappears from the
+    // scorebug + PositionToken chip on the next render.
+    router.refresh();
   }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
@@ -622,14 +608,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const player = squadById.get(playerId);
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
-    startTransition(async () => {
-      const result = await recordNetballGoal(auth, game.id, playerId, currentQuarter, clockMs);
-      if (!result.success) return;
-      // Refresh so the new goal lands in the scorebug + the
-      // PositionToken chip without a manual reload. Pairs with
-      // the revalidatePath in recordNetballGoal.
-      router.refresh();
-    });
+    enqueueLiveAction("recordNetballGoal", [
+      auth,
+      game.id,
+      playerId,
+      currentQuarter,
+      clockMs,
+    ]);
+    router.refresh();
     setPendingGoal(null);
     startUndoToast("team", playerName);
   };
@@ -637,14 +623,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleCancelGoal = () => setPendingGoal(null);
 
   const handleOpponentGoal = useCallback(() => {
-    startTransition(async () => {
-      const result = await recordNetballOpponentGoal(auth, game.id, currentQuarter, clockMs);
-      if (!result.success) return;
-      // Refresh so the opponent's goal lands in the scorebug
-      // without a manual reload. Pairs with the revalidatePath
-      // in recordNetballOpponentGoal.
-      router.refresh();
-    });
+    enqueueLiveAction("recordNetballOpponentGoal", [
+      auth,
+      game.id,
+      currentQuarter,
+      clockMs,
+    ]);
+    router.refresh();
     startUndoToast("opp", null);
   }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
@@ -698,14 +683,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Close the actions modal FIRST so it can't accidentally trap a
     // subsequent long-press behind a stale state transition.
     closeActions();
-    startTransition(async () => {
-      await markInjury(auth, game.id, {
+    enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
         player_id: playerId,
         injured: true,
         quarter: Math.max(1, currentQuarter),
         elapsed_ms: clockMs,
-      });
-    });
+      },
+    ]);
     vacateAndPromptReplacement(playerId, positionId);
   };
 
@@ -713,14 +700,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    startTransition(async () => {
-      await markInjury(auth, game.id, {
+    enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
         player_id: playerId,
         injured: false,
         quarter: Math.max(1, currentQuarter),
         elapsed_ms: clockMs,
-      });
-    });
+      },
+    ]);
   };
 
   const handleMarkLoaned = () => {
@@ -729,14 +718,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Close the actions modal FIRST — same reason as injury: don't let
     // a still-rendering modal block the next long-press attempt.
     closeActions();
-    startTransition(async () => {
-      await markLoan(auth, game.id, {
+    enqueueLiveAction("markLoan", [
+      auth,
+      game.id,
+      {
         player_id: playerId,
         loaned: true,
         quarter: Math.max(1, currentQuarter),
         elapsed_ms: clockMs,
-      });
-    });
+      },
+    ]);
     // Loan = same UX as injury. The lent player vacates their slot and
     // the coach picks a bench replacement to play out the rest of the
     // quarter; otherwise the team is stuck playing a player short until
@@ -748,14 +739,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    startTransition(async () => {
-      await markLoan(auth, game.id, {
+    enqueueLiveAction("markLoan", [
+      auth,
+      game.id,
+      {
         player_id: playerId,
         loaned: false,
         quarter: Math.max(1, currentQuarter),
         elapsed_ms: clockMs,
-      });
-    });
+      },
+    ]);
   };
 
   const handleLockForNextBreak = () => {
@@ -819,13 +812,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // src/components/live/LiveGame.tsx:528.
   const handleLateArrival = (playerId: string) => {
     setLateArrivedIds((prev) => new Set(prev).add(playerId));
-    startTransition(async () => {
-      await addLateArrival(auth, game.id, {
+    enqueueLiveAction("addLateArrival", [
+      auth,
+      game.id,
+      {
         player_id: playerId,
         quarter: Math.max(1, currentQuarter),
         elapsed_ms: clockMs,
-      });
-    });
+      },
+    ]);
   };
 
   // Candidate pool for the late-arrival menu: active squad members who
@@ -1207,12 +1202,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             loading={isPending}
             onStart={() => {
               const quarter = pendingQuarterStart;
-              startTransition(async () => {
-                const result = await startNetballQuarter(auth, game.id, quarter);
-                if (!result.success) return;
-                setPendingQuarterStart(null);
-                router.refresh();
-              });
+              enqueueLiveAction("startNetballQuarter", [
+                auth,
+                game.id,
+                quarter,
+              ]);
+              setPendingQuarterStart(null);
+              router.refresh();
             }}
             onCancel={() => setPendingQuarterStart(null)}
           />
@@ -1240,22 +1236,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
         <button
           type="button"
-          onClick={() =>
-            startTransition(async () => {
-              const result = await endNetballQuarter(
-                auth,
-                game.id,
-                4,
-                clockMs,
-              );
-              if (result.success) {
-                // Phase 5: re-fetch so the page rerenders post-finalise
-                // (pairs with the existing final-quarter revalidatePath
-                // block in netball-actions.ts).
-                router.refresh();
-              }
-            })
-          }
+          onClick={() => {
+            enqueueLiveAction("endNetballQuarter", [
+              auth,
+              game.id,
+              4,
+              clockMs,
+            ]);
+            // Refresh so the page rerenders post-finalise.
+            // Offline: refresh is a no-op against cache; the
+            // finalise event flushes when the queue drains.
+            router.refresh();
+          }}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
