@@ -45,19 +45,29 @@ Walk through:
 2. Start the game.
 3. During Q1, score 1 goal for your team (any player). Just
    exercise the scoring path so you can feel the flow.
-4. Wait for Q1 to end (the auto-hooter at full quarter). At the
-   Q-break:
-   - Look at each player's minute bar. Is there an obvious
-     outlier who's getting too little or too much?
+4. **You MUST wait for Q1 to end before reporting on Q-break
+   surfaces.** The clock is sped up — a 12-minute quarter ticks
+   down in ~12 seconds of real time. Use the `wait` tool with
+   ~15000 ms (15 seconds) to let the auto-hooter fire. Then
+   re-inspect the page; you should see "Quarter 1 complete" or
+   the quarter-break shell. **Do NOT call `done` until you have
+   actually reached the Q-break and read its content.** A report
+   that didn't reach the Q-break has no fairness signal in it.
+5. At the Q-break:
+   - Look at each player's per-game minute total (rendered as
+     "M:SS" beside each player's time bar). Is there an obvious
+     outlier who's getting too little or too much THIS GAME?
    - Look at the suggested Q2 lineup. Did it move kids around or
      suggest the same lineup again?
    - Does anything stand out as patently unfair — a kid stuck on
      the bench, a kid stuck in the back pocket, the coach's kid
      on field for both quarters while another kid hasn't started?
-5. Confirm the lineup, start Q2.
-6. Quickly end Q2 (don't worry about scoring) and look at the
-   half-time picture. Same questions as above, but now with two
-   quarters of data.
+6. Confirm the lineup, start Q2 (tap "Ready for Q2" then "Start
+   Q2"). Wait another ~15 seconds for Q2 to end.
+7. At half-time, re-inspect: per-player totals should now show
+   ~24:00 for kids who played both quarters, ~12:00 for kids who
+   played one, lower for late arrivals or kids who got subbed.
+   Report what you see.
 
 Report what you see, in PARENT voice (not coach voice — you're
 allowed to be emotional, but be specific about WHO got

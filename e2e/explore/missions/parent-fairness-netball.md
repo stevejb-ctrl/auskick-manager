@@ -36,19 +36,28 @@ Walk through:
 2. Start the game.
 3. Score one goal for your team during Q1, just to exercise the
    scoring flow. Note if attribution is easy or hard.
-4. Wait for Q1 to auto-end. At the Q-break:
-   - Look at the per-player time bars. Is one kid clearly
-     under-played?
+4. **You MUST wait for Q1 to end before reporting on Q-break
+   surfaces.** The clock is sped up — a 10-minute quarter ticks
+   down in ~10 seconds of real time. Use the `wait` tool with
+   ~12000 ms (12 seconds) to let the auto-hooter fire and the
+   page rerender into the Q-break shell. **Do NOT call `done`
+   until you have actually reached the Q-break and read its
+   content.** A report that didn't reach the Q-break has no
+   fairness signal in it.
+5. At the Q-break:
+   - Look at each player's per-game minute total (rendered as
+     "M:SS" on the player tile). Is one kid clearly under-played?
    - Look at the suggested Q2 lineup. Did the kid who was on the
      bench in Q1 come on? Did the kid pinned to defence get a
      turn in attack?
    - If a kid was at GK for Q1, do they end up at GS / GA / WA
      for Q2 — or another defensive role?
-5. Confirm the lineup, start Q2.
-6. End Q2 quickly and look at the half-time fairness picture.
-   With two quarters of data, can you tell whether everyone is
-   getting roughly the same court time? Whether the zones (the
-   THIRDS, in netball terms) are being shared?
+6. Confirm the lineup, start Q2 (tap "Ready for Q2" then "Start
+   Q2"). Wait another ~12 seconds for Q2 to end.
+7. At half-time, look at the per-player totals. Kids who played
+   both quarters should be ~20:00, kids who played one ~10:00,
+   bench-Q1 kids who came on for Q2 ~10:00. Report any obvious
+   outliers.
 
 All your concerns are about THIS GAME. Season totals are
 deliberately not shown — kids who miss games naturally have lower
