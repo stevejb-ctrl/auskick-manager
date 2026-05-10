@@ -2,6 +2,15 @@
 
 import { useEffect } from "react";
 import { registerDeviceForPush } from "@/lib/notifications/registerDevice";
+// Side-effect import: registers every event-inserting live-game
+// action with the write queue so a persisted offline op (slice 5d)
+// can drain the moment its handler is asked for. (app)/layout mounts
+// this bridge for every authenticated route, which means handlers
+// load before the user can navigate to /teams/.../live — the only
+// place an enqueue actually originates today, and the only place a
+// drain on a stale persisted queue would otherwise stall.
+import "@/lib/live/registerLiveActions";
+import { flushWriteQueue } from "@/lib/live/registerLiveActions";
 
 // ─── Native push-notifications bridge ─────────────────────────
 //
@@ -37,6 +46,14 @@ export function NativeNotificationsBridge() {
       }
       cleanup = fn;
     });
+
+    // Drain any persisted writes on first authenticated mount.
+    // The write queue's network listener only fires on online
+    // events; if the user was already online when the app opened
+    // we'd otherwise sit on stale ops until they tapped something
+    // new. flushWriteQueue is fire-and-forget and a no-op if the
+    // queue is empty.
+    void flushWriteQueue();
 
     return () => {
       cancelled = true;
