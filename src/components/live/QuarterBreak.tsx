@@ -475,6 +475,12 @@ export function QuarterBreak({
   const [scoreLogError, setScoreLogError] = useState<string | null>(null);
   const [scoreLogLoading, setScoreLogLoading] = useState(false);
   const [_scoreActionPending, startScoreActionTransition] = useTransition();
+  // Pending delete — confirmation gate so a misclick can't silently
+  // wipe a real goal during the post-Q reconcile flow. Mirrors the
+  // pattern in ScoreReviewPanel.
+  const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
+    null,
+  );
   // Add-score form state
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<
@@ -981,7 +987,7 @@ export function QuarterBreak({
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteScore(e)}
+                                  onClick={() => setPendingDelete(e)}
                                   disabled={isPending}
                                   className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
                                   aria-label="Delete this score"
@@ -1294,6 +1300,60 @@ export function QuarterBreak({
           onCancel={() => setFillTargetZone(null)}
         />
       )}
+
+      {/* Delete-score confirmation. Same shape as the FullTimeReview
+          path's ScoreReviewPanel confirm — keeps the visual language
+          consistent and prevents an accidental tap on the × from
+          silently wiping a real goal during the Q-break reconcile. */}
+      {pendingDelete &&
+        (() => {
+          const e = pendingDelete;
+          const isOurs = e.type === "goal" || e.type === "behind";
+          const isGoal = e.type === "goal" || e.type === "opponent_goal";
+          const kindLabel = isGoal ? "goal" : "behind";
+          const playerName = e.player_id
+            ? playersById.get(e.player_id)?.full_name ?? "Player"
+            : null;
+          const subject = isOurs ? playerName ?? "Player" : "Opposition";
+          const q = e.quarter ?? currentQuarter;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-ink/40"
+                onClick={() => setPendingDelete(null)}
+              />
+              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+                <p className="text-center text-sm font-semibold text-ink">
+                  Delete this score?
+                </p>
+                <p className="mt-2 text-center text-xs text-ink-mute">
+                  {subject}'s {kindLabel} in Q{q} will be removed from the
+                  scoreline.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    className="flex-1"
+                    variant="danger"
+                    onClick={() => {
+                      const entry = pendingDelete;
+                      setPendingDelete(null);
+                      if (entry) handleDeleteScore(entry);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    variant="secondary"
+                    onClick={() => setPendingDelete(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
