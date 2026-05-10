@@ -10,6 +10,7 @@ import {
   addRetroScore,
   deleteScore,
   getGameScoreLog,
+  markInjury,
   markLoan,
   recordLineupSet,
   setOnFieldSize as setOnFieldSizeAction,
@@ -122,6 +123,7 @@ export function QuarterBreak({
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
+  const setInjured = useLiveGame((s) => s.setInjured);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -459,17 +461,59 @@ export function QuarterBreak({
     });
   }
 
+  // Mirror of handleLoanToggle for injuries — Steve's real-game
+  // scenario is "kid had to leave at quarter time" (parent took
+  // them home, hurt during the break, etc.). The injury event
+  // applies from the start of the next quarter.
+  function handleInjuryToggle(pid: string, nextInjured: boolean) {
+    setLoanError(null);
+    setInjured(pid, nextInjured);
+    startLoanTransition(async () => {
+      const result = await markInjury(auth, gameId, {
+        player_id: pid,
+        injured: nextInjured,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      });
+      if (!result.success) {
+        setInjured(pid, !nextInjured);
+        setLoanError(result.error);
+      }
+    });
+  }
+
   // ─── Match-adjustments collapse state ─────────────────────────
   // Collapsed by default — most coaches won't change size or lend a
   // player in any given quarter, so we keep the screen quiet. When
   // the section is closed we surface a one-line summary so the
   // coach knows whether anything is currently set.
-  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
+  // Match-adjustments section: collapsed when fresh, but auto-
+  // expanded if the coach already has a non-default state set
+  // (lent or injured player, on-field-size override). Without
+  // this, Steve's real-game complaint was "the UX only allows a
+  // player to be lent while the quarter is running" — the section
+  // existed but was closed and so invisible. Auto-opening when
+  // there's an active state makes the management surface
+  // discoverable exactly when you need it.
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
+    () =>
+      loanedIds.length > 0 ||
+      injuredIds.length > 0 ||
+      (currentOnFieldSize !== defaultOnFieldSize),
+  );
+  // Lend picker (existing) and injured picker (new) both reuse the
+  // same SlotFillSheet shape. State is split so the two pickers
+  // don't fight if a coach somehow opens both.
+  const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
   const lentPlayers = useMemo(
     () =>
       players
         .filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id)),
     [players, loanedSet, injuredSet],
+  );
+  const injuredPlayers = useMemo(
+    () => players.filter((p) => injuredSet.has(p.id)),
+    [players, injuredSet],
   );
 
   // ─── Period recap (read from store) ───────────────────────────
@@ -734,6 +778,9 @@ export function QuarterBreak({
             <span className="text-xs text-ink-mute">
               {currentOnFieldSize} on field
               {lentPlayers.length > 0 ? ` · ${lentPlayers.length} lent` : ""}
+              {injuredPlayers.length > 0
+                ? ` · ${injuredPlayers.length} injured`
+                : ""}
             </span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -847,6 +894,55 @@ export function QuarterBreak({
                 </p>
               )}
             </div>
+
+            {/* Injured / left-early — paralleling Lend. The common
+                Saturday case is a kid leaving at quarter time
+                (parent pulls them out, niggle from the prior
+                quarter, etc.); marking injured at the break excludes
+                them from the next-quarter rotation without needing
+                the long-press flow. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Injured / left early
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Injured players sit out for the rest of the game until you
+                bring them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {injuredPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-danger/50 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+                  >
+                    {p.jersey_number != null && (
+                      <span className="tabular-nums font-semibold">
+                        {p.jersey_number}
+                      </span>
+                    )}
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleInjuryToggle(p.id, false)}
+                      disabled={loanPending}
+                      aria-label={`Mark ${p.full_name} fit`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setInjuredPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Mark injured
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -874,6 +970,33 @@ export function QuarterBreak({
             setLendPickerOpen(false);
           }}
           onCancel={() => setLendPickerOpen(false)}
+        />
+      )}
+
+      {/* Injured-player picker — same shape as the lend picker but
+          flips the injury flag instead. Used when a player has to
+          leave at quarter time (parent pulls them out, niggle
+          flared up during the break). */}
+      {injuredPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark injured"
+          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
+          emptyMessage="Everyone is already injured or lent."
+          candidates={players
+            .filter(
+              (p) => !loanedSet.has(p.id) && !injuredSet.has(p.id),
+            )
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => {
+            handleInjuryToggle(pid, true);
+            setInjuredPickerOpen(false);
+          }}
+          onCancel={() => setInjuredPickerOpen(false)}
         />
       )}
 

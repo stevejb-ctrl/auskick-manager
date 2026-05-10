@@ -979,12 +979,23 @@ export function LiveGame({
     subBaseMs !== null && !isPreGame && !isFinished
       ? subBaseMs + effectiveSubIntervalMs - nowMs
       : null;
+  // Steve's real-game scenario: lent a player to the opposition,
+  // running 11 on field with the rest of the squad on bench. The
+  // sub interval kept ticking, sub-due modal popped up at every
+  // window because the time-only check thought a sub was viable.
+  // Gate the modal on having an actual healthy bench player to
+  // bring on — if everyone on the bench is injured or loaned,
+  // there's no rotation to suggest. Same `bench.some(...)`
+  // predicate used at the injury-replacement path elsewhere.
+  const hasSwappableBench = lineup.bench.some(
+    (id) => !injuredIds.includes(id) && !loanedIds.includes(id),
+  );
   const subState: "idle" | "soft" | "due" =
     msUntilDue === null
       ? "idle"
-      : msUntilDue <= 0
+      : msUntilDue <= 0 && hasSwappableBench
       ? "due"
-      : msUntilDue <= 30000
+      : msUntilDue <= 30000 && hasSwappableBench
       ? "soft"
       : "idle";
 
