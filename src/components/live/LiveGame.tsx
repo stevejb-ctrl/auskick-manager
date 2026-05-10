@@ -8,18 +8,9 @@ import {
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import {
-  addLateArrival,
-  endQuarter as endQuarterAction,
-  markInjury,
-  markLoan,
-  recordBehind,
-  recordGoal,
-  recordOpponentScore,
-  recordFieldZoneSwap,
-  recordSwap,
-  startQuarter,
   undoLastScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
@@ -493,17 +484,18 @@ export function LiveGame({
       showSwapToast(
         `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
       );
-      startTransition(async () => {
-        const result = await recordFieldZoneSwap(auth, gameId, {
+      enqueueLiveAction("recordFieldZoneSwap", [
+        auth,
+        gameId,
+        {
           player_a_id: pidA,
           zone_a: zoneA,
           player_b_id: playerId,
           zone_b: zone,
           quarter,
           elapsed_ms,
-        });
-        if (!result.success) setError(result.error);
-      });
+        },
+      ]);
       return;
     }
     selectField(playerId, zone);
@@ -568,15 +560,11 @@ export function LiveGame({
       playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
       quarter,
     });
-    startTransition(async () => {
-      const fn = kind === "goal" ? recordGoal : recordBehind;
-      const result = await fn(auth, gameId, {
-        player_id: playerId,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
   }
 
   function handleInjuryToggle(playerId: string, injured: boolean) {
@@ -584,15 +572,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     setInjured(playerId, injured);
-    startTransition(async () => {
-      const result = await markInjury(auth, gameId, {
-        player_id: playerId,
-        injured,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      { player_id: playerId, injured, quarter, elapsed_ms },
+    ]);
   }
 
   // Combined injury + bench-replacement swap. Used when the coach picks a
@@ -610,25 +594,31 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     setSubBaseMs(currentElapsedMs());
     applyInjurySwap(injuredId, replacementId);
-    startTransition(async () => {
-      const [injuryResult, swapResult] = await Promise.all([
-        markInjury(auth, gameId, {
-          player_id: injuredId,
-          injured: true,
-          quarter,
-          elapsed_ms,
-        }),
-        recordSwap(auth, gameId, {
-          off_player_id: injuredId,
-          on_player_id: replacementId,
-          zone,
-          quarter,
-          elapsed_ms,
-        }),
-      ]);
-      if (!injuryResult.success) setError(injuryResult.error);
-      else if (!swapResult.success) setError(swapResult.error);
-    });
+    // Two queue ops, dispatched in order. The queue's FIFO contract
+    // means the injury event lands before the swap on the server,
+    // mirroring the prior Promise.all semantics where both fired
+    // concurrently but the replay engine handles either ordering.
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: injuredId,
+        injured: true,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
+    enqueueLiveAction("recordSwap", [
+      auth,
+      gameId,
+      {
+        off_player_id: injuredId,
+        on_player_id: replacementId,
+        zone,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
   }
 
   function handleLoanToggle(playerId: string, loaned: boolean) {
@@ -636,15 +626,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     setLoaned(playerId, loaned);
-    startTransition(async () => {
-      const result = await markLoan(auth, gameId, {
-        player_id: playerId,
-        loaned,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("markLoan", [
+      auth,
+      gameId,
+      { player_id: playerId, loaned, quarter, elapsed_ms },
+    ]);
   }
 
   function handleLateArrival(playerId: string) {
@@ -652,14 +638,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     addBenchPlayer(playerId);
-    startTransition(async () => {
-      const result = await addLateArrival(auth, gameId, {
-        player_id: playerId,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("addLateArrival", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
   }
 
   function handleOpponent(kind: "goal" | "behind") {
@@ -667,14 +650,11 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
     startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
-    startTransition(async () => {
-      const result = await recordOpponentScore(auth, gameId, {
-        kind,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("recordOpponentScore", [
+      auth,
+      gameId,
+      { kind, quarter, elapsed_ms },
+    ]);
   }
 
   function handleUndo() {
@@ -716,38 +696,35 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
     applySwap(off, on, zone);
-    startTransition(async () => {
-      const result = await recordSwap(auth, gameId, {
+    enqueueLiveAction("recordSwap", [
+      auth,
+      gameId,
+      {
         off_player_id: off,
         on_player_id: on,
         zone,
         quarter,
         elapsed_ms,
-      });
-      if (!result.success) {
-        setError(result.error);
-      }
-    });
+      },
+    ]);
   }
 
   function handleStartFirstQuarter() {
     setError(null);
-    startTransition(async () => {
-      const result = await startQuarter(auth, gameId, 1);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      beginNextQuarter();
-      // Q1 is gated on the StartQuarterModal — the modal is the only
-      // kickoff affordance in pre-game (we removed the duplicate
-      // "Start Q1" button that used to sit on the main UI). The
-      // single tap on the modal both writes the server quarter_start
-      // event AND starts the local clock so the GM doesn't have to
-      // confirm twice.
-      startClock();
-      router.refresh();
-    });
+    enqueueLiveAction("startQuarter", [auth, gameId, 1]);
+    beginNextQuarter();
+    // Q1 is gated on the StartQuarterModal — the modal is the only
+    // kickoff affordance in pre-game (we removed the duplicate
+    // "Start Q1" button that used to sit on the main UI). The
+    // single tap on the modal both writes the server quarter_start
+    // event AND starts the local clock so the GM doesn't have to
+    // confirm twice.
+    startClock();
+    // refresh() picks up the server-side event once the queue
+    // flushes. Offline first launch: refresh is a no-op, the
+    // local clock is still running, and the queue catches up
+    // when the network returns.
+    router.refresh();
   }
 
   function handlePause() {
@@ -763,17 +740,12 @@ export function LiveGame({
     const q = currentQuarter;
     const elapsed_ms = scaledElapsedMs();
     endCurrentQuarter(quarterMs);
-    startTransition(async () => {
-      const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      // Refresh so the page picks up the quarter_end event and re-renders
-      // into the Q-break shell (or finalised state for Q4). Plan 05-04
-      // applied the same pattern to netball.
-      router.refresh();
-    });
+    enqueueLiveAction("endQuarter", [auth, gameId, q, elapsed_ms]);
+    // Refresh so the page picks up the quarter_end event once the
+    // queue flushes. Offline: refresh is a no-op against cache;
+    // the Q-break shell still renders because endCurrentQuarter
+    // already flipped quarterEnded in the local store.
+    router.refresh();
   }
 
   function handleQuarterEndConfirm() {
