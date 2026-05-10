@@ -42,6 +42,20 @@ import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
 
+// Format a minute count (decimal — e.g. 12.5) as M:SS. Used for the
+// per-player THIS-GAME running total beside each time bar so a coach
+// (and any parent at their shoulder) can see at a glance who's
+// played 12:30 vs 4:00 today. Netball's PlayerTile already shows
+// this; AFL was the gap. Season totals are deliberately not shown
+// — kids who miss games naturally accrue lower season minutes and
+// surfacing that just invites the wrong complaint.
+function fmtMinSec(min: number): string {
+  const totalSec = Math.max(0, Math.floor(min * 60));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
   gameId: string;
@@ -1155,7 +1169,14 @@ export function QuarterBreak({
                   const isLoaned = loanedSet.has(pid);
                   const isSidelined = isInjured || isLoaned;
                   const zm = currentGameZoneMins[pid] ?? emptyZM();
-                  const total = zones.reduce((a, z) => a + zm[z], 0) || 1;
+                  // `realTotal` is the sum without the divide-by-zero
+                  // guard. Drives the visible "12:30" label so 0
+                  // shows nothing instead of "0:00 (1)" weirdness.
+                  // `total` keeps the |1 fallback for the bar's
+                  // proportion math (avoids a NaN when nobody has
+                  // played the player yet).
+                  const realTotal = zones.reduce((a, z) => a + zm[z], 0);
+                  const total = realTotal || 1;
                   const prevSlot = slotOf(pid, lineup);
                   const moved = prevSlot && prevSlot !== slot;
                   return (
@@ -1216,14 +1237,21 @@ export function QuarterBreak({
                             )}
                           </span>
                         </span>
-                        <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
-                          {zones.map((z) => (
-                            <span
-                              key={z}
-                              style={{ width: `${(zm[z] / total) * 100}%` }}
-                              className={ZONE_BAR_COLOR[z]}
-                            />
-                          ))}
+                        <span className="flex items-center gap-1.5">
+                          {realTotal > 0 && !isSidelined && (
+                            <span className="nums font-mono text-[10px] font-semibold tabular-nums text-ink-dim">
+                              {fmtMinSec(realTotal)}
+                            </span>
+                          )}
+                          <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
+                            {zones.map((z) => (
+                              <span
+                                key={z}
+                                style={{ width: `${(zm[z] / total) * 100}%` }}
+                                className={ZONE_BAR_COLOR[z]}
+                              />
+                            ))}
+                          </span>
                         </span>
                       </button>
                     </li>
