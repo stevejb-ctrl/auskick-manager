@@ -274,11 +274,16 @@ export async function setOnFieldSize(
 export async function startQuarter(
   auth: LiveAuth,
   gameId: string,
-  quarter: number
+  quarter: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_start", {
-    metadata: { quarter },
-  });
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "quarter_start",
+    { metadata: { quarter } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
 
   if (auth.kind === "team") {
@@ -293,11 +298,24 @@ export async function endQuarter(
   auth: LiveAuth,
   gameId: string,
   quarter: number,
-  elapsedMs: number
+  elapsedMs: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_end", {
-    metadata: { quarter, elapsed_ms: elapsedMs },
-  });
+  // Quarter_end gets the caller's idempotency key. The Q4
+  // game_finalised + games-table-update path below stays
+  // un-keyed for now; if a Q4 endQuarter is replayed after a
+  // mid-flight network drop, the dedup'd quarter_end is fine but
+  // the second game_finalised will insert a duplicate row in the
+  // event log. The user-visible state stays correct (game shows
+  // completed); only the audit log shows two finalise events.
+  // Phase 5e.1 follow-up: derive a second key for finalise.
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "quarter_end",
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
 
   // Non-final quarter ends still need to revalidate so the live page rerenders
@@ -345,7 +363,8 @@ export async function endQuarter(
 export async function addLateArrival(
   auth: LiveAuth,
   gameId: string,
-  input: { player_id: string; quarter: number; elapsed_ms: number }
+  input: { player_id: string; quarter: number; elapsed_ms: number },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -370,44 +389,66 @@ export async function addLateArrival(
       { onConflict: "game_id,player_id" }
     );
   if (upsertError) return { success: false, error: upsertError.message };
-  return insertEvent(auth, gameId, "player_arrived", {
-    player_id: input.player_id,
-    metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "player_arrived",
+    {
+      player_id: input.player_id,
+      metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    },
+    idempotencyKey,
+  );
 }
 
 export async function recordGoal(
   auth: LiveAuth,
   gameId: string,
-  input: { player_id: string; quarter: number; elapsed_ms: number }
+  input: { player_id: string; quarter: number; elapsed_ms: number },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "goal", {
-    player_id: input.player_id,
-    metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "goal",
+    {
+      player_id: input.player_id,
+      metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    },
+    idempotencyKey,
+  );
 }
 
 export async function recordBehind(
   auth: LiveAuth,
   gameId: string,
-  input: { player_id: string; quarter: number; elapsed_ms: number }
+  input: { player_id: string; quarter: number; elapsed_ms: number },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "behind", {
-    player_id: input.player_id,
-    metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "behind",
+    {
+      player_id: input.player_id,
+      metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    },
+    idempotencyKey,
+  );
 }
 
 export async function recordOpponentScore(
   auth: LiveAuth,
   gameId: string,
-  input: { kind: "goal" | "behind"; quarter: number; elapsed_ms: number }
+  input: { kind: "goal" | "behind"; quarter: number; elapsed_ms: number },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   return insertEvent(
     auth,
     gameId,
     input.kind === "goal" ? "opponent_goal" : "opponent_behind",
-    { metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms } }
+    { metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms } },
+    idempotencyKey,
   );
 }
 
@@ -419,16 +460,23 @@ export async function markInjury(
     injured: boolean;
     quarter: number;
     elapsed_ms: number;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "injury", {
-    player_id: input.player_id,
-    metadata: {
-      injured: input.injured,
-      quarter: input.quarter,
-      elapsed_ms: input.elapsed_ms,
+  return insertEvent(
+    auth,
+    gameId,
+    "injury",
+    {
+      player_id: input.player_id,
+      metadata: {
+        injured: input.injured,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
     },
-  });
+    idempotencyKey,
+  );
 }
 
 // Mark a player as lent to the opposition (or bring them back). While loaned
@@ -442,26 +490,38 @@ export async function markLoan(
     loaned: boolean;
     quarter: number;
     elapsed_ms: number;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "player_loan", {
-    player_id: input.player_id,
-    metadata: {
-      loaned: input.loaned,
-      quarter: input.quarter,
-      elapsed_ms: input.elapsed_ms,
+  return insertEvent(
+    auth,
+    gameId,
+    "player_loan",
+    {
+      player_id: input.player_id,
+      metadata: {
+        loaned: input.loaned,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
     },
-  });
+    idempotencyKey,
+  );
 }
 
 export async function recordLineupSet(
   auth: LiveAuth,
   gameId: string,
-  lineup: Lineup
+  lineup: Lineup,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "lineup_set", {
-    metadata: { lineup },
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "lineup_set",
+    { metadata: { lineup } },
+    idempotencyKey,
+  );
 }
 
 export async function recordSwap(
@@ -473,12 +533,16 @@ export async function recordSwap(
     zone: Zone;
     quarter: number;
     elapsed_ms: number;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "swap", {
-    player_id: input.on_player_id,
-    metadata: input,
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "swap",
+    { player_id: input.on_player_id, metadata: input },
+    idempotencyKey,
+  );
 }
 
 export async function undoLastScore(
@@ -656,10 +720,14 @@ export async function recordFieldZoneSwap(
     zone_b: string;
     quarter: number;
     elapsed_ms: number;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "field_zone_swap", {
-    player_id: input.player_a_id,
-    metadata: input,
-  });
+  return insertEvent(
+    auth,
+    gameId,
+    "field_zone_swap",
+    { player_id: input.player_a_id, metadata: input },
+    idempotencyKey,
+  );
 }

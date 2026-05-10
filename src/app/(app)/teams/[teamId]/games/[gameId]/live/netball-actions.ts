@@ -197,15 +197,22 @@ export async function periodBreakSwap(
     inPlayerId: string;
     atMs: number;
   }>,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  return insertEvent(auth, gameId, "period_break_swap", {
-    metadata: {
-      quarter,
-      lineup,
-      sport: "netball",
-      midQuarterSubs: midQuarterSubs ?? [],
+  return insertEvent(
+    auth,
+    gameId,
+    "period_break_swap",
+    {
+      metadata: {
+        quarter,
+        lineup,
+        sport: "netball",
+        midQuarterSubs: midQuarterSubs ?? [],
+      },
     },
-  });
+    idempotencyKey,
+  );
 }
 
 // ─── startNetballQuarter ─────────────────────────────────────
@@ -213,10 +220,15 @@ export async function startNetballQuarter(
   auth: LiveAuth,
   gameId: string,
   quarter: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_start", {
-    metadata: { quarter, sport: "netball" },
-  });
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "quarter_start",
+    { metadata: { quarter, sport: "netball" } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
 
   // Phase 5: revalidate so the live page picks up the quarter_start
@@ -239,10 +251,17 @@ export async function endNetballQuarter(
   gameId: string,
   quarter: number,
   elapsedMs: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_end", {
-    metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
-  });
+  // Q4 also writes a game_finalised event un-keyed. Same trade-off
+  // as the AFL endQuarter — see comment there.
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "quarter_end",
+    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
 
   if (quarter >= 4) {
@@ -292,11 +311,18 @@ export async function recordNetballGoal(
   playerId: string | null,
   quarter: number,
   elapsedMs: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "goal", {
-    player_id: playerId,
-    metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
-  });
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "goal",
+    {
+      player_id: playerId,
+      metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
+    },
+    idempotencyKey,
+  );
   if (!result.success) return result;
   return revalidateAfterScore(auth, gameId);
 }
@@ -306,10 +332,15 @@ export async function recordNetballOpponentGoal(
   gameId: string,
   quarter: number,
   elapsedMs: number,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "opponent_goal", {
-    metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" },
-  });
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "opponent_goal",
+    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "netball" } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
   return revalidateAfterScore(auth, gameId);
 }
@@ -323,10 +354,15 @@ export async function undoNetballScore(
   auth: LiveAuth,
   gameId: string,
   targetEventId?: string,
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "score_undo", {
-    metadata: { target: targetEventId, sport: "netball" },
-  });
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "score_undo",
+    { metadata: { target: targetEventId, sport: "netball" } },
+    idempotencyKey,
+  );
   if (!result.success) return result;
   return revalidateAfterScore(auth, gameId);
 }
