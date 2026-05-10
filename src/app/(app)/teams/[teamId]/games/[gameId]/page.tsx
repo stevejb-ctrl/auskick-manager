@@ -17,7 +17,9 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { Game, Sport } from "@/lib/types";
+import { replayGame } from "@/lib/fairness";
+import { GameSummaryView } from "@/components/live/GameSummaryCard";
+import type { Game, GameEvent, Sport } from "@/lib/types";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -53,7 +55,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport")
+      .select("age_group, sport, name, track_scoring")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -115,6 +117,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
   const isUp = g.status === "upcoming";
+
+  // Full event log for the post-completion summary card. Only
+  // fetched when the game is final + the sport has a matching
+  // summary view (AFL today). Light query above already loaded
+  // goal/behind events for the scorer rankings; this second
+  // round-trip is the price for the per-player game-time table.
+  // ~50–100 rows for a typical junior game so the cost is small.
+  let summaryEvents: GameEvent[] | null = null;
+  if (isFinal && sport === "afl") {
+    const { data } = await supabase
+      .from("game_events")
+      .select("*")
+      .eq("game_id", params.gameId)
+      .order("created_at", { ascending: true });
+    summaryEvents = (data ?? []) as GameEvent[];
+  }
 
   return (
     <div className="space-y-6">
@@ -361,6 +379,36 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </ul>
         </SFCard>
       )}
+
+      {/* ── Post-completion game summary ─────────────────────────────────
+          Same shape (and copy-able share text) the live page shows the
+          moment full time lands, so a coach revisiting a finished game
+          from "Completed games" gets the rotations table + "Copy for
+          group chat" without going back into /live. AFL only for now;
+          netball needs its own summary view component before this
+          surfaces there too. */}
+      {isFinal && summaryEvents && (() => {
+        const replay = replayGame(summaryEvents);
+        const swapCount = summaryEvents.filter((e) => e.type === "swap").length;
+        const teamRow = team as
+          | { name?: string; track_scoring?: boolean }
+          | null;
+        return (
+          <SFCard>
+            <GameSummaryView
+              teamName={teamRow?.name ?? "Us"}
+              opponentName={g.opponent}
+              trackScoring={teamRow?.track_scoring ?? true}
+              teamScore={replay.teamScore}
+              opponentScore={replay.opponentScore}
+              playerScores={replay.playerScores}
+              playersById={playerById}
+              swapCount={swapCount}
+              basePlayedZoneMs={replay.basePlayedZoneMs}
+            />
+          </SFCard>
+        );
+      })()}
 
       {/* ── Availability list (untouched, just below the hero) ───────── */}
       <Suspense
