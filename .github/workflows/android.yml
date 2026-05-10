@@ -1,0 +1,131 @@
+# Android debug-APK builder.
+#
+# Why a separate workflow from ci.yml:
+#   - Different language ecosystem (JDK 21 + Android SDK ~3GB),
+#     different toolchain caching strategy, longer cold-start.
+#   - Triggers on a narrower path filter — only when something the
+#     APK actually depends on changes — so most PRs don't pay the
+#     ~5-7 min build cost.
+#   - Doesn't gate merges by default. The artifact is the value
+#     here; pass/fail just tells you whether the next sideload
+#     attempt is worth your time.
+#
+# Output: a debug APK at mobile/android/app/build/outputs/apk/debug/
+# uploaded as a workflow artifact. Click the run on GitHub →
+# "Artifacts" → siren-footy-debug-apk → download → drag onto a
+# real Android device or emulator (or `adb install <apk>` if you
+# have the SDK locally).
+#
+# Prereqs the workflow assumes:
+#   - mobile/android/app/google-services.json is committed (slice 4
+#     phase 4e). The build will silently skip the Firebase plugin
+#     application if it's missing — pushes won't work but the APK
+#     still installs.
+#   - Capacitor 8.3.x in mobile/package.json. Bumping past 9 likely
+#     means a JDK / compileSdk bump too.
+
+name: Android (debug APK)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - "package.json"
+      - "package-lock.json"
+      - "src/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "package.json"
+      - "package-lock.json"
+      - "src/**"
+      - ".github/workflows/android.yml"
+  # Manual trigger from the Actions tab when you want a fresh APK
+  # without pushing a commit (e.g. trying out a TestFlight-equivalent
+  # internal share flow on Play Console).
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up JDK 21
+        # Capacitor 8 requires JDK 21. Temurin (Adoptium) is the
+        # default Android Studio bundles too.
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        # android-actions/setup-android@v3 installs platform-tools
+        # plus the platforms/build-tools matched to compileSdkVersion
+        # in mobile/android/variables.gradle (currently 36).
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        # The Gradle daemon caches dependency resolution across runs.
+        # ~500MB but cuts cold-start from ~7min to ~2min.
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install root npm deps
+        # The Capacitor sync step below imports server-action types
+        # transitively; without root deps installed, the cap sync
+        # command would fail with module-resolution errors that
+        # don't repro locally.
+        run: npm ci
+
+      - name: Install mobile npm deps
+        run: npm ci
+        working-directory: mobile
+
+      - name: Capacitor sync
+        # Copies www/ assets + capacitor.config.ts into android/
+        # and refreshes the plugin registry. Required because
+        # mobile/android/app/src/main/assets/capacitor.plugins.json
+        # is regenerated each sync — it's gitignored on some setups.
+        run: npx cap sync android
+        working-directory: mobile
+
+      - name: Build debug APK
+        # The wrapper handles its own JDK pinning via
+        # gradle/wrapper/gradle-wrapper.properties; we just kick it.
+        # --no-daemon avoids the JVM stays-alive overhead on a
+        # fresh CI runner that won't reuse the daemon anyway.
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: mobile/android
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: siren-footy-debug-apk
+          # Keep the workflow path stable so the download URL is
+          # predictable. Includes both the APK and a hash file for
+          # quick integrity checks.
+          path: |
+            mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
