@@ -1355,8 +1355,8 @@ export function QuarterBreak({
                   Delete this score?
                 </p>
                 <p className="mt-2 text-center text-xs text-ink-mute">
-                  {subject}'s {kindLabel} in Q{q} will be removed from the
-                  scoreline.
+                  {subject}&rsquo;s {kindLabel} in Q{q} will be removed from
+                  the scoreline.
                 </p>
                 <div className="mt-4 flex gap-2">
                   <Button
