@@ -8,18 +8,9 @@ import {
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import {
-  addLateArrival,
-  endQuarter as endQuarterAction,
-  markInjury,
-  markLoan,
-  recordBehind,
-  recordGoal,
-  recordOpponentScore,
-  recordFieldZoneSwap,
-  recordSwap,
-  startQuarter,
   undoLastScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
@@ -270,6 +261,21 @@ export function LiveGame({
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
+  // Tracks whether the init effect has populated the store for this
+  // gameId during the current mount lifetime. Used to differentiate:
+  //   - FRESH MOUNT (page load, hard reload, test page.goto):
+  //     ref is null → init() auto-resumes the clock from the
+  //     server's quarterStartedAt timestamp. No modal — coach can
+  //     get straight back to running the game after a reload.
+  //   - Q-BREAK → NEXT QUARTER (component stays mounted, router
+  //     .refresh() pipes in new initialState): ref already matches
+  //     this gameId → init() leaves clockStartedAt null. The
+  //     kickoffAck modal stays up so the coach has to tap Start
+  //     Q{n} on the umpire's whistle. Steve's 2026-05-10 fix lives
+  //     here in spirit; the original mid-quarter reload regression
+  //     was the auto-progression bug only AFTER a Q-break advance,
+  //     not on every page load.
+  const initedGameIdRef = useRef<string | null>(null);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -460,12 +466,40 @@ export function LiveGame({
     // had refreshed, storeAheadOfServer was true, and init() reset the
     // store back to the pre-tap state. The legitimate trigger for re-init
     // is initialState changing — that's already in the dep array.
-    const storeQuarter = useLiveGame.getState().currentQuarter;
+    const fullStoreState = useLiveGame.getState();
+    const storeQuarter = fullStoreState.currentQuarter;
     const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
-    if (activeGameId === gameId && !storeAheadOfServer) {
+    // Phase 5c: after a force-quit, the persist middleware
+    // rehydrates `activeGameId` (plus a few in-memory-only fields
+    // like lockedIds) but NOT the server-replayable bits — lineup
+    // is empty defaults, scores are 0, currentQuarter is 0. The
+    // skip below was designed for a fully populated store; without
+    // this guard, a rehydrated session would skip init and the
+    // user would see an empty lineup. Treat "lineup has any player
+    // anywhere" as the signal that init has actually run in this
+    // session.
+    const lineupHasAnyPlayer =
+      fullStoreState.lineup.bench.length > 0 ||
+      ALL_ZONES.some((z) => fullStoreState.lineup[z].length > 0);
+    if (
+      activeGameId === gameId &&
+      !storeAheadOfServer &&
+      lineupHasAnyPlayer
+    ) {
       setHydrated(true);
       return;
     }
+    // Differentiate fresh page load from Q-break advance using a
+    // ref that only flips once per component mount. The Q-break →
+    // next quarter transition re-runs this effect via router.refresh
+    // WITHOUT remounting LiveGame, so the ref persists and tells us
+    // not to auto-resume. A real page reload remounts; ref starts
+    // null; we auto-resume the clock from the server's
+    // quarterStartedAt and skip the kickoff modal.
+    const isFreshMount = initedGameIdRef.current !== gameId;
+    initedGameIdRef.current = gameId;
+
+    let clockStartedAt: number | null = null;
     let accumulatedMs = 0;
     if (
       !initialState.quarterEnded &&
@@ -473,17 +507,20 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
-      // Preserve the elapsed-since-server-quarter-start for reload
-      // resilience, but DON'T auto-resume the clock. Steve 2026-05-10:
-      // tapping "Ready for Q{n+1}" then watching the StartQuarterModal
-      // pop up and silently auto-close after ~2 seconds was confusing
-      // — the coach expected an explicit kickoff tap. Now the clock
-      // stays paused until the coach taps "Start Q{n}" on the modal.
-      // On a mid-quarter reload, accumulatedMs still carries the real
-      // elapsed time so the displayed clock is correct after the
-      // coach re-taps Start; the only UX cost is one extra tap on
-      // page reload, which beats unexplained auto-progression.
-      accumulatedMs = Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime());
+      accumulatedMs = Math.max(
+        0,
+        Date.now() - new Date(initialState.quarterStartedAt).getTime(),
+      );
+      // Auto-resume only on a fresh mount. On a Q-break advance
+      // (same mount, new initialState), Steve's intent stands:
+      // leave clockStartedAt null so the StartQuarterModal blocks
+      // until the coach taps Start. Page reload / test seed /
+      // hard-refresh hit the fresh-mount branch and get the
+      // clock running immediately, matching the pre-70fda29
+      // behaviour for those flows.
+      if (isFreshMount) {
+        clockStartedAt = Date.now();
+      }
     }
     init({
       activeGameId: gameId,
@@ -511,11 +548,7 @@ export function LiveGame({
       loanedIds: initialState.loanedIds,
       loanStartMs: initialState.loanStartMs,
       basePlayedLoanMs: initialState.basePlayedLoanMs,
-      // clockStartedAt deliberately omitted — init() merges over the
-      // store's blank-slate default of null, so the clock stays
-      // paused until the coach taps "Start Q{n}". See accumulatedMs
-      // comment above for why this trades a single re-tap on reload
-      // for a removed auto-progression bug.
+      clockStartedAt,
       accumulatedMs,
     });
     setHydrated(true);
@@ -576,17 +609,18 @@ export function LiveGame({
       showSwapToast(
         `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
       );
-      startTransition(async () => {
-        const result = await recordFieldZoneSwap(auth, gameId, {
+      enqueueLiveAction("recordFieldZoneSwap", [
+        auth,
+        gameId,
+        {
           player_a_id: pidA,
           zone_a: zoneA,
           player_b_id: playerId,
           zone_b: zone,
           quarter,
           elapsed_ms,
-        });
-        if (!result.success) setError(result.error);
-      });
+        },
+      ]);
       return;
     }
     selectField(playerId, zone);
@@ -655,15 +689,11 @@ export function LiveGame({
       playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
       quarter,
     });
-    startTransition(async () => {
-      const fn = kind === "goal" ? recordGoal : recordBehind;
-      const result = await fn(auth, gameId, {
-        player_id: playerId,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
   }
 
   // Rushed behind: ball deflects through off the opposition (or
@@ -681,15 +711,11 @@ export function LiveGame({
       playerName: null,
       quarter,
     });
-    startTransition(async () => {
-      const result = await recordBehind(auth, gameId, {
-        player_id: null,
-        quarter,
-        elapsed_ms,
-        rushed: true,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("recordBehind", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, rushed: true },
+    ]);
   }
 
   function handleScore(kind: "goal" | "behind") {
@@ -704,15 +730,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     setInjured(playerId, injured);
-    startTransition(async () => {
-      const result = await markInjury(auth, gameId, {
-        player_id: playerId,
-        injured,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      { player_id: playerId, injured, quarter, elapsed_ms },
+    ]);
   }
 
   // Combined injury + bench-replacement swap. Used when the coach picks a
@@ -730,25 +752,31 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     setSubBaseMs(currentElapsedMs());
     applyInjurySwap(injuredId, replacementId);
-    startTransition(async () => {
-      const [injuryResult, swapResult] = await Promise.all([
-        markInjury(auth, gameId, {
-          player_id: injuredId,
-          injured: true,
-          quarter,
-          elapsed_ms,
-        }),
-        recordSwap(auth, gameId, {
-          off_player_id: injuredId,
-          on_player_id: replacementId,
-          zone,
-          quarter,
-          elapsed_ms,
-        }),
-      ]);
-      if (!injuryResult.success) setError(injuryResult.error);
-      else if (!swapResult.success) setError(swapResult.error);
-    });
+    // Two queue ops, dispatched in order. The queue's FIFO contract
+    // means the injury event lands before the swap on the server,
+    // mirroring the prior Promise.all semantics where both fired
+    // concurrently but the replay engine handles either ordering.
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: injuredId,
+        injured: true,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
+    enqueueLiveAction("recordSwap", [
+      auth,
+      gameId,
+      {
+        off_player_id: injuredId,
+        on_player_id: replacementId,
+        zone,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
   }
 
   function handleLoanToggle(playerId: string, loaned: boolean) {
@@ -756,15 +784,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     setLoaned(playerId, loaned);
-    startTransition(async () => {
-      const result = await markLoan(auth, gameId, {
-        player_id: playerId,
-        loaned,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("markLoan", [
+      auth,
+      gameId,
+      { player_id: playerId, loaned, quarter, elapsed_ms },
+    ]);
   }
 
   function handleLateArrival(playerId: string) {
@@ -772,14 +796,11 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
     addBenchPlayer(playerId);
-    startTransition(async () => {
-      const result = await addLateArrival(auth, gameId, {
-        player_id: playerId,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("addLateArrival", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
   }
 
   function handleOpponent(kind: "goal" | "behind") {
@@ -787,14 +808,11 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
     startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
-    startTransition(async () => {
-      const result = await recordOpponentScore(auth, gameId, {
-        kind,
-        quarter,
-        elapsed_ms,
-      });
-      if (!result.success) setError(result.error);
-    });
+    enqueueLiveAction("recordOpponentScore", [
+      auth,
+      gameId,
+      { kind, quarter, elapsed_ms },
+    ]);
   }
 
   function handleUndo() {
@@ -836,38 +854,37 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
     applySwap(off, on, zone);
-    startTransition(async () => {
-      const result = await recordSwap(auth, gameId, {
+    enqueueLiveAction("recordSwap", [
+      auth,
+      gameId,
+      {
         off_player_id: off,
         on_player_id: on,
         zone,
         quarter,
         elapsed_ms,
-      });
-      if (!result.success) {
-        setError(result.error);
-      }
-    });
+      },
+    ]);
   }
 
   function handleStartFirstQuarter() {
     setError(null);
-    startTransition(async () => {
-      const result = await startQuarter(auth, gameId, 1);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      beginNextQuarter();
-      // Q1 is gated on the StartQuarterModal — the modal is the only
-      // kickoff affordance in pre-game (we removed the duplicate
-      // "Start Q1" button that used to sit on the main UI). The
-      // single tap on the modal both writes the server quarter_start
-      // event AND starts the local clock so the GM doesn't have to
-      // confirm twice.
-      startClock();
-      router.refresh();
-    });
+    const { flushed } = enqueueLiveAction("startQuarter", [auth, gameId, 1]);
+    beginNextQuarter();
+    // Q1 is gated on the StartQuarterModal — the modal is the only
+    // kickoff affordance in pre-game (we removed the duplicate
+    // "Start Q1" button that used to sit on the main UI). The
+    // single tap on the modal both writes the server quarter_start
+    // event AND starts the local clock so the GM doesn't have to
+    // confirm twice.
+    startClock();
+    // Wait for the queue to flush before refreshing — otherwise we
+    // refetch SSR state that doesn't yet include the quarter_start
+    // event, the init effect sees storeAheadOfServer=true and wipes
+    // the optimistic local state. Online: flush is sub-second; the
+    // refresh chains in immediately. Offline: refresh fires when
+    // the network comes back and the queue drains.
+    flushed.then(() => router.refresh());
   }
 
   function handlePause() {
@@ -888,17 +905,17 @@ export function LiveGame({
     // quarter — what they actually played, not what the clock saw.
     const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
     endCurrentQuarter(quarterMs, opts);
-    startTransition(async () => {
-      const result = await endQuarterAction(auth, gameId, q, elapsed_ms);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      // Refresh so the page picks up the quarter_end event and re-renders
-      // into the Q-break shell (or finalised state for Q4). Plan 05-04
-      // applied the same pattern to netball.
-      router.refresh();
-    });
+    const { flushed } = enqueueLiveAction("endQuarter", [
+      auth,
+      gameId,
+      q,
+      elapsed_ms,
+    ]);
+    // Chain refresh after the queue flushes so SSR sees the
+    // quarter_end event and renders the Q-break shell (or
+    // finalised state for Q4). Without this, refresh races the
+    // queue and the page re-mounts with stale server state.
+    flushed.then(() => router.refresh());
   }
 
   function handleQuarterEndConfirm() {
@@ -956,7 +973,15 @@ export function LiveGame({
   );
   useEffect(() => {
     setStartModalDismissed(false);
-    setKickoffAckQuarter(null);
+    // Preserve the ack if it points at the quarter we just entered.
+    // handleStartFirstQuarter / handleStartNextQuarter set the ack
+    // to the about-to-be-current quarter BEFORE calling
+    // beginNextQuarter, which then changes currentQuarter and
+    // triggers this effect. Without the prev-matches check, the
+    // ack would be reset to null right after being set, and the
+    // modal would re-render. (Saw this as a ~50ms flicker that
+    // failed the Q1 "modal hidden after Start tap" e2e spec.)
+    setKickoffAckQuarter((prev) => (prev === currentQuarter ? prev : null));
   }, [currentQuarter]);
 
   // Scroll to the top of the page (= top of the scorebug) when a
@@ -1632,17 +1657,31 @@ export function LiveGame({
           already wrote the server event. */}
       {!isFinished &&
         !quarterEnded &&
+        // A running clock is implicit kickoff — don't ever pop the
+        // modal over an active quarter. Covers fresh-mount auto-
+        // resume (initedGameIdRef branch in the init effect) and
+        // the pause/resume case where the coach taps the clock pill
+        // from inside the quarter. The Q-break advance path leaves
+        // clockStartedAt null, so this guard doesn't suppress the
+        // intended kickoff modal there.
+        clockStartedAt === null &&
         kickoffAckQuarter !== currentQuarter &&
         !startModalDismissed && (
           <StartQuarterModal
             quarter={isPreGame ? 1 : currentQuarter}
             loading={isPending}
             onStart={() => {
-              // Mark this quarter as kicked-off so a later
-              // pause/resume via clock-tap doesn't re-show the
-              // modal. The flag clears in the currentQuarter
-              // useEffect when the next Q-break advances quarter.
-              setKickoffAckQuarter(currentQuarter);
+              // Mark the quarter we're ABOUT to be in as
+              // kicked-off so a later pause/resume via clock-tap
+              // doesn't re-show the modal. For Q1 pre-game,
+              // handleStartFirstQuarter calls beginNextQuarter
+              // which advances currentQuarter from 0→1, so we
+              // ack 1, not 0. For Q2+, QuarterBreak has already
+              // advanced; currentQuarter is the right value.
+              // The flag is preserved across this advance by the
+              // useEffect's prev-matches check, then cleared on
+              // the NEXT real quarter transition.
+              setKickoffAckQuarter(isPreGame ? 1 : currentQuarter);
               if (isPreGame) handleStartFirstQuarter();
               else startClock();
             }}
@@ -1980,17 +2019,18 @@ export function LiveGame({
                 showSwapToast(
                   `${shortName(subOffSelected.playerId)} ⇄ ${shortName(picked)} — zones swapped`,
                 );
-                startTransition(async () => {
-                  const result = await recordFieldZoneSwap(auth, gameId, {
+                enqueueLiveAction("recordFieldZoneSwap", [
+                  auth,
+                  gameId,
+                  {
                     player_a_id: subOffSelected.playerId,
                     zone_a: subOffSelected.zone,
                     player_b_id: picked,
                     zone_b: c.zone!,
                     quarter,
                     elapsed_ms,
-                  });
-                  if (!result.success) setError(result.error);
-                });
+                  },
+                ]);
               }
               clearSelection();
               setSubOffSelected(null);

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { publicOrigin } from "@/lib/platform";
 import { Eyebrow, SFButton } from "@/components/sf";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { AppleSignInButton } from "@/components/auth/AppleSignInButton";
 import { LoginField } from "@/components/auth/LoginField";
 import { LoginSentState } from "@/components/auth/LoginSentState";
 
@@ -52,9 +54,12 @@ export function LoginForm() {
   const [resentNotice, setResentNotice] = useState(false);
 
   async function sendMagicLink(forEmail: string) {
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
-    const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+    // Magic link travels via email — recipients click it from
+    // arbitrary contexts (mail app, desktop browser). publicOrigin()
+    // returns the canonical web host on both web and native, so
+    // the link always lands on the public site rather than at a
+    // siren:// deep link that would only resolve on this device.
+    const emailRedirectTo = `${publicOrigin()}/auth/callback?next=${encodeURIComponent(next)}`;
     return supabase.auth.signInWithOtp({
       email: forEmail,
       options: { emailRedirectTo },
@@ -140,7 +145,10 @@ export function LoginForm() {
         Parents don&apos;t need an account; they just open a share link.
       </p>
 
-      <GoogleSignInButton next={next} />
+      <div className="space-y-2">
+        <GoogleSignInButton next={next} />
+        <AppleSignInButton next={next} />
+      </div>
 
       <Divider label={mode === "password" ? "OR WITH PASSWORD" : "OR WITH EMAIL"} />
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithOAuth } from "@/lib/auth/signInWithOAuth";
+import { isNative } from "@/lib/platform";
 
 interface GoogleSignInButtonProps {
   /** Same-origin path to land on after the OAuth round-trip. */
@@ -16,25 +17,23 @@ export function GoogleSignInButton({
   next,
   label = "Continue with Google",
 }: GoogleSignInButtonProps) {
-  const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
     setError(null);
     setLoading(true);
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
-    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
+    const { error } = await signInWithOAuth("google", next);
     if (error) {
-      setError(error.message);
+      setError(error);
       setLoading(false);
+      return;
     }
-    // On success the browser is navigating away — leave loading=true.
+    // Web: Supabase navigated the page away — leave loading=true so
+    // the button stays disabled while the redirect resolves.
+    // Native: the system browser is on top of the app. Reset loading
+    // so the button is usable again if the user cancels back.
+    if (isNative()) setLoading(false);
   }
 
   return (

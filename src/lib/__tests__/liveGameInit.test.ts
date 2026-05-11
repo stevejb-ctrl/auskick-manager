@@ -142,3 +142,104 @@ describe("liveGameStore.init full-reset semantics", () => {
     expect(s.lineup.back).toEqual(["a"]);
   });
 });
+
+// Regression coverage for slice 5 phase 5c — the persistence
+// carve-out introduced in liveGameStore.init.
+//
+// After the persist middleware rehydrates from Preferences, the
+// store has lockedIds / zoneLockedPlayers / swapCount /
+// lastStintMs/Zone set but NOT the server-replayable fields
+// (lineup, scores, currentQuarter all default). LiveGame.tsx's
+// init effect then runs with the server-replayed state. We need
+// the in-memory bits to survive that init when we're rehydrating
+// into the SAME game and the server isn't reporting a restart
+// (state.currentQuarter regression below prev's).
+describe("liveGameStore.init persistence carve-out", () => {
+  beforeEach(() => {
+    // Simulate the post-rehydration store: in-memory-only fields
+    // populated, server-replayable fields at defaults.
+    useLiveGame.setState({
+      activeGameId: "rehydrated-game",
+      lineup: { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] },
+      currentQuarter: 0,
+      lockedIds: ["locked-player"],
+      zoneLockedPlayers: { "zone-locked": "mid" },
+      swapCount: 5,
+      lastStintMs: { p1: 90_000 },
+      lastStintZone: { p1: "fwd" },
+    });
+  });
+
+  it("preserves in-memory-only fields when init is called for the same game with a non-restart payload", () => {
+    // LiveGame.tsx after rehydration calls init with the server's
+    // replayed state. currentQuarter advances from 0 → 2 (server's
+    // view of mid-game), which is NOT a restart.
+    useLiveGame.getState().init({
+      activeGameId: "rehydrated-game",
+      currentQuarter: 2,
+      lineup: {
+        back: ["a"],
+        hback: ["b"],
+        mid: ["c"],
+        hfwd: ["d"],
+        fwd: ["e"],
+        bench: ["f"],
+      },
+      teamScore: { goals: 1, behinds: 0 },
+    });
+    const s = useLiveGame.getState();
+
+    // Server-replayable fields take the new values.
+    expect(s.currentQuarter).toBe(2);
+    expect(s.lineup.back).toEqual(["a"]);
+    expect(s.teamScore).toEqual({ goals: 1, behinds: 0 });
+
+    // In-memory-only fields survive — that's the carve-out.
+    expect(s.lockedIds).toEqual(["locked-player"]);
+    expect(s.zoneLockedPlayers).toEqual({ "zone-locked": "mid" });
+    expect(s.swapCount).toBe(5);
+    expect(s.lastStintMs).toEqual({ p1: 90_000 });
+    expect(s.lastStintZone).toEqual({ p1: "fwd" });
+  });
+
+  it("still wipes in-memory-only fields when init signals a restart (state.currentQuarter regresses below prev's)", () => {
+    // Seed the store mid-game first.
+    useLiveGame.setState({
+      activeGameId: "in-flight",
+      currentQuarter: 3,
+      lockedIds: ["locked"],
+      zoneLockedPlayers: { z: "mid" },
+      swapCount: 9,
+      lastStintMs: { p: 60_000 },
+      lastStintZone: { p: "back" },
+    });
+
+    // Restart — server's currentQuarter regresses to 0.
+    useLiveGame.getState().init({
+      activeGameId: "in-flight",
+      currentQuarter: 0,
+      lineup: { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] },
+    });
+    const s = useLiveGame.getState();
+
+    // Restart means full wipe — in-memory bits go too.
+    expect(s.lockedIds).toEqual([]);
+    expect(s.zoneLockedPlayers).toEqual({});
+    expect(s.swapCount).toBe(0);
+    expect(s.lastStintMs).toEqual({});
+    expect(s.lastStintZone).toEqual({});
+  });
+
+  it("wipes in-memory-only fields when init switches to a different gameId", () => {
+    useLiveGame.getState().init({
+      activeGameId: "different-game",
+      currentQuarter: 2,
+      lineup: { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] },
+    });
+    const s = useLiveGame.getState();
+
+    expect(s.lockedIds).toEqual([]);
+    expect(s.zoneLockedPlayers).toEqual({});
+    expect(s.swapCount).toBe(0);
+  });
+});

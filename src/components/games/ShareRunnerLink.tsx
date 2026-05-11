@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { publicOrigin } from "@/lib/platform";
 
 interface ShareRunnerLinkProps {
   token: string;
@@ -11,10 +12,11 @@ export function ShareRunnerLink({ token }: ShareRunnerLinkProps) {
   const [copied, setCopied] = useState(false);
   const [show, setShow] = useState(false);
 
-  const url =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/run/${token}`
-      : `/run/${token}`;
+  // publicOrigin() returns window.location.origin on web (brand-aware
+  // between sirenfooty.com.au and sirennetball.com.au) and the
+  // configured canonical host inside the Capacitor shell, where the
+  // raw `capacitor://` origin would be useless in a shared link.
+  const url = `${publicOrigin()}/run/${token}`;
 
   async function copy() {
     try {

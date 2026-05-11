@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
+import { OfflineBanner } from "@/components/live/OfflineBanner";
 
 export default async function AppLayout({
   children,
@@ -28,6 +30,11 @@ export default async function AppLayout({
 
   return (
     <div>
+      {/* Push-notification registration. No-op on web; on native,
+          requests permission once and saves the FCM/APNs token
+          into device_tokens. Mounted here (not in root layout) so
+          it only fires for authenticated users. */}
+      <NativeNotificationsBridge />
       {/* z-20: the netball court's PositionToken wrappers use z-10
           for sibling stacking (goal-confirm chip etc.), so a sticky
           header at z-10 ties on stacking order and tokens render in
@@ -58,7 +65,17 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="px-4 py-4">{children}</main>
+      <main className="px-4 py-4">
+        {/* Persistent offline strip: invisible when online (zero
+            pixels), shows a warn-coloured banner when the device
+            is offline. Slice 5 phase 5e — offline taps in the
+            live game still queue + replay on reconnect, so this
+            is informational, not blocking. */}
+        <div className="mx-auto mb-3 max-w-4xl">
+          <OfflineBanner />
+        </div>
+        {children}
+      </main>
       <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
         <Link href="/help" className="hover:text-ink-dim">
           Help

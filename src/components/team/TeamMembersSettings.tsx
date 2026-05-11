@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
+import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
 
 export interface MemberRow {
@@ -229,10 +230,7 @@ function InviteForm({
     });
   }
 
-  const url =
-    createdToken && typeof window !== "undefined"
-      ? `${window.location.origin}/join/${createdToken}`
-      : null;
+  const url = createdToken ? `${publicOrigin()}/join/${createdToken}` : null;
 
   async function copyLink() {
     if (!url) return;
@@ -357,10 +355,7 @@ function InviteRow({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const url =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/join/${invite.token}`
-      : `/join/${invite.token}`;
+  const url = `${publicOrigin()}/join/${invite.token}`;
 
   async function copy() {
     try {
