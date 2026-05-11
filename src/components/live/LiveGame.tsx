@@ -261,6 +261,21 @@ export function LiveGame({
   const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
+  // Tracks whether the init effect has populated the store for this
+  // gameId during the current mount lifetime. Used to differentiate:
+  //   - FRESH MOUNT (page load, hard reload, test page.goto):
+  //     ref is null → init() auto-resumes the clock from the
+  //     server's quarterStartedAt timestamp. No modal — coach can
+  //     get straight back to running the game after a reload.
+  //   - Q-BREAK → NEXT QUARTER (component stays mounted, router
+  //     .refresh() pipes in new initialState): ref already matches
+  //     this gameId → init() leaves clockStartedAt null. The
+  //     kickoffAck modal stays up so the coach has to tap Start
+  //     Q{n} on the umpire's whistle. Steve's 2026-05-10 fix lives
+  //     here in spirit; the original mid-quarter reload regression
+  //     was the auto-progression bug only AFTER a Q-break advance,
+  //     not on every page load.
+  const initedGameIdRef = useRef<string | null>(null);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -474,6 +489,17 @@ export function LiveGame({
       setHydrated(true);
       return;
     }
+    // Differentiate fresh page load from Q-break advance using a
+    // ref that only flips once per component mount. The Q-break →
+    // next quarter transition re-runs this effect via router.refresh
+    // WITHOUT remounting LiveGame, so the ref persists and tells us
+    // not to auto-resume. A real page reload remounts; ref starts
+    // null; we auto-resume the clock from the server's
+    // quarterStartedAt and skip the kickoff modal.
+    const isFreshMount = initedGameIdRef.current !== gameId;
+    initedGameIdRef.current = gameId;
+
+    let clockStartedAt: number | null = null;
     let accumulatedMs = 0;
     if (
       !initialState.quarterEnded &&
@@ -481,17 +507,20 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
-      // Preserve the elapsed-since-server-quarter-start for reload
-      // resilience, but DON'T auto-resume the clock. Steve 2026-05-10:
-      // tapping "Ready for Q{n+1}" then watching the StartQuarterModal
-      // pop up and silently auto-close after ~2 seconds was confusing
-      // — the coach expected an explicit kickoff tap. Now the clock
-      // stays paused until the coach taps "Start Q{n}" on the modal.
-      // On a mid-quarter reload, accumulatedMs still carries the real
-      // elapsed time so the displayed clock is correct after the
-      // coach re-taps Start; the only UX cost is one extra tap on
-      // page reload, which beats unexplained auto-progression.
-      accumulatedMs = Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime());
+      accumulatedMs = Math.max(
+        0,
+        Date.now() - new Date(initialState.quarterStartedAt).getTime(),
+      );
+      // Auto-resume only on a fresh mount. On a Q-break advance
+      // (same mount, new initialState), Steve's intent stands:
+      // leave clockStartedAt null so the StartQuarterModal blocks
+      // until the coach taps Start. Page reload / test seed /
+      // hard-refresh hit the fresh-mount branch and get the
+      // clock running immediately, matching the pre-70fda29
+      // behaviour for those flows.
+      if (isFreshMount) {
+        clockStartedAt = Date.now();
+      }
     }
     init({
       activeGameId: gameId,
@@ -519,11 +548,7 @@ export function LiveGame({
       loanedIds: initialState.loanedIds,
       loanStartMs: initialState.loanStartMs,
       basePlayedLoanMs: initialState.basePlayedLoanMs,
-      // clockStartedAt deliberately omitted — init() merges over the
-      // store's blank-slate default of null, so the clock stays
-      // paused until the coach taps "Start Q{n}". See accumulatedMs
-      // comment above for why this trades a single re-tap on reload
-      // for a removed auto-progression bug.
+      clockStartedAt,
       accumulatedMs,
     });
     setHydrated(true);
@@ -1632,6 +1657,14 @@ export function LiveGame({
           already wrote the server event. */}
       {!isFinished &&
         !quarterEnded &&
+        // A running clock is implicit kickoff — don't ever pop the
+        // modal over an active quarter. Covers fresh-mount auto-
+        // resume (initedGameIdRef branch in the init effect) and
+        // the pause/resume case where the coach taps the clock pill
+        // from inside the quarter. The Q-break advance path leaves
+        // clockStartedAt null, so this guard doesn't suppress the
+        // intended kickoff modal there.
+        clockStartedAt === null &&
         kickoffAckQuarter !== currentQuarter &&
         !startModalDismissed && (
           <StartQuarterModal
