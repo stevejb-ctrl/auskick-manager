@@ -20,15 +20,6 @@ declare global {
   }
 }
 
-// Cookie set by NativeRouteBridge on first Capacitor launch. The
-// middleware reads it to know the request is coming from the iOS /
-// Android shell and short-circuit the marketing surface so the app
-// never feels like a website with the app overlaid on top.
-//
-// Constant lives here (not in middleware.ts) so the client bridge
-// and the server middleware reference the same string.
-export const NATIVE_COOKIE_NAME = "siren-native";
-
 export type Platform = "ios" | "android" | "web";
 
 export function isNative(): boolean {

@@ -1,7 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
-import { NATIVE_COOKIE_NAME } from "@/lib/platform";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -100,27 +99,6 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login";
     const nextPath = pathname + (request.nextUrl.search || "");
     url.search = `?next=${encodeURIComponent(nextPath)}`;
-    return NextResponse.redirect(url);
-  }
-
-  // Native shell never shows the marketing site.
-  //
-  // The Capacitor app loads the production URL as a remote WebView,
-  // so a fresh launch with no session would otherwise land on the
-  // marketing home page — that's exactly the "website with the app
-  // overlaid on top" feeling Steve flagged after install.
-  //
-  // NativeRouteBridge sets `siren-native=1` on first launch. From
-  // the next launch onward this branch fires and the user lands on
-  // /login with zero flash. (Authed users on "/" are already
-  // bounced to /dashboard by the home page's server-side redirect,
-  // which fires regardless of native or web.)
-  const isNativeShell =
-    request.cookies.get(NATIVE_COOKIE_NAME)?.value === "1";
-  if (!user && pathname === "/" && isNativeShell) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
     return NextResponse.redirect(url);
   }
 
