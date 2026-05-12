@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { sendContactMessage } from "@/app/contact/actions";
+import { sendContactMessage } from "@/app/(marketing)/contact/actions";
 
 export function ContactForm() {
   const [name, setName] = useState("");

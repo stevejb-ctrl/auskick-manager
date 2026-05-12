@@ -5,6 +5,7 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { OfflineBanner } from "@/components/live/OfflineBanner";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 export default async function AppLayout({
   children,
@@ -35,15 +36,27 @@ export default async function AppLayout({
           into device_tokens. Mounted here (not in root layout) so
           it only fires for authenticated users. */}
       <NativeNotificationsBridge />
-      {/* z-20: the netball court's PositionToken wrappers use z-10
+      {/* App-bar header.
+
+          z-20: the netball court's PositionToken wrappers use z-10
           for sibling stacking (goal-confirm chip etc.), so a sticky
           header at z-10 ties on stacking order and tokens render in
           front on scroll. z-20 keeps the header above page content
-          while staying under modals (z-50). */}
-      <header className="sticky top-0 z-20 border-b border-hairline bg-surface">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+          while staying under modals (z-50).
+
+          `pt-[env(safe-area-inset-top)]` lets the header background
+          fill under the iPhone notch when the safe-area is non-zero;
+          on devices without an inset it resolves to 0 with no visual
+          effect.
+
+          Backdrop-blur + 80%-alpha bg is the small-but-distinctive
+          touch that signals "app top bar" rather than "website nav".
+          When content scrolls under it, the bar tints translucently
+          like UIKit / Material navigation bars. */}
+      <header className="sticky top-0 z-20 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2 sm:py-3">
           <SirenWordmark size="sm" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {isSuperAdmin && (
               <Link
                 href="/admin"
@@ -52,9 +65,12 @@ export default async function AppLayout({
                 Admin
               </Link>
             )}
+            {/* Help is reachable from the footer and the in-page
+                walkthrough; hiding it on phones declutters the bar
+                without losing access. */}
             <Link
               href="/help"
-              className="rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink"
+              className="hidden rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink sm:inline-flex"
             >
               Help
             </Link>
@@ -76,11 +92,19 @@ export default async function AppLayout({
         </div>
         {children}
       </main>
-      <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
+      {/* `pb-[calc(...)]` keeps the existing 1rem footer padding and
+          adds whatever the iPhone home-indicator inset is on top.
+          Resolves to plain 1rem on devices without an inset. */}
+      <footer className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute">
         <Link href="/help" className="hover:text-ink-dim">
           Help
         </Link>
       </footer>
+      {/* Install prompt also lives on the app shell so coaches who
+          accessed via the browser get a nudge to install. The
+          component itself gates on standalone + dismissal so it
+          never double-renders or nags once installed. */}
+      <InstallPrompt />
     </div>
   );
 }

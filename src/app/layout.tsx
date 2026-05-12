@@ -8,6 +8,7 @@ import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
+import { StandaloneMarker } from "@/components/pwa/StandaloneMarker";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -69,13 +70,38 @@ export function generateMetadata(): Metadata {
       apple: { url: "/favicon-180.png", sizes: "180x180" },
       other: [{ rel: "icon", url: "/favicon-512.png", sizes: "512x512" }],
     },
+    // iOS standalone-app metadata. `capable: true` tells iOS Safari
+    // that "Add to Home Screen" should launch this site without the
+    // browser chrome. We use `default` (not `black-translucent`)
+    // because the (app) header is the light `bg-surface` cream —
+    // `black-translucent` forces white status-bar icons which would
+    // be invisible against it. If we later flip the header to a
+    // brand-coloured dark bar, switch this to `black-translucent`
+    // so the bar tints continuously up and over the notch.
+    appleWebApp: {
+      capable: true,
+      title: copy.productName,
+      statusBarStyle: "default",
+    },
   };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-};
+// Brand-aware theme colours for the viewport. `themeColor` paints the
+// mobile-browser address bar (and, on Android Chrome's PWA, the system
+// status bar). `viewportFit: "cover"` is what populates
+// `env(safe-area-inset-*)` on iPhones with a notch / home indicator —
+// without it the env() values resolve to 0 and our safe-area paddings
+// are no-ops.
+export function generateViewport(): Viewport {
+  const brand = getBrand();
+  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#2F6B3E";
+  return {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+    themeColor,
+  };
+}
 
 export default function RootLayout({
   children,
@@ -128,6 +154,12 @@ export default function RootLayout({
             and dynamically imports @capacitor/* so the web bundle
             doesn't pay for code it never runs. */}
         <NativeAuthBridge />
+        {/* Flips `html[data-standalone="true"]` when the page is
+            launched from a home-screen PWA install. CSS + JS code
+            read this to hide install prompts, in-browser-only chrome,
+            and to render in-app navigation when browser back isn't
+            available. */}
+        <StandaloneMarker />
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />
