@@ -104,6 +104,14 @@
 @layer base {
   body {
     @apply bg-warm text-ink antialiased;
+    /* Hard cap on horizontal scroll. Live-game pages have a few
+       absolute-positioned elements (the PlayerTile score chip
+       perches at -right-1) that occasionally produce a 1-4px
+       horizontal overflow on iOS — which iOS Safari + the
+       Capacitor WebView then expose as a swipe-able side scroll.
+       Clipping the body kills the scrollable axis without
+       affecting any sticky/fixed positioning inside. */
+    overflow-x: hidden;
   }
 
   /* ─── Native-app feel on mobile ─────────────────────────────
@@ -186,21 +194,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .siren-pulse-once { animation: none; }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Standalone-PWA utilities. `<StandaloneMarker />` flips
-   `html[data-standalone="true"]` on mount when the page is launched
-   from a home-screen install. Components opt in by tagging themselves
-   with one of these attributes — no per-component matchMedia plumbing
-   needed. `!important` because the data attribute lives on <html> and
-   we want this to win against Tailwind utilities applied locally.
-   ───────────────────────────────────────────────────────────────────── */
-html[data-standalone="true"] [data-pwa-hide-in-standalone] {
-  display: none !important;
-}
-html:not([data-standalone="true"]) [data-pwa-only-standalone] {
-  display: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

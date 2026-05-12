@@ -1,7 +1,6 @@
 import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
-import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 // Dedicated marketing shell. Pages under (marketing)/ share the
 // banner + header + footer chrome here so the authenticated app
@@ -22,11 +21,6 @@ export default function MarketingLayout({
       <MarketingHeader />
       {children}
       <MarketingFooter />
-      {/* Soft "Add to Home Screen" prompt — self-gates by platform,
-          standalone state, and session-dismissal. The marketing
-          shell is the most common landing surface for first-time
-          mobile visitors, so it's where the prompt earns its keep. */}
-      <InstallPrompt />
     </>
   );
 }
