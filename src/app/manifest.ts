@@ -43,19 +43,13 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
         purpose: "any",
       },
-      // Maskable variants — declared so Android Chrome's PWA install
-      // flow knows to use them for the adaptive-icon mask (round /
-      // squircle / teardrop depending on the launcher). The current
-      // PNGs are NOT maskable-safe (the wordmark/dot can land in the
-      // crop zone on aggressive masks). Follow-up: produce 192×192 and
-      // 512×512 PNGs with the logo sized to ~40% of the canvas centred
-      // in the maskable safe zone, and replace the `src` paths here.
-      {
-        src: "/favicon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
+      // No `purpose: "maskable"` entry — we don't have a properly
+      // maskable-safe asset yet (the favicon-512 wordmark+dot lands
+      // inside the crop zone on aggressive Android masks, producing
+      // a clipped icon). The "any" entry above is what Android falls
+      // back to when no maskable variant is declared. Re-add a
+      // maskable entry once a 192/512 PNG exists with the mark sized
+      // at ~40% of the canvas, centred in the maskable safe zone.
     ],
     // App shortcuts surfaced from long-press on Android. Each needs a
     // stable URL (no dynamic team IDs) and at least one icon. Two is
