@@ -20,6 +20,15 @@ declare global {
   }
 }
 
+// Cookie set by NativeCookieBridge on first Capacitor launch. The
+// Vercel edge redirect (vercel.json) reads it to know the request is
+// coming from the iOS / Android shell and short-circuits the marketing
+// surface so the app never feels like a website with the app overlaid.
+//
+// Constant lives here so the client bridge and any server-side code
+// reference the same string.
+export const NATIVE_COOKIE_NAME = "siren-native";
+
 export type Platform = "ios" | "android" | "web";
 
 export function isNative(): boolean {
