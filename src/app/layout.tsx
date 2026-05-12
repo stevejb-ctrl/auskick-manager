@@ -8,6 +8,7 @@ import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
+import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { StandaloneMarker } from "@/components/pwa/StandaloneMarker";
 import "./globals.css";
 
@@ -154,6 +155,11 @@ export default function RootLayout({
             and dynamically imports @capacitor/* so the web bundle
             doesn't pay for code it never runs. */}
         <NativeAuthBridge />
+        {/* Sets the `siren-native` cookie on Capacitor launches so
+            the Vercel edge redirect (vercel.json) bypasses the
+            marketing site on "/". Cookie-only — does NOT do any
+            client-side route bouncing. No-op on web. */}
+        <NativeCookieBridge />
         {/* Flips `html[data-standalone="true"]` when the page is
             launched from a home-screen PWA install. CSS + JS code
             read this to hide install prompts, in-browser-only chrome,

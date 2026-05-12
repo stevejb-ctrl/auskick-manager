@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
+import { NATIVE_COOKIE_NAME } from "@/lib/platform";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -99,6 +100,32 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login";
     const nextPath = pathname + (request.nextUrl.search || "");
     url.search = `?next=${encodeURIComponent(nextPath)}`;
+    return NextResponse.redirect(url);
+  }
+
+  // Native shell never shows the marketing site.
+  //
+  // The Capacitor app opens the live URL in a WebView. Once the
+  // NativeCookieBridge has set `siren-native=1`, every "/" request
+  // from that WebView lands here and we 302 to /login server-side.
+  // No client-side routing involved — this is the entire mechanism.
+  //
+  // Web visitors never have this cookie set, so their experience is
+  // unchanged. Authed-user-on-"/" still falls through to the home
+  // page's existing server redirect to /dashboard.
+  //
+  // The previous iteration of this fix paired the middleware
+  // redirect with a client-side `router.replace("/login")` fallback
+  // for first-launch flash. That combination produced a white
+  // screen on installed Capacitor shells when the service worker
+  // was stale. Dropping the client bounce + tightening the SW
+  // caching strategy is what makes this iteration safe.
+  const isNativeShell =
+    request.cookies.get(NATIVE_COOKIE_NAME)?.value === "1";
+  if (!user && pathname === "/" && isNativeShell) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 

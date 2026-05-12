@@ -18,11 +18,25 @@ const config: CapacitorConfig = {
   // takes over once the page resolves.
   webDir: "www",
   server: {
-    // Native shell loads the live production site. Server actions,
-    // RSC, middleware, brand routing, and Vercel cron all keep
-    // working unchanged. Updates ship via Vercel deploys without
-    // an App Store release.
-    url: "https://www.sirenfooty.com.au",
+    // Native shell loads the live production site DIRECTLY at
+    // /login. Server actions, RSC, middleware, brand routing, and
+    // Vercel cron all keep working unchanged. Updates ship via
+    // Vercel deploys without an App Store release.
+    //
+    // Why /login and not "/" — the marketing landing page is for
+    // people who arrive at sirenfooty.com.au in a browser tab.
+    // Inside the native app there's no value in showing it: a
+    // signed-out user sees /login (existing middleware already
+    // bounces unauth requests for protected paths there), and a
+    // signed-in user is sent straight to /dashboard by the
+    // existing /login authed-user redirect. Either way the app
+    // never lands on marketing chrome, which is what made the
+    // app feel like "a website with the app overlaid after login"
+    // in the first iPhone build.
+    //
+    // Web visitors are unaffected — they still hit
+    // https://www.sirenfooty.com.au/ for the marketing site.
+    url: "https://www.sirenfooty.com.au/login",
     cleartext: false,
     // Allowlist hosts the WebView is permitted to navigate to.
     // Required for Supabase XHR + any in-WebView OAuth bounces.

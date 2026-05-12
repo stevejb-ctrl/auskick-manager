@@ -31,4 +31,28 @@ test.describe("unauthenticated entry", () => {
       page.getByRole("link", { name: /sign in/i }).first()
     ).toBeVisible();
   });
+
+  test("unauthenticated native shell on / redirects to /login", async ({
+    context,
+    page,
+    baseURL,
+  }) => {
+    // Simulate the iOS/Android Capacitor WebView: NativeCookieBridge
+    // sets `siren-native=1` on first launch, and from then on the
+    // middleware skips the marketing surface. Setting the cookie
+    // directly via the test context pins the second-launch behaviour
+    // (zero-flash server redirect) without booting an actual
+    // Capacitor shell.
+    const url = new URL(baseURL ?? "http://localhost:3000");
+    await context.addCookies([
+      {
+        name: "siren-native",
+        value: "1",
+        domain: url.hostname,
+        path: "/",
+      },
+    ]);
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/login(\?|$)/);
+  });
 });
