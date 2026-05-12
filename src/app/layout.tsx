@@ -72,14 +72,16 @@ export function generateMetadata(): Metadata {
     },
     // iOS standalone-app metadata. `capable: true` tells iOS Safari
     // that "Add to Home Screen" should launch this site without the
-    // browser chrome. `black-translucent` makes the status bar
-    // transparent so the (app) layout's coloured header extends right
-    // up under the notch — that's the single biggest cue that flips
-    // the visual feel from "website in a webview" to "native app".
+    // browser chrome. We use `default` (not `black-translucent`)
+    // because the (app) header is the light `bg-surface` cream —
+    // `black-translucent` forces white status-bar icons which would
+    // be invisible against it. If we later flip the header to a
+    // brand-coloured dark bar, switch this to `black-translucent`
+    // so the bar tints continuously up and over the notch.
     appleWebApp: {
       capable: true,
       title: copy.productName,
-      statusBarStyle: "black-translucent",
+      statusBarStyle: "default",
     },
   };
 }
