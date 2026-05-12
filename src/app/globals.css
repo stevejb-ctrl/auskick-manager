@@ -106,6 +106,41 @@
     @apply bg-warm text-ink antialiased;
   }
 
+  /* ─── Native-app feel on mobile ─────────────────────────────
+     These rules close the gap between "website rendered in a
+     browser" and "native app" that Steve flagged when testing
+     on iPhone. Applied via @layer base so individual components
+     can still override per case.
+
+     - `-webkit-tap-highlight-color: transparent` kills the
+       translucent grey square iOS Safari draws over every tapped
+       link/button. This is THE single biggest tell that an app
+       is a wrapped website.
+
+     - `touch-action: manipulation` on interactive elements opts
+       out of the 300ms double-tap-to-zoom delay that mobile
+       browsers historically waited for. Without it, every tap
+       feels laggy by comparison to a native button.
+
+     - `overscroll-behavior-y: contain` on the root stops iOS
+       Safari and Chrome's pull-to-refresh / overscroll bounce
+       at the document edges — pull-to-refresh in a stateful PWA
+       wipes work-in-progress (rotation draft, scoring panel) so
+       it's actively user-hostile here. */
+  a,
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  html {
+    overscroll-behavior-y: contain;
+  }
+
   /* Tabular numerals everywhere a number is displayed — times, scores, minutes.
      The live game reads these in 0.2s glances; digits must never jump width. */
   .nums {

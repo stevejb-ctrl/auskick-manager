@@ -69,13 +69,36 @@ export function generateMetadata(): Metadata {
       apple: { url: "/favicon-180.png", sizes: "180x180" },
       other: [{ rel: "icon", url: "/favicon-512.png", sizes: "512x512" }],
     },
+    // iOS standalone-app metadata. `capable: true` tells iOS Safari
+    // that "Add to Home Screen" should launch this site without the
+    // browser chrome. `black-translucent` makes the status bar
+    // transparent so the (app) layout's coloured header extends right
+    // up under the notch — that's the single biggest cue that flips
+    // the visual feel from "website in a webview" to "native app".
+    appleWebApp: {
+      capable: true,
+      title: copy.productName,
+      statusBarStyle: "black-translucent",
+    },
   };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-};
+// Brand-aware theme colours for the viewport. `themeColor` paints the
+// mobile-browser address bar (and, on Android Chrome's PWA, the system
+// status bar). `viewportFit: "cover"` is what populates
+// `env(safe-area-inset-*)` on iPhones with a notch / home indicator —
+// without it the env() values resolve to 0 and our safe-area paddings
+// are no-ops.
+export function generateViewport(): Viewport {
+  const brand = getBrand();
+  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#2F6B3E";
+  return {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+    themeColor,
+  };
+}
 
 export default function RootLayout({
   children,

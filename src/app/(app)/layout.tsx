@@ -39,8 +39,13 @@ export default async function AppLayout({
           for sibling stacking (goal-confirm chip etc.), so a sticky
           header at z-10 ties on stacking order and tokens render in
           front on scroll. z-20 keeps the header above page content
-          while staying under modals (z-50). */}
-      <header className="sticky top-0 z-20 border-b border-hairline bg-surface">
+          while staying under modals (z-50).
+
+          `pt-[env(safe-area-inset-top)]` lets the header bar's
+          background fill all the way under the notch (status bar
+          is translucent in standalone mode via appleWebApp config)
+          while the actual title row sits below the inset. */}
+      <header className="sticky top-0 z-20 border-b border-hairline bg-surface pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <SirenWordmark size="sm" />
           <div className="flex items-center gap-3">
@@ -76,7 +81,10 @@ export default async function AppLayout({
         </div>
         {children}
       </main>
-      <footer className="border-t border-hairline py-4 text-center text-xs text-ink-mute">
+      {/* `pb-[calc(...)]` keeps the existing 1rem footer padding and
+          adds whatever the iPhone home-indicator inset is on top.
+          Resolves to plain 1rem on devices without an inset. */}
+      <footer className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute">
         <Link href="/help" className="hover:text-ink-dim">
           Help
         </Link>
