@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { MarketingBanner } from "@/components/marketing/MarketingBanner";
-import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { Hero } from "@/components/marketing/Hero";
 import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
-import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { getUser } from "@/lib/supabase/server";
@@ -35,16 +32,14 @@ export default async function Home() {
   const copy = getBrandCopy(brand.id);
 
   return (
-    <>
-      <MarketingBanner />
-      <MarketingHeader />
-      <main>
-        <Hero />
-        <TrustBand />
-        <ScrollingFeatures features={copy.features} centerpiece={copy.centerpiece} />
-        <FinalCTA />
-      </main>
-      <MarketingFooter />
-    </>
+    <main>
+      <Hero />
+      <TrustBand />
+      <ScrollingFeatures
+        features={copy.features}
+        centerpiece={copy.centerpiece}
+      />
+      <FinalCTA />
+    </main>
   );
 }
