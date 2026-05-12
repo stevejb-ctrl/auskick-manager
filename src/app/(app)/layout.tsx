@@ -5,7 +5,6 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { OfflineBanner } from "@/components/live/OfflineBanner";
-import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 export default async function AppLayout({
   children,
@@ -100,11 +99,6 @@ export default async function AppLayout({
           Help
         </Link>
       </footer>
-      {/* Install prompt also lives on the app shell so coaches who
-          accessed via the browser get a nudge to install. The
-          component itself gates on standalone + dismissal so it
-          never double-renders or nags once installed. */}
-      <InstallPrompt />
     </div>
   );
 }

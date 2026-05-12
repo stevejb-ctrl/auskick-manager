@@ -9,7 +9,6 @@ import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
-import { StandaloneMarker } from "@/components/pwa/StandaloneMarker";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -160,12 +159,6 @@ export default function RootLayout({
             marketing site on "/". Cookie-only — does NOT do any
             client-side route bouncing. No-op on web. */}
         <NativeCookieBridge />
-        {/* Flips `html[data-standalone="true"]` when the page is
-            launched from a home-screen PWA install. CSS + JS code
-            read this to hide install prompts, in-browser-only chrome,
-            and to render in-app navigation when browser back isn't
-            available. */}
-        <StandaloneMarker />
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />

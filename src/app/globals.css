@@ -189,21 +189,6 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Standalone-PWA utilities. `<StandaloneMarker />` flips
-   `html[data-standalone="true"]` on mount when the page is launched
-   from a home-screen install. Components opt in by tagging themselves
-   with one of these attributes — no per-component matchMedia plumbing
-   needed. `!important` because the data attribute lives on <html> and
-   we want this to win against Tailwind utilities applied locally.
-   ───────────────────────────────────────────────────────────────────── */
-html[data-standalone="true"] [data-pwa-hide-in-standalone] {
-  display: none !important;
-}
-html:not([data-standalone="true"]) [data-pwa-only-standalone] {
-  display: none !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
    Hide native scrollbar utility — opt-in via class.
    ───────────────────────────────────────────────────────────────────── */
 .no-scrollbar {
