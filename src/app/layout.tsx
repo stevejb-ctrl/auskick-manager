@@ -8,6 +8,7 @@ import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
+import { StandaloneMarker } from "@/components/pwa/StandaloneMarker";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -151,6 +152,12 @@ export default function RootLayout({
             and dynamically imports @capacitor/* so the web bundle
             doesn't pay for code it never runs. */}
         <NativeAuthBridge />
+        {/* Flips `html[data-standalone="true"]` when the page is
+            launched from a home-screen PWA install. CSS + JS code
+            read this to hide install prompts, in-browser-only chrome,
+            and to render in-app navigation when browser back isn't
+            available. */}
+        <StandaloneMarker />
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />
