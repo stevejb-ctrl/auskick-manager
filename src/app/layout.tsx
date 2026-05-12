@@ -8,6 +8,7 @@ import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
+import { NativeRouteBridge } from "@/components/native/NativeRouteBridge";
 import { StandaloneMarker } from "@/components/pwa/StandaloneMarker";
 import "./globals.css";
 
@@ -154,6 +155,10 @@ export default function RootLayout({
             and dynamically imports @capacitor/* so the web bundle
             doesn't pay for code it never runs. */}
         <NativeAuthBridge />
+        {/* Marks every request from the iOS/Android Capacitor shell
+            with a `siren-native` cookie so the middleware can skip
+            the marketing landing on native opens. No-op on web. */}
+        <NativeRouteBridge />
         {/* Flips `html[data-standalone="true"]` when the page is
             launched from a home-screen PWA install. CSS + JS code
             read this to hide install prompts, in-browser-only chrome,
