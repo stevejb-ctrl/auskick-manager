@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import {
   markLoan,
@@ -126,6 +127,7 @@ export function LineupPicker({
   chipModeByKey = {},
   initialLoanedIds = [],
 }: LineupPickerProps) {
+  const router = useRouter();
   // Pre-game loaned-player set. Hydrated from any player_loan events
   // already in the game (e.g. a reload after the coach flagged a
   // loan on a previous visit). Toggle handler below writes the
@@ -489,6 +491,13 @@ export function LineupPicker({
   // Save the current picker state as a pre-game draft. The game
   // stays "upcoming" — no lineup_set event is written. Re-opening
   // the picker will pre-populate from this draft.
+  //
+  // Steve 2026-05-13: also navigate back to the previous page
+  // (backHref) after a successful save. The pre-kickoff sticky
+  // bar promotes Save plan to a "save + exit" affordance so the
+  // primary "Ready for Q1" CTA can dominate the bar. If no
+  // backHref is configured, stay on the page (token-auth runner
+  // path).
   function handleSavePlan() {
     setServerError(null);
     const subSeconds = Math.round(effectiveSubMin * 60);
@@ -505,13 +514,18 @@ export function LineupPicker({
         return;
       }
       setSavedAt(new Date().toISOString());
+      if (backHref) router.push(backHref);
     });
   }
 
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
-    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    // pb sized for the two-row sticky footer (stats + Save plan row
+    // ~32px, big primary "Ready for Q1" ~52px, container py + gap
+    // ~22px). 8rem clears it with breathing room over the iPhone
+    // home indicator (Steve 2026-05-13).
+    <div className="space-y-4 pb-[calc(8rem+env(safe-area-inset-bottom))]">
       {backHref && (
         <Link
           href={backHref}
@@ -887,57 +901,68 @@ export function LineupPicker({
         </p>
       )}
 
-      {/* ── Sticky availability + Start CTA ──────────────────────────── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-xs sm:gap-4">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-ok" />
-              <span className="font-mono font-bold tabular-nums text-ink">
-                {onFieldCount}
+      {/* ── Sticky pre-game footer ──────────────────────────────────────
+          Steve 2026-05-13 redesigned: was a single cramped row
+          with the stats, Save-plan, and Ready CTAs all jostling
+          for space. Now stacks the secondary stuff (counts +
+          "Save plan & exit") on top of a full-width primary
+          "Ready for Q1" CTA — mirrors the Q-break Ready button
+          treatment. Save plan now also navigates back to the
+          previous page after a successful save (see
+          handleSavePlan) so the eyebrow row reads as a clear
+          "stash the draft and leave" action distinct from the
+          primary "let's kick off". */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
+        <div className="mx-auto flex max-w-4xl flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-xs sm:gap-4">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-ok" />
+                <span className="font-mono font-bold tabular-nums text-ink">
+                  {onFieldCount}
+                </span>
+                <span className="text-ink-dim">on field</span>
               </span>
-              <span className="text-ink-dim">on field</span>
-            </span>
-            <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-ink-mute" />
-              <span className="font-mono font-bold tabular-nums text-ink">
-                {benchCount}
+              <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-ink-mute" />
+                <span className="font-mono font-bold tabular-nums text-ink">
+                  {benchCount}
+                </span>
+                <span className="text-ink-dim">bench</span>
               </span>
-              <span className="text-ink-dim">bench</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {savedAt && (
-              <span
-                className="hidden text-[11px] text-ink-mute sm:inline"
-                title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
-              >
-                Plan saved
-              </span>
-            )}
+              {savedAt && (
+                <span
+                  className="hidden text-[11px] text-ink-mute sm:inline"
+                  title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
+                >
+                  · Plan saved
+                </span>
+              )}
+            </div>
             <SFButton
               onClick={handleSavePlan}
               disabled={onFieldCount === 0 || savePending || isPending}
               variant="ghost"
-              size="md"
+              size="sm"
             >
               {savePending
                 ? "Saving…"
                 : savedAt
-                ? "Update plan"
-                : "Save plan"}
-            </SFButton>
-            <SFButton
-              onClick={handleStart}
-              disabled={onFieldCount === 0 || isPending}
-              variant="primary"
-              size="md"
-              iconAfter={<SFIcon.chevronRight color="currentColor" />}
-            >
-              {isPending ? "Starting…" : "Ready for Q1"}
+                ? "Update plan & exit"
+                : "Save plan & exit"}
             </SFButton>
           </div>
+          <SFButton
+            onClick={handleStart}
+            disabled={onFieldCount === 0 || isPending}
+            variant="accent"
+            size="lg"
+            full
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+          >
+            {isPending ? "Starting…" : "Ready for Q1"}
+          </SFButton>
         </div>
       </div>
 
