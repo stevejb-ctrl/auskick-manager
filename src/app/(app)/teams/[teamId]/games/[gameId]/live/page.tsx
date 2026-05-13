@@ -3,7 +3,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
-import { GameInfoHeader } from "@/components/games/GameInfoHeader";
+import { LiveTopBar } from "@/components/live/LiveTopBar";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -512,11 +512,13 @@ export default async function LivePage({ params }: LivePageProps) {
       {/* Pre-kickoff top bar — the (app) header is hidden on /live
           (Steve 2026-05-13), and the AFL pre-kickoff path renders
           LineupPicker directly from page.tsx (not via LiveGame), so
-          this branch needs its own thin Exit + game info + Help bar
-          to replace the global chrome. Pre-kickoff has no
-          walkthrough state of its own; Help links to the static
-          /help page. */}
-      <GameInfoHeader teamName={teamName} g={g} compact />
+          this branch needs the SAME sticky top bar that lights up
+          everywhere else on /live. Help here links to /help (no
+          walkthrough modal state available pre-kickoff). */}
+      <LiveTopBar
+        exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+        game={g}
+      />
       {availablePlayers.length === 0 ? (
         <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
           No players marked available — go back and set availability first.

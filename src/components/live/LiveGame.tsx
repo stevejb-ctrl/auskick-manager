@@ -47,7 +47,7 @@ import {
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
-import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 // Minimal inline types for the YouTube IFrame API — no @types/youtube needed.
 interface YTPlayer {
@@ -1207,44 +1207,11 @@ export function LiveGame({
   // out of the main return so the QB branch can render it too —
   // without it, QB content used to butt against the iPhone notch
   // because LiveGame's pre-QB-branch early-return skipped the bar
-  // entirely (Steve 2026-05-13).
-  const liveTopBar = (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
-        {exitHref ? (
-          <Link
-            href={exitHref}
-            className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim"
-          >
-            ✕ Exit
-          </Link>
-        ) : (
-          <span />
-        )}
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
-          {game.round_number != null && (
-            <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
-              R{game.round_number}
-            </span>
-          )}
-          <span className="truncate">
-            <FormattedDateTime iso={game.scheduled_at} mode="long" />
-          </span>
-          {game.location && (
-            <span className="truncate">· {game.location}</span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={handleOpenWalkthrough}
-          className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
-          aria-label="Open walkthrough"
-        >
-          ?
-        </button>
-      </div>
-    </div>
-  );
+  // entirely (Steve 2026-05-13). Extracted to LiveTopBar component
+  // so the AFL pre-kickoff page can render the same bar.
+  const liveTopBar = exitHref ? (
+    <LiveTopBar exitHref={exitHref} game={game} onHelp={handleOpenWalkthrough} />
+  ) : null;
 
   // Walkthrough modal — same instance for all branches so the ?
   // button in the top bar works at QB too. Mounted-when-open
