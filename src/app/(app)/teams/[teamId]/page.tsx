@@ -181,8 +181,12 @@ function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
         </div>
       </div>
       <div className="bg-surface px-5 py-3.5 sm:px-7 sm:py-4">
+        {/* Link straight to /live, not the game-detail page. The
+            detail page just has another "Open live game" button on
+            it, so routing through it adds an extra tap for no value
+            when there's an in-progress game (Steve 2026-05-13). */}
         <SFButton
-          href={`/teams/${teamId}/games/${game.id}`}
+          href={`/teams/${teamId}/games/${game.id}/live`}
           variant="alarm"
           full
           iconAfter={<SFIcon.chevronRight color="white" />}
