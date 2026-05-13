@@ -1450,6 +1450,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       onEndQuarterEarly={() => setShowManualEndConfirm(true)}
       paused={isPaused}
       showScores={trackScoring}
+      // Strip the inner card chrome — this scorebug renders
+      // inside the sticky-bottom wrapper at the end of this
+      // branch's JSX. Mirrors AFL.
+      flat
     />
   );
 
@@ -1687,14 +1691,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         );
       })()}
 
-      {/* Sticky-bottom scorebug — Steve 2026-05-13 wants the +G
-          chip thumb-reachable during live play. Same component
-          tree as the inline scorebug rendered by the other
-          branches; just wrapped in a fixed-positioned container
-          here. Safe-area-aware bottom padding clears the iPhone
-          home indicator. z-30 sits below modals (z-50) so any
-          confirm sheet still overlays cleanly. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
+      {/* Sticky-bottom scorebug — Steve 2026-05-13: thumb-reach
+          +G AND the bar must look properly locked to the bottom
+          (not a floating card). Full-width, edge-to-edge solid
+          surface with a top border + upward shadow so scrolling
+          content disappears cleanly behind it. The NetballScoreBug
+          inside renders `flat` so its inner card chrome is
+          stripped — no card-on-card. Safe-area-aware bottom
+          padding clears the iPhone home indicator. z-30 sits
+          below modals (z-50) so confirm sheets still overlay
+          cleanly. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
         <div className="mx-auto max-w-4xl">{liveScoreBug}</div>
       </div>
     </div>
@@ -1726,6 +1733,7 @@ function NetballScoreBug({
   paused = false,
   showScores = true,
   clockPulseKey = null,
+  flat = false,
 }: {
   teamName: string;
   opponentName: string;
@@ -1779,9 +1787,19 @@ function NetballScoreBug({
    * aren't tied to a sirenic moment.
    */
   clockPulseKey?: string | number | null;
+  /**
+   * Strip the outer card chrome — used when nested inside the
+   * sticky-bottom wrapper during live play (Steve 2026-05-13).
+   * Mirrors GameHeader.flat.
+   */
+  flat?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
+    <div
+      className={`grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-4 py-3 ${
+        flat ? "" : "rounded-md bg-surface shadow-card"
+      }`}
+    >
       {/* Left: home team */}
       <div className="min-w-0">
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">

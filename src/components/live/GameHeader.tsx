@@ -57,6 +57,16 @@ interface GameHeaderProps {
    * destructive action requires an explicit tap.
    */
   onEndQuarterEarly?: () => void;
+  /**
+   * Strip the outer card chrome (rounded corners, surface bg, drop
+   * shadow). Used when the header is nested inside a sticky-bottom
+   * wrapper (Steve 2026-05-13) — the wrapper carries its own bar
+   * styling and a card-on-card render looks bumpy. The grid layout
+   * + internal padding stay so the inner content rhythm is
+   * unchanged. Defaults to false for the top-anchored render
+   * (current behaviour everywhere else).
+   */
+  flat?: boolean;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -83,6 +93,7 @@ export function GameHeader({
   clockPulseKey = null,
   onShowQuarterScores,
   onEndQuarterEarly,
+  flat = false,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
@@ -110,7 +121,11 @@ export function GameHeader({
   const stateIcon = isPreGame || isFinished ? null : running ? "⏸" : "▶";
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface px-4 py-3 shadow-card">
+    <div
+      className={`grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-4 py-3 ${
+        flat ? "" : "rounded-md bg-surface shadow-card"
+      }`}
+    >
       {/* Left: home team — total points dominate, like a broadcast scorebug.
           +G/+B chips mirror the opponent side; tapping opens a
           player picker (the parent owns the picker UI) so the

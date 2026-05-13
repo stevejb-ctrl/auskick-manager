@@ -1269,6 +1269,10 @@ export function LiveGame({
           ? () => setShowManualEndConfirm(true)
           : undefined
       }
+      // Strip the inner card chrome when sticky-bottom (Steve
+      // 2026-05-13): the wrapper carries its own bar styling and
+      // a card-on-card look reads as bumpy.
+      flat={isLivePlay}
     />
   );
 
@@ -2087,15 +2091,18 @@ export function LiveGame({
       )}
 
       {/* Sticky-bottom scorebug — only during live play (Steve
-          2026-05-13 wants the +G / +B chips thumb-reachable). Same
-          GameHeader component as the top-anchored render above;
-          just positioned via a fixed wrapper instead. The wrapper
-          carries safe-area-aware bottom padding so the bug sits
-          clear of the iPhone home indicator. z-30 sits below the
-          SlotFillSheet (z-50) so the player-attribution picker
-          still overlays cleanly on +G / +B taps. */}
+          2026-05-13 wants the +G / +B chips thumb-reachable AND
+          the bar to look properly locked to the bottom, not a
+          floating card). Full-width, edge-to-edge solid surface
+          with a top border + upward shadow so scrolling content
+          disappears cleanly behind it. The GameHeader inside
+          gets `flat` so its inner card chrome is stripped — no
+          card-on-card. Safe-area-aware bottom padding clears the
+          iPhone home indicator. z-30 sits below the SlotFillSheet
+          (z-50) so the player-attribution picker still overlays
+          cleanly on +G / +B taps. */}
       {isLivePlay && (
-        <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
           <div className="mx-auto max-w-4xl">{gameHeader}</div>
         </div>
       )}
