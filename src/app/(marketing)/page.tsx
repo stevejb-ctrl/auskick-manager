@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Hero } from "@/components/marketing/Hero";
 import { TrustBand } from "@/components/marketing/TrustBand";
@@ -25,7 +26,14 @@ export default async function Home() {
     data: { user },
   } = await getUser();
   if (user) {
-    redirect("/dashboard");
+    // Steve 2026-05-13: prefer the last-accessed-team cookie so a
+    // returning user lands in the team they care about, not the
+    // multi-team list. Cookie is set by middleware on every
+    // /teams/[id] visit; falls back to /dashboard if it's missing
+    // (first-time login) or stale (the team page itself handles the
+    // lost-access case).
+    const lastTeam = cookies().get("siren-last-team")?.value;
+    redirect(lastTeam ? `/teams/${lastTeam}` : "/dashboard");
   }
 
   const brand = getBrand();

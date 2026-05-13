@@ -129,15 +129,44 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Track the team the user last visited so the post-login bounce
+  // (and the marketing-/ → app redirect) can land them on the team
+  // home instead of the multi-team "My teams" list. Steve 2026-05-13:
+  // most users only have one team, so dropping them in the list
+  // first is a wasted tap. Cookie set on every /teams/[id]/* visit;
+  // expires after a year. /teams/new is the create-team form, not a
+  // real team id, so skip it.
+  const LAST_TEAM_COOKIE = "siren-last-team";
+  const teamPathMatch = pathname.match(/^\/teams\/([^/]+)(?:\/|$)/);
+  if (teamPathMatch) {
+    const teamId = teamPathMatch[1];
+    if (teamId && teamId !== "new") {
+      supabaseResponse.cookies.set(LAST_TEAM_COOKIE, teamId, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+  }
+
   if (user && isAuthRoute) {
     // Honour ?next= so an already-signed-in user who clicked an invite
     // link and got sent to /login or /signup still ends up at the
-    // invite page (or whatever deep link they wanted) instead of the
-    // dashboard. Restrict to same-origin paths to prevent open redirect.
+    // invite page (or whatever deep link they wanted). Restrict to
+    // same-origin paths to prevent open redirect.
     const raw = request.nextUrl.searchParams.get("next");
     const safeNext =
-      raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
-    return NextResponse.redirect(new URL(safeNext, request.nextUrl.origin));
+      raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : null;
+    let target = safeNext;
+    if (!target) {
+      // No explicit `?next=` — prefer the last-accessed-team cookie
+      // over the dashboard list. If the user has lost access to that
+      // team, /teams/[id] will redirect them back out via its own
+      // membership check; the fallback is /dashboard either way.
+      const lastTeam = request.cookies.get(LAST_TEAM_COOKIE)?.value;
+      target = lastTeam ? `/teams/${lastTeam}` : "/dashboard";
+    }
+    return NextResponse.redirect(new URL(target, request.nextUrl.origin));
   }
 
   return supabaseResponse;

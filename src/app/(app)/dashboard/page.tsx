@@ -40,6 +40,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/welcome");
   }
 
+  // Single-team auto-redirect (Steve 2026-05-13). Most coaches only
+  // run one team, so the multi-team list is a wasted tap. Drop them
+  // straight into the team home. Multi-team users still see the
+  // list when they navigate here explicitly (e.g. to switch teams
+  // or create another). The auth-route bounce in middleware also
+  // handles the login case via the last-accessed-team cookie, but
+  // this branch covers the first-time-login case where no cookie
+  // exists yet.
+  if (teams.length === 1) {
+    redirect(`/teams/${teams[0].id}`);
+  }
+
   return (
     <div className="space-y-6">
       <header>
