@@ -27,7 +27,7 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
 
   return (
     <>
-      <Button size="sm" variant="secondary" onClick={() => setOpen(true)} disabled={pending}>
+      <Button size="md" variant="secondary" onClick={() => setOpen(true)} disabled={pending}>
         + Add late arrival
       </Button>
 
