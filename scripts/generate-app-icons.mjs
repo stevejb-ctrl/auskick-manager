@@ -1,7 +1,8 @@
 // Generates the Siren Footy app icon for iOS + Android in one
-// pass. Renders via headless Chromium so the halo's alpha falloff
-// matches what the user sees in the live app and on the iOS
-// splash; pure CSS + SVG, no design tool required.
+// pass. Renders the brand lockup — a bold Geist Black "S" next to
+// the alarm-orange pulse dot — via headless Chromium, so the
+// glyph and dot proportions match the in-app SirenWordmark
+// component exactly.
 //
 // Run: `node scripts/generate-app-icons.mjs`
 //
@@ -23,7 +24,7 @@
 // — see that file for the matching #F7F5F1.
 
 import { chromium } from "playwright";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -50,68 +51,115 @@ const androidRes = join(
 );
 
 const WARM = "#F7F5F1";
+const INK = "#141613";
 const ALARM = "#D9442D";
 
-// Icon SVG. Three concentric circles: solid alarm-orange dot in the
-// centre, a translucent mid halo, a faint outer halo — the in-app
-// pulse animation "frozen" mid-flight. Reads as the Siren brand
-// mark at every size.
+// Load Geist Black (weight 900) and inline as base64 inside the
+// page CSS. Going through a data: URL means the headless page is
+// self-contained — no file:// base URL gymnastics — and we know
+// the glyph rendered matches what the user sees in the app
+// header (which also uses GeistSans).
+const geistBlackPath = join(
+  __dirname,
+  "..",
+  "node_modules",
+  "geist",
+  "dist",
+  "fonts",
+  "geist-sans",
+  "Geist-Black.woff2",
+);
+const geistBlackBase64 = (await readFile(geistBlackPath)).toString("base64");
+const fontFaceCss = `
+  @font-face {
+    font-family: "Geist";
+    font-weight: 900;
+    font-style: normal;
+    font-display: block;
+    src: url(data:font/woff2;base64,${geistBlackBase64}) format("woff2");
+  }
+`;
+
+// Icon lockup: a bold "S" + the alarm-orange pulse dot — the same
+// horizontal lockup the SirenWordmark renders, cropped to the
+// initial letter so it reads at app-icon sizes. The dot's vertical
+// offset (margin-top 0.32em) and gap (0.04em) mirror the brand
+// component exactly.
 //
-// Proportions:
-//   - `markPct` is the dot's DIAMETER as a fraction of the canvas.
-//   - midR = 1.6× dotR, outerR = 2.4× dotR. The outer halo therefore
-//     spans `markPct × 2.4` of the canvas. We size the dot so the
-//     outer halo lands at ~78% of the canvas — leaves visible
-//     breathing room inside the iOS rounded-rect mask + Android
-//     adaptive-icon safe zone.
+// Sizing:
+//   `scale` is the font-size as a fraction of the canvas. The "S"
+//   cap height is ~0.72em, and line-height 0.9 makes the lockup
+//   bounding box ~0.9em tall × ~(glyph + gap + dot) wide. At
+//   scale 0.72, the lockup fills ~65% of canvas height — leaving
+//   ample breathing room inside the iOS rounded-rect mask and
+//   the Android adaptive-icon safe zone.
 //
-// Alphas:
-//   - Dot: fully opaque alarm orange.
-//   - Mid: 0.20 — clearly a halo, not the dot itself.
-//   - Outer: 0.06 — barely a tint, just a soft glow.
-//   Both tuned against the warm cream bg so the ring edges are
-//   visible but not solid.
-function iconHtml({ size, markPct, transparent }) {
-  const dotR = Math.round((size * markPct) / 2);
-  const midR = Math.round(dotR * 1.6);
-  const outerR = Math.round(dotR * 2.4);
+// `transparent` swaps the warm cream background for transparent
+// (used for the Android adaptive foreground layer, which sits on
+// top of the flat-cream drawable background).
+function iconHtml({ size, scale, transparent }) {
+  const fontSize = Math.round(size * scale);
+  const dotSize = Math.round(fontSize * 0.25); // diameter — matches SirenWordmark ratio
+  const gap = Math.round(fontSize * 0.04);
   const bg = transparent ? "transparent" : WARM;
   return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <style>
+      ${fontFaceCss}
       html, body {
         margin: 0;
         width: ${size}px;
         height: ${size}px;
         background: ${bg};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     Roboto, Helvetica, Arial, sans-serif;
       }
-      svg {
-        display: block;
-        width: 100%;
-        height: 100%;
+      .lockup {
+        display: inline-flex;
+        align-items: flex-start;
+        color: ${INK};
+        font-weight: 900;
+        font-size: ${fontSize}px;
+        line-height: 0.9;
+        letter-spacing: -0.05em;
+        gap: ${gap}px;
+      }
+      .dot {
+        display: inline-block;
+        width: ${dotSize}px;
+        height: ${dotSize}px;
+        border-radius: 50%;
+        background: ${ALARM};
+        margin-top: 0.32em;
+        flex-shrink: 0;
       }
     </style>
   </head>
   <body>
-    <svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${outerR}"
-              fill="${ALARM}" opacity="0.06" />
-      <circle cx="${size / 2}" cy="${size / 2}" r="${midR}"
-              fill="${ALARM}" opacity="0.2" />
-      <circle cx="${size / 2}" cy="${size / 2}" r="${dotR}"
-              fill="${ALARM}" />
-    </svg>
+    <span class="lockup">
+      <span>S</span>
+      <span class="dot"></span>
+    </span>
   </body>
 </html>`;
 }
 
-async function render(page, { size, markPct, transparent }) {
+async function render(page, { size, scale, transparent }) {
   await page.setViewportSize({ width: size, height: size });
-  await page.setContent(iconHtml({ size, markPct, transparent }), {
+  await page.setContent(iconHtml({ size, scale, transparent }), {
     waitUntil: "networkidle",
   });
+  // Belt-and-braces: even with networkidle the inlined font can
+  // race the screenshot. document.fonts.ready resolves once the
+  // browser has finished decoding every @font-face referenced by
+  // the document — guarantees "S" renders in Geist Black, not the
+  // fallback.
+  await page.evaluate(() => document.fonts.ready);
   return page.screenshot({ omitBackground: transparent });
 }
 
@@ -122,13 +170,13 @@ const page = await browser.newPage();
 // Apple's modern asset catalog format: one 1024×1024 PNG. Xcode
 // generates all the down-scaled sizes (60pt @1x/2x/3x, marketing,
 // notifications, settings, etc.) at build time.
-// markPct 0.32 → dot 32% of canvas, outer halo 0.32×2.4 = 77% of
-// canvas. Leaves ~12% breathing room each side inside the iOS
-// rounded-rect mask. The dot is large enough to read at the smallest
-// system contexts (Settings list 29pt @1x).
+// scale 0.72 → "S" cap height ~52% of canvas; full lockup
+// (S + dot) fills ~65% canvas height × ~60% width. Plenty of
+// breathing room inside the iOS rounded-rect mask while still
+// reading at the smallest system contexts (Settings list 29pt).
 const ios = await render(page, {
   size: 1024,
-  markPct: 0.32,
+  scale: 0.72,
   transparent: false,
 });
 await writeFile(join(iosOut, "AppIcon-512@2x.png"), ios);
@@ -163,20 +211,20 @@ for (const { name, launcher, foreground } of densities) {
   // proportions as the iOS icon.
   const flat = await render(page, {
     size: launcher,
-    markPct: 0.32,
+    scale: 0.72,
     transparent: false,
   });
   await writeFile(join(dir, "ic_launcher.png"), flat);
   await writeFile(join(dir, "ic_launcher_round.png"), flat);
 
-  // Adaptive icon foreground. The Android launcher only renders the
-  // central 66% of the foreground PNG inside its adaptive mask, so
-  // the mark needs to fit inside that safe zone — markPct of 0.20
-  // means dot diameter is 20% of the foreground canvas, outer halo
-  // 48%, which lands well inside the visible 66%.
+  // Adaptive icon foreground. The Android launcher only renders
+  // the central 66% of the foreground PNG inside its adaptive
+  // mask, so the lockup needs to fit inside that safe zone. scale
+  // 0.45 puts the lockup at ~40% of the foreground canvas —
+  // visible and centred when masked.
   const fg = await render(page, {
     size: foreground,
-    markPct: 0.2,
+    scale: 0.45,
     transparent: true,
   });
   await writeFile(join(dir, "ic_launcher_foreground.png"), fg);
