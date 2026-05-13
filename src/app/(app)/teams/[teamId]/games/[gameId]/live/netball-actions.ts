@@ -171,6 +171,57 @@ export async function startNetballGame(
   return { success: true };
 }
 
+// ─── saveNetballLineupDraft ──────────────────────────────────
+// Mirrors saveLineupDraft in live/actions.ts but takes the netball
+// `GenericLineup` shape. Stored in the same `game_lineup_drafts`
+// table — the `lineup` column is JSON so it carries either shape
+// transparently. Reading back is sport-aware via the netball
+// branch in live/page.tsx, which casts the stored lineup to
+// GenericLineup before handing it to NetballLineupPicker
+// (Steve 2026-05-13 audit: sport-parity fix — netball coaches can
+// now stash a draft + leave the same way AFL coaches do).
+export async function saveNetballLineupDraft(
+  auth: LiveAuth,
+  gameId: string,
+  lineup: GenericLineup,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  // Reuse the games row's existing on_field_size + sub_interval — the
+  // netball picker doesn't expose these as pre-game knobs (vs AFL
+  // which lets the coach drop on-field size in the picker), so we
+  // just pull the current persisted values to satisfy NOT NULL.
+  const { data: gameRow } = await w.supabase
+    .from("games")
+    .select("on_field_size, sub_interval_seconds")
+    .eq("id", gameId)
+    .maybeSingle();
+  const onFieldSize = (gameRow as { on_field_size?: number } | null)?.on_field_size ?? 7;
+  const subIntervalSeconds = (gameRow as { sub_interval_seconds?: number } | null)?.sub_interval_seconds ?? 600;
+
+  const { error } = await w.supabase
+    .from("game_lineup_drafts")
+    .upsert(
+      {
+        game_id: gameId,
+        lineup,
+        on_field_size: onFieldSize,
+        sub_interval_seconds: subIntervalSeconds,
+        updated_by: w.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "game_id" },
+    );
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  }
+  return { success: true };
+}
+
 // ─── periodBreakSwap ─────────────────────────────────────────
 // Snapshot the lineup about to take the court at a quarter break.
 //

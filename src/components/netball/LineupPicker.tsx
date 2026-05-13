@@ -73,6 +73,25 @@ interface LineupPickerProps {
    * starting roster" recovery scenario).
    */
   backHref?: string;
+  /**
+   * Optional draft-save callback — when provided, the sticky footer
+   * grows to a two-row layout with a "Save plan & exit" ghost button
+   * on top and the primary "Confirm lineup" CTA below. Mirrors the
+   * AFL pre-game LineupPicker affordance so a netball coach can
+   * stash a draft and leave the same way (Steve 2026-05-13
+   * sport-parity fix). The callback is invoked with the current
+   * lineup; the caller is expected to persist it + navigate back.
+   * Omit on surfaces where stashing-and-leaving doesn't make sense
+   * (token-share runner, Q-break flow).
+   */
+  onSavePlan?: (lineup: GenericLineup) => Promise<void>;
+  /**
+   * ISO timestamp of the most recent save — when present, the
+   * "Save plan & exit" button label flips to "Update plan & exit"
+   * and a "Plan saved" badge appears next to the counts. Initial
+   * value (if any) comes from the parent reading game_lineup_drafts.
+   */
+  initialSavedAt?: string | null;
 }
 
 export function NetballLineupPicker({
@@ -87,6 +106,8 @@ export function NetballLineupPicker({
   confirmLabel = "Confirm lineup",
   disabled,
   backHref,
+  onSavePlan,
+  initialSavedAt = null,
 }: LineupPickerProps) {
   // Lineup-build mode. "suggested" runs the fairness suggester to
   // pre-fill the court (the legacy default). "manual" leaves every
@@ -182,6 +203,12 @@ export function NetballLineupPicker({
   // pickers behave identically, and matches the AFL pattern.
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Save plan & exit state — only used when the parent provides
+  // an `onSavePlan` callback. Mirrors AFL's LineupPicker:
+  // savePending toggles the button loading state; savedAt drives
+  // the "Plan saved" badge + flips the label to "Update plan & exit".
+  const [savePending, setSavePending] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(initialSavedAt);
   // Inline validation error. Replaces native window.alert() — Stagehand
   // exploration (2026-05-09) found that alert() on the runner-token URL
   // (where availability is skipped, so the lineup starts empty and
@@ -346,6 +373,24 @@ export function NetballLineupPicker({
       setSaving(false);
     }
   };
+
+  // Save the current draft + exit back to the previous page.
+  // Parent owns the persistence + redirect; we just flag pending
+  // state and surface any error inline. Mirrors AFL LineupPicker's
+  // handleSavePlan (Steve 2026-05-13 sport-parity fix).
+  async function handleSavePlan() {
+    if (!onSavePlan) return;
+    setError(null);
+    setSavePending(true);
+    try {
+      await onSavePlan(lineup);
+      setSavedAt(new Date().toISOString());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSavePending(false);
+    }
+  }
 
   // Position-keyed horizontal alignment — alternating zigzag down the
   // court so adjacent positions sit on OPPOSITE sides (GA opposite WA,
@@ -525,13 +570,62 @@ export function NetballLineupPicker({
         </p>
       )}
 
-      {/* Sticky kickoff CTA — Steve 2026-05-13: pin the primary
-          Confirm/Start button to the bottom of the viewport so the
-          coach always has a clear happy-path tap without scrolling
-          past the court + bench strip. Same treatment as the AFL
-          pre-game LineupPicker sticky bar. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-        <div className="mx-auto max-w-4xl">
+      {/* Sticky kickoff CTA — Steve 2026-05-13. Two layouts:
+            - one-row (no onSavePlan): just the primary accent CTA
+            - two-row (onSavePlan provided): counts + Save plan & exit
+              on top, primary accent CTA below — mirrors AFL's
+              pre-game LineupPicker footer treatment. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
+        <div className="mx-auto flex max-w-4xl flex-col gap-2">
+          {onSavePlan && (() => {
+            const onCourtCount = Object.values(lineup.positions).reduce(
+              (sum, ids) => sum + ids.length,
+              0,
+            );
+            const benchCount = lineup.bench.length;
+            return (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 text-xs sm:gap-4">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-ok" />
+                    <span className="font-mono font-bold tabular-nums text-ink">
+                      {onCourtCount}
+                    </span>
+                    <span className="text-ink-dim">on court</span>
+                  </span>
+                  <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-ink-mute" />
+                    <span className="font-mono font-bold tabular-nums text-ink">
+                      {benchCount}
+                    </span>
+                    <span className="text-ink-dim">bench</span>
+                  </span>
+                  {savedAt && (
+                    <span
+                      className="hidden text-[11px] text-ink-mute sm:inline"
+                      title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
+                    >
+                      · Plan saved
+                    </span>
+                  )}
+                </div>
+                <SFButton
+                  onClick={handleSavePlan}
+                  loading={savePending}
+                  disabled={onCourtCount === 0 || saving}
+                  variant="ghost"
+                  size="sm"
+                >
+                  {savePending
+                    ? "Saving…"
+                    : savedAt
+                    ? "Update plan & exit"
+                    : "Save plan & exit"}
+                </SFButton>
+              </div>
+            );
+          })()}
           <SFButton
             onClick={handleConfirm}
             disabled={disabled || saving}

@@ -182,6 +182,23 @@ export default async function LivePage({ params }: LivePageProps) {
       : { data: [] as GameEvent[] };
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
+
+    // Pre-game lineup draft (netball) — saved by Save plan & exit
+    // from inside NetballLineupPicker. Cleared at kickoff by
+    // startNetballGame. Steve 2026-05-13 sport-parity fix —
+    // mirrors the AFL pre-kickoff branch's draftRow read.
+    const { data: netballDraftRow } = await supabase
+      .from("game_lineup_drafts")
+      .select("lineup, updated_at")
+      .eq("game_id", params.gameId)
+      .maybeSingle();
+    const netballDraft = netballDraftRow
+      ? {
+          lineup: (netballDraftRow as { lineup: unknown }).lineup as import("@/lib/sports/netball/fairness").GenericLineup,
+          updated_at: (netballDraftRow as { updated_at: string }).updated_at,
+        }
+      : null;
+
     // Pre-kickoff = no lineup_set event yet. The starting-lineup
     // surface is intentionally minimal — back-to-availability
     // breadcrumb + the picker itself — so we hide the round/date
@@ -251,6 +268,7 @@ export default async function LivePage({ params }: LivePageProps) {
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
           isAdmin={isAdmin}
+          initialDraft={netballDraft}
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
             admin-utility row alongside "+ Add late arrival" so the

@@ -42,6 +42,7 @@ import {
   seasonPositionCounts,
 } from "@/lib/sports/netball/fairness";
 import {
+  saveNetballLineupDraft,
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -129,6 +130,21 @@ interface NetballLiveGameProps {
    * real estate (Steve 2026-05-13). Mirrors LiveGame.tsx.
    */
   isAdmin?: boolean;
+  /**
+   * Pre-game lineup draft fetched server-side from
+   * game_lineup_drafts. Drives two things on the pre-kickoff
+   * NetballLineupPicker:
+   *   - `initialLineup` so the picker pre-populates instead of
+   *     re-running the suggester
+   *   - `initialSavedAt` so the "Plan saved" badge surfaces +
+   *     the "Save plan & exit" button label flips to "Update plan
+   *     & exit"
+   * Null when the coach hasn't stashed anything yet.
+   */
+  initialDraft?: {
+    lineup: import("@/lib/sports/netball/fairness").GenericLineup;
+    updated_at: string;
+  } | null;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -155,6 +171,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     clockMultiplier = 1,
     suppressAutoWalkthrough = false,
     isAdmin = false,
+    initialDraft = null,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -1109,6 +1126,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ageGroup={ageGroup}
           squad={squad}
           availableIds={availableIds}
+          initialLineup={initialDraft?.lineup ?? null}
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           defaultQuarterSeconds={quarterLengthSeconds}
@@ -1135,6 +1153,27 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               });
             })
           }
+          // Save plan & exit — team-auth only (token-auth runner has
+          // no "page to exit to"). Persists the netball lineup as JSON
+          // in game_lineup_drafts; redirects back to the game-detail
+          // page on success. Mirrors AFL LineupPicker's
+          // handleSavePlan flow (Steve 2026-05-13 sport-parity fix).
+          onSavePlan={
+            auth.kind === "team"
+              ? async (lineup) => {
+                  const result = await saveNetballLineupDraft(
+                    auth,
+                    game.id,
+                    lineup,
+                  );
+                  if (!result.success) {
+                    throw new Error(result.error);
+                  }
+                  router.push(`/teams/${auth.teamId}/games/${game.id}`);
+                }
+              : undefined
+          }
+          initialSavedAt={initialDraft?.updated_at ?? null}
           confirmLabel="Ready for Q1"
           disabled={isPending}
         />
