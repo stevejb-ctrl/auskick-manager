@@ -158,25 +158,29 @@
 
   /* ─── Capacitor iOS / Android shell ─────────────────────────
      Inside the native WebView, Capacitor's `contentInset:
-     "always"` (mobile/capacitor.config.ts) already shifts the
-     viewport content down by the safe-area inset. Any CSS that
-     ALSO adds `env(safe-area-inset-*)` padding ends up
-     double-padded — visible as the phantom 200-300px band Steve
-     hit above the (app) header at scroll=0.
+     "always"` (mobile/capacitor.config.ts) shifts the viewport
+     content down by the safe-area inset at scrollOffset=0 — but
+     iOS does NOT apply that shift to elements once they're
+     position-stuck. So the WKWebView visibly toggles between
+     "inset applied" (in-flow, scroll=0) and "inset gone"
+     (sticky-locked, scroll>0) as the user scrolls.
+
+     CSS `env(safe-area-inset-top)` doubles with the in-flow
+     state (phantom gap, the first bug Steve hit) but is needed
+     in the locked state to clear the iOS status bar (otherwise
+     wordmark/buttons sit under the clock, the second bug).
+
+     The trick is a STATIC padding value that approximates the
+     iOS status bar height (~44-59 CSS px on modern iPhones).
+     3rem (48px) gives the locked state enough clearance to sit
+     below the clock without double-stacking with the in-flow
+     contentInset.
 
      NativeCookieBridge flips `html[data-native-shell="true"]`
-     on mount inside the Capacitor shell. These two rules
-     suppress the CSS-side env() padding on elements that opt in
-     via the `safe-area-top` / `safe-area-bottom` data
-     attributes. Web/PWA users still get the CSS env() padding
-     (no marker, no override).
-
-     Authored as plain attribute selectors (not Tailwind
-     variants) so existing Tailwind utilities like
-     `pt-[env(safe-area-inset-top)]` work everywhere and these
-     rules cancel them only when running native. */
+     on mount. Web/PWA users (no marker) still get the dynamic
+     env()-based padding from their original Tailwind classes. */
   html[data-native-shell="true"] [data-safe-area-top] {
-    padding-top: 0 !important;
+    padding-top: 3rem !important;
   }
   html[data-native-shell="true"] [data-safe-area-bottom] {
     padding-bottom: 1rem !important;
