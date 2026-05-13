@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { Guernsey } from "@/components/sf";
@@ -446,7 +446,7 @@ export function QuarterBreak({
       // The new caps come down via router.refresh after the user
       // taps Resume next quarter — handleStart already calls it.
       // Here we just confirm to the coach that the change took.
-      router.refresh();
+      reactStartTransition(() => router.refresh());
     });
   }
 
@@ -607,7 +607,7 @@ export function QuarterBreak({
         return;
       }
       await refreshScoreLog();
-      router.refresh();
+      reactStartTransition(() => router.refresh());
     });
   }
 
@@ -639,7 +639,7 @@ export function QuarterBreak({
       setAddOpen(false);
       setAddPlayerId("");
       await refreshScoreLog();
-      router.refresh();
+      reactStartTransition(() => router.refresh());
     });
   }
 
@@ -705,7 +705,7 @@ export function QuarterBreak({
       // Server-rendered events list is now stale; refresh so the page
       // picks up the new quarter_start event and re-renders into LIVE.
       // Mirrors Plan 05-04's netball fix.
-      router.refresh();
+      reactStartTransition(() => router.refresh());
     });
   }
 

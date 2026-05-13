@@ -7,7 +7,7 @@
 // event and the game_finalised event so the coach can reconcile
 // with the opposition before locking in the result.
 
-import { useState, useTransition } from "react";
+import { startTransition, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { Button } from "@/components/ui/Button";
@@ -63,7 +63,7 @@ export function NetballFullTimeReview({
         setFinaliseError(result.error);
         return;
       }
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 

@@ -7,7 +7,7 @@
 // sports — the only difference is whether "behind" rows / inputs
 // render (AFL: yes, netball: no). Quarters are 1-indexed.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { startTransition, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addRetroScore,
@@ -111,7 +111,7 @@ export function ScoreReviewPanel({
         return;
       }
       await refreshScoreLog();
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 
@@ -142,7 +142,7 @@ export function ScoreReviewPanel({
       setAddOpen(false);
       setAddPlayerId("");
       await refreshScoreLog();
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 

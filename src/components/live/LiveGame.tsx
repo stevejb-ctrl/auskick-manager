@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   clockElapsedMs,
   useLiveGame,
@@ -239,6 +239,11 @@ export function LiveGame({
   // play. Already populated by replay + the live store's
   // incTeam/incOpponent paths, so just read it here.
   const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
+  // Subscribed (not getState) so the QuarterEndModal's embedded
+  // mini-scorebug re-renders when a late goal/behind lands inside
+  // the modal — same selectors GameHeader uses elsewhere.
+  const teamScoreState = useLiveGame((s) => s.teamScore);
+  const opponentScoreState = useLiveGame((s) => s.opponentScore);
   const finalised = useLiveGame((s) => s.finalised);
   const selectField = useLiveGame((s) => s.selectField);
   const selectBench = useLiveGame((s) => s.selectBench);
@@ -908,7 +913,15 @@ export function LiveGame({
     // the optimistic local state. Online: flush is sub-second; the
     // refresh chains in immediately. Offline: refresh fires when
     // the network comes back and the queue drains.
-    flushed.then(() => router.refresh());
+    // Wrap router.refresh in startTransition so the route's
+    // loading.tsx Suspense fallback DOESN'T flash during the
+    // refetch — React preserves the existing UI during a
+    // transition even if the underlying data suspends. Steve
+    // 2026-05-13: the Q-end + end-game "weird screen refresh /
+    // white flash a few seconds after" was the loading.tsx
+    // skeleton briefly replacing the live tree during the
+    // post-flush refresh.
+    flushed.then(() => startTransition(() => router.refresh()));
   }
 
   function handlePause() {
@@ -939,7 +952,15 @@ export function LiveGame({
     // quarter_end event and renders the Q-break shell (or
     // finalised state for Q4). Without this, refresh races the
     // queue and the page re-mounts with stale server state.
-    flushed.then(() => router.refresh());
+    // Wrap router.refresh in startTransition so the route's
+    // loading.tsx Suspense fallback DOESN'T flash during the
+    // refetch — React preserves the existing UI during a
+    // transition even if the underlying data suspends. Steve
+    // 2026-05-13: the Q-end + end-game "weird screen refresh /
+    // white flash a few seconds after" was the loading.tsx
+    // skeleton briefly replacing the live tree during the
+    // post-flush refresh.
+    flushed.then(() => startTransition(() => router.refresh()));
   }
 
   function handleQuarterEndConfirm() {
@@ -1681,16 +1702,25 @@ export function LiveGame({
           quarter={currentQuarter}
           loading={isPending}
           onConfirm={handleQuarterEndConfirm}
+          teamName={teamName}
+          opponentName={opponentName}
+          teamScore={teamScoreState}
+          opponentScore={opponentScoreState}
+          trackScoring={trackScoring}
           // "Goal on the siren?" — Steve's real-game scenario:
           // a goal lands at the moment the hooter sounds, the
           // QuarterEndModal opens before the +G picker has a
-          // chance to fire. Surfacing the picker here keeps the
-          // attribution attached to THIS quarter (the picker
-          // reads currentQuarter, which is still the just-ended
-          // value until handleQuarterEndConfirm fires). The +B
-          // path covers a rushed behind on the siren too.
-          onLateScore={
+          // chance to fire. Steve 2026-05-13: extended to opponent
+          // too — own-team chip opens the scorer picker (player
+          // attribution); opponent chip records straight away.
+          // The picker reads currentQuarter, which is still the
+          // just-ended value until handleQuarterEndConfirm fires,
+          // so the score attaches to THIS quarter on either side.
+          onTeamLateScore={
             trackScoring ? (kind) => setPickScorerKind(kind) : undefined
+          }
+          onOpponentLateScore={
+            trackScoring ? (kind) => handleOpponent(kind) : undefined
           }
         />
       )}

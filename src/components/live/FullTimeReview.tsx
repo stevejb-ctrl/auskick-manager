@@ -10,7 +10,7 @@
 // Mirrors the QuarterBreak "Fix scores" panel in spirit but lives
 // at FT instead of mid-game, with its own "Finalise" CTA.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { startTransition, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
@@ -123,7 +123,7 @@ export function FullTimeReview({
         return;
       }
       await refreshScoreLog();
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 
@@ -154,7 +154,7 @@ export function FullTimeReview({
       setAddOpen(false);
       setAddPlayerId("");
       await refreshScoreLog();
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 
@@ -173,7 +173,7 @@ export function FullTimeReview({
       // (`activeGameId === gameId && hydrated`), so the store stays at
       // finalised=false and the summary card never appears.
       useLiveGame.getState().finaliseGame();
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   }
 

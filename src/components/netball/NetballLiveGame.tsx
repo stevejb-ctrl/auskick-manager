@@ -13,7 +13,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { Court } from "@/components/netball/Court";
@@ -285,7 +285,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       currentQuarter,
       quarterLengthMs,
     ]);
-    flushed.then(() => router.refresh());
+    flushed.then(() => startTransition(() => router.refresh()));
   }
 
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
@@ -331,7 +331,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
     // Chain refresh after the queue flushes so SSR sees the
     // quarter_end event and renders the Q-break shell.
-    hooterFlushed.then(() => router.refresh());
+    hooterFlushed.then(() => startTransition(() => router.refresh()));
   }, [
     remainingMs,
     currentQuarter,
@@ -572,7 +572,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id]);
     // Refresh after flush so the rolled-back goal disappears from
     // the scorebug + PositionToken chip on the next render.
-    flushed.then(() => router.refresh());
+    flushed.then(() => startTransition(() => router.refresh()));
   }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
@@ -728,7 +728,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       currentQuarter,
       clockMs,
     ]);
-    flushed.then(() => router.refresh());
+    flushed.then(() => startTransition(() => router.refresh()));
     setPendingGoal(null);
     startUndoToast("team", playerName);
   };
@@ -742,7 +742,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       currentQuarter,
       clockMs,
     ]);
-    flushed.then(() => router.refresh());
+    flushed.then(() => startTransition(() => router.refresh()));
     startUndoToast("opp", null);
   }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
@@ -1389,7 +1389,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 quarter,
               ]);
               setPendingQuarterStart(null);
-              flushed.then(() => router.refresh());
+              flushed.then(() => startTransition(() => router.refresh()));
             }}
             onCancel={() => setPendingQuarterStart(null)}
           />
@@ -1426,7 +1426,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             ]);
             // Refresh after flush so SSR sees the finalise events
             // and the page rerenders into FT review.
-            flushed.then(() => router.refresh());
+            flushed.then(() => startTransition(() => router.refresh()));
           }}
           disabled={isPending}
           className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
