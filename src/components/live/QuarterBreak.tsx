@@ -1450,19 +1450,22 @@ export function QuarterBreak({
                               Colour tokens match the FWD/CENTRE/
                               BACK card headers via ZONE_BAR_COLOR. */}
                           <span
-                            className="flex h-3 flex-1 max-w-[80px] overflow-hidden rounded-full bg-surface-alt"
+                            className="flex h-2.5 w-20 shrink-0 overflow-hidden rounded-full bg-surface-alt"
                             aria-hidden
                           >
                             {realTotal > 0 &&
-                              zones.map((z) => (
-                                <span
-                                  key={z}
-                                  style={{
-                                    width: `${(zm[z] / realTotal) * 100}%`,
-                                  }}
-                                  className={ZONE_BAR_COLOR[z]}
-                                />
-                              ))}
+                              zones.map((z) => {
+                                const pct = (zm[z] / realTotal) * 100;
+                                if (pct <= 0) return null;
+                                return (
+                                  <span
+                                    key={z}
+                                    style={{ width: `${pct}%` }}
+                                    className={ZONE_BAR_COLOR[z]}
+                                    title={`${slotLabel(z)}: ${fmtMinSec(zm[z])}`}
+                                  />
+                                );
+                              })}
                           </span>
                         </span>
                       </button>
