@@ -5,7 +5,14 @@ import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 export default function RunLayout({ children }: { children: React.ReactNode }) {
   return (
     <div>
-      <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
+      {/* Non-sticky — scrolls with the page so it doesn't stack
+          with LiveTopBar (also sticky-top) once the runner reaches
+          the live game. The chevron+wordmark is still visible on
+          first paint of every route as a back-to-home affordance;
+          once the user scrolls / the live-game UI takes over,
+          LiveTopBar's "✕ Exit" carries the navigation duty.
+          Steve 2026-05-13 audit fix. */}
+      <header className="border-b border-hairline bg-surface">
         <div className="flex items-center px-3 py-2">
           <Link
             href="/"
