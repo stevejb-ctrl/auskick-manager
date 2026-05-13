@@ -72,6 +72,66 @@ test("team admin toggles a player's availability for a game", async ({
     .toBe("unavailable");
 });
 
+// Regression for the "couple-of-seconds dead tap" Steve saw 2026-05-13
+// going from /availability → /live: the CTA was a plain Next.js Link
+// so during the ~2s the /live RSC payload streams in, React kept the
+// old availability UI painted with no busy signal. The fix swapped
+// it for a client-component button using useTransition + router.push
+// so the button itself shows the brand pulse + "Loading lineup…"
+// while the navigation is in flight.
+//
+// This test pins the structural contract: the CTA must be a
+// <button>, not an <a>, AND clicking it must land on /live. If a
+// future refactor regresses to a plain Link, role="button" stops
+// matching and this test goes red.
+test("Continue-to-lineup CTA is a button with pending state, not a plain link", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 12,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  // Seed availability so /live doesn't hit its "no players available"
+  // empty-state branch — we want it to take its full data-fetching
+  // path so the test actually exercises the slow transition.
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
+
+  // role="button" — the contract. A plain SFButton href renders as
+  // an <a>, which would NOT match this locator. The button-based
+  // ContinueToLineupButton DOES match.
+  const cta = page.getByRole("button", { name: /continue to lineup/i });
+  await expect(cta).toBeVisible({ timeout: 10_000 });
+
+  await cta.click();
+
+  // After click, we should land on /live and the LineupPicker should
+  // render. The "Ready for Q1" CTA is the LineupPicker's pre-kickoff
+  // signal (see lineup.spec.ts for the deeper assertion).
+  await expect(page).toHaveURL(/\/live$/, { timeout: 10_000 });
+  await expect(
+    page.getByRole("button", { name: /^ready for q1$/i }),
+  ).toBeVisible({ timeout: 10_000 });
+});
+
 test("team admin adds a fill-in player for this game only", async ({
   page,
 }) => {
