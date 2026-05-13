@@ -96,6 +96,22 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: CANVAS, height: CANVAS } });
 await page.setContent(html(), { waitUntil: "networkidle" });
 
+// Measure the dot's actual pixel position in the rendered canvas.
+// Computed from the DOM (not our math) so it tracks any font-metric
+// drift in the bold sans-serif used in headless Chromium. Mobile
+// AppDelegate.swift reads these coordinates to place its halo
+// animation directly behind the dot.
+const dotRect = await page.evaluate(() => {
+  const dot = document.querySelector(".dot");
+  if (!dot) return null;
+  const r = dot.getBoundingClientRect();
+  return {
+    centerX: Math.round(r.x + r.width / 2),
+    centerY: Math.round(r.y + r.height / 2),
+    radius: Math.round(r.width / 2),
+  };
+});
+
 const primary = join(outDir, "splash-2732x2732.png");
 await page.screenshot({ path: primary, omitBackground: false });
 await copyFile(primary, join(outDir, "splash-2732x2732-1.png"));
@@ -104,3 +120,12 @@ await copyFile(primary, join(outDir, "splash-2732x2732-2.png"));
 await browser.close();
 
 console.log(`wrote ${primary} + two duplicates`);
+console.log(
+  `dot in image: center=(${dotRect.centerX}, ${dotRect.centerY}) radius=${dotRect.radius}`,
+);
+console.log(
+  `  → update AppDelegate.swift dotImagePoint to (${dotRect.centerX}, ${dotRect.centerY})`,
+);
+console.log(
+  `  → update AppDelegate.swift dotImageRadius to ${dotRect.radius}`,
+);
