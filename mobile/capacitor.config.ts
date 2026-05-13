@@ -51,9 +51,22 @@ const config: CapacitorConfig = {
     ],
   },
   ios: {
-    // Lets the WebView extend behind the home indicator + status
-    // bar; the page handles its own safe-area insets via Tailwind.
-    contentInset: "always",
+    // `contentInset: "never"` tells iOS WKWebView NOT to auto-adjust
+    // the scroll view for the safe area. The web page owns safe-area
+    // handling entirely via `env(safe-area-inset-*)` in CSS.
+    //
+    // Was `"always"`. That setting produced a state-dependent gap:
+    // the WebView shifted content down by the safe-area at scroll=0
+    // (in-flow elements) but NOT once the same element became
+    // position-stuck — visible as a 200-300px phantom band above
+    // the (app) header when at the top of the page on iPhone. CSS
+    // env()-based padding can't fully cancel iOS's adjustment
+    // because the adjustment value isn't exposed to CSS, so the
+    // only clean fix is to disable the auto-adjustment.
+    //
+    // Takes effect on the next native build only — installed
+    // TestFlight shells still have the old "always" baked in.
+    contentInset: "never",
   },
   android: {
     // Block http:// resources to keep the WebView TLS-only. Modern

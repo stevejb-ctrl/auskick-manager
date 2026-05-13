@@ -156,34 +156,37 @@
     font-feature-settings: "tnum" 1;
   }
 
-  /* ─── Capacitor iOS / Android shell ─────────────────────────
-     Inside the native WebView, Capacitor's `contentInset:
-     "always"` (mobile/capacitor.config.ts) shifts the viewport
-     content down by the safe-area inset at scrollOffset=0 — but
-     iOS does NOT apply that shift to elements once they're
-     position-stuck. So the WKWebView visibly toggles between
-     "inset applied" (in-flow, scroll=0) and "inset gone"
-     (sticky-locked, scroll>0) as the user scrolls.
+  /* ─── Safe-area inset values via CSS custom properties ──────
+     `--safe-top` / `--safe-bottom` are the values components
+     use anywhere they'd otherwise inline `env(safe-area-inset-*)`.
 
-     CSS `env(safe-area-inset-top)` doubles with the in-flow
-     state (phantom gap, the first bug Steve hit) but is needed
-     in the locked state to clear the iOS status bar (otherwise
-     wordmark/buttons sit under the clock, the second bug).
+     Default (web / PWA): dynamic env() — iOS Safari and the
+     installed PWA both report the real notch / home-indicator
+     inset and these track that.
 
-     The trick is a STATIC padding value that approximates the
-     iOS status bar height (~44-59 CSS px on modern iPhones).
-     3rem (48px) gives the locked state enough clearance to sit
-     below the clock without double-stacking with the in-flow
-     contentInset.
+     Native (`html[data-native-shell="true"]`): static fallback
+     values. We can't use env() inside the Capacitor shell
+     because iOS WKWebView's `contentInset: "always"` adjusts
+     the scroll view based on safe areas in a way that
+     interacts badly with CSS env() — visibly stacking on top
+     of itself in the in-flow state and disappearing in the
+     stuck state. Static values give a consistent
+     position regardless of scroll. 3rem (48px) clears the
+     iOS status bar on every modern iPhone; the home-indicator
+     gets a smaller 1rem since Capacitor's contentInset on
+     iOS already handles the bottom.
 
-     NativeCookieBridge flips `html[data-native-shell="true"]`
-     on mount. Web/PWA users (no marker) still get the dynamic
-     env()-based padding from their original Tailwind classes. */
-  html[data-native-shell="true"] [data-safe-area-top] {
-    padding-top: 3rem !important;
+     Once mobile/capacitor.config.ts ships with `contentInset:
+     "never"` (in the next native build), iOS will stop
+     auto-adjusting the scroll view, env() values will be
+     reliable again, and this static override can be removed. */
+  :root {
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
   }
-  html[data-native-shell="true"] [data-safe-area-bottom] {
-    padding-bottom: 1rem !important;
+  html[data-native-shell="true"] {
+    --safe-top: 3rem;
+    --safe-bottom: 0px;
   }
 }
 

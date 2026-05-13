@@ -37,26 +37,30 @@ export default async function AppLayout({
       <NativeNotificationsBridge />
       {/* App-bar header.
 
+          `fixed` (not `sticky`) so the header is anchored to the
+          viewport at all scroll positions. Sticky would partially
+          scroll with the page in the in-flow → locked transition,
+          which on iOS Capacitor produces a visible top-gap that
+          shifts as the user scrolls.
+
           z-20: the netball court's PositionToken wrappers use z-10
-          for sibling stacking (goal-confirm chip etc.), so a sticky
-          header at z-10 ties on stacking order and tokens render in
-          front on scroll. z-20 keeps the header above page content
-          while staying under modals (z-50).
+          for sibling stacking (goal-confirm chip etc.). z-20 keeps
+          the header above page content while staying under modals
+          (z-50).
 
-          `pt-[env(safe-area-inset-top)]` pushes the title row below
-          the iPhone notch on web / installed PWAs. On the native
-          iOS shell that inset is suppressed via a globals.css rule
-          targeting `html[data-native-shell]` (set by
-          NativeCookieBridge), because Capacitor's `contentInset:
-          "always"` already shifts the WebView content down by the
-          same amount — double-padding here was the phantom gap
-          Steve hit at scroll=0.
+          `pt-[var(--safe-top)]` resolves to `env(safe-area-inset-
+          top)` on web/PWA and a static 3rem on native (see
+          globals.css). The native fallback exists because iOS
+          WKWebView's `contentInset: "always"` interacts badly
+          with env() values; mobile/capacitor.config.ts has been
+          updated to `"never"` for the next native build, after
+          which env() will work everywhere and the static
+          fallback can go away.
 
-          Backdrop-blur + 80%-alpha bg is the small-but-distinctive
-          touch that signals "app top bar" rather than "website nav". */}
+          Backdrop-blur + 80%-alpha bg signals "app top bar"
+          rather than "website nav". */}
       <header
-        data-safe-area-top
-        className="sticky top-0 z-20 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70"
+        className="fixed inset-x-0 top-0 z-20 border-b border-hairline bg-surface/85 pt-[var(--safe-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70"
       >
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2 sm:py-3">
           <SirenWordmark size="sm" />
@@ -85,7 +89,7 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="px-4 py-4">
+      <main className="px-4 pb-4 pt-[calc(var(--safe-top)+3.5rem)]">
         {/* Persistent offline strip: invisible when online (zero
             pixels), shows a warn-coloured banner when the device
             is offline. Slice 5 phase 5e — offline taps in the
@@ -96,13 +100,12 @@ export default async function AppLayout({
         </div>
         {children}
       </main>
-      {/* `pb-[calc(...)]` keeps the existing 1rem footer padding and
-          adds whatever the iPhone home-indicator inset is on top so
-          the Help link doesn't sit under the home indicator on
-          iOS. Resolves to plain 1rem on devices without an inset. */}
+      {/* `pb-[calc(...)]` uses `--safe-bottom` so it stacks an
+          extra inset over the 1rem base on web/PWA, and resolves
+          to plain 1rem on the Capacitor shell (Capacitor's iOS
+          contentInset handles the home indicator there). */}
       <footer
-        data-safe-area-bottom
-        className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute"
+        className="border-t border-hairline pb-[calc(1rem+var(--safe-bottom))] pt-4 text-center text-xs text-ink-mute"
       >
         <Link href="/help" className="hover:text-ink-dim">
           Help
