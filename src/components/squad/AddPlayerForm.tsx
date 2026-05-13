@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { addPlayer } from "@/app/(app)/teams/[teamId]/squad/actions";
-import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { ChipPicker } from "@/components/squad/ChipPicker";
@@ -139,14 +139,17 @@ export function AddPlayerForm({
         )}
 
       {serverError && (
-        <p className="text-sm text-danger" role="alert">
+        <p
+          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+          role="alert"
+        >
           {serverError}
         </p>
       )}
 
-      <Button type="submit" loading={isPending} size="sm">
+      <SFButton type="submit" loading={isPending} size="md">
         Add player
-      </Button>
+      </SFButton>
     </form>
   );
 }

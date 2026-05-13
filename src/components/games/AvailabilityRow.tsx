@@ -94,11 +94,18 @@ export function AvailabilityRow({
           {statusPillLabels[status]}
         </span>
         {canEdit && (
+          // Tap target bumped from py-1 (~28px) to py-2.5 (~40px) so
+          // parents on phones have a fingertip-friendly target
+          // without losing the pill silhouette (Steve 2026-05-13
+          // audit). Stays custom-styled (not SFButton) because the
+          // colour-coded available/unavailable/unknown variants
+          // communicate state alongside action — a value the
+          // generic ghost variant would drop.
           <button
             type="button"
             onClick={handleToggle}
             disabled={isPending}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-opacity ${actionStyles[status]} ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-semibold transition-opacity ${actionStyles[status]} ${
               isPending ? "opacity-60" : ""
             }`}
           >
