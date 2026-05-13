@@ -48,14 +48,21 @@ export function TrackScoringToggle({
   }
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-4 py-3 shadow-card">
+    <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div>
         <p className="text-sm font-medium text-ink">{heading}</p>
         <p className="text-xs text-ink-mute">
           When on, the live game screen shows scoring buttons and includes
           scores in the post-game summary.
         </p>
-        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+        {error && (
+          <p
+            className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
       </div>
       <Toggle
         checked={enabled}

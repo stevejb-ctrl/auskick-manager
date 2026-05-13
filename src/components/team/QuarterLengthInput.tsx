@@ -12,7 +12,7 @@
 
 import { useState, useTransition } from "react";
 import { setQuarterLengthSeconds } from "@/app/(app)/teams/[teamId]/games/actions";
-import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 
@@ -71,7 +71,7 @@ export function QuarterLengthInput({
   }
 
   return (
-    <div className="rounded-lg border border-hairline bg-surface px-4 py-3 shadow-card">
+    <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[10rem]">
           <Label htmlFor={`quarter-length-${teamId}`}>
@@ -96,16 +96,16 @@ export function QuarterLengthInput({
         </div>
         {isAdmin && (
           <div className="flex gap-2">
-            <Button
+            <SFButton
               type="button"
               size="sm"
               onClick={handleSave}
               loading={isPending}
             >
               Save
-            </Button>
+            </SFButton>
             {usingOverride && (
-              <Button
+              <SFButton
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -113,13 +113,16 @@ export function QuarterLengthInput({
                 disabled={isPending}
               >
                 Use default
-              </Button>
+              </SFButton>
             )}
           </div>
         )}
       </div>
       {error && (
-        <p className="mt-2 text-xs text-danger" role="alert">
+        <p
+          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </p>
       )}

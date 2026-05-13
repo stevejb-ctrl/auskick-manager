@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateTeamChipSettings } from "@/app/(app)/teams/[teamId]/settings/actions";
-import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { CHIP_COLORS, CHIP_KEYS, type ChipKey, type ChipMode } from "@/lib/chips";
@@ -59,7 +59,7 @@ export function CohortChipsSettings({
     modes.c !== initialModes.c;
 
   return (
-    <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card sm:p-5">
+    <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <p className="text-sm font-semibold text-ink">Player chips</p>
       <p className="mt-1 text-xs text-ink-dim">
         Tag your squad with up to three chips. For each chip, pick how the
@@ -135,7 +135,10 @@ export function CohortChipsSettings({
         ))}
       </div>
       {error && (
-        <p className="mt-2 text-xs text-danger" role="alert">
+        <p
+          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -145,14 +148,14 @@ export function CohortChipsSettings({
         </p>
       ) : (
         <div className="mt-3 flex items-center gap-2">
-          <Button
+          <SFButton
             size="sm"
             onClick={handleSave}
             disabled={!dirty || isPending}
             loading={isPending}
           >
             Save chip settings
-          </Button>
+          </SFButton>
           {savedAt && !dirty && (
             <span className="text-xs text-ok">Saved.</span>
           )}
