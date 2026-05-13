@@ -67,28 +67,45 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         )
         let dotScreenRadius = dotImageRadius * scale
 
-        // Maximum halo radius — ~5x the dot for a generous-but-contained
-        // ripple. Matches the relative scale of the in-app halo.
-        let haloMaxRadius = dotScreenRadius * 5
+        // Match the in-app `.siren-dot--pulsing` CSS keyframes
+        // (globals.css):
+        //
+        //   0%   box-shadow: 0 0 0 0   rgba(217,68,45,0.55)
+        //   100% box-shadow: 0 0 0 Xpx rgba(217,68,45,0)
+        //
+        // That's a FILLED halo that grows OUTWARD from the dot's edge
+        // while fading to transparent — not a stroke ring travelling
+        // outward. We replicate via a donut path: inner radius pinned
+        // at the dot's edge, outer radius animating from 0 to halo
+        // max. Fill colour goes from 0.55 alpha → 0 alpha via opacity.
+        //
+        // Halo max spread is ~2.5× the dot, matching the relative
+        // scale in SirenWordmark.tsx (10px pulse-radius on a 9px dot
+        // at size="lg" → ~1.1x; 30px halo on a ~10px dot in the live
+        // app header → ~3x). 2.5× lands in the sweet spot for the
+        // splash's bigger dot.
+        let haloMaxSpread = dotScreenRadius * 2.5
 
         let halo = CAShapeLayer()
         halo.position = dotScreenCenter
-        halo.fillColor = UIColor.clear.cgColor
-        halo.strokeColor = UIColor(red: 217.0/255.0, green: 68.0/255.0, blue: 45.0/255.0, alpha: 1.0).cgColor
-        halo.lineWidth = dotScreenRadius * 0.6
-        halo.path = circlePath(radius: dotScreenRadius)
+        halo.fillColor = UIColor(red: 217.0/255.0, green: 68.0/255.0, blue: 45.0/255.0, alpha: 1.0).cgColor
+        halo.strokeColor = UIColor.clear.cgColor
+        halo.lineWidth = 0
+        halo.fillRule = .evenOdd  // outer minus inner = donut
+        halo.path = donutPath(inner: dotScreenRadius, outer: dotScreenRadius)
         halo.opacity = 0
-        halo.zPosition = 1000  // ensure on top of the splash image
+        halo.zPosition = 1000  // on top of the splash image
         splashImageView.layer.addSublayer(halo)
 
-        // Path animates from dot-sized to halo-max-sized; opacity fades
-        // from 0.55 to 0 over the same window. Group runs as a single
-        // 1.5s ease-out that repeats forever (the splash teardown is
-        // what stops it).
+        // Path: outer radius grows from dot edge to dot + spread.
+        // Inner radius stays at dot edge throughout so the halo
+        // always emanates from "behind" the dot, never overlaps it.
         let pathAnim = CABasicAnimation(keyPath: "path")
-        pathAnim.fromValue = circlePath(radius: dotScreenRadius)
-        pathAnim.toValue = circlePath(radius: haloMaxRadius)
+        pathAnim.fromValue = donutPath(inner: dotScreenRadius, outer: dotScreenRadius)
+        pathAnim.toValue = donutPath(inner: dotScreenRadius, outer: dotScreenRadius + haloMaxSpread)
 
+        // Alpha fades over the same window. 0.55 matches
+        // --siren-pulse-from in globals.css.
         let opacityAnim = CABasicAnimation(keyPath: "opacity")
         opacityAnim.fromValue = 0.55
         opacityAnim.toValue = 0.0
@@ -101,14 +118,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         halo.add(group, forKey: "sirenPulse")
     }
 
-    private func circlePath(radius: CGFloat) -> CGPath {
-        return UIBezierPath(
-            arcCenter: .zero,
-            radius: radius,
-            startAngle: 0,
-            endAngle: .pi * 2,
-            clockwise: true
-        ).cgPath
+    // Filled-donut CGPath: outer circle minus inner circle, drawn
+    // with opposite winding so .evenOdd fill rule punches out the
+    // hole. Used by the splash halo to keep its inner edge pinned
+    // to the dot while the outer edge animates outward.
+    private func donutPath(inner: CGFloat, outer: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.addArc(
+            center: .zero, radius: outer,
+            startAngle: 0, endAngle: .pi * 2, clockwise: false
+        )
+        path.addArc(
+            center: .zero, radius: inner,
+            startAngle: 0, endAngle: .pi * 2, clockwise: true
+        )
+        return path
     }
 
     private func activeWindow() -> UIWindow? {
