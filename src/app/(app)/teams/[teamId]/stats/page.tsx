@@ -96,9 +96,42 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     ? parseInt(searchParams.season, 10)
     : seasons[0].year;
 
-  const seasonGames = filterBySeason(allGames, selectedYear).filter(
+  // Two filters running together: status="completed" weeds out
+  // upcoming / in-progress games, AND we require a `game_finalised`
+  // event in the event log. The event check is the canonical
+  // "this game was truly played to the siren and the coach hit
+  // Finalise" signal — robust against any case where status got
+  // out of sync (e.g. a failed reset that wiped events but didn't
+  // flip status, or a stale write). Steve 2026-05-13: restarted
+  // games were showing up in stats; this is the belt-and-braces
+  // fix.
+  const candidateGames = filterBySeason(allGames, selectedYear).filter(
     (g) => g.status === "completed"
   );
+  // Pull events for ALL candidates up front so we can both verify
+  // finalisation AND build the per-game snapshots below without a
+  // second query.
+  const candidateIds = candidateGames.map((g) => g.id);
+  const { data: eventsRaw } = candidateIds.length > 0
+    ? await supabase
+        .from("game_events")
+        .select("*")
+        .in("game_id", candidateIds)
+        .order("created_at")
+    : { data: [] as GameEvent[] };
+  const eventsArr = (eventsRaw ?? []) as GameEvent[];
+  const finalisedGameIds = new Set<string>();
+  for (const ev of eventsArr) {
+    if (ev.type === "game_finalised") finalisedGameIds.add(ev.game_id);
+  }
+  const seasonGames = candidateGames.filter((g) => finalisedGameIds.has(g.id));
+  const eventsByGame = new Map<string, GameEvent[]>();
+  for (const ev of eventsArr) {
+    if (!finalisedGameIds.has(ev.game_id)) continue;
+    const arr = eventsByGame.get(ev.game_id) ?? [];
+    arr.push(ev);
+    eventsByGame.set(ev.game_id, arr);
+  }
 
   // ─── Netball branch ───────────────────────────────────────
   // Netball runs its own stats pipeline — different scoring (goals
@@ -112,21 +145,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       netballSport.ageGroups.find((a) => a.id === "open")!;
     let snapshots: ReturnType<typeof replayNetballGameForStats>[] = [];
     if (seasonGames.length > 0) {
-      const gameIds = seasonGames.map((g) => g.id);
-      const { data: eventsRaw } = await supabase
-        .from("game_events")
-        .select("*")
-        .in("game_id", gameIds)
-        .order("created_at");
-      const events = (eventsRaw ?? []) as GameEvent[];
-      const byGame = new Map<string, GameEvent[]>();
-      for (const ev of events) {
-        const arr = byGame.get(ev.game_id) ?? [];
-        arr.push(ev);
-        byGame.set(ev.game_id, arr);
-      }
       snapshots = seasonGames.map((g) => {
-        const evs = byGame.get(g.id) ?? [];
+        const evs = eventsByGame.get(g.id) ?? [];
         const qSec = getEffectiveQuarterSeconds(
           { quarter_length_seconds: team.quarter_length_seconds ?? null },
           ageCfg,
@@ -172,34 +192,21 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     );
   }
 
-  // Fetch events for all completed season games (one query)
+  // Build snapshots from the pre-fetched, finalisation-filtered
+  // events. fill_ins still need their own query (separate table).
   let snapshots: GameSnapshot[] = [];
   const fillInIds = new Set<string>();
   if (seasonGames.length > 0) {
     const gameIds = seasonGames.map((g) => g.id);
-    const [{ data: eventsRaw }, { data: fillInRaw }] = await Promise.all([
-      supabase
-        .from("game_events")
-        .select("*")
-        .in("game_id", gameIds)
-        .order("created_at"),
-      supabase.from("game_fill_ins").select("id").in("game_id", gameIds),
-    ]);
-
+    const { data: fillInRaw } = await supabase
+      .from("game_fill_ins")
+      .select("id")
+      .in("game_id", gameIds);
     for (const f of fillInRaw ?? []) fillInIds.add(f.id);
 
-    if (eventsRaw && eventsRaw.length > 0) {
-      // Group by game_id
-      const byGame = new Map<string, typeof eventsRaw>();
-      for (const ev of eventsRaw) {
-        const arr = byGame.get(ev.game_id) ?? [];
-        arr.push(ev);
-        byGame.set(ev.game_id, arr);
-      }
-      snapshots = Array.from(byGame.entries()).map(([gid, evs]) =>
-        bucketFillIns(replayGame(gid, evs), fillInIds)
-      );
-    }
+    snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) =>
+      bucketFillIns(replayGame(gid, evs), fillInIds)
+    );
   }
 
   // Derive data availability flags
