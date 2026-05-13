@@ -1223,14 +1223,67 @@ export function LiveGame({
     else handleResume();
   }
 
+  // Live-play sticks the scorebug to the bottom of the viewport so
+  // the +G / +B chips are always thumb-reachable during a quarter
+  // (Steve 2026-05-13). All other states (pre-game, Q-break, FT
+  // review, finalised) keep the scorebug at the top — broadcast-
+  // scoreboard pattern fits "review the final score" / "set the
+  // lineup" framings better than a thumb-reach pattern.
+  // isBetweenQuarters short-circuits earlier (the QB component
+  // takes over the whole render), so we don't need to check it
+  // here.
+  const isLivePlay =
+    currentQuarter >= 1 && !quarterEnded && !finalised;
+  const gameHeader = (
+    <GameHeader
+      teamName={teamName}
+      opponentName={opponentName}
+      trackScoring={trackScoring}
+      onTeam={
+        !isPreGame && !isFinished
+          ? (kind) => setPickScorerKind(kind)
+          : undefined
+      }
+      onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
+      onClockTap={handleClockTap}
+      running={running}
+      isPreGame={isPreGame}
+      isFinished={isFinished}
+      clockMultiplier={clockMultiplier}
+      isPending={isPending}
+      clockPulseKey={clockPulseKey}
+      // Q-by-Q chip surfaces only when there's something to show
+      // — i.e. once Q1 is in flight or later. Hidden pre-game and
+      // post-FT (the GameSummaryCard handles those views).
+      onShowQuarterScores={
+        trackScoring && !isPreGame && !isFinished
+          ? () => setQuarterScoresOpen(true)
+          : undefined
+      }
+      // End-Q-early "rescue" path. The header only renders the
+      // chip when paused, but we still gate by !isPreGame here
+      // so a coach who pauses pre-Q1 (e.g. waiting on stragglers)
+      // can't accidentally end Q0.
+      onEndQuarterEarly={
+        !isPreGame && !isFinished
+          ? () => setShowManualEndConfirm(true)
+          : undefined
+      }
+    />
+  );
+
   return (
     <div className="space-y-3">
-      {/* Top utility row: exit on the left, help (?) on the right so it
-          sits above the scorebug's right edge — the conventional location
-          for a "help" affordance. */}
+      {/* Top utility row: exit on the left, help (?) on the right
+          so it sits above the scorebug's right edge when the bug
+          is top-anchored — the conventional location for a "help"
+          affordance. */}
       <div className="flex items-center justify-between">
         {exitHref ? (
-          <Link href={exitHref} className="font-mono text-[11px] text-ink-mute hover:text-ink-dim">
+          <Link
+            href={exitHref}
+            className="font-mono text-[11px] text-ink-mute hover:text-ink-dim"
+          >
             ✕ Exit
           </Link>
         ) : (
@@ -1246,42 +1299,10 @@ export function LiveGame({
         </button>
       </div>
 
-      {/* Unified header — teams + scores + clock pill */}
-      <GameHeader
-        teamName={teamName}
-        opponentName={opponentName}
-        trackScoring={trackScoring}
-        onTeam={
-          !isPreGame && !isFinished
-            ? (kind) => setPickScorerKind(kind)
-            : undefined
-        }
-        onOpponent={!isPreGame && !isFinished ? handleOpponent : undefined}
-        onClockTap={handleClockTap}
-        running={running}
-        isPreGame={isPreGame}
-        isFinished={isFinished}
-        clockMultiplier={clockMultiplier}
-        isPending={isPending}
-        clockPulseKey={clockPulseKey}
-        // Q-by-Q chip surfaces only when there's something to show
-        // — i.e. once Q1 is in flight or later. Hidden pre-game and
-        // post-FT (the GameSummaryCard handles those views).
-        onShowQuarterScores={
-          trackScoring && !isPreGame && !isFinished
-            ? () => setQuarterScoresOpen(true)
-            : undefined
-        }
-        // End-Q-early "rescue" path. The header only renders the
-        // chip when paused, but we still gate by !isPreGame here
-        // so a coach who pauses pre-Q1 (e.g. waiting on stragglers)
-        // can't accidentally end Q0.
-        onEndQuarterEarly={
-          !isPreGame && !isFinished
-            ? () => setShowManualEndConfirm(true)
-            : undefined
-        }
-      />
+      {/* Top-anchored scorebug — only when NOT in live play. During
+          live play it gets re-rendered as a fixed bottom bar below
+          (search for `isLivePlay && gameHeader`). */}
+      {!isLivePlay && gameHeader}
 
       {/* Quarter-by-quarter modal — drill-down view triggered by
           the chip under the clock pill. Mirrors the glance-level
@@ -2063,6 +2084,20 @@ export function LiveGame({
           style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
           aria-hidden
         />
+      )}
+
+      {/* Sticky-bottom scorebug — only during live play (Steve
+          2026-05-13 wants the +G / +B chips thumb-reachable). Same
+          GameHeader component as the top-anchored render above;
+          just positioned via a fixed wrapper instead. The wrapper
+          carries safe-area-aware bottom padding so the bug sits
+          clear of the iPhone home indicator. z-30 sits below the
+          SlotFillSheet (z-50) so the player-attribution picker
+          still overlays cleanly on +G / +B taps. */}
+      {isLivePlay && (
+        <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
+          <div className="mx-auto max-w-4xl">{gameHeader}</div>
+        </div>
       )}
     </div>
   );

@@ -1418,36 +1418,45 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ? squadById.get(actionsTarget.playerId) ?? null
     : null;
 
+  // Live-play scorebug — pinned to the bottom of the viewport so
+  // the +G chip is thumb-reachable during a quarter (Steve
+  // 2026-05-13). Mirrors the AFL LiveGame pattern. Other states
+  // (pre-game, Q-break, FT review, finalised) keep the scorebug
+  // top-anchored — those branches return earlier with their own
+  // inline scorebug rendering.
+  const liveScoreBug = (
+    <NetballScoreBug
+      teamName={teamName}
+      opponentName={game.opponent}
+      team={teamScore}
+      opponent={opponentScore}
+      quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
+      clockText={formatClock(remainingMs)}
+      isPending={isPending}
+      // NETBALL-04: pass undefined when scoring isn't tracked so
+      // NetballScoreBug's existing `{onOpponentGoal && (...)}` gate
+      // hides the +G affordance (no opponent-goal button visible).
+      onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
+      onClockTap={handleClockTap}
+      // Q-by-Q chip surfaces only when there's something to show.
+      // trackScoring=false hides it entirely (would be empty).
+      onShowQuarterScores={
+        trackScoring ? () => setQuarterScoresOpen(true) : undefined
+      }
+      // Surface "End Q early" only when the coach paused at the
+      // start of a quarter and forgot to resume — the chip
+      // self-gates on `paused` inside NetballScoreBug, so passing
+      // it here unconditionally is fine.
+      onEndQuarterEarly={() => setShowManualEndConfirm(true)}
+      paused={isPaused}
+      showScores={trackScoring}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-4 p-4">
       {topUtilityRow}
       {walkthroughOverlay}
-      <NetballScoreBug
-        teamName={teamName}
-        opponentName={game.opponent}
-        team={teamScore}
-        opponent={opponentScore}
-        quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
-        clockText={formatClock(remainingMs)}
-        isPending={isPending}
-        // NETBALL-04: pass undefined when scoring isn't tracked so
-        // NetballScoreBug's existing `{onOpponentGoal && (...)}` gate
-        // hides the +G affordance (no opponent-goal button visible).
-        onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
-        onClockTap={handleClockTap}
-        // Q-by-Q chip surfaces only when there's something to show.
-        // trackScoring=false hides it entirely (would be empty).
-        onShowQuarterScores={
-          trackScoring ? () => setQuarterScoresOpen(true) : undefined
-        }
-        // Surface "End Q early" only when the coach paused at the
-        // start of a quarter and forgot to resume — the chip
-        // self-gates on `paused` inside NetballScoreBug, so passing
-        // it here unconditionally is fine.
-        onEndQuarterEarly={() => setShowManualEndConfirm(true)}
-        paused={isPaused}
-        showScores={trackScoring}
-      />
 
       {/* End-Q-early confirm. Mirrors the AFL one at
           src/components/live/LiveGame.tsx — destructive, full
@@ -1677,6 +1686,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           </div>
         );
       })()}
+
+      {/* Sticky-bottom scorebug — Steve 2026-05-13 wants the +G
+          chip thumb-reachable during live play. Same component
+          tree as the inline scorebug rendered by the other
+          branches; just wrapped in a fixed-positioned container
+          here. Safe-area-aware bottom padding clears the iPhone
+          home indicator. z-30 sits below modals (z-50) so any
+          confirm sheet still overlays cleanly. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
+        <div className="mx-auto max-w-4xl">{liveScoreBug}</div>
+      </div>
     </div>
   );
 }
