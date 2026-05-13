@@ -6,68 +6,157 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta name="theme-color" content="#F7F5F1" />
     <title>Siren Footy</title>
     <style>
       :root {
         color-scheme: light;
+        /* Brand tokens, copied from src/app/globals.css. These are
+           hard-coded values (not Tailwind classes) because this page
+           is the static webDir fallback Capacitor shows before the
+           remote URL loads — no CSS preprocessor, no build step. */
+        --warm: #f7f5f1;
+        --ink: #141613;
+        --ink-dim: #4a4d4f;
+        --alarm: #d9442d;
       }
+
       html,
       body {
         margin: 0;
         height: 100%;
+        background: var(--warm);
+        color: var(--ink);
         font-family:
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          Roboto,
-          Helvetica,
-          Arial,
-          sans-serif;
-        background: #ffffff;
-        color: #1f2933;
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        /* Respect the iPhone notch / home indicator. The web app
+           reads env() the same way; matching here means the loader
+           and the loaded shell don't visually jump. */
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+        box-sizing: border-box;
       }
+
       .wrap {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
         align-items: center;
         justify-content: center;
         height: 100%;
-        padding: 1rem;
-        text-align: center;
+        gap: 0.5rem;
       }
-      h1 {
-        margin: 0;
-        font-size: 1.25rem;
-        letter-spacing: -0.01em;
+
+      /* Siren wordmark — geometry and proportions match
+         src/components/marketing/SirenWordmark.tsx at size="lg":
+         fontSize 36, dot 9px, gap 4px, line-height 0.9,
+         letter-spacing -0.05em, margin-top on the dot 0.32em so it
+         centres against the 'n'. */
+      .wordmark {
+        display: inline-flex;
+        align-items: flex-start;
+        font-weight: 900;
+        font-size: 36px;
+        line-height: 0.9;
+        letter-spacing: -0.05em;
+        color: var(--ink);
+        gap: 4px;
       }
+
       .dot {
         display: inline-block;
-        width: 0.5rem;
-        height: 0.5rem;
-        background: #f59e0b;
+        width: 9px;
+        height: 9px;
         border-radius: 50%;
+        background: var(--alarm);
+        margin-top: 0.32em;
+        flex-shrink: 0;
+        animation: siren-pulse 1.5s ease-out infinite;
       }
-      p {
-        margin: 0;
-        color: #64748b;
-        font-size: 0.875rem;
+
+      /* Single-halo pulse — same keyframes as the in-app wordmark
+         (.siren-dot--pulsing in globals.css). The 10px max-radius
+         matches the SCALE.lg.pulseR value in SirenWordmark.tsx. */
+      @keyframes siren-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(217, 68, 45, 0.55);
+        }
+        100% {
+          box-shadow: 0 0 0 10px rgba(217, 68, 45, 0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .dot {
+          animation: none;
+        }
+      }
+
+      .eyebrow {
+        margin: 0.75rem 0 0;
+        font-family:
+          ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--ink-dim);
+      }
+
+      /* Hidden by default; only revealed if the WebView is still
+         showing this page after ~6s. Saves the user from staring at
+         a silent pulse forever when they're offline on first launch. */
+      .stuck {
+        margin: 1rem 1.5rem 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: var(--ink-dim);
+        max-width: 280px;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.3s ease-out;
+      }
+      .stuck.visible {
+        opacity: 1;
       }
     </style>
   </head>
   <body>
     <!--
-      Fallback shown only when the device is offline on cold start.
-      Once https://www.sirenfooty.com.au resolves, Capacitor swaps
-      this page out for the live web app. Keep it tiny — it's not a
-      real offline mode, just a "we'll be back" splash.
+      Loader shown by Capacitor's webDir while the WebView is still
+      fetching https://www.sirenfooty.com.au/login on cold start.
+      Once the remote URL resolves, Capacitor swaps this whole HTML
+      file out for the live React app — there's no JS handoff, the
+      WebView just navigates away.
+
+      For users who are offline on first launch, this page hangs
+      forever (Capacitor will retry the network load and eventually
+      surface a Chrome / Safari "no internet" page if it gives up).
+      The .stuck message below appears after 6s as a soft cue.
     -->
     <div class="wrap">
-      <h1>Siren<span class="dot" aria-hidden="true"></span> Footy</h1>
-      <p>Connecting&hellip;</p>
-      <p style="font-size: 0.75rem">
-        Need internet on first launch. Try again when you're online.
+      <span
+        class="wordmark"
+        role="img"
+        aria-label="Siren Footy"
+      >
+        <span aria-hidden="true">Siren</span>
+        <span class="dot" aria-hidden="true"></span>
+      </span>
+      <p class="eyebrow">Junior AFL · Team management</p>
+      <p class="stuck" id="stuck">
+        Slow connection? We&rsquo;ll be ready when you are.
       </p>
     </div>
+    <script>
+      // Soft hint after 6s — long enough that a normal LTE cold
+      // start hasn't shown it yet, short enough that someone on a
+      // flaky cafe wifi isn't left staring at silence.
+      setTimeout(function () {
+        var el = document.getElementById("stuck");
+        if (el) el.classList.add("visible");
+      }, 6000);
+    </script>
   </body>
 </html>
