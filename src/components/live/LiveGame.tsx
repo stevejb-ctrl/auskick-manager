@@ -1707,6 +1707,17 @@ export function LiveGame({
         // clockStartedAt null, so this guard doesn't suppress the
         // intended kickoff modal there.
         clockStartedAt === null &&
+        // Steve 2026-05-13 (iOS bug): opening an in-progress game
+        // → init auto-resumes the clock (clockStartedAt = Date.now())
+        // but never bumps kickoffAckQuarter. The instant the coach
+        // taps the clock pill to pause, clockStartedAt → null and
+        // the old guard let the kickoff modal pop as if entering a
+        // brand-new quarter. accumulatedMs > 0 means the quarter
+        // has logged time already (auto-resume sets it to elapsed-
+        // since-quarter_start), so it's not a fresh kickoff. The
+        // pre-game and Q-break advance paths both leave accumulatedMs
+        // at 0, so the modal still pops in those legitimate cases.
+        accumulatedMs === 0 &&
         kickoffAckQuarter !== currentQuarter &&
         !startModalDismissed && (
           <StartQuarterModal
