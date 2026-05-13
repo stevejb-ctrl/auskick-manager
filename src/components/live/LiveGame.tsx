@@ -22,6 +22,7 @@ import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
@@ -157,6 +158,14 @@ interface LiveGameProps {
   /** Per-chip mode (split/group) — passed to QuarterBreak's suggester. */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
   exitHref?: string;
+  /**
+   * True when the current user has admin role on this team. Drives
+   * the "Restart game" affordance — folded into the same row as
+   * "+ Add late arrival" at the bottom of LiveGame so the two
+   * destructive/utility actions share one strip of scrolling real
+   * estate (Steve 2026-05-13).
+   */
+  isAdmin?: boolean;
   /** Public URL of the team song audio file, if configured. */
   songUrl?: string | null;
   /** Seconds into the song to start playback from (default 0). */
@@ -210,6 +219,7 @@ export function LiveGame({
   defaultOnFieldSize,
   chipModeByKey,
   exitHref,
+  isAdmin = false,
   songUrl,
   songStartSeconds = 0,
   songDurationSeconds = 15,
@@ -1521,18 +1531,43 @@ export function LiveGame({
               playerScores={playerScores}
               totalPairs={totalPairs}
             />
-            {!isFinished && (
+          </>
+        );
+      })()}
+
+      {/* Admin / utility action row — "+ Add late arrival" sits
+          alongside "Restart game" so the two related housekeeping
+          affordances share one strip of scrolling space instead of
+          claiming two separate rows (Steve 2026-05-13). The row
+          renders if either action is available. LateArrivalMenu
+          self-hides when there are no candidates left; ResetGame
+          is admin-gated. The "+G/+B" record-score floating dock
+          (z-40) and sticky-bottom scorebug (z-30) overlay this row
+          when active, so it stays comfortably above them in scroll
+          order. */}
+      {(() => {
+        const lateCandidates = !isFinished
+          ? squadPlayers.filter((p) => {
+              const inBench = lineup.bench.includes(p.id);
+              const inField = ALL_ZONES.some((z) => lineup[z].includes(p.id));
+              return !inBench && !inField;
+            })
+          : [];
+        const showLate = lateCandidates.length > 0;
+        if (!showLate && !isAdmin) return null;
+        return (
+          <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
+            {showLate && (
               <LateArrivalMenu
-                candidates={squadPlayers.filter((p) => {
-                  const inBench = lineup.bench.includes(p.id);
-                  const inField = ALL_ZONES.some((z) => lineup[z].includes(p.id));
-                  return !inBench && !inField;
-                })}
+                candidates={lateCandidates}
                 onAdd={handleLateArrival}
                 pending={isPending}
               />
             )}
-          </>
+            {isAdmin && (
+              <ResetGameButton auth={auth} gameId={gameId} />
+            )}
+          </div>
         );
       })()}
 

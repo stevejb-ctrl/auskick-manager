@@ -4,7 +4,6 @@ import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -251,15 +250,13 @@ export default async function LivePage({ params }: LivePageProps) {
           seasonEvents={(seasonEvents ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
+          isAdmin={isAdmin}
         />
-        {isAdmin && !isPreKickoff && (
-          <div className="border-t border-hairline pt-4">
-            <ResetGameButton
-              auth={{ kind: "team", teamId: params.teamId }}
-              gameId={params.gameId}
-            />
-          </div>
-        )}
+        {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
+            admin-utility row alongside "+ Add late arrival" so the
+            two share one row of scrolling space (Steve 2026-05-13).
+            Pre-kickoff suppresses it via the isAdmin gate inside
+            the component (no row when there's nothing to reset). */}
       </div>
     );
   }
@@ -406,20 +403,16 @@ export default async function LivePage({ params }: LivePageProps) {
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          isAdmin={isAdmin}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
           clockMultiplier={g.clock_multiplier ?? 1}
         />
-        {isAdmin && (
-          <div className="border-t border-hairline pt-4">
-            <ResetGameButton
-              auth={{ kind: "team", teamId: params.teamId }}
-              gameId={params.gameId}
-            />
-          </div>
-        )}
+        {/* ResetGameButton is now rendered INSIDE LiveGame's
+            admin-utility row alongside "+ Add late arrival" so the
+            two share one row of scrolling space (Steve 2026-05-13). */}
       </div>
     );
   }

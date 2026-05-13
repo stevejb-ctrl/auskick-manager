@@ -45,6 +45,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { Button } from "@/components/ui/Button";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 
@@ -119,6 +120,14 @@ interface NetballLiveGameProps {
    * button stays as a manual trigger.
    */
   suppressAutoWalkthrough?: boolean;
+  /**
+   * True when the current user has admin role on this team. Drives
+   * the "Restart game" affordance — folded into the same row as
+   * "+ Add late arrival" at the bottom of the live court so the
+   * two destructive/utility actions share one strip of scrolling
+   * real estate (Steve 2026-05-13). Mirrors LiveGame.tsx.
+   */
+  isAdmin?: boolean;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -144,6 +153,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     trackScoring = false,
     clockMultiplier = 1,
     suppressAutoWalkthrough = false,
+    isAdmin = false,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -1565,16 +1575,31 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
       />
 
-      {/* Late arrival — a squad member who wasn't marked available
-          pre-game but turned up after kick-off. Reuses the AFL menu
-          (it already null-guards jersey numbers, so netball just
-          works). The button hides itself when there are no
-          candidates left. */}
-      <LateArrivalMenu
-        candidates={lateArrivalCandidates}
-        onAdd={handleLateArrival}
-        pending={isPending}
-      />
+      {/* Admin / utility action row — "+ Add late arrival" sits
+          alongside "Restart game" so the two related housekeeping
+          affordances share one strip of scrolling space (Steve
+          2026-05-13). Mirrors LiveGame.tsx. The row renders only
+          when at least one of its children is available — late
+          arrivals hide when there's nobody left to add; restart is
+          admin-gated. */}
+      {(() => {
+        const showLate = lateArrivalCandidates.length > 0;
+        if (!showLate && !isAdmin) return null;
+        return (
+          <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
+            {showLate && (
+              <LateArrivalMenu
+                candidates={lateArrivalCandidates}
+                onAdd={handleLateArrival}
+                pending={isPending}
+              />
+            )}
+            {isAdmin && (
+              <ResetGameButton auth={auth} gameId={game.id} />
+            )}
+          </div>
+        );
+      })()}
 
       <p className="text-center text-xs text-neutral-500">
         {trackScoring

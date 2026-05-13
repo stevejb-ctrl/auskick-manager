@@ -6,7 +6,6 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -211,10 +210,13 @@ export default async function RunPage({ params }: RunPageProps) {
           // and the first auto-open happens on the next render
           // once the lineup is set (isPreKickoff flips false).
           suppressAutoWalkthrough={isPreKickoff}
+          // Runner-token URLs grant restart access (same behaviour
+          // as the pre-2026-05-13 standalone ResetGameButton that
+          // used to sit below the live UI). Folded into the
+          // admin-utility row inside NetballLiveGame so it shares
+          // a row with "+ Add late arrival".
+          isAdmin
         />
-        <div className="border-t border-hairline pt-4">
-          <ResetGameButton auth={auth} gameId={g.id} />
-        </div>
       </div>
     );
   }
@@ -304,10 +306,12 @@ export default async function RunPage({ params }: RunPageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
+          // Runner-token URLs grant restart access (same behaviour
+          // as the pre-2026-05-13 standalone ResetGameButton). The
+          // button now lives inside LiveGame's admin-utility row
+          // alongside "+ Add late arrival".
+          isAdmin
         />
-        <div className="border-t border-hairline pt-4">
-          <ResetGameButton auth={auth} gameId={g.id} />
-        </div>
       </div>
     );
   }
