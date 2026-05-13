@@ -74,6 +74,33 @@ const config: CapacitorConfig = {
     // is belt-and-braces.
     allowMixedContent: false,
   },
+  plugins: {
+    SplashScreen: {
+      // Cover the WebView-cold-start gap with a branded splash.
+      // server.url points at the remote site so the WebView is
+      // network-bound on every launch; that load takes 1-4 seconds
+      // on LTE and used to show as a blank screen. The splash
+      // plugin keeps a static image visible OVER the WebView until
+      // the React app calls SplashScreen.hide() — see
+      // src/components/native/NativeSplashHide.tsx for the hide
+      // call.
+      //
+      // launchAutoHide: false → splash never auto-dismisses on its
+      // own; JS owns the hide moment. The 5s safety net below
+      // catches the edge case where the WebView load itself fails
+      // and hide() never gets called.
+      launchAutoHide: false,
+      launchFadeOutDuration: 250,
+      backgroundColor: "#F7F5F1",
+      splashFullScreen: true,
+      splashImmersive: false,
+      // 5s ceiling so the splash CAN'T stick forever even if the
+      // remote page never loads. Past 5s it's better to show
+      // whatever the WebView is currently displaying (likely an
+      // error page) than a frozen splash.
+      launchShowDuration: 5000,
+    },
+  },
 };
 
 export default config;
