@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
-import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { Guernsey } from "@/components/sf";
 import {
@@ -20,7 +19,6 @@ import {
 import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import {
   ALL_ZONES,
-  fairnessScore,
   suggestStartingLineup,
   zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
@@ -215,7 +213,6 @@ export function QuarterBreak({
     [availableForLineup, sidelinedSet]
   );
 
-  const score = fairnessScore(combinedZoneMins);
   const nextQuarter = currentQuarter + 1;
 
   function slotOf(pid: string, l: Lineup): Slot | null {
@@ -707,48 +704,29 @@ export function QuarterBreak({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Quarter break
-            </p>
-            <p className="mt-0.5 text-lg font-bold text-ink">
-              Set zones for Q{nextQuarter}
-            </p>
-            <p className="mt-1 text-xs text-ink-dim">
-              {lineupMode === "suggested"
-                ? `Auto-rebalanced for Q${nextQuarter}.`
-                : lineupMode === "keep"
-                  ? `Carrying last quarter's lineup forward.`
-                  : `Blank field — tap an empty slot, then a bench player.`}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold tabular-nums text-brand-600">
-              {score}
-            </p>
-            <div className="flex items-center justify-end gap-1">
-              <p className="text-[11px] uppercase tracking-micro text-ink-mute">
-                Fairness
-              </p>
-              <InfoTooltip label="About the fairness index" placement="bottom-right">
-                <p className="font-semibold text-ink">Fairness index</p>
-                <p className="mt-1">
-                  Tracks how evenly zone minutes are shared across the squad.
-                  100 = perfectly even; lower numbers mean some kids have had
-                  noticeably more (or less) time in certain positions.
-                </p>
-                <p className="mt-2">
-                  Aim for a high score{" "}
-                  <strong className="text-ink">by the end of the season</strong>
-                  , not every game. Individual games often sit lower — that&apos;s
-                  normal. Rotations even out as the year goes on.
-                </p>
-              </InfoTooltip>
-            </div>
-          </div>
-        </div>
+      {/* Orientation strip — Steve 2026-05-13: the hero card used to
+          dominate the QB top, but with the rotation toggle moved out
+          (commit ba04bd1) and the fairness number removed in this
+          commit, it had no functional content left worth a bordered
+          card. Replace with a flush, no-chrome heading that visually
+          rhymes with the GameInfoHeader strip above it. The mode hint
+          drives off lineupMode so it self-updates when the coach
+          flips Suggested / Keep / Manual in the Game settings
+          collapse below. */}
+      <div className="px-1">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+          Quarter break
+        </p>
+        <p className="mt-0.5 text-lg font-bold text-ink">
+          Set zones for Q{nextQuarter}
+        </p>
+        <p className="mt-1 text-xs text-ink-dim">
+          {lineupMode === "suggested"
+            ? `Auto-rebalanced for Q${nextQuarter}.`
+            : lineupMode === "keep"
+              ? `Carrying last quarter's lineup forward.`
+              : `Blank field — tap an empty slot, then a bench player.`}
+        </p>
       </div>
 
       {/* Game settings — collapsed by default. Steve 2026-05-13: the
@@ -1075,7 +1053,7 @@ export function QuarterBreak({
           <button
             type="button"
             onClick={() => setShowFixScores((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
             aria-expanded={showFixScores}
             aria-label={
               showFixScores
@@ -1083,23 +1061,49 @@ export function QuarterBreak({
                 : "Review and update scores"
             }
           >
-            <div className="flex min-w-0 flex-1 items-baseline gap-2">
-              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+            {/* Header rhythm matches the Game-settings collapse:
+                [eyebrow] [summary] [chevron]. Steve 2026-05-13: the
+                old layout used bold score numbers + a coloured pill +
+                a "Review ▸" link, three different visual treatments
+                in one row. Now the score is the summary value, with
+                the lead margin coloured inline as the only at-a-
+                glance read. Chevron is the single interaction cue. */}
+            <span className="flex flex-1 items-center gap-3 text-sm">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                Score
+              </span>
+              <span className="nums truncate font-mono text-xs tabular-nums text-ink-mute">
                 {totalUs.goals}.{totalUs.behinds} ({usPts})
-                <span className="mx-1.5 text-ink-mute">–</span>
+                <span className="mx-1 text-ink-mute/70">–</span>
                 {totalThem.goals}.{totalThem.behinds} ({themPts})
+                {lead !== 0 && (
+                  <>
+                    <span className="mx-1 text-ink-mute/70">·</span>
+                    <span className={`font-semibold ${leadClass}`}>
+                      {leadLabel}
+                    </span>
+                  </>
+                )}
               </span>
-              <span
-                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+            </span>
+            <span aria-hidden className="text-ink-mute">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                className={`transition-transform duration-fast ease-out-quart ${
+                  showFixScores ? "rotate-180" : ""
+                }`}
               >
-                {leadLabel}
-              </span>
-            </div>
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
-              {showFixScores ? "Hide" : "Review"}
-              <span className="font-mono text-[10px]">
-                {showFixScores ? "▾" : "▸"}
-              </span>
+                <path
+                  d="M6 9l6 6 6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </span>
           </button>
 

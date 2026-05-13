@@ -39,12 +39,12 @@ import {
   gamePositionCounts,
   lastQuarterThirds,
   lastQuarterTeammatesInThird,
-  netballFairnessScore,
   playerThirdMs,
   seasonAvailability,
   seasonPositionCounts,
   suggestNetballLineup,
 } from "@/lib/sports/netball/fairness";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
@@ -316,8 +316,16 @@ export function NetballQuarterBreak({
   //     position-by-position. Mirrors the AFL Q-break.
   const [draft, setDraft] = useState<GenericLineup>(suggestedLineup);
   const [selected, setSelected] = useState<string | null>(null);
+  // Initial value defers to the live store's rotationMode (set by
+  // the pre-game LineupPicker or by a prior Q-break) so a coach who
+  // picked "Set manually" sees Manual at every QB instead of having
+  // to re-pick each break. Mirrors the AFL QB pattern from
+  // ba04bd1. "keep" is a per-Q decision so it doesn't round-trip
+  // through the store.
+  const persistedRotationMode = useLiveGame((s) => s.rotationMode);
+  const setPersistedRotationMode = useLiveGame((s) => s.setRotationMode);
   const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">(
-    "suggested",
+    persistedRotationMode === "manual" ? "manual" : "suggested",
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -437,24 +445,6 @@ export function NetballQuarterBreak({
     setDraft(next);
     setSelected(null);
   }, [lineupMode, suggestedLineup, previousLineup, manualLineup, forcedBenchIds]);
-
-  // ─── Fairness score (combined season + this-game position counts) ──
-  const fairness = useMemo(() => {
-    const season = seasonPositionCounts(seasonEvents);
-    const thisGame = gamePositionCounts(thisGameEvents);
-    const combined: typeof season = {};
-    const merge = (src: typeof season) => {
-      for (const [pid, counts] of Object.entries(src)) {
-        combined[pid] ??= {};
-        for (const [posId, n] of Object.entries(counts)) {
-          combined[pid][posId] = (combined[pid][posId] ?? 0) + n;
-        }
-      }
-    };
-    merge(season);
-    merge(thisGame);
-    return netballFairnessScore(combined);
-  }, [seasonEvents, thisGameEvents]);
 
   // Players currently flagged injured or on loan — sourced from the
   // events-derived sets in the parent. The candidatePool intentionally
@@ -614,6 +604,10 @@ export function NetballQuarterBreak({
   function handleModeChange(next: "suggested" | "keep" | "manual") {
     if (next === lineupMode) return;
     setLineupMode(next);
+    // "keep" is a one-off per-Q decision so it doesn't persist —
+    // next Q-break falls back to whatever was previously stored
+    // (suggested or manual). Same convention as AFL QB.
+    if (next !== "keep") setPersistedRotationMode(next);
     setSelected(null);
   }
 
@@ -774,7 +768,13 @@ export function NetballQuarterBreak({
     [squad, injuredIds],
   );
   const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
-    () => lentPlayers.length > 0 || injuredPlayersList.length > 0,
+    () =>
+      lentPlayers.length > 0 ||
+      injuredPlayersList.length > 0 ||
+      // Auto-expand when the persisted rotation mode is non-default
+      // so a coach who picked Manual pre-game (or at an earlier
+      // break) lands and immediately sees the toggle. Mirrors AFL QB.
+      persistedRotationMode !== "suggested",
   );
   const [lendPickerOpen, setLendPickerOpen] = useState(false);
   const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
@@ -821,55 +821,27 @@ export function NetballQuarterBreak({
 
   return (
     <div className="space-y-4">
-      {/* Header card — overline + heading + fairness + toggle */}
-      <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Quarter break
-            </p>
-            <p className="mt-0.5 text-lg font-bold text-ink">
-              Set positions for Q{nextQuarter}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold tabular-nums text-brand-600">
-              {fairness}
-            </p>
-            <p className="text-[11px] uppercase tracking-micro text-ink-mute">
-              Fairness
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={lineupMode === "suggested" ? "primary" : "secondary"}
-            onClick={() => handleModeChange("suggested")}
-          >
-            {lineupMode === "suggested" ? "✓ Suggested reshuffle" : "Suggested reshuffle"}
-          </Button>
-          <Button
-            size="sm"
-            variant={lineupMode === "keep" ? "primary" : "secondary"}
-            onClick={() => handleModeChange("keep")}
-          >
-            {lineupMode === "keep" ? "✓ Keep last quarter" : "Keep last quarter"}
-          </Button>
-          <Button
-            size="sm"
-            variant={lineupMode === "manual" ? "primary" : "secondary"}
-            onClick={() => handleModeChange("manual")}
-          >
-            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-ink-dim">
+      {/* Orientation strip — Steve 2026-05-13: mirror the AFL QB
+          redesign. The hero card had eyebrow + title + fairness
+          number + the 3-button rotation toggle + a mode-hint
+          paragraph, which is far too much weight above the actual
+          court tiles. Strip to a flush no-chrome heading. Fairness
+          is gone. The rotation toggle moves into the Match-
+          adjustments collapse below (renamed Game settings) — same
+          place + same UX as the AFL QB. */}
+      <div className="px-1">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+          Quarter break
+        </p>
+        <p className="mt-0.5 text-lg font-bold text-ink">
+          Set positions for Q{nextQuarter}
+        </p>
+        <p className="mt-1 text-xs text-ink-dim">
           {lineupMode === "suggested"
-            ? `Auto-rebalanced for Q${nextQuarter} — players who've had less court time get priority.`
+            ? `Auto-rebalanced for Q${nextQuarter}.`
             : lineupMode === "keep"
-            ? "Carrying last quarter's lineup forward unchanged."
-            : "Court is empty — tap a bench player, then a position to place them."}
+              ? "Carrying last quarter's lineup forward."
+              : "Court is empty — tap a bench player, then a position."}
         </p>
       </div>
 
@@ -888,19 +860,22 @@ export function NetballQuarterBreak({
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
             <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Match adjustments
+              Game settings
             </span>
             <span className="text-xs text-ink-mute">
-              {lentPlayers.length > 0 ? `${lentPlayers.length} lent` : ""}
-              {lentPlayers.length > 0 && injuredPlayersList.length > 0
-                ? " · "
-                : ""}
-              {injuredPlayersList.length > 0
-                ? `${injuredPlayersList.length} injured`
-                : ""}
-              {lentPlayers.length === 0 && injuredPlayersList.length === 0
-                ? "Lend / injured"
-                : ""}
+              {(() => {
+                // Summary line — folds in rotation, then lent/injured.
+                // Default game shows just "Defaults" so the coach
+                // knows nothing's been touched. Mirrors AFL QB.
+                const bits: string[] = [];
+                if (lineupMode === "manual") bits.push("Manual lineup");
+                else if (lineupMode === "keep") bits.push("Keeping last Q");
+                if (lentPlayers.length > 0)
+                  bits.push(`${lentPlayers.length} lent`);
+                if (injuredPlayersList.length > 0)
+                  bits.push(`${injuredPlayersList.length} injured`);
+                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+              })()}
             </span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -929,6 +904,44 @@ export function NetballQuarterBreak({
             id="netball-qb-match-adjustments"
             className="space-y-4 border-t border-hairline px-4 py-3"
           >
+            {/* Rotation mode. Lifted from the old hero card so the
+                header strip stays clean. Three modes — Suggested
+                rotates per the fairness rebalancer (default), Keep
+                carries Q{n} forward unchanged for a one-off "same
+                again" quarter, Manual wipes the court for a from-
+                scratch build. handleModeChange writes Suggested/
+                Manual back to the live store so the choice persists
+                across breaks; Keep is per-quarter and doesn't
+                persist. Mirrors AFL QB. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Rotation</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={lineupMode === "suggested" ? "primary" : "secondary"}
+                  onClick={() => handleModeChange("suggested")}
+                >
+                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={lineupMode === "keep" ? "primary" : "secondary"}
+                  onClick={() => handleModeChange("keep")}
+                >
+                  {lineupMode === "keep"
+                    ? "✓ Keep last quarter"
+                    : "Keep last quarter"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={lineupMode === "manual" ? "primary" : "secondary"}
+                  onClick={() => handleModeChange("manual")}
+                >
+                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+                </Button>
+              </div>
+            </div>
+
             {/* Lend a player */}
             <div>
               <p className="text-xs font-semibold text-ink">Lend a player</p>
@@ -1068,7 +1081,7 @@ export function NetballQuarterBreak({
           <button
             type="button"
             onClick={() => setShowFixScores((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-alt"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
             aria-expanded={showFixScores}
             aria-label={
               showFixScores
@@ -1076,23 +1089,46 @@ export function NetballQuarterBreak({
                 : "Review and update scores"
             }
           >
-            <div className="flex min-w-0 flex-1 items-baseline gap-2">
-              <span className="nums truncate font-mono text-base font-semibold tabular-nums text-ink">
+            {/* Header rhythm matches Game settings: [eyebrow]
+                [summary] [chevron]. Score is the summary value, with
+                the lead margin coloured inline so the at-a-glance
+                read is preserved. Mirrors AFL QB. */}
+            <span className="flex flex-1 items-center gap-3 text-sm">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                Score
+              </span>
+              <span className="nums truncate font-mono text-xs tabular-nums text-ink-mute">
                 {cumUs}
-                <span className="mx-1.5 text-ink-mute">–</span>
+                <span className="mx-1 text-ink-mute/70">–</span>
                 {cumThem}
+                {lead !== 0 && (
+                  <>
+                    <span className="mx-1 text-ink-mute/70">·</span>
+                    <span className={`font-semibold ${leadClass}`}>
+                      {leadLabel}
+                    </span>
+                  </>
+                )}
               </span>
-              <span
-                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro ${leadClass}`}
+            </span>
+            <span aria-hidden className="text-ink-mute">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                className={`transition-transform duration-fast ease-out-quart ${
+                  showFixScores ? "rotate-180" : ""
+                }`}
               >
-                {leadLabel}
-              </span>
-            </div>
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700">
-              {showFixScores ? "Hide" : "Review"}
-              <span className="font-mono text-[10px]">
-                {showFixScores ? "▾" : "▸"}
-              </span>
+                <path
+                  d="M6 9l6 6 6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </span>
           </button>
 
