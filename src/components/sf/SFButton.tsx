@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { PulseDot } from "@/components/ui/PulseDot";
 
 type Variant = "primary" | "accent" | "alarm" | "ghost" | "subtle" | "danger";
 type Size = "sm" | "md" | "lg";
@@ -13,6 +14,13 @@ interface CommonProps {
   icon?: ReactNode;
   /** Trailing icon — chevrons go here. */
   iconAfter?: ReactNode;
+  /**
+   * When true, replaces the leading `icon` slot with the brand
+   * PulseDot and disables the button. Call sites typically pair
+   * this with a text swap ("Starting…" instead of "Ready for Q1")
+   * so the button reads as busy in both modalities.
+   */
+  loading?: boolean;
   children: ReactNode;
   className?: string;
 }
@@ -71,6 +79,7 @@ export function SFButton(props: SFButtonProps) {
     full = false,
     icon,
     iconAfter,
+    loading = false,
     children,
     className = "",
   } = props;
@@ -85,9 +94,15 @@ export function SFButton(props: SFButtonProps) {
     .filter(Boolean)
     .join(" ");
 
+  // When loading, the brand pulse takes the leading icon slot. Sized
+  // to the button: sm/md → sm pulse; lg → md pulse. The icon prop is
+  // ignored while loading — the pulse is the signal.
+  const pulseSize: "sm" | "md" = size === "lg" ? "md" : "sm";
+  const leadingNode = loading ? <PulseDot size={pulseSize} /> : icon;
+
   const inner = (
     <>
-      {icon}
+      {leadingNode}
       {children}
       {iconAfter}
     </>
@@ -110,19 +125,24 @@ export function SFButton(props: SFButtonProps) {
     full: _f,
     icon: _i,
     iconAfter: _ia,
+    loading: _l,
     children: _c,
     className: _cn,
     href: _h,
     disabled,
     ...buttonRest
   } = props as AsButton & { href?: undefined };
-  void _v; void _s; void _f; void _i; void _ia; void _c; void _cn; void _h;
+  void _v; void _s; void _f; void _i; void _ia; void _l; void _c; void _cn; void _h;
+
+  // Loading implicitly disables — saves every call site from
+  // remembering to OR loading into disabled.
+  const isDisabled = disabled || loading;
 
   return (
     <button
       {...buttonRest}
-      disabled={disabled}
-      className={`${classes} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+      disabled={isDisabled}
+      className={`${classes} ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       {inner}
     </button>

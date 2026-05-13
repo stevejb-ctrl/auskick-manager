@@ -942,7 +942,8 @@ export function LineupPicker({
             </div>
             <SFButton
               onClick={handleSavePlan}
-              disabled={onFieldCount === 0 || savePending || isPending}
+              loading={savePending}
+              disabled={onFieldCount === 0 || isPending}
               variant="ghost"
               size="sm"
             >
@@ -955,11 +956,12 @@ export function LineupPicker({
           </div>
           <SFButton
             onClick={handleStart}
-            disabled={onFieldCount === 0 || isPending}
+            loading={isPending}
+            disabled={onFieldCount === 0}
             variant="accent"
             size="lg"
             full
-            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+            iconAfter={isPending ? undefined : <SFIcon.chevronRight color="currentColor" />}
           >
             {isPending ? "Starting…" : "Ready for Q1"}
           </SFButton>
