@@ -440,21 +440,31 @@ export function NetballLineupPicker({
           without losing the lineup-picker context. Hidden when
           backHref isn't provided (Q-break flow, etc.). */}
       {backHref && (
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M15 18l-6-6 6-6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Back to availability
-        </Link>
+        <div className="flex flex-col gap-1">
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M15 18l-6-6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Update availability
+          </Link>
+          {/* No-show signpost — mirrors AFL LineupPicker. Coach
+              who's standing at the court realising Joey didn't turn
+              up needs a path that isn't "Lend a player" (wrong
+              word for the case). Steve 2026-05-13 usability test. */}
+          <p className="text-xs text-ink-mute">
+            A player didn&apos;t turn up? Tap here to mark them
+            unavailable.
+          </p>
+        </div>
       )}
       {/* Build-mode toggle. Two-button group lets the coach choose
           between the fairness-suggested rotation and a from-scratch

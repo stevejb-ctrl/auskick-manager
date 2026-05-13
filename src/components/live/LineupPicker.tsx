@@ -527,13 +527,25 @@ export function LineupPicker({
     // home indicator (Steve 2026-05-13).
     <div className="space-y-4 pb-[calc(8rem+env(safe-area-inset-bottom))]">
       {backHref && (
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-        >
-          <SFIcon.chevronLeft />
-          Back to availability
-        </Link>
+        <div className="flex flex-col gap-1">
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+          >
+            <SFIcon.chevronLeft />
+            Update availability
+          </Link>
+          {/* Steve 2026-05-13 usability test (Mike): explicit hint
+              that this is the path for no-shows. Without it, Mike
+              tried "Lend a player" semantically (wrong — that's for
+              loans to the opposition) before finding the breadcrumb.
+              Surfacing the use case removes that two-step
+              detour. */}
+          <p className="text-xs text-ink-mute">
+            A player didn&apos;t turn up? Tap here to mark them
+            unavailable.
+          </p>
+        </div>
       )}
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
