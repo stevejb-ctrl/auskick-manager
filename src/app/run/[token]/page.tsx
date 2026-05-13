@@ -6,6 +6,7 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
+import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -163,24 +164,34 @@ export default async function RunPage({ params }: RunPageProps) {
             (game underway). showJerseyNumber=false because netball
             squads don't carry jersey numbers (NETBALL-06). */}
         {isPreKickoff && (
-          <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
-              Who&apos;s here today?
-            </h3>
-            <AvailabilityList
-              auth={auth}
-              teamId={g.team_id}
-              gameId={g.id}
-              canMarkAvailability
-              canManageMatch
-              showJerseyNumber={false}
-              // Netball court positions for this age group (7 for "go").
-              // Drives the "X of 7 available" pill + the helper text
-              // that prompts the runner to mark MORE players Available
-              // before "Start game" can succeed.
-              requiredAvailable={ageCfgN.positions.length}
+          <>
+            {/* Orientation banner — first thing a parent-runner sees.
+                Steve 2026-05-13 usability test: without it Lisa
+                (parent-volunteer persona) lands on a wordmark + a
+                list of names with no role context. */}
+            <RunnerWelcomeBanner
+              teamName={teamName}
+              trackScoring={trackScoring}
             />
-          </section>
+            <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                Who&apos;s here today?
+              </h3>
+              <AvailabilityList
+                auth={auth}
+                teamId={g.team_id}
+                gameId={g.id}
+                canMarkAvailability
+                canManageMatch
+                showJerseyNumber={false}
+                // Netball court positions for this age group (7 for "go").
+                // Drives the "X of 7 available" pill + the helper text
+                // that prompts the runner to mark MORE players Available
+                // before "Start game" can succeed.
+                requiredAvailable={ageCfgN.positions.length}
+              />
+            </section>
+          </>
         )}
         <NetballLiveGame
           auth={auth}
@@ -316,9 +327,37 @@ export default async function RunPage({ params }: RunPageProps) {
     );
   }
 
+  // Count available players for the Continue-button gate. Steve
+  // 2026-05-13 usability test (Lisa B2): netball already gates its
+  // Continue inside AvailabilityList via requiredAvailable, but
+  // the AFL Continue button sits OUTSIDE the list and was never
+  // disabled — a parent-runner could tap Continue with zero kids
+  // marked, land on the lineup page, hit the dead-end empty
+  // state, and back-tap loop. Gating it here removes that round-
+  // trip. Page re-renders when setAvailability mutates because
+  // its revalidatePath('/run/[token]', 'layout') is layout-scoped.
+  const { data: availCountRows } = await admin
+    .from("game_availability")
+    .select("player_id")
+    .eq("game_id", g.id)
+    .eq("status", "available");
+  const availableCount = availCountRows?.length ?? 0;
+  const enoughAvailable = availableCount >= g.on_field_size;
+
   return (
     <div className="space-y-6 p-3">
       <GameInfoHeader teamName={teamName} g={g} />
+
+      {/* Orientation banner — only shows pre-kickoff (no lineup_set
+          event yet). Once the game has started, the in-game chrome
+          carries forward and the banner would be redundant noise.
+          Steve 2026-05-13 usability test (Lisa). */}
+      {!hasStarted && (
+        <RunnerWelcomeBanner
+          teamName={teamName}
+          trackScoring={trackScoring}
+        />
+      )}
 
       <section className="space-y-3">
         <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
@@ -337,14 +376,33 @@ export default async function RunPage({ params }: RunPageProps) {
         />
       </section>
 
-      <div className="flex justify-end">
-        <SFButton
-          href={`/run/${params.token}/lineup`}
-          variant="accent"
-          iconAfter={<SFIcon.chevronRight color="currentColor" />}
-        >
-          Continue to starting lineup
-        </SFButton>
+      <div className="flex flex-col items-end gap-1">
+        {!enoughAvailable && (
+          <p className="text-xs text-ink-mute">
+            Mark at least {g.on_field_size} players available to continue.
+          </p>
+        )}
+        {/* SFButton polymorphism doesn't honour `disabled` on its
+            link variant (Next.js Link ignores it), so swap to the
+            button variant when the gate hasn't passed. Same look,
+            properly disabled. */}
+        {enoughAvailable ? (
+          <SFButton
+            href={`/run/${params.token}/lineup`}
+            variant="accent"
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+          >
+            Continue to starting lineup
+          </SFButton>
+        ) : (
+          <SFButton
+            variant="accent"
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+            disabled
+          >
+            Continue to starting lineup
+          </SFButton>
+        )}
       </div>
     </div>
   );
