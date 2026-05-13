@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SFButton, SFIcon } from "@/components/sf";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -338,12 +338,13 @@ export default async function RunPage({ params }: RunPageProps) {
       </section>
 
       <div className="flex justify-end">
-        <Link
+        <SFButton
           href={`/run/${params.token}/lineup`}
-          className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+          variant="accent"
+          iconAfter={<SFIcon.chevronRight color="currentColor" />}
         >
-          Continue to starting lineup →
-        </Link>
+          Continue to starting lineup
+        </SFButton>
       </div>
     </div>
   );

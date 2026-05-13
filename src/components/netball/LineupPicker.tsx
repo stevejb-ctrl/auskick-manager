@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
-import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -533,15 +532,16 @@ export function NetballLineupPicker({
           pre-game LineupPicker sticky bar. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
-          <button
-            type="button"
+          <SFButton
             onClick={handleConfirm}
             disabled={disabled || saving}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+            loading={saving}
+            variant="accent"
+            size="lg"
+            full
           >
-            {saving && <PulseDot size="sm" />}
             {saving ? "Saving…" : confirmLabel}
-          </button>
+          </SFButton>
         </div>
       </div>
 

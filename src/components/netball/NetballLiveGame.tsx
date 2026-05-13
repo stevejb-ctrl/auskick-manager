@@ -11,7 +11,7 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
-import Link from "next/link";
+import { SFButton } from "@/components/sf";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -1178,12 +1178,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             dashboard. Mirrors the AFL LiveGame finalised flow. */}
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
           <div className="mx-auto max-w-4xl">
-            <Link
-              href="/dashboard"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
-            >
+            <SFButton href="/dashboard" variant="accent" size="lg" full>
               Finish game
-            </Link>
+            </SFButton>
           </div>
         </div>
       </div>
