@@ -46,6 +46,7 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { Button } from "@/components/ui/Button";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -1057,34 +1058,50 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     setWalkthroughOpen(true);
   }
 
-  // ─── "✕ Exit" affordance + walkthrough ? button ────────────
-  // Mirrors AFL's top utility row in src/components/live/LiveGame.tsx:806.
-  // Always-visible link in the upper-left of every netball
-  // branch (pre-kickoff / live / Q-break / finalised) so the coach
-  // can pop back to the game detail page (or runner landing) at
-  // any moment without hunting for an action. The "?" button on
-  // the right opens the walkthrough modal with the welcome step
-  // skipped (coach already knows what they signed up for).
+  // ─── In-game top bar: Exit · round/date/venue · walkthrough ? ─
+  // Replaces the prior thin "✕ Exit / ?" utility row plus the
+  // page-level GameInfoHeader strip — now one sticky bar at the
+  // top, mirroring the (app) layout header's visual treatment.
+  // AppHeaderShell hides the (app) header on /live routes so this
+  // is the sole top chrome during a live game (Steve 2026-05-13).
+  // The "?" button opens the walkthrough modal; auto-welcome is
+  // skipped because the coach already knows what they signed up
+  // for at this point.
   const exitHref =
     auth.kind === "team"
       ? `/teams/${auth.teamId}/games/${game.id}`
       : `/run/${auth.token}`;
   const topUtilityRow = (
-    <div className="flex items-center justify-between">
-      <Link
-        href={exitHref}
-        className="font-mono text-[11px] text-ink-mute transition-colors hover:text-ink-dim"
-      >
-        ✕ Exit
-      </Link>
-      <button
-        type="button"
-        onClick={handleOpenWalkthrough}
-        className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
-        aria-label="Open walkthrough"
-      >
-        ?
-      </button>
+    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
+        <Link
+          href={exitHref}
+          className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim"
+        >
+          ✕ Exit
+        </Link>
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
+          {game.round_number != null && (
+            <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
+              R{game.round_number}
+            </span>
+          )}
+          <span className="truncate">
+            <FormattedDateTime iso={game.scheduled_at} mode="long" />
+          </span>
+          {game.location && (
+            <span className="truncate">· {game.location}</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleOpenWalkthrough}
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
+          aria-label="Open walkthrough"
+        >
+          ?
+        </button>
+      </div>
     </div>
   );
   const walkthroughOverlay = walkthroughOpen ? (

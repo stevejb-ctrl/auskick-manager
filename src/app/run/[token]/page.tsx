@@ -148,7 +148,10 @@ export default async function RunPage({ params }: RunPageProps) {
     void hasStarted;
     return (
       <div className="space-y-3 p-3">
-        {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
+        {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
+            sticky top bar (Steve 2026-05-13) — the (app) header is
+            hidden on /live routes so this info lives in the
+            in-game chrome itself. */}
         {/* Pre-kickoff availability section — landing here from a runner
             link, the parent expects to mark who's playing FIRST, then
             set the lineup. Stagehand 2026-05-09 found that without this
@@ -271,10 +274,15 @@ export default async function RunPage({ params }: RunPageProps) {
 
     return (
       <div className="space-y-3 p-3">
-        <GameInfoHeader teamName={teamName} g={g} compact />
+        {/* GameInfoHeader is now rendered INSIDE LiveGame's sticky
+            top bar (Steve 2026-05-13) — keep the spacer here so the
+            availability section above LiveGame doesn't bleed into
+            the in-game chrome on token-auth, but drop the duplicate
+            info strip. */}
         <LiveGame
           auth={auth}
           gameId={g.id}
+          game={g}
           teamName={teamName}
           opponentName={g.opponent}
           trackScoring={trackScoring}

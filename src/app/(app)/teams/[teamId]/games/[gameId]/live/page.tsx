@@ -226,7 +226,10 @@ export default async function LivePage({ params }: LivePageProps) {
           hasStickyBottom ? ` ${stickyPb}` : ""
         }`}
       >
-        {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
+        {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
+            sticky top bar (Steve 2026-05-13) — the (app) header is
+            hidden on /live routes so this info needs a home in the
+            in-game chrome itself. */}
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           game={g}
@@ -378,10 +381,14 @@ export default async function LivePage({ params }: LivePageProps) {
           hasStickyBottom ? ` ${stickyPb}` : ""
         }`}
       >
-        <GameInfoHeader teamName={teamName} g={g} compact />
+        {/* GameInfoHeader is now rendered INSIDE LiveGame's sticky
+            top bar (Steve 2026-05-13) — the (app) header is hidden
+            on /live routes so this info needs a home in the in-game
+            chrome itself. */}
         <LiveGame
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
+          game={g}
           teamName={teamName}
           opponentName={g.opponent}
           trackScoring={trackScoring}
@@ -505,6 +512,14 @@ export default async function LivePage({ params }: LivePageProps) {
 
   return (
     <div className="space-y-4">
+      {/* Pre-kickoff top bar — the (app) header is hidden on /live
+          (Steve 2026-05-13), and the AFL pre-kickoff path renders
+          LineupPicker directly from page.tsx (not via LiveGame), so
+          this branch needs its own thin Exit + game info + Help bar
+          to replace the global chrome. Pre-kickoff has no
+          walkthrough state of its own; Help links to the static
+          /help page. */}
+      <GameInfoHeader teamName={teamName} g={g} compact />
       {availablePlayers.length === 0 ? (
         <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
           No players marked available — go back and set availability first.

@@ -43,9 +43,10 @@ import {
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
-import type { Player, PositionModel, Zone } from "@/lib/types";
+import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 
 // Minimal inline types for the YouTube IFrame API — no @types/youtube needed.
 interface YTPlayer {
@@ -114,6 +115,14 @@ function playBeep() {
 interface LiveGameProps {
   auth: import("@/lib/types").LiveAuth;
   gameId: string;
+  /**
+   * The full game row — used by the in-game top bar to render the
+   * compact round/date/venue strip (replaces the standalone
+   * GameInfoHeader that page.tsx used to render above LiveGame).
+   * Steve 2026-05-13: the global app header is hidden during /live
+   * so the in-game bar needs to carry this context itself.
+   */
+  game: Game;
   teamName: string;
   opponentName: string;
   trackScoring: boolean;
@@ -183,6 +192,7 @@ type LastScore = {
 export function LiveGame({
   auth,
   gameId,
+  game,
   teamName,
   opponentName,
   trackScoring,
@@ -1278,29 +1288,51 @@ export function LiveGame({
 
   return (
     <div className="space-y-3">
-      {/* Top utility row: exit on the left, help (?) on the right
-          so it sits above the scorebug's right edge when the bug
-          is top-anchored — the conventional location for a "help"
-          affordance. */}
-      <div className="flex items-center justify-between">
-        {exitHref ? (
-          <Link
-            href={exitHref}
-            className="font-mono text-[11px] text-ink-mute hover:text-ink-dim"
+      {/* In-game top bar — sticky-top, full-width, mirrors the (app)
+          layout header's visual treatment (the (app) header is
+          hidden on /live routes by AppHeaderShell so this is the
+          sole top chrome). Steve 2026-05-13: pulls Exit + game date
+          + walkthrough ? out of their previous spots (separate
+          GameInfoHeader strip + a thin utility row) so they share a
+          single bar.
+
+          Negative inset-x compensates for the parent <main> px-4 so
+          the bar can run edge-to-edge and the backdrop-blur reads
+          the same way the (app) header did. */}
+      <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
+          {exitHref ? (
+            <Link
+              href={exitHref}
+              className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim"
+            >
+              ✕ Exit
+            </Link>
+          ) : (
+            <span />
+          )}
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
+            {game.round_number != null && (
+              <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
+                R{game.round_number}
+              </span>
+            )}
+            <span className="truncate">
+              <FormattedDateTime iso={game.scheduled_at} mode="long" />
+            </span>
+            {game.location && (
+              <span className="truncate">· {game.location}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenWalkthrough}
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
+            aria-label="Open walkthrough"
           >
-            ✕ Exit
-          </Link>
-        ) : (
-          <span />
-        )}
-        <button
-          type="button"
-          onClick={handleOpenWalkthrough}
-          className="flex h-6 w-6 items-center justify-center rounded-full border border-hairline font-mono text-[11px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim"
-          aria-label="Open walkthrough"
-        >
-          ?
-        </button>
+            ?
+          </button>
+        </div>
       </div>
 
       {/* Top-anchored scorebug — only when NOT in live play. During
