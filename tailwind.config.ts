@@ -142,6 +142,19 @@ const config: Config = {
           from: { opacity: "0" },
           to:   { opacity: "1" },
         },
+        // Ring halo around a rectangular CTA. Used by PulseRing for the
+        // kickoff window pulse on "Open game", the LIVE chip indicator,
+        // and any future "moment that just happened around a button"
+        // signal. `currentColor` lets the consumer set the hue via
+        // `text-alarm` / `text-warn` on the wrapper — mirroring how
+        // `siren-pulse` inherits its colour stops from
+        // `--siren-pulse-from / --siren-pulse-to` brand variables. The
+        // opacity property fades the box-shadow as it spreads so the
+        // ring reads as a halo rather than a solid frame.
+        pulseRipple: {
+          "0%":   { boxShadow: "0 0 0 0 currentColor",  opacity: "0.55" },
+          "100%": { boxShadow: "0 0 0 22px currentColor", opacity: "0" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -151,6 +164,18 @@ const config: Config = {
         // Used by the mobile features overlay card (350ms ease-out per
         // the design handoff's crossfade timing).
         "fade-in":    "fadeIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        // PulseRing variants. Single `pulseRipple` keyframe driven at
+        // three cadences:
+        //   `steady` (1.6s) — running status indicators (LIVE chip).
+        //   `slow`   (2.6s) — sustained urgency (kickoff window CTA,
+        //                     final 10 sec of a quarter).
+        //   `burst`  (1.4s × 3) — moment-that-just-happened halos
+        //                         (siren end, full-time, goal scored).
+        // `burst` ends with `forwards` so the final transparent state
+        // sticks; the other two loop indefinitely.
+        "pulse-ripple":       "pulseRipple 1.6s ease-out infinite",
+        "pulse-ripple-slow":  "pulseRipple 2.6s ease-out infinite",
+        "pulse-ripple-burst": "pulseRipple 1.4s ease-out 3 forwards",
       },
       letterSpacing: {
         tightest: "-0.02em",

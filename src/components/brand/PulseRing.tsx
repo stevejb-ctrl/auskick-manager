@@ -21,29 +21,35 @@ interface PulseRingProps {
 /**
  * A brand siren moment around an existing UI element.
  *
- * Renders an absolutely-positioned ring painted in `currentColor` with
- * one of the `pulseRipple` animations defined in tailwind.config. The
- * consumer wraps the target element in a `relative` container that
- * sets the colour (usually `text-alarm` for brand moments, `text-warn`
- * for in-app signal moments) and drops a `<PulseRing>` inside.
+ * Renders an absolutely-positioned, transparent ring whose `box-shadow`
+ * is animated by one of the `pulseRipple` keyframes defined in
+ * `tailwind.config.ts`. The shadow uses `currentColor`, so the consumer
+ * controls the hue by setting `text-alarm` (brand moments) or
+ * `text-warn` (in-app signal moments) on the wrapping `relative` span.
  *
  * Usage:
  *
  *   <span className="relative inline-block text-alarm">
- *     <PulseRing variant="burst" radius="md" />
+ *     <PulseRing variant="slow" radius="md" />
  *     <button className="relative rounded-md bg-brand-600 px-4 py-2">
- *       Start game
+ *       Open game
  *     </button>
  *   </span>
  *
- * The ring sits underneath the element. It inherits the wrapper's
- * `text-*` hue via `bg-current`. `motion-reduce:hidden` drops it for
- * users who've opted out of motion.
+ * The ring sits underneath the element. The button-or-similar child
+ * MUST also be `position: relative` so it paints OVER the ring's
+ * spreading box-shadow halo. `motion-reduce:hidden` drops the ring
+ * for users who've opted out of motion.
  *
  * Re-triggering a `burst`: change the `key` on the PulseRing from the
  * parent when the moment should fire again (e.g. a counter that
  * increments on every goal) — React will remount it and the animation
  * starts over.
+ *
+ * The element carries `data-pulse-ring="<variant>"` so e2e tests can
+ * pin the regression (the keyframes were missing from
+ * `tailwind.config.ts` 2026-05-12 to 2026-05-14, which silently broke
+ * every kickoff window pulse — see kickoff-pulse.spec.ts).
  */
 export function PulseRing({
   variant = "burst",
@@ -66,7 +72,8 @@ export function PulseRing({
   return (
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 ${corner} bg-current ${anim} motion-reduce:hidden ${className}`}
+      data-pulse-ring={variant}
+      className={`pointer-events-none absolute inset-0 ${corner} ${anim} motion-reduce:hidden ${className}`}
     />
   );
 }

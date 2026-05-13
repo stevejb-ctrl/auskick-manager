@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FinishSetupBanner } from "@/components/setup/FinishSetupBanner";
+import { KickoffPulseWrapper } from "@/components/games/KickoffPulseWrapper";
 import {
   Eyebrow,
   RoundNumeral,
@@ -270,14 +271,28 @@ function NextUpHero({
             avail
           </span>
         </div>
-        <SFButton
-          href={`/teams/${teamId}/games/${game.id}`}
-          variant="primary"
-          iconAfter={<SFIcon.chevronRight color="currentColor" />}
+        {/* KickoffPulseWrapper renders a slow alarm-orange halo around
+            the button when current time is within ±30min of kickoff —
+            drawing the coach's eye to the action they almost certainly
+            opened the page to take. Outside the window the wrapper is
+            invisible, so this is free for upcoming games scheduled
+            days in advance. The wrapper sets text-alarm on its
+            container so the ring's currentColor halo paints in the
+            brand siren-red. */}
+        <KickoffPulseWrapper
+          scheduledAt={game.scheduled_at}
+          radius="md"
           className="w-full sm:w-auto"
         >
-          Open game
-        </SFButton>
+          <SFButton
+            href={`/teams/${teamId}/games/${game.id}`}
+            variant="primary"
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+            className="w-full sm:w-auto"
+          >
+            Open game
+          </SFButton>
+        </KickoffPulseWrapper>
       </div>
     </SFCard>
   );
