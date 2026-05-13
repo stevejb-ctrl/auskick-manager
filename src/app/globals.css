@@ -156,38 +156,6 @@
     font-feature-settings: "tnum" 1;
   }
 
-  /* ─── Safe-area inset values via CSS custom properties ──────
-     `--safe-top` / `--safe-bottom` are the values components
-     use anywhere they'd otherwise inline `env(safe-area-inset-*)`.
-
-     Default (web / PWA): dynamic env() — iOS Safari and the
-     installed PWA both report the real notch / home-indicator
-     inset and these track that.
-
-     Native (`html[data-native-shell="true"]`): static fallback
-     values. We can't use env() inside the Capacitor shell
-     because iOS WKWebView's `contentInset: "always"` adjusts
-     the scroll view based on safe areas in a way that
-     interacts badly with CSS env() — visibly stacking on top
-     of itself in the in-flow state and disappearing in the
-     stuck state. Static values give a consistent
-     position regardless of scroll. 3rem (48px) clears the
-     iOS status bar on every modern iPhone; the home-indicator
-     gets a smaller 1rem since Capacitor's contentInset on
-     iOS already handles the bottom.
-
-     Once mobile/capacitor.config.ts ships with `contentInset:
-     "never"` (in the next native build), iOS will stop
-     auto-adjusting the scroll view, env() values will be
-     reliable again, and this static override can be removed. */
-  :root {
-    --safe-top: env(safe-area-inset-top);
-    --safe-bottom: env(safe-area-inset-bottom);
-  }
-  html[data-native-shell="true"] {
-    --safe-top: 3rem;
-    --safe-bottom: 0px;
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
