@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import type { Game } from "@/lib/types";
 
@@ -32,20 +34,38 @@ interface LiveTopBarProps {
  * bar runs edge-to-edge regardless of which page is hosting it.
  */
 export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
-  // Tap targets sit at iOS-min 44pt — Steve 2026-05-13 the previous
-  // text-only Exit + 24pt "?" pill were both well below that, and
-  // Exit's `✕` glyph read as "discard / close" mid-game (terrifying
-  // when the GM is mid-flow). Switched to a plain "Exit" word with a
-  // proper hit area, and bumped the help affordance to 44×44.
+  // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
+  // button + router.push because `<Link>` was silently no-op-ing on
+  // some device/cache combos (Steve saw it in production: tap
+  // registered visually but no navigation occurred). The button form
+  // is more defensive — the onClick fires immediately, useTransition
+  // shows pending state if the destination is slow, and there's no
+  // anchor for the PWA service worker or a stray parent handler to
+  // suppress.
+  //
+  // Tap targets sit at iOS-min 44pt — the previous text-only Exit +
+  // 24pt "?" pill were both well below that. Also dropped the "✕"
+  // glyph from Exit per usability feedback (it read as "discard /
+  // close" mid-game).
+  const router = useRouter();
+  const [exiting, startExitTransition] = useTransition();
+  const handleExit = () => {
+    startExitTransition(() => {
+      router.push(exitHref);
+    });
+  };
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-2 sm:px-3">
-        <Link
-          href={exitHref}
-          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-xs font-bold uppercase tracking-micro text-ink-mute transition-colors hover:bg-ink/5 hover:text-ink-dim active:bg-ink/10"
+        <button
+          type="button"
+          onClick={handleExit}
+          disabled={exiting}
+          aria-label="Exit live game"
+          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-xs font-bold uppercase tracking-micro text-ink-mute transition-colors hover:bg-ink/5 hover:text-ink-dim active:bg-ink/10 disabled:opacity-60"
         >
-          Exit
-        </Link>
+          {exiting ? "Exiting…" : "Exit"}
+        </button>
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
           {game.round_number != null && (
             <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
