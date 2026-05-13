@@ -2185,18 +2185,38 @@ export function LiveGame({
           cleanly on +G / +B taps. */}
       {/* Sticky-bottom "Finish game" CTA — locks to viewport bottom
           on the finalised summary screen so the coach has a big,
-          unmissable exit back to the dashboard after the game's
-          done (Steve 2026-05-13). Same fixed-bar pattern as the
-          live-play scorebug + the QB Ready button. Renders ONLY
-          when `finalised` (not during the FullTimeReview reconcile
-          step — that screen still needs the user's full attention
-          on the score grid). */}
-      {finalised && (
+          unmissable exit after the game's done. Renders ONLY when
+          `finalised` (FullTimeReview reconcile step needs full
+          attention on the score grid).
+
+          Team-auth coach → /dashboard (last-team cookie bounces
+          single-team users to their team home).
+
+          Token-auth parent-runner has no /dashboard (they aren't
+          signed in). Sending them there hits the login wall and
+          they panic ("did the game save?"). Steve 2026-05-13
+          usability test (Lisa B3): show a small "All done — you
+          can close this tab" message instead. The implicit
+          close-tab gesture is universal across platforms; we
+          don't need to send them anywhere. */}
+      {finalised && auth.kind === "team" && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
           <div className="mx-auto max-w-4xl">
             <SFButton href="/dashboard" variant="accent" size="lg" full>
               Finish game
             </SFButton>
+          </div>
+        </div>
+      )}
+      {finalised && auth.kind === "token" && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+          <div className="mx-auto max-w-4xl text-center">
+            <p className="text-sm font-semibold text-ink">
+              All done — thanks for running today&apos;s game!
+            </p>
+            <p className="mt-0.5 text-xs text-ink-mute">
+              Everything&apos;s saved. You can close this tab.
+            </p>
           </div>
         </div>
       )}

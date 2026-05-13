@@ -1213,15 +1213,33 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           trackScoring={trackScoring}
         />
         {/* Sticky-bottom "Finish game" CTA — locks to the viewport
-            so the coach has a big, unmissable exit back to the
-            dashboard. Mirrors the AFL LiveGame finalised flow. */}
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-          <div className="mx-auto max-w-4xl">
-            <SFButton href="/dashboard" variant="accent" size="lg" full>
-              Finish game
-            </SFButton>
+            so the user has a big, unmissable exit. Team-auth coach
+            goes to /dashboard. Token-auth parent-runner gets a
+            "you can close this tab" success card instead — they
+            don't have a /dashboard, sending them there hits the
+            login wall (Steve 2026-05-13 usability test, Lisa B3).
+            Mirrors the AFL LiveGame finalised flow. */}
+        {auth.kind === "team" && (
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+            <div className="mx-auto max-w-4xl">
+              <SFButton href="/dashboard" variant="accent" size="lg" full>
+                Finish game
+              </SFButton>
+            </div>
           </div>
-        </div>
+        )}
+        {auth.kind === "token" && (
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+            <div className="mx-auto max-w-4xl text-center">
+              <p className="text-sm font-semibold text-ink">
+                All done — thanks for running today&apos;s game!
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Everything&apos;s saved. You can close this tab.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
