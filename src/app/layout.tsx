@@ -9,6 +9,7 @@ import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
+import { NativeSplashHide } from "@/components/native/NativeSplashHide";
 import "./globals.css";
 
 // GA4 Measurement ID. Not a secret — the same ID is in the HTML of
@@ -159,6 +160,12 @@ export default function RootLayout({
             marketing site on "/". Cookie-only — does NOT do any
             client-side route bouncing. No-op on web. */}
         <NativeCookieBridge />
+        {/* Dismisses the Capacitor splash screen once React has
+            mounted. The splash is configured in
+            mobile/capacitor.config.ts to stay visible until JS
+            hides it, covering the WebView's remote-URL cold start.
+            No-op on web. */}
+        <NativeSplashHide />
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />
