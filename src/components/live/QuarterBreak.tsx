@@ -114,12 +114,11 @@ export function QuarterBreak({
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const setLineup = useLiveGame((s) => s.setLineup);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
-  // Per-player per-completed-quarter ending zone. Drives the colour-
-  // coded per-quarter bar on each tile (Steve 2026-05-13). Populated
-  // by replayGame at every quarter_end and by the local store's
-  // endCurrentQuarter action; init() threads the replayed map in on
-  // every refresh.
-  const pastQuarterZones = useLiveGame((s) => s.pastQuarterZones);
+  // pastQuarterZones is still populated by replayGame + the store
+  // (kept in state so the suggester or a future per-quarter view
+  // can read it) but the QB tile dropped its per-quarter bar in
+  // favour of the time-in-zone proportional bar Steve asked for
+  // 2026-05-13. No JSX consumer in this file.
   const lastStintMs = useLiveGame((s) => s.lastStintMs);
   const lastStintZone = useLiveGame((s) => s.lastStintZone);
   const lockedIds = useLiveGame((s) => s.lockedIds);
@@ -1434,35 +1433,36 @@ export function QuarterBreak({
                               {fmtMinSec(realTotal)}
                             </span>
                           )}
-                          {/* Per-quarter zone bar — one segment per
-                              completed quarter, colour-coded to the
-                              zone the player ended that quarter in.
-                              Bench-only quarters render as a grey
-                              segment so the coach can see at a
-                              glance whether a kid has rotated
-                              across zones or sat the bench (Steve
-                              2026-05-13). currentQuarter holds the
-                              just-ended quarter at the Q-break, so
-                              we iterate 1..currentQuarter. */}
+                          {/* Time-in-zone bar — one segment per zone
+                              the player has spent time in, width
+                              proportional to ms played in that zone.
+                              Steve 2026-05-13 asked for this back
+                              after my earlier per-quarter
+                              experiment: "i still can't see the
+                              coloured bar indicating how much time
+                              in each zone in the Set zones for Qx
+                              page". The proportional bar answers
+                              "how much of this kid's game has been
+                              in each zone" at a glance, which the
+                              per-quarter version didn't. Bar stays
+                              empty (just the rounded grey track)
+                              for a player who hasn't been on yet.
+                              Colour tokens match the FWD/CENTRE/
+                              BACK card headers via ZONE_BAR_COLOR. */}
                           <span
-                            className="flex h-3 flex-1 max-w-[72px] gap-px overflow-hidden rounded-full bg-surface-alt"
+                            className="flex h-3 flex-1 max-w-[80px] overflow-hidden rounded-full bg-surface-alt"
                             aria-hidden
                           >
-                            {Array.from({ length: currentQuarter }, (_, i) => {
-                              const q = i + 1;
-                              const z = pastQuarterZones[pid]?.[q];
-                              return (
+                            {realTotal > 0 &&
+                              zones.map((z) => (
                                 <span
-                                  key={q}
-                                  className={`flex-1 ${z ? ZONE_BAR_COLOR[z] : "bg-ink-mute/20"}`}
-                                  title={
-                                    z
-                                      ? `Q${q}: ${slotLabel(z)}`
-                                      : `Q${q}: Bench`
-                                  }
+                                  key={z}
+                                  style={{
+                                    width: `${(zm[z] / realTotal) * 100}%`,
+                                  }}
+                                  className={ZONE_BAR_COLOR[z]}
                                 />
-                              );
-                            })}
+                              ))}
                           </span>
                         </span>
                       </button>
