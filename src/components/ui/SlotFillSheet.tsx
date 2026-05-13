@@ -87,7 +87,19 @@ export function SlotFillSheet({
 }: Props) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-ink/60 p-4"
+      // z-60 (one step above Modal's z-50) because SlotFillSheet is
+      // the player-picker that frequently opens FROM INSIDE another
+      // modal — most notably QuarterEndModal's embedded "+G/+B"
+      // mini-scorebug, which fires this picker for scorer
+      // attribution. With both at z-50 the tap routing was a
+      // coin-flip and the modal backdrops visually overlapped,
+      // making it look like Mike was "two modals deep" with a
+      // stray-tap risk that could lose the goal. Bumping the
+      // picker to z-60 means it always paints cleanly above any
+      // underlying Modal, and the modal's own dimmed backdrop
+      // stays visible underneath as context. Steve 2026-05-13
+      // usability test (Mike B5).
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
