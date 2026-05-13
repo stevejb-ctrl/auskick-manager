@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { Player } from "@/lib/types";
 
@@ -27,9 +27,9 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
 
   return (
     <>
-      <Button size="md" variant="secondary" onClick={() => setOpen(true)} disabled={pending}>
+      <SFButton size="md" variant="ghost" onClick={() => setOpen(true)} disabled={pending}>
         + Add late arrival
-      </Button>
+      </SFButton>
 
       {open && (
         <SlotFillSheet
