@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { PulseDot } from "@/components/ui/PulseDot";
 
 interface SwapCardProps {
   suggestions: SwapSuggestion[];
@@ -248,21 +249,25 @@ export function SwapCard({
               disabled={pending}
               className="flex w-full items-center justify-center gap-2 rounded-sm bg-brand-600 py-2.5 text-sm font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M7 16l-4-4 4-4M17 8l4 4-4 4M3 12h18"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              {pending ? (
+                <PulseDot size="sm" />
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M7 16l-4-4 4-4M17 8l4 4-4 4M3 12h18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
               {pending
                 ? "Applying…"
                 : `Do all ${valid.length} swap${valid.length > 1 ? "s" : ""}`}

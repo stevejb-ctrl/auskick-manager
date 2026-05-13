@@ -196,7 +196,8 @@ export function LoginForm() {
           variant="primary"
           size="lg"
           full
-          disabled={submitting || !email || (mode === "password" && !password)}
+          loading={submitting}
+          disabled={!email || (mode === "password" && !password)}
           data-testid="login-submit"
         >
           {submitting

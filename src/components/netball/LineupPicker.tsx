@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -536,8 +537,9 @@ export function NetballLineupPicker({
             type="button"
             onClick={handleConfirm}
             disabled={disabled || saving}
-            className="w-full rounded-lg bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
           >
+            {saving && <PulseDot size="sm" />}
             {saving ? "Saving…" : confirmLabel}
           </button>
         </div>
