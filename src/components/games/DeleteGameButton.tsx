@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 
 interface DeleteGameButtonProps {
   teamId: string;
@@ -30,16 +31,21 @@ export function DeleteGameButton({ teamId, gameId }: DeleteGameButtonProps) {
   }
 
   if (stage === "idle") {
+    // SFButton danger so this destructive affordance reads as part
+    // of the same visual system as the surrounding actions on the
+    // game-detail page (Steve 2026-05-13). The danger variant is
+    // border-only with red text — louder than ghost so the
+    // destructive intent is obvious, quieter than primary so it
+    // doesn't compete with "Start game".
     return (
-      <Button
-        type="button"
-        variant="ghost"
+      <SFButton
+        variant="danger"
         size="md"
         onClick={() => setStage("confirm")}
-        className="text-danger hover:bg-danger/10 hover:text-danger"
+        className="w-full sm:w-auto"
       >
         Delete game
-      </Button>
+      </SFButton>
     );
   }
 

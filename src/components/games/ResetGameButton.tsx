@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
 
 // ─── Reset Game Button ─────────────────────────────────────────
@@ -50,15 +51,19 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
 
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
+      {/* SFButton danger to match DeleteGameButton's idle treatment
+          (Steve 2026-05-13) — both destructive actions on the game-
+          detail page now share the same red-border ghost look,
+          paired with the SFButton ghost neutrals (Set lineup,
+          Share gameday link). */}
+      <SFButton
+        variant="danger"
         size="md"
         onClick={() => setStage("confirm")}
-        className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+        className="w-full sm:w-auto"
       >
         Restart game
-      </Button>
+      </SFButton>
 
       {stage !== "idle" && (
         <Modal>

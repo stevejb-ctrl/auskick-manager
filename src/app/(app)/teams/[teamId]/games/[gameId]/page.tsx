@@ -250,11 +250,16 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </div>
           {canRun && (
             <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
-              {/* Primary CTAs first, stacked. On upcoming games we
-                  surface BOTH "Start game" (hero, black) and "Set
-                  lineup" (white, matches Share gameday link) so the
-                  Saturday-night planning flow is discoverable
-                  without sacrificing the one-tap kickoff path. */}
+              {/* Three-tier visual hierarchy (Steve 2026-05-13):
+                    primary (filled black)  → hero CTA: Start / Open
+                    ghost (border, no fill) → Set lineup AND Share —
+                                              same treatment so they
+                                              read as a matched pair
+                    danger (red border)     → Reset / Delete
+                  Previously every secondary affordance was rendered
+                  with a different button library + override classes,
+                  giving the page four visually distinct treatments
+                  for four near-equivalent actions. */}
               <div className="flex flex-col gap-2">
                 {isUp ? (
                   <>
@@ -269,7 +274,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     <SFButton
                       href={`/teams/${params.teamId}/games/${params.gameId}/live`}
                       variant="ghost"
-                      className="w-full bg-surface sm:w-auto"
+                      className="w-full sm:w-auto"
                     >
                       {planSavedAt ? "Edit lineup plan" : "Set lineup"}
                     </SFButton>

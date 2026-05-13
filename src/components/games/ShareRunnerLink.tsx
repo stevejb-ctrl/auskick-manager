@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { publicOrigin } from "@/lib/platform";
 
 interface ShareRunnerLinkProps {
@@ -30,14 +31,19 @@ export function ShareRunnerLink({ token }: ShareRunnerLinkProps) {
 
   if (!show) {
     return (
-      <Button
-        type="button"
-        variant="secondary"
+      // SFButton ghost so this affordance matches the "Set lineup"
+      // and other secondary buttons on the game-detail page
+      // (Steve 2026-05-13). Previously rendered via the legacy
+      // <Button variant="secondary"> which was a different visual
+      // system — same parent flex row, two button libraries.
+      <SFButton
+        variant="ghost"
         size="md"
         onClick={() => setShow(true)}
+        className="w-full sm:w-auto"
       >
         Share gameday link
-      </Button>
+      </SFButton>
     );
   }
 
