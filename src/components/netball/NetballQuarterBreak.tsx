@@ -665,29 +665,24 @@ export function NetballQuarterBreak({
 
   function handleStart() {
     setError(null);
-    // Validate before firing the period_break_swap. The pre-game
-    // picker already runs the same gate (NetballLineupPicker:206) —
-    // without it here, an empty slot + a benched player slip through
-    // (the suggester always fills every slot, but a coach manually
-    // dragging tiles can leave one open). validateLineup catches the
-    // most common shapes: empty position, doubled-up position, dup
-    // across position+bench. Surfaces the first issue inline.
+    // Validate before opening the modal. The pre-game picker already
+    // runs the same gate (NetballLineupPicker:206) — without it here,
+    // an empty slot + a benched player slip through (the suggester
+    // always fills every slot, but a coach manually dragging tiles
+    // can leave one open). validateLineup catches the most common
+    // shapes: empty position, doubled-up position, dup across
+    // position+bench. Surfaces the first issue inline.
     const validation = netballSport.validateLineup?.(draft, ageGroup);
     if (validation && !validation.ok) {
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
-    // Step 1: commit the lineup snapshot. Surface the await-kickoff
-    // modal once it lands. quarter_start is deferred to the modal CTA
-    // (handleConfirmQuarterStart) so the umpire's whistle — not the
-    // lineup tap — decides when the clock kicks off.
-    enqueueLiveAction("periodBreakSwap", [
-      auth,
-      gameId,
-      nextQuarter,
-      draft,
-      midQuarterSubs,
-    ]);
+    // Open the modal — NO writes yet. Steve 2026-05-13: the
+    // period_break_swap used to commit here, but that made "Back to
+    // lineup" on the modal a dead-end (lineup snapshot already
+    // committed, no way back to the editable QB picker). Both
+    // periodBreakSwap and startNetballQuarter now defer to the
+    // modal's Start handler so cancel is clean.
     setPendingStartQuarter(nextQuarter);
   }
 
@@ -695,6 +690,15 @@ export function NetballQuarterBreak({
     if (pendingStartQuarter === null) return;
     const quarter = pendingStartQuarter;
     setError(null);
+    // Step 1: commit the lineup snapshot.
+    enqueueLiveAction("periodBreakSwap", [
+      auth,
+      gameId,
+      quarter,
+      draft,
+      midQuarterSubs,
+    ]);
+    // Step 2: write quarter_start.
     const { flushed } = enqueueLiveAction("startNetballQuarter", [
       auth,
       gameId,

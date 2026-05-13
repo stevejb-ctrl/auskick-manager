@@ -12,6 +12,7 @@ import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import {
   Eyebrow,
   Guernsey,
@@ -467,19 +468,42 @@ export function LineupPicker({
       ? suggestedMin
       : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
 
-  function handleStart() {
+  // Two-step kickoff (Steve 2026-05-13): tapping "Ready for Q1" used
+  // to fire startGame immediately, writing lineup_set + flipping
+  // status. The LiveGame's StartQuarterModal then asked "Start Q1?"
+  // — but "Back to lineup" on that modal was a dead-end (lineup_set
+  // already committed, no way back to the editable LineupPicker).
+  // Now: Ready opens the modal here, in-place; only Start Q1
+  // commits. "Back to lineup" dismisses the modal cleanly with
+  // zero server state changed.
+  const [startModalOpen, setStartModalOpen] = useState(false);
+
+  function handleOpenStartModal() {
+    setServerError(null);
+    if (onFieldCount === 0) return;
+    setStartModalOpen(true);
+  }
+
+  function handleConfirmStart() {
     setServerError(null);
     const subSeconds = Math.round(effectiveSubMin * 60);
     startTransition(async () => {
+      // startQuarterToo=true → server writes lineup_set AND
+      // quarter_start atomically in one round-trip, then redirects
+      // (team-auth) or returns success (token-auth). The clock
+      // starts via LiveGame's init() auto-resume path on the next
+      // mount because quarterStartedAt is now set.
       const result = await startGame(
         auth,
         gameId,
         lineup,
         subSeconds,
         onFieldSize,
+        true,
       );
       if (result && !result.success) {
         setServerError(result.error);
+        setStartModalOpen(false);
         return;
       }
       if (auth.kind === "token") {
@@ -978,18 +1002,34 @@ export function LineupPicker({
             </div>
           )}
           <SFButton
-            onClick={handleStart}
-            loading={isPending}
-            disabled={onFieldCount === 0}
+            onClick={handleOpenStartModal}
+            disabled={onFieldCount === 0 || isPending}
             variant="accent"
             size="lg"
             full
-            iconAfter={isPending ? undefined : <SFIcon.chevronRight color="currentColor" />}
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
           >
-            {isPending ? "Starting…" : "Ready for Q1"}
+            Ready for Q1
           </SFButton>
         </div>
       </div>
+
+      {/* Await-kickoff modal — owned by LineupPicker (Steve
+          2026-05-13). Renders only after the coach has confirmed
+          their lineup with "Ready for Q1". The modal's "Start Q1"
+          handler runs the actual server commit (lineup_set +
+          quarter_start atomically via startGame's
+          startQuarterToo=true flag). "Back to lineup" just closes
+          the modal — zero server writes, the picker is still
+          editable in the background. */}
+      {startModalOpen && (
+        <StartQuarterModal
+          quarter={1}
+          loading={isPending}
+          onStart={handleConfirmStart}
+          onCancel={() => setStartModalOpen(false)}
+        />
+      )}
 
       {/* Empty-slot picker sheet — opens when the coach taps an
           unfilled position with no player pre-selected. Lists every

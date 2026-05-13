@@ -24,7 +24,6 @@ import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/Walkt
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
 import {
@@ -896,33 +895,13 @@ export function LiveGame({
     ]);
   }
 
-  function handleStartFirstQuarter() {
-    setError(null);
-    const { flushed } = enqueueLiveAction("startQuarter", [auth, gameId, 1]);
-    beginNextQuarter();
-    // Q1 is gated on the StartQuarterModal — the modal is the only
-    // kickoff affordance in pre-game (we removed the duplicate
-    // "Start Q1" button that used to sit on the main UI). The
-    // single tap on the modal both writes the server quarter_start
-    // event AND starts the local clock so the GM doesn't have to
-    // confirm twice.
-    startClock();
-    // Wait for the queue to flush before refreshing — otherwise we
-    // refetch SSR state that doesn't yet include the quarter_start
-    // event, the init effect sees storeAheadOfServer=true and wipes
-    // the optimistic local state. Online: flush is sub-second; the
-    // refresh chains in immediately. Offline: refresh fires when
-    // the network comes back and the queue drains.
-    // Wrap router.refresh in startTransition so the route's
-    // loading.tsx Suspense fallback DOESN'T flash during the
-    // refetch — React preserves the existing UI during a
-    // transition even if the underlying data suspends. Steve
-    // 2026-05-13: the Q-end + end-game "weird screen refresh /
-    // white flash a few seconds after" was the loading.tsx
-    // skeleton briefly replacing the live tree during the
-    // post-flush refresh.
-    flushed.then(() => startTransition(() => router.refresh()));
-  }
+  // handleStartFirstQuarter removed (Steve 2026-05-13): the kickoff
+  // modal that called it now lives inside LineupPicker, which
+  // commits lineup_set + quarter_start atomically via
+  // startGame(..., startQuarterToo=true). When LiveGame mounts
+  // afterwards, init()'s fresh-mount auto-resume branch picks up
+  // the quarter_start timestamp and starts the clock. No
+  // separate handler needed here.
 
   function handlePause() {
     pauseClock();
@@ -989,45 +968,12 @@ export function LiveGame({
   const isFinished = finalised || isAtFullTime;
   const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
-  // Kickoff modal state. The modal opens by DEFAULT whenever the
-  // game is awaiting kickoff (pre-Q1, or post-QuarterBreak before
-  // the clock-start CTA fires) — that's the prominent "Ready for
-  // Q{n}" affordance the GM expects. If they tap "Back to lineup"
-  // the modal closes and a page-level "Start Q{n}" button surfaces
-  // so they can re-trigger when ready. The page button is
-  // INTENTIONALLY hidden while the modal is up — only one kickoff
-  // affordance visible at a time. Reset on every quarter transition
-  // so each new quarter's modal auto-shows.
-  const [startModalDismissed, setStartModalDismissed] = useState(false);
-  // Per-quarter explicit kickoff acknowledgement. Tracks which
-  // quarter has had its "Start Q{n}" button tapped IN THIS SESSION.
-  // Earlier the modal-visibility logic inferred kickoff from
-  // (running && accumulatedMs === 0) — but with init() preserving
-  // accumulatedMs across reloads (so the displayed clock is right
-  // after a refresh), that gate let the modal silently auto-close
-  // a couple of seconds after the QuarterBreak commit. Steve
-  // 2026-05-10: "Rather than having to click 'Start Qx' to start
-  // the quarter, it shows the modal for a couple of seconds and
-  // then automatically starts it. I dont want this." Now the
-  // modal stays put until the coach explicitly taps Start (or
-  // Back to lineup). Page reload mid-quarter is handled by
-  // re-showing the modal — slight UX cost, but no more
-  // auto-progression.
-  const [kickoffAckQuarter, setKickoffAckQuarter] = useState<number | null>(
-    null,
-  );
-  useEffect(() => {
-    setStartModalDismissed(false);
-    // Preserve the ack if it points at the quarter we just entered.
-    // handleStartFirstQuarter / handleStartNextQuarter set the ack
-    // to the about-to-be-current quarter BEFORE calling
-    // beginNextQuarter, which then changes currentQuarter and
-    // triggers this effect. Without the prev-matches check, the
-    // ack would be reset to null right after being set, and the
-    // modal would re-render. (Saw this as a ~50ms flicker that
-    // failed the Q1 "modal hidden after Start tap" e2e spec.)
-    setKickoffAckQuarter((prev) => (prev === currentQuarter ? prev : null));
-  }, [currentQuarter]);
+  // Kickoff modal state used to live here (startModalDismissed +
+  // kickoffAckQuarter + the per-quarter reset effect). Removed
+  // Steve 2026-05-13: the await-kickoff modal is now owned by
+  // LineupPicker (Q1) and QuarterBreak (Q-break), and commits both
+  // writes atomically before LiveGame's init auto-resume kicks the
+  // clock. There's nothing left for LiveGame to ack or dismiss.
 
   // Scroll to the top of the page (= top of the scorebug) when a
   // new quarter goes live. Without this the page inherits the
@@ -1405,25 +1351,6 @@ export function LiveGame({
           conditions fail the strip just doesn't render and the
           sticky bar is shorter. */}
 
-      {/* Page-level "Start Q{n}" trigger — appears ONLY when the
-          GM has dismissed the await-kickoff modal via "Back to
-          lineup", giving them a way to re-open it when they're
-          ready. Hidden while the modal is up so there's only one
-          kickoff affordance visible at a time. */}
-      {!isFinished &&
-        !quarterEnded &&
-        !running &&
-        accumulatedMs === 0 &&
-        startModalDismissed && (
-          <Button
-            className="w-full"
-            onClick={() => setStartModalDismissed(false)}
-            loading={isPending}
-          >
-            Start Q{isPreGame ? 1 : currentQuarter}
-          </Button>
-        )}
-
       {isAtFullTime && (
         <FullTimeReview
           auth={auth}
@@ -1741,61 +1668,15 @@ export function LiveGame({
         </div>
       )}
 
-      {/* Await-kickoff modal — the ONLY kickoff affordance for every
-          quarter. In pre-game (cQ=0, lineup committed via startGame)
-          the modal opens on page load so the GM has a single CTA to
-          tap when the hooter goes — not a duplicate "Start Q1" button
-          on the page that just opens the modal. For Q2–Q4, the modal
-          renders after QuarterBreak commits the lineup + advances the
-          quarter, gating the local clock start on the GM's whistle
-          tap. handleStartFirstQuarter (Q1) writes the server
-          quarter_start AND starts the clock in one step; startClock
-          (Q2–Q4) only starts the local clock since QuarterBreak
-          already wrote the server event. */}
-      {!isFinished &&
-        !quarterEnded &&
-        // A running clock is implicit kickoff — don't ever pop the
-        // modal over an active quarter. Covers fresh-mount auto-
-        // resume (initedGameIdRef branch in the init effect) and
-        // the pause/resume case where the coach taps the clock pill
-        // from inside the quarter. The Q-break advance path leaves
-        // clockStartedAt null, so this guard doesn't suppress the
-        // intended kickoff modal there.
-        clockStartedAt === null &&
-        // Steve 2026-05-13 (iOS bug): opening an in-progress game
-        // → init auto-resumes the clock (clockStartedAt = Date.now())
-        // but never bumps kickoffAckQuarter. The instant the coach
-        // taps the clock pill to pause, clockStartedAt → null and
-        // the old guard let the kickoff modal pop as if entering a
-        // brand-new quarter. accumulatedMs > 0 means the quarter
-        // has logged time already (auto-resume sets it to elapsed-
-        // since-quarter_start), so it's not a fresh kickoff. The
-        // pre-game and Q-break advance paths both leave accumulatedMs
-        // at 0, so the modal still pops in those legitimate cases.
-        accumulatedMs === 0 &&
-        kickoffAckQuarter !== currentQuarter &&
-        !startModalDismissed && (
-          <StartQuarterModal
-            quarter={isPreGame ? 1 : currentQuarter}
-            loading={isPending}
-            onStart={() => {
-              // Mark the quarter we're ABOUT to be in as
-              // kicked-off so a later pause/resume via clock-tap
-              // doesn't re-show the modal. For Q1 pre-game,
-              // handleStartFirstQuarter calls beginNextQuarter
-              // which advances currentQuarter from 0→1, so we
-              // ack 1, not 0. For Q2+, QuarterBreak has already
-              // advanced; currentQuarter is the right value.
-              // The flag is preserved across this advance by the
-              // useEffect's prev-matches check, then cleared on
-              // the NEXT real quarter transition.
-              setKickoffAckQuarter(isPreGame ? 1 : currentQuarter);
-              if (isPreGame) handleStartFirstQuarter();
-              else startClock();
-            }}
-            onCancel={() => setStartModalDismissed(true)}
-          />
-        )}
+      {/* Steve 2026-05-13: the await-kickoff modal used to live here
+          and gate Q1 / Q-break clock start. It was moved INTO
+          LineupPicker (for Q1) and QuarterBreak (for Q-break) so
+          "Back to lineup" can cleanly cancel without leaving the
+          lineup_set / period_break_swap half-committed. After the
+          refactor this surface is never the modal host — the
+          modal commits both writes atomically before redirecting
+          into LiveGame's auto-resume clock path, so by the time
+          LiveGame mounts the clock is already running. */}
 
       {subModalOpen && (
         <SubDueModal onAcknowledge={handleSubModalAcknowledge} />

@@ -124,7 +124,19 @@ export async function startGame(
   gameId: string,
   lineup: Lineup,
   subIntervalSeconds: number,
-  onFieldSize: number
+  onFieldSize: number,
+  /**
+   * When true, atomically writes a `quarter_start` event for Q1 in
+   * the same call. Caller is responsible for setting this only when
+   * the coach has confirmed kickoff (e.g. tapped "Start Q1" on the
+   * StartQuarterModal). Defaults to false so existing call sites
+   * — which expected a separate quarter_start write afterwards —
+   * stay on the legacy two-step commit. Steve 2026-05-13: the
+   * LineupPicker refactor moved both writes behind the modal Start
+   * tap so "Back to lineup" can cleanly cancel without leaving the
+   * lineup_set committed.
+   */
+  startQuarterToo: boolean = false,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -145,6 +157,23 @@ export async function startGame(
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
+
+  if (startQuarterToo) {
+    // Write the quarter_start event in the same call so the
+    // commit is atomic — either both write or neither does. With
+    // this flag, the caller doesn't have to chain a separate
+    // startQuarter() afterwards (which it couldn't anyway because
+    // the redirect below would terminate the request).
+    const { error: qStartError } = await w.supabase
+      .from("game_events")
+      .insert({
+        game_id: gameId,
+        type: "quarter_start",
+        metadata: { quarter: 1 },
+        created_by: w.userId,
+      });
+    if (qStartError) return { success: false, error: qStartError.message };
+  }
 
   await w.supabase
     .from("games")

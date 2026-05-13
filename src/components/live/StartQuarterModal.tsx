@@ -9,10 +9,12 @@ interface StartQuarterModalProps {
   onStart: () => void;
   /**
    * Optional Back/Cancel — dismisses the modal so the GM can adjust
-   * the lineup before kickoff. The page surfaces a "Start Q{n}"
-   * button afterwards to re-show the modal when they're ready.
-   * Without this prop, the modal acts as a one-way commit (legacy
-   * behaviour).
+   * the lineup before kickoff. Now (Steve 2026-05-13) actually
+   * cancels: the modal is hosted by LineupPicker (Q1) or
+   * QuarterBreak (Q-break), and the destructive writes
+   * (lineup_set, quarter_start, period_break_swap) only fire on
+   * `onStart`. Dismissing returns the GM to the editable picker
+   * with zero server state changed.
    */
   onCancel?: () => void;
 }

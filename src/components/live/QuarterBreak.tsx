@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
   addRetroScore,
@@ -113,6 +114,13 @@ export function QuarterBreak({
   const lineup = useLiveGame((s) => s.lineup);
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const setLineup = useLiveGame((s) => s.setLineup);
+  // Started locally inside handleConfirmStart so the clock kicks off
+  // the moment the modal Start tap commits — without it, the LiveGame
+  // mount after refresh would land with clockStartedAt=null (because
+  // beginNextQuarter resets it) and there's no longer a LiveGame
+  // modal to bridge the gap (the dedicated modal was removed when
+  // the kickoff commit moved here). Steve 2026-05-13.
+  const startClock = useLiveGame((s) => s.startClock);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
   // pastQuarterZones is still populated by replayGame + the store
   // (kept in state so the suggester or a future per-quarter view
@@ -683,7 +691,22 @@ export function QuarterBreak({
     return true;
   }
 
-  function handleStart() {
+  // Two-step kickoff (Steve 2026-05-13): "Ready for Q{n+1}" used to
+  // fire recordLineupSet + startQuarter immediately, then the modal
+  // surfaced for the umpire's whistle gate. "Back to lineup" on that
+  // modal was a dead-end — the period_break_swap had already
+  // committed, no way back to the editable QB picker. Now: Ready
+  // opens the modal here; only Start Q{n+1} commits both writes
+  // atomically (lineup_set first, then quarter_start). "Back to
+  // lineup" cleanly cancels — zero server writes.
+  const [startModalOpen, setStartModalOpen] = useState(false);
+
+  function handleOpenStartModal() {
+    setError(null);
+    setStartModalOpen(true);
+  }
+
+  function handleConfirmStart() {
     setError(null);
     // Normalise draft shape before sending (defensive — always full-zones).
     const full: Lineup = { ...emptyLineup(), ...draft };
@@ -692,6 +715,7 @@ export function QuarterBreak({
         const r = await recordLineupSet(auth, gameId, full);
         if (!r.success) {
           setError(r.error);
+          setStartModalOpen(false);
           return;
         }
         setLineup(full);
@@ -699,9 +723,16 @@ export function QuarterBreak({
       const result = await startQuarterAction(auth, gameId, nextQuarter);
       if (!result.success) {
         setError(result.error);
+        setStartModalOpen(false);
         return;
       }
       onStarted();
+      // Start the local clock right away — the modal commit is the
+      // umpire's whistle, no further user action needed. Without
+      // this the LiveGame mount after refresh would land with
+      // clockStartedAt=null (beginNextQuarter resets it) and there's
+      // no longer a LiveGame StartQuarterModal to bridge.
+      startClock();
       // Server-rendered events list is now stale; refresh so the page
       // picks up the new quarter_start event and re-renders into LIVE.
       // Mirrors Plan 05-04's netball fix.
@@ -1529,8 +1560,8 @@ export function QuarterBreak({
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
           <SFButton
-            onClick={handleStart}
-            loading={isPending}
+            onClick={handleOpenStartModal}
+            disabled={isPending}
             variant="accent"
             size="lg"
             full
@@ -1539,6 +1570,21 @@ export function QuarterBreak({
           </SFButton>
         </div>
       </div>
+
+      {/* Await-kickoff modal — owned by QuarterBreak (Steve
+          2026-05-13). Modal "Start Q{n+1}" handler runs both
+          server writes atomically: recordLineupSet (if the draft
+          differs from the committed lineup) then startQuarter.
+          "Back to lineup" closes the modal — no writes, the QB
+          picker is still editable in the background. */}
+      {startModalOpen && (
+        <StartQuarterModal
+          quarter={nextQuarter}
+          loading={isPending}
+          onStart={handleConfirmStart}
+          onCancel={() => setStartModalOpen(false)}
+        />
+      )}
 
       {/* Empty-zone picker sheet — opens when the coach taps a
           "Tap to fill" / "Add player" affordance. Lists every bench
