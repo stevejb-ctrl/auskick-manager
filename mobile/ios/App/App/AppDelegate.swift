@@ -49,12 +49,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // expansion, just at static alpha. Still on-brand, no movement.
         if UIAccessibility.isReduceMotionEnabled { return }
 
-        // Splash image is 2732×2732 displayed scaleAspectFill. The dot
-        // in that image is centered at (1759, 1364) — derived from the
-        // wordmark geometry in scripts/generate-ios-splash.mjs (canvas
-        // centre + half wordmark width + dot offset).
+        // Splash image is 2732×2732 displayed scaleAspectFill. The dot's
+        // actual pixel position is measured (not calculated) by
+        // scripts/generate-ios-splash.mjs after rendering and printed
+        // to stdout for paste-in here. Re-run the script if the splash
+        // is regenerated with different font / sizing, then update these
+        // constants.
+        //
+        // Current values from the generator's last run:
+        //   dot in image: center=(1689, 1365) radius=35
         let imageSize: CGFloat = 2732
-        let dotImagePoint = CGPoint(x: 1759, y: 1364)
+        let dotImagePoint = CGPoint(x: 1689, y: 1365)
         let dotImageRadius: CGFloat = 35
 
         let bounds = splashImageView.bounds
