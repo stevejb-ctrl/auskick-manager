@@ -190,9 +190,26 @@ export default async function LivePage({ params }: LivePageProps) {
     // There's nothing to reset yet, and the page header would just
     // be visual noise on a one-purpose screen.
     const isPreKickoff = state.lineup === null;
+    // Sticky CTA appears in two netball sub-states: pre-kickoff
+    // (NetballLineupPicker has its sticky "Ready for Q1") and at a
+    // Q-break (NetballQuarterBreak has sticky "Ready for Q{n+1}").
+    // Live play + FT review have no sticky bar — skip the pb in
+    // those states so we don't leave 6rem of blank below the last
+    // content. Steve 2026-05-13 specifically asked for "make the
+    // page-wrapper pb conditional on currently at Q-break so live
+    // play doesn't get the extra blank".
+    const hasStickyCTA =
+      isPreKickoff ||
+      (state.quarterEnded &&
+        state.currentQuarter >= 1 &&
+        state.currentQuarter < 4);
 
     return (
-      <div className="space-y-3">
+      <div
+        className={`space-y-3${
+          hasStickyCTA ? " pb-[calc(6rem+env(safe-area-inset-bottom))]" : ""
+        }`}
+      >
         {!isPreKickoff && <GameInfoHeader teamName={teamName} g={g} compact />}
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
@@ -310,9 +327,25 @@ export default async function LivePage({ params }: LivePageProps) {
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
+    // Page-level sticky-bar clearance — only kicks in at a Q-break
+    // (when QuarterBreak renders its sticky "Ready for Q{n+1}" CTA).
+    // Live play + FT review skip the pb so admin/ResetGameButton
+    // sits flush against the safe-area without 6rem of dead space
+    // below it. Steve 2026-05-13: "make the page-wrapper pb
+    // conditional on currently at Q-break so live play doesn't
+    // get the extra blank". Q4 break → FT review (not a Q-break
+    // with a sticky bar), so the upper bound is currentQuarter < 4.
+    const isAtQbreak =
+      state.quarterEnded &&
+      state.currentQuarter >= 1 &&
+      state.currentQuarter < 4;
 
     return (
-      <div className="space-y-3">
+      <div
+        className={`space-y-3${
+          isAtQbreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))]" : ""
+        }`}
+      >
         <GameInfoHeader teamName={teamName} g={g} compact />
         <LiveGame
           auth={{ kind: "team", teamId: params.teamId }}

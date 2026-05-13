@@ -815,7 +815,7 @@ export function NetballQuarterBreak({
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
   return (
-    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="space-y-4">
       {/* Orientation strip — Steve 2026-05-13: mirror the AFL QB
           redesign. The hero card had eyebrow + title + fairness
           number + the 3-button rotation toggle + a mode-hint

@@ -710,7 +710,7 @@ export function QuarterBreak({
   }
 
   return (
-    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="space-y-4">
       {/* Orientation strip — Steve 2026-05-13: the hero card used to
           dominate the QB top, but with the rotation toggle moved out
           (commit ba04bd1) and the fairness number removed in this
