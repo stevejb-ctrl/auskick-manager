@@ -510,7 +510,12 @@ export function QuarterBreak({
     () =>
       loanedIds.length > 0 ||
       injuredIds.length > 0 ||
-      (currentOnFieldSize !== defaultOnFieldSize),
+      currentOnFieldSize !== defaultOnFieldSize ||
+      // Auto-expand when the persisted rotation mode is non-default
+      // — keeps the toggle discoverable for a coach who picked Manual
+      // pre-game (or at an earlier break) and lands on this Q-break
+      // expecting to see why the field came up blank.
+      persistedRotationMode !== "suggested",
   );
   // Lend picker (existing) and injured picker (new) both reuse the
   // same SlotFillSheet shape. State is split so the two pickers
@@ -711,6 +716,13 @@ export function QuarterBreak({
             <p className="mt-0.5 text-lg font-bold text-ink">
               Set zones for Q{nextQuarter}
             </p>
+            <p className="mt-1 text-xs text-ink-dim">
+              {lineupMode === "suggested"
+                ? `Auto-rebalanced for Q${nextQuarter}.`
+                : lineupMode === "keep"
+                  ? `Carrying last quarter's lineup forward.`
+                  : `Blank field — tap an empty slot, then a bench player.`}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold tabular-nums text-brand-600">
@@ -737,54 +749,17 @@ export function QuarterBreak({
             </div>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={lineupMode === "suggested" ? "primary" : "secondary"}
-            onClick={() => {
-              setLineupMode("suggested");
-              setPersistedRotationMode("suggested");
-            }}
-          >
-            {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-          </Button>
-          <Button
-            size="sm"
-            variant={lineupMode === "keep" ? "primary" : "secondary"}
-            // "keep" is a per-Q decision — DON'T persist it to the
-            // store. It's not a default behaviour; it's "I want THIS
-            // quarter's lineup to carry forward". Next Q-break
-            // should fall back to whatever was previously persisted
-            // (suggested or manual).
-            onClick={() => setLineupMode("keep")}
-          >
-            {lineupMode === "keep" ? "✓ Keep last quarter" : "Keep last quarter"}
-          </Button>
-          <Button
-            size="sm"
-            variant={lineupMode === "manual" ? "primary" : "secondary"}
-            onClick={() => {
-              setLineupMode("manual");
-              setPersistedRotationMode("manual");
-            }}
-          >
-            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-ink-dim">
-          {lineupMode === "suggested"
-            ? `Auto-rebalanced for Q${nextQuarter} — least-played zones get priority.`
-            : lineupMode === "keep"
-              ? `Carries last quarter's lineup straight into Q${nextQuarter} — no rotation.`
-              : `Blank field for Q${nextQuarter}. Tap a position, then a bench player to fill it.`}
-        </p>
       </div>
 
-      {/* Match adjustments — collapsed by default. Expanded view
-          contains the on-field size dropdown and the lend-player
-          control. Both are common short-handed scenarios in junior
-          footy / netball, but most quarters don't need either, so
-          we keep this small until the coach asks for it. */}
+      {/* Game settings — collapsed by default. Steve 2026-05-13: the
+          per-break header used to carry the rotation toggle (Suggested/
+          Keep/Manual) + a hint paragraph + the title + fairness, and
+          then the Match-adjustments card sat below with size/lend/
+          injured. That's a lot of noise above the actual zone tiles.
+          Consolidate everything-that-is-a-setting into one collapse
+          named "Game settings" (matching the LineupPicker pattern).
+          The current mode shows up in the collapsed summary line so a
+          coach can tell at a glance what's in effect without expanding. */}
       <div className="rounded-md border border-hairline bg-surface shadow-card">
         <button
           type="button"
@@ -795,14 +770,26 @@ export function QuarterBreak({
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
             <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Match adjustments
+              Game settings
             </span>
             <span className="text-xs text-ink-mute">
-              {currentOnFieldSize} on field
-              {lentPlayers.length > 0 ? ` · ${lentPlayers.length} lent` : ""}
-              {injuredPlayers.length > 0
-                ? ` · ${injuredPlayers.length} injured`
-                : ""}
+              {(() => {
+                // Summary line — only surfaces non-default state so
+                // a default game shows just "Defaults" + chevron and
+                // the coach knows nothing's been touched. Mirrors
+                // the LineupPicker collapse pattern.
+                const bits: string[] = [];
+                if (lineupMode === "manual") bits.push("Manual lineup");
+                else if (lineupMode === "keep") bits.push("Keeping last Q");
+                if (currentOnFieldSize !== defaultOnFieldSize) {
+                  bits.push(`${currentOnFieldSize} on field`);
+                }
+                if (lentPlayers.length > 0)
+                  bits.push(`${lentPlayers.length} lent`);
+                if (injuredPlayers.length > 0)
+                  bits.push(`${injuredPlayers.length} injured`);
+                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+              })()}
             </span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -831,6 +818,50 @@ export function QuarterBreak({
             id="qb-match-adjustments"
             className="space-y-4 border-t border-hairline px-4 py-3"
           >
+            {/* Rotation mode. Lifted from the header card here so the
+                header stays clean. Three modes — Suggested rotates per
+                the fairness scorer (default), Keep carries Q{n} forward
+                unchanged for a one-off "same again" quarter, Manual
+                wipes the field for a from-scratch build. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Rotation</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={lineupMode === "suggested" ? "primary" : "secondary"}
+                  onClick={() => {
+                    setLineupMode("suggested");
+                    setPersistedRotationMode("suggested");
+                  }}
+                >
+                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={lineupMode === "keep" ? "primary" : "secondary"}
+                  // "keep" is a per-Q decision — DON'T persist it to the
+                  // store. It's "I want THIS quarter's lineup carried
+                  // forward", not a default mode. Next Q-break should
+                  // fall back to whatever was previously persisted.
+                  onClick={() => setLineupMode("keep")}
+                >
+                  {lineupMode === "keep"
+                    ? "✓ Keep last quarter"
+                    : "Keep last quarter"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={lineupMode === "manual" ? "primary" : "secondary"}
+                  onClick={() => {
+                    setLineupMode("manual");
+                    setPersistedRotationMode("manual");
+                  }}
+                >
+                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+                </Button>
+              </div>
+            </div>
+
             {/* On-field size dropdown */}
             <div>
               <label
