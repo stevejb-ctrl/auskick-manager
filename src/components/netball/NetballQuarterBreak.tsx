@@ -820,7 +820,7 @@ export function NetballQuarterBreak({
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24">
       {/* Orientation strip — Steve 2026-05-13: mirror the AFL QB
           redesign. The hero card had eyebrow + title + fairness
           number + the 3-button rotation toggle + a mode-hint
@@ -1333,20 +1333,31 @@ export function NetballQuarterBreak({
         </p>
       )}
 
-      <div className="flex justify-end">
-        {/* Two-stage kickoff narrative:
-              Q-break button     "Ready for Q{n}"
-              NetballStartModal  heading "Ready for Q{n}"
-                                  body    "Tap when the umpires call play."
-                                  CTA     "Start Q{n}"
-            "Ready for Q{n}" reads as "lineup is set, we're ready
-            for the next quarter" and matches the modal heading so
-            the transition feels continuous. Distinct from the
-            modal CTA so each tap signals a different intent
-            (commit-lineup → start-clock-on-whistle). */}
-        <Button onClick={handleStart} loading={isPending && pendingStartQuarter === null}>
-          Ready for Q{nextQuarter}
-        </Button>
+      {/* Sticky kickoff CTA — Steve 2026-05-13: pin the primary
+          Ready button to the bottom of the viewport so it's
+          always reachable without scrolling past zones + bench +
+          score panel. Same treatment as the AFL QB so the two
+          sports feel identical. Outer container above gets pb-24
+          so the last in-flow element isn't hidden behind the bar.
+
+          Two-stage kickoff narrative preserved:
+            Q-break button     "Ready for Q{n}"
+            NetballStartModal  heading "Ready for Q{n}"
+                                body    "Tap when the umpires call play."
+                                CTA     "Start Q{n}"
+          Distinct labels so each tap signals a different intent
+          (commit-lineup → start-clock-on-whistle). */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+        <div className="mx-auto max-w-4xl">
+          <Button
+            onClick={handleStart}
+            loading={isPending && pendingStartQuarter === null}
+            className="w-full"
+            size="lg"
+          >
+            Ready for Q{nextQuarter}
+          </Button>
+        </div>
       </div>
 
       {pendingStartQuarter !== null && (

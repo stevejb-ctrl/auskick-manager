@@ -937,7 +937,7 @@ export function LineupPicker({
               size="md"
               iconAfter={<SFIcon.chevronRight color="currentColor" />}
             >
-              {isPending ? "Starting…" : "Start game"}
+              {isPending ? "Starting…" : "Ready for Q1"}
             </SFButton>
           </div>
         </div>

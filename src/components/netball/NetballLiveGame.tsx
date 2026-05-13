@@ -1137,7 +1137,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               });
             })
           }
-          confirmLabel="Start game"
+          confirmLabel="Ready for Q1"
           disabled={isPending}
         />
       </div>

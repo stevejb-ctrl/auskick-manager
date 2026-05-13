@@ -387,7 +387,7 @@ export function NetballLineupPicker({
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-24">
       {/* "Back to availability" breadcrumb — mirrors AFL's
           LineupPicker affordance at src/components/live/LineupPicker.tsx
           lines 190-206. Lets the coach pop back to the game-detail
@@ -525,14 +525,23 @@ export function NetballLineupPicker({
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={handleConfirm}
-        disabled={disabled || saving}
-        className="w-full rounded-lg bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-      >
-        {saving ? "Saving…" : confirmLabel}
-      </button>
+      {/* Sticky kickoff CTA — Steve 2026-05-13: pin the primary
+          Confirm/Start button to the bottom of the viewport so the
+          coach always has a clear happy-path tap without scrolling
+          past the court + bench strip. Same treatment as the AFL
+          pre-game LineupPicker sticky bar. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+        <div className="mx-auto max-w-4xl">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={disabled || saving}
+            className="w-full rounded-lg bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : confirmLabel}
+          </button>
+        </div>
+      </div>
 
       {/* Empty-position picker sheet — opens when the coach taps an
           unfilled court position with no player pre-selected. Lists
