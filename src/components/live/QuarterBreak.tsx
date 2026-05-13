@@ -757,13 +757,15 @@ export function QuarterBreak({
             <span className="text-xs text-ink-mute">
               {(() => {
                 // Summary line — Steve 2026-05-13 follow-up: always
-                // lead with the rotation mode (in plain English) so
-                // the closed header tells the coach what's actually
-                // running. The mode-hint paragraph that used to sit
-                // above the collapse has been removed; this summary
-                // is now the single place mode is communicated when
-                // closed. Size / lent / injured chips follow only
-                // when non-default.
+                // lead with the rotation mode AND always surface
+                // lent/injured status (even when both are zero) so
+                // the closed header doubles as a discovery hint for
+                // what's inside the collapse. A coach who doesn't
+                // know they can lend/mark-injured at the break sees
+                // "No lent · No injured" and learns the affordances
+                // exist. Size still only shows when non-default —
+                // it's a numeric value not a list, the "no" framing
+                // doesn't fit.
                 const bits: string[] = [];
                 if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
@@ -771,10 +773,16 @@ export function QuarterBreak({
                 if (currentOnFieldSize !== defaultOnFieldSize) {
                   bits.push(`${currentOnFieldSize} on field`);
                 }
-                if (lentPlayers.length > 0)
-                  bits.push(`${lentPlayers.length} lent`);
-                if (injuredPlayers.length > 0)
-                  bits.push(`${injuredPlayers.length} injured`);
+                bits.push(
+                  lentPlayers.length > 0
+                    ? `${lentPlayers.length} lent`
+                    : "No lent",
+                );
+                bits.push(
+                  injuredPlayers.length > 0
+                    ? `${injuredPlayers.length} injured`
+                    : "No injured",
+                );
                 return bits.join(" · ");
               })()}
             </span>

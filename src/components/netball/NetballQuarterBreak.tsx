@@ -863,19 +863,25 @@ export function NetballQuarterBreak({
             <span className="text-xs text-ink-mute">
               {(() => {
                 // Summary line — Steve 2026-05-13 follow-up: always
-                // lead with the rotation mode in plain English so
-                // the closed header tells the coach what's running.
-                // Mode-hint paragraph above the collapse was dropped
-                // in the same change; this is now the single source.
-                // Mirrors AFL QB.
+                // lead with rotation mode AND always surface lent/
+                // injured (including "No lent" / "No injured") so
+                // the closed header doubles as a discovery hint for
+                // what's inside. Mirrors AFL QB. No on-field-size
+                // chip — netball is fixed at 7 per the rules.
                 const bits: string[] = [];
                 if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
                 else bits.push("Manual lineup");
-                if (lentPlayers.length > 0)
-                  bits.push(`${lentPlayers.length} lent`);
-                if (injuredPlayersList.length > 0)
-                  bits.push(`${injuredPlayersList.length} injured`);
+                bits.push(
+                  lentPlayers.length > 0
+                    ? `${lentPlayers.length} lent`
+                    : "No lent",
+                );
+                bits.push(
+                  injuredPlayersList.length > 0
+                    ? `${injuredPlayersList.length} injured`
+                    : "No injured",
+                );
                 return bits.join(" · ");
               })()}
             </span>
