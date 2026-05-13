@@ -1,13 +1,10 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
-import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { DeleteGameButton } from "@/components/games/DeleteGameButton";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import { Spinner } from "@/components/ui/Spinner";
 import {
   Eyebrow,
   Guernsey,
@@ -94,7 +91,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
-  const canMarkAvailability = !!role;
   const ageGroup = ageGroupOf(
     (team as { age_group?: string } | null)?.age_group,
   );
@@ -263,8 +259,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <div className="flex flex-col gap-2">
                 {isUp ? (
                   <>
+                    {/* Upcoming games route through /availability first,
+                        which then forwards to /live for the lineup
+                        picker. Two-step pre-game flow: roster ➔ lineup.
+                        Live and completed games skip availability (the
+                        roster is already locked at kickoff). */}
                     <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
                       variant="primary"
                       iconAfter={<SFIcon.chevronRight color="currentColor" />}
                       className="w-full sm:w-auto"
@@ -272,7 +273,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                       Start game
                     </SFButton>
                     <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
                       variant="ghost"
                       className="w-full sm:w-auto"
                     >
@@ -474,23 +475,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         );
       })()}
 
-      {/* ── Availability list (untouched, just below the hero) ───────── */}
-      <Suspense
-        fallback={
-          <div className="flex justify-center py-12">
-            <Spinner size="lg" />
-          </div>
-        }
-      >
-        <AvailabilityList
-          auth={{ kind: "team", teamId: params.teamId }}
-          teamId={params.teamId}
-          gameId={params.gameId}
-          canMarkAvailability={canMarkAvailability}
-          canManageMatch={canManageMatch}
-          showJerseyNumber={sport !== "netball"}
-        />
-      </Suspense>
+      {/* Availability list moved to its own page — see
+          ./availability/page.tsx. The "Start game" / "Set lineup"
+          buttons above route there first; the game detail page
+          itself is now strictly game info + the action row. */}
     </div>
   );
 }
