@@ -914,46 +914,57 @@ export function LineupPicker({
           primary "let's kick off". */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
         <div className="mx-auto flex max-w-4xl flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs sm:gap-4">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-ok" />
-                <span className="font-mono font-bold tabular-nums text-ink">
-                  {onFieldCount}
+          {/* Top row — counts + "Save plan & exit" — only renders for
+              team-auth coaches. Token-auth parent-runners get a
+              single-row footer with just the Ready CTA because
+              (a) they have no "page to exit to" — there's no
+              game-detail page in the runner-token flow, and (b)
+              the "exit" word next to "Ready" freezes them
+              ("will Exit delete the game?"). Steve 2026-05-13
+              usability test (Lisa B4) — matches the existing
+              netball NetballLineupPicker's onSavePlan opt-out. */}
+          {auth.kind === "team" && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-xs sm:gap-4">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-ok" />
+                  <span className="font-mono font-bold tabular-nums text-ink">
+                    {onFieldCount}
+                  </span>
+                  <span className="text-ink-dim">on field</span>
                 </span>
-                <span className="text-ink-dim">on field</span>
-              </span>
-              <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-ink-mute" />
-                <span className="font-mono font-bold tabular-nums text-ink">
-                  {benchCount}
+                <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-ink-mute" />
+                  <span className="font-mono font-bold tabular-nums text-ink">
+                    {benchCount}
+                  </span>
+                  <span className="text-ink-dim">bench</span>
                 </span>
-                <span className="text-ink-dim">bench</span>
-              </span>
-              {savedAt && (
-                <span
-                  className="hidden text-[11px] text-ink-mute sm:inline"
-                  title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
-                >
-                  · Plan saved
-                </span>
-              )}
+                {savedAt && (
+                  <span
+                    className="hidden text-[11px] text-ink-mute sm:inline"
+                    title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
+                  >
+                    · Plan saved
+                  </span>
+                )}
+              </div>
+              <SFButton
+                onClick={handleSavePlan}
+                loading={savePending}
+                disabled={onFieldCount === 0 || isPending}
+                variant="ghost"
+                size="sm"
+              >
+                {savePending
+                  ? "Saving…"
+                  : savedAt
+                  ? "Update plan & exit"
+                  : "Save plan & exit"}
+              </SFButton>
             </div>
-            <SFButton
-              onClick={handleSavePlan}
-              loading={savePending}
-              disabled={onFieldCount === 0 || isPending}
-              variant="ghost"
-              size="sm"
-            >
-              {savePending
-                ? "Saving…"
-                : savedAt
-                ? "Update plan & exit"
-                : "Save plan & exit"}
-            </SFButton>
-          </div>
+          )}
           <SFButton
             onClick={handleStart}
             loading={isPending}
