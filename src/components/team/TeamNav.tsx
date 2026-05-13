@@ -11,12 +11,19 @@ interface TeamNavProps {
 
 /**
  * Renders the team header (back link, name, tab bar) on all team pages.
- * Returns null when in game mode (/live) so the field view gets the full screen.
+ *
+ * Hidden on the in-game surfaces — /live (the field view) and
+ * /availability (the pre-game roster step) — so those screens read
+ * as part of the game flow rather than as another team-browse tab.
+ * The page itself provides its own back-link/return path on those
+ * surfaces.
  */
 export function TeamNav({ teamId, teamName }: TeamNavProps) {
   const pathname = usePathname();
 
-  if (pathname?.endsWith("/live")) return null;
+  if (pathname?.endsWith("/live") || pathname?.endsWith("/availability")) {
+    return null;
+  }
 
   return (
     <div className="space-y-3">
