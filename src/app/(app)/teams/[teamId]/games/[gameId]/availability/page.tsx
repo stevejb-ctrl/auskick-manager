@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
+import { ContinueToLineupButton } from "@/components/games/ContinueToLineupButton";
 import { Spinner } from "@/components/ui/Spinner";
-import { SFButton, SFCard, SFIcon } from "@/components/sf";
+import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
 
 interface AvailabilityPageProps {
@@ -110,19 +111,20 @@ export default async function AvailabilityPage({
       {/* Sticky CTA to the next step. Mirrors the LineupPicker's own
           sticky kickoff bar so the two-step flow feels like a single
           forward-momentum journey. Hidden for parents (no role) — they
-          can only view, not advance. */}
+          can only view, not advance.
+
+          ContinueToLineupButton is a client component that wraps the
+          navigation in useTransition so the button shows the brand
+          pulse + "Loading lineup…" during the ~2s it takes /live's
+          server component to await its DB stack. Without that
+          feedback the tap reads as unresponsive (Steve 2026-05-13). */}
       {canManageMatch && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
           <div className="mx-auto max-w-4xl">
-            <SFButton
-              href={`/teams/${params.teamId}/games/${params.gameId}/live`}
-              variant="primary"
-              size="lg"
-              full
-              iconAfter={<SFIcon.chevronRight color="currentColor" />}
-            >
-              Continue to lineup
-            </SFButton>
+            <ContinueToLineupButton
+              teamId={params.teamId}
+              gameId={params.gameId}
+            />
           </div>
         </div>
       )}
