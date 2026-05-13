@@ -6,6 +6,7 @@ import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { OfflineBanner } from "@/components/live/OfflineBanner";
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
+import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 
 export default async function AppLayout({
   children,
@@ -95,7 +96,10 @@ export default async function AppLayout({
           </div>
         </header>
       </AppHeaderShell>
-      <main className="px-4 py-4">
+      {/* LiveAwareMain drops <main>'s top padding on /live routes
+          so the in-game sticky bar can anchor flush at viewport
+          top:0. Non-live routes keep the original py-4 rhythm. */}
+      <LiveAwareMain>
         {/* Persistent offline strip: invisible when online (zero
             pixels), shows a warn-coloured banner when the device
             is offline. Slice 5 phase 5e — offline taps in the
@@ -105,7 +109,7 @@ export default async function AppLayout({
           <OfflineBanner />
         </div>
         {children}
-      </main>
+      </LiveAwareMain>
       {/* `pb-[calc(...)]` adds the iPhone home-indicator inset on
           top of the 1rem base so the Help link doesn't sit under
           the indicator on iOS. Resolves to plain 1rem on devices

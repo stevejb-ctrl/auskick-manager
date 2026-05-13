@@ -1072,7 +1072,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       ? `/teams/${auth.teamId}/games/${game.id}`
       : `/run/${auth.token}`;
   const topUtilityRow = (
-    <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
         <Link
           href={exitHref}

@@ -1299,7 +1299,7 @@ export function LiveGame({
           Negative inset-x compensates for the parent <main> px-4 so
           the bar can run edge-to-edge and the backdrop-blur reads
           the same way the (app) header did. */}
-      <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
           {exitHref ? (
             <Link
