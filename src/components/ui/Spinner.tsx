@@ -1,31 +1,19 @@
+import { PulseDot } from "@/components/ui/PulseDot";
+
+// Spinner is the legacy name kept for the existing call sites
+// (games list page, game detail page, squad page — every place
+// uses `<Spinner size="lg" />`). The implementation now defers to
+// PulseDot so the brand pulse is the universal loading indicator;
+// the rotating-stroke SVG that lived here previously is gone.
+//
+// New code should prefer `<PulseDot />` directly. This export is
+// just a redirect — keeps the existing pages compiling without
+// per-call-site edits.
 interface SpinnerProps {
   size?: "sm" | "md" | "lg";
   className?: string;
 }
 
-const sizeClasses = { sm: "h-4 w-4", md: "h-6 w-6", lg: "h-8 w-8" };
-
 export function Spinner({ size = "md", className = "" }: SpinnerProps) {
-  return (
-    <svg
-      className={`animate-spin text-brand-600 ${sizeClasses[size]} ${className}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-label="Loading"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      />
-    </svg>
-  );
+  return <PulseDot size={size} className={className} />;
 }
