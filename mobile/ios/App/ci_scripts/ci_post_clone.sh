@@ -22,14 +22,34 @@
 
 set -e
 
+# Retry helper. Xcode Cloud's runner has occasional DNS failures
+# reaching ghcr.io (the Homebrew bottle host) — see Build 40 for a
+# full-blown outage, plus transient blips on a few runs. Each step
+# below is wrapped so a single network hiccup doesn't fail the
+# whole build.
+retry() {
+  local n=1
+  local max=4
+  local delay=10
+  until "$@"; do
+    if [ $n -ge $max ]; then
+      echo "ci_post_clone: '$*' failed $max times, giving up"
+      return 1
+    fi
+    echo "ci_post_clone: '$*' failed (attempt $n/$max), retrying in ${delay}s..."
+    sleep $delay
+    n=$((n + 1))
+  done
+}
+
 # Node 22 is required — Capacitor CLI 8.3+ enforces
 # `engines.node >= 22.0.0` and aborts hard when invoked under
 # Node 20. The Xcode Cloud image still ships Node 20 by default,
 # so we install 22 alongside and force-link it onto PATH so
 # `node` and `npm` resolve to it.
 echo "ci_post_clone: installing Node 22..."
-brew install node@22
-brew link --overwrite --force node@22
+retry brew install node@22
+retry brew link --overwrite --force node@22
 
 echo "ci_post_clone: node=$(node --version) npm=$(npm --version)"
 
@@ -38,11 +58,11 @@ echo "ci_post_clone: node=$(node --version) npm=$(npm --version)"
 # which CapApp-SPM/Package.swift references.
 echo "ci_post_clone: installing mobile deps..."
 cd "$CI_PRIMARY_REPOSITORY_PATH/mobile"
-npm ci
+retry npm ci
 
 # `cap sync ios` regenerates capacitor.config.json + copies plugin
 # native code into the iOS project. Idempotent on re-runs.
 echo "ci_post_clone: running cap sync ios..."
-npx cap sync ios
+retry npx cap sync ios
 
 echo "ci_post_clone: done."
