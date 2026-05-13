@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { saveLineupDraft, startGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import {
+  markLoan,
+  saveLineupDraft,
+  startGame,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -68,6 +72,16 @@ interface LineupPickerProps {
    * while "split" (default) spreads them across zones.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  /**
+   * Players already flagged as lent in the pre-game flow. Derived
+   * from prior `player_loan` events in this game's event log so the
+   * chip survives a page reload. Empty by default for a fresh game.
+   * Steve 2026-05-13: "There's no way to set players as lent in the
+   * initial team picker." This prop + the Lend panel below address
+   * that — toggling here writes the loan event with quarter=1 so it
+   * lights up at kickoff.
+   */
+  initialLoanedIds?: string[];
 }
 
 type Slot = Zone | "bench";
@@ -109,7 +123,88 @@ export function LineupPicker({
   backHref,
   initialDraft,
   chipModeByKey = {},
+  initialLoanedIds = [],
 }: LineupPickerProps) {
+  // Pre-game loaned-player set. Hydrated from any player_loan events
+  // already in the game (e.g. a reload after the coach flagged a
+  // loan on a previous visit). Toggle handler below writes the
+  // event optimistically.
+  const [loanedIds, setLoanedIds] = useState<Set<string>>(
+    () => new Set(initialLoanedIds),
+  );
+  const [lendPickerOpen, setLendPickerOpen] = useState(false);
+  const [loanError, setLoanError] = useState<string | null>(null);
+  const [loanPending, startLoanTransition] = useTransition();
+
+  // Lineup-facing player list — excludes anyone currently flagged as
+  // lent so the suggester won't place them and the bench grid won't
+  // show them. `players` (the raw prop) is still used for lookups
+  // via playersById below.
+  const playersForLineup = useMemo(
+    () => players.filter((p) => !loanedIds.has(p.id)),
+    [players, loanedIds],
+  );
+  const lentPlayers = useMemo(
+    () => players.filter((p) => loanedIds.has(p.id)),
+    [players, loanedIds],
+  );
+
+  function handleLendToggle(playerId: string, nextLoaned: boolean) {
+    setLoanError(null);
+    // Optimistic local update — picker chips reflect the change
+    // instantly. Roll back on server error.
+    setLoanedIds((prev) => {
+      const next = new Set(prev);
+      if (nextLoaned) next.add(playerId);
+      else next.delete(playerId);
+      return next;
+    });
+    // Also yank the player out of any zone/bench so the lineup grid
+    // is consistent with the chip set the suggester sees.
+    if (nextLoaned) {
+      setLineup((prev) => {
+        const next: Lineup = {
+          back: prev.back.filter((id) => id !== playerId),
+          hback: prev.hback.filter((id) => id !== playerId),
+          mid: prev.mid.filter((id) => id !== playerId),
+          hfwd: prev.hfwd.filter((id) => id !== playerId),
+          fwd: prev.fwd.filter((id) => id !== playerId),
+          bench: prev.bench.filter((id) => id !== playerId),
+        };
+        return next;
+      });
+    } else {
+      // Returning a player → put them back on the bench so the coach
+      // can slot them in. Suggester will pick them up next mode-switch.
+      setLineup((prev) => ({
+        ...prev,
+        bench: prev.bench.includes(playerId)
+          ? prev.bench
+          : [...prev.bench, playerId],
+      }));
+    }
+    startLoanTransition(async () => {
+      // Loan applies from the start of Q1. elapsed_ms=0 because the
+      // game hasn't started — the event predates quarter_start, and
+      // replayGame treats it as "loaned from kickoff".
+      const result = await markLoan(auth, gameId, {
+        player_id: playerId,
+        loaned: nextLoaned,
+        quarter: 1,
+        elapsed_ms: 0,
+      });
+      if (!result.success) {
+        // Roll back the optimistic update.
+        setLoanedIds((prev) => {
+          const next = new Set(prev);
+          if (nextLoaned) next.delete(playerId);
+          else next.add(playerId);
+          return next;
+        });
+        setLoanError(result.error);
+      }
+    });
+  }
   // If the coach saved a plan ahead of game day, those values seed
   // the picker. Otherwise we fall back to the age-group default
   // (size) and the suggester (lineup) at first render.
@@ -135,6 +230,8 @@ export function LineupPicker({
 
   // Build a lineup for a given mode + on-field size. Suggested →
   // run the fairness suggester. Manual → all players on bench.
+  // Uses `playersForLineup` (excludes loaned players) so a lent
+  // player won't get auto-placed or appear on the bench grid.
   const buildLineup = (mode: "suggested" | "manual", size: number): Lineup => {
     if (mode === "manual") {
       return {
@@ -143,15 +240,15 @@ export function LineupPicker({
         mid: [],
         hfwd: [],
         fwd: [],
-        bench: players.map((p) => p.id),
+        bench: playersForLineup.map((p) => p.id),
       };
     }
     // Build chip-by-id map from the available players list — picked
     // up by the suggester's chip-spread / chip-group penalty (Phase D).
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    for (const p of players) chipByPlayerId[p.id] = p.chip;
+    for (const p of playersForLineup) chipByPlayerId[p.id] = p.chip;
     return suggestStartingLineup(
-      players,
+      playersForLineup,
       season,
       0,
       zoneCapsFor(size, positionModel),
@@ -416,57 +513,115 @@ export function LineupPicker({
           mode is fully editable via tap-tap-to-swap below; this just
           picks the starting point. The banner copy adapts to the
           chosen mode. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SFButton
-          variant={lineupMode === "suggested" ? "primary" : "subtle"}
-          size="sm"
-          disabled={isPending}
-          onClick={() => handleModeChange("suggested")}
-        >
-          {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
-        </SFButton>
-        <SFButton
-          variant={lineupMode === "manual" ? "primary" : "subtle"}
-          size="sm"
-          disabled={isPending}
-          onClick={() => handleModeChange("manual")}
-        >
-          {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-        </SFButton>
+      {/* Mode toggle + inline hint. Steve 2026-05-13: the previous
+          banner-card hint took up significant vertical space at the
+          top of the picker — coaches who use the page often don't
+          need the explainer. Compact one-liner conveys the gist
+          without dominating the scroll. */}
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SFButton
+            variant={lineupMode === "suggested" ? "primary" : "subtle"}
+            size="sm"
+            disabled={isPending}
+            onClick={() => handleModeChange("suggested")}
+          >
+            {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
+          </SFButton>
+          <SFButton
+            variant={lineupMode === "manual" ? "primary" : "subtle"}
+            size="sm"
+            disabled={isPending}
+            onClick={() => handleModeChange("manual")}
+          >
+            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+          </SFButton>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-ink-dim">
+          {lineupMode === "suggested"
+            ? "Players with less season zone time start. Tap two players to swap, or tap a player then an empty slot."
+            : "Blank field — tap an empty slot, then a bench player to place them. Switch back to Suggested any time."}
+          {onFieldCount < effectiveOnFieldTarget &&
+            ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
+        </p>
       </div>
 
-      <div className="flex items-start gap-3 rounded-lg border border-warn/30 bg-warn-soft p-4 sm:p-5">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warn text-white">
-          <SFIcon.whistle color="white" size={18} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight text-warn">
-            {lineupMode === "suggested"
-              ? "Auto-suggested starting lineup"
-              : "Manual lineup — start from a blank field"}
-          </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-ink/85">
-            {lineupMode === "suggested" ? (
-              <>
-                Players who&apos;ve had less zone time across the season
-                get priority — fairer rotations, fewer kids stuck on
-                the bench. Tap any two players to swap them; tap a
-                player and then an empty slot to move them.
-              </>
-            ) : (
-              <>
-                Every position starts open and the whole squad sits on
-                the bench. Tap an empty slot, then a bench player to
-                place them. Switch back to{" "}
-                <strong className="text-ink">Suggested rotation</strong>{" "}
-                any time to reset.
-              </>
-            )}
-            {onFieldCount < effectiveOnFieldTarget &&
-              ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
-          </p>
+      {/* ── Lend a player ───────────────────────────────────────────────
+          Pre-game lend toggle. Steve 2026-05-13: known short-handed
+          opposition → lend a player from kickoff, not at Q-break.
+          Same UX as the QuarterBreak's Lend chips — current loaners
+          shown as warn-coloured chips with × to recall; "+ Lend a
+          player" opens a SlotFillSheet listing the remaining squad.
+          The action writes a player_loan event with quarter=1 so
+          the loan lights up when Q1 starts. */}
+      <div>
+        <p className="text-xs font-semibold text-ink">Lend a player</p>
+        <p className="mt-0.5 text-xs text-ink-mute">
+          Lent players sit out for the rest of the game until you bring
+          them back.
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {lentPlayers.map((p) => (
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+            >
+              {p.jersey_number != null && (
+                <span className="tabular-nums font-semibold">
+                  {p.jersey_number}
+                </span>
+              )}
+              <span>{p.full_name}</span>
+              <button
+                type="button"
+                onClick={() => handleLendToggle(p.id, false)}
+                disabled={loanPending}
+                aria-label={`Bring ${p.full_name} back`}
+                className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setLendPickerOpen(true)}
+            disabled={loanPending}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+          >
+            <span aria-hidden>+</span>
+            Lend a player
+          </button>
         </div>
+        {loanError && (
+          <p className="mt-1 text-xs text-danger" role="alert">
+            {loanError}
+          </p>
+        )}
       </div>
+
+      {/* Lend-player picker modal — opens from "+ Lend a player". Lists
+          every available squad player not already lent. */}
+      {lendPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Lend"
+          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
+          emptyMessage="Everyone is already lent."
+          candidates={players
+            .filter((p) => !loanedIds.has(p.id))
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => {
+            handleLendToggle(pid, true);
+            setLendPickerOpen(false);
+          }}
+          onCancel={() => setLendPickerOpen(false)}
+        />
+      )}
 
       {/* ── Players on field selector ────────────────────────────────────
           Inline label + dropdown. Less prominent than the pill row —
