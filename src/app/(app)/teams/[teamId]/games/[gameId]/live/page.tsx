@@ -417,6 +417,27 @@ export default async function LivePage({ params }: LivePageProps) {
     .maybeSingle();
   const initialDraft = draftRow as import("@/lib/types").LineupDraft | null;
 
+  // Pre-game lent-player set. Walk this game's player_loan events
+  // (latest per player wins) so the picker chips survive a reload
+  // and a re-entry from elsewhere. Empty for a brand-new game.
+  const initialLoanedIds: string[] = (() => {
+    const latest = new Map<string, { ts: string; loaned: boolean }>();
+    for (const ev of (thisGameEvents ?? []) as GameEvent[]) {
+      if (ev.type !== "player_loan" || !ev.player_id) continue;
+      const meta = (ev.metadata ?? {}) as { loaned?: boolean };
+      const loaned = meta.loaned ?? true;
+      const cur = latest.get(ev.player_id);
+      if (!cur || cur.ts < ev.created_at) {
+        latest.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+    }
+    const out: string[] = [];
+    latest.forEach((v, id) => {
+      if (v.loaned) out.push(id);
+    });
+    return out;
+  })();
+
   return (
     <div className="space-y-4">
       {availablePlayers.length === 0 ? (
@@ -437,6 +458,7 @@ export default async function LivePage({ params }: LivePageProps) {
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
+          initialLoanedIds={initialLoanedIds}
         />
       )}
     </div>
