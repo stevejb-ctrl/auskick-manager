@@ -836,13 +836,11 @@ export function NetballQuarterBreak({
         <p className="mt-0.5 text-lg font-bold text-ink">
           Set positions for Q{nextQuarter}
         </p>
-        <p className="mt-1 text-xs text-ink-dim">
-          {lineupMode === "suggested"
-            ? `Auto-rebalanced for Q${nextQuarter}.`
-            : lineupMode === "keep"
-              ? "Carrying last quarter's lineup forward."
-              : "Court is empty — tap a bench player, then a position."}
-        </p>
+        {/* Mode-hint paragraph removed — the active rotation mode
+            now reads off the Game settings collapsed summary
+            below ("Auto-rebalanced" / "Keeping last Q" / "Manual
+            lineup") so duplicating it here was just noise.
+            Mirrors AFL QB. */}
       </div>
 
       {/* Match adjustments — collapsed by default, auto-opens when
@@ -864,17 +862,21 @@ export function NetballQuarterBreak({
             </span>
             <span className="text-xs text-ink-mute">
               {(() => {
-                // Summary line — folds in rotation, then lent/injured.
-                // Default game shows just "Defaults" so the coach
-                // knows nothing's been touched. Mirrors AFL QB.
+                // Summary line — Steve 2026-05-13 follow-up: always
+                // lead with the rotation mode in plain English so
+                // the closed header tells the coach what's running.
+                // Mode-hint paragraph above the collapse was dropped
+                // in the same change; this is now the single source.
+                // Mirrors AFL QB.
                 const bits: string[] = [];
-                if (lineupMode === "manual") bits.push("Manual lineup");
+                if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
+                else bits.push("Manual lineup");
                 if (lentPlayers.length > 0)
                   bits.push(`${lentPlayers.length} lent`);
                 if (injuredPlayersList.length > 0)
                   bits.push(`${injuredPlayersList.length} injured`);
-                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+                return bits.join(" · ");
               })()}
             </span>
           </span>

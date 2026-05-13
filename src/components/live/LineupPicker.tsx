@@ -557,17 +557,22 @@ export function LineupPicker({
             </span>
             <span className="text-xs text-ink-mute">
               {(() => {
-                // One-line summary of non-defaults. Empty when
-                // everything's at default so the coach sees just
-                // "Game settings" and a chevron — the quietest
-                // possible header for the common case.
+                // Summary line — always lead with the rotation mode
+                // in plain English. "Auto-suggested" for the default
+                // (pre-game equivalent of the QB's "Auto-rebalanced"
+                // — the lineup is the first suggestion, not a
+                // rebalance) so the closed header tells the coach
+                // what's actually in play. Size / lent chips follow
+                // only when non-default. Mirrors the QB collapse.
                 const bits: string[] = [];
-                if (lineupMode !== "suggested") bits.push("Manual lineup");
+                bits.push(
+                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);
                 if (lentPlayers.length > 0)
                   bits.push(`${lentPlayers.length} lent`);
-                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+                return bits.join(" · ");
               })()}
             </span>
           </span>

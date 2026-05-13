@@ -719,23 +719,17 @@ export function QuarterBreak({
           (commit ba04bd1) and the fairness number removed in this
           commit, it had no functional content left worth a bordered
           card. Replace with a flush, no-chrome heading that visually
-          rhymes with the GameInfoHeader strip above it. The mode hint
-          drives off lineupMode so it self-updates when the coach
-          flips Suggested / Keep / Manual in the Game settings
-          collapse below. */}
+          rhymes with the GameInfoHeader strip above it. Steve
+          2026-05-13 (follow-up): mode hint paragraph dropped too —
+          the active mode now reads off the Game settings collapsed
+          header below (e.g. "Auto-rebalanced") so duplicating it
+          here was just noise. */}
       <div className="px-1">
         <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Quarter break
         </p>
         <p className="mt-0.5 text-lg font-bold text-ink">
           Set zones for Q{nextQuarter}
-        </p>
-        <p className="mt-1 text-xs text-ink-dim">
-          {lineupMode === "suggested"
-            ? `Auto-rebalanced for Q${nextQuarter}.`
-            : lineupMode === "keep"
-              ? `Carrying last quarter's lineup forward.`
-              : `Blank field — tap an empty slot, then a bench player.`}
         </p>
       </div>
 
@@ -762,13 +756,18 @@ export function QuarterBreak({
             </span>
             <span className="text-xs text-ink-mute">
               {(() => {
-                // Summary line — only surfaces non-default state so
-                // a default game shows just "Defaults" + chevron and
-                // the coach knows nothing's been touched. Mirrors
-                // the LineupPicker collapse pattern.
+                // Summary line — Steve 2026-05-13 follow-up: always
+                // lead with the rotation mode (in plain English) so
+                // the closed header tells the coach what's actually
+                // running. The mode-hint paragraph that used to sit
+                // above the collapse has been removed; this summary
+                // is now the single place mode is communicated when
+                // closed. Size / lent / injured chips follow only
+                // when non-default.
                 const bits: string[] = [];
-                if (lineupMode === "manual") bits.push("Manual lineup");
+                if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
+                else bits.push("Manual lineup");
                 if (currentOnFieldSize !== defaultOnFieldSize) {
                   bits.push(`${currentOnFieldSize} on field`);
                 }
@@ -776,7 +775,7 @@ export function QuarterBreak({
                   bits.push(`${lentPlayers.length} lent`);
                 if (injuredPlayers.length > 0)
                   bits.push(`${injuredPlayers.length} injured`);
-                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+                return bits.join(" · ");
               })()}
             </span>
           </span>
