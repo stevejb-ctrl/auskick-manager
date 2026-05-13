@@ -1897,7 +1897,12 @@ export function LiveGame({
           symmetric per-team `+G`/`+B` and didn't discover the
           tap-player path on their own. */}
       {pickScorerKind && (() => {
-        const fieldIds = ALL_ZONES.flatMap((z) => lineup[z]);
+        // Scorer picker — Fwd → Centre → Back → Bench order so the
+        // most-likely scorers (forwards) sit at the top of the list
+        // (Steve 2026-05-13). ALL_ZONES is back-to-forward by
+        // default; reverse a local copy here without mutating the
+        // shared constant.
+        const fieldIds = [...ALL_ZONES].reverse().flatMap((z) => lineup[z]);
         const benchIds = lineup.bench;
         // Filter out injured/loaned — they're not on field and
         // shouldn't be credited with a goal in their absence.

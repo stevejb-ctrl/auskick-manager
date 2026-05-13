@@ -4,7 +4,6 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
-import { OfflineBanner } from "@/components/live/OfflineBanner";
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 
@@ -96,20 +95,15 @@ export default async function AppLayout({
           </div>
         </header>
       </AppHeaderShell>
-      {/* LiveAwareMain drops <main>'s top padding on /live routes
-          so the in-game sticky bar can anchor flush at viewport
-          top:0. Non-live routes keep the original py-4 rhythm. */}
-      <LiveAwareMain>
-        {/* Persistent offline strip: invisible when online (zero
-            pixels), shows a warn-coloured banner when the device
-            is offline. Slice 5 phase 5e — offline taps in the
-            live game still queue + replay on reconnect, so this
-            is informational, not blocking. */}
-        <div className="mx-auto mb-3 max-w-4xl">
-          <OfflineBanner />
-        </div>
-        {children}
-      </LiveAwareMain>
+      {/* LiveAwareMain drops <main>'s top padding AND the offline
+          strip's bottom margin on /live routes so the in-game
+          sticky bar can anchor flush at viewport top:0. Non-live
+          routes keep the original py-4 + mb-3 rhythm. The offline
+          banner itself (Slice 5 phase 5e — informational only,
+          taps still queue + replay on reconnect) is rendered
+          INSIDE LiveAwareMain now so the wrapper's margin can be
+          conditional alongside main's padding. */}
+      <LiveAwareMain>{children}</LiveAwareMain>
       {/* `pb-[calc(...)]` adds the iPhone home-indicator inset on
           top of the 1rem base so the Help link doesn't sit under
           the indicator on iOS. Resolves to plain 1rem on devices
