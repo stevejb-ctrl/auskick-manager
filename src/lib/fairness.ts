@@ -822,6 +822,18 @@ export interface GameState {
    * Johnny B stayed in their Q2 zones for Q3.
    */
   lastStintZone: Record<string, Zone>;
+  /**
+   * Per-player, per-completed-quarter ending zone. Keyed
+   * pastQuarterZones[playerId][quarter] = the zone the player was
+   * in when quarter_end fired for that quarter. Players who sat
+   * the whole quarter on the bench are absent (no entry). Drives
+   * the per-quarter colour-coded bar on each player tile at the
+   * Q-break so the coach can see at a glance whether a kid has
+   * been rotated across zones across the game (Steve 2026-05-13).
+   * Built up at each quarter_end; never reset (unlike
+   * lastStintZone which holds only the most-recent ending zone).
+   */
+  pastQuarterZones: Record<string, Record<number, Zone>>;
   injuredIds: string[];
   loanedIds: string[];
   loanStartMs: Record<string, number>;
@@ -854,6 +866,7 @@ export function replayGame(events: GameEvent[]): GameState {
     finalised: false,
     basePlayedZoneMs: {},
     lastStintZone: {},
+    pastQuarterZones: {},
     stintStartMs: {},
     stintZone: {},
     injuredIds: [],
@@ -924,11 +937,20 @@ export function replayGame(events: GameEvent[]): GameState {
       // hydrate-from-events render produces the same signal a
       // never-reloaded session would have.
       state.lastStintZone = {};
+      // The quarter that just ended is whatever currentQuarter
+      // points at right now — quarter_start sets it, quarter_end
+      // doesn't change it.
+      const justEndedQuarter = state.currentQuarter;
       for (const [pid, start] of Object.entries(state.stintStartMs)) {
         const z = state.stintZone[pid];
         if (z) {
           addPlayed(pid, z, elapsed - start);
           state.lastStintZone[pid] = z;
+          // Stamp the ending zone for THIS quarter into the per-
+          // quarter history map. Drives the colour-coded bar on
+          // each player tile at the next Q-break.
+          state.pastQuarterZones[pid] ??= {};
+          state.pastQuarterZones[pid][justEndedQuarter] = z;
         }
       }
       state.stintStartMs = {};

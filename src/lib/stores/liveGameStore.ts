@@ -80,6 +80,14 @@ export interface LiveGameState {
   /** Zone of each player's last on-field stint (parallel to lastStintMs). */
   lastStintZone: Record<string, Zone>;
   /**
+   * Per-player, per-completed-quarter ending zone. Mirrors the same
+   * field on replayGame's GameState — populated at quarter_end and
+   * threaded through init() so the Q-break tiles can render a
+   * colour-coded per-quarter bar (Steve 2026-05-13). Empty by
+   * default.
+   */
+  pastQuarterZones: Record<string, Record<number, Zone>>;
+  /**
    * Zone-locked players: can be subbed on/off but must always return to this zone.
    * Mutually exclusive with lockedIds (field lock).
    */
@@ -207,6 +215,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   lockedIds: [] as string[],
   lastStintMs: {} as Record<string, number>,
   lastStintZone: {} as Record<string, Zone>,
+  pastQuarterZones: {} as Record<string, Record<number, Zone>>,
   zoneLockedPlayers: {} as Record<string, Zone>,
   rotationMode: "suggested" as "suggested" | "manual",
 };
@@ -463,6 +472,15 @@ export const useLiveGame = create<LiveGameState>()(
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const lastStintMs: Record<string, number> = {};
       const lastStintZone: Record<string, Zone> = {};
+      // Clone past-quarter-zones map so we can append THIS quarter's
+      // ending zones without mutating prev state. Mirrors the
+      // replayGame logic in fairness.ts so the local action and the
+      // server replay produce the same map.
+      const pastQuarterZones: Record<string, Record<number, Zone>> = {};
+      for (const [pid, byQ] of Object.entries(prev.pastQuarterZones)) {
+        pastQuarterZones[pid] = { ...byQ };
+      }
+      const justEndedQuarter = prev.currentQuarter;
       for (const [pid, start] of Object.entries(prev.stintStartMs)) {
         const z = prev.stintZone[pid];
         if (!z) continue;
@@ -471,6 +489,8 @@ export const useLiveGame = create<LiveGameState>()(
         basePlayedZoneMs[pid][z] += dur;
         lastStintMs[pid] = dur;
         lastStintZone[pid] = z;
+        pastQuarterZones[pid] ??= {};
+        pastQuarterZones[pid][justEndedQuarter] = z;
       }
       // Flush active loan stints — beginNextQuarter will restart them at 0.
       const basePlayedLoanMs = { ...prev.basePlayedLoanMs };
@@ -489,6 +509,7 @@ export const useLiveGame = create<LiveGameState>()(
         loanStartMs: {},
         lastStintMs,
         lastStintZone,
+        pastQuarterZones,
       };
     }),
 

@@ -114,6 +114,12 @@ export function QuarterBreak({
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   const setLineup = useLiveGame((s) => s.setLineup);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
+  // Per-player per-completed-quarter ending zone. Drives the colour-
+  // coded per-quarter bar on each tile (Steve 2026-05-13). Populated
+  // by replayGame at every quarter_end and by the local store's
+  // endCurrentQuarter action; init() threads the replayed map in on
+  // every refresh.
+  const pastQuarterZones = useLiveGame((s) => s.pastQuarterZones);
   const lastStintMs = useLiveGame((s) => s.lastStintMs);
   const lastStintZone = useLiveGame((s) => s.lastStintZone);
   const lockedIds = useLiveGame((s) => s.lockedIds);
@@ -135,6 +141,10 @@ export function QuarterBreak({
   const slotLabel = (s: Slot) => {
     if (s === "bench") return "Bench";
     if (s === "mid") return "Centre";
+    // Steve 2026-05-13: spell FWD out as Forward. Matches the
+    // "Centre" treatment for mid above so the on-page labels read
+    // as full words rather than abbreviations.
+    if (s === "fwd") return "Forward";
     return ZONE_SHORT_LABELS[s];
   };
 
@@ -1349,14 +1359,10 @@ export function QuarterBreak({
                   const isLoaned = loanedSet.has(pid);
                   const isSidelined = isInjured || isLoaned;
                   const zm = currentGameZoneMins[pid] ?? emptyZM();
-                  // `realTotal` is the sum without the divide-by-zero
-                  // guard. Drives the visible "12:30" label so 0
-                  // shows nothing instead of "0:00 (1)" weirdness.
-                  // `total` keeps the |1 fallback for the bar's
-                  // proportion math (avoids a NaN when nobody has
-                  // played the player yet).
+                  // Total played minutes drives the visible "12:30"
+                  // label — 0 keeps the label hidden rather than
+                  // showing "0:00".
                   const realTotal = zones.reduce((a, z) => a + zm[z], 0);
-                  const total = realTotal || 1;
                   const prevSlot = slotOf(pid, lineup);
                   const moved = prevSlot && prevSlot !== slot;
                   return (
@@ -1423,14 +1429,35 @@ export function QuarterBreak({
                               {fmtMinSec(realTotal)}
                             </span>
                           )}
-                          <span className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt" aria-hidden>
-                            {zones.map((z) => (
-                              <span
-                                key={z}
-                                style={{ width: `${(zm[z] / total) * 100}%` }}
-                                className={ZONE_BAR_COLOR[z]}
-                              />
-                            ))}
+                          {/* Per-quarter zone bar — one segment per
+                              completed quarter, colour-coded to the
+                              zone the player ended that quarter in.
+                              Bench-only quarters render as a grey
+                              segment so the coach can see at a
+                              glance whether a kid has rotated
+                              across zones or sat the bench (Steve
+                              2026-05-13). currentQuarter holds the
+                              just-ended quarter at the Q-break, so
+                              we iterate 1..currentQuarter. */}
+                          <span
+                            className="flex h-3 flex-1 max-w-[72px] gap-px overflow-hidden rounded-full bg-surface-alt"
+                            aria-hidden
+                          >
+                            {Array.from({ length: currentQuarter }, (_, i) => {
+                              const q = i + 1;
+                              const z = pastQuarterZones[pid]?.[q];
+                              return (
+                                <span
+                                  key={q}
+                                  className={`flex-1 ${z ? ZONE_BAR_COLOR[z] : "bg-ink-mute/20"}`}
+                                  title={
+                                    z
+                                      ? `Q${q}: ${slotLabel(z)}`
+                                      : `Q${q}: Bench`
+                                  }
+                                />
+                              );
+                            })}
                           </span>
                         </span>
                       </button>

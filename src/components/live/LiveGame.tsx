@@ -542,6 +542,10 @@ export function LiveGame({
       // computes this at every quarter_end so we just thread it
       // through.
       lastStintZone: initialState.lastStintZone,
+      // Per-player per-quarter zone history (Steve 2026-05-13).
+      // Same replay-from-events path as lastStintZone; threaded
+      // through here so the QB tiles can render the per-quarter bar.
+      pastQuarterZones: initialState.pastQuarterZones,
       stintStartMs: initialState.stintStartMs,
       stintZone: initialState.stintZone,
       injuredIds: initialState.injuredIds,
