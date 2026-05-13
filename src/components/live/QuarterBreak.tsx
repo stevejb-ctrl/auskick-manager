@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import { Guernsey } from "@/components/sf";
+import { Guernsey, SFButton } from "@/components/sf";
 import {
   addRetroScore,
   deleteScore,
@@ -1528,14 +1528,15 @@ export function QuarterBreak({
           same-label buttons broke even an LLM agent. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
-          <Button
+          <SFButton
             onClick={handleStart}
             loading={isPending}
-            className="w-full"
+            variant="accent"
             size="lg"
+            full
           >
             Ready for Q{nextQuarter}
-          </Button>
+          </SFButton>
         </div>
       </div>
 
