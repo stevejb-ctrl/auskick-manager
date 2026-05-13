@@ -6,7 +6,7 @@ import {
   deactivatePlayer,
   reactivatePlayer,
 } from "@/app/(app)/teams/[teamId]/squad/actions";
-import { Button } from "@/components/ui/Button";
+import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { Guernsey } from "@/components/sf";
@@ -162,14 +162,19 @@ export function PlayerRow({
               </div>
             )}
           {serverError && (
-            <p className="w-full text-xs text-danger">{serverError}</p>
+            <p
+              className="w-full rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+              role="alert"
+            >
+              {serverError}
+            </p>
           )}
-          <Button size="sm" loading={isPending} onClick={saveEdit}>
+          <SFButton size="sm" loading={isPending} onClick={saveEdit}>
             Save
-          </Button>
-          <Button size="sm" variant="ghost" disabled={isPending} onClick={cancelEdit}>
+          </SFButton>
+          <SFButton size="sm" variant="ghost" disabled={isPending} onClick={cancelEdit}>
             Cancel
-          </Button>
+          </SFButton>
         </div>
       ) : (
         <>
@@ -188,14 +193,14 @@ export function PlayerRow({
             {player.full_name}
           </span>
           {canEdit && (
-            <Button
+            <SFButton
               size="sm"
               variant="ghost"
               onClick={() => setEditing(true)}
               disabled={isPending}
             >
               Edit
-            </Button>
+            </SFButton>
           )}
         </>
       )}

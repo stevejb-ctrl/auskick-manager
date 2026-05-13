@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
-import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 
 interface DeleteGameButtonProps {
@@ -59,29 +58,32 @@ export function DeleteGameButton({ teamId, gameId }: DeleteGameButtonProps) {
         <li>This can&apos;t be undone.</li>
       </ul>
       {error && (
-        <p className="mt-2 rounded bg-danger/20 px-2 py-1 text-xs text-danger">
+        <p
+          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </p>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button
+        <SFButton
           type="button"
-          variant="danger"
+          variant="alarm"
           size="sm"
           onClick={handleDelete}
           loading={isPending}
         >
           {isPending ? "Deleting…" : "Yes, delete this game"}
-        </Button>
-        <Button
+        </SFButton>
+        <SFButton
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           onClick={() => setStage("idle")}
           disabled={isPending}
         >
           Cancel
-        </Button>
+        </SFButton>
       </div>
     </div>
   );

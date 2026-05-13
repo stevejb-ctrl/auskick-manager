@@ -1590,9 +1590,9 @@ export function QuarterBreak({
                   the scoreline.
                 </p>
                 <div className="mt-4 flex gap-2">
-                  <Button
+                  <SFButton
                     className="flex-1"
-                    variant="danger"
+                    variant="alarm"
                     onClick={() => {
                       const entry = pendingDelete;
                       setPendingDelete(null);
@@ -1600,14 +1600,14 @@ export function QuarterBreak({
                     }}
                   >
                     Delete
-                  </Button>
-                  <Button
+                  </SFButton>
+                  <SFButton
                     className="flex-1"
-                    variant="secondary"
+                    variant="ghost"
                     onClick={() => setPendingDelete(null)}
                   >
                     Cancel
-                  </Button>
+                  </SFButton>
                 </div>
               </div>
             </div>

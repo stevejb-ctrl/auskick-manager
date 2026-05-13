@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 import { publicOrigin } from "@/lib/platform";
 
@@ -60,9 +59,9 @@ export function ShareRunnerLink({ token }: ShareRunnerLinkProps) {
           className="flex-1 rounded border border-hairline bg-surface px-2 py-1 font-mono text-xs text-ink"
           onFocus={(e) => e.currentTarget.select()}
         />
-        <Button type="button" size="sm" onClick={copy}>
+        <SFButton type="button" size="sm" onClick={copy}>
           {copied ? "Copied!" : "Copy"}
-        </Button>
+        </SFButton>
       </div>
     </div>
   );

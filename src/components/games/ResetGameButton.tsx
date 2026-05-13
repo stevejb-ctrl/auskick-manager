@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
-import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
@@ -83,7 +82,7 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
 
           {error && (
             <p
-              className="mt-3 rounded bg-danger/10 px-2 py-1 text-xs text-danger"
+              className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
               role="alert"
             >
               {error}
@@ -92,17 +91,16 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
 
           {stage === "confirm" ? (
             <div className="mt-5 flex flex-col gap-2">
-              <Button
+              <SFButton
                 type="button"
-                variant="secondary"
+                variant="danger"
                 size="md"
                 onClick={() => setStage("final")}
                 disabled={isPending}
-                className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
               >
                 I understand, continue
-              </Button>
-              <Button
+              </SFButton>
+              <SFButton
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -110,20 +108,20 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
                 disabled={isPending}
               >
                 Cancel
-              </Button>
+              </SFButton>
             </div>
           ) : (
             <div className="mt-5 flex flex-col gap-2">
-              <Button
+              <SFButton
                 type="button"
-                variant="danger"
+                variant="alarm"
                 size="md"
                 onClick={handleReset}
                 loading={isPending}
               >
                 {isPending ? "Restarting…" : "Yes, restart this game"}
-              </Button>
-              <Button
+              </SFButton>
+              <SFButton
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -131,7 +129,7 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
                 disabled={isPending}
               >
                 Cancel
-              </Button>
+              </SFButton>
             </div>
           )}
         </Modal>
