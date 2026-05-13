@@ -1322,7 +1322,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           clockText={formatClock(quarterLengthMs)}
           showScores={trackScoring}
         />
-        <p className="text-center text-sm text-neutral-600">
+        <p className="text-center text-sm text-ink-dim">
           Lineup locked. Tap below to ready the kickoff.
         </p>
         {/* Page-level kickoff button sits ABOVE the court, mirroring
@@ -1571,7 +1571,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         );
       })()}
 
-      <p className="text-center text-xs text-neutral-500">
+      <p className="text-center text-xs text-ink-mute">
         {trackScoring
           ? "Tap GS or GA to score (with confirm). Long-press any player for actions. The quarter ends automatically when the clock reaches zero."
           : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}

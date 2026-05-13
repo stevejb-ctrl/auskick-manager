@@ -145,7 +145,7 @@ export function PositionToken({
     : loaned
     ? "border-warn/40 bg-white shadow-card"
     : ineligible
-    ? "border-neutral-300 bg-neutral-100"
+    ? "border-hairline bg-surface-alt"
     : canScore
     ? "border-sky-700 bg-white ring-1 ring-amber-300/70 shadow-card hover:bg-amber-50"
     : "border-hairline bg-white shadow-card hover:border-ink-mute";

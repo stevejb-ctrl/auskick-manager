@@ -123,7 +123,7 @@ function BenchTile({
       ? "border-danger/40 bg-surface"
       : status === "loaned"
       ? "border-warn/40 bg-surface"
-      : "border-hairline bg-white";
+      : "border-hairline bg-surface";
 
   const total = stats ? stats.attack + stats.centre + stats.defence : 0;
   const pct = (v: number) => `${(v / (total || 1)) * 100}%`;

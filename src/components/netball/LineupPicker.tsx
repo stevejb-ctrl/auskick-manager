@@ -610,14 +610,14 @@ function BenchStrip({
   const all = [...bench, ...unassigned];
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-neutral-700">Bench + unassigned</h3>
-        <span className="text-xs text-neutral-500">{bench.length} benched</span>
+        <h3 className="text-sm font-semibold text-ink-dim">Bench + unassigned</h3>
+        <span className="text-xs text-ink-mute">{bench.length} benched</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {all.length === 0 ? (
-          <span className="text-xs italic text-neutral-500">
+          <span className="text-xs italic text-ink-mute">
             Everyone available is placed.
           </span>
         ) : (
@@ -633,7 +633,7 @@ function BenchStrip({
                 className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
                   isSelected
                     ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
-                    : "border-neutral-300 bg-neutral-50 text-neutral-800 hover:bg-neutral-100"
+                    : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
                 }`}
               >
                 {player.full_name}
