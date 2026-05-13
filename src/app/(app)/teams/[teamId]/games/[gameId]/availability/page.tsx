@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { Spinner } from "@/components/ui/Spinner";
-import { Eyebrow, SFButton, SFCard, SFIcon } from "@/components/sf";
+import { SFButton, SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
 
 interface AvailabilityPageProps {
@@ -80,8 +80,7 @@ export default async function AvailabilityPage({
       </Link>
 
       <SFCard>
-        <Eyebrow>Step 1 of 2</Eyebrow>
-        <h1 className="mt-1.5 text-2xl font-bold tracking-tightest text-ink">
+        <h1 className="text-2xl font-bold tracking-tightest text-ink">
           Mark availability
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
