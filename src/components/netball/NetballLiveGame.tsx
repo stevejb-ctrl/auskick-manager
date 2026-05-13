@@ -29,6 +29,7 @@ import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet"
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -1400,8 +1401,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             flushed.then(() => startTransition(() => router.refresh()));
           }}
           disabled={isPending}
-          className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
+          {isPending && <PulseDot size="sm" />}
           {isPending ? "Finalising…" : "Finalise game"}
         </button>
       </div>

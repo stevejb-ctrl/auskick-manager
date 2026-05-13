@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Guernsey } from "@/components/sf";
+import { PulseDot } from "@/components/ui/PulseDot";
 import type { AvailabilityStatus, LiveAuth } from "@/lib/types";
 
 interface AvailabilityRowProps {
@@ -97,10 +98,11 @@ export function AvailabilityRow({
             type="button"
             onClick={handleToggle}
             disabled={isPending}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold transition-opacity ${actionStyles[status]} ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-opacity ${actionStyles[status]} ${
               isPending ? "opacity-60" : ""
             }`}
           >
+            {isPending && <PulseDot size="sm" />}
             {actionLabels[status]}
           </button>
         )}

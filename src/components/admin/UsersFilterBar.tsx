@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
+import { PulseDot } from "@/components/ui/PulseDot";
 import type { ContactTag } from "@/lib/types";
 
 interface UsersFilterBarProps {
@@ -81,7 +82,12 @@ export function UsersFilterBar({ tags }: UsersFilterBarProps) {
           <option value="30d">Last 30 days</option>
           <option value="90d">Last 90 days</option>
         </select>
-        {pending && <span className="text-xs text-ink-mute">Filtering…</span>}
+        {pending && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-ink-mute">
+            <PulseDot size="sm" />
+            Filtering…
+          </span>
+        )}
       </div>
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

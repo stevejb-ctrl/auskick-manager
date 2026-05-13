@@ -81,7 +81,7 @@ export function LoginSentState({
           variant="ghost"
           size="md"
           onClick={onResend}
-          disabled={resending}
+          loading={resending}
         >
           {resending ? "Resending…" : "Resend"}
         </SFButton>

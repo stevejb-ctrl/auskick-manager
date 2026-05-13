@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signInWithOAuth } from "@/lib/auth/signInWithOAuth";
 import { isNative } from "@/lib/platform";
+import { PulseDot } from "@/components/ui/PulseDot";
 
 interface GoogleSignInButtonProps {
   /** Same-origin path to land on after the OAuth round-trip. */
@@ -47,6 +48,7 @@ export function GoogleSignInButton({
       >
         <GoogleGMark className="h-4 w-4" />
         <span>{label}</span>
+        {loading && <PulseDot size="sm" />}
       </button>
       {error && (
         <p className="text-xs text-danger" role="alert">
