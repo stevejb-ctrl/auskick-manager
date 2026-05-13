@@ -30,14 +30,6 @@ export function NativeCookieBridge() {
     // across app launches; rewriting on every mount is cheap and
     // makes us resilient to manual data-clears.
     document.cookie = `${NATIVE_COOKIE_NAME}=1; path=/; max-age=31536000; SameSite=Lax`;
-
-    // `data-native-shell` on <html> is a CSS hook so we can suppress
-    // CSS-side safe-area padding that would otherwise double-up with
-    // the iOS WKWebView's `contentInset: "always"` (set in
-    // mobile/capacitor.config.ts). Without this, content visibly
-    // shifts down by 2x the safe-area inset on iPhone — the
-    // "phantom top gap" Steve hit.
-    document.documentElement.dataset.nativeShell = "true";
   }, []);
 
   return null;
