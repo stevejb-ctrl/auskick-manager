@@ -155,6 +155,32 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
+
+  /* ─── Capacitor iOS / Android shell ─────────────────────────
+     Inside the native WebView, Capacitor's `contentInset:
+     "always"` (mobile/capacitor.config.ts) already shifts the
+     viewport content down by the safe-area inset. Any CSS that
+     ALSO adds `env(safe-area-inset-*)` padding ends up
+     double-padded — visible as the phantom 200-300px band Steve
+     hit above the (app) header at scroll=0.
+
+     NativeCookieBridge flips `html[data-native-shell="true"]`
+     on mount inside the Capacitor shell. These two rules
+     suppress the CSS-side env() padding on elements that opt in
+     via the `safe-area-top` / `safe-area-bottom` data
+     attributes. Web/PWA users still get the CSS env() padding
+     (no marker, no override).
+
+     Authored as plain attribute selectors (not Tailwind
+     variants) so existing Tailwind utilities like
+     `pt-[env(safe-area-inset-top)]` work everywhere and these
+     rules cancel them only when running native. */
+  html[data-native-shell="true"] [data-safe-area-top] {
+    padding-top: 0 !important;
+  }
+  html[data-native-shell="true"] [data-safe-area-bottom] {
+    padding-bottom: 1rem !important;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
