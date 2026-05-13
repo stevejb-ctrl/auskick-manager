@@ -276,7 +276,7 @@ function NextUpHero({
           iconAfter={<SFIcon.chevronRight color="currentColor" />}
           className="w-full sm:w-auto"
         >
-          Set starting lineup
+          Open game
         </SFButton>
       </div>
     </SFCard>
