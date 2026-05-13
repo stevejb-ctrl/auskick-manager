@@ -1072,7 +1072,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       ? `/teams/${auth.teamId}/games/${game.id}`
       : `/run/${auth.token}`;
   const topUtilityRow = (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
+    <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:py-3">
         <Link
           href={exitHref}
@@ -1121,7 +1121,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // coach all the context they need. Keeping the chrome minimal
     // here puts the actual decision (the lineup) front and centre.
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballLineupPicker
@@ -1164,7 +1164,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─── Game finalised ─────────────────────────────────────────
   if (finalised) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1215,7 +1215,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // into the finalised branch above on next render.
   if (quarterEnded && currentQuarter >= 4) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1252,7 +1252,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // writes; we just clear the local overlay/lock state on success.
   if (quarterEnded && currentQuarter < 4) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1331,7 +1331,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // and would record goals against a phantom quarter.
   if (currentQuarter === 0 && !quarterEnded) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1391,7 +1391,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─── Between Q4 and finalise: show finalise button ──────────
   if (quarterEnded && currentQuarter >= 4) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1475,7 +1475,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 px-4 pb-4">
       {topUtilityRow}
       {walkthroughOverlay}
 
