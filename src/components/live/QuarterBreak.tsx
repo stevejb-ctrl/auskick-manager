@@ -180,7 +180,18 @@ export function QuarterBreak({
   //                 builds the next quarter from scratch.
   // All three are fully editable via tap-tap below; the toggle just
   // sets the starting state when the coach lands on the Q-break.
-  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">("suggested");
+  // Initial value defers to the live store's rotationMode (set by
+  // the pre-game LineupPicker) so a coach who picked "Set manually"
+  // pre-game sees Manual at every QB instead of having to re-pick
+  // each break. Map to QB's three modes: store "manual" → "manual",
+  // store "suggested" → "suggested" (no "keep" mapping — keep is a
+  // per-Q decision the coach makes at each break, not a persistent
+  // default).
+  const persistedRotationMode = useLiveGame((s) => s.rotationMode);
+  const setPersistedRotationMode = useLiveGame((s) => s.setRotationMode);
+  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">(
+    persistedRotationMode === "manual" ? "manual" : "suggested",
+  );
 
   const playersById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -730,13 +741,21 @@ export function QuarterBreak({
           <Button
             size="sm"
             variant={lineupMode === "suggested" ? "primary" : "secondary"}
-            onClick={() => setLineupMode("suggested")}
+            onClick={() => {
+              setLineupMode("suggested");
+              setPersistedRotationMode("suggested");
+            }}
           >
             {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
           </Button>
           <Button
             size="sm"
             variant={lineupMode === "keep" ? "primary" : "secondary"}
+            // "keep" is a per-Q decision — DON'T persist it to the
+            // store. It's not a default behaviour; it's "I want THIS
+            // quarter's lineup to carry forward". Next Q-break
+            // should fall back to whatever was previously persisted
+            // (suggested or manual).
             onClick={() => setLineupMode("keep")}
           >
             {lineupMode === "keep" ? "✓ Keep last quarter" : "Keep last quarter"}
@@ -744,7 +763,10 @@ export function QuarterBreak({
           <Button
             size="sm"
             variant={lineupMode === "manual" ? "primary" : "secondary"}
-            onClick={() => setLineupMode("manual")}
+            onClick={() => {
+              setLineupMode("manual");
+              setPersistedRotationMode("manual");
+            }}
           >
             {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
           </Button>

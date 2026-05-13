@@ -18,6 +18,7 @@ import {
   SFCard,
   SFIcon,
 } from "@/components/sf";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import {
   suggestStartingLineup,
@@ -221,6 +222,30 @@ export function LineupPicker({
   // the starting point.
   const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
 
+  // Mirror the local choice into the live store so QuarterBreak
+  // picks it up as its default for every subsequent break. Steve's
+  // request 2026-05-13: "Change from suggested rotation to manually
+  // set (this default would persist across the whole game)."
+  const setRotationMode = useLiveGame((s) => s.setRotationMode);
+
+  // Game-settings collapse. Steve 2026-05-13: the three pre-game
+  // controls (rotation mode, on-field size, lend a player) were
+  // each taking their own row of vertical real estate at the top
+  // of the picker, but for most games they all sit at their
+  // defaults. Group them behind a collapsible "Game settings"
+  // header so the noise drops away when nothing's been changed.
+  // Auto-opens on first render when ANY setting is non-default
+  // (e.g. a coach loaded a draft with manual lineup, or set a
+  // loan before reloading) so the section is discoverable when
+  // it matters.
+  const [gameSettingsOpen, setGameSettingsOpen] = useState(
+    () =>
+      lineupMode !== "suggested" ||
+      (initialDraft?.on_field_size ?? defaultOnFieldSize) !==
+        defaultOnFieldSize ||
+      initialLoanedIds.length > 0,
+  );
+
   // displayZoneCaps — always the default formation, used to render the
   // structural grid. Empty slots = displayCap - actual placements.
   const displayZoneCaps = useMemo(
@@ -288,6 +313,7 @@ export function LineupPicker({
   function handleModeChange(next: "suggested" | "manual") {
     if (next === lineupMode) return;
     setLineupMode(next);
+    setRotationMode(next);
     setLineup(buildLineup(next, onFieldSize));
     setSelected(null);
   }
@@ -507,98 +533,185 @@ export function LineupPicker({
         </Link>
       )}
 
-      {/* ── Build-mode toggle + banner ────────────────────────────────
-          Two-button group lets the coach choose between the fairness-
-          suggested rotation and a from-scratch manual lineup. Either
-          mode is fully editable via tap-tap-to-swap below; this just
-          picks the starting point. The banner copy adapts to the
-          chosen mode. */}
-      {/* Mode toggle + inline hint. Steve 2026-05-13: the previous
-          banner-card hint took up significant vertical space at the
-          top of the picker — coaches who use the page often don't
-          need the explainer. Compact one-liner conveys the gist
-          without dominating the scroll. */}
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SFButton
-            variant={lineupMode === "suggested" ? "primary" : "subtle"}
-            size="sm"
-            disabled={isPending}
-            onClick={() => handleModeChange("suggested")}
-          >
-            {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
-          </SFButton>
-          <SFButton
-            variant={lineupMode === "manual" ? "primary" : "subtle"}
-            size="sm"
-            disabled={isPending}
-            onClick={() => handleModeChange("manual")}
-          >
-            {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-          </SFButton>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-ink-dim">
-          {lineupMode === "suggested"
-            ? "Players with less season zone time start. Tap two players to swap, or tap a player then an empty slot."
-            : "Blank field — tap an empty slot, then a bench player to place them. Switch back to Suggested any time."}
-          {onFieldCount < effectiveOnFieldTarget &&
-            ` Only ${onFieldCount} on field — add late arrivals after kick-off.`}
-        </p>
-      </div>
-
-      {/* ── Lend a player ───────────────────────────────────────────────
-          Pre-game lend toggle. Steve 2026-05-13: known short-handed
-          opposition → lend a player from kickoff, not at Q-break.
-          Same UX as the QuarterBreak's Lend chips — current loaners
-          shown as warn-coloured chips with × to recall; "+ Lend a
-          player" opens a SlotFillSheet listing the remaining squad.
-          The action writes a player_loan event with quarter=1 so
-          the loan lights up when Q1 starts. */}
-      <div>
-        <p className="text-xs font-semibold text-ink">Lend a player</p>
-        <p className="mt-0.5 text-xs text-ink-mute">
-          Lent players sit out for the rest of the game until you bring
-          them back.
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {lentPlayers.map((p) => (
-            <span
-              key={p.id}
-              className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-            >
-              {p.jersey_number != null && (
-                <span className="tabular-nums font-semibold">
-                  {p.jersey_number}
-                </span>
-              )}
-              <span>{p.full_name}</span>
-              <button
-                type="button"
-                onClick={() => handleLendToggle(p.id, false)}
-                disabled={loanPending}
-                aria-label={`Bring ${p.full_name} back`}
-                className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
-              >
-                ×
-              </button>
+      {/* ── Game settings (collapsible) ──────────────────────────────────
+          Steve 2026-05-13: the three pre-game controls (rotation
+          mode, on-field size, lend a player) used to each occupy
+          their own row at the top of the picker, but for most games
+          they all sit at their defaults. Group them behind a single
+          collapsible "Game settings" header so the noise drops away
+          when nothing's been changed. The collapsed header shows a
+          one-line summary of any non-defaults so the coach knows
+          something IS set without having to expand. Mirrors the
+          Match-adjustments collapse on QuarterBreak. */}
+      <div className="rounded-md border border-hairline bg-surface shadow-card">
+        <button
+          type="button"
+          onClick={() => setGameSettingsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
+          aria-expanded={gameSettingsOpen}
+          aria-controls="lineup-game-settings"
+        >
+          <span className="flex flex-1 items-center gap-3 text-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Game settings
             </span>
-          ))}
-          <button
-            type="button"
-            onClick={() => setLendPickerOpen(true)}
-            disabled={loanPending}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+            <span className="text-xs text-ink-mute">
+              {(() => {
+                // One-line summary of non-defaults. Empty when
+                // everything's at default so the coach sees just
+                // "Game settings" and a chevron — the quietest
+                // possible header for the common case.
+                const bits: string[] = [];
+                if (lineupMode !== "suggested") bits.push("Manual lineup");
+                if (onFieldSize !== defaultOnFieldSize)
+                  bits.push(`${onFieldSize} on field`);
+                if (lentPlayers.length > 0)
+                  bits.push(`${lentPlayers.length} lent`);
+                return bits.length > 0 ? bits.join(" · ") : "Defaults";
+              })()}
+            </span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`transition-transform duration-fast ease-out-quart ${
+                gameSettingsOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+
+        {gameSettingsOpen && (
+          <div
+            id="lineup-game-settings"
+            className="space-y-4 border-t border-hairline px-4 py-4"
           >
-            <span aria-hidden>+</span>
-            Lend a player
-          </button>
-        </div>
-        {loanError && (
-          <p className="mt-1 text-xs text-danger" role="alert">
-            {loanError}
-          </p>
+            {/* Rotation mode */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Rotation</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <SFButton
+                  variant={lineupMode === "suggested" ? "primary" : "subtle"}
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => handleModeChange("suggested")}
+                >
+                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
+                </SFButton>
+                <SFButton
+                  variant={lineupMode === "manual" ? "primary" : "subtle"}
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => handleModeChange("manual")}
+                >
+                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+                </SFButton>
+              </div>
+              <p className="mt-1.5 text-xs text-ink-mute">
+                {lineupMode === "suggested"
+                  ? "Auto-rotates each quarter — players with less season zone time start."
+                  : "Blank field at kickoff. This choice persists through the whole game; QuarterBreak respects it too."}
+              </p>
+            </div>
+
+            {/* Players on field */}
+            <div>
+              <Label
+                htmlFor="on-field-size"
+                className="!mb-1 block text-xs font-semibold text-ink"
+              >
+                Players on field
+              </Label>
+              <select
+                id="on-field-size"
+                value={onFieldSize}
+                disabled={isPending}
+                onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+                className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+              >
+                {sizeOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {playingShortHanded && (
+                <p className="mt-1.5 text-xs text-ink-mute">
+                  Empty positions show as dashed slots in each zone — tap an
+                  empty slot first to choose where you&apos;re short.
+                </p>
+              )}
+            </div>
+
+            {/* Lend a player */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Lend a player</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Lent players sit out for the rest of the game until you
+                bring them back.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {lentPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                  >
+                    {p.jersey_number != null && (
+                      <span className="tabular-nums font-semibold">
+                        {p.jersey_number}
+                      </span>
+                    )}
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLendToggle(p.id, false)}
+                      disabled={loanPending}
+                      aria-label={`Bring ${p.full_name} back`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLendPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Lend a player
+                </button>
+              </div>
+              {loanError && (
+                <p className="mt-1 text-xs text-danger" role="alert">
+                  {loanError}
+                </p>
+              )}
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Short on-field hint (always visible — it's a kickoff-day
+          consideration the coach needs to see regardless of whether
+          Game settings is open). */}
+      {onFieldCount < effectiveOnFieldTarget && (
+        <p className="text-xs leading-relaxed text-ink-dim">
+          Only {onFieldCount} on field — add late arrivals after kick-off.
+        </p>
+      )}
 
       {/* Lend-player picker modal — opens from "+ Lend a player". Lists
           every available squad player not already lent. */}
@@ -622,38 +735,6 @@ export function LineupPicker({
           onCancel={() => setLendPickerOpen(false)}
         />
       )}
-
-      {/* ── Players on field selector ────────────────────────────────────
-          Inline label + dropdown. Less prominent than the pill row —
-          most coaches play the recommended size; this is for the
-          short-handed exception. */}
-      <SFCard pad={14}>
-        <div className="flex flex-wrap items-center gap-3">
-          <Label htmlFor="on-field-size" className="!mb-0 shrink-0 text-sm">
-            Players on field
-          </Label>
-          <select
-            id="on-field-size"
-            value={onFieldSize}
-            disabled={isPending}
-            onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
-            className="min-w-0 flex-1 rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
-          >
-            {sizeOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {playingShortHanded && (
-          <p className="mt-2 text-xs text-ink-mute">
-            Empty positions show as dashed slots in each zone — drag a
-            player into one, or tap an empty slot first to choose where
-            you&apos;re short.
-          </p>
-        )}
-      </SFCard>
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2">

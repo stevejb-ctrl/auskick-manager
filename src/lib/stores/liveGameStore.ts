@@ -84,6 +84,17 @@ export interface LiveGameState {
    * Mutually exclusive with lockedIds (field lock).
    */
   zoneLockedPlayers: Record<string, Zone>;
+  /**
+   * Pre-game rotation preference, set in the LineupPicker's Game
+   * settings collapse. "suggested" runs the fairness auto-rotation
+   * at every Q-break; "manual" carries the coach's lineup choice
+   * forward (QB starts blank, coach builds it). Steve 2026-05-13:
+   * picking Manual pre-game should persist through the whole
+   * game so QB doesn't default back to Suggested each break. Per-
+   * session only (resets on reload — persistence via event
+   * metadata is a follow-up).
+   */
+  rotationMode: "suggested" | "manual";
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -102,6 +113,7 @@ export interface LiveGameState {
   applyInjurySwap: (injuredId: string, replacementId: string) => void;
   applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
   setLineup: (lineup: Lineup) => void;
+  setRotationMode: (mode: "suggested" | "manual") => void;
   startClock: () => void;
   pauseClock: () => void;
   beginNextQuarter: () => void;
@@ -196,6 +208,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   lastStintMs: {} as Record<string, number>,
   lastStintZone: {} as Record<string, Zone>,
   zoneLockedPlayers: {} as Record<string, Zone>,
+  rotationMode: "suggested" as "suggested" | "manual",
 };
 
 export const useLiveGame = create<LiveGameState>()(
@@ -367,6 +380,7 @@ export const useLiveGame = create<LiveGameState>()(
       return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone, swapCount: prev.swapCount + 1 };
     }),
 
+  setRotationMode: (mode) => set({ rotationMode: mode }),
   setLineup: (lineup) =>
     set(() => ({
       lineup: cloneLineup(lineup),
