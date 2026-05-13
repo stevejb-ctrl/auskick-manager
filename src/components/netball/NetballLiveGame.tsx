@@ -1522,45 +1522,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Undo last score — toast (8s, dark bg) then persistent chip
-          (muted bg) until the next score replaces it. Mirrors AFL's
-          LiveGame.tsx:855 chip exactly so the affordance is familiar.
-          NETBALL-04: gated on trackScoring — when scoring is suppressed
-          there's no goal flow, so the undo chip never has a reason to
-          render. */}
-      {trackScoring && lastScore && (
-        <div
-          className={`flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
-            undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
-          }`}
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className={`text-xs ${
-              undoToastVisible ? "text-warm/80" : "text-ink-dim"
-            }`}
-          >
-            {undoToastVisible
-              ? `${
-                  lastScore.kind === "team" ? teamName : game.opponent
-                } goal${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
-              : "Undo last score"}
-          </span>
-          <button
-            type="button"
-            onClick={handleUndoLastScore}
-            disabled={isPending}
-            className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
-              undoToastVisible
-                ? "text-warn hover:text-warn/80"
-                : "text-brand-700 hover:text-brand-600"
-            }`}
-          >
-            Undo
-          </button>
-        </div>
-      )}
+      {/* Undo strip moved into the sticky-bottom bar (Steve
+          2026-05-13). Mirrors AFL. NETBALL-04 trackScoring gate
+          applies down there. */}
 
       <CourtDisplay
         lineup={onCourt}
@@ -1702,7 +1666,48 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           below modals (z-50) so confirm sheets still overlay
           cleanly. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
-        <div className="mx-auto max-w-4xl">{liveScoreBug}</div>
+        <div className="mx-auto max-w-4xl">
+          {liveScoreBug}
+          {/* Undo strip — moved here from inline above so the
+              undo affordance lives with the scorebug it's
+              undoing (Steve 2026-05-13). Toast (8s) then
+              persistent chip until the next score replaces it.
+              NETBALL-04 gate applies — when track_scoring=false
+              there's no goal flow + no undo. */}
+          {trackScoring && lastScore && (
+            <div
+              className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
+                undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className={`text-xs ${
+                  undoToastVisible ? "text-warm/80" : "text-ink-dim"
+                }`}
+              >
+                {undoToastVisible
+                  ? `${
+                      lastScore.kind === "team" ? teamName : game.opponent
+                    } goal${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
+                  : "Undo last score"}
+              </span>
+              <button
+                type="button"
+                onClick={handleUndoLastScore}
+                disabled={isPending}
+                className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
+                  undoToastVisible
+                    ? "text-warn hover:text-warn/80"
+                    : "text-brand-700 hover:text-brand-600"
+                }`}
+              >
+                Undo
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

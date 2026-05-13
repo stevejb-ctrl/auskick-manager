@@ -210,8 +210,14 @@ export default async function LivePage({ params }: LivePageProps) {
     // during live play is significantly taller than the simple
     // Ready button, so live play uses 10rem while the other
     // states stay at 6rem. Safe-area inset stacks on top.
+    // 12rem covers scorebug (~110px) + undo strip (~32px) + bar
+    // padding (~10px) + safe-area. The undo strip only renders
+    // when there's a lastScore, so the bar is shorter pre-first-
+    // score — but rather than juggling two pb values, we use the
+    // taller one always. Trivial extra space when undo isn't
+    // rendered; clears properly when it is.
     const stickyPb = isLivePlay
-      ? "pb-[calc(10rem+env(safe-area-inset-bottom))]"
+      ? "pb-[calc(12rem+env(safe-area-inset-bottom))]"
       : "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (
@@ -356,8 +362,14 @@ export default async function LivePage({ params }: LivePageProps) {
     // play scorebug is significantly taller than the Q-break
     // Ready button, so live-play uses 10rem while the Q-break
     // value stays at 6rem. Both stack the safe-area inset on top.
+    // 12rem covers scorebug (~110px) + undo strip (~32px) + bar
+    // padding (~10px) + safe-area. The undo strip only renders
+    // when there's a lastScore, so the bar is shorter pre-first-
+    // score — but rather than juggling two pb values, we use the
+    // taller one always. Trivial extra space when undo isn't
+    // rendered; clears properly when it is.
     const stickyPb = isLivePlay
-      ? "pb-[calc(10rem+env(safe-area-inset-bottom))]"
+      ? "pb-[calc(12rem+env(safe-area-inset-bottom))]"
       : "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (

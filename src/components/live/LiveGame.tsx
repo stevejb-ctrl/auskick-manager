@@ -1353,30 +1353,11 @@ export function LiveGame({
         </SirenPulseHalo>
       )}
 
-      {/* Undo last score — toast (8 s) then persistent chip */}
-      {lastScore && !isPreGame && !isFinished && (
-        <div
-          className={`flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
-            undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
-          }`}
-        >
-          <span className={`text-xs ${undoToastVisible ? "text-warm/80" : "text-ink-dim"}`}>
-            {undoToastVisible
-              ? `${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
-              : "Undo last score"}
-          </span>
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={isPending}
-            className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
-              undoToastVisible ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"
-            }`}
-          >
-            Undo
-          </button>
-        </div>
-      )}
+      {/* Undo strip is rendered inside the sticky-bottom bar
+          during live play (Steve 2026-05-13). The lastScore +
+          isPreGame/isFinished gates apply down there too — when
+          conditions fail the strip just doesn't render and the
+          sticky bar is shorter. */}
 
       {/* Page-level "Start Q{n}" trigger — appears ONLY when the
           GM has dismissed the await-kickoff modal via "Back to
@@ -2103,7 +2084,42 @@ export function LiveGame({
           cleanly on +G / +B taps. */}
       {isLivePlay && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
-          <div className="mx-auto max-w-4xl">{gameHeader}</div>
+          <div className="mx-auto max-w-4xl">
+            {gameHeader}
+            {/* Undo last score — moved into the sticky bar so
+                the affordance lives with the scorebug it's
+                undoing (Steve 2026-05-13: "should also be at
+                the bottom of it, there should be just enough
+                room"). Toast (8s, dark bg) then persistent
+                chip (muted bg) until the next score replaces
+                it. Same gates as before — lastScore present,
+                not pre-game, not finished. */}
+            {lastScore && !isPreGame && !isFinished && (
+              <div
+                className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
+                  undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+                }`}
+              >
+                <span
+                  className={`text-xs ${undoToastVisible ? "text-warm/80" : "text-ink-dim"}`}
+                >
+                  {undoToastVisible
+                    ? `${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
+                    : "Undo last score"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={isPending}
+                  className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
+                    undoToastVisible ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"
+                  }`}
+                >
+                  Undo
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
