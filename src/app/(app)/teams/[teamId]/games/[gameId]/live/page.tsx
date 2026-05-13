@@ -357,19 +357,23 @@ export default async function LivePage({ params }: LivePageProps) {
       state.currentQuarter >= 1 &&
       !state.quarterEnded &&
       !state.finalised;
-    const hasStickyBottom = isAtQbreak || isLivePlay;
+    // Three states now mount a sticky-bottom bar (Steve 2026-05-13):
+    //   - live play  → scorebug
+    //   - Q-break    → "Ready for Q{n+1}" CTA
+    //   - finalised  → "Finish game" CTA (back to dashboard)
+    // FT review (post-Q4, pre-finalise) is intentionally excluded —
+    // the user is still reconciling scores there and we don't want
+    // a competing CTA at the bottom.
+    const isFinalised = state.finalised;
+    const hasStickyBottom = isAtQbreak || isLivePlay || isFinalised;
     // pb size depends on which sticky bar is showing — the live-
-    // play scorebug is significantly taller than the Q-break
-    // Ready button, so live-play uses 10rem while the Q-break
-    // value stays at 6rem. Both stack the safe-area inset on top.
-    // 12rem covers scorebug (~110px) + undo strip (~32px) + bar
-    // padding (~10px) + safe-area. The undo strip only renders
-    // when there's a lastScore, so the bar is shorter pre-first-
-    // score — but rather than juggling two pb values, we use the
-    // taller one always. Trivial extra space when undo isn't
-    // rendered; clears properly when it is.
+    // play scorebug is the tallest, the Q-break and finalised
+    // single-button bars are shorter. Safe-area inset stacks on top.
+    // 9rem covers scorebug (~95-130px depending on undo strip) +
+    // bar padding snugly without the dead space the old 12rem
+    // value created.
     const stickyPb = isLivePlay
-      ? "pb-[calc(12rem+env(safe-area-inset-bottom))]"
+      ? "pb-[calc(9rem+env(safe-area-inset-bottom))]"
       : "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (

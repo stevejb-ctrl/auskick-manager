@@ -1174,7 +1174,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─── Game finalised ─────────────────────────────────────────
   if (finalised) {
     return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1187,23 +1187,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           showScores={trackScoring}
           clockPulseKey={clockPulseKey}
         />
-        <CourtDisplay
-          lineup={onCourt}
-          ageGroup={ageGroup}
-          squadById={squadById}
-          disabled
-          playerStats={playerStats}
-          playerGoals={playerGoals}
-        />
-        <NetballBenchStrip
-          entries={offCourt}
-          playerStats={playerStats}
-          playerGoals={playerGoals}
-        />
-        {/* Full-time summary card — mirrors AFL's GameSummaryCard
-            position (below the live court + bench at FT). Renders a
-            copyable result + per-player time-on-court breakdown so
-            the coach can paste it straight into the team chat. */}
+        {/* CourtDisplay + bench strip removed from the finalised
+            view (Steve 2026-05-13) — the post-game summary doesn't
+            need stale on-court positions, just the scoreboard +
+            shareable recap. The pb on this wrapper clears the
+            sticky "Finish game" CTA below. */}
         <NetballGameSummaryCard
           teamName={teamName}
           opponentName={game.opponent}
@@ -1214,6 +1202,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           squad={squad}
           trackScoring={trackScoring}
         />
+        {/* Sticky-bottom "Finish game" CTA — locks to the viewport
+            so the coach has a big, unmissable exit back to the
+            dashboard. Mirrors the AFL LiveGame finalised flow. */}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+          <div className="mx-auto max-w-4xl">
+            <Link
+              href="/dashboard"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+            >
+              Finish game
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

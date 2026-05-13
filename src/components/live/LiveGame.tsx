@@ -1479,7 +1479,14 @@ export function LiveGame({
         </p>
       )}
 
-      {(() => {
+      {/* Field + Bench layout — hidden at full time (Steve
+          2026-05-13: the post-Q4 FullTimeReview + GameSummaryCard
+          surfaces don't need the on-court layout, it just pads the
+          screen with stale state). The IIFE early-returns null
+          when isFinished so the SwapCard + Field + Bench fragment
+          stays off the FT review and finalised game-summary
+          views. Live play and Q-break still get the field. */}
+      {!isFinished && (() => {
         const swapOffs = new Map<string, number>();
         const swapOns = new Map<string, { pair: number; zone: Zone }>();
         if (!selected) {
@@ -2209,6 +2216,27 @@ export function LiveGame({
           iPhone home indicator. z-30 sits below the SlotFillSheet
           (z-50) so the player-attribution picker still overlays
           cleanly on +G / +B taps. */}
+      {/* Sticky-bottom "Finish game" CTA — locks to viewport bottom
+          on the finalised summary screen so the coach has a big,
+          unmissable exit back to the dashboard after the game's
+          done (Steve 2026-05-13). Same fixed-bar pattern as the
+          live-play scorebug + the QB Ready button. Renders ONLY
+          when `finalised` (not during the FullTimeReview reconcile
+          step — that screen still needs the user's full attention
+          on the score grid). */}
+      {finalised && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+          <div className="mx-auto max-w-4xl">
+            <Link
+              href="/dashboard"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+            >
+              Finish game
+            </Link>
+          </div>
+        </div>
+      )}
+
       {isLivePlay && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
           <div className="mx-auto max-w-4xl">
