@@ -767,15 +767,10 @@ export function NetballQuarterBreak({
     () => squad.filter((p) => injuredIds.has(p.id)),
     [squad, injuredIds],
   );
-  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
-    () =>
-      lentPlayers.length > 0 ||
-      injuredPlayersList.length > 0 ||
-      // Auto-expand when the persisted rotation mode is non-default
-      // so a coach who picked Manual pre-game (or at an earlier
-      // break) lands and immediately sees the toggle. Mirrors AFL QB.
-      persistedRotationMode !== "suggested",
-  );
+  // Always start closed (Steve 2026-05-13). The collapsed-header
+  // summary spells out the active state in plain English so a
+  // coach can tell what's set without expanding. Mirrors AFL QB.
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
   const [lendPickerOpen, setLendPickerOpen] = useState(false);
   const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
@@ -820,7 +815,7 @@ export function NetballQuarterBreak({
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Orientation strip — Steve 2026-05-13: mirror the AFL QB
           redesign. The hero card had eyebrow + title + fairness
           number + the 3-button rotation toggle + a mode-hint
@@ -1355,7 +1350,7 @@ export function NetballQuarterBreak({
                                 CTA     "Start Q{n}"
           Distinct labels so each tap signals a different intent
           (commit-lineup → start-clock-on-whistle). */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
           <Button
             onClick={handleStart}

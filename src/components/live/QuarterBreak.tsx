@@ -513,17 +513,15 @@ export function QuarterBreak({
   // existed but was closed and so invisible. Auto-opening when
   // there's an active state makes the management surface
   // discoverable exactly when you need it.
-  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(
-    () =>
-      loanedIds.length > 0 ||
-      injuredIds.length > 0 ||
-      currentOnFieldSize !== defaultOnFieldSize ||
-      // Auto-expand when the persisted rotation mode is non-default
-      // — keeps the toggle discoverable for a coach who picked Manual
-      // pre-game (or at an earlier break) and lands on this Q-break
-      // expecting to see why the field came up blank.
-      persistedRotationMode !== "suggested",
-  );
+  // Steve 2026-05-13: always start the Game settings collapse closed.
+  // Previously the initialiser auto-expanded when ANY setting was
+  // non-default (lent / injured / size / rotation mode), but the
+  // collapsed-header summary now spells out the active state in
+  // plain English ("Auto-rebalanced · 1 lent · No injured") which
+  // removes the discoverability problem the auto-expand was solving.
+  // Always-closed-by-default keeps the QB visually quiet and
+  // predictable across every quarter break.
+  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
   // Lend picker (existing) and injured picker (new) both reuse the
   // same SlotFillSheet shape. State is split so the two pickers
   // don't fight if a coach somehow opens both.
@@ -713,7 +711,7 @@ export function QuarterBreak({
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Orientation strip — Steve 2026-05-13: the hero card used to
           dominate the QB top, but with the rotation toggle moved out
           (commit ba04bd1) and the fairness number removed in this
@@ -1525,7 +1523,7 @@ export function QuarterBreak({
           Distinct labels so a coach taps each one knowing what
           it does (commit-lineup vs start-clock). Stagehand showed
           same-label buttons broke even an LLM agent. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
           <Button
             onClick={handleStart}

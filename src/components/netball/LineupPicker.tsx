@@ -387,7 +387,7 @@ export function NetballLineupPicker({
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
-    <div className="flex flex-col gap-4 pb-24">
+    <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* "Back to availability" breadcrumb — mirrors AFL's
           LineupPicker affordance at src/components/live/LineupPicker.tsx
           lines 190-206. Lets the coach pop back to the game-detail
@@ -530,7 +530,7 @@ export function NetballLineupPicker({
           coach always has a clear happy-path tap without scrolling
           past the court + bench strip. Same treatment as the AFL
           pre-game LineupPicker sticky bar. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl">
           <button
             type="button"

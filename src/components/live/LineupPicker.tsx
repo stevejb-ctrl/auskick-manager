@@ -228,23 +228,12 @@ export function LineupPicker({
   // set (this default would persist across the whole game)."
   const setRotationMode = useLiveGame((s) => s.setRotationMode);
 
-  // Game-settings collapse. Steve 2026-05-13: the three pre-game
-  // controls (rotation mode, on-field size, lend a player) were
-  // each taking their own row of vertical real estate at the top
-  // of the picker, but for most games they all sit at their
-  // defaults. Group them behind a collapsible "Game settings"
-  // header so the noise drops away when nothing's been changed.
-  // Auto-opens on first render when ANY setting is non-default
-  // (e.g. a coach loaded a draft with manual lineup, or set a
-  // loan before reloading) so the section is discoverable when
-  // it matters.
-  const [gameSettingsOpen, setGameSettingsOpen] = useState(
-    () =>
-      lineupMode !== "suggested" ||
-      (initialDraft?.on_field_size ?? defaultOnFieldSize) !==
-        defaultOnFieldSize ||
-      initialLoanedIds.length > 0,
-  );
+  // Game-settings collapse. Steve 2026-05-13 (follow-up): always
+  // start closed. The collapsed-header summary now spells out the
+  // active state in plain English ("Auto-suggested · No lent" or
+  // "Manual lineup · 1 lent") which makes the discoverability
+  // auto-expand was solving unnecessary.
+  const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
 
   // displayZoneCaps — always the default formation, used to render the
   // structural grid. Empty slots = displayCap - actual placements.
@@ -522,7 +511,7 @@ export function LineupPicker({
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {backHref && (
         <Link
           href={backHref}
@@ -899,7 +888,7 @@ export function LineupPicker({
       )}
 
       {/* ── Sticky availability + Start CTA ──────────────────────────── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 py-3 shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:py-4">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs sm:gap-4">
             <span className="inline-flex items-center gap-1.5">
