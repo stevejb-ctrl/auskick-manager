@@ -146,6 +146,12 @@ export function PlayerTile({
         dimmed && !selected ? "opacity-40" : "",
         injured || loaned ? "grayscale" : "",
         !onClick && !onLongPress ? "cursor-default" : "",
+        // Pointer-down shrinks the tile to 97% so the tap registers
+        // visually before the click resolves. `transition-all` above
+        // animates the spring-back to 100% on release. Skipped when
+        // the tile is non-interactive (no onClick/onLongPress) so
+        // disabled tiles don't tease a tap response.
+        onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "",
       ].join(" ")}
     >
       {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
