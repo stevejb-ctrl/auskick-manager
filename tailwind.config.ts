@@ -197,6 +197,16 @@ const config: Config = {
           "0%":   { opacity: "1" },
           "100%": { opacity: "0" },
         },
+        // List-row arrival — 50px translateX + opacity 0→1. Used by
+        // FillInRow when a new row appears in the AvailabilityList
+        // (and reusable for other list-adds: late arrivals, new
+        // squad members, etc.). The +50px starts the row slightly
+        // off to the right; ease-out-quart settles it into place.
+        // P1-3 in MICRO-INTERACTIONS-PLAN.md.
+        slideInRight: {
+          from: { transform: "translateX(50px)", opacity: "0" },
+          to:   { transform: "translateX(0)",    opacity: "1" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -233,6 +243,11 @@ const config: Config = {
         // tint that fades over 400ms after a successful state
         // change (availability toggle, list-row commit).
         "bg-flash":        "bgFlash 400ms ease-out both",
+        // List-row arrival entry — used on list items that mount as
+        // a result of a user action (fill-in added, late arrival
+        // joined). 220ms is the project's "small surface change"
+        // speed budget.
+        "slide-in-right":  "slideInRight 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
       letterSpacing: {
         tightest: "-0.02em",
