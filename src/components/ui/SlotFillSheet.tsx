@@ -99,14 +99,26 @@ export function SlotFillSheet({
       // underlying Modal, and the modal's own dimmed backdrop
       // stays visible underneath as context. Steve 2026-05-13
       // usability test (Mike B5).
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4"
+      //
+      // P0-5 (2026-05-15): the backdrop fades in (350ms) so the
+      // dim arrives gracefully rather than slamming on. The inner
+      // sheet has its own entrance animation below.
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
       onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div
-        className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal"
+        // Inner sheet entrance — mobile rides up from the bottom
+        // edge (240ms, full sheet height); desktop pops in place
+        // (200ms, scale 0.96 → 1 + fade). The two animations
+        // share the same `ease-out-quart` curve so the bottom-
+        // anchored mobile sheet and centered desktop sheet read
+        // as the same component with the right geometry for each
+        // form factor. P0-5 in
+        // .planning/MICRO-INTERACTIONS-PLAN.md.
+        className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal motion-safe:animate-sheet-up-mobile sm:motion-safe:animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-hairline px-5 py-4">

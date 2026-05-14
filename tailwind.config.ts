@@ -166,6 +166,25 @@ const config: Config = {
           from: { transform: "translateY(8px)", opacity: "0" },
           to:   { transform: "translateY(0)",   opacity: "1" },
         },
+        // Bottom-anchored sheet entrance — the WHOLE sheet slides
+        // up from below the viewport edge. Used by SlotFillSheet on
+        // mobile (`items-end`). Distinct from `sheetUp` above which
+        // is a subtle nudge for centered modals; this one is the
+        // full iOS-style action-sheet rise.
+        sheetUpMobile: {
+          from: { transform: "translateY(100%)" },
+          to:   { transform: "translateY(0)" },
+        },
+        // Centered-modal entrance with a slight scale-and-fade.
+        // Used by SlotFillSheet on `sm:` and above (where the sheet
+        // is centered rather than bottom-anchored). Stripe-pattern
+        // pop — readable as "this just appeared with intent" rather
+        // than as a snap. Scale starts at 0.96 to avoid a noticeable
+        // size jump.
+        popIn: {
+          from: { transform: "scale(0.96)", opacity: "0" },
+          to:   { transform: "scale(1)",    opacity: "1" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -190,7 +209,14 @@ const config: Config = {
         // Modal / sheet entrance — used by Modal.tsx + (in PR 6,
         // P0-5) SlotFillSheet.tsx. 220ms is the project's
         // "sheet/modal entry" speed budget per the plan.
-        "sheet-up":   "sheetUp 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "sheet-up":        "sheetUp 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        // SlotFillSheet variants. Mobile sheets ride up from the
+        // bottom edge at 240ms (the slightly longer duration is
+        // earned by the much larger geometric travel — 100% of the
+        // sheet height vs an 8px nudge). Desktop sheets pop in
+        // place at 200ms.
+        "sheet-up-mobile": "sheetUpMobile 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "pop-in":          "popIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
       letterSpacing: {
         tightest: "-0.02em",
