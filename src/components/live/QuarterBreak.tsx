@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
+import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
@@ -1518,38 +1519,19 @@ export function QuarterBreak({
 
       {error && <InlineAlert>{error}</InlineAlert>}
 
-      {/* Sticky kickoff CTA — Steve 2026-05-13: "lets create a big
-          sticky button at the bottom 'ready for Q1/2/3/4' so there
-          is a clear happy path for the user to work through". The
-          button used to sit inline at the bottom of the scroll, so
-          on a long QB (lots of zones, lots of players, score panel
-          expanded) the coach had to scroll past everything to reach
-          it. Pin it to the bottom of the viewport with the same
-          sticky-bar treatment the pre-game LineupPicker uses. The
-          outer container above gets pb-24 so the last in-flow
-          element isn't hidden behind the bar.
-
-          Two-stage kickoff narrative preserved:
-            Q-break button "Ready for Q{n}"  → opens StartQuarterModal
-            Modal heading   "Ready for Q{n}"
-            Modal body      "Tap when the hooter goes."
-            Modal CTA       "Start Q{n}"
-          Distinct labels so a coach taps each one knowing what
-          it does (commit-lineup vs start-clock). Stagehand showed
-          same-label buttons broke even an LLM agent. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-        <div className="mx-auto max-w-4xl">
-          <SFButton
-            onClick={handleOpenStartModal}
-            disabled={isPending}
-            variant="accent"
-            size="lg"
-            full
-          >
-            Ready for Q{nextQuarter}
-          </SFButton>
-        </div>
-      </div>
+      {/* Sticky kickoff CTA — chrome owned by the shared
+          QuarterKickoffBar (Phase 4b extraction). Opens
+          StartQuarterModal; the modal commits both writes
+          atomically (recordLineupSet if draft differs +
+          startQuarter). Distinct labels at each tap so a coach
+          knows what each does (commit-lineup vs start-clock —
+          Stagehand showed same-label buttons broke even an LLM
+          agent). */}
+      <QuarterKickoffBar
+        onConfirm={handleOpenStartModal}
+        confirmLabel={`Ready for Q${nextQuarter}`}
+        disabled={isPending}
+      />
 
       {/* Await-kickoff modal — owned by QuarterBreak (Steve
           2026-05-13). Modal "Start Q{n+1}" handler runs both

@@ -26,6 +26,7 @@ import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
+import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
@@ -1338,19 +1339,11 @@ export function NetballQuarterBreak({
                                 CTA     "Start Q{n}"
           Distinct labels so each tap signals a different intent
           (commit-lineup → start-clock-on-whistle). */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-        <div className="mx-auto max-w-4xl">
-          <SFButton
-            onClick={handleStart}
-            loading={isPending && pendingStartQuarter === null}
-            variant="accent"
-            size="lg"
-            full
-          >
-            Ready for Q{nextQuarter}
-          </SFButton>
-        </div>
-      </div>
+      <QuarterKickoffBar
+        onConfirm={handleStart}
+        confirmLabel={`Ready for Q${nextQuarter}`}
+        loading={isPending && pendingStartQuarter === null}
+      />
 
       {pendingStartQuarter !== null && (
         <NetballStartQuarterModal
