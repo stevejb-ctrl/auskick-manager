@@ -12,6 +12,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
+import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
@@ -2180,6 +2181,14 @@ export function LiveGame({
           </div>
         </div>
       )}
+
+      {/* First-time onboarding hint for the long-press affordance.
+          Self-dismisses on first long-press / Got-it tap / 12s. The
+          hint reads localStorage on mount and never re-shows after
+          dismissal. P1.5-3 in MICRO-INTERACTIONS-PLAN.md. Gated on
+          isLivePlay so it doesn't appear during pre-game (no
+          long-press flow there) or post-game (the gesture is moot). */}
+      <LongPressHint enabled={isLivePlay} />
     </div>
   );
 }

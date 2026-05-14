@@ -7,6 +7,7 @@ import { ZONE_SHORT } from "@/components/live/Field";
 import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import { hapticTap } from "@/lib/haptics";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -89,6 +90,11 @@ export function PlayerTile({
       // callback so the buzz lands BEFORE any UI change (modal
       // open, sheet rise) that the callback might trigger.
       void hapticTap("light");
+      // Tells LongPressHint (P1.5-3) the user discovered the
+      // gesture, so the hint chip self-dismisses + sets its
+      // localStorage flag. Window CustomEvent so the hint
+      // doesn't need any prop wiring.
+      dispatchLongPressEvent();
       onLongPress();
     }, 500);
   }
