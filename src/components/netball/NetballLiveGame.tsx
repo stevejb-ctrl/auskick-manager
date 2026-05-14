@@ -282,6 +282,29 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // triggerKey is null.
   const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
 
+  // Bumped on the pre-game → Q1 transition. Drives Court's
+  // `wakeUpKey` prop — one-shot brand halo around the court
+  // perimeter at the moment the umpire's whistle goes. Null on
+  // every fresh page load so a coach landing mid-game doesn't
+  // see a phantom celebration; only a real isPreGame → !isPreGame
+  // flip fires the pulse. Mirrors AFL LiveGame's
+  // `fieldWakeUpKey` (P1.5-5 / commit 753c2a4).
+  const [courtWakeUpKey, setCourtWakeUpKey] = useState<number | null>(null);
+  const prevIsPreGameRef = useRef<boolean | null>(null);
+  // Detect the pre-game → Q1 transition. First effect run captures
+  // the initial isPreGame value (null → current) WITHOUT firing —
+  // a freshly-mounted live view with currentQuarter > 0 (e.g. page
+  // reload mid-game) shouldn't pulse just because it appeared. Only
+  // a real flip from currentQuarter === 0 to currentQuarter > 0
+  // fires the halo. Mirrors AFL LiveGame (commit 753c2a4).
+  useEffect(() => {
+    const isPreGame = currentQuarter === 0;
+    if (prevIsPreGameRef.current === true && !isPreGame) {
+      setCourtWakeUpKey((k) => (k === null ? 1 : k + 1));
+    }
+    prevIsPreGameRef.current = isPreGame;
+  }, [currentQuarter]);
+
   // Manual "End Q early" confirmation gate. Opens when the coach
   // taps the End-Q-early chip on the score-bug (only visible when
   // paused). Confirming fires endNetballQuarter with the full
@@ -1594,6 +1617,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         playerStats={playerStats}
         playerGoals={playerGoals}
         positionPulseKeys={positionPulseKeys}
+        wakeUpKey={courtWakeUpKey}
       />
 
       <NetballBenchStrip
@@ -2038,6 +2062,7 @@ function CourtDisplay({
   playerStats,
   playerGoals,
   positionPulseKeys,
+  wakeUpKey,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -2074,6 +2099,13 @@ function CourtDisplay({
    * one halo on the position that just changed.
    */
   positionPulseKeys?: Record<string, string>;
+  /**
+   * Bumped by the parent on the pre-game → Q1 transition. Drives
+   * Court's `wakeUpKey` — one-shot brand halo at kickoff. Null
+   * (default) on Q-end / FT / read-only renders so the celebration
+   * fires exactly once. Mirrors AFL Field.wakeUpKey (P1.5-5).
+   */
+  wakeUpKey?: number | null;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
@@ -2126,6 +2158,7 @@ function CourtDisplay({
       attackThird={renderThird(byThird("attack-third"))}
       centreThird={renderThird(byThird("centre-third"))}
       defenceThird={renderThird(byThird("defence-third"))}
+      wakeUpKey={wakeUpKey ?? null}
     />
   );
 }
