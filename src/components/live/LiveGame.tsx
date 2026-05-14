@@ -712,6 +712,14 @@ export function LiveGame({
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
     if (kind === "goal") playSong();
+    // Light haptic tap — confirms the score recorded. P1-10 in
+    // MICRO-INTERACTIONS-PLAN.md. The plan flagged a tap-tap-tap
+    // scoring burst (three behinds in quick succession) as a
+    // potential annoyance vector — if it reads as too busy on
+    // iPhone, gate to `kind === "goal"` only. Defaulting to both
+    // for now because light haptic is gentle and a behind is
+    // worth acknowledging too.
+    void hapticTap("light");
     startUndoToast({
       kind,
       forTeam: "us",
