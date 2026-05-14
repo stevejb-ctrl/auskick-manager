@@ -5,6 +5,7 @@ import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { hapticTap } from "@/lib/haptics";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -68,6 +69,12 @@ export function PlayerTile({
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
       longPressTimerRef.current = null;
+      // Light haptic tap so the user gets a tactile "picked up"
+      // confirmation when the long-press fires. P1-10 in
+      // MICRO-INTERACTIONS-PLAN.md. Fires before the onLongPress
+      // callback so the buzz lands BEFORE any UI change (modal
+      // open, sheet rise) that the callback might trigger.
+      void hapticTap("light");
       onLongPress();
     }, 500);
   }

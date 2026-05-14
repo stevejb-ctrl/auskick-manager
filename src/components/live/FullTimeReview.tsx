@@ -19,6 +19,7 @@ import { startTransition, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { finaliseGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { hapticSiren } from "@/lib/haptics";
 import { SFButton } from "@/components/sf";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
@@ -71,6 +72,10 @@ export function FullTimeReview({
       // (`activeGameId === gameId && hydrated`), so the store stays at
       // finalised=false and the summary card never appears.
       useLiveGame.getState().finaliseGame();
+      // Siren-pattern haptic — full-time IS a sirenic moment, the
+      // same fidelity as the quarter-end hooter. P1-10 in
+      // MICRO-INTERACTIONS-PLAN.md.
+      void hapticSiren();
       startTransition(() => router.refresh());
     });
   }

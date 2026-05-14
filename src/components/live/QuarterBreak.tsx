@@ -28,6 +28,7 @@ import {
   type ZoneMinutes,
 } from "@/lib/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { hapticTap } from "@/lib/haptics";
 import {
   emptyLineup,
   type Lineup,
@@ -733,6 +734,11 @@ export function QuarterBreak({
       // clockStartedAt=null (beginNextQuarter resets it) and there's
       // no longer a LiveGame StartQuarterModal to bridge.
       startClock();
+      // Medium haptic — the "go!" tap that kicks off the quarter.
+      // Distinct from a light tap (score, swap) because this is a
+      // deliberate consequential action the umpire's whistle aligns
+      // to. P1-10 in MICRO-INTERACTIONS-PLAN.md.
+      void hapticTap("medium");
       // Server-rendered events list is now stale; refresh so the page
       // picks up the new quarter_start event and re-renders into LIVE.
       // Mirrors Plan 05-04's netball fix.
