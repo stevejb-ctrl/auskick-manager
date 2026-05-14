@@ -50,14 +50,28 @@ const SIZE_CLASSES: Record<Size, string> = {
   lg: "h-[52px] px-[22px] text-[15px] gap-2.5",
 };
 
+// hover: handles pointer-on for desktop / iPad-trackpad.
+// active: handles pointer-down for touch — Stagehand testers on
+// phones described several tap-to-act buttons as "felt
+// unresponsive" because the only visual feedback was the route
+// landing 50-150ms later. Adding `active:` gives instant tap-down
+// acknowledgement at the colour-swap level (no transform — scaling
+// buttons reads toy-ish per Linear/Stripe convention). Each
+// variant darkens past its hover state so the chord
+// rest → hover → active reads as a deepening.
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-ink text-warm border border-ink shadow-card hover:bg-ink/90",
+  primary:
+    "bg-ink text-warm border border-ink shadow-card hover:bg-ink/90 active:bg-ink/95",
   accent:
-    "bg-brand-600 text-warm border border-brand-600 shadow-card hover:bg-brand-700",
-  alarm: "bg-alarm text-white border border-alarm shadow-card hover:bg-alarm/90",
-  ghost: "bg-transparent text-ink border border-hairline hover:bg-surface-alt",
-  subtle: "bg-surface-alt text-ink border border-transparent hover:bg-hairline",
-  danger: "bg-transparent text-danger border border-hairline hover:bg-danger/5",
+    "bg-brand-600 text-warm border border-brand-600 shadow-card hover:bg-brand-700 active:bg-brand-800",
+  alarm:
+    "bg-alarm text-white border border-alarm shadow-card hover:bg-alarm/90 active:bg-alarm/85",
+  ghost:
+    "bg-transparent text-ink border border-hairline hover:bg-surface-alt active:bg-hairline",
+  subtle:
+    "bg-surface-alt text-ink border border-transparent hover:bg-hairline active:bg-hairline",
+  danger:
+    "bg-transparent text-danger border border-hairline hover:bg-danger/5 active:bg-danger/10",
 };
 
 const BASE =

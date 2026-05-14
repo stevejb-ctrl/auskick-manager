@@ -1987,7 +1987,11 @@ function NetballScoreBug({
               type="button"
               onClick={onOpponentGoal}
               disabled={isPending}
-              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+              // active:bg-brand-200 mirrors the AFL GameHeader SCORE_CHIP
+              // treatment (PR 2 of micro-interactions rollout, 2026-05-14)
+              // — pointer-down flashes brand-coloured to confirm the tap
+              // before the player picker mounts.
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink active:bg-brand-200 active:text-brand-700 disabled:pointer-events-none disabled:opacity-60"
               aria-label="Record opponent goal"
             >
               +G

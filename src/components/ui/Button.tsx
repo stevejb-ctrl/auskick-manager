@@ -10,15 +10,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+// `active:` mirrors SFButton's pattern — pointer-down darkens past
+// the hover step so the rest → hover → active chord reads as a
+// deepening. Phones can't hover; without `active:` the tap is
+// silent for the 50-150ms before the action lands.
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-brand-600 text-warm hover:bg-brand-700 focus-visible:ring-brand-600 disabled:bg-brand-300",
+    "bg-brand-600 text-warm hover:bg-brand-700 active:bg-brand-800 focus-visible:ring-brand-600 disabled:bg-brand-300",
   secondary:
-    "bg-surface text-ink border border-hairline hover:bg-surface-alt focus-visible:ring-brand-600 disabled:opacity-50",
+    "bg-surface text-ink border border-hairline hover:bg-surface-alt active:bg-hairline focus-visible:ring-brand-600 disabled:opacity-50",
   ghost:
-    "text-ink-dim hover:bg-surface-alt hover:text-ink focus-visible:ring-brand-600 disabled:opacity-50",
+    "text-ink-dim hover:bg-surface-alt hover:text-ink active:bg-ink/10 focus-visible:ring-brand-600 disabled:opacity-50",
   danger:
-    "bg-danger text-warm hover:bg-danger/90 focus-visible:ring-danger disabled:opacity-60",
+    "bg-danger text-warm hover:bg-danger/90 active:bg-danger/80 focus-visible:ring-danger disabled:opacity-60",
 };
 
 const sizeClasses: Record<Size, string> = {
