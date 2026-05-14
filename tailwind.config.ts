@@ -216,6 +216,15 @@ const config: Config = {
           from: { transform: "translateX(-50px)", opacity: "0" },
           to:   { transform: "translateX(0)",     opacity: "1" },
         },
+        // Jersey-number swap on Guernsey. The new digit drops in from
+        // 8px above with a brief opacity ramp. Reads as "the number
+        // just updated" without a hard cut. P2-4 in
+        // MICRO-INTERACTIONS-PLAN.md.
+        digitFlip: {
+          "0%":   { transform: "translateY(-8px) scale(0.85)", opacity: "0" },
+          "60%":  { transform: "translateY(0) scale(1.05)",    opacity: "1" },
+          "100%": { transform: "translateY(0) scale(1)",       opacity: "1" },
+        },
         // Bottom-up entry — 40px translateY + opacity 0→1. Used by
         // the swap-applied toast and the sticky-bottom-bar in
         // LiveGame. The toast is transient (220ms entry, lives 2.5s);
@@ -269,6 +278,10 @@ const config: Config = {
         // speed budget.
         "slide-in-right":  "slideInRight 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "slide-in-left":   "slideInLeft 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        // Jersey-number swap — 280ms is slightly longer than the
+        // standard "small surface change" budget because the
+        // overshoot (1.05 scale at 60%) needs a beat to settle.
+        "digit-flip":      "digitFlip 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         // Bottom-up entries — toast at 220ms (matches list-add tempo),
         // sticky bar at 180ms (faster because the surface is large
         // and persistent — coach can't tap mid-slide if it lingers).
