@@ -864,6 +864,167 @@ single class or single file 1-line change; **S** = one component edit;
 
 ---
 
+### P1.5 — Siren-specific moments the original audit missed
+
+Added 2026-05-15 after a second-pass review of Siren's flows.
+Sits between P1 and P2: these are not foundational primitives,
+but each addresses a moment that the rest of the plan didn't
+cover. Ordered by "would the coach miss this if it weren't there".
+
+| # | Item | Effort |
+|---|---|---|
+| P1.5-1 | Reusable `UndoToast` primitive + wire to swap-commit | M |
+| P1.5-2 | "Back online" wordmark heartbeat on write-queue flush | S |
+| P1.5-3 | First-tap hint for long-press locks (one-shot) | S |
+| P1.5-4 | Empty-state SVG breathing | XS |
+| P1.5-5 | Field "wake up" on Q1 kickoff (tile-border stagger) | M |
+| P1.5-6 | Sub-due advance whisper (30s pre-fire tile lift) | S |
+| P1.5-7 | Score echo asymmetry — self vs received goal flash | S |
+
+#### P1.5-1 — Reusable `UndoToast` + swap-commit wiring
+
+- **Component:** New `src/components/ui/UndoToast.tsx`. Refactor
+  the existing score-undo chip in `LiveGame.tsx:2110-2150` to
+  consume it. Wire `LiveGame.tsx`'s swap-apply path.
+- **Interaction:** After a consequential action, a dark Things-
+  style chip slides up from the bottom: "Swapped Riley → Sam.
+  **Undo**". Holds 8s as a high-emphasis dark toast, then degrades
+  to a muted persistent chip until the next undo-eligible action
+  replaces it (existing score-chip cadence — keep it).
+- **Why prioritize this:** Score undo already exists as a
+  bespoke implementation. The HIGH-VALUE undo gap is
+  **swap-commit** — reversing a mistaken swap currently takes
+  multiple taps (bench the wrong player, bring back the right
+  one). One-tap undo here saves coaches mid-game pain.
+- **Implementation sketch:** Lift the chip state machine into a
+  `useUndoQueue` hook keyed by action-id, with `register(action,
+  description, undoFn)` and an automatic 8s → muted transition.
+  The existing score-undo wiring (lastScore + handleUndo) becomes
+  a consumer.
+- **Risk:** The score-undo chip lives in the sticky bottom bar
+  next to the scorebug — coupled to its physical placement.
+  Refactor must preserve that coupling for the score case while
+  letting the swap case render elsewhere (probably also bottom-
+  edge but above the scorebug). Multiple chips at once should
+  stack (newest on top, older fade out), not overwrite — same
+  pattern as iOS notifications.
+
+#### P1.5-2 — "Back online" wordmark heartbeat
+
+- **Component:** `src/components/marketing/SirenWordmark.tsx` —
+  add an `onlineState` prop. Hook into `src/lib/live/useOnline.ts`
+  + `src/lib/live/writeQueue.ts` for the queue-flushed signal.
+- **Interaction:** When the device goes offline → online AND the
+  write queue successfully drains, the wordmark dot fires one
+  brand pulse halo (~800ms) tinted `text-ok` instead of
+  `text-alarm`. Positive confirmation that queued actions landed.
+- **Why prioritize:** The offline banner is a fear signal; the
+  recovery is currently silent. Coaches who saw the banner have
+  to mentally cross-check "did my score actually save?". A
+  visible halo answers that with zero cognitive cost.
+- **Implementation sketch:** `useOnline` already exposes
+  on/off events; `writeQueue` exposes queue-drained. Combine
+  them into a `useReconciledOnline` hook. Pass result to the
+  wordmark, which renders `SirenPulseHalo` (one-shot) keyed off
+  the reconcile count.
+- **Risk:** On a flaky connection, repeated on-off-on cycles
+  could pulse repeatedly. Debounce to fire only after the queue
+  reports zero pending items for ≥2s.
+
+#### P1.5-3 — First-tap hint for long-press locks
+
+- **Component:** New `src/components/live/FirstTimeHint.tsx`,
+  consumed by `Field.tsx` / `Bench.tsx` once per device.
+- **Interaction:** On the user's first ever live game, a small
+  animated finger-tap glyph overlays the first PlayerTile for
+  2 seconds — a finger graphic that taps once (regular tap arrow),
+  pauses, then long-presses (held finger glyph). After the user
+  long-presses any tile once, the hint is permanently dismissed
+  via a `siren-onboarding-longpress-seen=true` localStorage flag.
+- **Why prioritize:** Long-press to lock is a powerful affordance
+  the plan never teaches. Coaches discover it by accident or
+  never. The hint costs ~2s of attention exactly once.
+- **Implementation sketch:** Reuse the existing PulseRing primitive
+  for the tap-circle. Animate the finger SVG with a 1.5s
+  translate-down sequence. Hide via localStorage + a `useEffect`.
+- **Risk:** Hints feel patronizing if they re-appear. Localstorage
+  flag must be set on EITHER long-press completion OR hint
+  dismissal (tap-outside). Test the dismiss path.
+
+#### P1.5-4 — Empty-state SVG breathing
+
+- **Component:** Audit `src/components/setup/FinishSetupBanner.tsx`,
+  the empty-state cards in `src/app/(app)/teams/[teamId]/page.tsx`
+  (EmptyHero), squad empty state, games empty state.
+- **Interaction:** The SVG icon inside each empty-state card runs
+  a slow 4-second scale-and-fade cycle (1.0 → 1.04 → 1.0, opacity
+  1.0 → 0.85 → 1.0). Reads as "the screen is alive, content is
+  expected here, you're not stuck on a broken page".
+- **Implementation sketch:** Add a `breathe` keyframe to
+  `tailwind.config.ts`. Apply via `motion-safe:animate-breathe` on
+  the SVG. Pure-CSS, no JS, respects reduced-motion automatically.
+- **Effort:** XS — one keyframe + class application on each
+  empty-state SVG (3-4 sites).
+- **Risk:** None — slow opacity/scale changes are not vestibular
+  triggers under reduced-motion conventions, but we still gate on
+  `motion-safe` for users who want everything still.
+
+#### P1.5-5 — Field "wake up" on Q1 kickoff
+
+- **Component:** `src/components/live/Field.tsx`, driven by a
+  state transition from `pre-kickoff` to `quarter-1-running` in
+  `LiveGame.tsx`.
+- **Interaction:** When the user taps "Ready for Q1" → "Start Q1",
+  the PlayerTiles stagger their accent borders in over 320ms
+  (40ms per tile, top-row first). The field visually wakes up.
+  Communicates "the game is on now" with one beat.
+- **Implementation sketch:** Add `animation-delay` per tile via
+  CSS custom property (`--tile-i`) set on each tile inline. Add a
+  `wakeUp` keyframe (opacity 0 → 1, transform translateY(4px) →
+  0). Class applied only when the previous state was pre-kickoff
+  AND this is the first quarter — passed via a `wakeUp` boolean
+  prop from Field.
+- **Risk:** The stagger MUST complete before the clock starts
+  ticking (the wake-up shouldn't compete with attention to the
+  clock). Cap total duration at ~600ms for a 14-tile squad.
+
+#### P1.5-6 — Sub-due advance whisper
+
+- **Component:** `src/components/live/PlayerTile.tsx`, driven by
+  a new `subDueSoon` prop from `LiveGame.tsx`'s sub-tracking effect.
+- **Interaction:** 30 seconds before a sub-due event fires, the
+  player who's about to come off gets a subtle 8% brightness lift
+  on their tile (`brightness-110` + `transition-[filter]
+  duration-base`). Sustained, advisory tier — same fidelity as
+  the LIVE pill. Currently sub-due is a hard cut-over: ALL GOOD
+  → MODAL EVERYWHERE. The whisper softens the moment.
+- **Implementation sketch:** Sub-due tracking in `LiveGame.tsx`
+  computes `nextDueMs` per player. Pass `subDueSoon` when
+  `nextDueMs - elapsed_ms < 30_000`.
+- **Risk:** Multiple "soon" highlights at once could read as
+  noise (4 players entering the 30s window in a tight pair-swap).
+  Cap visible highlights to the top-2 most-overdue players to
+  preserve the signal.
+
+#### P1.5-7 — Score echo asymmetry (self vs received)
+
+- **Component:** `src/components/live/GameHeader.tsx` score block;
+  hook into the live store's score-source field.
+- **Interaction:** When the coach taps +G themselves, the score
+  numerals flash brand-coloured for ~200ms. When a goal arrives
+  via a runner (token auth) or another GM (different user_id on
+  the event), the flash is `warn`-coloured. Same animation
+  primitive, different hue. Tells the coach at a glance "I did
+  this" vs "this just happened to us" without reading the event
+  log.
+- **Implementation sketch:** Live-game store already stores the
+  `actor_user_id` on score events. Compare against the
+  current session's user_id at render time. Pass `flashSource:
+  "self" | "remote"` to the ScoreBlock pulse wrapper (P0-6).
+- **Risk:** Token-auth runners don't have a user_id at all — they
+  show as `null`/runner-token. Treat null actor as `remote`
+  (which is correct — token means someone else, by definition).
+
 ### P2 — nice-to-have
 
 | # | Item | Effort |
