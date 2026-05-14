@@ -207,6 +207,17 @@ const config: Config = {
           from: { transform: "translateX(50px)", opacity: "0" },
           to:   { transform: "translateX(0)",    opacity: "1" },
         },
+        // Bottom-up entry — 40px translateY + opacity 0→1. Used by
+        // the swap-applied toast and the sticky-bottom-bar in
+        // LiveGame. The toast is transient (220ms entry, lives 2.5s);
+        // the sticky bar is persistent (180ms entry, stays mounted
+        // for the rest of the quarter). Sharing one keyframe at two
+        // durations keeps the visual language coherent. P1-6 + P1-14
+        // in MICRO-INTERACTIONS-PLAN.md.
+        slideInBottom: {
+          from: { transform: "translateY(40px)", opacity: "0" },
+          to:   { transform: "translateY(0)",    opacity: "1" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -248,6 +259,11 @@ const config: Config = {
         // joined). 220ms is the project's "small surface change"
         // speed budget.
         "slide-in-right":  "slideInRight 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        // Bottom-up entries — toast at 220ms (matches list-add tempo),
+        // sticky bar at 180ms (faster because the surface is large
+        // and persistent — coach can't tap mid-slide if it lingers).
+        "slide-in-bottom":      "slideInBottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "slide-in-bottom-fast": "slideInBottom 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
       letterSpacing: {
         tightest: "-0.02em",

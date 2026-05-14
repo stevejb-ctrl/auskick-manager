@@ -1342,10 +1342,16 @@ export function LiveGame({
           animation restarts each time. */}
       {swapToast && !isPreGame && !isFinished && (
         <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
+          {/* slide-in-bottom (220ms) so the toast rises from below
+              instead of popping in. The SirenPulseHalo wraps it and
+              fires its own one-shot halo on the same beat. Exit is a
+              hard cut at 2.5s — coach is on to the next moment, no
+              value in animating the disappearance. P1-6 in
+              MICRO-INTERACTIONS-PLAN.md. */}
           <div
             role="status"
             aria-live="polite"
-            className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card"
+            className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card motion-safe:animate-slide-in-bottom"
           >
             <span
               aria-hidden
@@ -2115,8 +2121,16 @@ export function LiveGame({
         </div>
       )}
 
+      {/* Sticky-bottom scorebug + undo strip. Mounted once when
+          isLivePlay flips true (after Q1 start) and stays for the
+          rest of the game. The slide-in-bottom-fast animation
+          (180ms) runs on first paint each time isLivePlay flips
+          true — Q1 entry, refresh during play. CSS animations
+          don't block input, so the buttons inside respond from
+          frame 1 even while the bar is mid-slide. P1-14 in
+          MICRO-INTERACTIONS-PLAN.md. */}
       {isLivePlay && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
           <div className="mx-auto max-w-4xl">
             {gameHeader}
             {/* Undo last score — moved into the sticky bar so
