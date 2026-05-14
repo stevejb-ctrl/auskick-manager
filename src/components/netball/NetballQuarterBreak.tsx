@@ -46,6 +46,7 @@ import {
   suggestNetballLineup,
 } from "@/lib/sports/netball/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
@@ -706,6 +707,11 @@ export function NetballQuarterBreak({
     ]);
     setPendingStartQuarter(null);
     onStarted();
+    // Medium haptic — the "go!" tap that kicks off the quarter,
+    // aligned to the umpire's whistle. Distinct from the light
+    // taps used for score / swap registration. Mirrors AFL
+    // QuarterBreak's `handleConfirmStart` (P1-10 / `15b0a7c`).
+    void hapticTap("medium");
     // Chain refresh after the queue flushes so SSR sees the
     // quarter_start event and renders Q(n+1)'s live state.
     // Without this, the init effect in NetballLiveGame would see

@@ -29,6 +29,7 @@ import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeRevie
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
+import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -322,6 +323,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // gated on `remainingMs > 0` and a per-quarter sentinel, so
     // it's already safe.
     setClockPulseKey(currentQuarter);
+    // Same sirenic haptic as the auto-hooter below — manual-end is
+    // still "the quarter is ending" from the player's POV. P1-10.
+    void hapticSiren();
     const { flushed } = enqueueLiveAction("endNetballQuarter", [
       auth,
       game.id,
@@ -366,6 +370,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.
     setClockPulseKey(currentQuarter);
+    // Siren-pattern haptic — quarter end IS the hooter, the same
+    // sirenic moment AFL pre-existed and full-time mirrors. P1-10.
+    void hapticSiren();
     const { flushed: hooterFlushed } = enqueueLiveAction("endNetballQuarter", [
       auth,
       game.id,
@@ -774,6 +781,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     flushed.then(() => startTransition(() => router.refresh()));
     setPendingGoal(null);
     startUndoToast("team", playerName);
+    // Light haptic tap — confirms the goal recorded. P1-10 mirror
+    // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
+    void hapticTap("light");
   };
 
   const handleCancelGoal = () => setPendingGoal(null);
@@ -787,6 +797,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
     startUndoToast("opp", null);
+    // Light haptic — opponent goal still counts as a registered tap.
+    // P1-10 mirror of AFL `15b0a7c`.
+    void hapticTap("light");
   }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
 
   // long-press on any token (court OR bench strip) → open the player
@@ -957,6 +970,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       },
     ]);
     setReplacingTarget(null);
+    // Light haptic — mid-quarter sub is a registered tap moment,
+    // same as a goal. Mirrors AFL's "swap-applied" haptic that
+    // landed in the haptics-primitive PR (d5c9518).
+    void hapticTap("light");
   };
 
   // Late arrival: a squad player who wasn't marked available pre-game

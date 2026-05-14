@@ -10,6 +10,7 @@
 import { startTransition, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
+import { hapticSiren } from "@/lib/haptics";
 import { Button } from "@/components/ui/Button";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
@@ -63,6 +64,10 @@ export function NetballFullTimeReview({
         setFinaliseError(result.error);
         return;
       }
+      // Siren-pattern haptic — full-time IS a sirenic moment, same
+      // fidelity as the quarter-end hooter. Mirrors AFL
+      // FullTimeReview (P1-10 / `15b0a7c`).
+      void hapticSiren();
       startTransition(() => router.refresh());
     });
   }
