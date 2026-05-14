@@ -28,6 +28,7 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
+import { LongPressHint } from "@/components/live/LongPressHint";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -1803,6 +1804,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           )}
         </div>
       </div>
+
+      {/* First-time onboarding hint for the long-press affordance.
+          Self-dismisses on first long-press / Got-it tap / 12s. The
+          hint shares a localStorage flag with AFL's mount so users
+          who saw it on the AFL side don't see it again here.
+          P1.5-3 in MICRO-INTERACTIONS-PLAN.md — netball mirror of
+          commit 2ca8e90. We mount it unconditionally on the
+          live-play branch (this branch only renders when
+          currentQuarter > 0 && !quarterEnded && !finalised). */}
+      <LongPressHint enabled />
     </div>
   );
 }

@@ -19,6 +19,8 @@ import { useRef } from "react";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { hapticTap } from "@/lib/haptics";
+import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 
 interface PositionTokenProps {
   positionId: string;
@@ -104,6 +106,14 @@ export function PositionToken({
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
       longPressTimerRef.current = null;
+      // Mirror AFL PlayerTile (P1-10 + P1.5-3): a light tap haptic
+      // before the callback so the buzz lands BEFORE any UI change
+      // (actions menu, replacement sheet) the callback triggers,
+      // and a window event so LongPressHint self-dismisses now
+      // that the user has discovered the gesture. Both are
+      // fire-and-forget; we don't await haptics.
+      void hapticTap("light");
+      dispatchLongPressEvent();
       onLongPress();
     }, 500);
   }

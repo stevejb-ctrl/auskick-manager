@@ -19,6 +19,8 @@ import {
   type PlayerThirdMs,
 } from "@/lib/sports/netball/fairness";
 import type { Player } from "@/lib/types";
+import { hapticTap } from "@/lib/haptics";
+import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 
 const THIRD_BAR_COLOR = {
   attack: "bg-zone-f",
@@ -105,6 +107,12 @@ function BenchTile({
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
       longPressTimerRef.current = null;
+      // P1-10 + P1.5-3 (netball mirrors of AFL `15b0a7c` / `2ca8e90`):
+      // a light tap haptic on long-press completion, then a window
+      // event so LongPressHint self-dismisses once the gesture has
+      // been discovered. Fire-and-forget.
+      void hapticTap("light");
+      dispatchLongPressEvent();
       onLongPress();
     }, 500);
   }
