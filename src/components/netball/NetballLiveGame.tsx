@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { PulsingNumber } from "@/components/live/PulsingNumber";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
@@ -1880,9 +1881,20 @@ function NetballScoreBug({
           {teamName}
         </p>
         <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
-          <span className="text-[36px] font-bold tracking-tightest">
-            {showScores ? team.goals : "—"}
-          </span>
+          {/* Pre-Q1 the scoreboard renders "—" instead of zero so a
+              freshly-mounted game doesn't look like it's already
+              0-0 (visually identical to a finished 0-0 result).
+              Once Q1 starts (showScores=true), PulsingNumber takes
+              over and counts up + halos on each goal. P0-6 from
+              MICRO-INTERACTIONS-PLAN.md. */}
+          {showScores ? (
+            <PulsingNumber
+              value={team.goals}
+              className="text-[36px] font-bold tracking-tightest"
+            />
+          ) : (
+            <span className="text-[36px] font-bold tracking-tightest">—</span>
+          )}
         </p>
       </div>
 
@@ -1977,9 +1989,14 @@ function NetballScoreBug({
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-          <span className="text-[36px] font-bold tracking-tightest">
-            {showScores ? opponent.goals : "—"}
-          </span>
+          {showScores ? (
+            <PulsingNumber
+              value={opponent.goals}
+              className="text-[36px] font-bold tracking-tightest"
+            />
+          ) : (
+            <span className="text-[36px] font-bold tracking-tightest">—</span>
+          )}
         </p>
         {onOpponentGoal && (
           <div className="mt-1 flex justify-end gap-2">

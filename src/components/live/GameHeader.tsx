@@ -8,6 +8,7 @@ import {
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { PulsingNumber } from "@/components/live/PulsingNumber";
 
 interface GameHeaderProps {
   teamName: string;
@@ -157,9 +158,16 @@ export function GameHeader({
             <span className="text-ink-mute">·</span>
             {team.behinds}
           </span>
-          <span className="text-[36px] font-bold tracking-tightest">
-            {points(team)}
-          </span>
+          {/* PulsingNumber: count-up + halo on the points total when
+              the team scores. The G·B detail above stays static —
+              animating multiple digits at once reads as noise. The
+              points total is the eye-catcher (36px, ink-dark) so
+              the moment is communicated by the most prominent
+              element. P0-6 from MICRO-INTERACTIONS-PLAN.md. */}
+          <PulsingNumber
+            value={points(team)}
+            className="text-[36px] font-bold tracking-tightest"
+          />
         </p>
         {onTeam && trackScoring && (
           <div className="mt-1 flex gap-2">
@@ -250,9 +258,10 @@ export function GameHeader({
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-          <span className="text-[36px] font-bold tracking-tightest">
-            {points(opp)}
-          </span>
+          <PulsingNumber
+            value={points(opp)}
+            className="text-[36px] font-bold tracking-tightest"
+          />
           <span className="text-sm font-semibold text-ink-dim">
             {opp.goals}
             <span className="text-ink-mute">·</span>
