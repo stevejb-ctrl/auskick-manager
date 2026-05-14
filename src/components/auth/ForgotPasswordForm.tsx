@@ -75,7 +75,7 @@ export function ForgotPasswordForm() {
       </div>
 
       <Button type="submit" loading={loading} className="w-full">
-        Send reset link
+        {loading ? "Sending link…" : "Send reset link"}
       </Button>
 
       <p className="text-center text-sm text-ink-dim">

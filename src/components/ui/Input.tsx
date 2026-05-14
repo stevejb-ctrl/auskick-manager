@@ -13,6 +13,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className={[
             "block w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink shadow-card",
             "placeholder:text-ink-mute",
+            // Border + box-shadow transition so the validation
+            // state change (hairline → danger) eases over 200ms
+            // instead of snapping. Matches LoginField's
+            // pre-existing pattern. P1-5 in
+            // MICRO-INTERACTIONS-PLAN.md.
+            "transition-[border-color,box-shadow] duration-base ease-out-quart",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus:border-brand-600",
             "disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-ink-mute",
             error
@@ -24,7 +30,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {error && (
-          <p className="mt-1 text-xs text-danger" role="alert">
+          // Error text fades in over 350ms via the existing
+          // `fade-in` keyframe. Reduced-motion users see it
+          // appear instantly via the motion-safe modifier.
+          <p
+            className="mt-1 text-xs text-danger motion-safe:animate-fade-in"
+            role="alert"
+          >
             {error}
           </p>
         )}

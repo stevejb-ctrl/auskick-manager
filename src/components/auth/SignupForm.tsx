@@ -124,8 +124,13 @@ export function SignupForm() {
         </p>
       )}
 
+      {/* Text swap during loading echoes LoginForm's pattern —
+          "Create account" → "Creating account…" tells the user
+          the server action is in flight, not just that the
+          button is disabled. P1-15 in
+          MICRO-INTERACTIONS-PLAN.md. */}
       <Button type="submit" loading={loading} className="w-full">
-        Create account
+        {loading ? "Creating account…" : "Create account"}
       </Button>
 
       <p className="text-center text-sm text-ink-dim">
