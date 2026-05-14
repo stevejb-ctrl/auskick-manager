@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { addFillIn } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
 
 interface AddFillInFormProps {
@@ -62,15 +63,20 @@ export function AddFillInForm({
   }
 
   if (!open) {
+    // Steve 2026-05-15 (Lisa friction): the previous text-link
+    // affordance read as low-contrast metadata, so parent-runners
+    // didn't spot it when a sibling was missing from the squad.
+    // Lifted to an SFButton ghost so it carries the same visual
+    // weight as the "Mark availability" toggles above it.
     return (
       <div className="px-4 py-3">
-        <button
-          type="button"
+        <SFButton
+          variant="ghost"
+          size="sm"
           onClick={() => setOpen(true)}
-          className="text-sm font-semibold text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800"
         >
           + Add fill-in player
-        </button>
+        </SFButton>
       </div>
     );
   }
