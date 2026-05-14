@@ -155,6 +155,17 @@ const config: Config = {
           "0%":   { boxShadow: "0 0 0 0 currentColor",  opacity: "0.55" },
           "100%": { boxShadow: "0 0 0 22px currentColor", opacity: "0" },
         },
+        // Modal / sheet entrance. 8px slide-up + opacity 0→1. The
+        // slide is intentionally subtle — modals are content-
+        // dominant, not motion-dominant, so anything beyond ~10px
+        // reads as decoration. Paired with `animate-fade-in` on the
+        // backdrop so the card lands first (220ms) and the backdrop
+        // catches up (350ms). Reduced-motion users get instant final
+        // state via the `motion-safe:` modifier on the consumer.
+        sheetUp: {
+          from: { transform: "translateY(8px)", opacity: "0" },
+          to:   { transform: "translateY(0)",   opacity: "1" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -176,6 +187,10 @@ const config: Config = {
         "pulse-ripple":       "pulseRipple 1.6s ease-out infinite",
         "pulse-ripple-slow":  "pulseRipple 2.6s ease-out infinite",
         "pulse-ripple-burst": "pulseRipple 1.4s ease-out 3 forwards",
+        // Modal / sheet entrance — used by Modal.tsx + (in PR 6,
+        // P0-5) SlotFillSheet.tsx. 220ms is the project's
+        // "sheet/modal entry" speed budget per the plan.
+        "sheet-up":   "sheetUp 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
       letterSpacing: {
         tightest: "-0.02em",
