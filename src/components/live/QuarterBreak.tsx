@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
@@ -1538,11 +1539,7 @@ export function QuarterBreak({
         ))}
       </div>
 
-      {error && (
-        <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <InlineAlert>{error}</InlineAlert>}
 
       {/* Sticky kickoff CTA — Steve 2026-05-13: "lets create a big
           sticky button at the bottom 'ready for Q1/2/3/4' so there

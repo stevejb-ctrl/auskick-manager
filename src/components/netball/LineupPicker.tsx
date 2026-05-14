@@ -21,6 +21,7 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -540,14 +541,7 @@ export function NetballLineupPicker({
         </div>
       )}
 
-      {error && (
-        <p
-          role="alert"
-          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <InlineAlert>{error}</InlineAlert>}
 
       {/* Sticky kickoff CTA — chrome owned by the shared
           LineupPickerFooter (P3a, netball-parity extraction). The

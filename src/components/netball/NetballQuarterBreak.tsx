@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
@@ -1341,11 +1342,7 @@ export function NetballQuarterBreak({
         </div>
       )}
 
-      {error && (
-        <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <InlineAlert>{error}</InlineAlert>}
 
       {/* Sticky kickoff CTA — Steve 2026-05-13: pin the primary
           Ready button to the bottom of the viewport so it's
