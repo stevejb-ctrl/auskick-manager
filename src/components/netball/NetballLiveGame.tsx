@@ -29,6 +29,7 @@ import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeRevie
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
+import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
@@ -1564,41 +1565,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           remaining minutes of the quarter to the players on
           field"). */}
       {showManualEndConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-ink/40"
-            onClick={() => setShowManualEndConfirm(false)}
-          />
-          <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
-            <p className="text-center text-sm font-semibold text-ink">
-              End Q{currentQuarter} now?
-            </p>
-            <p className="mt-2 text-center text-xs text-ink-mute">
-              On-court players will be credited the full quarter time, even
-              though the clock is paused. Use this when the game played on
-              but the clock didn&rsquo;t.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <Button
-                className="flex-1"
-                variant="danger"
-                onClick={() => {
-                  setShowManualEndConfirm(false);
-                  handleManualEndQuarter();
-                }}
-              >
-                End Q{currentQuarter}
-              </Button>
-              <Button
-                className="flex-1"
-                variant="secondary"
-                onClick={() => setShowManualEndConfirm(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ManualEndQuarterConfirm
+          quarter={currentQuarter}
+          playersLabel="On-court"
+          onConfirm={() => {
+            setShowManualEndConfirm(false);
+            handleManualEndQuarter();
+          }}
+          onCancel={() => setShowManualEndConfirm(false)}
+        />
       )}
 
       {quarterScoresOpen && (
