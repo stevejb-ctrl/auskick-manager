@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 interface GuernseyProps {
   /** Player jersey number. */
   num: number | string;
@@ -17,6 +21,18 @@ interface GuernseyProps {
  * Defaults to ink-on-warm so it reads as the team's home strip; pass
  * `color` to tint per zone (forward / centre / back) on the list-viz
  * lineup screen.
+ *
+ * When the `num` prop changes after first mount, the displayed
+ * digit briefly slides + scales in (the `digit-flip` keyframe) so
+ * jersey-number edits in Settings → Squad don't read as silent
+ * state-swaps. First mount renders the digit statically — only
+ * subsequent changes animate. P2-4 in MICRO-INTERACTIONS-PLAN.md.
+ *
+ * `"use client"` is intentional: this component used to be a pure
+ * server-renderable atom, but the number-change animation needs a
+ * useRef sentinel + useState bump. The render cost is tiny and
+ * Guernsey instances appear in already-client trees (live game
+ * field, bench, availability list, etc.) so no SSR regressions.
  */
 export function Guernsey({
   num,
@@ -30,6 +46,19 @@ export function Guernsey({
   // reads at a glance from a metre away on the boundary.
   const numStr = String(num);
   const fontSize = numStr.length >= 2 ? 14 : 17;
+
+  // Re-key the <text> element on number change so React re-mounts
+  // it and the CSS animation runs from frame 0. First mount keeps
+  // animKey at 0 → the conditional class below skips the animation,
+  // so a freshly-rendered Guernsey doesn't auto-flip just because
+  // it appeared.
+  const [animKey, setAnimKey] = useState(0);
+  const prevNumRef = useRef(numStr);
+  useEffect(() => {
+    if (prevNumRef.current === numStr) return;
+    prevNumRef.current = numStr;
+    setAnimKey((k) => k + 1);
+  }, [numStr]);
 
   // Stable id per render so multiple guernseys on the same page don't
   // share a clip path. Strips non-alphanum so non-numeric `num`
@@ -56,6 +85,7 @@ export function Guernsey({
         strokeWidth="0.5"
       />
       <text
+        key={animKey}
         x="20"
         y="26"
         textAnchor="middle"
@@ -64,6 +94,13 @@ export function Guernsey({
         fontWeight="800"
         fill={ink}
         clipPath={`url(#${clipId})`}
+        // transform-origin needs to be the digit's centre (20, 26 in
+        // viewBox coords) so the scale-up/down keyframe stays
+        // centred on the number rather than the SVG top-left.
+        style={{ transformOrigin: "20px 26px", transformBox: "fill-box" }}
+        className={
+          animKey > 0 ? "motion-safe:animate-digit-flip" : undefined
+        }
       >
         {numStr}
       </text>
