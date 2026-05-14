@@ -318,6 +318,13 @@ export function LiveGame({
   // load shouldn't auto-pulse — only sirenic moments should).
   // Mirrors NetballLiveGame's clockPulseKey state.
   const [clockPulseKey, setClockPulseKey] = useState<number | null>(null);
+  // Bumped when the game transitions from pre-kickoff → Q1 running.
+  // Fires a one-shot brand halo around the field perimeter via
+  // Field's `wakeUpKey` prop. Stays null on every fresh page load
+  // — the halo only fires on a real transition, not on re-mount of
+  // the live view. P1.5-5 in MICRO-INTERACTIONS-PLAN.md.
+  const [fieldWakeUpKey, setFieldWakeUpKey] = useState<number | null>(null);
+  const prevIsPreGameRef = useRef<boolean | null>(null);
   const [lockModal, setLockModal] = useState<{ playerId: string; zone: Zone | null } | null>(null);
   // When set, the coach is choosing a replacement for an on-field player about
   // to be marked injured. Null means no picker open.
@@ -967,6 +974,18 @@ export function LiveGame({
 
   const running = clockStartedAt !== null;
   const isPreGame = currentQuarter === 0;
+  // Detect the pre-game → Q1 transition. The first effect run
+  // captures the initial isPreGame value (null → current) without
+  // firing; subsequent runs check for an actual transition. Skipping
+  // first-mount is essential — a freshly-mounted live view with
+  // currentQuarter=1 (page reload mid-game) would otherwise pulse
+  // every time the coach navigates back to /live.
+  useEffect(() => {
+    if (prevIsPreGameRef.current === true && !isPreGame) {
+      setFieldWakeUpKey((k) => (k === null ? 1 : k + 1));
+    }
+    prevIsPreGameRef.current = isPreGame;
+  }, [isPreGame]);
   // Full time has TWO phases: REVIEW (Q4 ended, not yet finalised)
   // and FINISHED (game_finalised event fired). Review shows a
   // FullTimeReview panel where the coach can fix scores; tapping
@@ -1467,6 +1486,7 @@ export function LiveGame({
               onLongPress={handleLongPress}
               zoneCaps={zoneCaps}
               positionModel={positionModel}
+              wakeUpKey={fieldWakeUpKey}
               playerScores={playerScores}
               totalPairs={totalPairs}
             />

@@ -21,6 +21,15 @@ interface FieldProps {
   positionModel: PositionModel;
   playerScores?: Record<string, { goals: number; behinds: number }>;
   totalPairs?: number;
+  /**
+   * Bumped by LiveGame when the game transitions pre-kickoff → Q1
+   * running. Fires a one-shot brand halo around the oval pitch
+   * perimeter — the "the game is on" ceremony moment. Null until
+   * the first transition so freshly-mounted Field instances don't
+   * pulse just because they appeared. P1.5-5 in
+   * MICRO-INTERACTIONS-PLAN.md.
+   */
+  wakeUpKey?: number | null;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -53,6 +62,7 @@ export function Field({
   positionModel,
   playerScores,
   totalPairs,
+  wakeUpKey = null,
 }: FieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
@@ -70,9 +80,44 @@ export function Field({
 
   return (
     <div
-      className="relative overflow-hidden bg-field shadow-card"
+      className="relative bg-field shadow-card"
       style={{ borderRadius: "50% / 15%" }}
     >
+      {/* Q1-kickoff wake-up halo. Fires a one-shot brand pulse
+          around the field's oval perimeter when `wakeUpKey`
+          changes (LiveGame bumps it on pre-game → Q1 transition).
+          The re-keyed span unmounts + remounts on each new
+          wakeUpKey, restarting the `siren-pulse-once` keyframe
+          from frame 0. `--siren-pulse-r` is bumped to 40px so the
+          halo radiates further than the standard wordmark/clock
+          beat — the field is a larger surface, deserves a more
+          dramatic beat. Brand-aware automatically via the [data-
+          brand] cascade in globals.css.
+
+          The halo sits OUTSIDE the overflow-hidden inner div so
+          its expanding box-shadow isn't clipped at the field
+          edge. The outer div is `relative` (not `overflow-hidden`)
+          to let the halo escape; clipping is moved to an inner
+          wrapper around the pitch contents.
+
+          P1.5-5 in MICRO-INTERACTIONS-PLAN.md. */}
+      {wakeUpKey !== null && (
+        <span
+          key={wakeUpKey}
+          aria-hidden="true"
+          className="siren-pulse-once pointer-events-none absolute inset-0"
+          style={
+            {
+              borderRadius: "50% / 15%",
+              "--siren-pulse-r": "40px",
+            } as React.CSSProperties
+          }
+        />
+      )}
+      <div
+        className="relative overflow-hidden"
+        style={{ borderRadius: "50% / 15%" }}
+      >
       {/* Oval pitch boundary marking */}
       <div
         className="pointer-events-none absolute inset-x-5 inset-y-3 border border-white/10"
@@ -186,6 +231,7 @@ export function Field({
             </Fragment>
           );
         })}
+      </div>
       </div>
     </div>
   );
