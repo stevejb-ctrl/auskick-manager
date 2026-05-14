@@ -1760,7 +1760,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           padding clears the iPhone home indicator. z-30 sits
           below modals (z-50) so confirm sheets still overlay
           cleanly. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)]">
+      {/* P1-14 mirror (AFL commit c29c87e): slide-in-bottom-fast
+          (180ms) on first paint each time the live-play branch
+          mounts. CSS animations don't block input — the
+          scorebug's +G chips respond from frame 1 even while
+          the bar is mid-slide. The fast duration is intentional
+          (vs the 220ms toast): this surface is large and
+          persistent, so a slow rise risks the coach tapping
+          mid-slide. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
         <div className="mx-auto max-w-4xl">
           {liveScoreBug}
           {/* Undo strip — moved here from inline above so the
