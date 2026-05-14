@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
 import { hapticTap } from "@/lib/haptics";
+import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -60,15 +61,28 @@ export function PlayerTile({
   score,
 }: PlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // P1-9 in MICRO-INTERACTIONS-PLAN.md: at 300ms into a long-press
+  // (60% of the way to the 500ms fire), the tile starts a soft
+  // brand ring so the user knows the press is registering. Without
+  // this, the 500ms total feels unresponsive — Stagehand testers
+  // released too early and never discovered the long-press flow.
+  const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [longPressArming, setLongPressArming] = useState(false);
   const didLongPressRef = useRef(false);
 
   function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!onLongPress) return;
     didLongPressRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
+    // 300ms pre-cue: shows the user "I'm registering this press".
+    armingTimerRef.current = setTimeout(() => {
+      armingTimerRef.current = null;
+      setLongPressArming(true);
+    }, 300);
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
       longPressTimerRef.current = null;
+      setLongPressArming(false);
       // Light haptic tap so the user gets a tactile "picked up"
       // confirmation when the long-press fires. P1-10 in
       // MICRO-INTERACTIONS-PLAN.md. Fires before the onLongPress
@@ -84,6 +98,11 @@ export function PlayerTile({
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    if (armingTimerRef.current !== null) {
+      clearTimeout(armingTimerRef.current);
+      armingTimerRef.current = null;
+    }
+    setLongPressArming(false);
   }
 
   function handleClick() {
@@ -139,6 +158,21 @@ export function PlayerTile({
   const zoneLabel = currentZone ? ZONE_SHORT[currentZone] : null;
 
   return (
+    // P1-7 in MICRO-INTERACTIONS-PLAN.md: when this tile is part of
+    // a pending swap pair (set by QuarterEndModal's plan), the
+    // SirenPulseHalo fires a one-shot brand halo each time the
+    // `pair` number changes. Tells the coach "this player is one of
+    // the people about to move". `display="block"` so the wrapper
+    // doesn't collapse the tile's grid cell width; `rounded-md`
+    // matches the tile's corner radius so the halo lines up with
+    // the visible edge. triggerKey is null when no swap is set →
+    // SirenPulseHalo skips the halo entirely.
+    <SirenPulseHalo
+      triggerKey={swap?.pair ?? null}
+      size="md"
+      display="block"
+      className="rounded-md"
+    >
     <button
       type="button"
       data-testid={`player-tile-${player.id}`}
@@ -159,6 +193,14 @@ export function PlayerTile({
         // the tile is non-interactive (no onClick/onLongPress) so
         // disabled tiles don't tease a tap response.
         onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "",
+        // Long-press pre-cue ring. Fires at 300ms of an in-flight
+        // long-press to confirm the press is registering — without
+        // it the 500ms total feels unresponsive. Gated on `!selected`
+        // so it doesn't fight with the brand-500 ring the selected
+        // state already shows.
+        longPressArming && !selected
+          ? "ring-2 ring-brand-300 ring-offset-1"
+          : "",
       ].join(" ")}
     >
       {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
@@ -298,5 +340,6 @@ export function PlayerTile({
       })()}
       </div>
     </button>
+    </SirenPulseHalo>
   );
 }

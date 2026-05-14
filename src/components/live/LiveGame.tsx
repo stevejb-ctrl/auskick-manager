@@ -1080,11 +1080,22 @@ export function LiveGame({
     if (pickScorerKind !== null) return;
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playBeep();
-      setSubModalOpen(true);
       // Heavy impact — sub-due is "this needs your attention" but
       // not the urgency of a hooter (which gets hapticSiren below).
       // The medium-vs-heavy distinction is meaningful on iOS Taptic.
       void hapticTap("heavy");
+      // P1-12 in MICRO-INTERACTIONS-PLAN.md: stagger the modal
+      // open by 130ms so the beep + haptic land first (drawing
+      // the coach's attention to the clock + their hand), then
+      // the modal slides in. Without the delay, all three events
+      // fire on the same frame and read as one undifferentiated
+      // jolt. The setTimeout is cancelled by the effect's cleanup
+      // if subState or pickScorerKind changes mid-delay.
+      prevSubStateRef.current = subState;
+      const t = window.setTimeout(() => {
+        setSubModalOpen(true);
+      }, 130);
+      return () => window.clearTimeout(t);
     }
     if (subState !== "due") {
       setSubModalOpen(false);
