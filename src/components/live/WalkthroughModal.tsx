@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Step {
   emoji: string;
@@ -79,6 +79,20 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
   const [phase, setPhase] = useState<"welcome" | "steps">(skipWelcome ? "steps" : "welcome");
   const [idx, setIdx] = useState(0);
 
+  // Direction tracking for step-content slide animations. The
+  // prevIdxRef holds the LAST committed idx; comparing to the
+  // current idx tells us which way the user navigated. Set in a
+  // post-render useEffect so the comparison during render N uses
+  // the value committed in render N-1. Direction "forward" on
+  // first render (initial mount).
+  // P2-7 in MICRO-INTERACTIONS-PLAN.md.
+  const prevIdxRef = useRef(idx);
+  const direction: "forward" | "backward" =
+    idx >= prevIdxRef.current ? "forward" : "backward";
+  useEffect(() => {
+    prevIdxRef.current = idx;
+  }, [idx]);
+
   if (phase === "welcome") {
     return (
       <div
@@ -155,11 +169,28 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
           ))}
         </div>
 
-        <div className="mb-3 text-center text-4xl">{step.emoji}</div>
-        <h3 id="wt-step-title" className="mb-2 text-center text-lg font-bold text-ink">
-          {step.title}
-        </h3>
-        <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">{step.body}</p>
+        {/* Step content — emoji + title + body. Re-keyed on `idx`
+            so React remounts the block on every step change, which
+            restarts the directional slide-in animation from frame
+            0. Direction is computed in the parent: forward (Next
+            tap) slides in from the right, backward (Back tap) from
+            the left. Communicates the directional flow without
+            requiring the user to read the progress dots.
+            P2-7 in MICRO-INTERACTIONS-PLAN.md. */}
+        <div
+          key={idx}
+          className={
+            direction === "forward"
+              ? "motion-safe:animate-slide-in-right"
+              : "motion-safe:animate-slide-in-left"
+          }
+        >
+          <div className="mb-3 text-center text-4xl">{step.emoji}</div>
+          <h3 id="wt-step-title" className="mb-2 text-center text-lg font-bold text-ink">
+            {step.title}
+          </h3>
+          <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">{step.body}</p>
+        </div>
 
         <div className="flex gap-2">
           {!isFirst && (
