@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
@@ -930,31 +931,10 @@ export function NetballQuarterBreak({
                 persist. Mirrors AFL QB. */}
             <div>
               <p className="text-xs font-semibold text-ink">Rotation</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={lineupMode === "suggested" ? "primary" : "secondary"}
-                  onClick={() => handleModeChange("suggested")}
-                >
-                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={lineupMode === "keep" ? "primary" : "secondary"}
-                  onClick={() => handleModeChange("keep")}
-                >
-                  {lineupMode === "keep"
-                    ? "✓ Keep last quarter"
-                    : "Keep last quarter"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={lineupMode === "manual" ? "primary" : "secondary"}
-                  onClick={() => handleModeChange("manual")}
-                >
-                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-                </Button>
-              </div>
+              <RotationModeToggle
+                mode={lineupMode}
+                onChange={handleModeChange}
+              />
             </div>
 
             {/* Lend a player */}

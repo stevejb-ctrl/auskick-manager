@@ -5,6 +5,7 @@ import { startTransition as reactStartTransition, useEffect, useMemo, useRef, us
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
@@ -855,41 +856,17 @@ export function QuarterBreak({
                 wipes the field for a from-scratch build. */}
             <div>
               <p className="text-xs font-semibold text-ink">Rotation</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={lineupMode === "suggested" ? "primary" : "secondary"}
-                  onClick={() => {
-                    setLineupMode("suggested");
-                    setPersistedRotationMode("suggested");
-                  }}
-                >
-                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={lineupMode === "keep" ? "primary" : "secondary"}
-                  // "keep" is a per-Q decision — DON'T persist it to the
-                  // store. It's "I want THIS quarter's lineup carried
-                  // forward", not a default mode. Next Q-break should
-                  // fall back to whatever was previously persisted.
-                  onClick={() => setLineupMode("keep")}
-                >
-                  {lineupMode === "keep"
-                    ? "✓ Keep last quarter"
-                    : "Keep last quarter"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={lineupMode === "manual" ? "primary" : "secondary"}
-                  onClick={() => {
-                    setLineupMode("manual");
-                    setPersistedRotationMode("manual");
-                  }}
-                >
-                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-                </Button>
-              </div>
+              <RotationModeToggle
+                mode={lineupMode}
+                onChange={(next) => {
+                  setLineupMode(next);
+                  // "keep" is a per-Q decision — DON'T persist it to
+                  // the store. It's "I want THIS quarter's lineup
+                  // carried forward", not a default. Next Q-break
+                  // falls back to whatever was previously persisted.
+                  if (next !== "keep") setPersistedRotationMode(next);
+                }}
+              />
             </div>
 
             {/* On-field size dropdown */}
