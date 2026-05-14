@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
-import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { ConnectedWordmark } from "@/components/brand/ConnectedWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
@@ -68,7 +68,14 @@ export default async function AppLayout({
       <AppHeaderShell>
         <header className="sticky top-0 z-20 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2 sm:py-3">
-            <SirenWordmark size="sm" />
+            {/* ConnectedWordmark wraps SirenWordmark with a live
+                reconcile halo — pulses around the mark when the
+                device returns from offline / drains a backlog of
+                queued writes. Positive recovery signal so coaches
+                who saw the OfflineBanner can confirm at a glance
+                their work landed. See P1.5-2 in
+                .planning/MICRO-INTERACTIONS-PLAN.md. */}
+            <ConnectedWordmark size="sm" />
             <div className="flex items-center gap-2 sm:gap-3">
               {isSuperAdmin && (
                 <Link
