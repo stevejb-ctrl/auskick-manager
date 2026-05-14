@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
+import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import {
   Eyebrow,
   Guernsey,
@@ -937,82 +938,25 @@ export function LineupPicker({
         </p>
       )}
 
-      {/* ── Sticky pre-game footer ──────────────────────────────────────
-          Steve 2026-05-13 redesigned: was a single cramped row
-          with the stats, Save-plan, and Ready CTAs all jostling
-          for space. Now stacks the secondary stuff (counts +
-          "Save plan & exit") on top of a full-width primary
-          "Ready for Q1" CTA — mirrors the Q-break Ready button
-          treatment. Save plan now also navigates back to the
-          previous page after a successful save (see
-          handleSavePlan) so the eyebrow row reads as a clear
-          "stash the draft and leave" action distinct from the
-          primary "let's kick off". */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2">
-          {/* Top row — counts + "Save plan & exit" — only renders for
-              team-auth coaches. Token-auth parent-runners get a
-              single-row footer with just the Ready CTA because
-              (a) they have no "page to exit to" — there's no
-              game-detail page in the runner-token flow, and (b)
-              the "exit" word next to "Ready" freezes them
-              ("will Exit delete the game?"). Steve 2026-05-13
-              usability test (Lisa B4) — matches the existing
-              netball NetballLineupPicker's onSavePlan opt-out. */}
-          {auth.kind === "team" && (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-xs sm:gap-4">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ok" />
-                  <span className="font-mono font-bold tabular-nums text-ink">
-                    {onFieldCount}
-                  </span>
-                  <span className="text-ink-dim">on field</span>
-                </span>
-                <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ink-mute" />
-                  <span className="font-mono font-bold tabular-nums text-ink">
-                    {benchCount}
-                  </span>
-                  <span className="text-ink-dim">bench</span>
-                </span>
-                {savedAt && (
-                  <span
-                    className="hidden text-[11px] text-ink-mute sm:inline"
-                    title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
-                  >
-                    · Plan saved
-                  </span>
-                )}
-              </div>
-              <SFButton
-                onClick={handleSavePlan}
-                loading={savePending}
-                disabled={onFieldCount === 0 || isPending}
-                variant="ghost"
-                size="sm"
-              >
-                {savePending
-                  ? "Saving…"
-                  : savedAt
-                  ? "Update plan & exit"
-                  : "Save plan & exit"}
-              </SFButton>
-            </div>
-          )}
-          <SFButton
-            onClick={handleOpenStartModal}
-            disabled={onFieldCount === 0 || isPending}
-            variant="accent"
-            size="lg"
-            full
-            iconAfter={<SFIcon.chevronRight color="currentColor" />}
-          >
-            Ready for Q1
-          </SFButton>
-        </div>
-      </div>
+      {/* Sticky pre-game footer — chrome owned by the shared
+          LineupPickerFooter (P3a, netball-parity extraction). The
+          two-row layout (counts + Save-plan + Ready CTA) renders
+          when onSavePlan is provided; token-auth runners pass
+          undefined to collapse to a single-row Ready-only footer
+          (Lisa B4 usability fix — "Save plan & exit" next to
+          "Ready" reads as ambiguous in the runner flow). */}
+      <LineupPickerFooter
+        onFieldCount={onFieldCount}
+        benchCount={benchCount}
+        onSavePlan={auth.kind === "team" ? handleSavePlan : undefined}
+        savePending={savePending}
+        savedAt={savedAt}
+        savePlanDisabled={onFieldCount === 0 || isPending}
+        onConfirm={handleOpenStartModal}
+        confirmLabel="Ready for Q1"
+        confirmDisabled={onFieldCount === 0 || isPending}
+        confirmIconAfter={<SFIcon.chevronRight color="currentColor" />}
+      />
 
       {/* Await-kickoff modal — owned by LineupPicker (Steve
           2026-05-13). Renders only after the coach has confirmed

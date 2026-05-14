@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
+import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -580,74 +581,33 @@ export function NetballLineupPicker({
         </p>
       )}
 
-      {/* Sticky kickoff CTA — Steve 2026-05-13. Two layouts:
-            - one-row (no onSavePlan): just the primary accent CTA
-            - two-row (onSavePlan provided): counts + Save plan & exit
-              on top, primary accent CTA below — mirrors AFL's
-              pre-game LineupPicker footer treatment. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2">
-          {onSavePlan && (() => {
-            const onCourtCount = Object.values(lineup.positions).reduce(
-              (sum, ids) => sum + ids.length,
-              0,
-            );
-            const benchCount = lineup.bench.length;
-            return (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 text-xs sm:gap-4">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-ok" />
-                    <span className="font-mono font-bold tabular-nums text-ink">
-                      {onCourtCount}
-                    </span>
-                    <span className="text-ink-dim">on court</span>
-                  </span>
-                  <span className="h-3.5 w-px bg-hairline" aria-hidden="true" />
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-ink-mute" />
-                    <span className="font-mono font-bold tabular-nums text-ink">
-                      {benchCount}
-                    </span>
-                    <span className="text-ink-dim">bench</span>
-                  </span>
-                  {savedAt && (
-                    <span
-                      className="hidden text-[11px] text-ink-mute sm:inline"
-                      title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
-                    >
-                      · Plan saved
-                    </span>
-                  )}
-                </div>
-                <SFButton
-                  onClick={handleSavePlan}
-                  loading={savePending}
-                  disabled={onCourtCount === 0 || saving}
-                  variant="ghost"
-                  size="sm"
-                >
-                  {savePending
-                    ? "Saving…"
-                    : savedAt
-                    ? "Update plan & exit"
-                    : "Save plan & exit"}
-                </SFButton>
-              </div>
-            );
-          })()}
-          <SFButton
-            onClick={handleConfirm}
-            disabled={disabled || saving}
-            loading={saving}
-            variant="accent"
-            size="lg"
-            full
-          >
-            {saving ? "Saving…" : confirmLabel}
-          </SFButton>
-        </div>
-      </div>
+      {/* Sticky kickoff CTA — chrome owned by the shared
+          LineupPickerFooter (P3a, netball-parity extraction). The
+          two-row layout (counts + Save-plan + primary CTA) renders
+          when onSavePlan is provided; otherwise collapses to the
+          single-row primary CTA. Mirrors AFL's identical pattern. */}
+      {(() => {
+        const onCourtCount = Object.values(lineup.positions).reduce(
+          (sum, ids) => sum + ids.length,
+          0,
+        );
+        const benchCount = lineup.bench.length;
+        return (
+          <LineupPickerFooter
+            onFieldCount={onCourtCount}
+            benchCount={benchCount}
+            onFieldLabel="on court"
+            onSavePlan={onSavePlan ? handleSavePlan : undefined}
+            savePending={savePending}
+            savedAt={savedAt}
+            savePlanDisabled={onCourtCount === 0 || saving}
+            onConfirm={handleConfirm}
+            confirmLabel={saving ? "Saving…" : confirmLabel}
+            confirmDisabled={disabled || saving}
+            confirmLoading={saving}
+          />
+        );
+      })()}
 
       {/* Empty-position picker sheet — opens when the coach taps an
           unfilled court position with no player pre-selected. Lists
