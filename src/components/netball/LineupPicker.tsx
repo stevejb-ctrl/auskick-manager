@@ -11,7 +11,6 @@
 // (NetballQuarterBreak is the equivalent for in-game breaks —
 // this component is only used for the very first lineup.)
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
@@ -21,6 +20,7 @@ import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
+import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -434,39 +434,7 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      {/* "Back to availability" breadcrumb — mirrors AFL's
-          LineupPicker affordance at src/components/live/LineupPicker.tsx
-          lines 190-206. Lets the coach pop back to the game-detail
-          page (where the AvailabilityList + fill-in form live)
-          without losing the lineup-picker context. Hidden when
-          backHref isn't provided (Q-break flow, etc.). */}
-      {backHref && (
-        <div className="flex flex-col gap-1">
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M15 18l-6-6 6-6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Update availability
-          </Link>
-          {/* No-show signpost — mirrors AFL LineupPicker. Coach
-              who's standing at the court realising Joey didn't turn
-              up needs a path that isn't "Lend a player" (wrong
-              word for the case). Steve 2026-05-13 usability test. */}
-          <p className="text-xs text-ink-mute">
-            A player didn&apos;t turn up? Tap here to mark them
-            unavailable.
-          </p>
-        </div>
-      )}
+      <LineupPickerBreadcrumb backHref={backHref} />
       {/* Build-mode toggle. Two-button group lets the coach choose
           between the fairness-suggested rotation and a from-scratch
           manual lineup. Either mode is fully editable via tap-tap-to-
