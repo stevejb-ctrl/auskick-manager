@@ -13,6 +13,16 @@ interface KickoffPulseWrapperProps {
   windowMinutes?: number;
   /** Corner radius to match the wrapped button. Default `md`. */
   radius?: "md" | "lg" | "full";
+  /**
+   * Extra classes for the outer wrapper span. The wrapper is
+   * `inline-flex` by default — pass `w-full sm:w-auto` (or similar)
+   * here when the wrapped button is responsive-width and you want the
+   * wrapper to follow the same sizing. Wrapper sizing matters: the
+   * inner button is `position: relative`, so the ring's halo only
+   * extends past the wrapper's bounding box if the wrapper itself
+   * matches the button's geometry.
+   */
+  className?: string;
   children: ReactNode;
 }
 
@@ -29,6 +39,7 @@ export function KickoffPulseWrapper({
   scheduledAt,
   windowMinutes = 30,
   radius = "md",
+  className = "",
   children,
 }: KickoffPulseWrapperProps) {
   const [inWindow, setInWindow] = useState(false);
@@ -51,9 +62,9 @@ export function KickoffPulseWrapper({
   }, [scheduledAt, windowMinutes]);
 
   return (
-    <span className="relative inline-flex text-alarm">
+    <span className={`relative inline-flex text-alarm ${className}`}>
       {inWindow && <PulseRing variant="slow" radius={radius} />}
-      <span className="relative inline-flex">{children}</span>
+      <span className="relative inline-flex w-full">{children}</span>
     </span>
   );
 }
