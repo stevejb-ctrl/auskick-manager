@@ -11,6 +11,7 @@ import {
   undoLastScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
@@ -690,10 +691,11 @@ export function LiveGame({
     if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
     setSwapToast(text);
     swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
-    // Light haptic tap on mobile.
-    if (typeof window !== "undefined" && window.matchMedia("(hover: none)").matches) {
-      navigator.vibrate?.(40);
-    }
+    // Light haptic tap on mobile — confirms the swap landed. Goes
+    // via the haptics primitive so iOS users get a real Taptic tap
+    // instead of the silent navigator.vibrate no-op WebKit ships.
+    // Fire-and-forget: don't block the toast render on the bridge.
+    void hapticTap("light");
   }
 
   // Core score-recording path. Shared by:
@@ -1071,9 +1073,10 @@ export function LiveGame({
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playBeep();
       setSubModalOpen(true);
-      if (window.matchMedia("(hover: none)").matches) {
-        navigator.vibrate?.([200, 100, 200]);
-      }
+      // Heavy impact — sub-due is "this needs your attention" but
+      // not the urgency of a hooter (which gets hapticSiren below).
+      // The medium-vs-heavy distinction is meaningful on iOS Taptic.
+      void hapticTap("heavy");
     }
     if (subState !== "due") {
       setSubModalOpen(false);
@@ -1129,9 +1132,11 @@ export function LiveGame({
         // Brand pulse on the GameHeader clock pill — re-keys per
         // quarter so each hooter event fires exactly one halo.
         setClockPulseKey(currentQuarter);
-        if (window.matchMedia("(hover: none)").matches) {
-          navigator.vibrate?.([200, 100, 200]);
-        }
+        // Siren-pattern haptic. iOS Taptic plays a `Warning`
+        // notification (two-pulse "duh-duh"); Android + web fall
+        // back to the long-pause-long vibrate cadence that shipped
+        // pre-fix. Quarter-end IS a sirenic moment by design.
+        void hapticSiren();
       }
     }
 
