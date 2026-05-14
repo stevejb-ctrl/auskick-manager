@@ -185,6 +185,18 @@ const config: Config = {
           from: { transform: "scale(0.96)", opacity: "0" },
           to:   { transform: "scale(1)",    opacity: "1" },
         },
+        // Background-tint flash. Used as an absolutely-positioned
+        // overlay that briefly tints a row/card after a successful
+        // write, confirming the action landed. The consumer sets
+        // the colour via Tailwind (e.g. `bg-ok/15`); this keyframe
+        // just fades the opacity out. 400ms is short enough that
+        // the flash doesn't compete with the user's next tap but
+        // long enough to be perceptible. P1-2 in
+        // MICRO-INTERACTIONS-PLAN.md.
+        bgFlash: {
+          "0%":   { opacity: "1" },
+          "100%": { opacity: "0" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
@@ -217,6 +229,10 @@ const config: Config = {
         // place at 200ms.
         "sheet-up-mobile": "sheetUpMobile 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "pop-in":          "popIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        // Soft post-write confirmation flash — used as an overlay
+        // tint that fades over 400ms after a successful state
+        // change (availability toggle, list-row commit).
+        "bg-flash":        "bgFlash 400ms ease-out both",
       },
       letterSpacing: {
         tightest: "-0.02em",
