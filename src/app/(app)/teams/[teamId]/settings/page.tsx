@@ -5,6 +5,7 @@ import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
+import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import {
   TeamMembersSettings,
   type MemberRow,
@@ -155,6 +156,13 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         currentEnabled={team.song_enabled ?? true}
         isAdmin={isAdmin}
       />
+      {/* P2-10: per-user motion preference toggle. Not gated on
+          isAdmin — this is a personal accessibility setting, every
+          team member should be able to opt themselves out of
+          animations regardless of role. Writes to localStorage
+          (per-device, per-browser) so the choice doesn't leak
+          across users sharing a device. */}
+      <MotionPreferenceSettings />
     </div>
   );
 }

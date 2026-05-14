@@ -4,6 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ConnectedWordmark } from "@/components/brand/ConnectedWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
+import { MotionPreferenceBridge } from "@/components/preferences/MotionPreferenceBridge";
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 
@@ -36,6 +37,13 @@ export default async function AppLayout({
           into device_tokens. Mounted here (not in root layout) so
           it only fires for authenticated users. */}
       <NativeNotificationsBridge />
+      {/* Keeps `<html data-motion="reduce">` in sync with the user's
+          stored motion preference + the system prefers-reduced-motion
+          query. The data attribute drives a global CSS rule in
+          globals.css that kills keyframe animations. Mounted at app
+          root so it applies to every authenticated surface. P2-10
+          in .planning/MICRO-INTERACTIONS-PLAN.md. */}
+      <MotionPreferenceBridge />
       {/* App-bar header.
 
           z-20: the netball court's PositionToken wrappers use z-10

@@ -198,6 +198,32 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   In-app reduced-motion override. P2-10 in MICRO-INTERACTIONS-PLAN.md.
+
+   Most users don't know iOS has a system-level Reduce Motion
+   toggle, and Android has a similar setting buried deep. This
+   layer adds a Siren-managed override: a user toggles "Reduce
+   motion" in Team Settings → Motion preferences, the bridge
+   client writes localStorage AND sets `<html data-motion="reduce">`,
+   and these rules below disable every keyframe animation app-wide
+   regardless of the system preference.
+
+   Only `animation` is killed, not `transition`. State transitions
+   (button colour on hover/active, border-colour on input
+   validation, etc.) stay because they're navigational signals,
+   not decorative motion. Vestibular triggers are the looping
+   halos, slide-ins, count-ups, and the iOS-splash CALayer halo —
+   all driven by CSS keyframe animations and so caught here.
+   ───────────────────────────────────────────────────────────────────── */
+html[data-motion="reduce"] *,
+html[data-motion="reduce"] *::before,
+html[data-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    Hide native scrollbar utility — opt-in via class.
    ───────────────────────────────────────────────────────────────────── */
 .no-scrollbar {
