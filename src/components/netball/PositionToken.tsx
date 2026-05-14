@@ -15,7 +15,7 @@
 // trailing onClick is suppressed via a ref so the same gesture doesn't
 // double-fire. Mirrors the AFL PlayerTile implementation.
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -97,15 +97,28 @@ export function PositionToken({
   const short = pos?.shortLabel ?? positionId.toUpperCase();
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // P1-9 mirror (commit 7d28f21): at 300ms into a long-press (60%
+  // of the way to the 500ms fire), the tile starts a soft brand
+  // ring so the user knows the press is registering. Without this
+  // the 500ms total reads as unresponsive — users release too
+  // early and never discover the long-press menu.
+  const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [longPressArming, setLongPressArming] = useState(false);
   const didLongPressRef = useRef(false);
 
   function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!onLongPress) return;
     didLongPressRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
+    // 300ms pre-cue: shows the user "I'm registering this press".
+    armingTimerRef.current = setTimeout(() => {
+      armingTimerRef.current = null;
+      setLongPressArming(true);
+    }, 300);
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
       longPressTimerRef.current = null;
+      setLongPressArming(false);
       // Mirror AFL PlayerTile (P1-10 + P1.5-3): a light tap haptic
       // before the callback so the buzz lands BEFORE any UI change
       // (actions menu, replacement sheet) the callback triggers,
@@ -123,6 +136,11 @@ export function PositionToken({
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    if (armingTimerRef.current !== null) {
+      clearTimeout(armingTimerRef.current);
+      armingTimerRef.current = null;
+    }
+    setLongPressArming(false);
   }
 
   function handleClick() {
@@ -184,6 +202,20 @@ export function PositionToken({
         baseBg,
         injured || loaned ? "grayscale" : "",
         disabled ? "cursor-not-allowed" : "",
+        // P1-1 mirror (PlayerTile parity): subtle press feedback so
+        // a tap reads as registered even before the visual state
+        // catches up. Only applied when the tile is actually
+        // interactive — disabled tiles shouldn't tease a response.
+        (onTap || onLongPress) && !disabled
+          ? "motion-safe:active:scale-[0.97]"
+          : "",
+        // P1-9 mirror: at 300ms into a long-press the tile shows a
+        // soft brand-300 ring so the press feels registered before
+        // the menu opens at 500ms. Gated on !selected so it doesn't
+        // fight the brand-500 ring the selected state already owns.
+        longPressArming && !selected
+          ? "ring-2 ring-brand-300 ring-offset-1"
+          : "",
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
