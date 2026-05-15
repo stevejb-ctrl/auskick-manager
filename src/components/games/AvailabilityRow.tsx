@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Guernsey } from "@/components/sf";
 import { PulseDot } from "@/components/ui/PulseDot";
 import type { AvailabilityStatus, LiveAuth } from "@/lib/types";
@@ -77,30 +78,74 @@ export function AvailabilityRow({
   status,
   canEdit,
 }: AvailabilityRowProps) {
-  const [isPending, startTransition] = useTransition();
+  // Optimistic-flip state (perf phase 4a). Before this rework, the
+  // handler awaited setAvailability inside startTransition — the
+  // pill stayed on the OLD status, with the spinner spinning, for
+  // 500-1500ms while the server confirmed. Now we flip the local
+  // state synchronously on tap and queue the write via the
+  // write-queue (which gives us idempotency + offline resilience
+  // for free). On any error path we roll back to the server-known
+  // status. The `optimistic` state is null when we trust the
+  // server's `status` prop; populated when an in-flight write is
+  // pending. `isPending` derives from optimistic !== null so the
+  // existing spinner + opacity affordances still work.
+  const router = useRouter();
+  const [optimistic, setOptimistic] = useState<AvailabilityStatus | null>(null);
+  const isPending = optimistic !== null;
 
-  // Post-write flash. `flashKey` is bumped whenever `status`
-  // changes — the absolutely-positioned overlay span is re-mounted
-  // on every key change, so the `bg-flash` keyframe runs from
-  // frame 0 each time. Watching `status` (NOT `isPending`) avoids
-  // the race the plan called out: useTransition resolves on the
-  // server-action return, but the pill's visual state changes via
-  // revalidation. If the flash fired on isPending=false the pill
-  // could still be on the old state when the flash starts.
-  const [flashKey, setFlashKey] = useState(0);
-  const prevStatusRef = useRef(status);
+  // When the server-known `status` prop catches up to (or past) the
+  // optimistic guess, clear the optimistic state so we go back to
+  // mirroring the server.
   useEffect(() => {
-    if (prevStatusRef.current === status) return;
-    prevStatusRef.current = status;
+    if (optimistic !== null && status === optimistic) {
+      setOptimistic(null);
+    }
+  }, [status, optimistic]);
+
+  const shownStatus: AvailabilityStatus = optimistic ?? status;
+
+  // Post-write flash. `flashKey` is bumped whenever the SHOWN
+  // status changes — the absolutely-positioned overlay span is
+  // re-mounted on every key change, so the `bg-flash` keyframe
+  // runs from frame 0 each time. With optimistic flips, the shown
+  // status changes on tap (not on server return), so the flash
+  // now confirms the tap landed locally — which is exactly what
+  // the user is looking for.
+  const [flashKey, setFlashKey] = useState(0);
+  const prevStatusRef = useRef(shownStatus);
+  useEffect(() => {
+    if (prevStatusRef.current === shownStatus) return;
+    prevStatusRef.current = shownStatus;
     setFlashKey((k) => k + 1);
-  }, [status]);
+  }, [shownStatus]);
 
   function handleToggle() {
     if (!canEdit || isPending) return;
-    const next = nextStatus[status];
-    startTransition(async () => {
-      await setAvailability(auth, gameId, playerId, next);
-    });
+    const next = nextStatus[shownStatus];
+    // Snapshot the server-known status for rollback. Don't snapshot
+    // `shownStatus` — if a previous optimistic flip is still
+    // pending, we want to fall back to the real server value.
+    const rollback = status;
+    setOptimistic(next);
+    const { flushed } = enqueueLiveAction("setAvailability", [
+      auth,
+      gameId,
+      playerId,
+      next,
+    ]);
+    flushed
+      .then(() => {
+        // Server-confirmed write. Refresh so the RSC re-renders
+        // with the new `status` prop; the useEffect above will
+        // then clear the optimistic state.
+        router.refresh();
+      })
+      .catch(() => {
+        // Rollback. The write queue never rejects on transient
+        // failures (it retries forever) — this only fires on a
+        // genuine handler crash, which is a programming error.
+        setOptimistic(rollback);
+      });
   }
 
   return (
@@ -118,7 +163,7 @@ export function AvailabilityRow({
         <span
           key={flashKey}
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 motion-safe:animate-bg-flash ${flashStyles[status]}`}
+          className={`pointer-events-none absolute inset-0 motion-safe:animate-bg-flash ${flashStyles[shownStatus]}`}
           data-flash="row"
         />
       )}
@@ -134,13 +179,13 @@ export function AvailabilityRow({
       <div className="relative flex shrink-0 items-center gap-2">
         {/* Status pill — pure indicator, NOT a button. Shows the
             current availability state with the appropriate colour.
-            Separating state from action means the toggle button
-            below can describe what tapping it does, not the
-            current state. */}
+            Reads `shownStatus` so the optimistic flip is visible
+            immediately on tap; falls back to the server-known
+            `status` otherwise. */}
         <span
-          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusPillStyles[status]}`}
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusPillStyles[shownStatus]}`}
         >
-          {statusPillLabels[status]}
+          {statusPillLabels[shownStatus]}
         </span>
         {canEdit && (
           // Tap target bumped from py-1 (~28px) to py-2.5 (~40px) so
@@ -154,12 +199,12 @@ export function AvailabilityRow({
             type="button"
             onClick={handleToggle}
             disabled={isPending}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-semibold transition-opacity ${actionStyles[status]} ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-semibold transition-opacity ${actionStyles[shownStatus]} ${
               isPending ? "opacity-60" : ""
             }`}
           >
             {isPending && <PulseDot size="sm" />}
-            {actionLabels[status]}
+            {actionLabels[shownStatus]}
           </button>
         )}
       </div>
