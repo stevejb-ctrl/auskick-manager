@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { resetGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { emptyLineup } from "@/lib/types";
 import type { LiveAuth } from "@/lib/types";
 
 // ─── Reset Game Button ─────────────────────────────────────────
@@ -33,6 +35,25 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
 
   function handleReset() {
     setError(null);
+    // Wipe the AFL zustand store synchronously BEFORE firing the
+    // server action. resetGame deletes every event server-side and
+    // redirects to the pre-kick-off page, but the in-memory store
+    // (clockStartedAt, accumulatedMs, teamScore, opponentScore,
+    // lineup, etc.) persists across the unmount → re-mount that
+    // the redirect triggers. The LiveGame init effect normally
+    // detects "store ahead of server" on the next kickoff and
+    // wipes — but that only fires AFTER the user re-enters /live
+    // post-restart-kickoff. During the in-between window the old
+    // clock + scoreboard remain visible. Calling init() here with
+    // currentQuarter=0 triggers the existing isRestart-detection
+    // path so the store hits its defaults synchronously, before
+    // the redirect's render lands. (Netball uses local component
+    // state, not this store, so no parallel wipe is needed.)
+    useLiveGame.getState().init({
+      activeGameId: gameId,
+      currentQuarter: 0,
+      lineup: emptyLineup(),
+    });
     startTransition(async () => {
       // resetGame redirects on success (back to the pre-kick-off
       // screen so the coach can re-set availability + fill-ins) so
