@@ -184,7 +184,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // imageView resizes (orientation change, split-view, etc.).
         label.autoresizingMask = [.flexibleWidth]
         label.text = AppDelegate.warmUpPhrases[0]
-        label.zPosition = 1000
+        // zPosition lives on CALayer, not UIView — addressed via
+        // label.layer rather than label directly. Without this the
+        // Xcode Cloud archive fails compile (which is exactly how
+        // Build 107 caught it).
+        label.layer.zPosition = 1000
         container.addSubview(label)
 
         // Under Reduce Motion show a single static phrase instead
