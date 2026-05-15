@@ -52,20 +52,21 @@ async function buildLineup(opts: {
   return lineup;
 }
 
-test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", async ({
+test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", async ({
   page,
 }) => {
-  // Pre-game (lineup committed, no quarter_start yet) renders the
-  // StartQuarterModal as the only kickoff affordance — there's no
-  // separate page-level "Start Q1" button to tap first. One tap on
-  // the modal CTA both writes the server quarter_start event AND
-  // starts the local clock, so the GM doesn't have to confirm twice.
+  // Updated 2026-05-15 to match the post-2026-05-13 kickoff
+  // architecture: the StartQuarterModal is hosted INSIDE
+  // LineupPicker (not auto-opened by LiveGame). User taps "Ready
+  // for Q1" in the LineupPicker → modal opens → tapping the
+  // modal's "Start Q1" commits BOTH lineup_set + quarter_start
+  // atomically. The previous test seeded a manual lineup_set
+  // event to simulate the modal being open — that's no longer a
+  // valid intermediate state (production never reaches it).
   //
-  // This test ALSO covers the original "two clicks" regression
-  // (10bf677 / #31): pre-fix, the hydration effect re-ran on every
-  // store-side currentQuarter change and reset the store back to
-  // pre-game before the clock could stick. Post-fix, the single
-  // tap reliably starts the clock.
+  // This test still covers the original "two clicks" regression
+  // (10bf677 / #31): the post-fix single tap on "Start Q1" must
+  // reliably start the clock without a redundant second tap.
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -80,37 +81,35 @@ test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", 
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  // Seed a lineup_set event + flip status to in_progress. With NO
-  // quarter_start, replayGame returns currentQuarter=0 and the live
-  // page renders LiveGame with isPreGame=true — the StartQuarterModal
-  // opens automatically as the only kickoff CTA.
-  const lineup = await buildLineup({
-    playerIds: players.map((p) => p.id),
-    onFieldSize: game.on_field_size,
-    ageGroup: team.ageGroup,
-  });
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "lineup_set",
-    metadata: { lineup },
-    created_by: ownerId,
-  });
-  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  // Seed availability for every player so LineupPicker has enough
+  // to fill the on-field positions + bench. No lineup_set event —
+  // letting the user (test) reach the kickoff via the LineupPicker
+  // CTA, which is the production path.
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Modal auto-shows on page load with "Ready for Q1". The page-
-  // level "Start Q1" button is hidden while the modal is up — only
-  // ONE kickoff affordance visible at a time. The button only
-  // surfaces after the GM dismisses with "Back to lineup".
+  // LineupPicker renders pre-kickoff with the sticky "Ready for Q1"
+  // CTA. Tap opens the StartQuarterModal in-place.
+  await expect(
+    page.getByRole("button", { name: /^ready for q1$/i }),
+  ).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^ready for q1$/i }).click();
+
+  // Modal heading appears.
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
-  ).toBeVisible({ timeout: 10_000 });
+  ).toBeVisible({ timeout: 3_000 });
 
-  // Exactly one "Start Q1" button in the DOM — the modal's CTA.
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(1);
-
-  // Tap it. Single tap = server quarter_start + local clock start.
+  // Tap "Start Q1" in the modal. Single tap = server lineup_set +
+  // quarter_start + local clock start.
   await page.getByRole("button", { name: /^start q1$/i }).click();
 
   // Modal disappears, clock pill flips to running ("Pause clock").
@@ -119,7 +118,7 @@ test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", 
   ).toBeHidden({ timeout: 3_000 });
   await expect(
     page.getByRole("button", { name: /^pause clock$/i }),
-  ).toBeVisible({ timeout: 3_000 });
+  ).toBeVisible({ timeout: 5_000 });
 
   // Server has exactly one quarter_start event — proving the single
   // tap persisted, not just updated the optimistic in-memory store.
@@ -140,12 +139,20 @@ test("Q1 page-load shows the kickoff modal directly; one tap starts the clock", 
     .toBe(1);
 });
 
-test("AFL: 'Back to lineup' on the kickoff modal dismisses to a page-level Start Q1 button", async ({
+test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter_start", async ({
   page,
 }) => {
-  // Regression for "GM accidentally taps Start before the lineup is
-  // ready" — the modal MUST offer an escape back to the lineup. Not
-  // a destructive reset; just dismiss-and-re-trigger.
+  // Regression for "GM accidentally taps Ready before the lineup
+  // is ready" — the modal MUST offer an escape that cancels
+  // cleanly. Pre-2026-05-13 the modal lived in LiveGame and
+  // dismissing returned the user to a page-level "Start Q1"
+  // button. Post-rework the modal lives INSIDE LineupPicker, so
+  // dismissing returns to the same LineupPicker view with no
+  // server writes — both "Ready for Q1" and "Start Q1" are
+  // committed atomically by the modal's primary CTA. This test
+  // verifies the cancel path: open the modal, tap Back to lineup,
+  // assert NO quarter_start was written, and the LineupPicker
+  // CTA is still tappable for the real kickoff.
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -160,42 +167,32 @@ test("AFL: 'Back to lineup' on the kickoff modal dismisses to a page-level Start
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  const lineup = await buildLineup({
-    playerIds: players.map((p) => p.id),
-    onFieldSize: game.on_field_size,
-    ageGroup: team.ageGroup,
-  });
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "lineup_set",
-    metadata: { lineup },
-    created_by: ownerId,
-  });
-  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Modal auto-shows in pre-Q1.
+  // Open the modal via LineupPicker's "Ready for Q1" CTA.
+  const readyButton = page.getByRole("button", { name: /^ready for q1$/i });
+  await expect(readyButton).toBeVisible({ timeout: 10_000 });
+  await readyButton.click();
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
-  ).toBeVisible({ timeout: 10_000 });
-  // No page-level "Start Q1" button while modal is up — the modal IS
-  // the kickoff CTA.
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(1);
+  ).toBeVisible({ timeout: 3_000 });
 
-  // Tap "Back to lineup" — modal dismisses.
+  // Tap "Back to lineup" — modal dismisses, no server write.
   await page.getByRole("button", { name: /^back to lineup$/i }).click();
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
   ).toBeHidden({ timeout: 2_000 });
 
-  // Page-level "Start Q1" button now visible — re-trigger affordance.
-  await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
-  ).toBeVisible({ timeout: 2_000 });
-
-  // No quarter_start event yet — the dismiss is purely client-side,
-  // nothing was committed.
+  // No quarter_start event yet — dismissing is purely client-side.
   await page.waitForTimeout(500);
   const { data: pre } = await admin
     .from("game_events")
@@ -204,17 +201,15 @@ test("AFL: 'Back to lineup' on the kickoff modal dismisses to a page-level Start
     .eq("type", "quarter_start");
   expect(pre ?? []).toHaveLength(0);
 
-  // Tap the page button → modal re-shows.
-  await page.getByRole("button", { name: /^start q1$/i }).click();
-  await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
-  ).toBeVisible({ timeout: 2_000 });
-
-  // Modal's CTA now starts the clock for real.
+  // LineupPicker's "Ready for Q1" CTA is still tappable — second
+  // tap re-opens the modal, and the modal's "Start Q1" commits
+  // for real.
+  await expect(readyButton).toBeVisible({ timeout: 2_000 });
+  await readyButton.click();
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await expect(
     page.getByRole("button", { name: /^pause clock$/i }),
-  ).toBeVisible({ timeout: 3_000 });
+  ).toBeVisible({ timeout: 5_000 });
 });
 
 test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap", async ({
@@ -279,27 +274,31 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
 
   await readyForQ2InBreak.click();
 
-  // Post-fix: a single tap commits the lineup + quarter_start(2) and
-  // calls beginNextQuarter() in the store. quarterEnded becomes false,
-  // so isBetweenQuarters=false, QuarterBreak unmounts, and (per
-  // LiveGame.tsx ~L1131) StartQuarterModal renders gating the clock
-  // start until the GM taps "Start Q2" when the hooter goes.
+  // Post-2026-05-13 rework: the StartQuarterModal is now hosted
+  // INSIDE QuarterBreak — tapping "Ready for Q2" opens the modal
+  // in-place (QuarterBreak stays mounted underneath). The user
+  // then taps the modal's "Start Q2" CTA to commit lineup_set
+  // + quarter_start(2) atomically.
   //
-  // Pre-fix: the hydration effect re-runs on the currentQuarter
-  // store change, sees storeAheadOfServer=true (initialState still
-  // says Q1+quarterEnded=true), re-inits the store back to that, and
-  // QuarterBreak re-renders — bouncing the GM back to the lineup
-  // picker. They have to tap "Start Q2" a second time.
+  // The original "two clicks" regression coverage stays: a single
+  // tap on the modal's "Start Q2" CTA must reliably commit the
+  // server event + flip the local store, NOT require a second tap
+  // because of a stale hydration race.
   //
-  // Assert the QuarterBreak's distinctive sub-heading is gone and a
-  // StartQuarterModal is up. The modal renders "Ready for Q2" and a
-  // "Start Q2" button (different DOM node from QuarterBreak's CTA).
-  await expect(
-    page.getByText(/set zones for q2/i),
-  ).toBeHidden({ timeout: 2_000 });
+  // Assert the modal heading is up after the LineupPicker CTA tap.
   await expect(
     page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeVisible({ timeout: 2_000 });
+  ).toBeVisible({ timeout: 3_000 });
+
+  // Tap the modal's "Start Q2" — single tap commits everything.
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+
+  // After the commit QuarterBreak's distinctive sub-heading drops
+  // (replayGame returns currentQuarter=2 + quarterEnded=false, so
+  // isBetweenQuarters=false and QuarterBreak unmounts).
+  await expect(
+    page.getByText(/set zones for q2/i),
+  ).toBeHidden({ timeout: 5_000 });
 
   // And the server should have recorded exactly one quarter_start
   // for Q2 — single tap, single event.

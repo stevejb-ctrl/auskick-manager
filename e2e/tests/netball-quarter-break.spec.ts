@@ -6,7 +6,7 @@
 //   1. Q-break entry path works (Q1 auto-end → quarter_end DB event
 //      → page.reload() → NetballQuarterBreak shell renders)
 //   2. The suggester runs and populates a 7-position lineup; the
-//      "Suggested reshuffle" button + position chips (GS/GA/WA/
+//      "Suggested rotation" button + position chips (GS/GA/WA/
 //      C/WD/GD/GK) are observable in the rendered DOM
 //   3. The unplayed-third +100k tier is observable in the suggester's
 //      output — players who never played Q1 appear in the rendered
@@ -217,15 +217,15 @@ async function enterQBreakView(
 }
 
 /**
- * The suggested-reshuffle toggle button. NetballQuarterBreak now
+ * The suggested-rotation toggle button. NetballQuarterBreak now
  * uses a 3-mode toggle (suggested / keep / manual) where the
- * suggested button always reads "Suggested reshuffle", with a
+ * suggested button always reads "Suggested rotation", with a
  * leading "✓ " when active (lineupMode === "suggested" by default).
  * The regex is intentionally loose so it locates the button in
  * either state — useful both as a "Q-break component mounted"
  * canary and as the click target for the toggle test.
  */
-const RESHUFFLE_TOGGLE = /suggested reshuffle/i;
+const ROTATION_TOGGLE = /suggested rotation/i;
 
 // ─── NETBALL-02 mandatory tests ───────────────────────────
 
@@ -238,14 +238,14 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   await enterQBreakView(page, admin, game.id);
 
   // The suggester runs on mount of the Q-break component and populates
-  // suggestedLineup. The reshuffle-toggle button is the canonical
+  // suggestedLineup. The rotation-toggle button is the canonical
   // evidence — it only renders inside NetballQuarterBreak. The 3-mode
   // toggle defaults to "suggested" so the active button reads
-  // "✓ Suggested reshuffle"; RESHUFFLE_TOGGLE matches both the active
+  // "✓ Suggested rotation"; ROTATION_TOGGLE matches both the active
   // and inactive variants for robustness against any future
   // default-state change.
   await expect(
-    page.getByRole("button", { name: RESHUFFLE_TOGGLE }),
+    page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 
   // The PlayerTile renders the position shortLabel (GS / GA / WA /
@@ -291,11 +291,11 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  // Suggested-reshuffle button is active by default (lineupMode
+  // Suggested-rotation button is active by default (lineupMode
   // initializes to "suggested" — the active state shows a "✓ "
   // prefix). Confirm the active variant is on screen.
   await expect(
-    page.getByRole("button", { name: /✓ Suggested reshuffle/ }),
+    page.getByRole("button", { name: /✓ Suggested rotation/ }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Each unplayed player's tile must include "Bench → ${POSITION}"
@@ -332,7 +332,7 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  // The suggested reshuffle is ALREADY applied on initial render
+  // The suggested rotation is ALREADY applied on initial render
   // (NetballQuarterBreak line 305: useReshuffle=true). Two-stage:
   //   1. Q-break "Ready for Q2" — writes period_break_swap and
   //      surfaces the await-kickoff modal.
@@ -485,6 +485,6 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   // by netballFairness.test.ts; here we just verify the Q-break shell
   // rendered against the real-history seed.
   await expect(
-    page.getByRole("button", { name: RESHUFFLE_TOGGLE }),
+    page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 });

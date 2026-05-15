@@ -126,8 +126,13 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     "Karina", "Lachlan", "Maeve", "Nikolai", "Octavia",
   ];
   const namePattern = new RegExp(`(${SQUAD_NAMES.join("|")})`, "g");
+  // 2026-05-15: Steve 2026-05-13 spelled FWD out as "Forward" in
+  // QuarterBreak's slot labels (slotLabel() at QuarterBreak.tsx
+  // ~L158 — "fwd" → "Forward" to match the "Centre" treatment).
+  // The selector previously looked for `has-text("Fwd")` which is
+  // NOT a substring of "Forward" (different letters after the F).
   const fwdNamesInBreak = await page
-    .locator('h3:has-text("Fwd")')
+    .locator('h3:has-text("Forward")')
     .first()
     .locator("xpath=../following-sibling::ul[1]")
     .locator("li button")

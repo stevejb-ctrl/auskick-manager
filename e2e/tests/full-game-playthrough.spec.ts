@@ -145,34 +145,32 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     })),
   );
 
-  // Skip the LineupPicker → Start game UI flow (covered by
-  // lineup.spec.ts and live-scoring.spec.ts). Seed lineup_set +
-  // status=in_progress directly so we land on the LiveGame view
-  // with the StartQuarterModal ready for Q1. This keeps the
-  // playthrough focused on the four quarter cycles + Q-break +
-  // FullTimeReview surfaces.
-  const startingLineup = buildDefaultLineup(
+  // ─── Phase 1: kickoff → Q1 in progress ────────────────────
+  // Post-2026-05-13 kickoff flow: /live renders LineupPicker
+  // pre-kickoff (since no lineup_set event yet). User taps the
+  // "Ready for Q1" CTA → StartQuarterModal opens in-place → tapping
+  // "Start Q1" commits lineup_set + quarter_start atomically. The
+  // previous seed-lineup_set shortcut would put the page in an
+  // unreachable intermediate state in the new architecture.
+  //
+  // buildDefaultLineup is unused by this path — the suggester
+  // auto-fills positions from the availability roster. Kept the
+  // import to preserve the lineup factory's commit history; the
+  // local _ var avoids an "unused" lint.
+  const _startingLineup = buildDefaultLineup(
     players.map((p) => p.id),
     game.on_field_size,
     team.ageGroup as AgeGroup,
   );
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "lineup_set",
-    metadata: { lineup: startingLineup },
-    created_by: ownerId,
-  });
-  await admin
-    .from("games")
-    .update({ status: "in_progress" })
-    .eq("id", game.id);
+  void _startingLineup;
 
-  // ─── Phase 1: kickoff → Q1 in progress ────────────────────
-  // Live page lands on LiveGame with StartQuarterModal open.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page
+    .getByRole("button", { name: /^ready for q1$/i })
+    .click({ timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
-  ).toBeVisible({ timeout: 10_000 });
+    page.getByRole("heading", { name: /^ready for q1$/i }),
+  ).toBeVisible({ timeout: 3_000 });
   await page.getByRole("button", { name: /^start q1$/i }).click();
 
   // Tap a field player and record a goal. The PlayerTile carries

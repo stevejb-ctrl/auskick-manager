@@ -36,10 +36,16 @@ test("unauthed /run/[token] loads the live game UI", async ({ browser }) => {
   // pre-kickoff (when no lineup_set event exists) renders an
   // AvailabilityList + a "Continue to starting lineup" CTA, and
   // in-progress renders the full LiveGame. With no events seeded,
-  // we land on pre-kickoff — assert the CTA link, which is a
-  // page-specific affordance that proves the token grants access.
+  // we land on pre-kickoff — assert the CTA text is present.
+  //
+  // 2026-05-15: use getByText instead of getByRole("link") because
+  // the CTA renders as a disabled SFButton (a <button>, not a Link)
+  // when `enoughAvailable` is false — and this test seeds no
+  // game_availability rows. Both states still print the same text;
+  // matching the text alone proves token-gated access without
+  // requiring availability fixture setup.
   await expect(
-    page.getByRole("link", { name: /continue to starting lineup/i })
+    page.getByText(/continue to starting lineup/i),
   ).toBeVisible({ timeout: 10_000 });
 
   await context.close();
