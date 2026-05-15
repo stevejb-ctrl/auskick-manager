@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
+import { getSeasonEvents } from "@/lib/season";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -172,12 +173,13 @@ export default async function LivePage({ params }: LivePageProps) {
       ]),
     );
 
-    const otherGameIds = (teamGames ?? [])
-      .map((t) => t.id)
-      .filter((id) => id !== params.gameId);
-    const { data: seasonEvents } = otherGameIds.length
-      ? await supabase.from("game_events").select("*").in("game_id", otherGameIds)
-      : { data: [] as GameEvent[] };
+    // Season events cached for 300s + tag-invalidated by event
+    // writes (perf phase 5). Filter out the current game — its
+    // events are already in thisGameEvents above.
+    const allTeamEvents = await getSeasonEvents(params.teamId);
+    const seasonEvents = allTeamEvents.filter(
+      (e) => e.game_id !== params.gameId,
+    );
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
 
@@ -347,18 +349,15 @@ export default async function LivePage({ params }: LivePageProps) {
       ...((squadPlayers ?? []) as Player[]),
       ...fillInsForLive,
     ];
-    const priorGameIds = (teamGames ?? [])
-      .map((t) => t.id)
-      .filter((id) => id !== params.gameId);
-    const { data: allTeamEvents } = priorGameIds.length
-      ? await supabase
-          .from("game_events")
-          .select("*")
-          .in("game_id", priorGameIds)
-      : { data: [] as GameEvent[] };
-    const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
-    const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
-    const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
+    // Season events cached for 300s + tag-invalidated by event
+    // writes (perf phase 5). Filter out the current game's events
+    // — thisGameEvents already covers those.
+    const allTeamEvents = (await getSeasonEvents(params.teamId)).filter(
+      (e) => e.game_id !== params.gameId,
+    );
+    const season = seasonZoneMinutes(allTeamEvents);
+    const loanMins = seasonLoanMinutes(allTeamEvents);
+    const seasonAvail = seasonAvailability(allTeamEvents);
     // Page-level sticky-bar clearance — kicks in at a Q-break
     // (sticky "Ready for Q{n+1}" CTA in QuarterBreak) AND during
     // live play (sticky scorebug at the bottom in LiveGame —

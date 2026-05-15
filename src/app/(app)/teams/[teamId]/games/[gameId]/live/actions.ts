@@ -7,6 +7,7 @@ import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
+import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -118,6 +119,11 @@ async function insertEvent(
     }
     return { success: false, error: insertError.message };
   }
+  // A new event landed — drop the season-events cache for this
+  // team so the next page render re-fetches. revalidateTag is a
+  // no-op when there's no cached entry, so it's cheap to fire
+  // unconditionally.
+  if (w.teamId) invalidateSeasonEvents(w.teamId);
   return { success: true };
 }
 
@@ -190,6 +196,11 @@ export async function startGame(
   // draft is stale. Clean it up so the game card stops showing the
   // "Plan saved" indicator.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+
+  // Direct event inserts above bypass insertEvent — invalidate
+  // the season-events cache explicitly so the next render sees
+  // the new lineup_set / quarter_start rows.
+  invalidateSeasonEvents(w.teamId);
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);

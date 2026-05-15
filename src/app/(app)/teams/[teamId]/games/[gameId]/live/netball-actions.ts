@@ -12,6 +12,7 @@ import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
+import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
@@ -95,6 +96,8 @@ async function insertEvent(
     }
     return { success: false, error: error.message };
   }
+  // A new event landed — drop the season-events cache for this team.
+  if (w.teamId) invalidateSeasonEvents(w.teamId);
   return { success: true };
 }
 
@@ -158,6 +161,10 @@ export async function startNetballGame(
   // Mirror the AFL startGame: kickoff invalidates any pre-game
   // lineup draft. Same table for both sports.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+
+  // Direct insert above bypasses insertEvent — invalidate the
+  // season-events cache explicitly.
+  invalidateSeasonEvents(w.teamId);
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);

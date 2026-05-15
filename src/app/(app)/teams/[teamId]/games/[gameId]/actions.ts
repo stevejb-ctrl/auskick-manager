@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
+import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
 
 interface FillInInput {
@@ -235,6 +236,9 @@ export async function resetGame(
     .eq("id", gameId);
   if (updError) return { success: false, error: updError.message };
 
+  // Game's events just got wiped — drop the season-events cache.
+  invalidateSeasonEvents(teamId);
+
   revalidatePath(`/teams/${teamId}/games/${gameId}`, "layout");
   const { data: game } = await admin
     .from("games")
@@ -279,6 +283,9 @@ export async function deleteGame(
     .eq("id", gameId)
     .eq("team_id", teamId);
   if (delError) return { success: false, error: delError.message };
+
+  // Game + its events removed — drop the season-events cache.
+  invalidateSeasonEvents(teamId);
 
   revalidatePath(`/teams/${teamId}/games`);
   return { success: true };
