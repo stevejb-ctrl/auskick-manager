@@ -214,13 +214,19 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={(seasonEventsNetball ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
-          // Pre-kickoff on the runner-token URL also renders the
-          // AvailabilityList above. The walkthrough modal at
-          // z-50 inset-0 would block its buttons, so suppress
-          // auto-open here. Coach can still tap "?" to view it,
-          // and the first auto-open happens on the next render
-          // once the lineup is set (isPreKickoff flips false).
-          suppressAutoWalkthrough={isPreKickoff}
+          // Steve 2026-05-15 (Stagehand finding): suppress auto-
+          // walkthrough on the runner-token URL ALWAYS, not just
+          // pre-kickoff. The previous gate (`={isPreKickoff}`)
+          // flipped false once Q1 started, which fired the
+          // walkthrough modal mid-live-play — interrupting the
+          // coach right when they're trying to score. Parent-
+          // volunteers on a runner link don't need a coach
+          // walkthrough anyway; they were handed the link with
+          // verbal instructions. The "?" button stays as a manual
+          // trigger if anyone wants to see it. Pre-kickoff
+          // rationale also still applies — the modal would block
+          // the AvailabilityList above.
+          suppressAutoWalkthrough
           // Runner-token URLs grant restart access (same behaviour
           // as the pre-2026-05-13 standalone ResetGameButton that
           // used to sit below the live UI). Folded into the
@@ -317,6 +323,15 @@ export default async function RunPage({ params }: RunPageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
+          // Steve 2026-05-15 (Stagehand finding): the walkthrough
+          // used to auto-open on first visit to the AFL live view,
+          // which on the runner-token path meant it opened RIGHT
+          // when the parent ran their first score attempt at Q1
+          // start. Parent-volunteers on a runner link don't need a
+          // coach walkthrough (they were handed the link with
+          // verbal instructions). Suppress here; the "?" button
+          // stays as a manual trigger.
+          suppressAutoWalkthrough
           // Runner-token URLs grant restart access (same behaviour
           // as the pre-2026-05-13 standalone ResetGameButton). The
           // button now lives inside LiveGame's admin-utility row
