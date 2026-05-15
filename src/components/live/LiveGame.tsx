@@ -24,6 +24,7 @@ import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
@@ -2112,27 +2113,17 @@ export function LiveGame({
         </div>
       )}
 
-      {/* Sticky-bottom scorebug + undo strip. Mounted once when
-          isLivePlay flips true (after Q1 start) and stays for the
-          rest of the game. The slide-in-bottom-fast animation
-          (180ms) runs on first paint each time isLivePlay flips
-          true — Q1 entry, refresh during play. CSS animations
-          don't block input, so the buttons inside respond from
-          frame 1 even while the bar is mid-slide. P1-14 in
-          MICRO-INTERACTIONS-PLAN.md. */}
+      {/* Sticky-bottom scorebug + undo strip — chrome owned by
+          the shared LiveStickyScoreBar (Phase 5d). Wrapper does
+          the bottom-pin, safe-area padding, slide-in-bottom-fast
+          entrance (P1-14), and the mx-auto max-w-4xl inner
+          constraint. The scorebug + the undo strip (gated on
+          lastScore + !isPreGame + !isFinished here) are passed in. */}
       {isLivePlay && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
-          <div className="mx-auto max-w-4xl">
-            {gameHeader}
-            {/* Undo last score — moved into the sticky bar so
-                the affordance lives with the scorebug it's
-                undoing (Steve 2026-05-13: "should also be at
-                the bottom of it, there should be just enough
-                room"). Toast (8s, dark bg) then persistent
-                chip (muted bg) until the next score replaces
-                it. Same gates as before — lastScore present,
-                not pre-game, not finished. */}
-            {lastScore && !isPreGame && !isFinished && (
+        <LiveStickyScoreBar
+          scorebug={gameHeader}
+          undoStrip={
+            lastScore && !isPreGame && !isFinished ? (
               <div
                 className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
                   undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
@@ -2156,9 +2147,9 @@ export function LiveGame({
                   Undo
                 </button>
               </div>
-            )}
-          </div>
-        </div>
+            ) : null
+          }
+        />
       )}
 
       {/* First-time onboarding hint for the long-press affordance.

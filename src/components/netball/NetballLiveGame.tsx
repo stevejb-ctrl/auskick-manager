@@ -32,6 +32,7 @@ import { LongPressHint } from "@/components/live/LongPressHint";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
@@ -1735,24 +1736,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           padding clears the iPhone home indicator. z-30 sits
           below modals (z-50) so confirm sheets still overlay
           cleanly. */}
-      {/* P1-14 mirror (AFL commit c29c87e): slide-in-bottom-fast
-          (180ms) on first paint each time the live-play branch
-          mounts. CSS animations don't block input — the
-          scorebug's +G chips respond from frame 1 even while
-          the bar is mid-slide. The fast duration is intentional
-          (vs the 220ms toast): this surface is large and
-          persistent, so a slow rise risks the coach tapping
-          mid-slide. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
-        <div className="mx-auto max-w-4xl">
-          {liveScoreBug}
-          {/* Undo strip — moved here from inline above so the
-              undo affordance lives with the scorebug it's
-              undoing (Steve 2026-05-13). Toast (8s) then
-              persistent chip until the next score replaces it.
-              NETBALL-04 gate applies — when track_scoring=false
-              there's no goal flow + no undo. */}
-          {trackScoring && lastScore && (
+      {/* Sticky-bottom scorebug + undo strip — chrome owned by
+          the shared LiveStickyScoreBar (Phase 5d). NETBALL-04 gate
+          (`trackScoring`) gates the undo strip locally; when the
+          team has scoring turned off, there's no goal flow + no
+          undo to show. */}
+      <LiveStickyScoreBar
+        scorebug={liveScoreBug}
+        undoStrip={
+          trackScoring && lastScore ? (
             <div
               className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
                 undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
@@ -1784,9 +1776,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 Undo
               </button>
             </div>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {/* First-time onboarding hint for the long-press affordance.
           Self-dismisses on first long-press / Got-it tap / 12s. The
