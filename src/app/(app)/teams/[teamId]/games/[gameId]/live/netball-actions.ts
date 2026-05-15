@@ -116,6 +116,20 @@ export async function startNetballGame(
   lineup: GenericLineup,
   onFieldSize: number,
   quarterLengthSeconds?: number | null,
+  /**
+   * Steve 2026-05-15 — sport-parity fix. Mirrors AFL `startGame`'s
+   * same-named flag. When true, atomically writes a `quarter_start`
+   * event for Q1 in the same call as `lineup_set`. Used by
+   * NetballLineupPicker's two-step kickoff so the picker's "Start
+   * Q1" tap inside NetballStartQuarterModal commits both events
+   * with no intermediate page state. Without this flag the netball
+   * flow used to land in an extra "lineup locked, ready the
+   * kickoff" page state (scorebug + inline Ready button) which
+   * AFL never had — the user-visible parity gap that prompted the
+   * refactor. Defaults to false so any call sites that expected a
+   * separate startNetballQuarter write afterwards keep working.
+   */
+  startQuarterToo: boolean = false,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -134,6 +148,22 @@ export async function startNetballGame(
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
+
+  if (startQuarterToo) {
+    // Atomic same-call quarter_start. Mirrors AFL `startGame` —
+    // either both write or neither does (well, the lineup_set
+    // already committed above; if THIS fails we surface the error
+    // and the caller can retry the quarter_start path separately).
+    const { error: qStartError } = await w.supabase
+      .from("game_events")
+      .insert({
+        game_id: gameId,
+        type: "quarter_start",
+        metadata: { quarter: 1, sport: "netball" },
+        created_by: w.userId,
+      });
+    if (qStartError) return { success: false, error: qStartError.message };
+  }
 
   // Validate the override before writing — bounds match the picker
   // input (1..30 min). Leaves the column untouched when the picker

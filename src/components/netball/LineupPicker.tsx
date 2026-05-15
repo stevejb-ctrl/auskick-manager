@@ -22,6 +22,7 @@ import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -337,7 +338,25 @@ export function NetballLineupPicker({
     setSelected(null);
   };
 
-  const handleConfirm = async () => {
+  // Steve 2026-05-15 two-step kickoff parity: tapping the picker
+  // CTA used to call `onConfirm` directly which committed
+  // `lineup_set` server-side and dropped the page into an
+  // intermediate "lineup locked, ready the kickoff" state with a
+  // separate inline "Ready for Q1" button. That divergence from
+  // AFL (which hosts its StartQuarterModal IN the picker and
+  // commits both events atomically) was the parity gap.
+  //
+  // New flow: tapping the picker CTA validates locally and opens
+  // NetballStartQuarterModal in-place. The modal's "Start Q1"
+  // tap fires `onConfirm`, which the parent now passes through to
+  // `startNetballGame(..., startQuarterToo=true)` so both
+  // `lineup_set` and `quarter_start` write atomically. "Back to
+  // lineup" closes the modal — zero server writes, picker is
+  // still editable in the background.
+  const [startModalOpen, setStartModalOpen] = useState(false);
+
+  // Validate inputs + open the modal. Doesn't commit anything yet.
+  const handleOpenStartModal = () => {
     if (disabled || saving) return;
     setError(null);
     const validation = netballSport.validateLineup?.(lineup, ageGroup);
@@ -345,27 +364,41 @@ export function NetballLineupPicker({
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
     }
-    // Resolve the quarter-length override. Only emit a non-null value
-    // when the picker was rendered with `defaultQuarterSeconds` AND
-    // the coach actually changed the input — that way the parent can
-    // tell "leave the team default in place" from "lock this game to
-    // N minutes".
-    let quarterOverrideSeconds: number | null = null;
+    // Pre-validate the quarter-length override here too so an
+    // invalid number can't slip past the picker tap and surface
+    // only at the modal's commit — fail fast keeps the modal
+    // experience clean.
     if (defaultQuarterSeconds != null) {
       const parsed = Number(quarterMinInput);
       if (
-        Number.isFinite(parsed) &&
-        Number.isInteger(parsed) &&
-        parsed >= 1 &&
-        parsed <= 30
+        !Number.isFinite(parsed) ||
+        !Number.isInteger(parsed) ||
+        parsed < 1 ||
+        parsed > 30
       ) {
+        setError(
+          "Quarter length must be a whole number between 1 and 30 minutes.",
+        );
+        return;
+      }
+    }
+    setStartModalOpen(true);
+  };
+
+  // Resolve the quarter-length override + fire onConfirm. The
+  // parent is expected to commit both `lineup_set` and
+  // `quarter_start` atomically via
+  // `startNetballGame(..., startQuarterToo=true)`.
+  const handleConfirmStart = async () => {
+    if (disabled || saving) return;
+    let quarterOverrideSeconds: number | null = null;
+    if (defaultQuarterSeconds != null) {
+      const parsed = Number(quarterMinInput);
+      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 30) {
         const seconds = parsed * 60;
         if (seconds !== defaultQuarterSeconds) {
           quarterOverrideSeconds = seconds;
         }
-      } else {
-        setError("Quarter length must be a whole number between 1 and 30 minutes.");
-        return;
       }
     }
     setSaving(true);
@@ -373,6 +406,7 @@ export function NetballLineupPicker({
       await onConfirm(lineup, quarterOverrideSeconds);
     } finally {
       setSaving(false);
+      setStartModalOpen(false);
     }
   };
 
@@ -563,13 +597,30 @@ export function NetballLineupPicker({
             savePending={savePending}
             savedAt={savedAt}
             savePlanDisabled={onCourtCount === 0 || saving}
-            onConfirm={handleConfirm}
-            confirmLabel={saving ? "Saving…" : confirmLabel}
+            onConfirm={handleOpenStartModal}
+            confirmLabel={confirmLabel}
             confirmDisabled={disabled || saving}
-            confirmLoading={saving}
+            confirmLoading={false}
           />
         );
       })()}
+
+      {/* Await-kickoff modal — owned by the picker (parity with AFL
+          LineupPicker, Steve 2026-05-15). Renders only after the
+          coach has confirmed their lineup with "Ready for Q1". The
+          modal's "Start Q1" handler runs the atomic server commit
+          (lineup_set + quarter_start via startNetballGame's
+          startQuarterToo=true flag). "Back to lineup" just closes
+          the modal — zero server writes, the picker is still
+          editable in the background. */}
+      {startModalOpen && (
+        <NetballStartQuarterModal
+          quarter={1}
+          loading={saving}
+          onStart={handleConfirmStart}
+          onCancel={() => setStartModalOpen(false)}
+        />
+      )}
 
       {/* Empty-position picker sheet — opens when the coach taps an
           unfilled court position with no player pre-selected. Lists

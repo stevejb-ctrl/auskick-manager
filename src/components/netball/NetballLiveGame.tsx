@@ -24,7 +24,6 @@ import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
-import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { LongPressHint } from "@/components/live/LongPressHint";
@@ -631,15 +630,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
      */
     vacatingPlayerId: string | null;
   } | null>(null);
-  // Pre-Q1 await-kickoff: "Start Q1" no longer writes the
-  // quarter_start event directly. It sets this state, which surfaces
-  // the NetballStartQuarterModal so the GM can wait for the umpire's
-  // whistle before kicking off the clock. The modal's CTA fires the
-  // server action — until then no event has been written, so a reload
-  // returns the user to the pre-Q1 picker. (Mirrors AFL's modal-gated
-  // pattern from feat(afl-live) — gate Q1 clock-start on the same
-  // await-kickoff modal as Q2-Q4.)
-  const [pendingQuarterStart, setPendingQuarterStart] = useState<number | null>(null);
+  // Steve 2026-05-15: removed `pendingQuarterStart` state — the
+  // Q1 await-kickoff modal now lives INSIDE NetballLineupPicker
+  // (parity with AFL). The picker hosts NetballStartQuarterModal
+  // and the modal's "Start Q1" tap fires startNetballGame with
+  // startQuarterToo=true, committing lineup_set + quarter_start
+  // atomically. No intermediate page state, no pendingQuarterStart
+  // gate needed here.
   // Undo last goal — mirrors AFL's pattern at LiveGame.tsx:206. After a
   // goal is recorded a "[Team] goal — Player · Undo" chip appears for
   // 8 seconds (toast); after the toast fades the chip stays as a
@@ -1238,12 +1235,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onConfirm={async (lineup, quarterOverrideSeconds) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
+                // Steve 2026-05-15: passes startQuarterToo=true so
+                // lineup_set + quarter_start commit atomically.
+                // Matches AFL's two-step kickoff — the picker hosts
+                // NetballStartQuarterModal and the modal's "Start
+                // Q1" tap fires this onConfirm; both events land in
+                // one server call, the page goes straight from
+                // pre-kickoff to live play with no intermediate
+                // "lineup locked, ready the kickoff" state.
                 await startNetballGame(
                   auth,
                   game.id,
                   lineup,
                   ageGroup.defaultOnFieldSize,
                   quarterOverrideSeconds,
+                  /* startQuarterToo */ true,
                 );
                 resolve();
               });
@@ -1455,70 +1461,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }
 
-  // ─── Pre-kickoff: lineup is set, Q1 hasn't started yet ──────
-  // `startNetballGame` writes only the `lineup_set` event; `quarter_start`
-  // is a separate action so coaches can pause between locking the
-  // lineup and umpires calling play. Without this gate the LIVE branch
-  // renders with currentQuarter === 0 (Q0 · 00:00) which looks broken
-  // and would record goals against a phantom quarter.
-  if (currentQuarter === 0 && !quarterEnded) {
-    return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
-        {topUtilityRow}
-        {walkthroughOverlay}
-        <NetballScoreBug
-          teamName={teamName}
-          opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
-          quarterLabel="PRE"
-          clockText={formatClock(quarterLengthMs)}
-          showScores={trackScoring}
-        />
-        <p className="text-center text-sm text-ink-dim">
-          Lineup locked. Tap below to ready the kickoff.
-        </p>
-        {/* Page-level kickoff button sits ABOVE the court, mirroring
-            AFL's LiveGame layout. Tap surfaces the await-kickoff modal
-            — the server's quarter_start event is only written when the
-            GM confirms from the modal, so the umpire's whistle (not
-            the lineup tap) decides when the clock kicks off.
-            Label is "Ready for Q1" so it matches the modal heading
-            ("Ready for Q1") and stays distinct from the modal CTA
-            ("Start Q1"). Stagehand 2026-05-09 (run "everything") found
-            agents looping on "Start Q1" because Stagehand's selector
-            resolved to the page-level button (still mounted under the
-            modal overlay) instead of the modal CTA — both shared the
-            same accessible name. Same shape as the Q-break rename. */}
-        <button
-          type="button"
-          onClick={() => setPendingQuarterStart(1)}
-          disabled={isPending}
-          className="w-full rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
-        >
-          Ready for Q1
-        </button>
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
-        {pendingQuarterStart !== null && (
-          <NetballStartQuarterModal
-            quarter={pendingQuarterStart}
-            loading={isPending}
-            onStart={() => {
-              const quarter = pendingQuarterStart;
-              const { flushed } = enqueueLiveAction("startNetballQuarter", [
-                auth,
-                game.id,
-                quarter,
-              ]);
-              setPendingQuarterStart(null);
-              flushed.then(() => startTransition(() => router.refresh()));
-            }}
-            onCancel={() => setPendingQuarterStart(null)}
-          />
-        )}
-      </div>
-    );
-  }
+  // Steve 2026-05-15: the intermediate "lineup locked, ready the
+  // kickoff" page-state branch (currentQuarter === 0 && !quarterEnded)
+  // is gone. NetballLineupPicker now hosts NetballStartQuarterModal
+  // in-place and `startNetballGame` writes lineup_set + quarter_start
+  // atomically via the `startQuarterToo=true` flag. There's no longer
+  // a moment when the page can render with a committed lineup but no
+  // quarter_start event — matches AFL's flow exactly.
 
   // ─── Between Q4 and finalise: show finalise button ──────────
   if (quarterEnded && currentQuarter >= 4) {
