@@ -1,5 +1,9 @@
 // Covers the setAvailability action + add/remove fill-in flow on
-// the game detail page.
+// the standalone /availability route. (Until 2026-05-13 the
+// availability + fill-in UI lived inline on the game-detail page;
+// it was split out into its own pre-game step. Tests below
+// navigate to /availability accordingly — the game-detail page no
+// longer renders the AvailabilityList.)
 //
 // Covers: src/app/(app)/teams/[teamId]/games/[gameId]/actions.ts:
 //         setAvailability, addFillIn, removeFillIn
@@ -36,7 +40,7 @@ test("team admin toggles a player's availability for a game", async ({
   // to "unavailable", click twice: unknown → available → unavailable.
   const target = players[0];
 
-  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
 
   const row = page
     .getByRole("listitem")
@@ -145,7 +149,7 @@ test("team admin adds a fill-in player for this game only", async ({
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
 
   await page.getByText(/add fill-in/i).click();
   await page
