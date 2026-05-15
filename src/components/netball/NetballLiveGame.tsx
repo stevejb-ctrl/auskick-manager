@@ -31,6 +31,7 @@ import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
@@ -1692,29 +1693,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Goal confirm sheet — mirrors AFL's player-tap-to-score sheet
-          at LiveGame.tsx:996. Floats above bottom of viewport so the
-          coach can sanity-check the player before committing. */}
+      {/* Goal confirm sheet — chrome owned by the shared
+          ScoreRecordingDock (Phase 5c). Coach taps a GS/GA token,
+          this surfaces so they can sanity-check the player before
+          committing. Single + Goal button (netball is goals-only —
+          no behinds). */}
       {pendingGoal && (() => {
         const player = squadById.get(pendingGoal.playerId);
         return (
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 p-3">
-            <div className="pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
-              <div className="mb-2 flex items-center gap-2">
-                <p className="flex-1 truncate text-sm font-semibold text-ink">
-                  Record goal for{" "}
-                  <span className="text-brand-700">
-                    {player?.full_name ?? "player"}
-                  </span>
-                </p>
-                <button
-                  type="button"
-                  onClick={handleCancelGoal}
-                  className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute hover:text-ink-dim"
-                >
-                  Cancel
-                </button>
-              </div>
+          <ScoreRecordingDock
+            heading={
+              <>
+                Record goal for{" "}
+                <span className="text-brand-700">
+                  {player?.full_name ?? "player"}
+                </span>
+              </>
+            }
+            onCancel={handleCancelGoal}
+            actions={
               <button
                 type="button"
                 onClick={handleConfirmGoal}
@@ -1723,8 +1720,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               >
                 + Goal
               </button>
-            </div>
-          </div>
+            }
+          />
         );
       })()}
 

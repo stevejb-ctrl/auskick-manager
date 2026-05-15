@@ -23,6 +23,7 @@ import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
@@ -1535,76 +1536,73 @@ export function LiveGame({
       {canScore && (() => {
         const pid = selected && selected.kind === "field" ? selected.playerId : null;
         const p = pid ? playersById.get(pid) : null;
-        // Full-width fixed wrapper pins to the visual viewport regardless of
-        // any ancestor with transform/filter; the inner card is
-        // width-constrained and centered so it can't overflow horizontally.
+        // Floating record-score card — chrome owned by the shared
+        // ScoreRecordingDock (Phase 5c). The dock pins to bottom-
+        // viewport, owns the heading row + Cancel chip + the
+        // pointer-events isolation that lets background field
+        // taps fall through. Action buttons here are AFL-specific
+        // (+Goal/+Behind side-by-side, plus the Swap-player
+        // affordance when a field player is selected).
         return (
-          <div
-            className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-2 pt-2"
-            style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
-          >
-            <div className="pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
-              <div className="mb-2 flex items-center gap-2">
-                <p className="flex-1 truncate text-sm font-semibold text-ink">
-                  Record score for{" "}
-                  <span className="text-brand-700">
-                    {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
-                  </span>
-                </p>
-                <button
-                  type="button"
-                  onClick={() => clearSelection()}
-                  className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute hover:text-ink-dim"
-                >
-                  Cancel
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleScore("goal")}
-                  disabled={isPending}
-                  className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-                >
-                  + Goal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScore("behind")}
-                  disabled={isPending}
-                  className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
-                >
-                  + Behind
-                </button>
-              </div>
-              {/* Swap player — covers both cases:
-                    1. Sub off (pick a bench player → field-to-bench)
-                    2. Rotate position (pick another field player in
-                       a different zone → field-to-field zone swap)
-                  Stagehand 2026-05-09 (afl-u8-auskick) initially
-                  surfaced this button as "Sub off" only — but Steve
-                  flagged the gap: a coach often wants to rotate a
-                  forward to back without subbing them off. The
-                  picker now lists both bench AND other-zone field
-                  players, with the chosen player's location
-                  deciding which swap action fires. */}
-              {selected?.kind === "field" && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSubOffSelected({
-                      playerId: selected.playerId,
-                      zone: selected.zone,
-                    })
-                  }
-                  disabled={isPending}
-                  className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
-                >
-                  Swap player
-                </button>
-              )}
-            </div>
-          </div>
+          <ScoreRecordingDock
+            heading={
+              <>
+                Record score for{" "}
+                <span className="text-brand-700">
+                  {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
+                </span>
+              </>
+            }
+            onCancel={() => clearSelection()}
+            actions={
+              <>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleScore("goal")}
+                    disabled={isPending}
+                    className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                  >
+                    + Goal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScore("behind")}
+                    disabled={isPending}
+                    className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
+                  >
+                    + Behind
+                  </button>
+                </div>
+                {/* Swap player — covers both cases:
+                      1. Sub off (pick a bench player → field-to-bench)
+                      2. Rotate position (pick another field player in
+                         a different zone → field-to-field zone swap)
+                    Stagehand 2026-05-09 (afl-u8-auskick) initially
+                    surfaced this button as "Sub off" only — but Steve
+                    flagged the gap: a coach often wants to rotate a
+                    forward to back without subbing them off. The
+                    picker now lists both bench AND other-zone field
+                    players, with the chosen player's location
+                    deciding which swap action fires. */}
+                {selected?.kind === "field" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSubOffSelected({
+                        playerId: selected.playerId,
+                        zone: selected.zone,
+                      })
+                    }
+                    disabled={isPending}
+                    className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
+                  >
+                    Swap player
+                  </button>
+                )}
+              </>
+            }
+          />
         );
       })()}
 
