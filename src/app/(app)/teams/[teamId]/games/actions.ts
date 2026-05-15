@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -67,23 +68,16 @@ export async function createGame(
     return { success: false, error: insertError?.message ?? "Failed to create game." };
   }
 
-  // Default: all active players are "available". Manager un-selects those not attending.
-  const { data: activePlayers } = await supabase
-    .from("players")
-    .select("id")
-    .eq("team_id", teamId)
-    .eq("is_active", true);
-
-  if (activePlayers && activePlayers.length > 0) {
-    await supabase.from("game_availability").insert(
-      activePlayers.map((p) => ({
-        game_id: game.id,
-        player_id: p.id,
-        status: "available" as const,
-        updated_by: user.id,
-      }))
-    );
-  }
+  // Default: all active players are "available". Coach un-selects
+  // anyone not attending. Delegates to the shared
+  // `seedDefaultAvailability` helper (Steve 2026-05-15) so every
+  // game-creation path enforces the same convention.
+  await seedDefaultAvailability({
+    supabase,
+    gameId: game.id,
+    teamId,
+    createdBy: user.id,
+  });
 
   revalidatePath(`/teams/${teamId}/games`);
   redirect(`/teams/${teamId}/games/${game.id}`);

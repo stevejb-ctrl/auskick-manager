@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPlayhqTeamPage, parsePlayhqUrl } from "@/lib/playhq";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
+import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 
 // Allow up to 60 s — one PlayHQ fetch per team, sequential.
 export const maxDuration = 60;
@@ -93,12 +94,10 @@ async function syncTeam(
   // Resolve team config for defaults on new games.
   const cfg = AGE_GROUPS[ageGroupOf(team.age_group ?? undefined)];
 
-  // Active players get an "available" availability row when a new game is created.
-  const { data: activePlayers } = await supabase
-    .from("players")
-    .select("id")
-    .eq("team_id", team.id)
-    .eq("is_active", true);
+  // Active-player lookup moved into `seedDefaultAvailability` —
+  // each freshly-inserted game below re-runs the query through the
+  // helper. Removes a stale-read hazard if the squad changes
+  // mid-sync.
 
   // Use the team's first admin as created_by — required NOT NULL column.
   const { data: adminRow } = await supabase
@@ -157,15 +156,14 @@ async function syncTeam(
 
       if (insertErr || !newGame) continue;
 
-      if (activePlayers && activePlayers.length > 0) {
-        await supabase.from("game_availability").insert(
-          activePlayers.map((p) => ({
-            game_id: newGame.id,
-            player_id: p.id,
-            status: "available" as const,
-          }))
-        );
-      }
+      // Default-available — shared helper guarantees every game
+      // creation path enforces the same convention.
+      await seedDefaultAvailability({
+        supabase,
+        gameId: newGame.id,
+        teamId: team.id,
+        createdBy: adminRow.user_id,
+      });
 
       imported++;
     }

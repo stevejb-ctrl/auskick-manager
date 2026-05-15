@@ -131,6 +131,30 @@ if (gameErr || !game) {
   process.exit(1);
 }
 
+// Default-available — matches the production game-creation paths
+// (createGame, PlayHQ sync, demo seed) via the convention enforced
+// in `src/lib/games/seedDefaultAvailability.ts`. Without this,
+// Stagehand agents land on the runner-token URL and have to tap
+// "Mark available" N times before they can start the game. Can't
+// import the TS helper from a .mjs script, so inline the
+// equivalent logic.
+const { data: activePlayers } = await admin
+  .from("players")
+  .select("id")
+  .eq("team_id", team.id)
+  .eq("is_active", true);
+if (activePlayers && activePlayers.length > 0) {
+  await admin.from("game_availability").upsert(
+    activePlayers.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available",
+      updated_by: null,
+    })),
+    { onConflict: "game_id,player_id", ignoreDuplicates: true },
+  );
+}
+
 const runnerUrl = `http://localhost:${port}/run/${game.share_token}`;
 
 // Status line goes to stderr so stdout stays clean for shell

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { AGE_GROUPS } from "@/lib/ageGroups";
 import { netballSport } from "@/lib/sports";
 import { getBrand } from "@/lib/brand";
@@ -141,21 +142,12 @@ export default async function DemoPage() {
     );
   }
 
-  const { data: players } = await admin
-    .from("players")
-    .select("id")
-    .eq("team_id", team.id)
-    .eq("is_active", true);
-
-  if (players && players.length > 0) {
-    await admin.from("game_availability").insert(
-      players.map((p) => ({
-        game_id: newGame.id,
-        player_id: p.id,
-        status: "available" as const,
-      }))
-    );
-  }
+  await seedDefaultAvailability({
+    supabase: admin,
+    gameId: newGame.id,
+    teamId: team.id,
+    createdBy: null,
+  });
 
   redirect(`/run/${newGame.share_token}`);
 }

@@ -8,6 +8,7 @@ import {
   type PlayHQFixture,
   type PlayHQTeamMeta,
 } from "@/lib/playhq";
+import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -133,11 +134,11 @@ export async function importPlayhqFixtures(
   const { AGE_GROUPS, ageGroupOf } = await import("@/lib/ageGroups");
   const cfg = AGE_GROUPS[ageGroupOf(team?.age_group)];
 
-  const { data: activePlayers } = await supabase
-    .from("players")
-    .select("id")
-    .eq("team_id", teamId)
-    .eq("is_active", true);
+  // activePlayers lookup moved into `seedDefaultAvailability` —
+  // each freshly-inserted game below re-runs the query through the
+  // helper. Cheap because there's a covering index on
+  // (team_id, is_active). Removes a stale-read hazard if the
+  // squad changes mid-import.
 
   for (const f of toImport) {
     const existingRow = existingByExt.get(f.externalId);
@@ -179,16 +180,12 @@ export async function importPlayhqFixtures(
         .select("id")
         .single();
       if (insertErr || !newGame) continue;
-      if (activePlayers && activePlayers.length > 0) {
-        await supabase.from("game_availability").insert(
-          activePlayers.map((p) => ({
-            game_id: newGame.id,
-            player_id: p.id,
-            status: "available" as const,
-            updated_by: user.id,
-          }))
-        );
-      }
+      await seedDefaultAvailability({
+        supabase,
+        gameId: newGame.id,
+        teamId,
+        createdBy: user.id,
+      });
       imported++;
     }
   }
