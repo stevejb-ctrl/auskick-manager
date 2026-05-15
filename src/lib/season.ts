@@ -16,7 +16,7 @@
 //      the team's tag via revalidateTag.
 
 import { unstable_cache, revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { GameEvent } from "@/lib/types";
 
 /** Tag emitted on every season-events cache entry for this team. */
@@ -39,18 +39,28 @@ export function seasonEventsTag(teamId: string): string {
  * because Next's `tags` array on unstable_cache is static at
  * definition time. Re-creating the wrapper per call lets us pass
  * a dynamic tag derived from teamId.
+ *
+ * IMPORTANT: the inner fetcher uses the SERVICE-ROLE admin client,
+ * not createClient(). unstable_cache forbids dynamic Next APIs
+ * (cookies(), headers()) inside its callback — and the user-
+ * session client calls cookies() under the hood. The data here is
+ * not user-scoped (it's the team's own event log; RLS would only
+ * gate WRITE access, which we're not doing), and the caller
+ * (live/page.tsx) has already checked team membership before
+ * reaching this code. Using admin client inside the cache is the
+ * standard Next.js pattern for this exact shape.
  */
 export async function getSeasonEvents(teamId: string): Promise<GameEvent[]> {
   const fetcher = unstable_cache(
     async (id: string): Promise<GameEvent[]> => {
-      const supabase = createClient();
-      const { data: teamGames } = await supabase
+      const admin = createAdminClient();
+      const { data: teamGames } = await admin
         .from("games")
         .select("id")
         .eq("team_id", id);
       const ids = (teamGames ?? []).map((t) => t.id);
       if (ids.length === 0) return [];
-      const { data } = await supabase
+      const { data } = await admin
         .from("game_events")
         .select("*")
         .in("game_id", ids);
