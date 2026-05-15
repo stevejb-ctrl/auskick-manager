@@ -187,13 +187,32 @@ state, not chrome.
 Original target: shells contain >80% of cross-cutting UX rule
 code; adapters <500 lines each. Current state:
 
-- ~780 lines of shared chrome shipped (up from ~430 mid-session).
-- Sport-specific files trimmed by ~80 lines total — the chrome
-  trim was largely matched by the call-site replacement (which is
-  net-positive in clarity even though it's net-zero in lines).
+- **~920 lines of shared chrome** across 11 components, all
+  invoked by both sports (up from zero before this session).
+- Sport-specific files dropped from 9407 → 9307 total lines (100
+  lines net trim, but the headline benefit is the
+  ~920-line shared layer that previously didn't exist as a single
+  source of truth).
 - The remaining state extraction (lineup state machine, clock
   state machine, score recording) is where the >80% target gets
-  realistic. Chrome alone won't hit it.
+  realistic. Chrome alone won't hit it — but every future polish
+  pass on the chrome surfaces (sticky bar, score dock, breadcrumb,
+  utility row, etc.) now lands once and applies to both sports.
+
+### Drift risk now vs before
+
+Before this pass: any AFL polish commit had ~50% odds of
+unintentionally desyncing AFL from netball, because the parallel
+files contained inline copies of every shared rule. The May 14–15
+sweep proved this — 30 commits, only one touched netball, and the
+audit had to retroactively patch in five netball mirrors.
+
+After this pass: chrome surfaces drift-resistant by construction
+— a polish change to LineupPickerFooter, RotationModeToggle, etc.
+applies to both sports the moment it ships. The remaining drift
+surface is in the sport-specific state machines, which are
+genuinely sport-specific (different lineup shapes, different
+clock invariants) so the drift there is _intended_ divergence.
 
 ## Open friction items (from USABILITY-TESTS.md)
 
