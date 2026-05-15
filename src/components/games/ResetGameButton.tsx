@@ -55,11 +55,16 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
           detail page now share the same red-border ghost look,
           paired with the SFButton ghost neutrals (Set lineup,
           Share gameday link). */}
+      {/* Intrinsic width — Restart game is the secondary affordance
+          on the admin row alongside Add late arrival, which now
+          gets the w-full sm:w-auto treatment. Steve 2026-05-15:
+          reversed the width hierarchy because add-late-arrival is
+          the more common scenario; this destructive button should
+          read as the smaller, "if you need it" option. */}
       <SFButton
         variant="danger"
         size="md"
         onClick={() => setStage("confirm")}
-        className="w-full sm:w-auto"
       >
         Restart game
       </SFButton>

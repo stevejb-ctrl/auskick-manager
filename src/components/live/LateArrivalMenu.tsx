@@ -27,7 +27,18 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
 
   return (
     <>
-      <SFButton size="md" variant="ghost" onClick={() => setOpen(true)} disabled={pending}>
+      {/* w-full sm:w-auto so Add late arrival dominates the
+          admin row on mobile and stays intrinsic on tablet+.
+          Steve 2026-05-15: add-late-arrival is the more common
+          scenario on the row — the destructive Restart game
+          shouldn't visually outweigh it. */}
+      <SFButton
+        size="md"
+        variant="ghost"
+        onClick={() => setOpen(true)}
+        disabled={pending}
+        className="w-full sm:w-auto"
+      >
         + Add late arrival
       </SFButton>
 
