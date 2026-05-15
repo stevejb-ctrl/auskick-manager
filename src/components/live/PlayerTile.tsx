@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
@@ -46,7 +46,7 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function PlayerTile({
+function PlayerTileImpl({
   player,
   currentZone,
   onClick,
@@ -349,3 +349,88 @@ export function PlayerTile({
     </SirenPulseHalo>
   );
 }
+
+// ─── React.memo wrapper (perf phase 7b) ──────────────────────
+// LiveGame re-renders every 500ms while the clock runs. Without
+// memoization, every PlayerTile re-renders alongside — for 15+
+// tiles that's a chunk of main-thread work per tick, much of it
+// wasted because the visible state changes only once per second
+// (whole-minute:second format).
+//
+// `areEqual` quantizes time-related props to whole-second
+// resolution so a 500ms tick that doesn't cross a second boundary
+// is a cache hit. Other props (player, currentZone, swap, etc.)
+// fall back to strict equality.
+//
+// Limitation: function-prop identity (onClick, onLongPress) is
+// also compared strictly. LiveGame currently re-creates these on
+// every render, so this memo is a no-op for LiveGame-hosted
+// tiles until those handlers are stabilized via useCallback or a
+// ref-dispatcher pattern. Memo still wins for PlayerTile callers
+// in QuarterBreak / NetballLineupPicker / etc. that don't re-mint
+// handlers per tick.
+
+const SECOND_MS = 1000;
+function quantize(ms: number | undefined): number {
+  return ms === undefined ? -1 : Math.floor(ms / SECOND_MS);
+}
+
+function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
+  // Stable identity props — strict equality is what we want.
+  if (a.player !== b.player) return false;
+  if (a.currentZone !== b.currentZone) return false;
+  if (a.onClick !== b.onClick) return false;
+  if (a.onLongPress !== b.onLongPress) return false;
+  if (a.selected !== b.selected) return false;
+  if (a.dimmed !== b.dimmed) return false;
+  if (a.injured !== b.injured) return false;
+  if (a.loaned !== b.loaned) return false;
+  if (a.lockMode !== b.lockMode) return false;
+  if (a.compact !== b.compact) return false;
+
+  // swap is an object that LiveGame creates per render. Compare
+  // shallowly so a deep-equal swap doesn't trigger re-render.
+  if (a.swap !== b.swap) {
+    if (!a.swap || !b.swap) return false;
+    if (
+      a.swap.role !== b.swap.role ||
+      a.swap.pair !== b.swap.pair ||
+      a.swap.zone !== b.swap.zone ||
+      a.swap.totalPairs !== b.swap.totalPairs
+    ) {
+      return false;
+    }
+  }
+
+  // Time props — quantize to whole seconds. A 500ms tick that
+  // doesn't cross a second boundary is a cache hit.
+  if (quantize(a.totalMs) !== quantize(b.totalMs)) return false;
+
+  // zoneMs is keyed by Zone; compare each field at whole-second
+  // resolution. If one is undefined and the other isn't, no hit.
+  if (a.zoneMs !== b.zoneMs) {
+    if (!a.zoneMs || !b.zoneMs) return false;
+    if (
+      quantize(a.zoneMs.back) !== quantize(b.zoneMs.back) ||
+      quantize(a.zoneMs.hback) !== quantize(b.zoneMs.hback) ||
+      quantize(a.zoneMs.mid) !== quantize(b.zoneMs.mid) ||
+      quantize(a.zoneMs.hfwd) !== quantize(b.zoneMs.hfwd) ||
+      quantize(a.zoneMs.fwd) !== quantize(b.zoneMs.fwd)
+    ) {
+      return false;
+    }
+  }
+
+  // Score is goals + behinds — discrete integers that only
+  // change on an actual score event.
+  if (a.score !== b.score) {
+    if (!a.score || !b.score) return false;
+    if (a.score.goals !== b.score.goals || a.score.behinds !== b.score.behinds) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export const PlayerTile = memo(PlayerTileImpl, areEqual);
