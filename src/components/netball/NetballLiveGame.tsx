@@ -1212,7 +1212,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // coach all the context they need. Keeping the chrome minimal
     // here puts the actual decision (the lineup) front and centre.
     return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballLineupPicker
@@ -1286,7 +1286,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─── Game finalised ─────────────────────────────────────────
   if (finalised) {
     return (
-      <div className="flex flex-col gap-4 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1353,7 +1353,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // into the finalised branch above on next render.
   if (quarterEnded && currentQuarter >= 4) {
     return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1390,7 +1390,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // writes; we just clear the local overlay/lock state on success.
   if (quarterEnded && currentQuarter < 4) {
     return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1472,7 +1472,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─── Between Q4 and finalise: show finalise button ──────────
   if (quarterEnded && currentQuarter >= 4) {
     return (
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
@@ -1557,7 +1557,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   );
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-4">
+    <div className="flex flex-col gap-4 pb-4">
       {topUtilityRow}
       {walkthroughOverlay}
 
