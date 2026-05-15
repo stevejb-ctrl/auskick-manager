@@ -928,6 +928,16 @@ export function LiveGame({
   }
 
   function handleResume() {
+    // Mirror of netball's handleClockTap gate (NetballLiveGame.tsx
+    // ~L270): once the auto-hooter has fired for this quarter the
+    // clock is locked — tapping the pill to resume would re-start
+    // player-time accrual after the quarter is already over (just
+    // waiting on the GM to confirm via the QuarterEndModal). The
+    // hooter's pauseClock() is the freeze anchor; the resume path
+    // shouldn't be able to break it. Steve 2026-05-15 directive:
+    // "apply the same rules globally" — both sports now share the
+    // same hooter-fired-locks-resume invariant.
+    if (quarterEndTriggeredRef.current === currentQuarter) return;
     startClock();
   }
 
