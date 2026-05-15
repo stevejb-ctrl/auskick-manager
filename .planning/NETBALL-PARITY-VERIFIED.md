@@ -10,12 +10,36 @@ Most of what the original audit flagged as "netball missing parity"
 turned out to be **already shipped** — the audit agent grepped
 patterns that had been refactored into delegation (parent-supplies-
 callback) rather than inline gating. The real gaps were five
-micro-interactions from the May 14–15 polish sweep that the original
+micro-interactions from the May 14–15 polize sweep that the original
 PRs explicitly noted as "AFL-only, netball follow-up". Those are
 now shipped.
 
-Three new shared chrome components have been extracted as the first
-step toward full shell extraction (Phases 3d / 4 / 5 deferred).
+Eleven shared chrome components have been extracted across pre-game
+pickers, Q-breaks, and live-game surfaces.
+
+### Late-pass correction
+
+Steve flagged a genuine parity gap the chrome-only audit missed:
+**the netball flow had a divergent state machine for the Q1
+kickoff**. AFL fires `lineup_set + quarter_start` atomically in
+one server call; netball fired them sequentially with a full
+page re-render in between, which showed a top-anchored scorebug
++ an inline "Ready for Q1" button + locked court — a screen AFL
+never had. This wasn't visible from a chrome diff because the
+component-tree shapes looked similar; the divergence was in the
+state machine.
+
+Fix shipped as commit `7d10723`:
+  - `startNetballGame` gains a `startQuarterToo` flag (mirrors
+    AFL).
+  - `NetballLineupPicker` hosts `NetballStartQuarterModal`
+    in-place (mirrors AFL).
+  - The intermediate page-state branch in `NetballLiveGame` is
+    deleted along with its dead state and import.
+
+The audit doc's earlier "drift-resistant by construction" claim
+was premature on this surface — chrome alone wasn't enough. Now
+both sports use the same state machine for the Q1 kickoff too.
 
 ## Parity matrix
 
@@ -122,7 +146,9 @@ the next audit run can pre-filter:
 14. _(audit doc, second revision)_
 15. `22d2d89` — ScoreRecordingDock extraction (Phase 5c)
 16. `51c30d5` — LiveStickyScoreBar extraction (Phase 5d)
-17. _(this audit doc, third revision)_
+17. _(audit doc, third revision)_
+18. `7d10723` — Netball two-step kickoff state-machine parity (Phase 7)
+19. _(this audit doc, fourth revision)_
 
 ### Shared chrome inventory
 
