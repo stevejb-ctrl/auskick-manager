@@ -109,9 +109,15 @@ export async function setAvailability(
 
   if (error) return { success: false, error: error.message };
 
-  // "layout" scope so the /live child route also reloads availability-derived
-  // data when a player is flipped on the parent game page.
-  revalidatePath(`/teams/${auth.teamId}/games/${gameId}`, "layout");
+  // Perf phase 6: was `, "layout"` which invalidated the entire
+  // team segment (squad/stats/settings/dashboard/...) on every
+  // availability flip. Narrow to just the three pages that
+  // actually read game_availability: the game detail page, the
+  // standalone /availability child, and the /live page (its
+  // LineupPicker reads availability to filter the squad).
+  revalidatePath(`/teams/${auth.teamId}/games/${gameId}`);
+  revalidatePath(`/teams/${auth.teamId}/games/${gameId}/availability`);
+  revalidatePath(`/teams/${auth.teamId}/games/${gameId}/live`);
   return { success: true };
 }
 
@@ -154,7 +160,12 @@ export async function addFillIn(
   if (check.kind === "token") {
     revalidatePath(`/run/${auth.kind === "token" ? auth.token : ""}`, "layout");
   } else {
-    revalidatePath(`/teams/${check.teamId}/games/${gameId}`, "layout");
+    // Perf phase 6: fill-ins appear on the game detail,
+    // /availability, and /live pages. Skip the team-layout-wide
+    // revalidation.
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}/availability`);
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}/live`);
   }
   return { success: true, data: { id: data.id } };
 }
@@ -186,7 +197,11 @@ export async function removeFillIn(
   if (check.kind === "token") {
     revalidatePath(`/run/${auth.kind === "token" ? auth.token : ""}`, "layout");
   } else {
-    revalidatePath(`/teams/${check.teamId}/games/${gameId}`, "layout");
+    // Perf phase 6: fill-in removal touches the same three pages
+    // as addFillIn. Skip the team-layout-wide revalidation.
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}/availability`);
+    revalidatePath(`/teams/${check.teamId}/games/${gameId}/live`);
   }
   return { success: true };
 }
@@ -239,7 +254,15 @@ export async function resetGame(
   // Game's events just got wiped — drop the season-events cache.
   invalidateSeasonEvents(teamId);
 
-  revalidatePath(`/teams/${teamId}/games/${gameId}`, "layout");
+  // Perf phase 6: resetGame wipes events + flips status back to
+  // "upcoming". Affects the game detail page, /availability,
+  // /live, and the team's games list (status pill goes back to
+  // "Upcoming"). Stats also re-derive without this game's events.
+  revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath(`/teams/${teamId}/games/${gameId}/availability`);
+  revalidatePath(`/teams/${teamId}/games/${gameId}/live`);
+  revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}/stats`);
   const { data: game } = await admin
     .from("games")
     .select("share_token")

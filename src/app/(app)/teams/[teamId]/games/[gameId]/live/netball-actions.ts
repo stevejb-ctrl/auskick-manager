@@ -379,8 +379,13 @@ export async function finaliseNetballGame(
   if (updateError) return { success: false, error: updateError.message };
 
   if (auth.kind === "team") {
-    revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
+    // Perf phase 6: was `, "layout"` which dragged in
+    // squad/settings/dashboard/etc. Narrow to game pages + games
+    // list + stats.
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
     revalidatePath(`/teams/${w.teamId}/games`);
+    revalidatePath(`/teams/${w.teamId}/stats`);
   } else {
     revalidatePath(`/run/${auth.token}`, "layout");
   }

@@ -404,7 +404,13 @@ export async function finaliseGame(
   if (updateError) return { success: false, error: updateError.message };
 
   if (auth.kind === "team") {
-    revalidatePath(`/teams/${w.teamId}/games/${gameId}`, "layout");
+    // Perf phase 6: finalising affects the game detail page (status
+    // pill), /live (FT review surface), the games list (shows
+    // result), and stats (incorporates new game). Was `, "layout"`
+    // which dragged in squad/settings/dashboard/setup too —
+    // unnecessary, those pages don't read game.status.
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
     revalidatePath(`/teams/${w.teamId}/games`);
     revalidatePath(`/teams/${w.teamId}/stats`);
   } else {
