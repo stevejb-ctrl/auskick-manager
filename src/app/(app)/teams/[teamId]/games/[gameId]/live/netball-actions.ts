@@ -8,7 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -61,12 +61,8 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
   if (!userId) {
     return { supabase, userId: null, teamId: auth.teamId, error: "Unauthenticated." };
   }
-  const { data: membership } = await supabase
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", auth.teamId)
-    .eq("user_id", userId)
-    .single();
+  // Cached lookup shared with the page render + sibling actions.
+  const membership = await getMembership(auth.teamId, userId);
   if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
     return { supabase, userId, teamId: auth.teamId, error: "Not authorised." };
   }

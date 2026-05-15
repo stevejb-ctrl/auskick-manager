@@ -12,6 +12,30 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // network round-trip to Supabase auth instead of N independent ones.
 export const getUser = cache(() => createClient().auth.getUser());
 
+/**
+ * Membership lookup cached for the lifetime of a single request. The
+ * pre-cache flow had the live page render querying `team_memberships`
+ * once, then any server action invoked from that page re-querying the
+ * same row in its own `resolveWriter` — a duplicate round-trip per
+ * (render, action) pair. Server-action handling and the post-action
+ * RSC re-render share a request context, so `React.cache` collapses
+ * them to a single query.
+ *
+ * Returns the membership row or null. Callers interpret the role.
+ */
+export const getMembership = cache(
+  async (teamId: string, userId: string) => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("team_memberships")
+      .select("role")
+      .eq("team_id", teamId)
+      .eq("user_id", userId)
+      .single();
+    return data as { role: string } | null;
+  },
+);
+
 export function createClient() {
   const cookieStore = cookies();
   return _createServerClient(

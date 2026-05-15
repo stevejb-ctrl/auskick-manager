@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient, getUser } from "@/lib/supabase/server";
+import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -47,12 +47,10 @@ export default async function LivePage({ params }: LivePageProps) {
   } = await getUser();
   if (!user) redirect("/login");
 
-  const { data: membership } = await supabase
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", params.teamId)
-    .eq("user_id", user.id)
-    .single();
+  // Cached: any server action invoked from this page that calls
+  // getMembership(teamId, user.id) in the same request will hit
+  // this result instead of round-tripping again.
+  const membership = await getMembership(params.teamId, user.id);
 
   const isAdmin = membership?.role === "admin";
   const canRun = isAdmin || membership?.role === "game_manager";

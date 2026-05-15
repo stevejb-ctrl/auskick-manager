@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -72,12 +72,10 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
       error: "Unauthenticated.",
     };
   }
-  const { data: membership } = await supabase
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", auth.teamId)
-    .eq("user_id", userId)
-    .single();
+  // Cached lookup — if the page render or an earlier action in the
+  // same request already queried membership, this hits the React
+  // cache instead of a duplicate Supabase round-trip.
+  const membership = await getMembership(auth.teamId, userId);
   if (
     !membership ||
     (membership.role !== "admin" && membership.role !== "game_manager")
