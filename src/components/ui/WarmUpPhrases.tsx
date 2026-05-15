@@ -6,6 +6,14 @@ import { useEffect, useState } from "react";
 // before a junior AFL match. Friendly, in-domain, slightly winking.
 // The trailing ellipsis on each phrase reinforces "this is in
 // progress" without needing a spinner annotation.
+//
+// MUST stay in sync with the same set in
+// mobile/ios/App/App/AppDelegate.swift (`warmUpPhrases`). Both
+// surfaces — the iOS cold-start splash and the in-app loading.tsx —
+// are the same loading moment from the user's perspective, so the
+// copy should match exactly. If you change the set here, also
+// update the Swift array; regenerate the iOS build via
+// `npx cap sync ios`.
 const DEFAULT_PHRASES = [
   "Lacing the boots…",
   "Star jumps…",
