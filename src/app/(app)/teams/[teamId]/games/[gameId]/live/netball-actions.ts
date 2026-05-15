@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
@@ -55,22 +56,21 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
     return { supabase: admin, userId: null, teamId: game.team_id, error: null };
   }
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // Skip the second auth round-trip — middleware already validated.
+  const userId = readValidatedUserId();
+  if (!userId) {
     return { supabase, userId: null, teamId: auth.teamId, error: "Unauthenticated." };
   }
   const { data: membership } = await supabase
     .from("team_memberships")
     .select("role")
     .eq("team_id", auth.teamId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
   if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
-    return { supabase, userId: user.id, teamId: auth.teamId, error: "Not authorised." };
+    return { supabase, userId, teamId: auth.teamId, error: "Not authorised." };
   }
-  return { supabase, userId: user.id, teamId: auth.teamId, error: null };
+  return { supabase, userId, teamId: auth.teamId, error: null };
 }
 
 async function insertEvent(

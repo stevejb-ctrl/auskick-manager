@@ -2,10 +2,16 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
 import { NATIVE_COOKIE_NAME } from "@/lib/platform";
+import { SIREN_USER_ID_HEADER } from "@/lib/auth/userIdHeader";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function updateSession(request: NextRequest) {
+  // Strip any inbound `x-siren-user-id` so a client can't smuggle a
+  // forged id past the auth dedup path. We re-set it below ONLY after
+  // supabase.auth.getUser() validates the JWT.
+  request.headers.delete(SIREN_USER_ID_HEADER);
+
   // ─── Brand routing ─────────────────────────────────────────
   // Read the host and pick a brand. In dev, `?brand=netball` or
   // NEXT_PUBLIC_DEFAULT_BRAND override. Result is stashed on the
@@ -55,6 +61,31 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Stash the validated user id on the forwarded request headers so
+  // server actions can skip the second `getUser()` round-trip. Perf:
+  // each Supabase auth round-trip is ~150-400ms on 3G; `resolveWriter`
+  // previously made it once per action. Strip-then-set above prevents
+  // a client smuggling the header — only this codepath, AFTER the
+  // JWT was validated by supabase, can set it.
+  if (user) {
+    request.headers.set(SIREN_USER_ID_HEADER, user.id);
+    // Re-bake the response so the mutated request header is what
+    // downstream route handlers / server actions see. The cookies
+    // captured during getUser()'s setAll callback must be preserved.
+    const carryCookies = supabaseResponse.cookies.getAll();
+    supabaseResponse = NextResponse.next({ request });
+    supabaseResponse.headers.set(BRAND_HEADER_NAME, brand.brand.id);
+    if (override) {
+      supabaseResponse.cookies.set(BRAND_COOKIE_NAME, brand.brand.id, {
+        path: "/",
+        sameSite: "lax",
+      });
+    }
+    for (const c of carryCookies) {
+      supabaseResponse.cookies.set(c);
+    }
+  }
 
   const { pathname } = request.nextUrl;
 

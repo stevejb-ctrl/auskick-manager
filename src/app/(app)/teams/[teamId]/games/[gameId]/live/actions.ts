@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -57,10 +58,13 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // Skip the second supabase.auth.getUser() round-trip — middleware
+  // already validated the JWT and stashed the user id on the request
+  // headers (lib/auth/userIdHeader.ts). Saves ~150-400ms per action
+  // on 3G. If the header is absent it means middleware didn't run
+  // (or the user isn't logged in) — treat as unauthenticated.
+  const userId = readValidatedUserId();
+  if (!userId) {
     return {
       supabase,
       userId: null,
@@ -72,7 +76,7 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
     .from("team_memberships")
     .select("role")
     .eq("team_id", auth.teamId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
   if (
     !membership ||
@@ -80,12 +84,12 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
   ) {
     return {
       supabase,
-      userId: user.id,
+      userId,
       teamId: auth.teamId,
       error: "Not authorised.",
     };
   }
-  return { supabase, userId: user.id, teamId: auth.teamId, error: null };
+  return { supabase, userId, teamId: auth.teamId, error: null };
 }
 
 async function insertEvent(

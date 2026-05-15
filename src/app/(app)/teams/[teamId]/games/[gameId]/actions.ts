@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
 
 interface FillInInput {
@@ -33,16 +34,15 @@ async function authorizeManager(
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Unauthenticated." };
+  // Skip the second auth round-trip — middleware already validated.
+  const userId = readValidatedUserId();
+  if (!userId) return { ok: false, error: "Unauthenticated." };
 
   const { data: membership } = await supabase
     .from("team_memberships")
     .select("role")
     .eq("team_id", auth.teamId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   if (
@@ -51,7 +51,7 @@ async function authorizeManager(
   ) {
     return { ok: false, error: "Not authorised." };
   }
-  return { ok: true, kind: "team", userId: user.id, teamId: auth.teamId };
+  return { ok: true, kind: "team", userId, teamId: auth.teamId };
 }
 
 export async function setAvailability(
@@ -85,10 +85,9 @@ export async function setAvailability(
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: "Unauthenticated." };
+  // Skip the second auth round-trip — middleware already validated.
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
 
   // Any team member — admin, game_manager, or parent — may toggle
   // availability. Parents are trusted to RSVP for their team.
@@ -98,7 +97,7 @@ export async function setAvailability(
     .from("team_memberships")
     .select("role")
     .eq("team_id", auth.teamId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   if (!membership) {
@@ -110,7 +109,7 @@ export async function setAvailability(
       game_id: gameId,
       player_id: playerId,
       status,
-      updated_by: user.id,
+      updated_by: userId,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "game_id,player_id" }
@@ -223,16 +222,15 @@ export async function resetGame(
     teamId = game.team_id;
   } else {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Unauthenticated." };
+    // Skip the second auth round-trip — middleware already validated.
+    const userId = readValidatedUserId();
+    if (!userId) return { success: false, error: "Unauthenticated." };
 
     const { data: membership } = await supabase
       .from("team_memberships")
       .select("role")
       .eq("team_id", auth.teamId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
     if (!membership || membership.role !== "admin") {
       return { success: false, error: "Only admins can reset games." };
@@ -279,16 +277,15 @@ export async function deleteGame(
   gameId: string
 ): Promise<ActionResult> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: "Unauthenticated." };
+  // Skip the second auth round-trip — middleware already validated.
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
 
   const { data: membership } = await supabase
     .from("team_memberships")
     .select("role")
     .eq("team_id", teamId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
   if (!membership || membership.role !== "admin") {
     return { success: false, error: "Only admins can delete games." };
