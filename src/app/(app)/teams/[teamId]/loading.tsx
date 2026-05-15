@@ -1,4 +1,5 @@
 import { PulseDot } from "@/components/ui/PulseDot";
+import { WarmUpPhrases } from "@/components/ui/WarmUpPhrases";
 
 // Loading fallback for navigation INSIDE a team (Home ↔ Squad ↔
 // Games ↔ Stats ↔ Settings). This file scopes the pulse to the
@@ -15,14 +16,18 @@ import { PulseDot } from "@/components/ui/PulseDot";
 // This loader fires for the page segment under teams/[teamId]/...
 // while keeping TeamNav (and its tab bar) painted, so subsequent
 // taps can still hit the right target.
+//
+// Steve 2026-05-15: WarmUpPhrases sits below the pulse — the kids
+// are warming up pre-game. Gives the coach something to read
+// while the tab content streams in.
 export default function TeamLoading() {
   return (
     <div
-      className="flex min-h-[40vh] items-center justify-center"
-      role="status"
+      className="flex min-h-[40vh] flex-col items-center justify-center gap-4"
       aria-label="Loading"
     >
       <PulseDot size="lg" />
+      <WarmUpPhrases />
     </div>
   );
 }

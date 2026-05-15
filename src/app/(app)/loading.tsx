@@ -1,4 +1,5 @@
 import { PulseDot } from "@/components/ui/PulseDot";
+import { WarmUpPhrases } from "@/components/ui/WarmUpPhrases";
 
 // Next.js renders this whenever a route segment under (app)/ is
 // resolving — including the initial RSC fetch on navigation from
@@ -12,14 +13,20 @@ import { PulseDot } from "@/components/ui/PulseDot";
 // Individual deeper routes can override with their own loading.tsx
 // if they want a different fallback (e.g., the live-game page
 // might want a skeleton field).
+//
+// Steve 2026-05-15: added WarmUpPhrases so route transitions
+// feel like the kids are warming up pre-game — "Lacing the
+// boots…", "Star jumps…", "Practising marks…". Perceived-
+// performance hack: a 2s wait with something to read feels
+// shorter than a 2s wait with a silent spinner.
 export default function AppLoading() {
   return (
     <div
-      className="flex min-h-[40vh] items-center justify-center"
-      role="status"
+      className="flex min-h-[40vh] flex-col items-center justify-center gap-4"
       aria-label="Loading"
     >
       <PulseDot size="lg" />
+      <WarmUpPhrases />
     </div>
   );
 }

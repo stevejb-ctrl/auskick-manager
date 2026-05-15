@@ -121,6 +121,110 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         group.repeatCount = .infinity
         group.timingFunction = CAMediaTimingFunction(name: .easeOut)
         halo.add(group, forKey: "sirenPulse")
+
+        // Add the warm-up phrase cycler below the wordmark. Same
+        // metaphor as the web (app)/loading.tsx — kids warming up
+        // pre-game. Keeps the native splash voice aligned with the
+        // in-app loader so the iOS user reads the same "Lacing the
+        // boots…" / "Star jumps…" copy whether they're seeing the
+        // 5-second cold-start splash or a tab-transition loader.
+        attachSplashPhrases(
+            on: splashImageView,
+            below: dotScreenCenter,
+            dotRadius: dotScreenRadius
+        )
+    }
+
+    // MARK: - Splash warm-up phrase cycler
+
+    // Warm-up phrases that rotate beneath the wordmark on the
+    // native splash. MUST stay in sync with the default set in
+    // src/components/ui/WarmUpPhrases.tsx — both surfaces are the
+    // same loading moment from the user's perspective.
+    private static let warmUpPhrases: [String] = [
+        "Lacing the boots…",
+        "Star jumps…",
+        "Stretching the hammies…",
+        "Practising marks…",
+        "Spreading the cones…",
+        "High knees…",
+        "Pumping up the footy…",
+        "Limbering up…",
+        "Coach's pre-game chat…",
+        "Tossing the coin…",
+    ]
+
+    private func attachSplashPhrases(
+        on container: UIView,
+        below dotCenter: CGPoint,
+        dotRadius: CGFloat
+    ) {
+        // Sit ~60pt below the dot's lower edge. That's far enough
+        // to clear the wordmark glyph descenders (the "g" tail in
+        // "Tossing"), close enough that the label reads as part of
+        // the wordmark moment rather than floating on its own.
+        let labelHeight: CGFloat = 24
+        let labelY = dotCenter.y + dotRadius + 60
+        let label = UILabel(frame: CGRect(
+            x: 0,
+            y: labelY,
+            width: container.bounds.width,
+            height: labelHeight
+        ))
+        label.textAlignment = .center
+        label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        // --ink-dim from globals.css = #5E6860
+        label.textColor = UIColor(
+            red: 94.0 / 255.0,
+            green: 104.0 / 255.0,
+            blue: 96.0 / 255.0,
+            alpha: 1.0
+        )
+        // Autoresize horizontally so the label stays centered if the
+        // imageView resizes (orientation change, split-view, etc.).
+        label.autoresizingMask = [.flexibleWidth]
+        label.text = AppDelegate.warmUpPhrases[0]
+        label.zPosition = 1000
+        container.addSubview(label)
+
+        // Under Reduce Motion show a single static phrase instead
+        // of cycling. The phrase IS informational; the crossfade
+        // is decoration. Vestibular-sensitive users get the
+        // signal without the swap motion.
+        if UIAccessibility.isReduceMotionEnabled {
+            label.text = "Warming up…"
+            return
+        }
+
+        // First phrase is already visible — schedule the cycle to
+        // swap to the next one after the standard 1.5s hold.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.cycleSplashPhrase(label: label, idx: 0)
+        }
+    }
+
+    // Recursive scheduler — fade out current phrase, swap text,
+    // fade in, hold, repeat. Bails when the label is no longer in
+    // a window (splash dismissed by Capacitor's hide() call).
+    // Total cycle per phrase: 0.175s out + 0.175s in + 1.15s hold
+    // = 1.5s — matches WarmUpPhrases.tsx's intervalMs default.
+    private func cycleSplashPhrase(label: UILabel, idx: Int) {
+        guard label.window != nil else { return }
+        let nextIdx = (idx + 1) % AppDelegate.warmUpPhrases.count
+        UIView.animate(withDuration: 0.175, animations: {
+            label.alpha = 0
+        }) { _ in
+            guard label.window != nil else { return }
+            label.text = AppDelegate.warmUpPhrases[nextIdx]
+            UIView.animate(withDuration: 0.175, animations: {
+                label.alpha = 1
+            }) { [weak self] _ in
+                guard label.window != nil else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) {
+                    self?.cycleSplashPhrase(label: label, idx: nextIdx)
+                }
+            }
+        }
     }
 
     // Filled-donut CGPath: outer circle minus inner circle, drawn
