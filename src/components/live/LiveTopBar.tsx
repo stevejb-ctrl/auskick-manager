@@ -79,22 +79,34 @@ export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
             <span className="truncate">· {game.location}</span>
           )}
         </div>
+        {/* The visible "?" pill is 28pt, but the surrounding button
+            keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve
+            2026-05-15: previously the whole 44pt area got the
+            `rounded-full border` chrome, which read as oversized
+            against the small text + Exit label. iOS-native pattern
+            is a small visible glyph centered in a generous tap area
+            — `group` here just keeps the hover/active state on the
+            inner pill rather than the whole outer surface. */}
         {onHelp ? (
           <button
             type="button"
             onClick={onHelp}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-hairline font-mono text-sm font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim active:bg-ink/5"
+            className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
             aria-label="Open walkthrough"
           >
-            ?
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
+              ?
+            </span>
           </button>
         ) : (
           <Link
             href="/help"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-hairline font-mono text-sm font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:text-ink-dim active:bg-ink/5"
+            className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
             aria-label="Open help"
           >
-            ?
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
+              ?
+            </span>
           </Link>
         )}
       </div>
