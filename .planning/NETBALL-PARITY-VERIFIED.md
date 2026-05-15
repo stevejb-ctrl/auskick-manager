@@ -104,7 +104,7 @@ the next audit run can pre-filter:
 
 ## Shipped this pass
 
-14 commits over one session:
+17 commits over one session:
 
 1. `3a5a139` — AddFillInForm visibility lift to SFButton (Phase 1.7)
 2. `da3d822` — Court wake-up halo on Q1 kickoff (Phase 1.5.1)
@@ -119,7 +119,10 @@ the next audit run can pre-filter:
 11. `15a2a4e` — QuarterKickoffBar extraction (Phase 4b)
 12. `cc43375` — ManualEndQuarterConfirm extraction (Phase 5a)
 13. `8a4f151` — LiveAdminUtilityRow extraction (Phase 5b)
-14. _(this audit doc, second revision)_
+14. _(audit doc, second revision)_
+15. `22d2d89` — ScoreRecordingDock extraction (Phase 5c)
+16. `51c30d5` — LiveStickyScoreBar extraction (Phase 5d)
+17. _(this audit doc, third revision)_
 
 ### Shared chrome inventory
 
@@ -136,6 +139,8 @@ totalling ~780 lines. Every line is invoked by both sports:
 | `live/LongPressHint.tsx` | 136 | both LiveGame files |
 | `live/ManualEndQuarterConfirm.tsx` | 86 | both LiveGame files |
 | `live/LiveAdminUtilityRow.tsx` | 71 | both LiveGame files |
+| `live/ScoreRecordingDock.tsx` | 84 | both LiveGame files (record-score floating card) |
+| `live/LiveStickyScoreBar.tsx` | 60 | both LiveGame files (sticky-bottom score + undo) |
 | `ui/InlineAlert.tsx` | 52 | pre-game pickers + Q-breaks (4 sites) |
 
 ## Genuinely sport-specific (do NOT mirror)
