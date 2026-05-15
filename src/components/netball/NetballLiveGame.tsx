@@ -48,6 +48,7 @@ import {
   playerThirdMs,
   seasonPositionCounts,
 } from "@/lib/sports/netball/fairness";
+import { computeNetballClockMs } from "@/lib/sports/netball/clock";
 import {
   saveNetballLineupDraft,
   startNetballGame,
@@ -239,26 +240,47 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const id = window.setInterval(() => setClockTick((t) => t + 1), 500);
     return () => window.clearInterval(id);
   }, [currentQuarter, quarterEnded, finalised, quarterStartedAt, pausedAtMs]);
-  const clockMs = (() => {
-    if (currentQuarter < 1) return 0;
-    if (quarterEnded || finalised || !quarterStartedAt) return _quarterElapsedMs;
-    const startedAtMs = Date.parse(quarterStartedAt);
-    if (Number.isNaN(startedAtMs)) return _quarterElapsedMs;
-    // When paused, freeze at the moment of pause (subtract any
-    // already-accumulated pause time from prior pauses this quarter).
-    const refMs = pausedAtMs ?? Date.now();
-    const rawElapsed = Math.max(0, refMs - startedAtMs - accumulatedPauseMs);
-    // clockMultiplier scales perceived elapsed time. Default 1 (real-
-    // time); 8 for the demo flow so a 10-min quarter ticks down in
-    // 1m15s of wall-clock. Per-third minute accounting + the hooter
-    // trigger downstream consume the multiplied value, so all three
-    // surfaces (countdown, dashboard time bars, auto-end) stay in
-    // sync. Mirrors AFL's clockMultiplier semantics in LiveGame.tsx.
-    return rawElapsed * clockMultiplier;
+  // Quarter-clock calculation extracted to a pure helper so the
+  // freeze invariant is unit-testable (src/lib/sports/netball/clock.ts).
+  // Steve 2026-05-15: the freeze branch is load-bearing for the
+  // auto-hooter bug fix — between hooter and the server-confirmed
+  // quarter_end refresh, the helper MUST return the value captured
+  // at pausedAtMs (set by the hooter useEffect below), otherwise
+  // player tile time keeps ticking up during that window.
+  //
+  // clockMultiplier scales perceived elapsed time. Default 1 (real-
+  // time); 8 for the demo flow so a 10-min quarter ticks down in
+  // 1m15s of wall-clock. Per-third minute accounting + the hooter
+  // trigger downstream consume the multiplied value, so all three
+  // surfaces (countdown, dashboard time bars, auto-end) stay in
+  // sync. Mirrors AFL's clockMultiplier semantics in LiveGame.tsx.
+  // Date.parse returns NaN on malformed input; treat that the same
+  // as a null start (falls through to fallbackElapsedMs).
+  const quarterStartedAtMs = (() => {
+    if (!quarterStartedAt) return null;
+    const ms = Date.parse(quarterStartedAt);
+    return Number.isNaN(ms) ? null : ms;
   })();
+  const clockMs = computeNetballClockMs({
+    currentQuarter,
+    quarterEnded,
+    finalised,
+    quarterStartedAtMs,
+    pausedAtMs,
+    accumulatedPauseMs,
+    fallbackElapsedMs: _quarterElapsedMs,
+    clockMultiplier,
+    nowMs: Date.now(),
+  });
   const isPaused = pausedAtMs !== null;
   const handleClockTap = useCallback(() => {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
+    // Once the auto-hooter has fired for this quarter the clock is
+    // locked — tapping the pill to "resume" would re-start time
+    // accrual after the quarter is already over (just waiting on
+    // server confirmation). The hooter's setPausedAtMs is the
+    // freeze anchor; users shouldn't be able to break it.
+    if (hooterFiredForQuarterRef.current === currentQuarter) return;
     if (pausedAtMs !== null) {
       // Resume: bank the elapsed pause-time and clear the pause anchor.
       setAccumulatedPauseMs((prev) => prev + (Date.now() - pausedAtMs));
@@ -368,6 +390,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // cancelled).
     if (pendingGoal !== null) return;
     hooterFiredForQuarterRef.current = currentQuarter;
+    // Freeze the local clock at the hooter so per-player tile time
+    // doesn't keep ticking up while we wait for the server-confirmed
+    // quarter_end refresh to land. Without this setPausedAtMs call,
+    // computeNetballClockMs(...) returns the live `Date.now()` delta
+    // and player times accrue during the ~100-500ms (often longer
+    // on slow networks) between hooter and refresh — the bug Steve
+    // reported 2026-05-15. Idempotent guard: if the coach manually
+    // paused earlier and the hooter then auto-fires, don't overwrite
+    // the earlier pause anchor.
+    setPausedAtMs((prev) => prev ?? Date.now());
     // Bump the pulse key so the next render (Q-break score-bug for
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.
