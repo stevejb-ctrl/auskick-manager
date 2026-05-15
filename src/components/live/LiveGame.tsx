@@ -3,6 +3,7 @@
 import { SFButton } from "@/components/sf";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import {
   clockElapsedMs,
   useLiveGame,
@@ -21,22 +22,55 @@ import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
-import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
-import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
-import { QuarterEndModal } from "@/components/live/QuarterEndModal";
+import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
-import { LockModal } from "@/components/live/LockModal";
-import {
-  InjuryReplacementModal,
-  type InjuryReplacementCandidate,
-} from "@/components/live/InjuryReplacementModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
-import { FullTimeReview } from "@/components/live/FullTimeReview";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import type { InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+
+// Perf phase 8: dynamic-import the modals that are only rendered
+// in transient / rare states. Their code lives in its own chunk
+// and only downloads when the gating state first flips true.
+// Trade-off: a small async-load shimmer the first time each modal
+// opens, in exchange for a leaner cold-start bundle on the live
+// page (the most-loaded route in the app). `ssr: false` skips
+// the SSR shell render for these client-only modals — they have
+// no SEO value and skipping SSR keeps the server payload smaller
+// too.
+const QuarterEndModal = dynamic(
+  () => import("@/components/live/QuarterEndModal").then((m) => m.QuarterEndModal),
+  { ssr: false },
+);
+const FullTimeReview = dynamic(
+  () => import("@/components/live/FullTimeReview").then((m) => m.FullTimeReview),
+  { ssr: false },
+);
+const WalkthroughModal = dynamic(
+  () => import("@/components/live/WalkthroughModal").then((m) => m.WalkthroughModal),
+  { ssr: false },
+);
+const LockModal = dynamic(
+  () => import("@/components/live/LockModal").then((m) => m.LockModal),
+  { ssr: false },
+);
+const InjuryReplacementModal = dynamic(
+  () =>
+    import("@/components/live/InjuryReplacementModal").then(
+      (m) => m.InjuryReplacementModal,
+    ),
+  { ssr: false },
+);
+const ManualEndQuarterConfirm = dynamic(
+  () =>
+    import("@/components/live/ManualEndQuarterConfirm").then(
+      (m) => m.ManualEndQuarterConfirm,
+    ),
+  { ssr: false },
+);
 import {
   ALL_ZONES,
   emptyZoneMs,

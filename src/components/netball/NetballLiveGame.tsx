@@ -14,6 +14,7 @@
 import { SFButton } from "@/components/sf";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { PulsingNumber } from "@/components/live/PulsingNumber";
@@ -25,17 +26,36 @@ import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions"
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
-import { NetballFullTimeReview } from "@/components/netball/NetballFullTimeReview";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
-import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
-import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+
+// Perf phase 8: same dynamic-import pattern as LiveGame.tsx for
+// the rare-state netball modals. Saves cold-start bundle weight
+// on the live page.
+const NetballFullTimeReview = dynamic(
+  () =>
+    import("@/components/netball/NetballFullTimeReview").then(
+      (m) => m.NetballFullTimeReview,
+    ),
+  { ssr: false },
+);
+const WalkthroughModal = dynamic(
+  () => import("@/components/live/WalkthroughModal").then((m) => m.WalkthroughModal),
+  { ssr: false },
+);
+const ManualEndQuarterConfirm = dynamic(
+  () =>
+    import("@/components/live/ManualEndQuarterConfirm").then(
+      (m) => m.ManualEndQuarterConfirm,
+    ),
+  { ssr: false },
+);
 import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
