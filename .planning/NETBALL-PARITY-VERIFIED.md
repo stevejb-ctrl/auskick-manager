@@ -104,7 +104,7 @@ the next audit run can pre-filter:
 
 ## Shipped this pass
 
-11 commits over one session:
+14 commits over one session:
 
 1. `3a5a139` — AddFillInForm visibility lift to SFButton (Phase 1.7)
 2. `da3d822` — Court wake-up halo on Q1 kickoff (Phase 1.5.1)
@@ -115,8 +115,28 @@ the next audit run can pre-filter:
 7. `457bb6e` — LineupPickerFooter extraction (Phase 3a)
 8. `b12e9c8` — LineupPickerBreadcrumb extraction (Phase 3b)
 9. `0ad6442` — InlineAlert extraction (Phase 3c)
+10. `a87f034` — RotationModeToggle extraction (Phase 4a)
+11. `15a2a4e` — QuarterKickoffBar extraction (Phase 4b)
+12. `cc43375` — ManualEndQuarterConfirm extraction (Phase 5a)
+13. `8a4f151` — LiveAdminUtilityRow extraction (Phase 5b)
+14. _(this audit doc, second revision)_
 
-(Plus this audit doc.)
+### Shared chrome inventory
+
+The shells extracted by the chrome refactor now live in nine files
+totalling ~780 lines. Every line is invoked by both sports:
+
+| File | Lines | Used by |
+|------|-------|---------|
+| `lineup/LineupPickerBreadcrumb.tsx` | 48 | AFL + netball pre-game pickers |
+| `lineup/LineupPickerFooter.tsx` | 153 | AFL + netball pre-game pickers |
+| `quarter-break/QuarterKickoffBar.tsx` | 56 | AFL + netball Q-breaks |
+| `quarter-break/RotationModeToggle.tsx` | 78 | AFL + netball Q-breaks |
+| `live/LiveTopBar.tsx` | 103 | every /live surface |
+| `live/LongPressHint.tsx` | 136 | both LiveGame files |
+| `live/ManualEndQuarterConfirm.tsx` | 86 | both LiveGame files |
+| `live/LiveAdminUtilityRow.tsx` | 71 | both LiveGame files |
+| `ui/InlineAlert.tsx` | 52 | pre-game pickers + Q-breaks (4 sites) |
 
 ## Genuinely sport-specific (do NOT mirror)
 
@@ -141,19 +161,34 @@ didn't ship:
 
 - **Phase 3d — Full LineupPickerShell state extraction**: would own
   selection state, mode toggle, useTransition wiring across both
-  sports. Substantial refactor (~700 lines).
-- **Phase 4 — QuarterBreakShell**: even bigger (~1800 lines per
-  sport).
-- **Phase 5 — LiveGameShell**: biggest (~2000 lines per sport),
-  contains the most divergence (clock state machine, mid-quarter
-  substitution, scoring flow). Recommended to split into 3–4
-  sub-PRs in the original plan.
+  sports. The chrome bricks (Footer, Breadcrumb, InlineAlert) are
+  in place; remaining work is the state machine.
+- **Phase 4c+ — Q-break match-adjustments collapse + per-Q score-
+  recap host pattern**: identified during this pass but not yet
+  shipped.
+- **Phase 5c+ — LiveGame remaining duplication**: walkthrough-
+  overlay host pattern, score-recording floating dock chrome,
+  scorebug rendering (LiveGame is still the biggest file, ~2200
+  lines per sport).
 
 These are deferred to a fresh session so they get focused attention
 — each is a long-running refactor with regression risk on live-
-game UI. The chrome extractions in Phase 3a–3c (this session) lay
+game UI. The 9 shared chrome components shipped in this pass lay
 the groundwork: future shell extractions only need to extract
 state, not chrome.
+
+## Progress vs original target
+
+Original target: shells contain >80% of cross-cutting UX rule
+code; adapters <500 lines each. Current state:
+
+- ~780 lines of shared chrome shipped (up from ~430 mid-session).
+- Sport-specific files trimmed by ~80 lines total — the chrome
+  trim was largely matched by the call-site replacement (which is
+  net-positive in clarity even though it's net-zero in lines).
+- The remaining state extraction (lineup state machine, clock
+  state machine, score recording) is where the >80% target gets
+  realistic. Chrome alone won't hit it.
 
 ## Open friction items (from USABILITY-TESTS.md)
 
