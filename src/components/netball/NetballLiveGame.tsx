@@ -30,6 +30,7 @@ import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet"
 import { WalkthroughModal } from "@/components/live/WalkthroughModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
+import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
@@ -50,8 +51,6 @@ import {
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
-import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
@@ -1620,31 +1619,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
       />
 
-      {/* Admin / utility action row — "+ Add late arrival" sits
-          alongside "Restart game" so the two related housekeeping
-          affordances share one strip of scrolling space (Steve
-          2026-05-13). Mirrors LiveGame.tsx. The row renders only
-          when at least one of its children is available — late
-          arrivals hide when there's nobody left to add; restart is
-          admin-gated. */}
-      {(() => {
-        const showLate = lateArrivalCandidates.length > 0;
-        if (!showLate && !isAdmin) return null;
-        return (
-          <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
-            {showLate && (
-              <LateArrivalMenu
-                candidates={lateArrivalCandidates}
-                onAdd={handleLateArrival}
-                pending={isPending}
-              />
-            )}
-            {isAdmin && (
-              <ResetGameButton auth={auth} gameId={game.id} />
-            )}
-          </div>
-        );
-      })()}
+      {/* Admin / utility action row — chrome owned by the shared
+          LiveAdminUtilityRow (Phase 5b). lateArrivalCandidates is
+          already pre-filtered by netball's state machine, so we
+          just pass it through. */}
+      <LiveAdminUtilityRow
+        candidates={lateArrivalCandidates}
+        onLateArrival={handleLateArrival}
+        lateArrivalPending={isPending}
+        auth={auth}
+        gameId={game.id}
+        isAdmin={isAdmin}
+      />
 
       <p className="text-center text-xs text-ink-mute">
         {trackScoring

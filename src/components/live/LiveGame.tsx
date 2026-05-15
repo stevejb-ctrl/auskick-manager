@@ -22,10 +22,9 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
+import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { WalkthroughModal, buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
-import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
 import { QuarterEndModal } from "@/components/live/QuarterEndModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { LockModal } from "@/components/live/LockModal";
@@ -1509,16 +1508,10 @@ export function LiveGame({
         );
       })()}
 
-      {/* Admin / utility action row — "+ Add late arrival" sits
-          alongside "Restart game" so the two related housekeeping
-          affordances share one strip of scrolling space instead of
-          claiming two separate rows (Steve 2026-05-13). The row
-          renders if either action is available. LateArrivalMenu
-          self-hides when there are no candidates left; ResetGame
-          is admin-gated. The "+G/+B" record-score floating dock
-          (z-40) and sticky-bottom scorebug (z-30) overlay this row
-          when active, so it stays comfortably above them in scroll
-          order. */}
+      {/* Admin / utility action row — chrome owned by the shared
+          LiveAdminUtilityRow (Phase 5b). Candidates filtering stays
+          here (sport-specific: AFL filters against ALL_ZONES). The
+          shell hides itself when there's nothing to show. */}
       {(() => {
         const lateCandidates = !isFinished
           ? squadPlayers.filter((p) => {
@@ -1527,21 +1520,15 @@ export function LiveGame({
               return !inBench && !inField;
             })
           : [];
-        const showLate = lateCandidates.length > 0;
-        if (!showLate && !isAdmin) return null;
         return (
-          <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
-            {showLate && (
-              <LateArrivalMenu
-                candidates={lateCandidates}
-                onAdd={handleLateArrival}
-                pending={isPending}
-              />
-            )}
-            {isAdmin && (
-              <ResetGameButton auth={auth} gameId={gameId} />
-            )}
-          </div>
+          <LiveAdminUtilityRow
+            candidates={lateCandidates}
+            onLateArrival={handleLateArrival}
+            lateArrivalPending={isPending}
+            auth={auth}
+            gameId={gameId}
+            isAdmin={isAdmin}
+          />
         );
       })()}
 
