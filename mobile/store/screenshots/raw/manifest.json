@@ -1,18 +1,32 @@
 [
   {
     "file": "01-games-list.png",
-    "headline": "Your whole season in one tap."
+    "headline": "Your whole season in one tap.",
+    "emphasis": "in one tap"
   },
   {
     "file": "02-game-recap.png",
-    "headline": "Every game, summed up afterwards."
+    "headline": "Every game, recapped for the group chat.",
+    "emphasis": "recapped"
   },
   {
-    "file": "03-live-game.png",
-    "headline": "Mid-game subs, made manageable."
+    "file": "03-quarter-break.png",
+    "headline": "Fair rotations, suggested automatically.",
+    "emphasis": "Fair rotations"
   },
   {
     "file": "04-lineup-picker.png",
-    "headline": "Fair rotations, suggested automatically."
+    "headline": "Build your starting team in seconds.",
+    "emphasis": "starting team"
+  },
+  {
+    "file": "05-sub-rotations.png",
+    "headline": "Automate your sub rotations.",
+    "emphasis": "sub rotations"
+  },
+  {
+    "file": "06-player-actions.png",
+    "headline": "Every game-day curveball, handled.",
+    "emphasis": "curveball"
   }
 ]
