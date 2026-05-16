@@ -134,25 +134,38 @@ emphasise in brand-green.
   the recap-and-share value (the "Copy for group chat" button is
   the kicker — though it lives below the fold here).
 
-### 03 — Live game *(the killer shot)*
+### 03 — Quarter break *(the wholesale rebalance)*
 
-- **Source:** `mobile/store/screenshots/raw/03-live-game.png`
+- **Source:** `mobile/store/screenshots/raw/03-quarter-break.png`
 - **Headline:** "**Fair rotations**, suggested automatically."
 - **Emphasis word:** *Fair rotations* (green)
-- **What's on screen:** AFL field UI mid-Q2 with full U10 lineup
-  (12 on field across 4 BACK / 4 CENTRE / 4 FWD zones, 3 on
-  bench). Top of screen: a SUGGESTED — 3 SWAPS chip with the
-  rotation suggester's recommended sub list ("Ava→Pip · Zara→Nora
-  · Mateo→Eli") plus a 2:59 countdown to the next sub interval.
-  Per-player NEXT-OFF chips inline on each suggested-out player
-  (Mateo #3, Zara #2, Ava #1). Score-bug at bottom shows Fitzroy
-  Falcons 1.1 7 vs Coburg Cougars 0.0 0.
-- **Story:** Siren's killer feature is the fairness suggester.
-  This is the only screen in the app where you can see the
-  suggester actually thinking — the SUGGESTED chip + NEXT-OFF
-  chips together make it concrete. If a coach takes 1 second to
-  glance at the marketing listing, this is the shot that sells
-  the app.
+- **What's on screen:** The "Set zones for Q2" Quarter Break
+  screen. Header "QUARTER BREAK / Set zones for Q2". Two
+  summary chips: GAME SETTINGS "Auto-rebalanced · No lent · No
+  injured", SCORE "3.2 (20) – 3.1 (19) · +1". Helper line: "Tap
+  any two players to swap them — even across zones or to the
+  bench." Two position groups visible:
+    - FORWARD 4/4: Theo (CENTRE→FORWARD, 4:40), Levi
+      (BACK→FORWARD, 12:00), Otis (BACK→FORWARD, 12:00), Maya
+      (CENTRE→FORWARD, 12:00).
+    - CENTRE 4/4: Hugo (BACK→CENTRE, 4:40), Frankie
+      (BENCH→CENTRE, 7:19), Pip (FORWARD→CENTRE, 12:00), Mateo
+      (STAYS, 12:00).
+  Each tile shows a FROM_ZONE → TO_ZONE arrow and the player's
+  season-time bar. Sticky "Ready for Q2" green CTA at bottom.
+- **Story:** This is THE shot. The wholesale-rebalance moment is
+  unique to Siren — at every quarter break the suggester reshuffles
+  the whole lineup so every kid's time across the four quarters
+  evens out. The FROM→TO arrows make the rebalance explicit;
+  every tile is a tiny proof of the fairness logic. A coach sees
+  this and instantly gets the value prop.
+- **Note:** Manual capture only. The QB screen requires the
+  live game to be at a quarter break — too fragile for the
+  Playwright auto-capture to land reliably, so this shot is
+  flagged `manualOnly` in `scripts/capture-store-screenshots.mjs`
+  and the auto-run skips it. Recapture by signing in to the demo
+  account, opening the R2 Coburg Cougars game, and triggering a
+  quarter end.
 
 ### 04 — Mark availability *(pre-game flow start)*
 

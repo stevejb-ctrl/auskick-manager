@@ -81,15 +81,24 @@ const SHOTS = [
     waitFor: "h1",
   },
   {
-    // Live game R2 — with the 12-on-field U10 lineup, the live UI
-    // surfaces the rotation suggester at the top ("SUGGESTED — 3
-    // SWAPS: Ava→Pip · Zara→Nora · Mateo→Eli") plus per-player
-    // NEXT-OFF chips and a sub-interval countdown. The fairness
-    // suggester — Siren's killer feature — is visible in one shot.
-    id: "03-live-game",
+    // Quarter Break "Set zones for Q2" screen — fires between Q1 and
+    // Q2 of the live R2 game and shows the suggester's wholesale
+    // zone rebalance (every kid shuffles between FWD/CEN/BCK to
+    // keep their season time fair). More visually distinctive than
+    // the steady-state live UI for the "fair rotations" headline —
+    // each player tile shows FROM_ZONE → TO_ZONE.
+    //
+    // NOTE: Hard to auto-capture reliably — only renders when the
+    // game state is at a quarter break. If the Playwright script
+    // hits R2 mid-quarter the screen will be the live field UI
+    // instead. Treat as manual-only: copy from `raw/` after a
+    // Steve-driven capture rather than relying on `npm run
+    // screenshots:ios -- --raw` to regenerate.
+    id: "03-quarter-break",
     headline: "Fair rotations, suggested automatically.",
     route: (teamId, games) => `/teams/${teamId}/games/${games.live}/live`,
     waitFor: "main",
+    manualOnly: true,
   },
   {
     // Lineup picker on the upcoming R3 game. Shows the pre-game
@@ -292,6 +301,13 @@ async function main() {
     console.log("");
     console.log("Capturing screens…");
     for (const shot of SHOTS) {
+      if (shot.manualOnly) {
+        console.log(
+          `  ${shot.id} → skipping (manualOnly — drop the file at ` +
+            `mobile/store/screenshots/raw/${shot.id}.png and commit)`,
+        );
+        continue;
+      }
       await capture(page, shot, ctx);
     }
   } finally {
