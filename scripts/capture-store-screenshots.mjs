@@ -110,6 +110,26 @@ const SHOTS = [
     route: (teamId, games) => `/teams/${teamId}/games/${games.upcoming}/live`,
     waitFor: "main",
   },
+  // Shot 05 (Sub due!) and 06 (Player actions) are manual-only:
+  // both require modal interactions (sub-interval tick / long-press
+  // on a player tile) that aren't reliable to auto-trigger from a
+  // headless Playwright session. Captured by hand and dropped into
+  // raw/. Listed here so the manifest + design handoff stay in
+  // sync, but the capture loop skips them.
+  {
+    id: "05-sub-rotations",
+    headline: "Automate your sub rotations.",
+    route: (teamId, games) => `/teams/${teamId}/games/${games.live}/live`,
+    waitFor: "main",
+    manualOnly: true,
+  },
+  {
+    id: "06-player-actions",
+    headline: "Every game-day curveball, handled.",
+    route: (teamId, games) => `/teams/${teamId}/games/${games.live}/live`,
+    waitFor: "main",
+    manualOnly: true,
+  },
 ];
 
 async function injectBanner(page, headline) {

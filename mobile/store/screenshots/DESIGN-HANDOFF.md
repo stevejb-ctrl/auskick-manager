@@ -19,8 +19,8 @@ game. We need each one composited onto a branded marketing canvas
 with a headline that sells the value prop in one glance — same
 pattern as the reference below.
 
-**Deliverable:** 5 PNG files at 1320×2868, named
-`01-games-list.png` through `05-sub-rotations.png`, dropped into
+**Deliverable:** 6 PNG files at 1320×2868, named
+`01-games-list.png` through `06-player-actions.png`, dropped into
 `mobile/store/screenshots/ios/`. Apple allows up to 10 per device
 size and shows the first 3 in search results, so order matters —
 put the killer shots first.
@@ -216,6 +216,35 @@ emphasise in brand-green.
   one — the Playwright session would have to wait at the live
   page for ~3 minutes for the interval to elapse.
 
+### 06 — Player actions *(every coach curveball, sorted)*
+
+- **Source:** `mobile/store/screenshots/raw/06-player-actions.png`
+- **Headline:** "Every game-day **curveball**, handled."
+- **Emphasis word:** *curveball* (green)
+- **What's on screen:** Live game R2 mid-Q2 with the Player
+  Actions modal open over Otis (#7). Modal header "PLAYER ACTIONS
+  / Otis #7" + description "Switch them out, lock them in place,
+  flag an injury, or lend them to the opposition." Five action
+  rows:
+    - Switch player (green, the default tap-to-swap flow)
+    - Always on field (black, lock the player on)
+    - Lock to Fwd (orange, position-lock)
+    - Mark injured (red, bench + skip rotation)
+    - Lend to opposition (white-outlined)
+  Cancel link at the bottom. Field UI visible behind the modal
+  (Theo/Levi FWD tiles peeking out, SUGGESTED 2 SWAPS banner up
+  top). Score-bug shows Fitzroy Falcons 6.3 39 vs Coburg Cougars
+  32 5.2, Q2 clock 11:09.
+- **Story:** Real coaching days throw curveballs — a kid rolls
+  an ankle in Q2, an opposition coach asks if you can lend them
+  a defender for the second half, a 6-year-old wants to play
+  forward all match. The actions modal handles every one of
+  those with a long-press. Demonstrates the app has depth beyond
+  the rotation suggester.
+- **Note:** Manual capture only. The actions modal opens via
+  long-press on a player tile — fragile to auto-trigger from
+  Playwright. Flagged `manualOnly` in the SHOTS array.
+
 ---
 
 ## Output spec
@@ -225,9 +254,9 @@ emphasise in brand-green.
 | Format | PNG (8-bit RGB or RGBA; no animations) |
 | Dimensions | 1320 × 2868 px (Apple's 6.9" requirement; auto-derives for 6.5") |
 | Colour space | sRGB |
-| File names | `01-games-list.png`, `02-game-recap.png`, `03-live-game.png`, `04-lineup-picker.png` |
+| File names | `01-games-list.png` through `06-player-actions.png` |
 | Output dir | `mobile/store/screenshots/ios/` (replaces current marketed set) |
-| Max screenshots Apple accepts | 10 per device size. We're shipping 4. |
+| Max screenshots Apple accepts | 10 per device size. We're shipping 6. |
 | Bezel/frame overlay rules | Apple permits stylised mockup frames; Google Play forbids fake "iPhone" labels on Play screenshots so use a generic device frame for the Android variant if/when we capture that. |
 
 The same source raws can be re-used for Play Store screenshots
