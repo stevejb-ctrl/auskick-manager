@@ -104,7 +104,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
   return (
     <section
       id="features"
-      className="relative border-b border-hairline bg-warm py-16 sm:py-20 lg:py-24"
+      className="relative border-b border-hairline py-16 sm:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Centerpiece parts={centerpiece} />

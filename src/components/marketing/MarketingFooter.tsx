@@ -11,7 +11,7 @@ export function MarketingFooter() {
   const brand = getBrand();
   const copy = getBrandCopy(brand.id);
   return (
-    <footer className="border-t border-hairline bg-warm">
+    <footer className="border-t border-hairline">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between md:gap-6">
         {/* Brand + tagline + copyright */}
         <div className="flex flex-col gap-2">
