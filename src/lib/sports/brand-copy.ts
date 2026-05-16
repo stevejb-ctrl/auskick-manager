@@ -185,8 +185,8 @@ const AFL_COPY: BrandCopy = {
         "Split mode spreads chip-mates across zones (mix older / younger)",
         "Group mode keeps chip-mates together (kids with social needs, partner pairs)",
       ],
-      image: "/marketing/screenshots/rotations.png",
-      imageAlt: "Player rotation view with coloured chip dots beside each player's name",
+      image: "/marketing/screenshots/chips.png",
+      imageAlt: "Player chips settings: three colour-coded chips (Older kids, Younger kids, Support players) each with a Split / Group toggle",
     },
     {
       id: "quarterly",
