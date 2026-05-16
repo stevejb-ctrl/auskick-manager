@@ -141,7 +141,7 @@ export default function Home() {
           eyebrow={theme.eyebrow}
           subhead="Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play."
           image="/marketing/screenshots/live-game.png"
-          imageAlt="Siren live game with rotation suggestions and color-coded zone tiles"
+          imageAlt="Siren live game showing score, rotation suggestions, color-coded zone tiles, and bench — all on one screen"
           bgMotif={<FieldOval size={900} />}
         />
         <TrustBand stats={TRUST_STATS} />
