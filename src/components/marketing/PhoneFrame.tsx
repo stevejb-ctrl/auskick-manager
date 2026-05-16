@@ -8,17 +8,18 @@ interface PhoneFrameProps {
 }
 
 // Stylised phone bezel for wrapping product screenshots. Pure CSS — no
-// external PNG frame required. Cream bezel with a thin hairline ring
-// per the Field Sunday spec; the screen interior sits on `surface-alt`
-// so any screenshot reads against a neutral seat rather than the page
-// background.
+// external PNG frame required. Ink-black bezel gives the device strong
+// contrast against both the warm hero overlay and the mint backdrop
+// in the features section. Screen interior stays on `surface-alt` so
+// screenshots (and the PhonePlaceholder fallback) read on a clean
+// light seat.
 export function PhoneFrame({ children, tilt = 0, className = "" }: PhoneFrameProps) {
   return (
     <div
       className={[
         "relative mx-auto aspect-[9/19.5] w-full max-w-[280px]",
-        "overflow-hidden rounded-[2.75rem] bg-warm p-[10px] shadow-pop",
-        "ring-1 ring-ink/10",
+        "overflow-hidden rounded-[2.75rem] bg-ink p-[10px] shadow-pop",
+        "ring-1 ring-black/10",
         className,
       ].join(" ")}
       style={{
