@@ -67,12 +67,20 @@ const DPR = 3;
 const SHOTS = [
   {
     // /games (the team's games tab) is denser than /teams/<id> which
-    // only shows the live-game CTA card — three game cards stacked
+    // only shows the live-game CTA card — game cards stacked
     // (Final / Live / Upcoming) reads much better as a hero image.
+    //
+    // Manual-only: Steve's current capture includes a R4 vs Prahran
+    // Prawns added by hand to make the list read as a mid-season
+    // state with 2 completed + 2 upcoming games. The seed only
+    // creates R1-R3, so an auto-recapture would produce a different
+    // composition. If we ever add R4 to the seed (or accept the
+    // 3-game auto-list), the flag can come off.
     id: "01-games-list",
     headline: "Your whole season in one tap.",
     route: (teamId) => `/teams/${teamId}/games`,
     waitFor: "h1",
+    manualOnly: true,
   },
   {
     // Full-time game summary card. Steve's hand-capture uses the R2

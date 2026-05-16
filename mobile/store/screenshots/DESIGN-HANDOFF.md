@@ -115,12 +115,28 @@ emphasise in brand-green.
 - **Headline:** "Your whole season **in one tap**."
 - **Emphasis word:** *in one tap* (green)
 - **What's on screen:** Fitzroy Falcons team page → Games tab.
-  Three game cards visible: Coburg Cougars (LIVE pill), Northcote
-  Nighthawks (12/12 availability, Upcoming), Brunswick Bears
-  (Completed). Tab bar showing Home / Squad / Games / Stats /
-  Settings. PlayHQ import card peeking at top.
+  "2026 SEASON" eyebrow + "Games" heading + filter chips (All /
+  Upcoming / Final). "Add games" card explaining PlayHQ import vs
+  manual entry, with green "Import from PlayHQ" + ghost "Create
+  manually" buttons. Two sections beneath:
+    - UPCOMING: R3 vs Northcote Nighthawks (Fri May 22, 5:11 PM),
+      R4 vs Prahran Prawns (Sat May 30, 9:45 AM · Prahran
+      sportsground). Both showing 0/15 availability chips.
+    - COMPLETED: R2 vs Coburg Cougars (Fri May 15), R1 vs
+      Brunswick Bears (Sat May 9).
+  Help link at the bottom.
 - **Story:** Shows the season-management value prop. Coach
-  glances and goes "ah, I can see all my fixtures here".
+  glances and goes "ah, I can see all my fixtures here". The
+  PlayHQ import card on top is a meaningful detail — Australian
+  junior leagues all use PlayHQ, and a one-tap fixture import is
+  the table-stakes the rest of the app builds on top of.
+- **Note:** Manual capture only — the seed creates 3 games (R1
+  completed, R2 live, R3 upcoming) but this shot includes a R4
+  vs Prahran Prawns that Steve added by hand to make the list
+  read as a real mid-season state. Future re-seeds will reset
+  to the 3-game canonical roster; recapture this shot by hand
+  after adding R4 back via the UI, or update the seed to
+  include R4.
 
 ### 02 — Game recap *(full-time summary + copy-for-group-chat)*
 
