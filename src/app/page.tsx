@@ -1,11 +1,19 @@
 import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { Hero } from "@/components/marketing/Hero";
+import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { FieldOval } from "@/components/marketing/FieldOval";
 import { SportThemeProvider, SPORT_THEMES } from "@/components/marketing/SportTheme";
+
+const TRUST_STATS = [
+  { stat: "1,200+", label: "Coaches" },
+  { stat: "38k", label: "Games tracked" },
+  { stat: "4.9★", label: "Parent rating" },
+  { stat: "0", label: "Clipboards" },
+] as const;
 
 const FEATURES = [
   {
@@ -136,6 +144,7 @@ export default function Home() {
           imageAlt="Siren live game with rotation suggestions and color-coded zone tiles"
           bgMotif={<FieldOval size={900} />}
         />
+        <TrustBand stats={TRUST_STATS} />
         <ScrollingFeatures features={FEATURES} sportLabel={theme.label} />
         <FinalCTA />
       </main>
