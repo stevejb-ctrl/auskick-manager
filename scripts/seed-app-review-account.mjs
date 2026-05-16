@@ -129,32 +129,33 @@ async function findUser(email) {
 }
 
 async function wipeExisting() {
+  // Step 1: nuke EVERY team named DEMO_TEAM_NAME, regardless of who
+  // admins it. The production purge logic preserves teams with
+  // co-admins (correctly — a coach deleting their account shouldn't
+  // delete a team their colleagues still run). But this seeder runs
+  // against a reserved demo namespace where "always start fresh" is
+  // the contract. Without this step, promoting stevejb@gmail.com to
+  // admin then re-seeding leaves the previous Fitzroy Falcons
+  // dangling, and the dashboard ends up with duplicates.
+  const { data: dupeTeams } = await admin
+    .from("teams")
+    .select("id, created_at")
+    .eq("name", TEAM_NAME);
+  if (dupeTeams && dupeTeams.length > 0) {
+    console.log(
+      `Wiping ${dupeTeams.length} existing ${TEAM_NAME} team(s)…`,
+    );
+    for (const t of dupeTeams) {
+      const { error } = await admin.from("teams").delete().eq("id", t.id);
+      if (error) console.error(`  team ${t.id} delete: ${error.message}`);
+    }
+  }
+
+  // Step 2: nuke the demo auth user (cascades profile + memberships
+  // + device_tokens). Audit-trail FKs SET NULL per migration 0034.
   const existing = await findUser(REVIEW_EMAIL);
   if (!existing) return;
   console.log(`Wiping existing account ${existing.id}…`);
-
-  // Drop any teams this user solely admins — cascades players, games,
-  // events, etc. Mirrors the production purge logic so we don't end
-  // up with orphan rows.
-  const { data: memberships } = await admin
-    .from("team_memberships")
-    .select("team_id, role")
-    .eq("user_id", existing.id);
-  for (const m of memberships ?? []) {
-    if (m.role !== "admin") continue;
-    const { count } = await admin
-      .from("team_memberships")
-      .select("*", { count: "exact", head: true })
-      .eq("team_id", m.team_id)
-      .eq("role", "admin");
-    if ((count ?? 0) <= 1) {
-      const { error } = await admin
-        .from("teams")
-        .delete()
-        .eq("id", m.team_id);
-      if (error) console.error(`  team delete: ${error.message}`);
-    }
-  }
 
   const { error } = await admin.auth.admin.deleteUser(existing.id);
   if (error && !/not[_ ]found/i.test(error.message)) {
