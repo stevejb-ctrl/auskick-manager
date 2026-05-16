@@ -6,7 +6,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 export default function LoginPage() {
   return (
     <>
-      <h2 className="mb-6 text-center text-xl font-semibold text-ink">
+      <h2 className="mb-6 text-center text-2xl font-bold tracking-tightest leading-none text-ink">
         Sign in
       </h2>
       {/* Suspense boundaries isolate useSearchParams() so the page shell

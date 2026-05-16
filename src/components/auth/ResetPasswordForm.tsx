@@ -81,7 +81,7 @@ export function ResetPasswordForm() {
         </p>
       )}
 
-      <Button type="submit" loading={loading} className="w-full">
+      <Button type="submit" variant="ink" loading={loading} className="w-full">
         Update password
       </Button>
     </form>

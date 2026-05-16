@@ -4,7 +4,7 @@ import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 export default function ResetPasswordPage() {
   return (
     <>
-      <h2 className="mb-6 text-center text-xl font-semibold text-ink">
+      <h2 className="mb-6 text-center text-2xl font-bold tracking-tightest leading-none text-ink">
         Set a new password
       </h2>
       {/* Suspense boundary keeps the page shell statically prerendered;

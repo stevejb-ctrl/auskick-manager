@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "ink" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,6 +12,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variantClasses: Record<Variant, string> = {
   primary:
     "bg-brand-600 text-warm hover:bg-brand-700 focus-visible:ring-brand-600 disabled:bg-brand-300",
+  // Field Sunday primary slab — ink-on-cream, matching the marketing
+  // CTAs. Used on public-facing surfaces (auth pages, contact) where
+  // the brand register is the marketing site rather than the in-app
+  // field-green palette.
+  ink:
+    "bg-ink text-warm hover:bg-ink-dim focus-visible:ring-ink disabled:opacity-60",
   secondary:
     "bg-surface text-ink border border-hairline hover:bg-surface-alt focus-visible:ring-brand-600 disabled:opacity-50",
   ghost:

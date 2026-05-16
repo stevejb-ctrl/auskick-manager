@@ -75,7 +75,7 @@ export function MagicLinkForm({ next }: MagicLinkFormProps) {
         </p>
       )}
 
-      <Button type="submit" loading={loading} className="w-full">
+      <Button type="submit" variant="ink" loading={loading} className="w-full">
         Email me a sign-in link
       </Button>
     </form>

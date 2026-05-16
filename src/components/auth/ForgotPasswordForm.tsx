@@ -45,7 +45,7 @@ export function ForgotPasswordForm() {
         <p className="text-center text-sm text-ink-dim">
           <Link
             href="/login"
-            className="font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800"
+            className="font-semibold text-accent transition-colors duration-fast ease-out-quart hover:text-ink"
           >
             ← Back to sign in
           </Link>
@@ -73,7 +73,7 @@ export function ForgotPasswordForm() {
         />
       </div>
 
-      <Button type="submit" loading={loading} className="w-full">
+      <Button type="submit" variant="ink" loading={loading} className="w-full">
         Send reset link
       </Button>
 

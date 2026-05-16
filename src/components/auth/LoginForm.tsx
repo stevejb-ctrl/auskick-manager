@@ -77,13 +77,13 @@ export function LoginForm() {
         </p>
       )}
 
-      <Button type="submit" loading={loading} className="w-full">
+      <Button type="submit" variant="ink" loading={loading} className="w-full">
         Sign in
       </Button>
 
       <p className="text-center text-sm text-ink-dim">
         No account?{" "}
-        <Link href={signupHref} className="font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800">
+        <Link href={signupHref} className="font-semibold text-accent transition-colors duration-fast ease-out-quart hover:text-ink">
           Sign up
         </Link>
       </p>
