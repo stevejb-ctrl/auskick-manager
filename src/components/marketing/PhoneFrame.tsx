@@ -19,9 +19,11 @@ interface PhoneFrameProps {
   size?: "fluid" | "fixed";
 }
 
-// Stylised phone bezel for wrapping product screenshots. Cream chassis
-// with a hairline border per the marketing design handoff. No notch —
-// screenshots are full-bleed, and a notch on a cream device reads as
+// Stylised phone bezel for wrapping product screenshots. Ink-black
+// chassis gives the device strong contrast against both the warm
+// hero overlay and the mint backdrop in the features section. No
+// notch — screenshots are full-bleed and already carry their own
+// status bar (9:41 / battery / wifi), so a notch on top reads as
 // noise rather than a device cue.
 //
 // Padding is asymmetric — `px-[6px] py-[14px]` — so the inner screen's
@@ -50,7 +52,7 @@ export function PhoneFrame({
       className={[
         "relative mx-auto aspect-[9/19.5] w-full",
         size === "fixed" ? "max-w-[320px]" : "",
-        "overflow-hidden rounded-[2.75rem] border border-hairline bg-warm px-[6px] py-[14px] shadow-pop",
+        "overflow-hidden rounded-[2.75rem] bg-ink px-[6px] py-[14px] shadow-pop ring-1 ring-black/10",
         className,
       ].join(" ")}
       style={{
@@ -62,10 +64,9 @@ export function PhoneFrame({
       }}
     >
       {/* Screen — surface white so any image inside is full-bleed.
-          `ring-ink/25` is dark enough to be visible against the cream
-          screenshot backgrounds; `ring-inset` keeps the ring inside the
-          rounded clip so it reads as a screen bezel, not a stroke. */}
-      <div className="relative h-full w-full overflow-hidden rounded-[1.875rem] bg-surface ring-1 ring-inset ring-ink/25">
+          With the ink chassis the chrome around the screen handles
+          the bezel read; no extra ring needed. */}
+      <div className="relative h-full w-full overflow-hidden rounded-[1.875rem] bg-surface">
         {children}
       </div>
     </div>
