@@ -285,32 +285,55 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
         <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
       </div>
 
-      {/* Phone: stacked, centered */}
+      {/* Phone: stacked, centered. Strip the `|` line-break marker
+          — at this width each half wraps naturally on its own. */}
       <div className="mt-5 text-center sm:hidden">
         <h2 className="text-3xl font-bold leading-[0.95] tracking-tightest text-ink [text-wrap:balance]">
-          {left}
+          {left.replace(" | ", " ")}
         </h2>
         <h2 className="mt-2 text-3xl font-bold leading-[0.95] tracking-tightest text-ink-dim [text-wrap:balance]">
-          {right}
+          {right.replace(" | ", " ")}
         </h2>
       </div>
 
       {/* Tablet+ : 3-up with vertical hairline rule between halves */}
       <div className="mt-5 hidden grid-cols-[1fr_auto_1fr] items-start gap-6 sm:grid md:gap-8 lg:gap-12">
         <h2 className="text-right text-[clamp(2.5rem,6vw,5.5rem)] font-bold leading-[0.92] tracking-[-0.035em] text-ink [text-wrap:balance]">
-          {left.split(" ").slice(0, 1).join(" ")}
-          <br />
-          {left.split(" ").slice(1).join(" ")}
+          {splitForTwoLines(left).map((line, i) => (
+            <span key={i}>
+              {i > 0 && <br />}
+              {line}
+            </span>
+          ))}
         </h2>
         <span aria-hidden="true" className="block self-stretch w-px bg-hairline" />
         <h2 className="text-left text-[clamp(2.5rem,6vw,5.5rem)] font-bold leading-[0.92] tracking-tightest text-ink-dim [text-wrap:balance]">
-          {right.split(" ").slice(0, 1).join(" ")}
-          <br />
-          {right.split(" ").slice(1).join(" ")}
+          {splitForTwoLines(right).map((line, i) => (
+            <span key={i}>
+              {i > 0 && <br />}
+              {line}
+            </span>
+          ))}
         </h2>
       </div>
     </div>
   );
+}
+
+// Split a centerpiece half into the two desktop lines.
+//
+// If the caller supplied an explicit `|` break marker, honour it —
+// gives copy-writers control when the default split orphans a word
+// ("To make game day a breeze" → "To" / "rest" looks broken).
+// Otherwise fall back to the original "first word / rest" split that
+// works well for short three-word phrases like "Everything you need".
+function splitForTwoLines(s: string): [string, string] {
+  if (s.includes(" | ")) {
+    const [a, b] = s.split(" | ");
+    return [a, b];
+  }
+  const words = s.split(" ");
+  return [words[0] ?? "", words.slice(1).join(" ")];
 }
 
 // ─── Overlay card sitting on the phone screen on mobile ────────────────

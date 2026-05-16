@@ -90,7 +90,11 @@ const AFL_COPY: BrandCopy = {
     { stat: "4.9★", label: "Parent rating" },
     { stat: "0", label: "Clipboards" },
   ],
-  centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
+  // `|` is an explicit line-break marker for the desktop two-line
+  // render — see Centerpiece in ScrollingFeatures. Without it the
+  // component falls back to a first-word / rest split, which would
+  // orphan "To" on its own line here.
+  centerpiece: { left: "Everything you need.", right: "To make game day | a breeze." },
   finalCtaEyebrow: "Saturday morning is coming",
   finalCtaTitle: {
     before: "Set up your team in about ",
@@ -273,7 +277,11 @@ const NETBALL_COPY: BrandCopy = {
     { stat: "4.9★", label: "Parent rating" },
     { stat: "0", label: "Clipboards" },
   ],
-  centerpiece: { left: "Everything you need.", right: "Nothing you don’t." },
+  // `|` is an explicit line-break marker for the desktop two-line
+  // render — see Centerpiece in ScrollingFeatures. Without it the
+  // component falls back to a first-word / rest split, which would
+  // orphan "To" on its own line here.
+  centerpiece: { left: "Everything you need.", right: "To make game day | a breeze." },
   finalCtaEyebrow: "Saturday morning is coming",
   finalCtaTitle: {
     before: "Set up your team in about ",
