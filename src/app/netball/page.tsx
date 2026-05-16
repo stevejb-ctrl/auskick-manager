@@ -10,7 +10,7 @@ import { SportThemeProvider, SPORT_THEMES } from "@/components/marketing/SportTh
 
 export const metadata: Metadata = {
   title: "Siren Netball",
-  description: "Junior netball team and rotation manager — preview",
+  description: "Junior netball team and rotation manager (preview)",
 };
 
 // Netball variant of the marketing landing. Same shell, plum accent
@@ -30,7 +30,7 @@ const FEATURES = [
     eyebrow: "Fair rotations",
     title: "Every player gets a fair run on court.",
     accentWord: "fair",
-    body: "Siren tracks minutes across the quarters and nudges you toward balanced playing time — without you having to count on a clipboard between centre passes.",
+    body: "Siren tracks minutes across the quarters and nudges you toward balanced playing time, without you having to count on a clipboard between centre passes.",
     bullets: [
       "Per-position minute bars visible at a glance",
       "Colour-coded fairness indicators",
@@ -41,11 +41,11 @@ const FEATURES = [
   {
     id: "scoring",
     eyebrow: "Score tracking",
-    title: "Keep the scoreboard honest — if you want to.",
+    title: "Keep the scoreboard honest, if you want to.",
     accentWord: "honest",
-    body: "Scoring is optional. Log goals for both sides with one tap, or skip it entirely — Siren stays useful either way.",
+    body: "Scoring is optional. Log goals for both sides with one tap, or skip it entirely. Siren stays useful either way.",
     bullets: [
-      "Score tracking is opt-in — skip it if you don't need it",
+      "Score tracking is opt-in. Skip it if you don't need it",
       "Opponent score tracked alongside yours",
       "Goal-shooter leaderboard updates live",
     ],
@@ -56,7 +56,7 @@ const FEATURES = [
     eyebrow: "Availability",
     title: "Set your squad before you leave home.",
     accentWord: "before",
-    body: "Mark each player available or unavailable the night before. If you're short, drop your numbers to match — Siren rebalances the rotation automatically.",
+    body: "Mark each player available or unavailable the night before. If you're short, drop your numbers to match, and Siren rebalances the rotation automatically.",
     bullets: [
       "One tap to mark a player available or unavailable",
       "Run a smaller squad when numbers are tight",
@@ -82,7 +82,7 @@ const FEATURES = [
     eyebrow: "Quarter breaks",
     title: "Walk into every quarter with a plan.",
     accentWord: "plan",
-    body: "At the break, Siren suggests a reshuffle to balance court time. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
+    body: "At the break, Siren suggests a reshuffle to balance court time. One tap to accept, or rearrange manually. The fairness score updates live as you adjust.",
     bullets: [
       "Suggested lineup based on minute equity",
       "One tap to accept or drag to customise",
@@ -95,7 +95,7 @@ const FEATURES = [
     eyebrow: "Share with parents",
     title: "Hand scoring to any parent in one tap.",
     accentWord: "one tap",
-    body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
+    body: "Send the run-link to a parent on the sideline and they become the scorer for the day. No app download, no account, no setup. A magic link gets them straight in.",
     bullets: [
       "Full scoring access via a single shareable link",
       "No app download or account needed",
