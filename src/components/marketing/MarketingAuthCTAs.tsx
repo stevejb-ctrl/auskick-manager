@@ -20,6 +20,12 @@ import { createClient } from "@/lib/supabase/client";
  * that flip to "Dashboard" once Supabase's client SDK resolves (~100-
  * 200 ms after hydration). Acceptable — they're rarely looking at
  * marketing anyway, and both states are visually stable, not jumpy.
+ *
+ * Button colour treatment follows the Field Sunday spec: primary fill
+ * is ink-on-cream rather than brand-green-on-cream. The dark slab
+ * reads as a single high-contrast CTA and lets the per-sport accent
+ * stay reserved for typography (eyebrow dots, "five" in the closer,
+ * feature indices).
  */
 type Variant = "header" | "hero" | "final";
 
@@ -46,7 +52,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     return signedIn ? (
       <Link
         href="/dashboard"
-        className="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className="inline-flex items-center rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-ink-dim"
       >
         Dashboard
       </Link>
@@ -60,7 +66,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
         </Link>
         <Link
           href="/signup"
-          className="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+          className="inline-flex items-center rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-ink-dim"
         >
           Start free
         </Link>
@@ -72,25 +78,27 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     return signedIn ? (
       <Link
         href="/dashboard"
-        className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className="inline-flex items-center justify-center rounded-md bg-ink px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-ink-dim"
       >
         Go to dashboard
       </Link>
     ) : (
       <Link
         href="/signup"
-        className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className="inline-flex items-center justify-center rounded-md bg-ink px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-ink-dim"
       >
         Start free
       </Link>
     );
   }
 
-  // variant === "final"
+  // variant === "final" — sits on a dark-ink background, so the
+  // primary CTA flips to a cream slab with ink text. Secondary is a
+  // hairline outline so the pair reads as one decision moment.
   return signedIn ? (
     <Link
       href="/dashboard"
-      className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+      className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
     >
       Go to dashboard
     </Link>
@@ -98,13 +106,13 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     <>
       <Link
         href="/signup"
-        className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+        className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
       >
         Create your team
       </Link>
       <Link
         href="/login"
-        className="inline-flex items-center justify-center rounded-md border border-warm/30 px-6 py-3 text-base font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className="inline-flex items-center justify-center rounded-md border border-warm/30 px-6 py-3 text-base font-medium text-warm transition-colors duration-fast ease-out-quart hover:border-warm/60"
       >
         Sign in
       </Link>

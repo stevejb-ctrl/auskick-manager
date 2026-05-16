@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
@@ -10,12 +11,19 @@ interface Feature {
   title: string;
   body: string;
   bullets: string[];
-  image: string;
-  imageAlt: string;
+  /** Real product screenshot path (under /public). Ignored when
+   *  `screen` is provided. */
+  image?: string;
+  imageAlt?: string;
+  /** Custom phone-mock contents — used by sport landings where real
+   *  screenshots aren't ready yet. Takes precedence over `image`. */
+  screen?: ReactNode;
 }
 
 interface ScrollingFeaturesProps {
   features: Feature[];
+  /** Sport label shown in the section eyebrow, in accent colour. */
+  sportLabel: string;
 }
 
 /**
@@ -42,8 +50,14 @@ interface ScrollingFeaturesProps {
  * The same IntersectionObserver runs on both layouts — it drives the
  * desktop phone crossfade, and is harmless on mobile (activeIndex is
  * unused there).
+ *
+ * Typography follows the Field Sunday spec: section heading splits
+ * across a thin vertical rule (`Everything you need.` | `Nothing you
+ * don't.`), per-feature index in mono caps coloured in the sport
+ * accent, eyebrows in mono caps. No decorative dots flanking the
+ * section eyebrow.
  */
-export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
+export function ScrollingFeatures({ features, sportLabel }: ScrollingFeaturesProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const sectionRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -100,23 +114,30 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
     return () => observer.disconnect();
   }, [features]);
 
+  // Zero-padded index for the mono caps treatment ("01", "02", …).
+  const featureIdx = (i: number) => String(i + 1).padStart(2, "0");
+
   return (
     <section
       id="features"
       className="relative border-b border-hairline bg-warm py-16 sm:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        {/* Section intro */}
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
-            What Siren does
+        {/* Section intro. Eyebrow: WHAT SIREN DOES · [SPORT] with the
+            sport label in accent — no flanking dots per the spec.
+            Heading splits across a thin vertical rule. */}
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            What Siren does · <span className="text-accent">{sportLabel}</span>
           </p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl md:text-5xl">
-            Everything you need, nothing you don&rsquo;t.
+          <h2 className="mt-4 flex flex-col items-center justify-center gap-3 text-3xl font-bold tracking-section leading-[0.98] text-ink sm:flex-row sm:gap-5 sm:text-4xl md:text-5xl">
+            <span className="text-balance">Everything you need.</span>
+            <span
+              aria-hidden="true"
+              className="hidden h-10 w-px bg-hairline sm:inline-block md:h-12"
+            />
+            <span className="text-ink-dim text-balance">Nothing you don&rsquo;t.</span>
           </h2>
-          <p className="mt-4 hidden text-base text-ink-dim sm:text-lg lg:block">
-            Scroll through the features. The phone follows along.
-          </p>
         </div>
 
         {/* ======================================================
@@ -131,8 +152,8 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
             // isn't mechanical. Zero tilt on the first one — it sets
             // the baseline — then ±1.5° after that.
             const tilt = i === 0 ? 0 : i % 2 === 0 ? -1.5 : 1.5;
-            // Swap which side the brand/warn accent blob sits on so
-            // adjacent sections don't look identical.
+            // Swap which side the accent blob sits on so adjacent
+            // sections don't look identical.
             const blobOnRight = i % 2 === 1;
 
             return (
@@ -144,7 +165,7 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                     aria-hidden="true"
                     className={`absolute ${
                       blobOnRight ? "-right-8" : "-left-8"
-                    } top-8 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl`}
+                    } top-8 h-48 w-48 rounded-full bg-accent-soft/70 blur-3xl`}
                   />
                   <div
                     aria-hidden="true"
@@ -153,14 +174,16 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                     } bottom-4 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl`}
                   />
                   <PhoneFrame tilt={tilt} className="relative">
-                    <Image
-                      src={f.image}
-                      alt={f.imageAlt}
-                      fill
-                      sizes="(max-width: 640px) 300px, 280px"
-                      priority={i === 0}
-                      className="object-cover"
-                    />
+                    {f.screen ?? (f.image ? (
+                      <Image
+                        src={f.image}
+                        alt={f.imageAlt ?? ""}
+                        fill
+                        sizes="(max-width: 640px) 300px, 280px"
+                        priority={i === 0}
+                        className="object-cover"
+                      />
+                    ) : null)}
                   </PhoneFrame>
                 </div>
 
@@ -168,25 +191,27 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                     one unified card-like beat rather than a left-
                     aligned text block underneath a centred phone. */}
                 <div className="mx-auto max-w-xl px-1 text-center">
-                  <p className="text-[11px] font-bold uppercase tracking-micro text-warn">
-                    {f.eyebrow}
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                    <span className="text-accent">{featureIdx(i)}</span> · {f.eyebrow}
                   </p>
-                  <h3 className="mt-3 text-2xl font-bold tracking-tightest text-ink sm:text-3xl">
+                  <h3 className="mt-3 text-2xl font-bold tracking-tightest leading-[1.05] text-ink text-balance sm:text-3xl">
                     {f.title}
                   </h3>
                   <p className="mt-4 text-base text-ink-dim sm:text-lg">
                     {f.body}
                   </p>
                   <ul className="mx-auto mt-6 max-w-md space-y-3 text-left">
-                    {f.bullets.map((bullet) => (
+                    {f.bullets.map((bullet, j) => (
                       <li
                         key={bullet}
                         className="flex gap-3 text-sm text-ink-dim sm:text-base"
                       >
                         <span
                           aria-hidden="true"
-                          className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-warn"
-                        />
+                          className="mt-0.5 font-mono text-[11px] font-bold uppercase tracking-micro text-accent"
+                        >
+                          {String(j + 1).padStart(2, "0")}
+                        </span>
                         <span>{bullet}</span>
                       </li>
                     ))}
@@ -216,29 +241,35 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                 {/* Accent blobs behind the phone */}
                 <div
                   aria-hidden="true"
-                  className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-brand-200/50 blur-3xl"
+                  className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-accent-soft/70 blur-3xl"
                 />
                 <div
                   aria-hidden="true"
                   className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
                 />
                 <PhoneFrame tilt={1.5} className="relative">
-                  {/* All images are stacked; only the active one is
+                  {/* All screens are stacked; only the active one is
                       opacity: 1. Keeps images pre-loaded for a snappy
                       crossfade instead of a flash-of-missing-image. */}
                   {features.map((f, i) => (
-                    <Image
+                    <div
                       key={f.id}
-                      src={f.image}
-                      alt={f.imageAlt}
-                      fill
-                      sizes="280px"
-                      priority={i === 0}
-                      className={`object-cover transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
+                      aria-hidden={i !== activeIndex}
+                      className={`absolute inset-0 transition-opacity duration-500 ease-out-quart motion-reduce:transition-none ${
                         i === activeIndex ? "opacity-100" : "opacity-0"
                       }`}
-                      aria-hidden={i !== activeIndex}
-                    />
+                    >
+                      {f.screen ?? (f.image ? (
+                        <Image
+                          src={f.image}
+                          alt={f.imageAlt ?? ""}
+                          fill
+                          sizes="280px"
+                          priority={i === 0}
+                          className="object-cover"
+                        />
+                      ) : null)}
+                    </div>
                   ))}
                 </PhoneFrame>
               </div>
@@ -256,23 +287,25 @@ export function ScrollingFeatures({ features }: ScrollingFeaturesProps) {
                   i === activeIndex ? "opacity-100" : "opacity-40"
                 }`}
               >
-                <p className="text-[11px] font-bold uppercase tracking-micro text-warn">
-                  {f.eyebrow}
+                <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                  <span className="text-accent">{featureIdx(i)}</span> · {f.eyebrow}
                 </p>
-                <h3 className="mt-3 text-3xl font-bold tracking-tightest text-ink md:text-4xl">
+                <h3 className="mt-3 text-3xl font-bold tracking-tightest leading-[1.05] text-ink text-balance md:text-4xl">
                   {f.title}
                 </h3>
                 <p className="mt-4 text-lg text-ink-dim">{f.body}</p>
                 <ul className="mt-6 space-y-3">
-                  {f.bullets.map((bullet) => (
+                  {f.bullets.map((bullet, j) => (
                     <li
                       key={bullet}
                       className="flex gap-3 text-base text-ink-dim"
                     >
                       <span
                         aria-hidden="true"
-                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-warn"
-                      />
+                        className="mt-1 font-mono text-[11px] font-bold uppercase tracking-micro text-accent"
+                      >
+                        {String(j + 1).padStart(2, "0")}
+                      </span>
                       <span>{bullet}</span>
                     </li>
                   ))}
