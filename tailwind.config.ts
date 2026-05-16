@@ -101,12 +101,20 @@ const config: Config = {
           "0%":   { transform: "scale(1)",   opacity: "0.55" },
           "100%": { transform: "scale(2.4)", opacity: "0" },
         },
+        // Single expanding box-shadow ring — production siren mark.
+        // Per-instance ring size via `--siren-pulse-spread`.
+        sirenPulse: {
+          "0%":   { boxShadow: "0 0 0 0 rgba(217, 68, 45, 0.55)" },
+          "100%": { boxShadow: "0 0 0 var(--siren-pulse-spread, 12px) rgba(217, 68, 45, 0)" },
+        },
       },
       animation: {
         // Used by GameSummaryCard to announce itself at full time.
         "slide-up":   "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
         // Used by PulseMark — the siren-red halo ripple.
         "pulse-halo": "pulseHalo 1.8s ease-out infinite",
+        // Used by the SirenWordmark mark — single ring, no static halo.
+        "siren-pulse": "sirenPulse 1.5s ease-out infinite",
       },
       letterSpacing: {
         tightest: "-0.02em",

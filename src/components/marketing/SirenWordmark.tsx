@@ -1,24 +1,33 @@
-import { PulseMark } from "@/components/brand/PulseMark";
+import type { CSSProperties } from "react";
 
 interface SirenWordmarkProps {
   className?: string;
-  /** Controls type scale + pulse-mark size. */
+  /** Controls type scale + dot size. */
   size?: "sm" | "md" | "lg";
-  /** Fires the halo animation around the mark (hero use). */
+  /** Fires the single-ring pulse animation around the dot. */
   pulsing?: boolean;
 }
 
-const SCALE: Record<Required<SirenWordmarkProps>["size"], { mark: number; text: string; gap: string }> = {
-  sm: { mark: 20, text: "text-lg", gap: "gap-1.5" },
-  md: { mark: 28, text: "text-2xl", gap: "gap-2" },
-  lg: { mark: 40, text: "text-4xl", gap: "gap-3" },
+// Pixel-precise sizing that mirrors the production siren mark
+// (`prototype/sf/ui.jsx` SirenMark): the dot is ~22% of the text
+// size, top-aligned, with a margin-top of ~18% to sit near the cap
+// height of the wordmark — like the tip of an "i".
+const SCALE: Record<Required<SirenWordmarkProps>["size"], {
+  text: string;
+  dotSize: number;
+  dotMarginTop: number;
+  pulseSpread: number;
+}> = {
+  sm: { text: "text-lg",  dotSize: 4, dotMarginTop: 3, pulseSpread: 9 },
+  md: { text: "text-2xl", dotSize: 5, dotMarginTop: 4, pulseSpread: 14 },
+  lg: { text: "text-4xl", dotSize: 8, dotMarginTop: 7, pulseSpread: 22 },
 };
 
 /**
- * Horizontal lockup: "Siren" wordmark + pulse mark. The mark paints in
- * `alarm` — the warm ember of a footy siren — which is the brand hue.
- * The wordmark itself stays ink-black so the orange reads as the
- * identity, not the name.
+ * Horizontal lockup: "Siren" wordmark + a single alarm-orange dot
+ * sitting at the top-right corner. When `pulsing` is true the dot
+ * emits a single expanding box-shadow ring — no static halo behind
+ * it, per the production mark. Matches sirenfooty.com.au.
  */
 export function SirenWordmark({
   className = "",
@@ -26,9 +35,19 @@ export function SirenWordmark({
   pulsing = false,
 }: SirenWordmarkProps) {
   const s = SCALE[size];
+  const dotStyle: CSSProperties = {
+    width: s.dotSize,
+    height: s.dotSize,
+    marginTop: s.dotMarginTop,
+    // Per-instance ring expansion target read by the
+    // `sirenPulse` keyframe in tailwind.config.ts.
+    ["--siren-pulse-spread" as string]: `${s.pulseSpread}px`,
+  };
+
   return (
     <span
-      className={`inline-flex items-center ${s.gap} ${className}`}
+      className={`inline-flex items-start leading-none ${className}`}
+      style={{ gap: 3 }}
       aria-label="Siren"
       role="img"
     >
@@ -38,9 +57,13 @@ export function SirenWordmark({
       >
         Siren
       </span>
-      <span className="text-alarm">
-        <PulseMark size={s.mark} pulsing={pulsing} />
-      </span>
+      <span
+        aria-hidden="true"
+        className={`inline-block rounded-full bg-alarm ${
+          pulsing ? "motion-safe:animate-siren-pulse" : ""
+        }`}
+        style={dotStyle}
+      />
     </span>
   );
 }
