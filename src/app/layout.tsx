@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -13,16 +14,16 @@ import "./globals.css";
 const GA_ID = "G-ZBTGMZPTD0";
 const IS_PROD_DEPLOY = process.env.VERCEL_ENV === "production";
 
-const sans = Inter({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
+// Geist + Geist Mono via Vercel's official `geist` package — the
+// font catalogue inside `next/font/google` doesn't ship Geist on
+// Next 14.2, so the standalone package is the canonical path. Both
+// exports register their own CSS variable; we alias them to the
+// project's existing --font-geist / --font-geist-mono names via the
+// `variable` field so every consumer of those tokens (Tailwind
+// `font-sans`/`font-mono`, the `.nums` utility, every direct
+// `font-mono` className) keeps working without changing.
+const sans = GeistSans;
+const mono = GeistMono;
 
 export const metadata: Metadata = {
   title: "Siren Footy",
