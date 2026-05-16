@@ -9,7 +9,7 @@
 //     Password: SirenReview2026!
 //
 // with:
-//   - A team called "Siren Demo FC" (AFL, U10).
+//   - A team called "Fitzroy Falcons" (AFL, U10).
 //   - 12 active players (named after team-tactical roles — Captain,
 //     Forward, Defender, etc — so the reviewer can tell who's who).
 //   - Three games:
@@ -61,8 +61,18 @@ if (!url || !key) {
 const REVIEW_EMAIL = "appreview@sirenfooty.com.au";
 const REVIEW_PASSWORD = "SirenReview2026!";
 const REVIEW_NAME = "App Review";
-const TEAM_NAME = "Siren Demo FC";
+// Suburb + animal pattern matches how real Aussie junior clubs are
+// named (e.g. Fitzroy Lions, Coburg Tigers). Reads as a plausible
+// inner-north Melbourne U10 side rather than placeholder demo data,
+// which matters for both reviewer credibility and marketing
+// screenshots.
+const TEAM_NAME = "Fitzroy Falcons";
 const AGE_GROUP = "U10";
+// Opponents — alliterative inner-north suburb + animal, none of
+// which clash with real AFL/VFL senior clubs.
+const OPPONENT_COMPLETED = "Brunswick Bears";
+const OPPONENT_LIVE = "Coburg Cougars";
+const OPPONENT_UPCOMING = "Northcote Nighthawks";
 
 // 12 active players. Single-word names that PlayerTile will render
 // as-is (no last-initial abbreviation), so the names the reviewer
@@ -277,7 +287,7 @@ async function main() {
 
   // Round 1 — completed. Reviewer sees the GameSummaryCard.
   const r1 = await createGame(teamId, ownerId, {
-    opponent: "Western Demons",
+    opponent: OPPONENT_COMPLETED,
     scheduledAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
     round: 1,
     status: "completed",
@@ -307,7 +317,7 @@ async function main() {
 
   // Round 2 — in_progress. Mid-second-quarter, score 1.1 - 0.0.
   const r2 = await createGame(teamId, ownerId, {
-    opponent: "Northern Saints",
+    opponent: OPPONENT_LIVE,
     scheduledAt: new Date(Date.now() - 1 * 86_400_000).toISOString(),
     round: 2,
     status: "in_progress",
@@ -328,7 +338,7 @@ async function main() {
   // Round 3 — upcoming. Reviewer can mark availability, start the
   // game, tap through the lineup picker, kick off Q1.
   const r3 = await createGame(teamId, ownerId, {
-    opponent: "Eastern Eagles",
+    opponent: OPPONENT_UPCOMING,
     scheduledAt: new Date(Date.now() + 6 * 86_400_000).toISOString(),
     round: 3,
     status: "upcoming",
@@ -347,7 +357,7 @@ async function main() {
   console.log(`   Sign-in:  email + password (toggle on /login page)`);
   console.log("");
   console.log(" Suggested reviewer walkthrough:");
-  console.log("   1. Sign in → lands on Siren Demo FC team page.");
+  console.log(`   1. Sign in → lands on ${TEAM_NAME} team page.`);
   console.log("   2. Open the completed round 1 game → see the recap.");
   console.log("   3. Open the in-progress round 2 game → see the live UI.");
   console.log("   4. Open round 3 (upcoming) → 'Start game' to walk the");

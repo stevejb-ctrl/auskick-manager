@@ -28,13 +28,24 @@ import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const outDir = resolve(repoRoot, "mobile", "store", "screenshots", "ios");
 
 const args = process.argv.slice(2);
 const baseIdx = args.indexOf("--base");
 const BASE_URL =
   baseIdx >= 0 ? args[baseIdx + 1] : "https://www.sirenfooty.com.au";
 const RAW = args.includes("--raw");
+
+// In raw mode the screenshots go to a separate subdir so the
+// designer / Claude design has a clean source set untouched by the
+// in-script marketing band. The marketed set (default) stays at
+// `ios/` and that's what gets uploaded to App Store Connect.
+const outDir = resolve(
+  repoRoot,
+  "mobile",
+  "store",
+  "screenshots",
+  RAW ? "raw" : "ios",
+);
 
 // Demo credentials provisioned by scripts/seed-app-review-account.mjs.
 // Hardcoded by design — the seeded account is reserved for screenshot
@@ -175,6 +186,9 @@ async function discoverIds(page) {
     waitUntil: "networkidle",
   });
 
+  // Match opponent names from the seed (scripts/seed-app-review-
+  // account.mjs). If the seed's opponent strings change, update both
+  // here AND keep the screenshot output filenames stable.
   const games = await page.evaluate(() => {
     const anchors = Array.from(
       document.querySelectorAll('a[href*="/games/"]'),
@@ -185,9 +199,9 @@ async function discoverIds(page) {
       const id = href.match(/\/games\/([0-9a-f-]+)/)?.[1];
       if (!id) continue;
       const text = a.textContent ?? "";
-      if (text.includes("Western Demons")) byOpponent.completed = id;
-      if (text.includes("Northern Saints")) byOpponent.live = id;
-      if (text.includes("Eastern Eagles")) byOpponent.upcoming = id;
+      if (text.includes("Brunswick Bears")) byOpponent.completed = id;
+      if (text.includes("Coburg Cougars")) byOpponent.live = id;
+      if (text.includes("Northcote Nighthawks")) byOpponent.upcoming = id;
     }
     return byOpponent;
   });
