@@ -55,10 +55,11 @@ export interface BrandCopy {
    */
   trustBand: readonly { stat: string; label: string }[];
   /**
-   * Editorial centrepiece above the feature blocks. Two halves —
-   * the right half renders Instrument Serif italic.
+   * Editorial centrepiece above the feature blocks. Single big
+   * headline; `italic` pulls the payoff word into the brand accent
+   * colour (no longer rendered italic — see TitleAccent).
    */
-  centerpiece: { left: string; right: string };
+  centerpiece: TitleParts;
   /** Ordered feature blocks for ScrollingFeatures. */
   features: FeatureCopy[];
   /** Final CTA pieces — title is split for italic accent. */
@@ -90,11 +91,13 @@ const AFL_COPY: BrandCopy = {
     { stat: "4.9★", label: "Parent rating" },
     { stat: "0", label: "Clipboards" },
   ],
-  // `|` is an explicit line-break marker for the desktop two-line
-  // render — see Centerpiece in ScrollingFeatures. Without it the
-  // component falls back to a first-word / rest split, which would
-  // orphan "To" on its own line here.
-  centerpiece: { left: "Everything you need.", right: "To make game day | a breeze." },
+  // Single flowing headline. `italic` pulls "breeze" into the brand
+  // accent colour without italicising — see TitleAccent.
+  centerpiece: {
+    before: "Everything you need to make game day a ",
+    italic: "breeze",
+    after: ".",
+  },
   finalCtaEyebrow: "Saturday morning is coming",
   finalCtaTitle: {
     before: "Set up your team in about ",
@@ -277,11 +280,13 @@ const NETBALL_COPY: BrandCopy = {
     { stat: "4.9★", label: "Parent rating" },
     { stat: "0", label: "Clipboards" },
   ],
-  // `|` is an explicit line-break marker for the desktop two-line
-  // render — see Centerpiece in ScrollingFeatures. Without it the
-  // component falls back to a first-word / rest split, which would
-  // orphan "To" on its own line here.
-  centerpiece: { left: "Everything you need.", right: "To make game day | a breeze." },
+  // Single flowing headline. `italic` pulls "breeze" into the brand
+  // accent colour without italicising — see TitleAccent.
+  centerpiece: {
+    before: "Everything you need to make game day a ",
+    italic: "breeze",
+    after: ".",
+  },
   finalCtaEyebrow: "Saturday morning is coming",
   finalCtaTitle: {
     before: "Set up your team in about ",

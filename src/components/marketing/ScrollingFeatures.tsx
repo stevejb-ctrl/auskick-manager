@@ -4,12 +4,13 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
-import type { FeatureCopy } from "@/lib/sports/brand-copy";
+import type { FeatureCopy, TitleParts } from "@/lib/sports/brand-copy";
 
 interface ScrollingFeaturesProps {
   features: FeatureCopy[];
-  /** Editorial centrepiece heading. Right half renders italic. */
-  centerpiece: { left: string; right: string };
+  /** Editorial centrepiece heading. Single headline with an accent
+   *  word pulled into the brand-500 colour. */
+  centerpiece: TitleParts;
 }
 
 const PADDED = (n: number) => n.toString().padStart(2, "0");
@@ -106,7 +107,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
       className="relative border-b border-hairline bg-warm py-16 sm:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <Centerpiece left={centerpiece.left} right={centerpiece.right} />
+        <Centerpiece parts={centerpiece} />
 
         {/* MOBILE LAYOUT — single-column page scroll, sticky phone below
             the page header with overlay card + progress pill. */}
@@ -273,10 +274,16 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
 }
 
 // ─── Centerpiece editorial heading ────────────────────────────────────
-function Centerpiece({ left, right }: { left: string; right: string }) {
+//
+// Single big headline above the features. The previous split-with-
+// vertical-rule design only worked for short three-word phrases like
+// "Everything you need" / "Nothing you don't" — the moment the copy
+// grew ("To make game day a breeze") each word ended up on its own
+// line in the narrow grid column. One flowing headline with text-wrap
+// balance + an accent word handles any length cleanly.
+function Centerpiece({ parts }: { parts: TitleParts }) {
   return (
-    <div className="mx-auto mb-4 max-w-4xl">
-      {/* Eyebrow + alarm dots, centered */}
+    <div className="mx-auto mb-4 max-w-4xl text-center">
       <div className="flex items-center justify-center gap-3">
         <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
         <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-mute">
@@ -285,55 +292,11 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
         <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
       </div>
 
-      {/* Phone: stacked, centered. Strip the `|` line-break marker
-          — at this width each half wraps naturally on its own. */}
-      <div className="mt-5 text-center sm:hidden">
-        <h2 className="text-3xl font-bold leading-[0.95] tracking-tightest text-ink [text-wrap:balance]">
-          {left.replace(" | ", " ")}
-        </h2>
-        <h2 className="mt-2 text-3xl font-bold leading-[0.95] tracking-tightest text-ink-dim [text-wrap:balance]">
-          {right.replace(" | ", " ")}
-        </h2>
-      </div>
-
-      {/* Tablet+ : 3-up with vertical hairline rule between halves */}
-      <div className="mt-5 hidden grid-cols-[1fr_auto_1fr] items-start gap-6 sm:grid md:gap-8 lg:gap-12">
-        <h2 className="text-right text-[clamp(2.5rem,6vw,5.5rem)] font-bold leading-[0.92] tracking-[-0.035em] text-ink [text-wrap:balance]">
-          {splitForTwoLines(left).map((line, i) => (
-            <span key={i}>
-              {i > 0 && <br />}
-              {line}
-            </span>
-          ))}
-        </h2>
-        <span aria-hidden="true" className="block self-stretch w-px bg-hairline" />
-        <h2 className="text-left text-[clamp(2.5rem,6vw,5.5rem)] font-bold leading-[0.92] tracking-tightest text-ink-dim [text-wrap:balance]">
-          {splitForTwoLines(right).map((line, i) => (
-            <span key={i}>
-              {i > 0 && <br />}
-              {line}
-            </span>
-          ))}
-        </h2>
-      </div>
+      <h2 className="mt-5 text-[clamp(2rem,5vw,4.5rem)] font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]">
+        <TitleAccent parts={parts} />
+      </h2>
     </div>
   );
-}
-
-// Split a centerpiece half into the two desktop lines.
-//
-// If the caller supplied an explicit `|` break marker, honour it —
-// gives copy-writers control when the default split orphans a word
-// ("To make game day a breeze" → "To" / "rest" looks broken).
-// Otherwise fall back to the original "first word / rest" split that
-// works well for short three-word phrases like "Everything you need".
-function splitForTwoLines(s: string): [string, string] {
-  if (s.includes(" | ")) {
-    const [a, b] = s.split(" | ");
-    return [a, b];
-  }
-  const words = s.split(" ");
-  return [words[0] ?? "", words.slice(1).join(" ")];
 }
 
 // ─── Overlay card sitting on the phone screen on mobile ────────────────
