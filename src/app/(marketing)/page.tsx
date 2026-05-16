@@ -5,6 +5,7 @@ import { Hero } from "@/components/marketing/Hero";
 import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
+import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBounce";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { getUser } from "@/lib/supabase/server";
@@ -41,6 +42,14 @@ export default async function Home() {
 
   return (
     <main>
+      {/* Belt-and-braces redirect off marketing for native Capacitor
+          users. The canonical fix is in capacitor.config.ts +
+          middleware.ts, but TestFlight Build 1 was archived before
+          those changes landed (server.url still points at "/"), so
+          first-launch unauth users on Build 1 land here. This
+          component bounces them to /login client-side. Becomes
+          dead code once Build 2+ replaces every Build 1 install. */}
+      <NativeMarketingBounce />
       <Hero />
       <TrustBand />
       <ScrollingFeatures
