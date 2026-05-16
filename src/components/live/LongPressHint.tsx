@@ -27,12 +27,20 @@ const AUTO_DISMISS_MS = 12_000;
  * First-tap hint for the long-press affordance. P1.5-3 in
  * .planning/MICRO-INTERACTIONS-PLAN.md.
  *
- * Long-press to lock is a powerful but invisible affordance —
- * coaches discover it by accident or never. This component shows a
- * one-time hint chip the first time a coach opens a live game (or
- * any view that wires `onLongPress` on player tiles). The chip is
- * dismissed permanently the first time ANY long-press fires on the
- * page, OR via the Got it action, OR after 12 seconds.
+ * Long-press is a powerful but invisible affordance — it opens
+ * the per-player actions menu (lock to field/zone, mark injured,
+ * lend to opposition, mid-Q sub). Coaches discover it by accident
+ * or never. This component shows a one-time hint chip the first
+ * time a coach opens a live game (or any view that wires
+ * `onLongPress` on player tiles). The chip is dismissed
+ * permanently the first time ANY long-press fires on the page, OR
+ * via the Got it action, OR after 12 seconds.
+ *
+ * Steve 2026-05-16: copy used to say "to lock them on field" only
+ * — a Stagehand chaotic-substitution-coach run dismissed the hint
+ * then couldn't find the injury/loan flow. Broadened to
+ * "for actions (lock, injury, lend…)" so the menu trigger reads
+ * as general-purpose.
  *
  * Mounted by LiveGame.tsx inside the in-game render. The
  * `enabled` prop lets the caller suppress the hint in contexts
@@ -110,7 +118,15 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
             <span aria-hidden="true" className="text-sm leading-none">
               👇
             </span>
-            <span>Long-press a player to lock them on field</span>
+            {/* Stagehand `chaotic-substitution-coach` 2026-05-16:
+                old copy only said "to lock them on field" — agent
+                dismissed the hint then couldn't find the injury /
+                loan / lent flow because it didn't know long-press
+                surfaced those too. Broadened to "for actions" so
+                the gesture reads as a general menu trigger, with
+                a short examples list so the lock case still
+                surfaces. */}
+            <span>Long-press a player for actions (lock, injury, lend…)</span>
             <button
               type="button"
               onClick={handleGotIt}
