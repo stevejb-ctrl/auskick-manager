@@ -19,8 +19,8 @@ export const SPORT_THEMES = {
   footy: {
     label: "AFL",
     eyebrow: "Built for junior AFL",
-    accent: "#D9442D",      // alarm orange — Siren's brand
-    accentSoft: "#FBE7DF",
+    accent: "#357840",      // brand-500 — footy field green
+    accentSoft: "#CDDFCD",  // brand-100 — slightly darker than the mint body bg
     accentInk: "#FFFFFF",
   },
   netball: {

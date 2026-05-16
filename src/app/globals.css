@@ -4,7 +4,11 @@
 
 @layer base {
   body {
-    @apply bg-warm text-ink antialiased;
+    /* Mint gradient backdrop — brand-50 (lightest) into brand-100.
+       Marketing sections that go transparent show this through; ink-
+       dark sections (banner, FinalCTA) and explicit `bg-warm` zones
+       (footer, Hero overlay) override it for visual variety. */
+    @apply bg-gradient-to-b from-brand-50 to-brand-100 text-ink antialiased min-h-screen;
   }
 
   /* Tabular numerals everywhere a number is displayed — times, scores, minutes.

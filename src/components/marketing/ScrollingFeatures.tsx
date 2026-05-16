@@ -138,7 +138,7 @@ export function ScrollingFeatures({ features, sportLabel }: ScrollingFeaturesPro
   return (
     <section
       id="features"
-      className="relative border-b border-hairline bg-warm py-16 sm:py-20 lg:py-24"
+      className="relative border-b border-hairline py-16 sm:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         {/* Section intro. Eyebrow: WHAT SIREN DOES · [SPORT] with the
