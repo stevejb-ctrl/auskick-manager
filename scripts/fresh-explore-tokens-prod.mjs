@@ -126,9 +126,17 @@ async function createSandboxGame(team, opponentSuffix) {
       opponent: `${opponentSuffix} (${team.sport})`,
       scheduled_at: scheduledAt,
       created_by: team.created_by,
-      // 60× clock + 900s sub interval mirrors fresh-explore-token's
-      // sandbox config — Q1 plays out in seconds.
-      clock_multiplier: 60,
+      // Steve 2026-05-15: dropped from 60× to 8× after a Stagehand
+      // run hit the auto-hooter mid-mission. 60× collapses a
+      // 10-min netball Q to ~10s real time, which the Gemini agent
+      // can't outpace — it lands on Q-break before it can score.
+      // 8× gives an 80–100s window per quarter (10-min netball Q
+      // → 75s, 12-min AFL Q → 90s), comfortably above the agent's
+      // ~30s of in-quarter actions while still keeping a full
+      // mission under 5 minutes.
+      // sub_interval still pushed past quarter length so the
+      // SubDueModal stays out of the way.
+      clock_multiplier: 8,
       sub_interval_seconds: 900,
     })
     .select("id, share_token, opponent, scheduled_at")

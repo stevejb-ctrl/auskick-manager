@@ -110,14 +110,16 @@ const { data: game, error: gameErr } = await admin
     opponent,
     scheduled_at: scheduledAt,
     created_by: team.created_by,
-    // 60× clock + 900s sub interval mirror the e2e Playwright
-    // setup (full-game-playthrough.spec.ts). At 60× a 12-min
-    // quarter elapses in ~12 real seconds, and pushing
-    // sub_interval past the quarter length keeps the SubDueModal
-    // out of the way during exploratory runs. Without these the
-    // explore agent waits ~12 real minutes per quarter, which
-    // bottlenecks every mission to half an hour+.
-    clock_multiplier: 60,
+    // Steve 2026-05-15: was 60× for Playwright parity with
+    // full-game-playthrough.spec.ts — but a Stagehand explore run
+    // proved 60× too fast for the LLM-driven agent. At 60× a
+    // 12-min Q elapses in ~12 real seconds, and the agent lands
+    // on Q-break before its score-flow turn fires. 8× keeps the
+    // mission under 5 minutes (12-min Q → 90s) while leaving the
+    // agent enough room to score + undo within a single quarter.
+    // sub_interval still pushed past quarter length so the
+    // SubDueModal stays out of the way during exploratory runs.
+    clock_multiplier: 8,
     sub_interval_seconds: 900,
     // sport is on the team, not the game — `games` rows inherit
     // it transitively through team_id. on_field_size defaults to
