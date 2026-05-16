@@ -32,6 +32,7 @@ export function MarketingFooter() {
             { href: "/demo", label: "Demo" },
             { href: "/help", label: "Help" },
             { href: "/contact", label: "Contact" },
+            { href: "/support", label: "Support" },
             { href: "/privacy", label: "Privacy" },
             { href: "/terms", label: "Terms" },
           ].map((l) => (
