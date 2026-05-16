@@ -20,7 +20,7 @@ export function TrustBand({ stats }: TrustBandProps) {
     >
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 py-6 sm:grid-cols-4 sm:gap-8 sm:px-6 sm:py-8">
         {stats.map((item) => (
-          <div key={item.label} className="text-center sm:text-left">
+          <div key={item.label} className="text-center">
             <div className="text-2xl font-bold tracking-tightest leading-none text-ink sm:text-3xl">
               {item.stat}
             </div>
