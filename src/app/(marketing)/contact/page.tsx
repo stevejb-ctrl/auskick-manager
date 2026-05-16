@@ -16,7 +16,7 @@ export default function ContactPage() {
           Contact
         </p>
         <h1 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
-          Get in <em className="font-serif font-normal italic">touch</em>.
+          Get in <span className="text-brand-500">touch</span>.
         </h1>
         <p className="mt-4 text-base text-ink-dim sm:text-lg">
           Questions, feedback, or a bug to report? Drop us a line and

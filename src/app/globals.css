@@ -103,7 +103,14 @@
 
 @layer base {
   body {
-    @apply bg-warm text-ink antialiased;
+    /* Mint gradient backdrop on the marketing surface — brand-50
+       (lightest) into brand-100. The brand-* CSS variables above
+       resolve per host, so the netball domain naturally gets the
+       sky-blue ladder instead of footy green. The authenticated
+       app and other in-product surfaces paint their own bg over
+       this gradient (bg-surface, bg-ink, etc.) so it only reads
+       on the public site. */
+    @apply bg-gradient-to-b from-brand-50 to-brand-100 text-ink antialiased min-h-screen;
     /* Hard cap on horizontal scroll. Live-game pages have a few
        absolute-positioned elements (the PlayerTile score chip
        perches at -right-1) that occasionally produce a 1-4px

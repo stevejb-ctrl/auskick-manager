@@ -26,12 +26,12 @@ export default function WhySirenPage() {
         />
         <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-24">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
               Why Siren
             </p>
             <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl">
               Built for the kid who&apos;s been{" "}
-              <em className="font-serif font-normal italic">stuck</em> in the
+              <span className="text-brand-500">stuck</span> in the
               same spot all quarter.
             </h1>
             <p className="mt-6 max-w-2xl text-lg text-ink-dim sm:text-xl">
@@ -46,12 +46,12 @@ export default function WhySirenPage() {
       <section className="border-b border-hairline bg-warm">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
               The sideline reality
             </p>
             <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
               Three minutes until the next{" "}
-              <em className="font-serif font-normal italic">whistle</em>.
+              <span className="text-brand-500">whistle</span>.
             </h2>
             <div className="mt-6 space-y-5 text-lg leading-relaxed text-ink-dim">
               <p>
@@ -79,12 +79,12 @@ export default function WhySirenPage() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-28">
           <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-2 lg:gap-16">
             <RevealOnScroll>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
                 The difference
               </p>
               <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
                 Positions, not just{" "}
-                <em className="font-serif font-normal italic">minutes</em>.
+                <span className="text-brand-500">minutes</span>.
               </h2>
               <div className="mt-6 space-y-5 text-base leading-relaxed text-ink-dim sm:text-lg">
                 <p>
@@ -129,11 +129,11 @@ export default function WhySirenPage() {
       <section className="border-b border-hairline bg-warm">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
               Built for our game
             </p>
             <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
-              Not a <em className="font-serif font-normal italic">generic</em>{" "}
+              Not a <span className="text-brand-500">generic</span>{" "}
               rotation tracker.
             </h2>
             <div className="mt-6 space-y-5 text-lg leading-relaxed text-ink-dim">
@@ -157,7 +157,7 @@ export default function WhySirenPage() {
         <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
             <div className="rounded-lg border border-hairline bg-surface p-6 shadow-card sm:p-8">
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-alarm">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
                 A note from the coach who built it
               </p>
               <div className="mt-4 space-y-4 text-base leading-relaxed text-ink-dim">

@@ -14,14 +14,14 @@ export function MarketingBanner() {
   return (
     <div className="bg-ink text-warm">
       <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-2 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.08em] sm:px-6 sm:text-[12px]">
-        <span className="text-alarm">
+        <span className="text-brand-500">
           <PulseMark size={12} pulsing />
         </span>
         <span className="text-warm/75">{banner.prefix}</span>
         <span className="hidden text-warm/40 sm:inline">·</span>
         <Link
           href="/login"
-          className="hidden border-b border-alarm/40 pb-px text-alarm transition-colors duration-fast ease-out-quart hover:border-alarm hover:text-alarm sm:inline"
+          className="hidden border-b border-brand-500/40 pb-px text-brand-500 transition-colors duration-fast ease-out-quart hover:border-brand-500 hover:text-brand-500 sm:inline"
         >
           {banner.linkText}
         </Link>

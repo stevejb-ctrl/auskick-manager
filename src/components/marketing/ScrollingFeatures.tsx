@@ -209,7 +209,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                   i === activeIndex ? "opacity-100" : "opacity-40"
                 }`}
               >
-                <p className="font-mono text-[12px] font-bold uppercase tracking-micro text-alarm">
+                <p className="font-mono text-[12px] font-bold uppercase tracking-micro text-brand-500">
                   <span className="mr-3">{PADDED(i + 1)}</span>
                   <span className="text-ink-mute">{f.eyebrow}</span>
                 </p>
@@ -222,7 +222,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                     <li key={bullet} className="flex gap-3 text-base text-ink">
                       <span
                         aria-hidden="true"
-                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-alarm"
+                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500"
                       />
                       <span>{bullet}</span>
                     </li>
@@ -278,11 +278,11 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
     <div className="mx-auto mb-4 max-w-4xl">
       {/* Eyebrow + alarm dots, centered */}
       <div className="flex items-center justify-center gap-3">
-        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-alarm" />
+        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
         <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-mute">
           What Siren does
         </span>
-        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-alarm" />
+        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
       </div>
 
       {/* Phone: stacked, centered */}
@@ -290,7 +290,7 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
         <h2 className="text-3xl font-bold leading-[0.95] tracking-tightest text-ink [text-wrap:balance]">
           {left}
         </h2>
-        <h2 className="mt-2 font-serif text-3xl font-normal italic leading-[0.95] tracking-tightest text-ink-dim [text-wrap:balance]">
+        <h2 className="mt-2 text-3xl font-bold leading-[0.95] tracking-tightest text-ink-dim [text-wrap:balance]">
           {right}
         </h2>
       </div>
@@ -303,7 +303,7 @@ function Centerpiece({ left, right }: { left: string; right: string }) {
           {left.split(" ").slice(1).join(" ")}
         </h2>
         <span aria-hidden="true" className="block self-stretch w-px bg-hairline" />
-        <h2 className="text-left font-serif text-[clamp(2.5rem,6vw,5.5rem)] font-normal italic leading-[0.92] tracking-tightest text-ink-dim [text-wrap:balance]">
+        <h2 className="text-left text-[clamp(2.5rem,6vw,5.5rem)] font-bold leading-[0.92] tracking-tightest text-ink-dim [text-wrap:balance]">
           {right.split(" ").slice(0, 1).join(" ")}
           <br />
           {right.split(" ").slice(1).join(" ")}
@@ -341,10 +341,10 @@ function MobileOverlayCard({
         onClick={() => setExpanded((e) => !e)}
         aria-expanded={expanded}
         aria-label={expanded ? "Hide feature details" : "Show feature details"}
-        className="block w-full rounded-md bg-ink/[0.92] px-3 py-2.5 text-left text-warm shadow-modal backdrop-blur-sm transition-colors duration-fast ease-out-quart hover:bg-ink/[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alarm/60"
+        className="block w-full rounded-md bg-ink/[0.92] px-3 py-2.5 text-left text-warm shadow-modal backdrop-blur-sm transition-colors duration-fast ease-out-quart hover:bg-ink/[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-alarm">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-brand-500">
             {PADDED(index + 1)}/{PADDED(total)}
           </span>
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-warm/55">
@@ -383,7 +383,7 @@ function MobileOverlayCard({
                 >
                   <span
                     aria-hidden="true"
-                    className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-alarm"
+                    className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-brand-500"
                   />
                   <span>{b}</span>
                 </li>
@@ -427,7 +427,7 @@ function DotStepper({
             aria-hidden="true"
             className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
               i === activeIndex
-                ? "h-1.5 w-[22px] bg-alarm"
+                ? "h-1.5 w-[22px] bg-brand-500"
                 : "h-1.5 w-1.5 bg-hairline"
             }`}
           />
