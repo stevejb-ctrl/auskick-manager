@@ -14,11 +14,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex min-h-screen flex-col items-center justify-center bg-warm px-4 py-12">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center text-center">
-            <Link href="/" aria-label="Siren home" className="inline-flex items-center gap-2">
+            <Link href="/" aria-label="Siren home">
               <SirenWordmark size="lg" pulsing />
-              <span className="text-3xl font-medium leading-none text-ink-dim">
-                Footy
-              </span>
             </Link>
             <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-banner text-ink-mute">
               Junior AFL team management
