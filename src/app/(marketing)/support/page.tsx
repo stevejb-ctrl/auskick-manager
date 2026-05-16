@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // new FAQ entry, contact-email change, etc. Typo fixes don't count.
 const LAST_UPDATED = "16 May 2026";
 
-const SUPPORT_EMAIL = "hello@tribebikes.com.au";
+const SUPPORT_EMAIL = "hello@sirenfooty.com.au";
 
 // Linked from both App Store Connect and Play Console as the
 // "Support URL". Apple + Google reviewers click this; they expect a
