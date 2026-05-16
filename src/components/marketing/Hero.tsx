@@ -18,27 +18,34 @@ interface HeroProps {
    *  precedence over `image` when both are set — used by sport landings
    *  where real screenshots aren't ready yet. */
   screen?: ReactNode;
+  /** Decorative SVG motif rendered as a faint background flourish on
+   *  desktop (e.g. <FieldOval /> for footy). Phone-only viewports skip
+   *  this — the hero stack stays focused on copy. */
+  bgMotif?: ReactNode;
 }
 
-// Above-the-fold. Two-column on desktop, stacked on mobile. Copy on the
-// left, phone mockup on the right with a subtle tilt for visual energy.
-// The auth-aware "Start free / Go to dashboard" CTA lives in
-// MarketingAuthCTAs so this component stays a pure server component —
-// the page prerenders statically.
+// Above-the-fold. Stacked-copy on mobile (no phone — it competes with
+// the sticky phone in the features section directly below). On desktop
+// the phone returns to the right column with the sport's field motif
+// behind it as a faint background flourish.
 //
 // Headline treatment follows the Field Sunday spec: line 1 in ink, line
 // 2 in ink-dim, both Geist 700 with display tracking and tight leading
 // so the lockup reads as one display unit.
-export function Hero({ eyebrow, subhead, image, imageAlt, screen }: HeroProps) {
+export function Hero({ eyebrow, subhead, image, imageAlt, screen, bgMotif }: HeroProps) {
   return (
     <section className="relative overflow-hidden border-b border-hairline">
-      {/* Soft accent wash behind the content — picks up the per-sport
-          accent so the hero band carries the sport's identity even on
-          its own (above the phone mockup). */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-accent-soft/60 via-warm to-warm"
-      />
+      {/* Sport-themed background flourish — desktop only. Sits to the
+          right of the copy column, very low opacity so it's a motif
+          rather than competing with the headline. */}
+      {bgMotif && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[-12%] top-1/2 hidden -translate-y-1/2 opacity-[0.07] lg:block"
+        >
+          {bgMotif}
+        </div>
+      )}
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2 lg:gap-16 lg:py-28">
         <div>
@@ -75,26 +82,19 @@ export function Hero({ eyebrow, subhead, image, imageAlt, screen }: HeroProps) {
           </RevealOnScroll>
         </div>
 
-        <RevealOnScroll delay={120}>
+        {/* Phone column — desktop only. Mobile skips the phone entirely
+            so the hero copy lands quickly and the user scrolls into the
+            features section's sticky phone (the dominant mobile beat)
+            without a redundant phone above it. */}
+        <RevealOnScroll delay={120} className="hidden lg:block">
           <div className="relative">
-            {/* Accent blobs behind the phone — both blobs now pull from
-                the per-sport accent so adjacent sports get distinct
-                visual halos, not a hardcoded green wash. */}
-            <div
-              aria-hidden="true"
-              className="absolute -left-8 top-10 h-48 w-48 rounded-full bg-accent-soft/70 blur-3xl"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-warn-soft/70 blur-3xl"
-            />
             <PhoneFrame tilt={2} className="relative">
               {screen ?? (image ? (
                 <Image
                   src={image}
                   alt={imageAlt ?? ""}
                   fill
-                  sizes="(max-width: 1024px) 300px, 280px"
+                  sizes="280px"
                   priority
                   className="object-cover"
                 />
