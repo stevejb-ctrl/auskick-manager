@@ -17,7 +17,8 @@
     "db:reset": "supabase db reset --yes",
     "db:status": "supabase status",
     "purge:accounts": "node scripts/purge-deleted-accounts.mjs",
-    "seed:app-review": "node scripts/seed-app-review-account.mjs"
+    "seed:app-review": "node scripts/seed-app-review-account.mjs",
+    "screenshots:ios": "node scripts/capture-store-screenshots.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",
