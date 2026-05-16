@@ -35,11 +35,21 @@ const config: Config = {
         },
 
         // Signals
-        alarm:          "#D63B2A",   // siren-red — brand mark, pulse indicator
+        alarm:          "#D9442D",   // siren-red — brand mark, pulse indicator
+        "alarm-soft":   "#FBE7DF",   // tinted alarm for soft chips / surfaces
         warn:           "#C8751F",   // ochre — sub timer firing, NEXT chip
         "warn-soft":    "#F5E5D2",
         danger:         "#B4393A",
         ok:             "#4C8B63",
+
+        // Per-sport accent — read from CSS variables set by
+        // SportThemeProvider so /(footy) and /netball can reskin the
+        // same marketing components without forking. Defaults to the
+        // alarm-orange footy hue when no provider is mounted (the
+        // bare `bg-warm` body still renders sensibly).
+        accent:        "var(--sport-accent, #D9442D)",
+        "accent-soft": "var(--sport-accent-soft, #FBE7DF)",
+        "accent-ink":  "var(--sport-accent-ink, #FFFFFF)",
 
         // Domain
         field:          "#3C8050",
@@ -55,7 +65,11 @@ const config: Config = {
         "zone-b":       "#1D4ED8",   // back — royal blue
       },
       fontFamily: {
-        sans: ["var(--font-geist)", "system-ui", "sans-serif"],
+        // `--font-geist-sans` / `--font-geist-mono` are published by the
+        // `geist` package on the <html> element (see app/layout.tsx).
+        // Fallbacks are kept so SSR / no-JS renders pick up a system
+        // sans before Geist hydrates.
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       borderRadius: {
@@ -96,7 +110,11 @@ const config: Config = {
       },
       letterSpacing: {
         tightest: "-0.02em",
-        micro: "0.16em",    // for MICRO caps labels
+        display: "-0.03em",  // hero h1 — tighter than tightest so the
+                              // big display lockup hugs itself
+        section: "-0.035em", // section h2 — even tighter at clamp() scale
+        micro: "0.16em",     // for MICRO caps labels
+        banner: "0.08em",    // marketing banner mono caps
       },
     },
   },
