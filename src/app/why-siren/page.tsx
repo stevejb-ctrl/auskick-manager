@@ -3,6 +3,7 @@ import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
+import { SportThemeProvider } from "@/components/marketing/SportTheme";
 
 export const metadata: Metadata = {
   title: "Why Siren — Built for junior AFL",
@@ -18,36 +19,37 @@ export const metadata: Metadata = {
 
 export default function WhySirenPage() {
   return (
-    <>
+    <SportThemeProvider sport="footy">
       <MarketingHeader />
       <main>
         {/* Page hero — short, no CTA. The whole page is the setup. */}
         <section className="relative overflow-hidden border-b border-hairline">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-50/60 via-warm to-warm"
-          />
           <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-24">
             <RevealOnScroll>
-              <span className="inline-flex items-center rounded-full border border-warn/30 bg-warn-soft px-3 py-1 text-[11px] font-bold uppercase tracking-micro text-warn">
+              <span className="inline-flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-accent"
+                />
                 Why Siren
               </span>
-              <h1 className="mt-5 text-4xl font-bold tracking-tightest text-ink sm:text-5xl md:text-6xl">
-                Built for the kid who&apos;s been at full-back all quarter.
+              <h1 className="mt-5 text-4xl font-bold tracking-display leading-[0.98] text-ink text-balance sm:text-5xl md:text-6xl">
+                Built for the kid who&apos;s been at{" "}
+                <span className="text-accent">full-back</span> all quarter.
               </h1>
               <p className="mt-6 max-w-2xl text-lg text-ink-dim sm:text-xl">
-                The sideline tool that tracks where every kid has played &mdash;
-                not just how long they&apos;ve been on.
+                The sideline tool that tracks where every kid has played, not
+                just how long they&apos;ve been on.
               </p>
             </RevealOnScroll>
           </div>
         </section>
 
         {/* The sideline reality — the emotional hook. */}
-        <section className="border-b border-hairline bg-warm">
+        <section className="border-b border-hairline">
           <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
-              <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-accent">
                 The sideline reality
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
@@ -77,7 +79,7 @@ export default function WhySirenPage() {
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-28">
             <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-2 lg:gap-16">
               <RevealOnScroll>
-                <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+                <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-accent">
                   The difference
                 </span>
                 <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
@@ -121,10 +123,10 @@ export default function WhySirenPage() {
         </section>
 
         {/* Built for our game — short reinforcement. */}
-        <section className="border-b border-hairline bg-warm">
+        <section className="border-b border-hairline">
           <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
-              <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-accent">
                 Built for our game
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
@@ -148,7 +150,7 @@ export default function WhySirenPage() {
           <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 md:py-20">
             <RevealOnScroll>
               <div className="rounded-lg border border-hairline bg-surface p-6 shadow-card sm:p-8">
-                <span className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+                <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-accent">
                   A note from the coach who built it
                 </span>
                 <div className="mt-4 space-y-4 text-base leading-relaxed text-ink-dim">
@@ -184,7 +186,7 @@ export default function WhySirenPage() {
         <FinalCTA />
       </main>
       <MarketingFooter />
-    </>
+    </SportThemeProvider>
   );
 }
 
