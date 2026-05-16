@@ -11,6 +11,7 @@ const FEATURES = [
     id: "rotations",
     eyebrow: "Fair rotations",
     title: "Every player gets a fair run.",
+    accentWord: "fair",
     body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time — without you having to count.",
     bullets: [
       "Per-zone minute bars visible at a glance",
@@ -24,6 +25,7 @@ const FEATURES = [
     id: "scoring",
     eyebrow: "Score tracking",
     title: "Keep the scoreboard honest — if you want to.",
+    accentWord: "honest",
     body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically — or not. Your call.",
     bullets: [
       "Score tracking is opt-in — skip it if you don't need it",
@@ -37,6 +39,7 @@ const FEATURES = [
     id: "availability",
     eyebrow: "Availability",
     title: "Set your squad before you leave home.",
+    accentWord: "before",
     body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match — Siren rebalances rotations automatically.",
     bullets: [
       "One tap to mark a player available or unavailable",
@@ -50,6 +53,7 @@ const FEATURES = [
     id: "flexibility",
     eyebrow: "Full control",
     title: "Handle anything the game throws at you.",
+    accentWord: "anything",
     body: "Long-press any player to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
     bullets: [
       "Lock a player always-on or to a specific zone",
@@ -63,6 +67,7 @@ const FEATURES = [
     id: "quarterly",
     eyebrow: "Quarter breaks",
     title: "Walk into every quarter with a plan.",
+    accentWord: "plan",
     body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
     bullets: [
       "Suggested lineup based on zone equity",
@@ -76,6 +81,7 @@ const FEATURES = [
     id: "share",
     eyebrow: "Share with parents",
     title: "Hand scoring to any parent in one tap.",
+    accentWord: "one tap",
     body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
     bullets: [
       "Full scoring access via a single shareable link",
@@ -89,6 +95,7 @@ const FEATURES = [
     id: "playhq",
     eyebrow: "PlayHQ integration",
     title: "Fixtures imported automatically.",
+    accentWord: "automatically",
     body: "Connect your PlayHQ club URL and Siren pulls in your draw. Rounds, opponents, and results stay in sync so you never have to enter a game twice.",
     bullets: [
       "Fixtures imported from PlayHQ automatically",
@@ -102,6 +109,7 @@ const FEATURES = [
     id: "stats",
     eyebrow: "Season stats",
     title: "See how the season is going.",
+    accentWord: "season",
     body: "After every game, zone-minute stats update automatically. Spot who's been stuck on the bench and fix it before next week.",
     bullets: [
       "Minutes equity across the whole squad",

@@ -9,6 +9,10 @@ interface Feature {
   id: string;
   eyebrow: string;
   title: string;
+  /** Substring of `title` to pull into the sport accent colour. Same
+   *  Geist 700 weight as the rest of the title — the colour does all
+   *  the work. Matched case-insensitively, first occurrence wins. */
+  accentWord?: string;
   body: string;
   bullets: string[];
   /** Real product screenshot path (under /public). Ignored when
@@ -18,6 +22,24 @@ interface Feature {
   /** Custom phone-mock contents — used by sport landings where real
    *  screenshots aren't ready yet. Takes precedence over `image`. */
   screen?: ReactNode;
+}
+
+// Wrap the accent substring inside the title in a `text-accent` span,
+// preserving the original casing. No-ops if the word isn't found or
+// no accentWord was provided — both safe fallbacks.
+function renderTitleWithAccent(title: string, accentWord?: string): ReactNode {
+  if (!accentWord) return title;
+  const idx = title.toLowerCase().indexOf(accentWord.toLowerCase());
+  if (idx === -1) return title;
+  return (
+    <>
+      {title.slice(0, idx)}
+      <span className="text-accent">
+        {title.slice(idx, idx + accentWord.length)}
+      </span>
+      {title.slice(idx + accentWord.length)}
+    </>
+  );
 }
 
 interface ScrollingFeaturesProps {
@@ -239,7 +261,7 @@ export function ScrollingFeatures({ features, sportLabel }: ScrollingFeaturesPro
                   <span>{f.eyebrow}</span>
                 </p>
                 <h3 className="mt-3 max-w-xl text-3xl font-bold tracking-tightest leading-[1.05] text-ink text-balance md:text-4xl lg:text-5xl">
-                  {f.title}
+                  {renderTitleWithAccent(f.title, f.accentWord)}
                 </h3>
                 <p className="mt-4 max-w-xl text-lg text-ink-dim">{f.body}</p>
                 <ul className="mt-6 space-y-3">
@@ -359,7 +381,7 @@ function MobileOverlayCard({
           </span>
         </div>
         <h3 className="mt-1 text-[13px] font-semibold tracking-tightest leading-tight text-warm text-balance">
-          {feature.title}
+          {renderTitleWithAccent(feature.title, feature.accentWord)}
         </h3>
 
         {/* Expandable body — grid-template-rows accordion trick so
