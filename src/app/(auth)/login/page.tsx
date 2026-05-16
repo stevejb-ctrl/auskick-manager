@@ -1,33 +1,27 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { AuthMethods } from "@/components/auth/AuthMethods";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { LoginExperience } from "@/components/auth/LoginExperience";
 
 export default function LoginPage() {
   return (
     <>
-      <h2 className="mb-6 text-center text-2xl font-bold tracking-tightest leading-none text-ink">
-        Sign in
-      </h2>
-      {/* Suspense boundaries isolate useSearchParams() so the page shell
-          can be statically prerendered — the inner forms hydrate with
-          the real ?next= value on the client. */}
-      <Suspense fallback={null}>
-        <AuthMethods mode="login" />
-      </Suspense>
-      <div className="mt-4">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-banner text-ink-mute">
+        Coaches &amp; team managers
+      </p>
+      <h1 className="mt-3 text-3xl font-bold tracking-display leading-[0.98] text-ink text-balance sm:text-4xl">
+        Run your team&rsquo;s <span className="text-accent">season</span>
+      </h1>
+      <p className="mt-3 text-sm text-ink-dim sm:text-base">
+        New or returning, enter your email and we&rsquo;ll get you in. Parents
+        don&rsquo;t need an account; they just open a share link.
+      </p>
+
+      <div className="mt-6">
+        {/* useSearchParams() inside LoginExperience needs a Suspense
+            parent so the page shell can stay statically prerenderable. */}
         <Suspense fallback={null}>
-          <LoginForm />
+          <LoginExperience />
         </Suspense>
       </div>
-      <p className="mt-3 text-center text-xs text-ink-mute">
-        <Link
-          href="/forgot-password"
-          className="transition-colors duration-fast ease-out-quart hover:text-ink-dim"
-        >
-          Forgot your password?
-        </Link>
-      </p>
     </>
   );
 }
