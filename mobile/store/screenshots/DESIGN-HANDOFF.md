@@ -132,34 +132,40 @@ emphasise in brand-green.
   the recap-and-share value (the "Copy for group chat" button is
   the kicker — though it lives below the fold here).
 
-### 03 — Live game
+### 03 — Live game *(the killer shot)*
 
 - **Source:** `mobile/store/screenshots/raw/03-live-game.png`
-- **Headline:** "Mid-game subs, **made manageable**."
-- **Emphasis word:** *made manageable* (green)
-- **What's on screen:** AFL field UI mid-game. Field positions
-  visible (Otis/Indi forward, Theo back). Bench strip at bottom
-  (Frankie, Ruby, Mateo). Quarter break modal centre-screen:
-  "Quarter 2 complete / Ready for Q3? / SIREN DEMO FC 1.1 7 vs
-  Coburg Cougars 0.0 0 / Select team for Q3" green CTA. Score
-  bug at very bottom.
-- **Story:** This is THE shot. Coach sees mid-game with the
-  decision panel — that's the moment Siren earns its keep.
+- **Headline:** "**Fair rotations**, suggested automatically."
+- **Emphasis word:** *Fair rotations* (green)
+- **What's on screen:** AFL field UI mid-Q2 with full U10 lineup
+  (12 on field across 4 BACK / 4 CENTRE / 4 FWD zones, 3 on
+  bench). Top of screen: a SUGGESTED — 3 SWAPS chip with the
+  rotation suggester's recommended sub list ("Ava→Pip · Zara→Nora
+  · Mateo→Eli") plus a 2:59 countdown to the next sub interval.
+  Per-player NEXT-OFF chips inline on each suggested-out player
+  (Mateo #3, Zara #2, Ava #1). Score-bug at bottom shows Fitzroy
+  Falcons 1.1 7 vs Coburg Cougars 0.0 0.
+- **Story:** Siren's killer feature is the fairness suggester.
+  This is the only screen in the app where you can see the
+  suggester actually thinking — the SUGGESTED chip + NEXT-OFF
+  chips together make it concrete. If a coach takes 1 second to
+  glance at the marketing listing, this is the shot that sells
+  the app.
 
 ### 04 — Lineup picker
 
 - **Source:** `mobile/store/screenshots/raw/04-lineup-picker.png`
-- **Headline:** "**Fair rotations**, suggested automatically."
-- **Emphasis word:** *Fair rotations* (green)
+- **Headline:** "Build your **starting team** in seconds."
+- **Emphasis word:** *starting team* (green)
 - **What's on screen:** Pre-game lineup picker. "Update
   availability" back link. Position groups stacked (FWD 4/4 with
-  Maya / Ruby / Mateo / Zara, CENTRE 4/4 with Theo / Frankie /
-  Hugo / Sam). Each player as a jersey-numbered tile. "12 on
-  field / 0 bench / Save plan & exit" footer. "Ready for Q1" green
-  CTA pinned at bottom.
-- **Story:** The fairness suggester is Siren's killer feature.
-  This screen visualises it directly — every position filled, every
-  kid placed.
+  jersey tiles, CENTRE 4/4 with jersey tiles, BACK 4/4 partly
+  visible at bottom). Each player as a guernsey-numbered tile.
+  "12 on field / 3 bench / Save plan & exit" footer. "Ready for
+  Q1" green CTA pinned at bottom.
+- **Story:** The pre-game setup is fast — pick the suggested
+  lineup, tweak any locks you need, kick off. Same fair-rotation
+  intelligence that powers shot 3 also pre-loads the starting 12.
 
 ---
 

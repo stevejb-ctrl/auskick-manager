@@ -74,10 +74,15 @@ const OPPONENT_COMPLETED = "Brunswick Bears";
 const OPPONENT_LIVE = "Coburg Cougars";
 const OPPONENT_UPCOMING = "Northcote Nighthawks";
 
-// 12 active players. Single-word names that PlayerTile will render
-// as-is (no last-initial abbreviation), so the names the reviewer
-// sees match what the suggester / recap describes. Jersey numbers
-// 1-12 to keep the lineup picker readable.
+// 15 active players — matches U10's `defaultOnFieldSize: 12` plus a
+// realistic 3-deep bench (U10 squad cap is 15 active per the
+// max-15-players trigger in migration 0001). Single-word names so
+// PlayerTile renders them as-is (no last-initial abbreviation),
+// keeping the names visible in the screenshot identical to what
+// the suggester / recap describes.
+//
+// Jersey numbers 1-15 in order so the lineup picker reads cleanly
+// top-to-bottom by guernsey.
 const PLAYERS = [
   { name: "Hugo", num: 1 },
   { name: "Maya", num: 2 },
@@ -91,7 +96,15 @@ const PLAYERS = [
   { name: "Frankie", num: 10 },
   { name: "Ruby", num: 11 },
   { name: "Mateo", num: 12 },
+  { name: "Nora", num: 13 },
+  { name: "Eli", num: 14 },
+  { name: "Pip", num: 15 },
 ];
+
+// U10 on-field size — pulled from src/lib/ageGroups.ts to keep the
+// seed in lockstep with the app's age-group config. If U10's
+// `defaultOnFieldSize` ever changes, this needs updating.
+const ON_FIELD_SIZE = 12;
 
 const admin = createClient(url, key, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -205,7 +218,7 @@ async function createGame(teamId, ownerId, opts) {
       opponent: opts.opponent,
       scheduled_at: opts.scheduledAt,
       round_number: opts.round,
-      on_field_size: 9,
+      on_field_size: ON_FIELD_SIZE,
       status: opts.status,
       notes: opts.notes ?? null,
       created_by: ownerId,
@@ -231,11 +244,15 @@ async function seedQuarterEvents(gameId, ownerId, playerIds, opts) {
   // Push a lineup_set + quarter_start so the game has a real
   // in-progress shape. Optionally add some scoring events on top so
   // the live-game UI has something to render.
+  //
+  // U10 zones3 model: 4 back / 4 mid / 4 fwd (= 12 on field) +
+  // remaining 3 on the bench. Matches ON_FIELD_SIZE above and
+  // PLAYERS.length=15.
   const lineup = {
-    back: playerIds.slice(0, 3),
-    mid: playerIds.slice(3, 6),
-    fwd: playerIds.slice(6, 9),
-    bench: playerIds.slice(9, 12),
+    back: playerIds.slice(0, 4),
+    mid: playerIds.slice(4, 8),
+    fwd: playerIds.slice(8, 12),
+    bench: playerIds.slice(12, 15),
   };
   const now = new Date();
   const lineupTs = new Date(now.getTime() - opts.elapsedMs).toISOString();

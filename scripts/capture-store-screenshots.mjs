@@ -81,19 +81,23 @@ const SHOTS = [
     waitFor: "h1",
   },
   {
-    // Live game R2 ends up at the Q2-break panel (Q2 has elapsed in
-    // wall-clock against quarter length). The Q-break view shows the
-    // quarter score line + "Select team for Q3" CTA, which is a fine
-    // marketing shot in its own right — the headline reframes it as
-    // mid-game decision support rather than "rotation suggester".
+    // Live game R2 — with the 12-on-field U10 lineup, the live UI
+    // surfaces the rotation suggester at the top ("SUGGESTED — 3
+    // SWAPS: Ava→Pip · Zara→Nora · Mateo→Eli") plus per-player
+    // NEXT-OFF chips and a sub-interval countdown. The fairness
+    // suggester — Siren's killer feature — is visible in one shot.
     id: "03-live-game",
-    headline: "Mid-game subs, made manageable.",
+    headline: "Fair rotations, suggested automatically.",
     route: (teamId, games) => `/teams/${teamId}/games/${games.live}/live`,
     waitFor: "main",
   },
   {
+    // Lineup picker on the upcoming R3 game. Shows the pre-game
+    // build-your-starting-12 flow with each position group filled
+    // (4 BACK / 4 CENTRE / 4 FWD), plus the "Ready for Q1" sticky
+    // kickoff CTA.
     id: "04-lineup-picker",
-    headline: "Fair rotations, suggested automatically.",
+    headline: "Build your starting team in seconds.",
     route: (teamId, games) => `/teams/${teamId}/games/${games.upcoming}/live`,
     waitFor: "main",
   },
