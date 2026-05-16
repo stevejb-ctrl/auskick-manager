@@ -19,9 +19,11 @@ game. We need each one composited onto a branded marketing canvas
 with a headline that sells the value prop in one glance — same
 pattern as the reference below.
 
-**Deliverable:** 4 PNG files at 1320×2868, named
-`01-games-list.png` through `04-lineup-picker.png`, dropped into
-`mobile/store/screenshots/ios/`.
+**Deliverable:** 5 PNG files at 1320×2868, named
+`01-games-list.png` through `05-sub-rotations.png`, dropped into
+`mobile/store/screenshots/ios/`. Apple allows up to 10 per device
+size and shows the first 3 in search results, so order matters —
+put the killer shots first.
 
 ---
 
@@ -152,20 +154,54 @@ emphasise in brand-green.
   glance at the marketing listing, this is the shot that sells
   the app.
 
-### 04 — Lineup picker
+### 04 — Mark availability *(pre-game flow start)*
 
 - **Source:** `mobile/store/screenshots/raw/04-lineup-picker.png`
 - **Headline:** "Build your **starting team** in seconds."
 - **Emphasis word:** *starting team* (green)
-- **What's on screen:** Pre-game lineup picker. "Update
-  availability" back link. Position groups stacked (FWD 4/4 with
-  jersey tiles, CENTRE 4/4 with jersey tiles, BACK 4/4 partly
-  visible at bottom). Each player as a guernsey-numbered tile.
-  "12 on field / 3 bench / Save plan & exit" footer. "Ready for
-  Q1" green CTA pinned at bottom.
-- **Story:** The pre-game setup is fast — pick the suggested
-  lineup, tweak any locks you need, kick off. Same fair-rotation
-  intelligence that powers shot 3 also pre-loads the starting 12.
+- **What's on screen:** Pre-game "Mark availability" screen
+  (first of the two pre-game steps; the actual lineup picker is
+  the next click). Header "Mark availability" + helper copy.
+  Summary chips: "14 available · 1 unavailable". Player rows
+  with jersey number + name + Available/Unavailable status pill +
+  toggle button. Ava (#4) shown as Unavailable with a "Mark
+  available" green button — surfaces the affordance. Sticky
+  "Continue to lineup" CTA at bottom.
+- **Story:** The pre-game flow is fast — coach taps through the
+  roster as kids arrive at the oval, marks any no-shows, then
+  rolls into the lineup picker. Filename kept as
+  `04-lineup-picker.png` for pipeline continuity even though the
+  visible screen is the availability step that precedes the
+  picker proper. (Steve preference, 2026-05-16.)
+
+### 05 — Sub due! *(the rotation-suggester firing live)*
+
+- **Source:** `mobile/store/screenshots/raw/05-sub-rotations.png`
+- **Headline:** "Automate your **sub rotations**."
+- **Emphasis word:** *sub rotations* (green)
+- **What's on screen:** Live game mid-Q1 with the sub-interval
+  alert firing. Top of screen: "SUB DUE — 2 SWAPS" banner with
+  the two specific swaps queued ("Frankie→Hugo" back, "Ruby→
+  Theo" centre), each with an individual green "Do" button plus
+  a unified "↔ Do all 2 swaps" CTA spanning the panel.
+  Centre-screen: a "Sub due!" toast modal ("Time to rotate a
+  player off the field. / Got it"). Field positions visible
+  around the modal (Zara/Indi FWD, Mateo/Sam CEN, Levi/Otis BCK,
+  Frankie #1 OFF NEXT chip on the back tile). Score-bug at
+  bottom: Fitzroy Falcons 3.2 20 vs Coburg Cougars 19 3.1, with
+  Q1 clock at 4:47.
+- **Story:** This is the "set and forget" moment. Coach is
+  watching the game, the app silently tracks who's been on too
+  long, and at the sub interval it tells them exactly who to
+  swap and which slot to fill — one tap each, or one tap for the
+  full sub. The "Sub due!" modal is the alert; the suggested
+  swap banner is the answer.
+- **Note:** This screen can't be reliably auto-captured (it
+  needs the sub-interval timer to land at the exact moment of
+  screenshot). Captured manually by Steve 2026-05-16. Don't
+  expect `npm run screenshots:ios -- --raw` to regenerate this
+  one — the Playwright session would have to wait at the live
+  page for ~3 minutes for the interval to elapse.
 
 ---
 
