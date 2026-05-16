@@ -47,6 +47,7 @@ export async function updateSession(request: NextRequest) {
   // would drop the token and break the invite flow entirely).
   const isPublicRoute =
     pathname === "/" ||
+    pathname === "/netball" ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
     isAuthRoute ||
