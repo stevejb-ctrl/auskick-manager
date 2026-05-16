@@ -2,6 +2,18 @@
 
 import { usePathname } from "next/navigation";
 import { OfflineBanner } from "@/components/live/OfflineBanner";
+import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
+
+interface LiveAwareMainProps {
+  children: React.ReactNode;
+  /**
+   * ISO timestamp of the user's pending account deletion, or null if
+   * none is scheduled. Threaded through from the (app) layout so the
+   * banner can mount in the same wrapper strip as OfflineBanner and
+   * share the live-route hide behaviour.
+   */
+  deletionScheduledFor?: string | null;
+}
 
 /**
  * Client wrapper around the (app) layout's <main> + the offline-
@@ -20,8 +32,16 @@ import { OfflineBanner } from "@/components/live/OfflineBanner";
  * flow position was below viewport top, which made sticky `top-0`
  * behave inconsistently — the bar appeared to scroll a few pixels
  * before locking.)
+ *
+ * The DeletionScheduledBanner shares the same wrapper so a user with
+ * a pending deletion sees the reminder at the same screen position
+ * as the offline notice — and it self-hides on /live just like
+ * OfflineBanner is rendered with a zero-margin wrapper there.
  */
-export function LiveAwareMain({ children }: { children: React.ReactNode }) {
+export function LiveAwareMain({
+  children,
+  deletionScheduledFor = null,
+}: LiveAwareMainProps) {
   const pathname = usePathname();
   const isLiveRoute = pathname?.endsWith("/live") ?? false;
   return (
@@ -30,10 +50,11 @@ export function LiveAwareMain({ children }: { children: React.ReactNode }) {
         className={
           isLiveRoute
             ? "mx-auto max-w-4xl"
-            : "mx-auto mb-3 max-w-4xl"
+            : "mx-auto mb-3 max-w-4xl space-y-2"
         }
       >
         <OfflineBanner />
+        <DeletionScheduledBanner scheduledFor={deletionScheduledFor} />
       </div>
       {children}
     </main>

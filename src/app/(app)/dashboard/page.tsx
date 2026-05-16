@@ -103,6 +103,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       >
         Create a new team
       </SFButton>
+
+      {/* Secondary link to /account. Mirrors the avatar menu in the
+          (app) header — same destination, two entry points so users
+          coming straight to the dashboard from a deep link don't have
+          to hunt for account settings. */}
+      <p className="text-center text-xs text-ink-mute">
+        <Link
+          href="/account"
+          className="font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+        >
+          My account
+        </Link>
+      </p>
     </div>
   );
 }

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ConnectedWordmark } from "@/components/brand/ConnectedWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { MotionPreferenceBridge } from "@/components/preferences/MotionPreferenceBridge";
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
+import { UserMenu } from "@/components/layout/UserMenu";
+import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
 
 export default async function AppLayout({
   children,
@@ -21,14 +22,20 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  // Super-admin check: one cheap own-profile read (RLS allows it).
-  // Used only to render a conditional "Admin" link in the header.
+  // Own-profile read (RLS allows it). Carries two pieces of nav
+  // state that follow the user across every authenticated route:
+  //   - is_super_admin → renders the "Admin" link in the header
+  //   - deletion_scheduled_for → renders DeletionScheduledBanner
   const { data: profile } = await createClient()
     .from("profiles")
-    .select("is_super_admin")
+    .select("is_super_admin, deletion_scheduled_for")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<{
+      is_super_admin: boolean | null;
+      deletion_scheduled_for: string | null;
+    }>();
   const isSuperAdmin = Boolean(profile?.is_super_admin);
+  const deletionScheduledFor = profile?.deletion_scheduled_for ?? null;
 
   return (
     <div>
@@ -102,10 +109,11 @@ export default async function AppLayout({
               >
                 Help
               </Link>
-              <span className="hidden text-sm text-ink-mute sm:block">
-                {user.email}
-              </span>
-              <SignOutButton />
+              {/* Avatar dropdown — My account, Sign out. Replaces
+                  the previous inline "email · Sign out" pair so the
+                  account-level affordances live in one discoverable
+                  place once the /account page exists. */}
+              <UserMenu email={user.email ?? ""} />
             </div>
           </div>
         </header>
@@ -118,7 +126,9 @@ export default async function AppLayout({
           taps still queue + replay on reconnect) is rendered
           INSIDE LiveAwareMain now so the wrapper's margin can be
           conditional alongside main's padding. */}
-      <LiveAwareMain>{children}</LiveAwareMain>
+      <LiveAwareMain deletionScheduledFor={deletionScheduledFor}>
+        {children}
+      </LiveAwareMain>
       {/* `pb-[calc(...)]` adds the iPhone home-indicator inset on
           top of the 1rem base so the Help link doesn't sit under
           the indicator on iOS. Resolves to plain 1rem on devices
