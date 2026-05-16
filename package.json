@@ -15,7 +15,8 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --yes",
-    "db:status": "supabase status"
+    "db:status": "supabase status",
+    "purge:accounts": "node scripts/purge-deleted-accounts.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",
