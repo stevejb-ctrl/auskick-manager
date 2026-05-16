@@ -4,6 +4,7 @@ import { Hero } from "@/components/marketing/Hero";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { SportThemeProvider, SPORT_THEMES } from "@/components/marketing/SportTheme";
 
 const FEATURES = [
   {
@@ -113,16 +114,22 @@ const FEATURES = [
 ];
 
 export default function Home() {
+  const theme = SPORT_THEMES.footy;
   return (
-    <>
+    <SportThemeProvider sport="footy">
       <MarketingBanner />
       <MarketingHeader />
       <main>
-        <Hero />
-        <ScrollingFeatures features={FEATURES} />
+        <Hero
+          eyebrow={theme.eyebrow}
+          subhead="Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play."
+          image="/marketing/screenshots/live-game.png"
+          imageAlt="Siren live game view with player rotations and score"
+        />
+        <ScrollingFeatures features={FEATURES} sportLabel={theme.label} />
         <FinalCTA />
       </main>
       <MarketingFooter />
-    </>
+    </SportThemeProvider>
   );
 }
