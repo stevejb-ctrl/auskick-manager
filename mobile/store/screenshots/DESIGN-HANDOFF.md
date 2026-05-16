@@ -122,17 +122,39 @@ emphasise in brand-green.
 - **Story:** Shows the season-management value prop. Coach
   glances and goes "ah, I can see all my fixtures here".
 
-### 02 — Game recap
+### 02 — Game recap *(full-time summary + copy-for-group-chat)*
 
 - **Source:** `mobile/store/screenshots/raw/02-game-recap.png`
 - **Headline:** "Every game, **recapped** for the group chat."
 - **Emphasis word:** *recapped* (green)
-- **What's on screen:** Round 1 vs Brunswick Bears (FINAL). Game
-  detail card with Open live game / Share gameday link / Restart
-  / Delete buttons. Goal kickers section peeking at the bottom.
-- **Story:** Coach revisits a game after Saturday morning. Shows
-  the recap-and-share value (the "Copy for group chat" button is
-  the kicker — though it lives below the fold here).
+- **What's on screen:** Full-time game summary for Fitzroy
+  Falcons vs Coburg Cougars, R2 (the live game taken to FT for
+  the marketing shot). Top: score-bug Fitzroy Falcons 14.6 (90)
+  vs Coburg Cougars 7.5 (47), FT clock at 0:00. Beneath: "FULL
+  TIME" eyebrow + red "Restart game" link. The Game Summary card
+  fills most of the screen with:
+    - Section heading + a prominent green "Copy for group chat"
+      button (the value-prop CTA).
+    - Plain-English summary line: "Full time — Fitzroy Falcons v
+      Coburg Cougars / Fitzroy Falcons 14.6 (90) def Coburg
+      Cougars 7.5 (47)".
+    - Scorers line with every goal kicker + their tally.
+    - "14 players · 13 subs" chip.
+    - "Game time" breakdown per player — `#X Name — MM:SS (BCK %
+      · CEN % · FWD %)` so a coach can see at a glance who got
+      how much across which zones.
+  Sticky "Finish game" green CTA at the bottom.
+- **Story:** Saturday morning's over. The coach looks at this
+  screen, taps "Copy for group chat", paste it into the team
+  WhatsApp, and parents see the result + fair-time confirmation
+  for their kid. This is THE recap-and-share value prop and it's
+  built right into the FT screen.
+- **Note:** Manual capture only. The screen requires the live
+  R2 game to be finalised, which involves clicking through to
+  full time. After capturing, restart R2 back to its mid-game
+  state via the "Restart game" button so other shots that need
+  R2 mid-quarter still work — or re-run
+  `npm run seed:app-review` to reset all three games.
 
 ### 03 — Quarter break *(the wholesale rebalance)*
 

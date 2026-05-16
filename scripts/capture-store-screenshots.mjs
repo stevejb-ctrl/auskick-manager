@@ -75,10 +75,18 @@ const SHOTS = [
     waitFor: "h1",
   },
   {
+    // Full-time game summary card. Steve's hand-capture uses the R2
+    // game finalised to FT (score 14.6 90 vs 7.5 47) because that
+    // matches the in-prod opponent + scorer roster the rest of the
+    // shot story references. The auto-capture against the seeded
+    // R1 completed game shows the game-detail card instead of the
+    // FT summary, which is much less compelling — flag manualOnly
+    // so future re-runs don't overwrite the polished capture.
     id: "02-game-recap",
-    headline: "Every game, summed up afterwards.",
+    headline: "Every game, recapped for the group chat.",
     route: (teamId, games) => `/teams/${teamId}/games/${games.completed}`,
     waitFor: "h1",
+    manualOnly: true,
   },
   {
     // Quarter Break "Set zones for Q2" screen — fires between Q1 and
