@@ -24,17 +24,37 @@
 // Cron payload is empty — the function reads its own work queue from
 // the profiles table.
 //
-// Auth: protected by the function-secret JWT pattern. Cron-triggered
-// invocations send the service-role key in the Authorization header;
-// requests without it 401. No public surface.
+// Auth: dedicated shared-secret pattern. The cron job (or a manual
+// curl) sends `Authorization: Bearer <CRON_SECRET>`; the function
+// compares against a Supabase function secret we set explicitly.
+//
+// Why not just compare against SUPABASE_SERVICE_ROLE_KEY? Supabase
+// rolled out a new "publishable + secret" API key format in 2025
+// (`sb_publishable_*` / `sb_secret_*`) alongside the legacy JWT keys.
+// The Cron Jobs dashboard hands out the new format by default,
+// while `SUPABASE_SERVICE_ROLE_KEY` (auto-populated in Edge Function
+// runtime env) still contains the legacy JWT. The two don't match,
+// so a hand-rolled string compare against the env var rejects the
+// cron's bearer token with 401 — even though Supabase considers both
+// keys valid service-role auth.
+//
+// A dedicated CRON_SECRET sidesteps the format mismatch entirely
+// and is the recommended pattern in Supabase's own scheduled-function
+// docs. It also means the cron's auth surface is rotatable without
+// touching the project-level service-role keys.
 //
 // Required Supabase secrets:
 //   SUPABASE_URL              — auto-populated
-//   SUPABASE_SERVICE_ROLE_KEY — auto-populated
+//   SUPABASE_SERVICE_ROLE_KEY — auto-populated (used for DB access,
+//                               not auth — see env reads below)
+//   CRON_SECRET               — SET MANUALLY in Edge Functions →
+//                               Secrets. Long random string. Must
+//                               match the Bearer token configured in
+//                               the cron job's Authorization header.
 //
 // Manual invocation (dev):
 //   curl -X POST "$SUPABASE_URL/functions/v1/purge-deleted-accounts" \
-//        -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+//        -H "Authorization: Bearer $CRON_SECRET"
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -55,11 +75,20 @@ interface PurgeSummary {
 }
 
 function isAuthorised(req: Request): boolean {
-  const expected = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const expected = Deno.env.get("CRON_SECRET") ?? "";
   if (!expected) return false;
   const header = req.headers.get("authorization") ?? "";
   const bearer = header.replace(/^Bearer\s+/i, "").trim();
-  return bearer === expected;
+  // Constant-time comparison — bearer + expected are the same length
+  // in the happy path, but pad to the longer side for the unhappy one
+  // so a too-short bearer doesn't short-circuit before we've burned
+  // the timing budget.
+  if (bearer.length !== expected.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i++) {
+    mismatch |= bearer.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 async function purgeOne(
