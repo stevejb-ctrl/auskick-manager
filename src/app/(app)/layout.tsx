@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 
 export default async function AppLayout({
   children,
@@ -29,9 +30,7 @@ export default async function AppLayout({
     <div>
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <span className="text-lg font-semibold text-brand-700">
-            Siren Footy
-          </span>
+          <SirenWordmark size="sm" />
           <div className="flex items-center gap-3">
             {isSuperAdmin && (
               <Link

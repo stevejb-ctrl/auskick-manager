@@ -447,7 +447,7 @@ function PillStepper({
             className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
               i === activeIndex
                 ? "h-1.5 w-[22px] bg-accent"
-                : "h-1.5 w-1.5 bg-hairline"
+                : "h-1.5 w-1.5 bg-ink-mute"
             }`}
           />
         </button>
