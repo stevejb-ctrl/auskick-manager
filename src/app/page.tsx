@@ -20,7 +20,7 @@ const FEATURES = [
       "Season totals carry across all games",
     ],
     image: "/marketing/screenshots/rotations.png",
-    imageAlt: "Player rotation view showing zone minute bars",
+    imageAlt: "Live game field with suggested-swap card and zone-coloured player tiles",
   },
   {
     id: "scoring",
@@ -34,7 +34,7 @@ const FEATURES = [
       "Optional goal song. Enable it or leave it off",
     ],
     image: "/marketing/screenshots/scoring.png",
-    imageAlt: "Score tracking with celebration chip visible",
+    imageAlt: "Live game with the record-score panel open showing +Goal and +Behind for the selected player",
   },
   {
     id: "availability",
@@ -62,7 +62,7 @@ const FEATURES = [
       "Lend a player to the opposition and track their time separately",
     ],
     image: "/marketing/screenshots/flexibility.png",
-    imageAlt: "Player actions sheet showing lock, injury, and lend options",
+    imageAlt: "Player actions modal with switch, always-on-field, lock-to-zone, mark-injured, and lend-to-opposition options",
   },
   {
     id: "quarterly",
@@ -76,7 +76,7 @@ const FEATURES = [
       "Fairness score updates as you swap players",
     ],
     image: "/marketing/screenshots/quarterly.png",
-    imageAlt: "Quarter break screen with suggested reshuffle and fairness bars",
+    imageAlt: "Quarter break screen with zone assignments per player and per-zone time bars",
   },
   {
     id: "share",
@@ -90,7 +90,7 @@ const FEATURES = [
       "Coach stays focused on the field",
     ],
     image: "/marketing/screenshots/share.png",
-    imageAlt: "Public run-link scoring view for parents",
+    imageAlt: "Game admin page with a shareable run-link callout coaches can hand to a parent on the sideline",
   },
   {
     id: "playhq",
@@ -104,21 +104,21 @@ const FEATURES = [
       "Works alongside manually created games",
     ],
     image: "/marketing/screenshots/fixtures.png",
-    imageAlt: "Fixtures list showing PlayHQ-imported rounds",
+    imageAlt: "Team games list with upcoming and completed fixtures",
   },
   {
     id: "stats",
-    eyebrow: "Season stats",
-    title: "See how the season is going.",
-    accentWord: "season",
-    body: "After every game, zone-minute stats update automatically. Spot who's been stuck on the bench and fix it before next week.",
+    eyebrow: "Game summary",
+    title: "Game's done. Stats are already in.",
+    accentWord: "Stats",
+    body: "Scorers, game time, zone percentages, every sub. Captured live as you play. Drop the recap into the team chat without typing a thing.",
     bullets: [
-      "Minutes equity across the whole squad",
+      "Scoreline, scorers, and minutes captured live",
       "Per-player zone breakdowns",
-      "Top goal-kicker leaderboard",
+      "One tap to copy a group-chat recap",
     ],
     image: "/marketing/screenshots/stats.png",
-    imageAlt: "Season stats dashboard with minutes equity and goal-kicker leaderboard",
+    imageAlt: "Full-time game summary with scoreline, scorers, and per-player game time",
   },
 ];
 
@@ -133,7 +133,7 @@ export default function Home() {
           eyebrow={theme.eyebrow}
           subhead="Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play."
           image="/marketing/screenshots/live-game.png"
-          imageAlt="Siren live game view with player rotations and score"
+          imageAlt="Siren live game with rotation suggestions and color-coded zone tiles"
           bgMotif={<FieldOval size={900} />}
         />
         <ScrollingFeatures features={FEATURES} sportLabel={theme.label} />
