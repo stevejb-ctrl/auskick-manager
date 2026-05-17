@@ -447,6 +447,55 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     positionId: string;
   } | null>(null);
 
+  // Steve 2026-05-17 cross-sport handler audit: AFL has felt-instant
+  // scoring because its zustand store increments the score
+  // optimistically; netball was waiting for `router.refresh()` to
+  // come back from the server before the scorebug ticked over
+  // (~200-800ms lag — Stagehand kid-runner flagged this earlier in
+  // the session and the audit confirmed it).
+  //
+  // Fix: track a LOCAL DELTA on top of the server-derived props.
+  // Effective score = props + delta. Increment delta on commit,
+  // reset to zero every time the underlying score props refresh
+  // (server caught up). Negative deltas are intentional for undo —
+  // we want the scorebug to drop instantly when the coach taps
+  // Undo before the refresh round-trips. The reset useEffect
+  // realigns once the new server truth arrives.
+  const [localScoreDelta, setLocalScoreDelta] = useState<{
+    team: number;
+    opp: number;
+    player: Record<string, number>;
+  }>({ team: 0, opp: 0, player: {} });
+
+  // Reset deltas whenever the server-derived score props change —
+  // means a server round-trip landed and the truth is now baked into
+  // props. Cleared in a single set so React batches the update.
+  useEffect(() => {
+    setLocalScoreDelta({ team: 0, opp: 0, player: {} });
+    // Deps deliberately on the primitive goal counts + the
+    // playerGoals object identity. teamScore/opponentScore are
+    // fresh objects each props refresh, so depending on
+    // `.goals` keeps the effect from firing on no-op re-renders
+    // where only an unrelated prop changed.
+  }, [teamScore.goals, opponentScore.goals, playerGoals]);
+
+  const effectiveTeamScore = useMemo(
+    () => ({ goals: teamScore.goals + localScoreDelta.team }),
+    [teamScore.goals, localScoreDelta.team],
+  );
+  const effectiveOpponentScore = useMemo(
+    () => ({ goals: opponentScore.goals + localScoreDelta.opp }),
+    [opponentScore.goals, localScoreDelta.opp],
+  );
+  const effectivePlayerGoals = useMemo(() => {
+    if (Object.keys(localScoreDelta.player).length === 0) return playerGoals;
+    const merged: Record<string, number> = { ...playerGoals };
+    for (const [pid, d] of Object.entries(localScoreDelta.player)) {
+      merged[pid] = (merged[pid] ?? 0) + d;
+    }
+    return merged;
+  }, [playerGoals, localScoreDelta.player]);
+
   // Steve 2026-05-16: scorebug-driven goal scorer picker. AFL has had
   // +G chips on both sides of the scorebug for a while (tap → picker
   // → record), but netball only ever surfaced the OPPONENT +G — to
@@ -530,6 +579,22 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // Replaces an earlier React-only useState model that lost the
   // status the moment the events prop refreshed without the local
   // state being re-seeded.
+  // Steve 2026-05-17 cross-sport audit follow-up: AFL feels instant
+  // when the coach taps Mark Injured / Lend on a player (the AFL
+  // zustand store flips the flag immediately). Netball waited for
+  // the server round-trip + page refresh — ~500ms before the INJ /
+  // LENT badge appeared. Local per-player overrides give us the
+  // same instant feedback, and the useEffect below drops the
+  // override the moment the server-derived set agrees (no stale
+  // override sticks around if a server write fails or arrives
+  // out-of-order).
+  const [localInjuredOverride, setLocalInjuredOverride] = useState<
+    Record<string, boolean>
+  >({});
+  const [localLoanedOverride, setLocalLoanedOverride] = useState<
+    Record<string, boolean>
+  >({});
+
   const injuredIds = useMemo(() => {
     const latest = new Map<string, { ts: string; injured: boolean }>();
     for (const ev of thisGameEvents) {
@@ -544,8 +609,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     latest.forEach((v, k) => {
       if (v.injured) set.add(k);
     });
+    // Apply local optimistic overrides on top of server truth.
+    for (const [pid, val] of Object.entries(localInjuredOverride)) {
+      if (val) set.add(pid);
+      else set.delete(pid);
+    }
     return set;
-  }, [thisGameEvents]);
+  }, [thisGameEvents, localInjuredOverride]);
   const loanedIds = useMemo(() => {
     const latest = new Map<string, { ts: string; loaned: boolean }>();
     for (const ev of thisGameEvents) {
@@ -560,7 +630,84 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     latest.forEach((v, k) => {
       if (v.loaned) set.add(k);
     });
+    // Apply local optimistic overrides on top of server truth.
+    for (const [pid, val] of Object.entries(localLoanedOverride)) {
+      if (val) set.add(pid);
+      else set.delete(pid);
+    }
     return set;
+  }, [thisGameEvents, localLoanedOverride]);
+
+  // Auto-reconcile: when the server-derived set (excluding our
+  // override) agrees with the override for a given player, drop
+  // that override. This means a tap → INJ badge appears
+  // instantly via override → server write flushes → revalidatePath
+  // refreshes thisGameEvents → server-derived set now contains
+  // that player → useEffect notices the match and drops the
+  // override. From there the badge is "real" not "optimistic".
+  // Per-player so an UNRELATED event refresh (a goal landing
+  // while injury is mid-flight) doesn't wipe the override before
+  // its corresponding event arrives.
+  useEffect(() => {
+    setLocalInjuredOverride((prev) => {
+      // Server-derived injuries (without our overrides) — re-derive
+      // from events so the comparison is "real server truth" not
+      // "current effective set (which already includes overrides)".
+      const serverInjured = new Set<string>();
+      const latest = new Map<string, { ts: string; injured: boolean }>();
+      for (const ev of thisGameEvents) {
+        if (ev.type !== "injury" || !ev.player_id) continue;
+        const injured = ((ev.metadata as { injured?: boolean }).injured) ?? true;
+        const cur = latest.get(ev.player_id);
+        if (!cur || ev.created_at > cur.ts) {
+          latest.set(ev.player_id, { ts: ev.created_at, injured });
+        }
+      }
+      latest.forEach((v, k) => {
+        if (v.injured) serverInjured.add(k);
+      });
+      let changed = false;
+      const next: Record<string, boolean> = {};
+      for (const [pid, want] of Object.entries(prev)) {
+        const have = serverInjured.has(pid);
+        if (have === want) {
+          // Server agrees — drop the override.
+          changed = true;
+        } else {
+          next[pid] = want;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [thisGameEvents]);
+
+  useEffect(() => {
+    setLocalLoanedOverride((prev) => {
+      const serverLoaned = new Set<string>();
+      const latest = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of thisGameEvents) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = ((ev.metadata as { loaned?: boolean }).loaned) ?? true;
+        const cur = latest.get(ev.player_id);
+        if (!cur || ev.created_at > cur.ts) {
+          latest.set(ev.player_id, { ts: ev.created_at, loaned });
+        }
+      }
+      latest.forEach((v, k) => {
+        if (v.loaned) serverLoaned.add(k);
+      });
+      let changed = false;
+      const next: Record<string, boolean> = {};
+      for (const [pid, want] of Object.entries(prev)) {
+        const have = serverLoaned.has(pid);
+        if (have === want) {
+          changed = true;
+        } else {
+          next[pid] = want;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, [thisGameEvents]);
 
   // Per-quarter scoreboard for the live QuarterScoreStrip. Mirrors
@@ -735,12 +882,24 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   );
   const handleUndoLastScore = useCallback(() => {
     if (!lastScore) return;
+    const undoKind = lastScore.kind;
     setLastScore(null);
     setUndoToastVisible(false);
     if (undoToastTimerRef.current !== null) {
       clearTimeout(undoToastTimerRef.current);
       undoToastTimerRef.current = null;
     }
+    // Optimistic delta — subtract one so the scorebug drops
+    // instantly (Steve 2026-05-17). The server refresh below
+    // reconciles when it lands; if the delta was already at 0
+    // (server caught up to the goal first) we go briefly negative,
+    // then the prop-refresh useEffect resets to 0 with the new
+    // lower truth. Net result: no visible glitch either way.
+    setLocalScoreDelta((prev) =>
+      undoKind === "team"
+        ? { ...prev, team: prev.team - 1 }
+        : { ...prev, opp: prev.opp - 1 },
+    );
     const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id]);
     // Refresh after flush so the rolled-back goal disappears from
     // the scorebug + PositionToken chip on the next render.
@@ -893,6 +1052,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const player = squadById.get(playerId);
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
+    // Optimistic delta — scorebug + per-player chip tick instantly
+    // (Steve 2026-05-17 audit fix). Reset when server refresh
+    // lands via the useEffect on score-prop change.
+    setLocalScoreDelta((prev) => ({
+      ...prev,
+      team: prev.team + 1,
+      player: { ...prev.player, [playerId]: (prev.player[playerId] ?? 0) + 1 },
+    }));
     const { flushed } = enqueueLiveAction("recordNetballGoal", [
       auth,
       game.id,
@@ -915,6 +1082,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleCancelGoal = () => setPendingGoal(null);
 
   const handleOpponentGoal = useCallback(() => {
+    // Optimistic delta — opp scorebug ticks instantly (Steve
+    // 2026-05-17 audit fix). Reset via the score-prop refresh
+    // useEffect.
+    setLocalScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
     const { flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
@@ -978,6 +1149,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Close the actions modal FIRST so it can't accidentally trap a
     // subsequent long-press behind a stale state transition.
     closeActions();
+    // Optimistic override — INJ badge appears instantly. Auto-
+    // reconciled when the server-derived set agrees (Steve
+    // 2026-05-17 audit fix).
+    setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: true }));
     enqueueLiveAction("markInjury", [
       auth,
       game.id,
@@ -995,6 +1170,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
+    setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: false }));
     enqueueLiveAction("markInjury", [
       auth,
       game.id,
@@ -1013,6 +1189,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Close the actions modal FIRST — same reason as injury: don't let
     // a still-rendering modal block the next long-press attempt.
     closeActions();
+    setLocalLoanedOverride((prev) => ({ ...prev, [playerId]: true }));
     enqueueLiveAction("markLoan", [
       auth,
       game.id,
@@ -1034,6 +1211,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
+    setLocalLoanedOverride((prev) => ({ ...prev, [playerId]: false }));
     enqueueLiveAction("markLoan", [
       auth,
       game.id,
@@ -1613,8 +1791,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     <NetballScoreBug
       teamName={teamName}
       opponentName={game.opponent}
-      team={teamScore}
-      opponent={opponentScore}
+      // Effective values (props + optimistic delta) so the scorebug
+      // ticks instantly on +G tap, doesn't wait for the server
+      // refresh. Steve 2026-05-17 audit fix.
+      team={effectiveTeamScore}
+      opponent={effectiveOpponentScore}
       quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
       clockText={formatClock(remainingMs)}
       isPending={isPending}
@@ -1707,7 +1888,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         loanedIds={loanedIds}
         nextBreakLocks={nextBreakLocks}
         playerStats={playerStats}
-        playerGoals={playerGoals}
+        // Effective per-player goals (props + optimistic delta) so
+        // the GS/GA chip pulses instantly on goal commit. Steve
+        // 2026-05-17 audit fix.
+        playerGoals={effectivePlayerGoals}
         positionPulseKeys={positionPulseKeys}
         wakeUpKey={courtWakeUpKey}
       />
@@ -1715,7 +1899,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       <NetballBenchStrip
         entries={offCourt}
         playerStats={playerStats}
-        playerGoals={playerGoals}
+        playerGoals={effectivePlayerGoals}
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
       />
 
@@ -1840,6 +2024,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               setPickScorerOpen(false);
               const player = squadById.get(playerId);
               const playerName = player?.full_name.trim().split(/\s+/)[0] ?? null;
+              // Optimistic delta — same as the court-tap path.
+              setLocalScoreDelta((prev) => ({
+                ...prev,
+                team: prev.team + 1,
+                player: {
+                  ...prev.player,
+                  [playerId]: (prev.player[playerId] ?? 0) + 1,
+                },
+              }));
               const { flushed } = enqueueLiveAction("recordNetballGoal", [
                 auth,
                 game.id,
