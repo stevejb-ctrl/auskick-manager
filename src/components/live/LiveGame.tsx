@@ -83,22 +83,13 @@ import {
 } from "@/lib/fairness";
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
-import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
+import { isYouTubeUrl } from "@/lib/songUrl";
+import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
-// Minimal inline types for the YouTube IFrame API — no @types/youtube needed.
-interface YTPlayer {
-  seekTo(seconds: number, allowSeekAhead: boolean): void;
-  playVideo(): void;
-  pauseVideo(): void;
-  destroy(): void;
-}
-declare global {
-  interface Window {
-    YT: { Player: new (el: string | HTMLElement, opts: object) => YTPlayer };
-    onYouTubeIframeAPIReady: () => void;
-  }
-}
+// YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
+// since 2026-05-16 (extracted for AFL/netball parity). The hook
+// owns the refs, lifecycle, and trigger function.
 
 // Module-level singleton AudioContext for the sub-due beep. Modern
 // browsers (mobile Safari especially) create AudioContexts in
@@ -407,85 +398,18 @@ export function LiveGame({
   // QuarterScoreStrip below the scorebug.
   const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
 
-  // Team song — play songDurationSeconds from the configured start point on each goal
-  const songAudioRef = useRef<HTMLAudioElement | null>(null);
-  const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ytPlayerRef = useRef<YTPlayer | null>(null);
-  const ytReadyRef = useRef(false);
-  const ytContainerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!hydrated || !songUrl || !isYouTubeUrl(songUrl)) return;
-    const videoId = youtubeVideoId(songUrl);
-    if (!videoId || !ytContainerRef.current) return;
-
-    const playerDiv = document.createElement("div");
-    ytContainerRef.current.appendChild(playerDiv);
-
-    function createPlayer() {
-      ytPlayerRef.current = new window.YT.Player(playerDiv, {
-        // Force a 1×1 iframe — the YT API defaults to 640×360, which
-        // otherwise bleeds past the viewport and inflates page scroll
-        // area by ~125 px wide × 192 px tall.
-        width: "1",
-        height: "1",
-        videoId,
-        playerVars: { autoplay: 0, controls: 0, fs: 0, rel: 0, playsinline: 1 },
-        events: {
-          onReady: () => { ytReadyRef.current = true; },
-        },
-      });
-    }
-
-    if (window.YT?.Player) {
-      createPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
-      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(tag);
-      }
-    }
-
-    return () => {
-      ytPlayerRef.current?.destroy();
-      ytPlayerRef.current = null;
-      ytReadyRef.current = false;
-      playerDiv.remove();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songUrl, gameId, hydrated]);
-
-  function playSong() {
-    if (!songUrl) return;
-    try {
-      if (songTimerRef.current !== null) {
-        clearTimeout(songTimerRef.current);
-        songTimerRef.current = null;
-      }
-      if (isYouTubeUrl(songUrl)) {
-        if (!ytReadyRef.current || !ytPlayerRef.current) return;
-        ytPlayerRef.current.seekTo(songStartSeconds, true);
-        ytPlayerRef.current.playVideo();
-        songTimerRef.current = setTimeout(() => {
-          ytPlayerRef.current?.pauseVideo();
-          songTimerRef.current = null;
-        }, songDurationSeconds * 1000);
-      } else {
-        const audio = songAudioRef.current ?? new Audio(songUrl);
-        songAudioRef.current = audio;
-        audio.currentTime = songStartSeconds;
-        audio.play().catch(() => {});
-        songTimerRef.current = setTimeout(() => {
-          audio.pause();
-          songTimerRef.current = null;
-        }, songDurationSeconds * 1000);
-      }
-    } catch {
-      // ignore any audio API errors
-    }
-  }
+  // Team song — extracted to the shared `useHypeSong` hook
+  // 2026-05-16 so netball can use the same playback path. Hook
+  // owns the YT iframe + audio fallback + auto-stop timer; we
+  // just render the hidden container ref below and call playSong()
+  // on goal commit.
+  const { containerRef: ytContainerRef, playSong } = useHypeSong({
+    songUrl,
+    songStartSeconds,
+    songDurationSeconds,
+    hydrated,
+    gameId,
+  });
 
   const playersById = useMemo(
     () => new Map(squadPlayers.map((p) => [p.id, p])),
@@ -1179,12 +1103,9 @@ export function LiveGame({
         clearTimeout(swapToastTimerRef.current);
         swapToastTimerRef.current = null;
       }
-      if (songTimerRef.current !== null) {
-        clearTimeout(songTimerRef.current);
-        songTimerRef.current = null;
-      }
-      songAudioRef.current?.pause();
-      ytPlayerRef.current?.pauseVideo();
+      // Song / YT cleanup moved into `useHypeSong`'s own return
+      // function (Steve 2026-05-16). The hook tears down the
+      // iframe + timer on unmount or gameId change.
     };
   }, []);
 
