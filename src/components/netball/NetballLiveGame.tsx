@@ -183,8 +183,17 @@ interface NetballLiveGameProps {
    * actions menu wins for the majority of teams. Toggled via the
    * team Settings page; threaded down here from the page-level
    * `teams.allow_mid_quarter_subs` column.
+   *
+   * Steve 2026-05-17 (migration 0036): the EFFECTIVE value is now
+   * `game override ?? team default ?? false`. This prop carries the
+   * resolved effective value used for live-play gating. The two
+   * `team*` / `game*` props below carry the RAW inputs so the
+   * pre-game LineupPicker can show a "Use team default" link when
+   * a per-game override is active.
    */
   allowMidQuarterSubs?: boolean;
+  teamAllowMidQuarterSubs?: boolean;
+  gameAllowMidQuarterSubs?: boolean | null;
   /**
    * Steve 2026-05-16 (AFL parity): cohort-chip mode map. AFL has
    * been honouring this in its suggester since chips shipped;
@@ -233,6 +242,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     isAdmin = false,
     initialDraft = null,
     allowMidQuarterSubs = false,
+    teamAllowMidQuarterSubs = false,
+    gameAllowMidQuarterSubs = null,
     chipModeByKey = {},
     songUrl = null,
     songStartSeconds = 0,
@@ -1486,6 +1497,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           gameId={game.id}
           initialLoanedIds={Array.from(loanedIds)}
           chipModeByKey={chipModeByKey}
+          teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
+          gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           // "Back to availability" breadcrumb — only meaningful for
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the

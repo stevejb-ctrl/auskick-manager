@@ -166,6 +166,38 @@ export async function setAllowMidQuarterSubs(
   return { success: true };
 }
 
+/**
+ * Per-GAME override for the mid-quarter-subs toggle (netball). Pass
+ * a boolean to override the team setting for this match only; pass
+ * `null` to clear the override and fall back to the team default.
+ * Mirrors `setQuarterLengthSeconds` (the per-game quarter-length
+ * override) in shape — same nullable contract, same resolution
+ * order at the page level (game.override ?? team.default ?? false).
+ *
+ * Steve 2026-05-17: shipped alongside migration 0036 so coaches
+ * can flip the setting for THIS match (e.g. trial mid-Q subs in a
+ * pre-season game without committing the team to it).
+ */
+export async function setGameAllowMidQuarterSubs(
+  teamId: string,
+  gameId: string,
+  value: boolean | null,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { error: updateError } = await supabase
+    .from("games")
+    .update({ allow_mid_quarter_subs: value })
+    .eq("id", gameId)
+    .eq("team_id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/games/${gameId}/live`);
+  return { success: true };
+}
+
 export async function updateGame(
   teamId: string,
   gameId: string,

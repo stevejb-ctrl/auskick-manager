@@ -58,12 +58,20 @@ export default async function RunPage({ params }: RunPageProps) {
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   // Netball-only: opt-in mid-quarter subs. Default false (the rule
-  // for every junior netball league). Reads the same column as the
+  // for every junior netball league). Reads the same columns as the
   // team-auth /live page so the parent-runner sees the same gating
-  // the coach configured in team Settings.
-  const allowMidQuarterSubs =
+  // the coach configured in team Settings AND any per-game override
+  // (migration 0036) the coach set in the pre-game Game settings
+  // collapse. Resolution order: game override → team default →
+  // false. Steve 2026-05-17.
+  const teamAllowMidQuarterSubs =
     (teamRow as { allow_mid_quarter_subs?: boolean | null } | null)
       ?.allow_mid_quarter_subs ?? false;
+  const gameAllowMidQuarterSubs =
+    (g as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ??
+    null;
+  const allowMidQuarterSubs =
+    gameAllowMidQuarterSubs ?? teamAllowMidQuarterSubs;
   // Netball has no jersey numbers — hide the # input on AddFillInForm
   // (and feed the right live-game component below).
   const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
@@ -258,6 +266,8 @@ export default async function RunPage({ params }: RunPageProps) {
           // a row with "+ Add late arrival".
           isAdmin
           allowMidQuarterSubs={allowMidQuarterSubs}
+          teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
+          gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}

@@ -14,10 +14,12 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { LiveAuth, Player } from "@/lib/types";
 import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { setGameAllowMidQuarterSubs } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Toggle } from "@/components/ui/Toggle";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -127,6 +129,21 @@ interface LineupPickerProps {
    * back-compat with callers pre-dating this prop.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  /**
+   * Team-level default for "allow mid-quarter subs" (mirrors the
+   * team Settings toggle). Used as the fallback when no per-game
+   * override is set, and used to detect when the per-game override
+   * differs from the team default (drives the "Use team default"
+   * link). Steve 2026-05-17.
+   */
+  teamAllowMidQuarterSubs?: boolean;
+  /**
+   * Per-game override of `teamAllowMidQuarterSubs`. NULL means
+   * "inherit from team". Coach flips this in the Game settings
+   * collapse below; the toggle calls `setGameAllowMidQuarterSubs`
+   * which writes `games.allow_mid_quarter_subs`.
+   */
+  gameAllowMidQuarterSubs?: boolean | null;
 }
 
 export function NetballLineupPicker({
@@ -147,6 +164,8 @@ export function NetballLineupPicker({
   gameId,
   initialLoanedIds = [],
   chipModeByKey = {},
+  teamAllowMidQuarterSubs = false,
+  gameAllowMidQuarterSubs = null,
 }: LineupPickerProps) {
   // Lend-a-player support (AFL parity, Steve 2026-05-16). When
   // `auth + gameId` are wired, the picker renders a "Lend a player"
@@ -157,6 +176,40 @@ export function NetballLineupPicker({
   );
   const [lendPickerOpen, setLendPickerOpen] = useState(false);
   const [loanError, setLoanError] = useState<string | null>(null);
+
+  // Steve 2026-05-17: per-game override of mid-Q-subs. `null` means
+  // "inherit team default"; a boolean means the coach set this
+  // match's value explicitly. Optimistic-with-rollback like the
+  // loan toggle: the local state flips immediately, server fires,
+  // rolls back on error. Resolution at the page level
+  // (game ?? team ?? false) means the actual gating in
+  // NetballLiveGame picks up the new value on the next refresh.
+  const [localGameAllow, setLocalGameAllow] = useState<boolean | null>(
+    gameAllowMidQuarterSubs,
+  );
+  const [allowError, setAllowError] = useState<string | null>(null);
+  const [allowPending, startAllowTransition] = useTransition();
+  const effectiveAllow = localGameAllow ?? teamAllowMidQuarterSubs;
+  const hasGameOverride = localGameAllow !== null;
+  const allowToggleEnabled = !!auth && !!gameId && auth.kind === "team";
+
+  function handleAllowChange(next: boolean | null) {
+    if (!allowToggleEnabled || !auth || !gameId) return;
+    setAllowError(null);
+    const prev = localGameAllow;
+    setLocalGameAllow(next);
+    startAllowTransition(async () => {
+      const result = await setGameAllowMidQuarterSubs(
+        auth.kind === "team" ? auth.teamId : "",
+        gameId,
+        next,
+      );
+      if (!result.success) {
+        setLocalGameAllow(prev);
+        setAllowError(result.error);
+      }
+    });
+  }
   const [loanPending, startLoanTransition] = useTransition();
   const lendingEnabled = !!auth && !!gameId;
 
@@ -656,6 +709,19 @@ export function NetballLineupPicker({
                 if (lendingEnabled && lentPlayers.length > 0) {
                   bits.push(`${lentPlayers.length} lent`);
                 }
+                // Mid-Q subs surfaces in the summary ONLY when it's on
+                // for this match (default off is the common case, no
+                // need to surface "off"). The "this match" suffix
+                // appears when the per-game override differs from
+                // the team default — signals to the coach that the
+                // setting is specific to today.
+                if (effectiveAllow) {
+                  bits.push(
+                    hasGameOverride && localGameAllow !== teamAllowMidQuarterSubs
+                      ? "Mid-Q subs (this match)"
+                      : "Mid-Q subs on",
+                  );
+                }
                 return bits.join(" · ");
               })()}
             </span>
@@ -745,6 +811,56 @@ export function NetballLineupPicker({
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Allow mid-quarter subs (this match) — per-game
+                override of the team-level toggle. Default is the
+                team setting; flipping here writes
+                `games.allow_mid_quarter_subs` so JUST THIS match
+                gets the override (e.g. trial mid-Q subs in a
+                pre-season game without committing the team).
+                Steve 2026-05-17.
+
+                Gated on auth/gameId (only team-auth coaches can
+                write the per-game value — a parent-runner on the
+                /run/<token> URL just sees the resolved effective
+                value via the live-page resolution chain). */}
+            {allowToggleEnabled && (
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-ink">
+                      Allow mid-quarter subs
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-mute">
+                      {hasGameOverride
+                        ? `Override for this match only · team default is ${teamAllowMidQuarterSubs ? "on" : "off"}.`
+                        : `Using the team default (${teamAllowMidQuarterSubs ? "on" : "off"}).`}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={effectiveAllow}
+                    onChange={(next) => handleAllowChange(next)}
+                    disabled={allowPending}
+                    label="Allow mid-quarter subs for this match"
+                  />
+                </div>
+                {hasGameOverride && (
+                  <button
+                    type="button"
+                    onClick={() => handleAllowChange(null)}
+                    disabled={allowPending}
+                    className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim disabled:opacity-60"
+                  >
+                    Use team default
+                  </button>
+                )}
+                {allowError && (
+                  <p className="mt-1 text-xs text-danger" role="alert">
+                    {allowError}
+                  </p>
+                )}
               </div>
             )}
 

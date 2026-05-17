@@ -96,9 +96,21 @@ export default async function LivePage({ params }: LivePageProps) {
   // Netball-only: opt-in mid-quarter subs. Default false so existing
   // teams keep the break-only sub behaviour they've always had.
   // AFL ignores this — AFL has its own interchange flow.
-  const allowMidQuarterSubs =
+  //
+  // Steve 2026-05-17: now supports a per-game override on
+  // `games.allow_mid_quarter_subs` (migration 0036). Resolution
+  // order: game override → team default → false. Coaches flip the
+  // per-game value via a toggle in the netball pre-game Game
+  // settings collapse; the team-level toggle on the settings page
+  // remains as the team-wide default.
+  const teamAllowMidQuarterSubs =
     (teamRow as { allow_mid_quarter_subs?: boolean | null } | null)
       ?.allow_mid_quarter_subs ?? false;
+  const gameAllowMidQuarterSubs =
+    (g as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ??
+    null;
+  const allowMidQuarterSubs =
+    gameAllowMidQuarterSubs ?? teamAllowMidQuarterSubs;
 
   // Per-chip mode (split / group). Both branches below use this:
   // hasStarted → LiveGame (mid-game suggester via QuarterBreak),
@@ -297,6 +309,8 @@ export default async function LivePage({ params }: LivePageProps) {
           isAdmin={isAdmin}
           initialDraft={netballDraft}
           allowMidQuarterSubs={allowMidQuarterSubs}
+          teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
+          gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
