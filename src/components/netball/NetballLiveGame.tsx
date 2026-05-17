@@ -409,10 +409,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // quarter length so on-court players are credited the time they
   // actually played, not the wall-clock that was paused.
   const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
-  const manualEndFiredRef = useRef(false);
+  // Steve 2026-05-17 bug: was `useRef(false)` and flipped to `true`
+  // on first fire and never reset. Q1's manual end-early worked
+  // once, but Q2's tap silently no-op'd because the guard was
+  // still true. Mirror the `hooterFiredForQuarterRef` pattern
+  // below — store the QUARTER NUMBER that already fired so a new
+  // quarter automatically becomes fireable again.
+  const manualEndFiredForQuarterRef = useRef<number | null>(null);
   function handleManualEndQuarter() {
-    if (manualEndFiredRef.current) return;
-    manualEndFiredRef.current = true;
+    if (manualEndFiredForQuarterRef.current === currentQuarter) return;
+    manualEndFiredForQuarterRef.current = currentQuarter;
     // Block the auto-hooter from also firing when we land on the
     // Q-break next render; the ref above is enough for our handler
     // but the hooter ref in the existing useEffect (line ~266) is
