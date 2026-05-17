@@ -27,6 +27,7 @@ import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { LongPressHint } from "@/components/live/LongPressHint";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -400,6 +401,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playerId: string;
     positionId: string;
   } | null>(null);
+
+  // Steve 2026-05-16: scorebug-driven goal scorer picker. AFL has had
+  // +G chips on both sides of the scorebug for a while (tap → picker
+  // → record), but netball only ever surfaced the OPPONENT +G — to
+  // record an own-team goal a coach had to find the GS/GA token on
+  // the court and tap it. That's discoverable when the user knows
+  // the rules; Stagehand kid-runner showed it isn't otherwise. This
+  // state opens a SlotFillSheet of currently-on-court GS + GA
+  // players when the new own-team +G chip is tapped; pick →
+  // recordNetballGoal directly (no confirm sheet — picker IS the
+  // confirmation, mirrors AFL's pattern).
+  const [pickScorerOpen, setPickScorerOpen] = useState(false);
 
   // Hooter: when the countdown reaches zero, auto-fire endNetballQuarter
   // exactly once. Mirrors AFL's hooter-trigger pattern at LiveGame.tsx:730
@@ -1236,6 +1249,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           defaultQuarterSeconds={quarterLengthSeconds}
+          // AFL-parity Lend-a-player support (Steve 2026-05-16).
+          // The `loanedIds` memo above derives the set from
+          // player_loan events so a refresh / re-entry to the
+          // picker preserves the loan state. auth + gameId enable
+          // the picker to write further player_loan events as the
+          // coach toggles chips.
+          auth={auth}
+          gameId={game.id}
+          initialLoanedIds={Array.from(loanedIds)}
           // "Back to availability" breadcrumb — only meaningful for
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the
@@ -1549,6 +1571,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       // NetballScoreBug's existing `{onOpponentGoal && (...)}` gate
       // hides the +G affordance (no opponent-goal button visible).
       onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
+      // Steve 2026-05-16: AFL-parity own-team +G chip. Hidden when
+      // (a) scoring isn't tracked at all, OR (b) a goal-confirm
+      // sheet is already mid-flight (avoids two scorer pickers
+      // open at once if the coach tapped a GS tile first then
+      // hits +G). Tap opens the SlotFillSheet rendered below the
+      // sticky bar; pick → records directly without a confirm.
+      onTeamGoal={
+        trackScoring && !pendingGoal && !pickScorerOpen
+          ? () => setPickScorerOpen(true)
+          : undefined
+      }
       onClockTap={handleClockTap}
       // Q-by-Q chip surfaces only when there's something to show.
       // trackScoring=false hides it entirely (would be empty).
@@ -1719,6 +1752,62 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
+      {/* Scorebug-driven scorer picker. Opens when the coach taps
+          the new own-team +G chip on the scorebug. Lists only the
+          currently-on-court GS + GA (the only positions allowed to
+          score in netball). Pick → record directly; no confirm
+          sheet, mirrors AFL's GameHeader-driven picker pattern. If
+          no eligible scorers are on court (rare — only if the GS
+          OR GA tile is empty mid-quarter via injury or vacancy)
+          the sheet still renders so the coach sees "no candidates"
+          instead of nothing visibly happening on the tap.
+          Steve 2026-05-16. */}
+      {pickScorerOpen && (() => {
+        const eligibleIds = [
+          ...(onCourt.positions.gs ?? []),
+          ...(onCourt.positions.ga ?? []),
+        ];
+        const candidates = eligibleIds
+          .map((pid) => {
+            const player = squadById.get(pid);
+            if (!player) return null;
+            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
+            return {
+              id: pid,
+              name: `${player.full_name} (${positionId})`,
+            };
+          })
+          .filter((c): c is { id: string; name: string } => !!c);
+        return (
+          <SlotFillSheet
+            slotLabel="goal"
+            titleVerb="Record"
+            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
+            emptyMessage="No GS or GA on court right now."
+            candidates={candidates}
+            onPick={(playerId) => {
+              setPickScorerOpen(false);
+              const player = squadById.get(playerId);
+              const playerName = player?.full_name.trim().split(/\s+/)[0] ?? null;
+              const { flushed } = enqueueLiveAction("recordNetballGoal", [
+                auth,
+                game.id,
+                playerId,
+                currentQuarter,
+                clockMs,
+              ]);
+              flushed.then(() => startTransition(() => router.refresh()));
+              startUndoToast("team", playerName);
+              // Same light-tap haptic as the court flow's
+              // handleConfirmGoal so coaches feel the same
+              // confirmation regardless of entry point.
+              void hapticTap("light");
+            }}
+            onCancel={() => setPickScorerOpen(false)}
+          />
+        );
+      })()}
+
       {/* Goal confirm sheet — chrome owned by the shared
           ScoreRecordingDock (Phase 5c). Coach taps a GS/GA token,
           this surfaces so they can sanity-check the player before
@@ -1835,6 +1924,7 @@ function NetballScoreBug({
   opponent,
   quarterLabel,
   clockText,
+  onTeamGoal,
   onOpponentGoal,
   isPending,
   onClockTap,
@@ -1853,6 +1943,14 @@ function NetballScoreBug({
   quarterLabel: string;
   /** Big numeric line inside the clock pill — e.g. "08:00", "—". */
   clockText: string;
+  /**
+   * Steve 2026-05-16: AFL-parity own-team goal chip. When wired,
+   * a +G button mirrors the opponent +G on the left side of the
+   * scorebug. Parent owns the picker UI — this just opens it. The
+   * existing GS/GA tile-tap flow on the court continues to work
+   * independently for coaches who prefer that path.
+   */
+  onTeamGoal?: () => void;
   onOpponentGoal?: () => void;
   isPending?: boolean;
   /**
@@ -1931,6 +2029,24 @@ function NetballScoreBug({
             <span className="text-[36px] font-bold tracking-tightest">—</span>
           )}
         </p>
+        {/* Own-team +G chip. Mirrors the opponent +G on the right
+            side and AFL GameHeader's onTeam("goal") chip. Tap
+            opens a player picker (parent owns UI) so the coach can
+            attribute the goal without first hunting for the GS/GA
+            tile on the court. Steve 2026-05-16. */}
+        {onTeamGoal && (
+          <div className="mt-1 flex gap-2">
+            <button
+              type="button"
+              onClick={onTeamGoal}
+              disabled={isPending}
+              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink active:bg-brand-200 active:text-brand-700 disabled:pointer-events-none disabled:opacity-60"
+              aria-label="Record our goal"
+            >
+              +G
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Centre: dark clock pill. Tappable when onClockTap is wired
