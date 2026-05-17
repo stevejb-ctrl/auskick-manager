@@ -252,6 +252,87 @@ in 1 sentence.
 | Output dir | `mobile/store/screenshots/ios/` |
 | Count | **6 shots** (Apple accepts up to 10 per device size) |
 
+---
+
+## iPad variant *(13-inch, required since mid-2024)*
+
+Apple now requires a separate set of screenshots at **13-inch iPad
+Pro** dimensions if the app supports iPad (which Siren Footy does
+by default via the Capacitor iOS scaffold). Same six story beats
+as the iPhone set; just different dimensions and likely different
+composition.
+
+### Source files
+
+| Item | Path |
+|---|---|
+| Raw iPad screenshots | `mobile/store/screenshots/raw-ipad/*.png` (auto-captured at 2064 × 2752) |
+| Final marketed iPad output | `mobile/store/screenshots/ipad/*.png` (currently empty) |
+
+### Output spec
+
+| Field | Value |
+|---|---|
+| Format | PNG (8-bit RGB or RGBA; no animations) |
+| Dimensions | **2064 × 2752 px** (Apple's 13-inch iPad portrait spec) |
+| Colour space | sRGB |
+| File names | `01-games-list.png` through `06-player-actions.png` (same names as iPhone — Apple identifies by upload slot, not filename) |
+| Output dir | `mobile/store/screenshots/ipad/` |
+| Count | **6 shots** to match the iPhone story; Apple accepts up to 10 |
+
+### Composition note
+
+The raw iPad captures look sparse — the Next.js app uses
+`max-w-3xl` (~768px wide) for most screens, so on a 2064px canvas
+the screen content fills only the top-center band with empty
+space below. **This is normal**; the designer composites the
+screen content onto a wider marketing canvas (iPad-frame mockup +
+gradient background + headline), same as the iPhone treatment.
+The empty space below the screen content in the raw becomes
+canvas chrome in the marketed version.
+
+A few of the raw iPad shots don't capture the exact game states
+that make the iPhone versions distinctive:
+
+- `03-quarter-break` — auto-capture lands on the live game UI,
+  not the QB-zones panel (which requires the game to be at a
+  quarter break in wall-clock time).
+- `05-sub-rotations` — auto-capture lands on the live game UI,
+  not the Sub-due! modal (which only fires at the sub interval).
+- `06-player-actions` — auto-capture lands on the live game UI,
+  not the player-actions modal (which opens via long-press).
+
+If the iPad-frame mockup needs the same content as the iPhone
+counterpart (Q-break tile arrows, Sub-due modal text, etc.), the
+designer may need to either:
+
+1. Recreate the modal/UI excerpt artistically on top of the live-
+   game iPad shot, *or*
+2. Steve re-captures 03/05/06 at iPad viewport via Chrome
+   DevTools' iPad Pro 13" custom device, signed in as the demo
+   account, with the same modal-state choreography used for the
+   iPhone versions.
+
+Either approach is fine for App Store review — Apple cares about
+dimensions and "represents the app", not "matches the iPhone shot
+pixel-for-pixel".
+
+### Headlines (same as iPhone)
+
+Reuse the same six headlines + emphasis words from the iPhone
+brief above. iPad shots benefit from a slightly larger headline
+type given the wider canvas — bump font size proportionally.
+
+### Re-capturing the raw iPad set
+
+```bash
+npm run screenshots:ipad
+```
+
+Captures all six at 2064 × 2752 to `raw-ipad/`. Uses the same
+seeded demo account state as the iPhone set; re-run `npm run
+seed:app-review` first if the demo data needs refreshing.
+
 The same source raws + same marketed outputs can be re-used for
 Play Store screenshots — Play accepts the same dimensions, just
 needs different file naming on the upload side + a separate

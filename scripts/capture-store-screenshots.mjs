@@ -1,19 +1,17 @@
 // Capture App Store / Play Store screenshots from a live URL.
 //
-// Spins up a headless Chromium at iPhone 16 Pro Max viewport
-// (1320×2868), signs in as the App Review demo account, navigates
-// to each screen, injects a marketing-banner overlay with the
-// matching headline, then screenshots to mobile/store/screenshots/.
+// Spins up a headless Chromium at the target device viewport,
+// signs in as the App Review demo account, navigates to each
+// screen, injects a marketing-banner overlay with the matching
+// headline, then screenshots to mobile/store/screenshots/.
 //
 // Output is paste-ready for App Store Connect + Play Console.
-// Apple needs ≥1 screenshot at 6.9" (1320×2868); Play Store
-// accepts the same dimensions. Both stores get 4 marketed shots
-// from one run.
 //
 // Usage:
-//   node scripts/capture-store-screenshots.mjs
+//   node scripts/capture-store-screenshots.mjs                 # iPhone 6.9" (1320×2868)
+//   node scripts/capture-store-screenshots.mjs --ipad          # iPad Pro 13" (2064×2752)
+//   node scripts/capture-store-screenshots.mjs --raw           # skip headline overlay
 //   node scripts/capture-store-screenshots.mjs --base http://localhost:3000
-//   node scripts/capture-store-screenshots.mjs --raw   # skip headline overlay
 //
 // Prereqs:
 //   - `npm run seed:app-review` has been run against whichever env
@@ -34,17 +32,19 @@ const baseIdx = args.indexOf("--base");
 const BASE_URL =
   baseIdx >= 0 ? args[baseIdx + 1] : "https://www.sirenfooty.com.au";
 const RAW = args.includes("--raw");
+const IPAD = args.includes("--ipad");
 
-// In raw mode the screenshots go to a separate subdir so the
-// designer / Claude design has a clean source set untouched by the
-// in-script marketing band. The marketed set (default) stays at
-// `ios/` and that's what gets uploaded to App Store Connect.
+// Output routing:
+//   iPhone + marketed  → ios/
+//   iPhone + raw       → raw/
+//   iPad   + marketed  → ipad/
+//   iPad   + raw       → raw-ipad/
 const outDir = resolve(
   repoRoot,
   "mobile",
   "store",
   "screenshots",
-  RAW ? "raw" : "ios",
+  IPAD ? (RAW ? "raw-ipad" : "ipad") : RAW ? "raw" : "ios",
 );
 
 // Demo credentials provisioned by scripts/seed-app-review-account.mjs.
@@ -53,11 +53,20 @@ const outDir = resolve(
 const EMAIL = "appreview@sirenfooty.com.au";
 const PASSWORD = "SirenReview2026!";
 
-// iPhone 16 Pro Max physical pixels = 1320 × 2868. Apple requires
-// the 6.9" screenshot size for new submissions; 6.5" gets auto-
-// derived. Logical viewport 440×956 × DPR 3 = the right pixel size.
-const VIEWPORT = { width: 440, height: 956 };
-const DPR = 3;
+// iPhone 16 Pro Max physical pixels = 1320 × 2868 (Apple's 6.9"
+// requirement; 6.5" auto-derives). Logical viewport 440×956 × DPR 3.
+//
+// iPad Pro 13" (M4) physical pixels = 2064 × 2752 (Apple's "13-inch
+// iPad" requirement — became mandatory mid-2024 for any app with
+// iPad support in the Xcode project). Logical viewport 1032×1376 ×
+// DPR 2.
+const IPHONE_VIEWPORT = { width: 440, height: 956 };
+const IPHONE_DPR = 3;
+const IPAD_VIEWPORT = { width: 1032, height: 1376 };
+const IPAD_DPR = 2;
+
+const VIEWPORT = IPAD ? IPAD_VIEWPORT : IPHONE_VIEWPORT;
+const DPR = IPAD ? IPAD_DPR : IPHONE_DPR;
 
 // Each screen: route to land on (after team-id substitution),
 // optional pre-screenshot action (clicks, scrolls), filename, and
@@ -296,14 +305,25 @@ async function capture(page, shot, ctx) {
 
 async function main() {
   await mkdir(outDir, { recursive: true });
-  console.log(`Capturing against ${BASE_URL} (${RAW ? "raw" : "marketed"})…`);
+  const deviceLabel = IPAD ? "iPad Pro 13\"" : "iPhone 16 Pro Max";
+  const modeLabel = RAW ? "raw" : "marketed";
+  console.log(
+    `Capturing against ${BASE_URL} (${deviceLabel}, ${modeLabel})…`,
+  );
+
+  // Per-device User-Agent so the responsive Next.js app picks the
+  // right layout. The site uses CSS media queries primarily, but
+  // some Capacitor-aware code paths and the Vercel edge sniff UA.
+  const iphoneUA =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+  const ipadUA =
+    "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: DPR,
-    userAgent:
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    userAgent: IPAD ? ipadUA : iphoneUA,
     isMobile: true,
     hasTouch: true,
   });
@@ -337,10 +357,17 @@ async function main() {
     console.log("");
     console.log("Capturing screens…");
     for (const shot of SHOTS) {
-      if (shot.manualOnly) {
+      // manualOnly shots: for the iPhone pass these were curated
+      // versions Steve hand-captured (with specific game states,
+      // modals open, the R4 game added by hand, etc.), so we skip
+      // them and let Steve drop the hand-captured PNG in. For the
+      // iPad pass we don't have curated versions yet — force-
+      // capture so there's at least an iPad-dimension version to
+      // start from, even if the state isn't perfect.
+      if (shot.manualOnly && !IPAD) {
+        const target = `mobile/store/screenshots/raw/${shot.id}.png`;
         console.log(
-          `  ${shot.id} → skipping (manualOnly — drop the file at ` +
-            `mobile/store/screenshots/raw/${shot.id}.png and commit)`,
+          `  ${shot.id} → skipping (manualOnly — drop the file at ${target} and commit)`,
         );
         continue;
       }
