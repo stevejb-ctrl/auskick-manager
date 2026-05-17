@@ -119,6 +119,13 @@ export function NetballLineupPicker({
   // Either mode is fully editable via tap-tap below; the toggle
   // just decides the starting point.
   const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
+  // Steve 2026-05-16: AFL parity — the rotation toggle + the
+  // mode-aware callout + the quarter-length card all sit behind a
+  // single "Game settings" collapse now (mirrors the AFL pre-game
+  // picker pattern + the Q-break match-adjustments collapse). The
+  // closed header shows a one-line summary of any non-defaults so
+  // the coach knows something IS set without having to expand.
+  const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
 
   // Build a lineup for the chosen mode. Suggested → run the
   // fairness suggester. Manual → empty positions, all available
@@ -470,57 +477,139 @@ export function NetballLineupPicker({
   return (
     <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <LineupPickerBreadcrumb backHref={backHref} />
-      {/* Build-mode toggle. Two-button group lets the coach choose
-          between the fairness-suggested rotation and a from-scratch
-          manual lineup. Either mode is fully editable via tap-tap-to-
-          swap below; this just picks the starting point. Mirrors the
-          AFL pre-game LineupPicker affordance for consistency. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SFButton
-          variant={lineupMode === "suggested" ? "primary" : "subtle"}
-          size="sm"
-          disabled={disabled || saving}
-          onClick={() => handleModeChange("suggested")}
-        >
-          {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
-        </SFButton>
-        <SFButton
-          variant={lineupMode === "manual" ? "primary" : "subtle"}
-          size="sm"
-          disabled={disabled || saving}
-          onClick={() => handleModeChange("manual")}
-        >
-          {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-        </SFButton>
-      </div>
 
-      {/* Mode-aware callout. Suggested explains the fairness logic;
-          manual explains how to fill the empty court. Both surface the
-          tap-to-swap interaction so coaches don't have to guess. */}
-      <div className="rounded-md border border-warn/20 bg-warn-soft px-4 py-3 text-sm text-warn">
-        <p className="font-semibold">
-          {lineupMode === "suggested"
-            ? "Auto-suggested starting lineup"
-            : "Manual lineup — start from a blank court"}
-        </p>
-        <p className="mt-0.5 text-xs">
-          {lineupMode === "suggested" ? (
-            <>
-              Players who&apos;ve had less zone time across the season
-              get priority — fairer rotations, fewer kids stuck on the
-              bench. Tap any two players to swap them; tap a player and
-              then an empty slot to move them.
-            </>
-          ) : (
-            <>
-              Every position starts open and the whole squad sits on
-              the bench. Tap a player, then an empty position to place
-              them. Switch back to{" "}
-              <strong className="text-ink">Suggested rotation</strong>{" "}
-              any time to reset.
-            </>
-          )}
-        </p>
+      {/* ── Game settings (collapsible) ──────────────────────────
+          Steve 2026-05-16: parity with the AFL pre-game picker —
+          rotation mode + the mode-aware callout + the per-game
+          quarter-length override all live behind a single
+          collapsible header. Most games run on defaults, so the
+          rotation buttons were adding noise at the top of the
+          screen on every kickoff. The closed header summarises
+          any non-defaults so the coach can scan-and-tap without
+          expanding. Quarter-length card moves UP here so coaches
+          who do want to fiddle find both knobs in one place. */}
+      <div className="rounded-md border border-hairline bg-surface shadow-card">
+        <button
+          type="button"
+          onClick={() => setGameSettingsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
+          aria-expanded={gameSettingsOpen}
+          aria-controls="netball-lineup-game-settings"
+        >
+          <span className="flex flex-1 items-center gap-3 text-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+              Game settings
+            </span>
+            <span className="text-xs text-ink-mute">
+              {(() => {
+                const bits: string[] = [];
+                bits.push(
+                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                );
+                // Quarter length only surfaces in the summary when it
+                // differs from the team's default (defaultQuarterSeconds
+                // is the team setting; quarterMinInput is the per-game
+                // override). Mirrors AFL's "only show non-defaults"
+                // pattern in the collapse header.
+                if (defaultQuarterSeconds != null && defaultQuarterMin != null) {
+                  const parsed = Number(quarterMinInput);
+                  if (Number.isFinite(parsed) && parsed > 0 && parsed !== defaultQuarterMin) {
+                    bits.push(`${parsed}-min Q`);
+                  }
+                }
+                return bits.join(" · ");
+              })()}
+            </span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`transition-transform duration-fast ease-out-quart ${
+                gameSettingsOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+
+        {gameSettingsOpen && (
+          <div
+            id="netball-lineup-game-settings"
+            className="space-y-4 border-t border-hairline px-4 py-4"
+          >
+            {/* Rotation mode */}
+            <div>
+              <p className="text-xs font-semibold text-ink">Rotation</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <SFButton
+                  variant={lineupMode === "suggested" ? "primary" : "subtle"}
+                  size="sm"
+                  disabled={disabled || saving}
+                  onClick={() => handleModeChange("suggested")}
+                >
+                  {lineupMode === "suggested" ? "✓ Suggested rotation" : "Suggested rotation"}
+                </SFButton>
+                <SFButton
+                  variant={lineupMode === "manual" ? "primary" : "subtle"}
+                  size="sm"
+                  disabled={disabled || saving}
+                  onClick={() => handleModeChange("manual")}
+                >
+                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
+                </SFButton>
+              </div>
+              <p className="mt-1.5 text-xs text-ink-mute">
+                {lineupMode === "suggested"
+                  ? "Players who've had less zone time across the season get priority — fairer rotations, fewer kids stuck on the bench. Tap any two players to swap them; tap a player and then an empty position to move them."
+                  : "Every position starts open and the whole squad sits on the bench. Tap a player, then an empty position to place them. Switch back to Suggested any time to reset."}
+              </p>
+            </div>
+
+            {/* Per-game quarter-length override (moved up from below
+                so all pre-game knobs sit in one collapse). */}
+            {defaultQuarterSeconds != null && (
+              <div>
+                <Label
+                  htmlFor="quarter-minutes"
+                  className="!mb-1 block text-xs font-semibold text-ink"
+                >
+                  Quarter length
+                </Label>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-ink-mute">
+                      Defaults to your team setting ({defaultQuarterMin} min).
+                      Override here for this game only — useful for finals,
+                      double-headers, or weather-shortened matches.
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    <Input
+                      id="quarter-minutes"
+                      type="number"
+                      min={1}
+                      max={30}
+                      step={1}
+                      value={quarterMinInput}
+                      onChange={(e) => setQuarterMinInput(e.target.value)}
+                      disabled={disabled || saving}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Court
@@ -540,40 +629,11 @@ export function NetballLineupPicker({
         onTapPlayer={handleTapPlayer}
       />
 
-      {/* Per-game quarter-length override. Reuses the AFL pre-game
-          sub-interval card layout (src/components/live/LineupPicker.tsx
-          lines 289-315) — same affordance, different field. Netball
-          has no rolling subs so this slot is repurposed for "how long
-          is each quarter for this match". Defaults to the team
-          setting; the coach can dial it for finals / weather / etc. */}
-      {defaultQuarterSeconds != null && (
-        <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <Label htmlFor="quarter-minutes" className="mb-1">
-                Quarter length
-              </Label>
-              <p className="text-xs text-ink-mute">
-                Defaults to your team setting ({defaultQuarterMin} min).
-                Override here for this game only — useful for finals,
-                double-headers, or weather-shortened matches.
-              </p>
-            </div>
-            <div className="w-24">
-              <Input
-                id="quarter-minutes"
-                type="number"
-                min={1}
-                max={30}
-                step={1}
-                value={quarterMinInput}
-                onChange={(e) => setQuarterMinInput(e.target.value)}
-                disabled={disabled || saving}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Per-game quarter-length override moved UP into the
+          "Game settings" collapse (Steve 2026-05-16) so all pre-
+          game knobs live in one place. Empty here intentionally —
+          keeping the spot for grep so a future audit doesn't
+          re-introduce the card. */}
 
       {error && <InlineAlert>{error}</InlineAlert>}
 
