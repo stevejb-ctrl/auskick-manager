@@ -72,7 +72,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, age_group, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -93,6 +93,12 @@ export default async function LivePage({ params }: LivePageProps) {
   // gate, score-bug numeric gate, walkthrough scoring-step gate,
   // and the summary-card result+goals-line gate.
   const trackScoring = teamRow?.track_scoring ?? false;
+  // Netball-only: opt-in mid-quarter subs. Default false so existing
+  // teams keep the break-only sub behaviour they've always had.
+  // AFL ignores this — AFL has its own interchange flow.
+  const allowMidQuarterSubs =
+    (teamRow as { allow_mid_quarter_subs?: boolean | null } | null)
+      ?.allow_mid_quarter_subs ?? false;
 
   // ─── Netball branch ───────────────────────────────────────
   // Netball uses its own component tree (different lineup shape,
@@ -269,6 +275,7 @@ export default async function LivePage({ params }: LivePageProps) {
           clockMultiplier={g.clock_multiplier ?? 1}
           isAdmin={isAdmin}
           initialDraft={netballDraft}
+          allowMidQuarterSubs={allowMidQuarterSubs}
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
             admin-utility row alongside "+ Add late arrival" so the

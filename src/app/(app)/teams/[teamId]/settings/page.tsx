@@ -4,6 +4,7 @@ import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
+import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import {
@@ -28,7 +29,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     user
@@ -105,24 +106,38 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         isAdmin={isAdmin}
         sportId={sport}
       />
-      {/* Quarter-length override: netball-only knob today since
-          junior netball formats vary so much across leagues. AFL
-          keeps its existing age-group quarters as the source of
-          truth (no override needed). */}
+      {/* Netball-only knobs: quarter-length override + mid-quarter
+          subs gate. Junior netball formats vary so much across
+          leagues (10-min, 12-min, 7-min depending on weather and
+          double-headers), and the mid-Q sub feature is a Steve-
+          requested opt-in for the minority of teams that use
+          rolling subs. AFL keeps its existing age-group quarters
+          as the source of truth — no override needed — and uses
+          its own interchange flow that doesn't read these
+          columns. */}
       {sport === "netball" && (() => {
         const ageGroup = getAgeGroupConfig(
           sport,
           (team as { age_group?: string | null }).age_group ?? null,
         );
         return (
-          <QuarterLengthInput
-            teamId={params.teamId}
-            ageGroupDefaultSeconds={ageGroup.periodSeconds}
-            initialOverrideSeconds={
-              (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
-            }
-            isAdmin={isAdmin}
-          />
+          <>
+            <QuarterLengthInput
+              teamId={params.teamId}
+              ageGroupDefaultSeconds={ageGroup.periodSeconds}
+              initialOverrideSeconds={
+                (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
+              }
+              isAdmin={isAdmin}
+            />
+            <MidQuarterSubsToggle
+              teamId={params.teamId}
+              initialEnabled={
+                (team as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ?? false
+              }
+              isAdmin={isAdmin}
+            />
+          </>
         );
       })()}
       <CohortChipsSettings
