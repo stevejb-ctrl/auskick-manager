@@ -11,9 +11,8 @@
 // (NetballQuarterBreak is the equivalent for in-game breaks —
 // this component is only used for the very first lineup.)
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import type { LiveAuth, Player } from "@/lib/types";
-import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { useEffect, useMemo, useState } from "react";
+import type { Player } from "@/lib/types";
 import { Court } from "@/components/netball/Court";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { Input } from "@/components/ui/Input";
@@ -96,26 +95,6 @@ interface LineupPickerProps {
    * value (if any) comes from the parent reading game_lineup_drafts.
    */
   initialSavedAt?: string | null;
-  /**
-   * Steve 2026-05-16: AFL-parity Lend a player support. The
-   * picker writes `player_loan` events via `markLoan` to mark
-   * (or un-mark) players as lent to the opposition; the suggester
-   * pool + bench grid exclude lent players. When `auth` + `gameId`
-   * are both provided, the "Lend a player" section renders inside
-   * the Game settings collapse. When either is omitted (e.g. a
-   * surface that doesn't have the loan concept), the section is
-   * hidden and no chips render — matches existing behaviour for
-   * call sites pre-dating this prop.
-   */
-  auth?: LiveAuth;
-  gameId?: string;
-  /**
-   * Pre-game loaned-player IDs hydrated by the parent from prior
-   * `player_loan` events in this game. Lets a reload or re-entry
-   * mid-pre-game preserve the loan state instead of dropping it.
-   * Default empty.
-   */
-  initialLoanedIds?: string[];
 }
 
 export function NetballLineupPicker({
@@ -132,26 +111,7 @@ export function NetballLineupPicker({
   backHref,
   onSavePlan,
   initialSavedAt = null,
-  auth,
-  gameId,
-  initialLoanedIds = [],
 }: LineupPickerProps) {
-  // Lend-a-player support (AFL parity, Steve 2026-05-16). When
-  // `auth + gameId` are wired, the picker renders a "Lend a player"
-  // section inside the Game settings collapse. Optimistic-with-
-  // rollback like AFL's same handler.
-  const [loanedIds, setLoanedIds] = useState<Set<string>>(
-    () => new Set(initialLoanedIds),
-  );
-  const [lendPickerOpen, setLendPickerOpen] = useState(false);
-  const [loanError, setLoanError] = useState<string | null>(null);
-  const [loanPending, startLoanTransition] = useTransition();
-  const lendingEnabled = !!auth && !!gameId;
-
-  const lentPlayers = useMemo(
-    () => squad.filter((p) => loanedIds.has(p.id)),
-    [squad, loanedIds],
-  );
   // Lineup-build mode. "suggested" runs the fairness suggester to
   // pre-fill the court (the legacy default). "manual" leaves every
   // position empty and parks the whole squad on the bench so the
@@ -173,14 +133,10 @@ export function NetballLineupPicker({
   // initialLineup (Q-break seed, restored draft) we use it as-is
   // and the toggle is irrelevant on first render.
   const buildLineup = (mode: "suggested" | "manual"): GenericLineup => {
-    // Lent players never appear in the suggester pool or on the
-    // bench — they're sitting this game out for the opposition.
-    // Steve 2026-05-16 (AFL parity).
-    const eligibleIds = availableIds.filter((id) => !loanedIds.has(id));
-    if (mode === "manual" || eligibleIds.length === 0) {
+    if (mode === "manual" || availableIds.length === 0) {
       return {
         ...emptyGenericLineup(ageGroup.positions),
-        bench: [...eligibleIds],
+        bench: [...availableIds],
       };
     }
     const season = seasonPositionCounts(seasonEvents);
@@ -194,7 +150,7 @@ export function NetballLineupPicker({
       thirdLookup,
     );
     return suggestNetballLineup({
-      playerIds: eligibleIds,
+      playerIds: availableIds,
       positions: ageGroup.positions,
       season,
       thisGame,
@@ -216,66 +172,6 @@ export function NetballLineupPicker({
     setLineupMode(next);
     setLineup(buildLineup(next));
     setSelected(null);
-  }
-
-  // Lend / un-lend a player. Optimistic local update — chips
-  // reflect immediately, lineup ejects the lent player from any
-  // court position or bench slot. Rolls back on server error.
-  // Mirrors AFL's handleLendToggle pattern in LineupPicker.tsx
-  // (Steve 2026-05-16).
-  function handleLendToggle(playerId: string, nextLoaned: boolean) {
-    if (!lendingEnabled || !auth || !gameId) return;
-    setLoanError(null);
-    setLoanedIds((prev) => {
-      const next = new Set(prev);
-      if (nextLoaned) next.add(playerId);
-      else next.delete(playerId);
-      return next;
-    });
-    if (nextLoaned) {
-      // Yank the player out of any court position + bench so the
-      // grid matches the chip set the suggester sees.
-      setLineup((prev) => {
-        const nextPositions: Record<string, string[]> = {};
-        for (const [posId, ids] of Object.entries(prev.positions)) {
-          nextPositions[posId] = ids.filter((id) => id !== playerId);
-        }
-        return {
-          positions: nextPositions,
-          bench: prev.bench.filter((id) => id !== playerId),
-        };
-      });
-    } else {
-      // Returning a player → drop them on the bench so the coach
-      // can slot them in. Suggester will reconsider on next mode
-      // switch / availability flip.
-      setLineup((prev) => ({
-        ...prev,
-        bench: prev.bench.includes(playerId)
-          ? prev.bench
-          : [...prev.bench, playerId],
-      }));
-    }
-    startLoanTransition(async () => {
-      // Loan applies from kickoff (Q1). elapsed_ms=0 because the
-      // event predates quarter_start; replayNetballGame treats it
-      // as "loaned from kickoff".
-      const result = await markLoan(auth, gameId, {
-        player_id: playerId,
-        loaned: nextLoaned,
-        quarter: 1,
-        elapsed_ms: 0,
-      });
-      if (!result.success) {
-        setLoanedIds((prev) => {
-          const next = new Set(prev);
-          if (nextLoaned) next.delete(playerId);
-          else next.add(playerId);
-          return next;
-        });
-        setLoanError(result.error);
-      }
-    });
   }
 
   // Re-derive lineup when more players become available AFTER mount.
@@ -302,22 +198,15 @@ export function NetballLineupPicker({
       ...Object.values(lineup.positions).flat(),
       ...lineup.bench,
     ]);
-    // A LENT player isn't "unplaced" — they're sitting this game
-    // out, so don't re-derive the lineup just because they're
-    // missing from positions/bench. Without this, every Lend tap
-    // would immediately re-run the suggester and the coach's
-    // manual placements would get wiped.
-    const unplaced = availableIds.filter(
-      (id) => !placedIds.has(id) && !loanedIds.has(id),
-    );
+    const unplaced = availableIds.filter((id) => !placedIds.has(id));
     if (unplaced.length > 0) {
       setLineup(buildLineup("suggested"));
     }
-    // buildLineup closes over availableIds + loanedIds via the
-    // suggester so it always reads the latest list. Excluded from
-    // deps so the effect runs on availability/loan changes only.
+    // buildLineup closes over availableIds via the suggester so
+    // it always reads the latest list. Excluded from deps so the
+    // effect runs on availability changes only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableIds, lineupMode, loanedIds]);
+  }, [availableIds, lineupMode]);
   // Two-tap-to-swap selection: tap a player → highlighted; tap another
   // player (or an empty position / bench) → swap. Mirrors the
   // NetballQuarterBreak interaction so the pre-game and Q-break
@@ -628,13 +517,6 @@ export function NetballLineupPicker({
                     bits.push(`${parsed}-min Q`);
                   }
                 }
-                // Lent count surfaces ONLY when lending is enabled +
-                // there's at least one lent player. The "No lent" /
-                // "0 lent" framing AFL uses doesn't fit netball
-                // where most games have nobody lent — too noisy.
-                if (lendingEnabled && lentPlayers.length > 0) {
-                  bits.push(`${lentPlayers.length} lent`);
-                }
                 return bits.join(" · ");
               })()}
             </span>
@@ -724,55 +606,6 @@ export function NetballLineupPicker({
                     />
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Lend a player — AFL-parity affordance for when a team
-                has too many available and is lending one or more
-                kids to the short-handed opposition. Lent players
-                drop out of the suggester pool + bench grid; the
-                chip set here is the live source of truth. Same
-                visual treatment as AFL's pre-game Lend section. */}
-            {lendingEnabled && (
-              <div>
-                <p className="text-xs font-semibold text-ink">Lend a player</p>
-                <p className="mt-0.5 text-xs text-ink-mute">
-                  Lent players sit out for the rest of the game until you
-                  bring them back.
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {lentPlayers.map((p) => (
-                    <span
-                      key={p.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                    >
-                      <span>{p.full_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleLendToggle(p.id, false)}
-                        disabled={loanPending}
-                        aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setLendPickerOpen(true)}
-                    disabled={loanPending}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
-                  >
-                    <span aria-hidden>+</span>
-                    Lend a player
-                  </button>
-                </div>
-                {loanError && (
-                  <p className="mt-1 text-xs text-danger" role="alert">
-                    {loanError}
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -881,27 +714,6 @@ export function NetballLineupPicker({
           />
         );
       })()}
-
-      {/* Lend-player picker — opens from "+ Lend a player" inside
-          the Game settings collapse. Lists every available squad
-          player not already lent (and not currently on the court).
-          AFL parity. */}
-      {lendPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Lend"
-          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
-          emptyMessage="Everyone is already lent."
-          candidates={squad
-            .filter((p) => !loanedIds.has(p.id))
-            .map((p) => ({ id: p.id, name: p.full_name }))}
-          onPick={(pid) => {
-            handleLendToggle(pid, true);
-            setLendPickerOpen(false);
-          }}
-          onCancel={() => setLendPickerOpen(false)}
-        />
-      )}
     </div>
   );
 }
