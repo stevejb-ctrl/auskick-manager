@@ -28,6 +28,8 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
+import { isYouTubeUrl } from "@/lib/songUrl";
+import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -183,6 +185,26 @@ interface NetballLiveGameProps {
    * `teams.allow_mid_quarter_subs` column.
    */
   allowMidQuarterSubs?: boolean;
+  /**
+   * Steve 2026-05-16 (AFL parity): cohort-chip mode map. AFL has
+   * been honouring this in its suggester since chips shipped;
+   * netball was silently ignoring it. Threaded down to both the
+   * pre-game LineupPicker and the in-game NetballQuarterBreak so
+   * a netball coach who configures chips on their team settings
+   * actually sees them influence the rotation.
+   */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  /**
+   * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
+   * on each own-team goal commit. AFL has had this since song
+   * settings shipped; netball was silently ignoring the columns
+   * even though the team Settings page exposes them. Wired via the
+   * shared `useHypeSong` hook (YouTube iframe or audio fallback).
+   * `songUrl` null = no song configured = playSong is a no-op.
+   */
+  songUrl?: string | null;
+  songStartSeconds?: number;
+  songDurationSeconds?: number;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -211,6 +233,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     isAdmin = false,
     initialDraft = null,
     allowMidQuarterSubs = false,
+    chipModeByKey = {},
+    songUrl = null,
+    songStartSeconds = 0,
+    songDurationSeconds = 15,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -220,6 +246,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // reload. Pairs with revalidatePath calls in netball-actions.ts.
   // (Phase 4 deferred items #1 + #2 / 04-EVIDENCE.md §5.)
   const router = useRouter();
+
+  // Steve 2026-05-16 (AFL parity): hype song. Same hook AFL uses,
+  // same call shape. `hydrated=true` here unconditionally because
+  // NetballLiveGame doesn't use a zustand store the way AFL does —
+  // its state derives from events on every render, so it's "ready"
+  // as soon as the component mounts.
+  const { containerRef: ytContainerRef, playSong } = useHypeSong({
+    songUrl,
+    songStartSeconds,
+    songDurationSeconds,
+    hydrated: true,
+    gameId: game.id,
+  });
 
   // ─── Live clock — wall-clock anchored ────────────────────────
   // We DERIVE clockMs on every render from `Date.now() -
@@ -861,6 +900,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Light haptic tap — confirms the goal recorded. P1-10 mirror
     // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
     void hapticTap("light");
+    // Hype song — AFL parity (Steve 2026-05-16). Plays
+    // songDurationSeconds from the configured start point. No-op
+    // when the team has no song configured.
+    playSong();
   };
 
   const handleCancelGoal = () => setPendingGoal(null);
@@ -1258,6 +1301,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           auth={auth}
           gameId={game.id}
           initialLoanedIds={Array.from(loanedIds)}
+          chipModeByKey={chipModeByKey}
           // "Back to availability" breadcrumb — only meaningful for
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the
@@ -1469,6 +1513,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerGoals={playerGoals}
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
+          chipModeByKey={chipModeByKey}
           trackScoring={trackScoring}
           onStarted={() => {
             // Local overlay is durable now via the period_break_swap
@@ -1802,6 +1847,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               // handleConfirmGoal so coaches feel the same
               // confirmation regardless of entry point.
               void hapticTap("light");
+              // Hype song — same as court-flow path. AFL parity.
+              playSong();
             }}
             onCancel={() => setPickScorerOpen(false)}
           />
@@ -1903,6 +1950,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           live-play branch (this branch only renders when
           currentQuarter > 0 && !quarterEnded && !finalised). */}
       <LongPressHint enabled />
+
+      {/* Hidden YouTube iframe container — `useHypeSong` populates
+          it on mount when a YouTube song is configured. 1×1 + opacity
+          0 + pointer-events none so it has zero visual impact.
+          AFL parity (Steve 2026-05-16). */}
+      {songUrl && isYouTubeUrl(songUrl) && (
+        <div
+          ref={ytContainerRef}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            overflow: "hidden",
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+          aria-hidden
+        />
+      )}
     </div>
   );
 }

@@ -116,6 +116,17 @@ interface LineupPickerProps {
    * Default empty.
    */
   initialLoanedIds?: string[];
+  /**
+   * Steve 2026-05-16 (AFL parity): cohort-chip mode map. AFL has
+   * been honouring this in its suggester since chips shipped;
+   * netball was silently ignoring it. Threaded here so coaches
+   * who configure chips on a netball team actually see them
+   * influence the rotation. Each player carries their chip via
+   * the shared `Player.chip` field — this prop just supplies
+   * the team-level per-chip split/group mode. Optional for
+   * back-compat with callers pre-dating this prop.
+   */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
 }
 
 export function NetballLineupPicker({
@@ -135,6 +146,7 @@ export function NetballLineupPicker({
   auth,
   gameId,
   initialLoanedIds = [],
+  chipModeByKey = {},
 }: LineupPickerProps) {
   // Lend-a-player support (AFL parity, Steve 2026-05-16). When
   // `auth + gameId` are wired, the picker renders a "Lend a player"
@@ -193,6 +205,13 @@ export function NetballLineupPicker({
       thisGameEvents,
       thirdLookup,
     );
+    // Chip data is sport-agnostic — pulled from each player's
+    // `chip` field. The team-level chipModeByKey arrives as a
+    // prop. Together they drive the new tier-6 chip term in
+    // `suggestNetballLineup`. AFL parity (Steve 2026-05-16).
+    const chipByPlayerId = Object.fromEntries(
+      squad.map((p) => [p.id, p.chip ?? null]),
+    );
     return suggestNetballLineup({
       playerIds: eligibleIds,
       positions: ageGroup.positions,
@@ -203,6 +222,8 @@ export function NetballLineupPicker({
       thirdOf: thirdLookup,
       lastQuarterThird: lastThirds,
       previousTeammates: prevTeammates,
+      chipByPlayerId,
+      chipModeByKey,
     });
   };
 

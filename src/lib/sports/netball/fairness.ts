@@ -383,7 +383,40 @@ export interface NetballSuggestInput {
    * with existing callers; ignored internally.
    */
   seasonAvailability?: Record<string, SeasonAvailability>;
+  /**
+   * Steve 2026-05-16 (AFL parity): cohort-chip placement
+   * preferences. Each player can be tagged with one of three
+   * chips (a/b/c — the team picks the meaning, e.g. "older",
+   * "younger", "first-year"). For each chip the coach picks a
+   * mode:
+   *   - "split" → avoid clustering same-chip players in one
+   *     third. Penalty grows with the square of same-chip count
+   *     already placed in the target third.
+   *   - "group" → cluster same-chip players together. Same
+   *     magnitude, opposite sign (becomes a bonus).
+   *
+   * Magnitude (n² × 50) is well below tier 3's -10000 so don't-
+   * repeat-third still wins, but big enough to break ties among
+   * otherwise-equal candidates and to act as the dominant signal
+   * for tier 5 (season rarity). Mirrors AFL's
+   * `buildChipPenaltyFor` in `src/lib/fairness.ts` — keyed on
+   * THIRD here instead of zone, but the same n² model.
+   *
+   * Both optional — when omitted (legacy callers) chips
+   * contribute nothing to the score. Threading is sport-agnostic
+   * via the `player.chip` field; the mode map matches AFL's
+   * shape exactly.
+   */
+  chipByPlayerId?: Record<string, "a" | "b" | "c" | null | undefined>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
 }
+
+// Same n² × 50 base AFL uses, applied per third instead of per
+// zone. Spaced between the tier-4 teammate-split term (which fires
+// at -150000) and tier 5's seasonRarity (single-digit) so a single
+// same-chip overlap is the dominant signal among season-rarity ties
+// but never overrides "don't repeat third".
+const NETBALL_CHIP_PENALTY_BASE = 50;
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
   const {
@@ -403,6 +436,8 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     // check; Next's eslint config doesn't define
     // @typescript-eslint/no-unused-vars so we don't disable it here.
     seasonAvailability: _seasonAvail,
+    chipByPlayerId,
+    chipModeByKey,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
@@ -503,12 +538,40 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     // Tier 5: prefer positions they've played least across the season.
     const seasonRarity = -seasonCount;
 
+    // Tier 6: cohort-chip placement preference. AFL parity. Apply
+    // per-third — count same-chip players already placed in
+    // candidateThird, magnitude scales with n² so two clustering
+    // each contribute 4×base, three contribute 9×base, etc. "split"
+    // mode = penalty; "group" mode = bonus. Chips with no mode set
+    // default to "split" (matches AFL's
+    // `chipModeByKey[myChip] ?? "split"`).
+    let chipTerm = 0;
+    if (candidateThird && chipByPlayerId) {
+      const myChip = chipByPlayerId[pid];
+      if (myChip) {
+        const placed = placedInThird[candidateThird];
+        if (placed && placed.size > 0) {
+          let sameChip = 0;
+          placed.forEach((other) => {
+            if (chipByPlayerId[other] === myChip) sameChip++;
+          });
+          if (sameChip > 0) {
+            const magnitude =
+              sameChip * sameChip * NETBALL_CHIP_PENALTY_BASE;
+            const mode = chipModeByKey?.[myChip] ?? "split";
+            chipTerm = mode === "group" ? magnitude : -magnitude;
+          }
+        }
+      }
+    }
+
     return (
       unplayedThirdBonus +
       samePositionPenalty +
       sameThirdAsLastPenalty +
       teammateRepeatPenalty +
-      seasonRarity
+      seasonRarity +
+      chipTerm
     );
   };
 
