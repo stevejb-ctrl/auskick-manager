@@ -117,13 +117,6 @@ export function QuarterBreak({
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
-  // Steve 2026-05-16: parity with netball Q-break, which has been
-  // surfacing a per-player goal-count badge on its tiles since the
-  // initial netball ship. Pulled from the live store's
-  // `playerScores` (kept in sync with goal/behind events). Coaches
-  // do care who's been scoring during a break — netball already
-  // earned this affordance, AFL was lagging.
-  const playerScores = useLiveGame((s) => s.playerScores);
   const setLineup = useLiveGame((s) => s.setLineup);
   // Started locally inside handleConfirmStart so the clock kicks off
   // the moment the modal Start tap commits — without it, the LiveGame
@@ -1392,16 +1385,8 @@ export function QuarterBreak({
                   const realTotal = zones.reduce((a, z) => a + zm[z], 0);
                   const prevSlot = slotOf(pid, lineup);
                   const moved = prevSlot && prevSlot !== slot;
-                  // Per-player scoring totals across the game so
-                  // far. goals × 6 + behinds is AFL's points value,
-                  // but the badge shows "Ng·Mb" so coaches can see
-                  // both contributions at a glance. Mirrors the
-                  // netball Q-break tile's goal-count badge, scaled
-                  // up for two values.
-                  const pScore = playerScores[pid] ?? { goals: 0, behinds: 0 };
-                  const hasScored = pScore.goals > 0 || pScore.behinds > 0;
                   return (
-                    <li key={pid} className="relative">
+                    <li key={pid}>
                       <button
                         type="button"
                         onClick={() => handleTap(pid)}
@@ -1415,20 +1400,6 @@ export function QuarterBreak({
                               : "border-hairline hover:bg-surface-alt"
                         }`}
                       >
-                        {/* Goal/behind badge — top-right corner, ink
-                            pill, mirrors netball. Hidden when zero
-                            so non-scorers stay visually clean.
-                            "Ng·Mb" packs both counts; coaches read
-                            it like a mini scorebug for that player.
-                            aria-label spells it out for SR users. */}
-                        {hasScored && (
-                          <span
-                            className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-                            aria-label={`${pScore.goals} goal${pScore.goals === 1 ? "" : "s"}, ${pScore.behinds} behind${pScore.behinds === 1 ? "" : "s"}`}
-                          >
-                            {pScore.goals}g·{pScore.behinds}b
-                          </span>
-                        )}
                         <span className="flex items-center gap-2">
                           <Guernsey num={p.jersey_number ?? ""} size={28} />
                           <span className="flex flex-col items-start">

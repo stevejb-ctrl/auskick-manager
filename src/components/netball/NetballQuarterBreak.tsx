@@ -121,14 +121,6 @@ interface Props {
     inPlayerId: string;
     atMs: number;
   }>;
-  /**
-   * Steve 2026-05-16 (AFL parity): cohort-chip mode map. AFL has
-   * had this in its Q-break suggester since chips shipped; netball
-   * was silently ignoring it. Each player carries their chip via
-   * the shared `Player.chip` field — this prop just supplies the
-   * team-level per-chip split/group mode.
-   */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -151,7 +143,6 @@ export function NetballQuarterBreak({
   playerStats,
   midQuarterSubs,
   trackScoring = true,
-  chipModeByKey = {},
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -250,13 +241,6 @@ export function NetballQuarterBreak({
     // ms is tied, so within a single game the standard rotation
     // still drives the decisions.
     const seasonAvail = seasonAvailability(seasonEvents);
-    // Chip data is sport-agnostic — pulled from each player's
-    // `chip` field; the team-level mode map arrives via props.
-    // Drives the new tier-6 chip term in suggestNetballLineup
-    // (AFL parity, Steve 2026-05-16).
-    const chipByPlayerId = Object.fromEntries(
-      squad.map((p) => [p.id, p.chip ?? null]),
-    );
     const base = suggestNetballLineup({
       playerIds: candidatePool,
       positions,
@@ -269,8 +253,6 @@ export function NetballQuarterBreak({
       previousTeammates: prevTeammates,
       thisGameTotalMs: totalMsByPlayer,
       seasonAvailability: seasonAvail,
-      chipByPlayerId,
-      chipModeByKey,
     });
     // Pre-apply locks: locked player goes to locked position. If the
     // locked player was already placed elsewhere by the suggester, we

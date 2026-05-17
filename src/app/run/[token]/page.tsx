@@ -89,23 +89,6 @@ export default async function RunPage({ params }: RunPageProps) {
   // step — the runner lands here and either picks the starting lineup
   // (pre-kickoff) or sees the live court (mid-game). The /lineup
   // route handler bounces back here for netball games.
-
-  // Per-chip mode (split / group). Both branches below consume it.
-  // Steve 2026-05-16: lifted above the netball branch so netball
-  // can also thread chip modes through to its suggester (AFL parity).
-  const teamChipModes = {
-    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
-    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
-    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
-  };
-  // Team hype song — same lift-up as teamChipModes so the netball
-  // branch can also thread it through to NetballLiveGame's
-  // useHypeSong hook (AFL parity, Steve 2026-05-16).
-  const songEnabledTop = teamRow?.song_enabled ?? true;
-  const songUrlTop = songEnabledTop ? (teamRow?.song_url ?? null) : null;
-  const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
-  const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
-
   if (sport === "netball") {
     const ageCfgN =
       netballSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
@@ -258,10 +241,6 @@ export default async function RunPage({ params }: RunPageProps) {
           // a row with "+ Add late arrival".
           isAdmin
           allowMidQuarterSubs={allowMidQuarterSubs}
-          chipModeByKey={teamChipModes}
-          songUrl={songUrlTop}
-          songStartSeconds={songStartSecondsTop}
-          songDurationSeconds={songDurationSecondsTop}
         />
       </div>
     );
@@ -288,6 +267,13 @@ export default async function RunPage({ params }: RunPageProps) {
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
 
+  // Per-chip mode for the QuarterBreak suggester (mid-game) and the
+  // pre-game LineupPicker further down. Defaults to "split".
+  const teamChipModes = {
+    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
+    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
+    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+  };
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);

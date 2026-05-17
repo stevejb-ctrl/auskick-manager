@@ -11,7 +11,7 @@ import { startTransition, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { hapticSiren } from "@/lib/haptics";
-import { SFButton } from "@/components/sf";
+import { Button } from "@/components/ui/Button";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
@@ -128,23 +128,20 @@ export function NetballFullTimeReview({
       )}
 
       {finaliseError && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <p className="mt-3 text-sm text-danger" role="alert">
           {finaliseError}
         </p>
       )}
 
       <div className="mt-4 border-t border-hairline pt-3">
-        <SFButton
-          full
+        <Button
+          className="w-full"
           size="lg"
           onClick={handleFinalise}
           loading={finalisePending}
         >
           Finalise game
-        </SFButton>
+        </Button>
         <p className="mt-2 text-center text-[11px] text-ink-mute">
           Locks the score and shows the summary you can share.
         </p>

@@ -100,27 +100,6 @@ export default async function LivePage({ params }: LivePageProps) {
     (teamRow as { allow_mid_quarter_subs?: boolean | null } | null)
       ?.allow_mid_quarter_subs ?? false;
 
-  // Per-chip mode (split / group). Both branches below use this:
-  // hasStarted → LiveGame (mid-game suggester via QuarterBreak),
-  // !hasStarted → LineupPicker (pre-game suggester). The netball
-  // branch below also threads it through `<NetballLiveGame>` so
-  // chip placement applies to netball rotations too (Steve
-  // 2026-05-16 AFL parity).
-  const teamChipModes = {
-    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
-    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
-    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
-  };
-  // Team hype song — same lift-up rationale as teamChipModes
-  // (Steve 2026-05-16). Was below the netball branch and only
-  // threaded to AFL <LiveGame>; netball coaches who configured a
-  // song got the row stored but never heard it. NetballLiveGame
-  // now consumes these via the shared `useHypeSong` hook.
-  const songEnabledTop = teamRow?.song_enabled ?? true;
-  const songUrlTop = songEnabledTop ? (teamRow?.song_url ?? null) : null;
-  const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
-  const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
-
   // ─── Netball branch ───────────────────────────────────────
   // Netball uses its own component tree (different lineup shape,
   // no mid-play subs, goals-only scoring). Branch early so none
@@ -297,10 +276,6 @@ export default async function LivePage({ params }: LivePageProps) {
           isAdmin={isAdmin}
           initialDraft={netballDraft}
           allowMidQuarterSubs={allowMidQuarterSubs}
-          chipModeByKey={teamChipModes}
-          songUrl={songUrlTop}
-          songStartSeconds={songStartSecondsTop}
-          songDurationSeconds={songDurationSecondsTop}
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
             admin-utility row alongside "+ Add late arrival" so the
@@ -341,6 +316,15 @@ export default async function LivePage({ params }: LivePageProps) {
     { quarter_length_seconds: g.quarter_length_seconds },
   ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
+
+  // Per-chip mode (split / group). Both branches below use this:
+  // hasStarted → LiveGame (mid-game suggester via QuarterBreak),
+  // !hasStarted → LineupPicker (pre-game suggester).
+  const teamChipModes = {
+    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
+    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
+    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+  };
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
