@@ -170,18 +170,6 @@ interface NetballLiveGameProps {
     lineup: import("@/lib/sports/netball/fairness").GenericLineup;
     updated_at: string;
   } | null;
-  /**
-   * Steve 2026-05-16: team-level toggle (defaults false). When true,
-   * the long-press → NetballPlayerActions menu surfaces a "🔄
-   * Switch player" affordance for mid-quarter substitutions. When
-   * false (default), the affordance is hidden and the existing
-   * midQuarterSubs state machine just never fires — netball is
-   * overwhelmingly a "subs at the break" sport and the simpler
-   * actions menu wins for the majority of teams. Toggled via the
-   * team Settings page; threaded down here from the page-level
-   * `teams.allow_mid_quarter_subs` column.
-   */
-  allowMidQuarterSubs?: boolean;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -209,7 +197,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     suppressAutoWalkthrough = false,
     isAdmin = false,
     initialDraft = null,
-    allowMidQuarterSubs = false,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -1672,30 +1659,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onUnLoan={handleUnLoan}
           onLockForNextBreak={handleLockForNextBreak}
           onUnlock={handleUnlock}
-          onSwitch={
-            allowMidQuarterSubs
-              ? () => {
-                  // Switch = mid-quarter sub: vacate this player's
-                  // position and surface the Pick Replacement sheet
-                  // so the GM can sub a bench player in. Field-only
-                  // path — NetballPlayerActions hides the Switch
-                  // button when positionId is null. Reuses the same
-                  // vacateAndPrompt flow that injury/loan use,
-                  // minus the injury/loan event itself.
-                  //
-                  // Steve 2026-05-16: gated on the team-level
-                  // `allow_mid_quarter_subs` toggle. When false
-                  // (default), no callback is passed —
-                  // NetballPlayerActions's `{onSwitch && …}` guard
-                  // hides the button entirely. Teams that DO use
-                  // rolling subs flip the toggle in Settings.
-                  if (!actionsTarget?.positionId) return;
-                  const { playerId, positionId } = actionsTarget;
-                  closeActions();
-                  vacateAndPromptReplacement(playerId, positionId);
-                }
-              : undefined
-          }
+          onSwitch={() => {
+            // Switch = mid-quarter sub: vacate this player's
+            // position and surface the Pick Replacement sheet so the
+            // GM can sub a bench player in. Field-only path —
+            // NetballPlayerActions hides the Switch button when
+            // positionId is null. Reuses the same vacateAndPrompt
+            // flow that injury/loan use, minus the injury/loan
+            // event itself.
+            if (!actionsTarget?.positionId) return;
+            const { playerId, positionId } = actionsTarget;
+            closeActions();
+            vacateAndPromptReplacement(playerId, positionId);
+          }}
           onClose={closeActions}
         />
       )}

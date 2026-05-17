@@ -136,36 +136,6 @@ export async function setQuarterLengthSeconds(
   return { success: true };
 }
 
-/**
- * Per-team toggle for mid-quarter substitutions (netball only — AFL
- * ignores this column). Default OFF: netball is overwhelmingly a
- * "subs at the break" sport, and exposing the long-press → Switch
- * affordance to teams who don't actually sub mid-Q just adds noise
- * to the actions menu. Teams that DO sub mid-Q (some Open / mixed
- * competitions) flip this on here. The existing midQuarterSubs
- * state machine in NetballLiveGame handles the rest — this gate
- * just controls whether the affordance is visible.
- *
- * Steve 2026-05-16: introduced alongside migration 0035.
- */
-export async function setAllowMidQuarterSubs(
-  teamId: string,
-  enabled: boolean,
-): Promise<ActionResult> {
-  const { supabase, error } = await getAuthedAdmin(teamId);
-  if (error) return { success: false, error };
-
-  const { error: updateError } = await supabase
-    .from("teams")
-    .update({ allow_mid_quarter_subs: enabled })
-    .eq("id", teamId);
-
-  if (updateError) return { success: false, error: updateError.message };
-
-  revalidatePath(`/teams/${teamId}/settings`);
-  return { success: true };
-}
-
 export async function updateGame(
   teamId: string,
   gameId: string,
