@@ -251,3 +251,143 @@ test("team settings round-trips quarter_length_seconds for a netball team", asyn
     await admin.from("teams").delete().eq("id", team.id);
   }
 });
+
+test("rugby league setup wizard creates team with sport='rugby_league'", async ({
+  browser,
+}) => {
+  // Mirrors the AFL + netball cases above. Junior rugby league ships as
+  // the third sport (Phase 2 of the rugby-league plan). U6/U7 are
+  // tag-rugby with no scoreboard; the wizard does NOT auto-flip the
+  // track_scoring column (same contract as AFL + netball: the
+  // age-group default is shown as a hint in ScoringStep but the column
+  // ships NOT NULL DEFAULT false from 0003_live_game.sql).
+  const context = await browser.newContext({ storageState: undefined });
+  const page = await context.newPage();
+
+  const stamp = Date.now();
+  const email = `wizard-rugby-league-${stamp}@siren.test`;
+  const password = "wizard-test-pw-1234";
+  const admin = createAdminClient();
+  let userId: string | null = null;
+
+  try {
+    const { data: created, error: createErr } = await admin.auth.admin.createUser(
+      {
+        email,
+        password,
+        email_confirm: true,
+      },
+    );
+    if (createErr) throw createErr;
+    userId = created.user?.id ?? null;
+    expect(userId).not.toBeNull();
+
+    await page.goto("/login");
+    await page.getByTestId("login-mode-toggle").click();
+    await page.getByTestId("login-email").fill(email);
+    await page.getByTestId("login-password").fill(password);
+    await page.getByTestId("login-submit").click();
+    await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+
+    if (!page.url().includes("/teams/new")) {
+      await page.goto("/teams/new");
+    }
+
+    // Localhost defaults to the AFL brand (per RESEARCH §3 / L9), so
+    // the rugby league case MUST click the Rugby League sport pill
+    // explicitly. Pill name verified at
+    // src/components/setup/TeamBasicsForm.tsx (SportPill renders
+    // role="button" with verbatim title "Rugby League").
+    await page.getByRole("button", { name: "Rugby League" }).click();
+
+    const teamName = `Tigers ${stamp}`;
+    await page.getByLabel(/team name/i).fill(teamName);
+    // Default age group switches to "U10" when sport is rugby_league
+    // (TeamBasicsForm defaultAgeFor → "U10" for rugby_league). The
+    // selectOption call is idempotent if the form already prefilled.
+    await page.getByLabel(/age group/i).selectOption("U10");
+    await page.getByRole("button", { name: /continue/i }).click();
+
+    // L5 — wait for redirect into the setup flow (RLS race protection).
+    await page.waitForURL(/\/teams\/[0-9a-f-]+/, { timeout: 10_000 });
+
+    const teamUrlMatch = page.url().match(/\/teams\/([0-9a-f-]+)/);
+    expect(teamUrlMatch).not.toBeNull();
+    const teamId = teamUrlMatch![1];
+
+    // Assert sport persisted as 'rugby_league'. track_scoring stays
+    // false per L4 (wizard doesn't auto-flip; coach toggles in
+    // ScoringStep). The CHECK constraint added in 0035_rugby_league.sql
+    // is what makes the insert succeed — pre-migration this would 23514.
+    await expect.poll(
+      async () => {
+        const { data } = await admin
+          .from("teams")
+          .select("sport, track_scoring")
+          .eq("id", teamId)
+          .single();
+        return data;
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    ).toMatchObject({ sport: "rugby_league", track_scoring: false });
+
+    // Negative-presence — QuarterLengthInput renders only for netball
+    // teams. Confirms the sport === 'netball' conditional-render gate
+    // is respected for rugby league too.
+    await page.goto(`/teams/${teamId}/settings`);
+    await expect(page.getByLabel(/quarter length/i)).not.toBeVisible();
+  } finally {
+    if (userId) await deleteTestUser(admin, userId);
+    await context.close();
+  }
+});
+
+test("rugby league supports the full U6-U12 age range", async ({
+  browser,
+}) => {
+  // Junior RL splits into three game models by age (U6/U7 tag, U8/U9
+  // quarters with FR/DH vests at U9, U10-U12 halves). The wizard must
+  // expose every option from the SportConfig.ageGroups list once
+  // Rugby League is selected. Pre-migration, the CHECK on teams.sport
+  // would reject the insert; pre-config, the select would be empty.
+  const context = await browser.newContext({ storageState: undefined });
+  const page = await context.newPage();
+
+  const stamp = Date.now();
+  const email = `wizard-rl-ages-${stamp}@siren.test`;
+  const password = "wizard-test-pw-1234";
+  const admin = createAdminClient();
+  let userId: string | null = null;
+
+  try {
+    const { data: created, error: createErr } = await admin.auth.admin.createUser(
+      { email, password, email_confirm: true },
+    );
+    if (createErr) throw createErr;
+    userId = created.user?.id ?? null;
+    expect(userId).not.toBeNull();
+
+    await page.goto("/login");
+    await page.getByTestId("login-mode-toggle").click();
+    await page.getByTestId("login-email").fill(email);
+    await page.getByTestId("login-password").fill(password);
+    await page.getByTestId("login-submit").click();
+    await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    if (!page.url().includes("/teams/new")) {
+      await page.goto("/teams/new");
+    }
+
+    await page.getByRole("button", { name: "Rugby League" }).click();
+
+    // The Age group <select> should expose all 7 RL age groups once
+    // the Rugby League pill is active. Read the option values directly.
+    const ageSelect = page.getByLabel(/age group/i);
+    const values = await ageSelect.evaluate((el) =>
+      Array.from((el as HTMLSelectElement).options).map((o) => o.value),
+    );
+    expect(values).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12"]);
+  } finally {
+    if (userId) await deleteTestUser(admin, userId);
+    await context.close();
+  }
+});
