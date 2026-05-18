@@ -30,6 +30,21 @@ import {
   undoNetballScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 
+import {
+  startLeagueQuarter,
+  endLeagueQuarter,
+  recordLeagueSwap,
+  recordLeagueLineupSet,
+  recordLeaguePositionChange,
+  recordTry,
+  recordOpponentTry,
+  recordConversionAttempt,
+  recordOpponentConversion,
+  undoLeagueScore,
+  assignLeagueVest,
+  recordKickoff,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
+
 // setAvailability is invoked from AvailabilityRow's optimistic-flip
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
@@ -78,6 +93,27 @@ const handlers: Record<string, ActionHandler> = {
   recordNetballOpponentGoal:
     recordNetballOpponentGoal as unknown as ActionHandler,
   undoNetballScore: undoNetballScore as unknown as ActionHandler,
+
+  // ── Rugby League ────────────────────────────────────────────
+  // Same offline-queue + idempotency contract as the other two
+  // sports. Each handler's final positional argument is the
+  // idempotency key the queue appends. Junior RL reuses the AFL
+  // shared actions for late arrivals, injuries, and player loans
+  // — `addLateArrival`, `markInjury`, `markLoan` above — since
+  // those mechanics are sport-agnostic.
+  startLeagueQuarter: startLeagueQuarter as unknown as ActionHandler,
+  endLeagueQuarter: endLeagueQuarter as unknown as ActionHandler,
+  recordLeagueSwap: recordLeagueSwap as unknown as ActionHandler,
+  recordLeagueLineupSet: recordLeagueLineupSet as unknown as ActionHandler,
+  recordLeaguePositionChange:
+    recordLeaguePositionChange as unknown as ActionHandler,
+  recordTry: recordTry as unknown as ActionHandler,
+  recordOpponentTry: recordOpponentTry as unknown as ActionHandler,
+  recordConversionAttempt: recordConversionAttempt as unknown as ActionHandler,
+  recordOpponentConversion: recordOpponentConversion as unknown as ActionHandler,
+  undoLeagueScore: undoLeagueScore as unknown as ActionHandler,
+  assignLeagueVest: assignLeagueVest as unknown as ActionHandler,
+  recordKickoff: recordKickoff as unknown as ActionHandler,
 
   // ── Availability (pre-game RSVP) ────────────────────────────
   setAvailability: setAvailability as unknown as ActionHandler,

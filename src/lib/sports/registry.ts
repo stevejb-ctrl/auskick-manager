@@ -6,15 +6,17 @@
 import type { AgeGroupConfig, SportConfig, SportId } from "@/lib/sports/types";
 import { aflSport } from "@/lib/sports/afl";
 import { netballSport } from "@/lib/sports/netball";
+import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 
 const REGISTRY: Record<SportId, SportConfig> = {
   afl: aflSport,
   netball: netballSport,
+  rugby_league: rugbyLeagueSport,
 };
 
-export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport];
+export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport];
 
-export const ALL_SPORT_IDS: SportId[] = ["afl", "netball"];
+export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league"];
 
 export function getSportConfig(sport: SportId | string | null | undefined): SportConfig {
   if (sport && sport in REGISTRY) return REGISTRY[sport as SportId];

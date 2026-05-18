@@ -47,11 +47,39 @@ export async function createTeam(
   // RLS policy.
   const teamId = crypto.randomUUID();
 
-  console.log("[createTeam] inserting team", { teamId, userId: user.id, name, ageGroup, sport });
+  // Rugby league bakes the scoring rule into the laws: tag at U6/U7
+  // (no scoreboard), modified tackle at U8+ (tries + conversions).
+  // Pre-set `track_scoring` to match the age-group default so a
+  // brand-new U8+ RL team can record tries from the first whistle
+  // without the coach having to remember to toggle it on. AFL and
+  // netball keep the explicit toggle in ScoringStep (DB default
+  // `false` preserved for them — same contract as before).
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  const initialTrackScoring
+    = sport === "rugby_league" && ageCfg?.tracksScoreDefault === true;
+
+  console.log("[createTeam] inserting team", {
+    teamId,
+    userId: user.id,
+    name,
+    ageGroup,
+    sport,
+    trackScoring: initialTrackScoring,
+  });
+
+  const insertRow: {
+    id: string;
+    name: string;
+    created_by: string;
+    age_group: string;
+    sport: Sport;
+    track_scoring?: boolean;
+  } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
+  if (initialTrackScoring) insertRow.track_scoring = true;
 
   const { error: insertError } = await supabase
     .from("teams")
-    .insert({ id: teamId, name, created_by: user.id, age_group: ageGroup, sport });
+    .insert(insertRow);
 
   if (insertError) {
     console.error("[createTeam] insert failed", insertError);

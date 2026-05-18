@@ -5,7 +5,7 @@ import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 interface LockModalProps {
   player: Player;
-  /** Current lock state for this player. */
+  /** Current lock state for this player. Null when locking isn't supported (e.g. RL). */
   currentLock: "field" | "zone" | null;
   /** The zone the player is currently in (or last played), used for zone-lock label. */
   currentZone: Zone | null;
@@ -17,8 +17,17 @@ interface LockModalProps {
   seasonLoanMins: number;
   /** Median minutes the squad has been lent out across the season (for context). */
   squadLoanMins: number;
-  onLockField: () => void;
-  onLockZone: () => void;
+  /**
+   * Lock-to-field handler. Omit to hide the button — rugby league
+   * doesn't have a "lock to field" concept (positionless, vest-driven),
+   * so this is optional. AFL passes a real handler.
+   */
+  onLockField?: () => void;
+  /**
+   * Lock-to-zone handler. Hidden automatically when `currentZone` is
+   * null (RL) or when omitted.
+   */
+  onLockZone?: () => void;
   onUnlock: () => void;
   onToggleInjury: () => void;
   onToggleLoan: () => void;
@@ -30,6 +39,24 @@ interface LockModalProps {
    * entry point than tap-then-tap-elsewhere.
    */
   onSwitch: () => void;
+  /**
+   * Sport-specific vest-replace action (RL: FR / DH). When provided,
+   * a dedicated "Replace First Receiver" / "Replace Dummy Half"
+   * button surfaces above the lock/injure/lend stack. AFL passes
+   * nothing here.
+   */
+  vestReplaceLabel?: string;
+  onReplaceVest?: () => void;
+  /**
+   * Rugby league position override. When supplied, surfaces a
+   * "Move to {moveToLabel}" button that flips the player between
+   * the forwards and backs buckets without changing field
+   * membership. `moveToLabel` is the *destination* (e.g. "Backs"
+   * when the player is currently a forward). Hidden when the
+   * player isn't on the field.
+   */
+  moveToLabel?: string;
+  onMovePosition?: () => void;
   onClose: () => void;
 }
 
@@ -47,6 +74,10 @@ export function LockModal({
   onToggleInjury,
   onToggleLoan,
   onSwitch,
+  vestReplaceLabel,
+  onReplaceVest,
+  moveToLabel,
+  onMovePosition,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -155,8 +186,9 @@ export function LockModal({
           /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              Switch them out, lock them in place, flag an injury, or
-              lend them to the opposition.
+              {onLockField || onLockZone
+                ? "Switch them out, lock them in place, flag an injury, or lend them to the opposition."
+                : "Switch them out, flag an injury, or lend them to the opposition."}
             </p>
             <div className="flex flex-col gap-2">
               {/* Switch — most common quick action, lives at the top.
@@ -175,15 +207,54 @@ export function LockModal({
                     : "Tap a field player to bring them on"}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={onLockField}
-                className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
-              >
-                <span className="text-sm font-bold">Always on field</span>
-                <span className="mt-0.5 text-xs opacity-80">Never substituted off</span>
-              </button>
-              {currentZone && (
+              {/* Vest replacement — rugby league only. Sits below
+                  Switch because it's the next-most-common action for a
+                  vest wearer (FR / DH). The label is supplied by the
+                  parent so the same component can read "First Receiver"
+                  or "Dummy Half". */}
+              {onReplaceVest && vestReplaceLabel && (
+                <button
+                  type="button"
+                  onClick={onReplaceVest}
+                  className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
+                >
+                  <span className="text-sm font-bold">
+                    Replace {vestReplaceLabel}
+                  </span>
+                  <span className="mt-0.5 text-xs opacity-80">
+                    Pick a different player to take the vest this period
+                  </span>
+                </button>
+              )}
+              {/* RL only — flip between Forwards and Backs without
+                  benching. Coach uses this to reshape the field
+                  ratio mid-game (e.g. an injury forces a back into
+                  the pack, or a forward gets shuffled to wing). */}
+              {onMovePosition && moveToLabel && (
+                <button
+                  type="button"
+                  onClick={onMovePosition}
+                  className="flex w-full flex-col items-center rounded-md bg-surface-alt px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt/80"
+                >
+                  <span className="text-sm font-bold">
+                    Move to {moveToLabel}
+                  </span>
+                  <span className="mt-0.5 text-xs text-ink-dim">
+                    Stays on the field — just switches position
+                  </span>
+                </button>
+              )}
+              {onLockField && (
+                <button
+                  type="button"
+                  onClick={onLockField}
+                  className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
+                >
+                  <span className="text-sm font-bold">Always on field</span>
+                  <span className="mt-0.5 text-xs opacity-80">Never substituted off</span>
+                </button>
+              )}
+              {onLockZone && currentZone && (
                 <button
                   type="button"
                   onClick={onLockZone}

@@ -8,7 +8,7 @@
 // substitution rule, period structure, and field/court UI.
 
 /** Stable identifier for a sport. New sports extend this union. */
-export type SportId = "afl" | "netball";
+export type SportId = "afl" | "netball" | "rugby_league";
 
 /** Identifier for one on-field position within a sport (e.g. "gs", "mid"). */
 export type PositionId = string;
@@ -65,7 +65,11 @@ export interface ScoreTypeDef {
 
 // ─── Age group config ────────────────────────────────────────
 // Per-age-group rules. Position list can vary by age (e.g. U8 Auskick
-// uses 3-zone rotation; U13+ uses 5-position layout).
+// uses 3-zone rotation; U13+ uses 5-position layout). Rugby league
+// adds three age-group-specific knobs (periodLabel, vestRequirements,
+// kickingAllowed) because junior RL uses both quarters (U6–U9) and
+// halves (U10–U12) under one sport, has scoring + kicking gates by
+// age, and rotates FR/DH vests differently at U8 vs U9+.
 export interface AgeGroupConfig {
   id: AgeGroupId;
   label: string;
@@ -82,6 +86,43 @@ export interface AgeGroupConfig {
   subIntervalSeconds: number;
   tracksScoreDefault: boolean;
   notes: string;
+  /**
+   * Optional per-age-group override for the period noun. Junior rugby
+   * league plays quarters in U6–U9 but halves in U10–U12 under one
+   * SportConfig. Falls back to SportConfig.periodLabel when unset.
+   */
+  periodLabel?: "quarter" | "half" | "period";
+  periodLabelPlural?: "quarters" | "halves" | "periods";
+  /**
+   * Junior rugby league: which vested roles this age group requires.
+   * U6–U7 = no vests. U8 = FR only. U9+ = FR and DH. Other sports
+   * leave this undefined.
+   */
+  vestRequirements?: {
+    fr: boolean;
+    dh: boolean;
+  };
+  /**
+   * Whether kicking is allowed in general play. Junior RL bans kicks
+   * other than starts/restarts at U6/U7 (Law 19); U8+ allows kicking.
+   * Other sports leave undefined (treated as "allowed").
+   */
+  kickingAllowed?: boolean;
+  /**
+   * Minimum unbroken playing time per player, in number of full
+   * periods. Junior RL Law 6: U6–U9 = 2 unbroken quarters; U10–U12 =
+   * 1 unbroken half. The fairness engine flags players who haven't
+   * met this minimum. Other sports leave undefined.
+   */
+  minUnbrokenPeriods?: number;
+  /**
+   * Rugby league only — how many of the on-field players should be
+   * forwards (the remainder are backs). Drives the chip-aware
+   * lineup auto-suggester and the field visual split. Optional; if
+   * omitted, the suggester falls back to `floor(defaultOnFieldSize/2)`
+   * forwards and the rest backs.
+   */
+  forwardCount?: number;
 }
 
 // ─── Brand (domain) config ───────────────────────────────────
@@ -133,8 +174,16 @@ export interface SportConfig {
   substitutionRule: "rolling" | "period-break-only";
   periodLabel: "quarter" | "half" | "period";
   periodLabelPlural: "quarters" | "halves" | "periods";
-  /** Fairness aggregation model. */
-  fairnessModel: "zone-minutes" | "position-count-per-game";
+  /**
+   * Fairness aggregation model.
+   *   - "zone-minutes": AFL — accumulate minutes per zone (rolling subs).
+   *   - "position-count-per-game": Netball — count appearances per
+   *     position (period-break subs).
+   *   - "unbroken-period": Rugby league — track each player's longest
+   *     contiguous on-field run per period; flag players below the
+   *     age-group's `minUnbrokenPeriods` requirement.
+   */
+  fairnessModel: "zone-minutes" | "position-count-per-game" | "unbroken-period";
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /** Optional: validate a lineup against position/zone eligibility. */

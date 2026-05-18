@@ -14,6 +14,7 @@ import {
   ALL_SPORT_IDS,
   aflSport,
   netballSport,
+  rugbyLeagueSport,
   isPositionAllowedInZone,
 } from "@/lib/sports";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
@@ -28,11 +29,13 @@ describe("sport registry", () => {
   it("returns the correct config for each registered sport", () => {
     expect(getSportConfig("afl")).toBe(aflSport);
     expect(getSportConfig("netball")).toBe(netballSport);
+    expect(getSportConfig("rugby_league")).toBe(rugbyLeagueSport);
   });
 
-  it("ALL_SPORT_IDS includes afl and netball", () => {
+  it("ALL_SPORT_IDS includes afl, netball, and rugby_league", () => {
     expect(ALL_SPORT_IDS).toContain("afl");
     expect(ALL_SPORT_IDS).toContain("netball");
+    expect(ALL_SPORT_IDS).toContain("rugby_league");
   });
 
   it("resolves brand from host header", () => {
@@ -269,5 +272,175 @@ describe("getEffectiveQuarterSeconds", () => {
         { quarter_length_seconds: null },
       ),
     ).toBe(openAge.periodSeconds);
+  });
+});
+
+describe("rugby league sport config", () => {
+  it("has 7 age groups (U6-U12)", () => {
+    expect(rugbyLeagueSport.ageGroups).toHaveLength(7);
+    expect(rugbyLeagueSport.ageGroups.map((a) => a.id)).toEqual([
+      "U6", "U7", "U8", "U9", "U10", "U11", "U12",
+    ]);
+  });
+
+  it("uses rolling subs (like AFL) and the unbroken-period fairness model", () => {
+    expect(rugbyLeagueSport.substitutionRule).toBe("rolling");
+    expect(rugbyLeagueSport.fairnessModel).toBe("unbroken-period");
+  });
+
+  it("scoring: try=4, conversion=2 (us + opponent)", () => {
+    expect(rugbyLeagueSport.scoreTypes).toHaveLength(4);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "try")?.points).toBe(4);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "conversion")?.points).toBe(2);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_try")?.opponent).toBe(true);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_conversion")?.opponent).toBe(true);
+  });
+
+  it("is positionless — one zone, one position", () => {
+    expect(rugbyLeagueSport.zones).toHaveLength(1);
+    expect(rugbyLeagueSport.zones[0].id).toBe("field");
+    expect(rugbyLeagueSport.allPositions).toHaveLength(1);
+    expect(rugbyLeagueSport.allPositions[0].id).toBe("player");
+  });
+
+  it("U6 + U7 disable scoring and kicking; U8+ enable both", () => {
+    const u6 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")!;
+    const u7 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U7")!;
+    const u8 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U8")!;
+    expect(u6.tracksScoreDefault).toBe(false);
+    expect(u6.kickingAllowed).toBe(false);
+    expect(u7.tracksScoreDefault).toBe(false);
+    expect(u7.kickingAllowed).toBe(false);
+    expect(u8.tracksScoreDefault).toBe(true);
+    expect(u8.kickingAllowed).toBe(true);
+  });
+
+  it("vest requirements step up across ages (none → FR → FR+DH)", () => {
+    const u6 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")!;
+    const u8 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U8")!;
+    const u9 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U9")!;
+    const u12 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U12")!;
+    expect(u6.vestRequirements).toBeUndefined();
+    expect(u8.vestRequirements).toEqual({ fr: true, dh: false });
+    expect(u9.vestRequirements).toEqual({ fr: true, dh: true });
+    expect(u12.vestRequirements).toEqual({ fr: true, dh: true });
+  });
+
+  it("U6-U9 use quarters; U10-U12 use halves", () => {
+    const u6 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")!;
+    const u9 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U9")!;
+    const u10 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+    const u12 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U12")!;
+    expect(u6.periodCount).toBe(4);
+    expect(u6.periodLabel).toBe("quarter");
+    expect(u6.periodSeconds).toBe(8 * 60);
+    expect(u9.periodCount).toBe(4);
+    expect(u9.periodLabel).toBe("quarter");
+    expect(u10.periodCount).toBe(2);
+    expect(u10.periodLabel).toBe("half");
+    expect(u10.periodSeconds).toBe(20 * 60);
+    expect(u12.periodCount).toBe(2);
+    expect(u12.periodLabel).toBe("half");
+  });
+
+  it("min unbroken periods: 2 for U6-U9, 1 for U10-U12", () => {
+    const u6 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")!;
+    const u9 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U9")!;
+    const u10 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+    const u12 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U12")!;
+    expect(u6.minUnbrokenPeriods).toBe(2);
+    expect(u9.minUnbrokenPeriods).toBe(2);
+    expect(u10.minUnbrokenPeriods).toBe(1);
+    expect(u12.minUnbrokenPeriods).toBe(1);
+  });
+
+  it("on-field bounds: 6 at U6/U7, 8 at U8/U9, 11 at U10/U11, 13 at U12", () => {
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")?.defaultOnFieldSize).toBe(6);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U7")?.defaultOnFieldSize).toBe(6);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U8")?.defaultOnFieldSize).toBe(8);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U9")?.defaultOnFieldSize).toBe(8);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")?.defaultOnFieldSize).toBe(11);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U11")?.defaultOnFieldSize).toBe(11);
+    expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U12")?.defaultOnFieldSize).toBe(13);
+  });
+
+  it("brand reuses the AFL palette in v1 (no separate domain yet)", () => {
+    expect(rugbyLeagueSport.brand.id).toBe("rugby_league");
+    expect(rugbyLeagueSport.brand.palette).toBe("brand");
+    expect(rugbyLeagueSport.brand.defaultSport).toBe("rugby_league");
+  });
+});
+
+describe("rugby league validateLineup", () => {
+  const u10 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+
+  it("accepts a valid 11-on-field lineup (5F + 6B)", () => {
+    const result = rugbyLeagueSport.validateLineup!(
+      {
+        forwards: ["p1", "p2", "p3", "p4", "p5"],
+        backs: ["p6", "p7", "p8", "p9", "p10", "p11"],
+        bench: ["p12", "p13"],
+      },
+      u10,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects more than maxOnFieldSize on the field", () => {
+    const result = rugbyLeagueSport.validateLineup!(
+      {
+        forwards: ["p1", "p2", "p3", "p4", "p5", "p6"],
+        backs: ["p7", "p8", "p9", "p10", "p11", "p12"],
+        bench: [],
+      },
+      u10,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.message.match(/Too many/))).toBe(true);
+  });
+
+  it("warns (does not block) below the minimum on-field count", () => {
+    const result = rugbyLeagueSport.validateLineup!(
+      {
+        forwards: ["p1", "p2", "p3"],
+        backs: ["p4", "p5", "p6", "p7"],
+        bench: [],
+      },
+      u10,
+    );
+    expect(result.ok).toBe(true); // warnings don't fail validation
+    expect(result.issues.some((i) => i.kind === "warn")).toBe(true);
+  });
+
+  it("rejects a player listed in both forwards and bench", () => {
+    const result = rugbyLeagueSport.validateLineup!(
+      {
+        forwards: ["p1", "p2", "p3", "p4", "p5"],
+        backs: ["p6", "p7", "p8", "p9", "p10", "p11"],
+        bench: ["p1"],
+      },
+      u10,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.playerId === "p1")).toBe(true);
+  });
+
+  it("rejects a player listed in both forwards and backs", () => {
+    const result = rugbyLeagueSport.validateLineup!(
+      {
+        forwards: ["p1", "p2", "p3", "p4", "p5"],
+        backs: ["p1", "p7", "p8", "p9", "p10", "p11"],
+        bench: ["p12"],
+      },
+      u10,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.playerId === "p1")).toBe(true);
+  });
+
+  it("rejects an invalid shape (missing forwards array)", () => {
+    const result = rugbyLeagueSport.validateLineup!({ bench: [] }, u10);
+    expect(result.ok).toBe(false);
+    expect(result.issues[0].message).toMatch(/Invalid lineup shape/);
   });
 });
