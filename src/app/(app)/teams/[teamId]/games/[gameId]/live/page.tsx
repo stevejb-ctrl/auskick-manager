@@ -5,7 +5,10 @@ import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
-import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
+// Spike — formation lineup picker replaces the row-list picker
+// for the pre-game flow. See LeagueLineupPickerFormation.tsx for
+// the rationale and the revert path.
+import { LeagueLineupPickerFormation } from "@/components/league/LeagueLineupPickerFormation";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import {
   replayGame,
@@ -262,7 +265,13 @@ export default async function LivePage({ params }: LivePageProps) {
               No players marked available — go back and set availability first.
             </p>
           ) : (
-            <LeagueLineupPicker
+            // SPIKE — formation lineup picker. Replaces the
+            // row-list picker (LeagueLineupPicker) with the live-
+            // game LeagueField + LeagueBenchStrip visuals so the
+            // coach can pick the starting lineup on a rugby pitch.
+            // To revert: swap the import + JSX below back to
+            // `<LeagueLineupPicker ...>`. Same prop shape.
+            <LeagueLineupPickerFormation
               auth={{ kind: "team", teamId: params.teamId }}
               gameId={params.gameId}
               players={availablePlayers}

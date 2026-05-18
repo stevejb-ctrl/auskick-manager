@@ -57,6 +57,31 @@ interface LockModalProps {
    */
   moveToLabel?: string;
   onMovePosition?: () => void;
+  /**
+   * Pre-game vest assignment toggles (rugby league spike picker).
+   * When supplied, surfaces "Make/Remove FR" and "Make/Remove DH"
+   * buttons that flip vest ownership for this player at kickoff.
+   * `isFr` / `isDh` drives the button label so the same handler
+   * works for both "make" and "remove". Live game uses
+   * `onReplaceVest` instead — these are pre-game only.
+   */
+  onAssignFr?: () => void;
+  onAssignDh?: () => void;
+  isFr?: boolean;
+  isDh?: boolean;
+  /**
+   * Pre-game bench toggle. When supplied, surfaces
+   * "Bench" (if on field) or "Add to field" (if on bench).
+   * Live game uses tap-tap-swap or the next-sub card instead;
+   * this is the pre-game spike picker's direct route.
+   */
+  onToggleBench?: () => void;
+  /**
+   * `true` when the player is on the field. Drives the bench
+   * button label and hides Move/Vest actions that don't apply
+   * to bench players.
+   */
+  isOnField?: boolean;
   onClose: () => void;
 }
 
@@ -78,6 +103,12 @@ export function LockModal({
   onReplaceVest,
   moveToLabel,
   onMovePosition,
+  onAssignFr,
+  onAssignDh,
+  isFr,
+  isDh,
+  onToggleBench,
+  isOnField,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -241,6 +272,58 @@ export function LockModal({
                   </span>
                   <span className="mt-0.5 text-xs text-ink-dim">
                     Stays on the field — just switches position
+                  </span>
+                </button>
+              )}
+              {/* RL pre-game vest assignment — only surfaced by the
+                  formation lineup picker (live game uses Replace
+                  instead, above). isOnField gates these because vest
+                  wearers have to be on the field at kickoff. */}
+              {onAssignFr && isOnField && (
+                <button
+                  type="button"
+                  onClick={onAssignFr}
+                  className="flex w-full flex-col items-center rounded-md bg-warn/90 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-warn"
+                >
+                  <span className="text-sm font-bold">
+                    {isFr ? "Remove First Receiver" : "Make First Receiver"}
+                  </span>
+                  <span className="mt-0.5 text-xs opacity-90">
+                    Wears the FR vest at kickoff
+                  </span>
+                </button>
+              )}
+              {onAssignDh && isOnField && (
+                <button
+                  type="button"
+                  onClick={onAssignDh}
+                  className="flex w-full flex-col items-center rounded-md bg-brand-600/90 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-600"
+                >
+                  <span className="text-sm font-bold">
+                    {isDh ? "Remove Dummy Half" : "Make Dummy Half"}
+                  </span>
+                  <span className="mt-0.5 text-xs opacity-90">
+                    Wears the DH vest at kickoff
+                  </span>
+                </button>
+              )}
+              {/* RL pre-game bench toggle — moves the player between
+                  field and bench during lineup picking. Live game
+                  uses tap-tap-swap or the next-sub card instead so
+                  this is gated on the prop being supplied. */}
+              {onToggleBench && (
+                <button
+                  type="button"
+                  onClick={onToggleBench}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">
+                    {isOnField ? "Bench" : "Add to field"}
+                  </span>
+                  <span className="mt-0.5 text-xs text-ink-dim">
+                    {isOnField
+                      ? "Moves to the bench"
+                      : "Bring this player onto the field"}
                   </span>
                 </button>
               )}
