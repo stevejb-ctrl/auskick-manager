@@ -32,6 +32,18 @@ interface UnbrokenPeriodWarningProps {
   ageGroup: AgeGroupConfig;
   /** Hide when no period has kicked off yet — nothing to warn about. */
   active: boolean;
+  /**
+   * Current playing-time elapsed in the active period (ms). Threaded
+   * through to `unbrokenPeriodLiveStatus` so the live §7 carve-out
+   * enforcement can flip an in-flight injury from "still on track"
+   * to "broken" the moment the absence exceeds 3 minutes — without
+   * waiting for the closing `injury: false` event or `quarter_end`.
+   *
+   * Optional: when omitted, the helper treats any open injury as
+   * still within the carve-out window (matches the post-game
+   * compliance view).
+   */
+  currentElapsedMs?: number;
 }
 
 export function UnbrokenPeriodWarning({
@@ -39,11 +51,12 @@ export function UnbrokenPeriodWarning({
   events,
   ageGroup,
   active,
+  currentElapsedMs,
 }: UnbrokenPeriodWarningProps) {
   const required = ageGroup.minUnbrokenPeriods ?? 0;
   const status = useMemo(
-    () => unbrokenPeriodLiveStatus(events, required),
-    [events, required],
+    () => unbrokenPeriodLiveStatus(events, required, currentElapsedMs),
+    [events, required, currentElapsedMs],
   );
 
   if (!active || required === 0) return null;

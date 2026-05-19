@@ -183,6 +183,181 @@ describe("unbrokenPeriodCompliance — multi-period", () => {
 
 // ─── unbrokenPeriodLiveStatus (in-progress game) ─────────────
 
+// ─── §7 injury carve-out (3-min) ─────────────────────────────
+// Junior Law §7: a player keeps their unbroken-period stamp if
+// their injury absence is ≤ 3 minutes of playing time. Beyond
+// that — or if the player never returns before quarter_end —
+// they're broken for the period.
+
+describe("unbrokenPeriodCompliance — §7 injury carve-out", () => {
+  it("brief injury (< 3 min) preserves unbroken status", () => {
+    reset();
+    // p1 hurt at 1:00, back on at 2:40 (1:40 absence = within 3 min)
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 160_000, injured: false }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([1]);
+    expect(result.p1.compliant).toBe(true);
+  });
+
+  it("injury absence of exactly 3 min (boundary) preserves unbroken status", () => {
+    reset();
+    // §7 says "up to three minutes" — 180_000 ms is inclusive.
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 240_000, injured: false }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([1]);
+  });
+
+  it("injury absence > 3 min breaks the period", () => {
+    reset();
+    // 3:20 absence (200_000 ms) — past the carve-out.
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 260_000, injured: false }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+    expect(result.p1.compliant).toBe(false);
+  });
+
+  it("injury never closed before quarter_end breaks the period (regression)", () => {
+    reset();
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+  });
+
+  it("two short injuries in same period both within carve-out → unbroken", () => {
+    reset();
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 30_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 90_000, injured: false }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 200_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 320_000, injured: false }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([1]);
+  });
+
+  it("one short + one long absence in same period → broken (long wins)", () => {
+    reset();
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      // First: 1 min absence — fine
+      ev("injury", { quarter: 1, elapsed_ms: 30_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 90_000, injured: false }, "p1"),
+      // Second: 4 min absence — breaks
+      ev("injury", { quarter: 1, elapsed_ms: 200_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 440_000, injured: false }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+  });
+
+  it("player_loan stays unconditional (no §7 carve-out for loans)", () => {
+    reset();
+    // Loan + return shouldn't get the §7 treatment.
+    const events = [
+      lineupSet(["p1", "p2"], []),
+      qStart(1),
+      ev("player_loan", { quarter: 1, elapsed_ms: 60_000 }, "p1"),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+  });
+
+  it("swap-off stays unconditional (no §7 carve-out for swaps)", () => {
+    reset();
+    // Confirms only `injury` events trigger the carve-out.
+    const events = [
+      lineupSet(["p1", "p2"], ["p3"]),
+      qStart(1),
+      swap("p1", "p3", 1),
+      qEnd(1),
+    ];
+    const result = unbrokenPeriodCompliance(events, 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+  });
+});
+
+describe("unbrokenPeriodLiveStatus — §7 carve-out", () => {
+  it("in-flight injury within carve-out keeps player provisionally on track", () => {
+    reset();
+    // Injury at 1:00; clock now reads 2:30 (1:30 absence — still within 3 min)
+    const events = [
+      lineupSet(["p1"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+    ];
+    const result = unbrokenPeriodLiveStatus(events, 1, 150_000);
+    expect(result.p1.inProgressPeriods).toEqual([1]);
+    expect(result.p1.provisionallyCompliant).toBe(true);
+  });
+
+  it("in-flight injury PAST carve-out flips to broken before close", () => {
+    reset();
+    // Injury at 1:00; clock now reads 5:00 (4 min absence — over the carve-out)
+    const events = [
+      lineupSet(["p1"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+    ];
+    const result = unbrokenPeriodLiveStatus(events, 1, 300_000);
+    expect(result.p1.inProgressPeriods).toEqual([]);
+    expect(result.p1.provisionallyCompliant).toBe(false);
+  });
+
+  it("closed injury within carve-out preserves in-progress credit", () => {
+    reset();
+    const events = [
+      lineupSet(["p1"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 180_000, injured: false }, "p1"),
+    ];
+    const result = unbrokenPeriodLiveStatus(events, 1, 240_000);
+    expect(result.p1.inProgressPeriods).toEqual([1]);
+    expect(result.p1.provisionallyCompliant).toBe(true);
+  });
+
+  it("closed injury past carve-out is already broken in live view", () => {
+    reset();
+    const events = [
+      lineupSet(["p1"], []),
+      qStart(1),
+      ev("injury", { quarter: 1, elapsed_ms: 60_000, injured: true }, "p1"),
+      ev("injury", { quarter: 1, elapsed_ms: 260_000, injured: false }, "p1"),
+    ];
+    const result = unbrokenPeriodLiveStatus(events, 1, 300_000);
+    expect(result.p1.inProgressPeriods).toEqual([]);
+  });
+});
+
 describe("unbrokenPeriodLiveStatus — provisional credit", () => {
   it("a player currently on field for the in-progress period earns provisional credit", () => {
     reset();
