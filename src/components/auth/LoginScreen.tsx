@@ -27,8 +27,15 @@ import { SirenWordmark } from "@/components/marketing/SirenWordmark";
  * brand panel is hidden).
  */
 export function LoginScreen() {
+  // Steve 2026-05-17: align with the marketing design refresh
+  // (commit 718e7e4 — mint backdrop, accent in place of
+  // italic-serif). The form column inherits the mint gradient
+  // from this wrapper; the dark brand panel on the right keeps
+  // its own `bg-ink` surface, and the mobile band keeps its
+  // `bg-surface` strip so the wordmark has a clean read on top
+  // of the gradient.
   return (
-    <div className="flex min-h-screen flex-col bg-warm text-ink antialiased md:flex-row">
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-brand-50 to-brand-100 text-ink antialiased md:flex-row">
       <LoginMobileBand />
 
       {/* Form column */}

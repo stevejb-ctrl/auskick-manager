@@ -52,7 +52,12 @@ export function LoginBrandPanel() {
           style={{ lineHeight: 1.04 }}
         >
           Fair rotations.{" "}
-          <span className="font-serif italic font-normal">Calmer</span>{" "}
+          {/* Steve 2026-05-17: marketing design refresh — dark-
+              surface variant of the accent. The brand-500 hue used
+              on light surfaces doesn't pop on `bg-ink`; marketing's
+              ScrollingFeatures uses `text-warm/90` for the same
+              dark-surface case, so we mirror it here. */}
+          <span className="text-warm/90">Calmer</span>{" "}
           sidelines. Happier kids.
         </h2>
 
