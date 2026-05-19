@@ -155,6 +155,18 @@ interface LeagueFieldProps {
   injuredIds?: Set<string>;
   loanedIds?: Set<string>;
   selectedPlayerId?: string | null;
+  /**
+   * Map of field-player id → pair index (1-based) for suggested
+   * subs OFF. When a player is in this map their tile renders
+   * with the amber "going off" treatment so the coach can spot
+   * the next rotation without reading the card above the field.
+   * Mirrors AFL `Field.tsx`'s `swapOffs` prop.
+   */
+  swapOffs?: Map<string, number>;
+  /** Total pairs in the current rotation suggestion. Drives the
+   *  per-tile pair-number badge — shown only when totalPairs > 1
+   *  so a single-swap rotation reads as a clean arrow. */
+  totalSwapPairs?: number;
   onPlayerClick?: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
   /** Tap on a vacant slot — used to bring a selected bench player on. */
@@ -178,6 +190,8 @@ export function LeagueField({
   injuredIds,
   loanedIds,
   selectedPlayerId,
+  swapOffs,
+  totalSwapPairs = 0,
   onPlayerClick,
   onPlayerLongPress,
   onVacantSpotTap,
@@ -334,6 +348,15 @@ export function LeagueField({
                       injured={injuredIds?.has(player.id) ?? false}
                       loaned={loanedIds?.has(player.id) ?? false}
                       selected={selectedPlayerId === player.id}
+                      swap={
+                        swapOffs?.has(player.id)
+                          ? {
+                              role: "off",
+                              pair: swapOffs.get(player.id)!,
+                              totalPairs: totalSwapPairs,
+                            }
+                          : null
+                      }
                       onClick={
                         onPlayerClick
                           ? () => onPlayerClick(player.id)

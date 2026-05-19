@@ -51,6 +51,19 @@ interface LeaguePlayerTileProps {
   injured?: boolean;
   /** Currently loaned to the opposition. */
   loaned?: boolean;
+  /**
+   * Pending-swap visual state. Mirrors AFL `PlayerTile`'s `swap`
+   * prop: when this tile is part of a suggested rotation, render
+   * amber for "going off" or brand-blue for "coming on". `pair`
+   * identifies which swap in a multi-pair rotation (1..N); when
+   * `totalPairs > 1` a small number chip is shown so the coach
+   * can match an on-target to its off-target across the screen.
+   */
+  swap?: {
+    role: "off" | "on";
+    pair: number;
+    totalPairs: number;
+  } | null;
   onClick?: () => void;
   /** Long-press handler — opens per-player action sheet. */
   onLongPress?: () => void;
@@ -77,6 +90,7 @@ function LeaguePlayerTileImpl({
   kickedOff = false,
   injured = false,
   loaned = false,
+  swap = null,
   onClick,
   onLongPress,
   disabled = false,
@@ -125,16 +139,26 @@ function LeaguePlayerTileImpl({
   }
 
   // Background — mirrors AFL PlayerTile `baseBg`. Selected wins,
-  // then injury / loan dim, then variant-specific defaults.
+  // then swap pending (off = amber, on = brand-blue) so the coach
+  // can spot the next rotation at a glance, then injury / loan
+  // dim, then variant-specific defaults.
+  const showSwap = swap && !selected && !injured && !loaned;
+  const isOff = showSwap && swap.role === "off";
+  const isOn = showSwap && swap.role === "on";
   const baseBg = selected
     ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
-    : injured
-      ? "border-danger/40 bg-surface"
-      : loaned
-        ? "border-warn/40 bg-surface"
-        : variant === "field"
-          ? "border-hairline bg-surface hover:border-ink-mute"
-          : "border-hairline bg-surface-alt hover:border-ink-mute";
+    : isOff
+      ? "border-warn bg-warn-soft shadow-card"
+      : isOn
+        ? "border-brand-500 bg-brand-50 shadow-card"
+        : injured
+          ? "border-danger/40 bg-surface"
+          : loaned
+            ? "border-warn/40 bg-surface"
+            : variant === "field"
+              ? "border-hairline bg-surface hover:border-ink-mute"
+              : "border-hairline bg-surface-alt hover:border-ink-mute";
+  const showPairNumber = showSwap && swap.totalPairs > 1;
 
   const parts = player.full_name.trim().split(/\s+/);
   const firstName = parts[0] ?? "";
@@ -163,6 +187,27 @@ function LeaguePlayerTileImpl({
           : "",
       ].join(" ")}
     >
+      {/* Swap badge — floats top-left when this tile is part of a
+          suggested rotation. Off-target shows "↓" / "1↓" (going off),
+          on-target shows "↑" / "1↑" (coming on). The pair number
+          only appears when there's more than one swap pending so the
+          coach can match each off-target to its on-target. */}
+      {showSwap && (
+        <span
+          className={`nums absolute -left-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro shadow-card ${
+            isOff ? "bg-warn text-white" : "bg-brand-500 text-white"
+          }`}
+          aria-label={
+            isOff
+              ? `Suggested sub off${showPairNumber ? ` (pair ${swap.pair} of ${swap.totalPairs})` : ""}`
+              : `Suggested sub on${showPairNumber ? ` (pair ${swap.pair} of ${swap.totalPairs})` : ""}`
+          }
+        >
+          {showPairNumber ? swap.pair : ""}
+          {isOff ? "↓" : "↑"}
+        </span>
+      )}
+
       {/* Tries chip — floats above top-right corner. Mirrors AFL's
           score chip placement so the visual hierarchy reads the same
           across sports. */}
@@ -273,6 +318,19 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
   if (a.kickedOff !== b.kickedOff) return false;
   if (a.injured !== b.injured) return false;
   if (a.loaned !== b.loaned) return false;
+  // `swap` is an object — shallow compare the fields. Without this
+  // the memo would never invalidate when the next-sub suggestion
+  // moves on or off this tile.
+  if (a.swap !== b.swap) {
+    if (!a.swap || !b.swap) return false;
+    if (
+      a.swap.role !== b.swap.role
+      || a.swap.pair !== b.swap.pair
+      || a.swap.totalPairs !== b.swap.totalPairs
+    ) {
+      return false;
+    }
+  }
   if (a.onClick !== b.onClick) return false;
   if (a.onLongPress !== b.onLongPress) return false;
   if (a.disabled !== b.disabled) return false;

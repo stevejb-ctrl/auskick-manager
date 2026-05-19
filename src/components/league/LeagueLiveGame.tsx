@@ -513,6 +513,17 @@ export function LeagueLiveGame({
   }
 
   async function recordTryForPlayer(playerId: string) {
+    // Defensive gate — even if a stale dock / cached client action
+    // fires a try while track_scoring is off (U6/U7 tag rugby),
+    // short-circuit before the server write. The UI shouldn't
+    // expose this path, but a race during a toggle change would
+    // otherwise credit a phantom try.
+    if (!trackScoring) {
+      setError(
+        "Scoring is off for this team — turn 'Track points' on in settings to record tries.",
+      );
+      return;
+    }
     setPending(true);
     const { flushed } = enqueueLiveAction("recordTry", [
       auth,
@@ -915,8 +926,21 @@ export function LeagueLiveGame({
 
   const hasStickyBottom
     = isPeriodActive || isAtQbreak || isAtFinalQ || state.finalised;
+  // Score dock only opens when scoring is on AND the period is
+  // live AND a field player is selected. Mirrors AFL's `canScore`
+  // gate. For U6/U7 (track_scoring off by default) a field tap
+  // still selects but shows a swap-only hint banner instead of
+  // the dock — coach can't accidentally credit a try in a game
+  // that isn't tracking scores.
   const scoreDockVisible
-    = isPeriodActive && Boolean(selectedPlayer) && selectedOnField;
+    = trackScoring
+    && isPeriodActive
+    && Boolean(selectedPlayer)
+    && selectedOnField;
+  const selectionHintVisible
+    = !trackScoring
+    && isPeriodActive
+    && Boolean(selectedPlayer);
   const stickyPb
     = scoreDockVisible
       ? "pb-[calc(13rem+env(safe-area-inset-bottom))]"
@@ -967,7 +991,24 @@ export function LeagueLiveGame({
       )}
 
       {/* Field + bench */}
-      {state.lineup && (
+      {state.lineup && (() => {
+        // Build the swap maps from the suggester output so each tile
+        // can render its own visual indicator (amber for going-off,
+        // brand-blue for coming-on, +pair number when there's more
+        // than one rotation pending). Hidden when the coach has a
+        // player tap-selected so the selection ring doesn't compete
+        // with the swap badges. Mirrors AFL `LiveGame.tsx`'s
+        // `swapOffs` / `swapOns` build.
+        const swapOffs = new Map<string, number>();
+        const swapOns = new Map<string, number>();
+        if (!selectedPlayer) {
+          nextSubSuggestions.forEach((s, i) => {
+            swapOffs.set(s.off.playerId, i + 1);
+            swapOns.set(s.on.playerId, i + 1);
+          });
+        }
+        const totalSwapPairs = nextSubSuggestions.length;
+        return (
         <>
           <LeagueField
             players={fieldPlayers}
@@ -983,6 +1024,8 @@ export function LeagueLiveGame({
             injuredIds={injuredSet}
             loanedIds={loanedSet}
             selectedPlayerId={selectedPlayerId}
+            swapOffs={swapOffs}
+            totalSwapPairs={totalSwapPairs}
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
             onVacantSpotTap={
@@ -1002,12 +1045,15 @@ export function LeagueLiveGame({
             injuredIds={injuredSet}
             loanedIds={loanedSet}
             selectedPlayerId={selectedPlayerId}
+            swapOns={swapOns}
+            totalSwapPairs={totalSwapPairs}
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
             disabled={pending}
           />
         </>
-      )}
+        );
+      })()}
 
       {kickoffNeededForPeriod
         && !kickoffSkippedRef.current.has(state.currentQuarter)
@@ -1118,6 +1164,18 @@ export function LeagueLiveGame({
       {/* End-period-early lives on the scorebug clock pill now —
           the standalone link button has been folded into the
           pause-aware affordance pattern from AFL's `GameHeader`. */}
+
+      {/* Selection hint — non-scoring sports (U6/U7 tag rugby) get
+          this banner instead of the score dock. Tells the coach
+          tapping a player is enough to start a swap; no scoring
+          affordance because the laws don't track points here. */}
+      {selectionHintVisible && selectedPlayer && (
+        <p className="rounded-sm bg-brand-50 px-3 py-2 text-xs text-brand-800">
+          {selectedOnField
+            ? "Tap a bench player to swap them in, or tap the selected player again to cancel."
+            : "Tap a field tile to swap this player in, or tap them again to cancel."}
+        </p>
+      )}
 
       {/* Score-recording dock — appears when a field player is selected. */}
       {scoreDockVisible && selectedPlayer && (

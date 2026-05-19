@@ -25,6 +25,16 @@ interface LeagueBenchStripProps {
   injuredIds?: Set<string>;
   loanedIds?: Set<string>;
   selectedPlayerId?: string | null;
+  /**
+   * Map of bench-player id → pair index (1-based) for suggested
+   * subs ON. When a player is in this map their tile renders
+   * with the brand-blue "coming on" treatment. Mirrors AFL
+   * `Bench.tsx`'s `swapOns` prop.
+   */
+  swapOns?: Map<string, number>;
+  /** Total pairs in the current rotation — drives the per-tile
+   *  pair-number badge for multi-swap rotations. */
+  totalSwapPairs?: number;
   onPlayerClick?: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
   disabled?: boolean;
@@ -40,6 +50,8 @@ export function LeagueBenchStrip({
   injuredIds,
   loanedIds,
   selectedPlayerId,
+  swapOns,
+  totalSwapPairs = 0,
   onPlayerClick,
   onPlayerLongPress,
   disabled,
@@ -66,6 +78,15 @@ export function LeagueBenchStrip({
               injured={injuredIds?.has(p.id) ?? false}
               loaned={loanedIds?.has(p.id) ?? false}
               selected={selectedPlayerId === p.id}
+              swap={
+                swapOns?.has(p.id)
+                  ? {
+                      role: "on",
+                      pair: swapOns.get(p.id)!,
+                      totalPairs: totalSwapPairs,
+                    }
+                  : null
+              }
               onClick={onPlayerClick ? () => onPlayerClick(p.id) : undefined}
               onLongPress={
                 onPlayerLongPress
