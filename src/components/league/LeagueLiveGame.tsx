@@ -903,8 +903,14 @@ export function LeagueLiveGame({
     = state.quarterEnded
     && state.currentQuarter >= ageGroup.periodCount
     && !state.finalised;
-  const minutes = Math.floor(elapsedMs / 60_000);
-  const seconds = Math.floor((elapsedMs % 60_000) / 1000);
+  // Countdown clock — mirrors AFL + netball. The shared coach mental
+  // model is "how much period is left", not "how much has elapsed".
+  // Hooter fires when remainingMs hits 0 (see the periodMs check
+  // above). Clamps to 0 so we never display a negative readout if
+  // elapsedMs overshoots between the tick and the hooter firing.
+  const remainingMs = Math.max(0, periodSeconds * 1000 - elapsedMs);
+  const minutes = Math.floor(remainingMs / 60_000);
+  const seconds = Math.floor((remainingMs % 60_000) / 1000);
   const clockReadout = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
   const hasStickyBottom
