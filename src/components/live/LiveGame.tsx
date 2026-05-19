@@ -23,6 +23,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
@@ -1495,6 +1496,20 @@ export function LiveGame({
             auth={auth}
             gameId={gameId}
             isAdmin={isAdmin}
+            // Steve 2026-05-20: mid-game settings affordance —
+            // currently just the sub-interval override (drives
+            // the SubDueModal reminder cadence), but the modal
+            // is set up to take more knobs over time without
+            // adding new buttons to this row. AFL-only — the
+            // netball live shell doesn't pass this slot because
+            // netball has no sub-interval concept.
+            extra={
+              <LiveGameSettingsButton
+                auth={auth}
+                gameId={gameId}
+                subIntervalSeconds={subIntervalSeconds}
+              />
+            }
           />
         );
       })()}

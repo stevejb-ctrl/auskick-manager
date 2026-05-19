@@ -313,6 +313,57 @@ export async function setOnFieldSize(
   return { success: true };
 }
 
+/**
+ * Mid-game override of the sub-interval cadence (AFL only — drives
+ * the SubDueModal reminder). Coach realises mid-quarter that the
+ * pre-game guess was wrong (kids gassed at 4m, or barely warm at
+ * 6m) — this lets them dial it without restarting the game or
+ * waiting for the next break. The live page's RSC SELECT picks up
+ * the new value on the next refresh and the SubDueModal retimes
+ * from the new cadence.
+ *
+ * Validation matches the pre-game LineupPicker input: integer or
+ * half-minute, clamped to 1–10 minutes. Stored as seconds on the
+ * games row.
+ *
+ * Steve 2026-05-20.
+ */
+export async function setSubInterval(
+  auth: LiveAuth,
+  gameId: string,
+  seconds: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  if (!Number.isFinite(seconds)) {
+    return { success: false, error: "Invalid interval." };
+  }
+  if (seconds < 60 || seconds > 600) {
+    return {
+      success: false,
+      error: "Sub interval must be between 1 and 10 minutes.",
+    };
+  }
+  // Allow half-minute increments (matches the pre-game step=0.5
+  // input). Round to the nearest 30s so a 4.7-minute input doesn't
+  // land as 282s.
+  const rounded = Math.round(seconds / 30) * 30;
+
+  const { error } = await w.supabase
+    .from("games")
+    .update({ sub_interval_seconds: rounded })
+    .eq("id", gameId);
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
 export async function startQuarter(
   auth: LiveAuth,
   gameId: string,

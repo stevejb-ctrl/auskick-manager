@@ -27,6 +27,7 @@
 // source of truth; future tweaks (e.g. icon copy, padding) now
 // land in one place.
 
+import type { ReactNode } from "react";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import type { LiveAuth, Player } from "@/lib/types";
@@ -44,6 +45,17 @@ interface LiveAdminUtilityRowProps {
   gameId: string;
   /** True when the user has admin rights (renders the destructive reset button). */
   isAdmin?: boolean;
+  /**
+   * Optional extra action(s) rendered in the same row alongside
+   * Late-arrival + Reset. Composed by the caller so sport-specific
+   * affordances don't have to be plumbed through this shared shell.
+   * Steve 2026-05-20: AFL passes `<LiveGameSettingsButton>` here;
+   * netball passes nothing (no sub-interval concept).
+   *
+   * When `extra` is the ONLY thing renderable (no late candidates,
+   * not admin), the row still mounts so the extra slot can surface.
+   */
+  extra?: ReactNode;
 }
 
 export function LiveAdminUtilityRow({
@@ -53,9 +65,14 @@ export function LiveAdminUtilityRow({
   auth,
   gameId,
   isAdmin = false,
+  extra,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0;
-  if (!showLate && !isAdmin) return null;
+  // Row mounts whenever ANY slot has content — extra now joins
+  // late-candidates and isAdmin in the "is there anything to show"
+  // gate so the AFL Game-settings button surfaces even on a
+  // non-admin / no-late-arrivals render.
+  if (!showLate && !isAdmin && !extra) return null;
   return (
     <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
       {showLate && (
@@ -65,6 +82,7 @@ export function LiveAdminUtilityRow({
           pending={lateArrivalPending}
         />
       )}
+      {extra}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>
   );
