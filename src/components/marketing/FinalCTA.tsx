@@ -1,6 +1,7 @@
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
+import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
@@ -31,6 +32,9 @@ export function FinalCTA() {
 
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <MarketingAuthCTAs variant="final" />
+            {/* iOS app is footy-only in v1 (see mobile/capacitor.config.ts).
+                White-badge variant for contrast on the ink background. */}
+            {brand.id === "afl" && <AppStoreBadge theme="dark" />}
           </div>
         </RevealOnScroll>
       </div>

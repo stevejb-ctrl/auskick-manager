@@ -32,6 +32,30 @@ test.describe("unauthenticated entry", () => {
     ).toBeVisible();
   });
 
+  test("AFL marketing page links to the iOS app on the App Store", async ({
+    page,
+  }) => {
+    // iOS app launched 2026-05-19 — the hero + final CTA each surface a
+    // "Download on the App Store" badge that deep-links to the live
+    // listing. Spec pins both that the badge renders AND that it points
+    // at the real Apple ID so a future copy-paste typo can't ship a
+    // dead link to thousands of marketing visitors.
+    await page.goto("/");
+    const badges = page.getByRole("link", {
+      name: /download siren footy on the app store/i,
+    });
+    // Hero badge + FinalCTA badge.
+    await expect(badges).toHaveCount(2);
+    for (const badge of await badges.all()) {
+      await expect(badge).toHaveAttribute(
+        "href",
+        "https://apps.apple.com/au/app/siren-footy/id6768541987"
+      );
+      await expect(badge).toHaveAttribute("target", "_blank");
+      await expect(badge).toHaveAttribute("rel", /noopener/);
+    }
+  });
+
   test("unauthenticated native shell on / redirects to /login", async ({
     context,
     page,

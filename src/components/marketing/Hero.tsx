@@ -6,6 +6,7 @@ import { CourtMotif } from "@/components/marketing/CourtMotif";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
+import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
@@ -53,6 +54,10 @@ export function Hero() {
               >
                 Try the demo
               </Link>
+              {/* iOS app is footy-only in v1 (see mobile/capacitor.config.ts).
+                  Hide the badge on the netball brand until the netball
+                  shell ships. */}
+              {brand.id === "afl" && <AppStoreBadge theme="light" />}
             </div>
 
             <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
