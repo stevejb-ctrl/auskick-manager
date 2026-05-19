@@ -38,15 +38,16 @@ function makePlayer(i: number, teamId: string): Player {
 // AFL Junior Match Policy (per Play AFL handbook). If any of these
 // numbers regress in the config, the assertion makes the change
 // surface-level instead of silent.
-// AFL Community Policy: 15-a-side through to U15s; 18-a-side only
-// from U16 up. The earlier U13-U15 defaults of 18 were wrong; Steve
-// 2026-05-20 caught it during the per-age-group seed pass.
+// AFL Community Policy ladder:
+//   U8 → 6, U9 → 9, U10/U11/U12 → 12, U13/U14/U15 → 15, U16/U17 → 18.
+// Earlier rev had U11/U12 at 15 and U13/U14/U15 at 18 — both wrong;
+// Steve 2026-05-20 corrected during the per-age-group seed pass.
 const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
   U8: 6,
   U9: 9,
   U10: 12,
-  U11: 15,
-  U12: 15,
+  U11: 12,
+  U12: 12,
   U13: 15,
   U14: 15,
   U15: 15,

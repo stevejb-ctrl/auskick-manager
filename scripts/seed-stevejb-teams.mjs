@@ -61,11 +61,12 @@ const SPORTS = [
       { id: "U8", name: "U8 Auskick", defaultOnFieldSize: 6 },
       { id: "U9", name: "U9", defaultOnFieldSize: 9 },
       { id: "U10", name: "U10", defaultOnFieldSize: 12 },
-      { id: "U11", name: "U11", defaultOnFieldSize: 15 },
-      { id: "U12", name: "U12", defaultOnFieldSize: 15 },
-      // U13-U15 are 15-a-side per AFL Community Policy; 18-a-side
-      // kicks in at U16. Steve 2026-05-20 — earlier rev had U13-U15
-      // wrongly at 18, matched the bad ageGroups.ts defaults.
+      // AFL Community Policy ladder: 12-a-side through U10/U11/U12,
+      // 15-a-side through U13/U14/U15, 18-a-side at U16+. Steve
+      // 2026-05-20 — earlier rev had U11/U12 at 15 and U13-U15 at
+      // 18, both wrong; matched the bad ageGroups.ts defaults.
+      { id: "U11", name: "U11", defaultOnFieldSize: 12 },
+      { id: "U12", name: "U12", defaultOnFieldSize: 12 },
       { id: "U13", name: "U13", defaultOnFieldSize: 15 },
       { id: "U14", name: "U14", defaultOnFieldSize: 15 },
       { id: "U15", name: "U15", defaultOnFieldSize: 15 },

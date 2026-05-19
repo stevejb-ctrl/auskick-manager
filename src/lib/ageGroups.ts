@@ -67,27 +67,31 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     id: "U11",
     label: "Under 11",
     positionModel: "zones3",
-    defaultOnFieldSize: 15,
+    // AFL Community Policy: 12-a-side through U10/U11/U12. The
+    // step up to 15-a-side doesn't kick in until U13. Steve
+    // 2026-05-20 (follow-up to the U13-U15 correction earlier
+    // today) — U11/U12 were also wrongly at 15.
+    defaultOnFieldSize: 12,
     minOnFieldSize: 9,
-    maxOnFieldSize: 15,
+    maxOnFieldSize: 12,
     maxSquadSize: 20,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 3 zones, mandatory rotations, scoring introduced.",
+    notes: "12-a-side, 3 zones, mandatory rotations, scoring introduced.",
   },
   U12: {
     id: "U12",
     label: "Under 12",
     positionModel: "zones3",
-    defaultOnFieldSize: 15,
+    defaultOnFieldSize: 12,
     minOnFieldSize: 9,
-    maxOnFieldSize: 15,
+    maxOnFieldSize: 12,
     maxSquadSize: 20,
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 3 zones, mandatory zone rotations.",
+    notes: "12-a-side, 3 zones, mandatory zone rotations.",
   },
   U13: {
     id: "U13",
