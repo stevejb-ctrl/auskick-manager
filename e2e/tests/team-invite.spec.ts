@@ -33,6 +33,12 @@ test.describe.configure({ mode: "parallel" });
 test("admin invites a parent, parent accepts via /join/[token]", async ({
   browser,
 }) => {
+  // Whole-journey test that compiles three cold dev routes on first
+  // run (/login, /join/[token], /teams/[teamId]/games) plus a 5s
+  // push-notification timeout in acceptInvite. The default 30s
+  // test budget is too tight on Windows; once warm this runs in ~15s.
+  test.setTimeout(90_000);
+
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -109,8 +115,10 @@ test("admin invites a parent, parent accepts via /join/[token]", async ({
       .getByRole("button", { name: /accept.*join team/i })
       .click();
 
-    // Lands on the team page after accepting.
-    await userPage.waitForURL(new RegExp(`/teams/${team.id}`), {
+    // Lands on the Games tab (not the team home) after accepting,
+    // so a brand-new parent doesn't see the home-tab setup
+    // affordances that could trick them into creating a new team.
+    await userPage.waitForURL(new RegExp(`/teams/${team.id}/games`), {
       timeout: 10_000,
     });
 
