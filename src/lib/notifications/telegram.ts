@@ -25,9 +25,17 @@ export function formatTeamMessage(
   name: string,
   ageGroup: string,
   createdBy: string,
-  time: string
+  time: string,
+  sport?: string,
 ): string {
-  return `🏉 <b>New team created</b>\n\nName: ${escapeHtml(name)}\nAge group: ${ageGroup}\nCreated by: ${escapeHtml(createdBy)}\nTime: ${time}`;
+  // `sport` added 2026-05-17 — Steve wanted to see at a glance
+  // whether new teams were AFL or netball as both brands launch.
+  // Optional for backwards compat; the column has been on `teams`
+  // forever but the message only showed name + age + creator
+  // before. Suffix line so the existing message shape doesn't
+  // change for old callers.
+  const sportLine = sport ? `\nSport: ${escapeHtml(sport)}` : "";
+  return `🏉 <b>New team created</b>\n\nName: ${escapeHtml(name)}\nAge group: ${ageGroup}${sportLine}\nCreated by: ${escapeHtml(createdBy)}\nTime: ${time}`;
 }
 
 export async function sendTelegramNotification(text: string): Promise<void> {

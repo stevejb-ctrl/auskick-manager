@@ -47,4 +47,26 @@ describe("formatTeamMessage", () => {
     expect(msg).toContain("&lt;Bold&gt; &amp; Co");
     expect(msg).not.toContain("<Bold>");
   });
+
+  it("omits the Sport line when no sport is supplied", () => {
+    const msg = formatTeamMessage("Lions", "U10", "x@x.com", "t");
+    expect(msg).not.toContain("Sport");
+  });
+
+  it("includes the Sport line when supplied", () => {
+    const msg = formatTeamMessage(
+      "Lions",
+      "U10",
+      "x@x.com",
+      "t",
+      "Australian Rules Football",
+    );
+    expect(msg).toContain("Sport: Australian Rules Football");
+  });
+
+  it("HTML-escapes the sport", () => {
+    const msg = formatTeamMessage("Lions", "U10", "x@x.com", "t", "<weird>");
+    expect(msg).toContain("Sport: &lt;weird&gt;");
+    expect(msg).not.toContain("Sport: <weird>");
+  });
 });
