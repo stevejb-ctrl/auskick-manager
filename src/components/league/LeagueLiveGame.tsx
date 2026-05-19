@@ -39,7 +39,7 @@ import {
 } from "@/lib/sports/rugby_league/kicks";
 import {
   playerMsOnField,
-  suggestNextLeagueSub,
+  suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -353,12 +353,12 @@ export function LeagueLiveGame({
     () => new Map(squad.map((p) => [p.id, p.chip ?? null])),
     [squad],
   );
-  const nextSubSuggestion = useMemo(() => {
+  const nextSubSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
-      return null;
+      return [];
     }
-    if (!state.lineup) return null;
-    return suggestNextLeagueSub(
+    if (!state.lineup) return [];
+    return suggestLeagueSubs(
       thisGameEvents,
       state.currentQuarter,
       {
@@ -590,6 +590,44 @@ export function LeagueLiveGame({
       },
     ]);
     await flushed;
+    setPending(false);
+    handleClearSelection();
+    router.refresh();
+  }
+
+  /**
+   * Apply EVERY suggested swap in the next-sub card — rotates the
+   * whole bench in one tap. Each pair is enqueued as its own
+   * `recordLeagueSwap` so the replay sees them in order, and so a
+   * mid-rotation failure doesn't cascade.
+   *
+   * The bench/field sets change as each swap lands; the suggester
+   * already paired off-targets uniquely so we can fire them in
+   * order without re-evaluating. We do NOT re-run the suggester
+   * between flushes — the snapshot the coach saw on screen is
+   * what gets executed.
+   */
+  async function handleApplyAllSubs() {
+    if (nextSubSuggestions.length === 0) return;
+    setPending(true);
+    const flushedAll: Promise<void>[] = [];
+    for (const swap of nextSubSuggestions) {
+      const { flushed } = enqueueLiveAction("recordLeagueSwap", [
+        auth,
+        game.id,
+        {
+          off_player_id: swap.off.playerId,
+          on_player_id: swap.on.playerId,
+          quarter: state.currentQuarter,
+          elapsed_ms: elapsedMs,
+        },
+      ]);
+      flushedAll.push(flushed);
+    }
+    await Promise.all(flushedAll).catch(() => {
+      // Per-op failure already rolls back via the queue's cap;
+      // we just stop waiting so the UI unfreezes.
+    });
     setPending(false);
     handleClearSelection();
     router.refresh();
@@ -904,18 +942,18 @@ export function LeagueLiveGame({
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
 
-      {/* Next-sub indicator — mirrors AFL's SwapCard collapsed row. */}
-      {isPeriodActive && nextSubSuggestion && (
+      {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
+          full bench rotation (one swap per bench player) with
+          "Do all N swaps" so the whole bench cycles in one tap. */}
+      {isPeriodActive && nextSubSuggestions.length > 0 && (
         <LeagueNextSubCard
-          suggestion={nextSubSuggestion}
+          suggestions={nextSubSuggestions}
           msUntilDue={msUntilDue}
           subIntervalMs={subIntervalMs}
           due={subIsDue}
-          onApply={() =>
-            void applySwap(
-              nextSubSuggestion.off.playerId,
-              nextSubSuggestion.on.playerId,
-            )
+          onApplyAll={() => void handleApplyAllSubs()}
+          onApplyOne={(swap) =>
+            void applySwap(swap.off.playerId, swap.on.playerId)
           }
           pending={pending}
           playerById={new Map(squad.map((p) => [p.id, p]))}

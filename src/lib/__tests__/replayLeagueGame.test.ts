@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   replayLeagueGame,
   suggestLeagueLineup,
+  suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, GameEventType, Player } from "@/lib/types";
 
@@ -563,5 +564,80 @@ describe("suggestLeagueLineup — chip-aware zone distribution", () => {
     expect(result.lineup.bench).toHaveLength(1);
     expect(result.lineup.bench[0]).not.toBe("u1");
     expect(result.lineup.bench[0]).not.toBe("u2");
+  });
+});
+
+describe("suggestLeagueSubs — whole-bench rotation (AFL parity)", () => {
+  it("returns one swap PER bench player, longest-on-bench first (Steve 2026-05-19)", () => {
+    reset();
+    // 11 on field + 2 on bench. The whole bench should rotate at
+    // each sub interval — not one player at a time. Older draft
+    // returned only the single top suggestion, which made
+    // rotations feel piecemeal vs the AFL "do all swaps" UX.
+    const lineup = {
+      forwards: ["f1", "f2", "f3", "f4", "f5"],
+      backs: ["b1", "b2", "b3", "b4", "b5", "b6"],
+      bench: ["sub1", "sub2"],
+    };
+    // Seed quarter_start so the suggester's stint tracker has a
+    // baseline elapsed=0 for everyone on field / bench.
+    const events: GameEvent[] = [
+      ev("lineup_set", { lineup, sport: "rugby_league" }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+    ];
+    const suggestions = suggestLeagueSubs(
+      events,
+      1,
+      lineup,
+      [], // no vest exclusions
+      5 * 60 * 1000, // 5 mins in
+    );
+    // One suggestion per bench player → 2 swaps.
+    expect(suggestions).toHaveLength(2);
+    // Each bench player appears in the on-side exactly once.
+    const onIds = suggestions.map((s) => s.on.playerId).sort();
+    expect(onIds).toEqual(["sub1", "sub2"]);
+    // Each off-target is unique — no field player paired twice.
+    const offIds = suggestions.map((s) => s.off.playerId);
+    expect(new Set(offIds).size).toBe(offIds.length);
+  });
+
+  it("excludes FR / DH vest wearers from the off-side", () => {
+    reset();
+    const lineup = {
+      forwards: ["fr", "f2", "f3"],
+      backs: ["dh", "b2", "b3"],
+      bench: ["sub1", "sub2"],
+    };
+    const events: GameEvent[] = [
+      ev("lineup_set", { lineup, sport: "rugby_league" }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+    ];
+    const suggestions = suggestLeagueSubs(
+      events,
+      1,
+      lineup,
+      ["fr", "dh"], // both vest wearers excluded
+      5 * 60 * 1000,
+    );
+    const offIds = new Set(suggestions.map((s) => s.off.playerId));
+    expect(offIds.has("fr")).toBe(false);
+    expect(offIds.has("dh")).toBe(false);
+  });
+
+  it("returns empty when there are no bench players", () => {
+    reset();
+    const lineup = {
+      forwards: ["f1", "f2"],
+      backs: ["b1", "b2"],
+      bench: [],
+    };
+    const events: GameEvent[] = [
+      ev("lineup_set", { lineup, sport: "rugby_league" }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+    ];
+    expect(
+      suggestLeagueSubs(events, 1, lineup, [], 5 * 60 * 1000),
+    ).toEqual([]);
   });
 });

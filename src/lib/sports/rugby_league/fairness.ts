@@ -1338,9 +1338,15 @@ export function playerMsOnField(
   return total;
 }
 
-// ─── Next-sub suggestion (rolling rotation) ───────────────────
-// Surfaces the next-due rotation pair during live play. The
-// orchestrator passes:
+// ─── Whole-bench rotation suggestion ──────────────────────────
+// Surfaces the next-due rotation set during live play — one swap
+// per bench player so the coach can rotate the WHOLE bench in
+// one tap (same UX AFL and netball ship). Earlier draft suggested
+// one swap at a time which led to the bench cycling through
+// piecemeal; aligning to AFL means rotating everyone who's been
+// sitting out at once.
+//
+// Inputs:
 //   * The full event log so we can walk stint history.
 //   * The current period.
 //   * The current lineup ({ forwards, backs, bench }).
@@ -1348,20 +1354,23 @@ export function playerMsOnField(
 //     they keep the vest the whole period unless replaced via the
 //     forced injury-replacement modal).
 //   * Current period-elapsed ms.
-//   * Optional per-player chip lookup. When supplied, the on-pick
-//     prefers a bench player whose chip matches the OFF-player's
-//     CURRENT ZONE (forwards / backs) so the field's forward-back
-//     ratio stays stable across rotations. Soft preference — if no
-//     chip-matched bench player is available, fall back to the
-//     overall longest-on-bench (same behaviour as before).
+//   * Optional per-player chip lookup. When supplied, each bench
+//     pairing prefers a same-zone (forward / back) match so the
+//     forward-back ratio stays stable across rotations.
 //
-// Output: { off, on, zone } pair with how long each has been in
-// their current spot this period and which zone the swap-on
-// player should join. `zone` mirrors the off-player's zone so the
-// caller can emit a swap event whose replay lands the on-player
-// in the same bucket. Returns null when there's no swappable
-// candidate (empty bench, everyone vest-locked, period not
-// active).
+// Pairing rule per bench player (longest-on-bench first):
+//   1. Find a same-zone (chip-matched) field player who's been on
+//      the longest among the still-on-field, non-excluded set.
+//   2. If no chip-matched candidate, fall back to whoever's been on
+//      the longest in any zone.
+//   3. Mark that field player as "going off this round" so the
+//      next bench player picks a different off-target.
+//   4. Mark the bench player as "going on this round" so they
+//      don't get re-paired.
+//
+// Output: ordered array of suggestions (bench order = longest-on-
+// bench first). Empty when there's nothing to suggest (no bench,
+// everyone on-field excluded, period inactive).
 
 export interface LeagueSubSuggestion {
   off: { playerId: string; msOnField: number };
@@ -1370,17 +1379,17 @@ export interface LeagueSubSuggestion {
   zone: LeagueZone;
 }
 
-export function suggestNextLeagueSub(
+export function suggestLeagueSubs(
   events: GameEvent[],
   currentQuarter: number,
   currentLineup: LeagueLineup,
   excludeOffPlayers: readonly string[],
   elapsedMs: number,
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
-): LeagueSubSuggestion | null {
+): LeagueSubSuggestion[] {
   const onFieldIds = leagueOnField(currentLineup);
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
-    return null;
+    return [];
   }
   const excludeSet = new Set(excludeOffPlayers);
   type Stint = { startedAt: number; location: "field" | "bench" };
@@ -1423,47 +1432,99 @@ export function suggestNextLeagueSub(
     }
   }
 
-  // Longest on-field stint (excluding vest wearers).
-  let off: { playerId: string; msOnField: number; zone: LeagueZone } | null
-    = null;
+  const msAt = (id: string) => {
+    const s = stint.get(id);
+    const startedAt = s?.startedAt ?? 0;
+    return Math.max(0, elapsedMs - startedAt);
+  };
   const zoneOf = (id: string): LeagueZone =>
     currentLineup.forwards.includes(id) ? "forward" : "back";
+
+  // Bench candidates — sorted longest-on-bench first so the
+  // player who's been waiting longest gets paired first (mirrors
+  // AFL's `suggestSwaps` ascending-game-time sort).
+  const benchSorted = [...currentLineup.bench].sort(
+    (a, b) => msAt(b) - msAt(a),
+  );
+
+  // Field candidates per zone — longest-on-field first within each
+  // zone. We mutate cursors as we consume players from each zone
+  // bucket so each suggestion picks a fresh off-target.
+  const fieldByZone: Record<LeagueZone, string[]> = {
+    forward: [],
+    back: [],
+  };
   for (const id of onFieldIds) {
     if (excludeSet.has(id)) continue;
-    const s = stint.get(id);
-    const startedAt = s?.startedAt ?? 0;
-    const ms = Math.max(0, elapsedMs - startedAt);
-    if (!off || ms > off.msOnField) {
-      off = { playerId: id, msOnField: ms, zone: zoneOf(id) };
-    }
+    fieldByZone[zoneOf(id)].push(id);
   }
-  if (!off) return null;
+  for (const z of ["forward", "back"] as LeagueZone[]) {
+    fieldByZone[z].sort((a, b) => msAt(b) - msAt(a));
+  }
+  const cursor: Record<LeagueZone, number> = { forward: 0, back: 0 };
 
-  // On-pick: prefer the bench player whose chip matches the
-  // off-player's vacated zone (so a Forward comes off → another
-  // Forward comes on). Soft preference — if no chip-matched bench
-  // player is available (e.g. nobody is chipped, or only unchipped
-  // / opposite-chip players sit), fall back to the overall longest-
-  // on-bench. Within the matched pool, still pick the longest-on-
-  // bench so fairness ranking holds.
-  const targetChip = off.zone === "forward" ? "a" : "b";
-  let chipMatchedOn: { playerId: string; msOnBench: number } | null = null;
-  let anyOn: { playerId: string; msOnBench: number } | null = null;
-  for (const id of currentLineup.bench) {
-    const s = stint.get(id);
-    const startedAt = s?.startedAt ?? 0;
-    const ms = Math.max(0, elapsedMs - startedAt);
-    if (!anyOn || ms > anyOn.msOnBench) {
-      anyOn = { playerId: id, msOnBench: ms };
-    }
-    if (chipByPlayerId?.get(id) === targetChip) {
-      if (!chipMatchedOn || ms > chipMatchedOn.msOnBench) {
-        chipMatchedOn = { playerId: id, msOnBench: ms };
+  const swaps: LeagueSubSuggestion[] = [];
+  const usedOff = new Set<string>();
+  const usedOn = new Set<string>();
+
+  for (const benchId of benchSorted) {
+    if (usedOn.has(benchId)) continue;
+    // Prefer same-zone (chip-matched) off-target so the F/B ratio
+    // stays stable across rotations. Soft preference: if the
+    // matched zone is exhausted, fall back to the other zone.
+    const chip = chipByPlayerId?.get(benchId) ?? null;
+    const preferredZone: LeagueZone | null
+      = chip === "a" ? "forward" : chip === "b" ? "back" : null;
+    const zoneOrder: LeagueZone[]
+      = preferredZone === "forward"
+        ? ["forward", "back"]
+        : preferredZone === "back"
+          ? ["back", "forward"]
+          : ["forward", "back"];
+    let pickedOff: string | null = null;
+    let pickedZone: LeagueZone | null = null;
+    for (const z of zoneOrder) {
+      while (cursor[z] < fieldByZone[z].length) {
+        const candidate = fieldByZone[z][cursor[z]];
+        cursor[z]++;
+        if (!usedOff.has(candidate)) {
+          pickedOff = candidate;
+          pickedZone = z;
+          break;
+        }
       }
+      if (pickedOff) break;
     }
+    if (!pickedOff || !pickedZone) break; // no field players left
+    usedOff.add(pickedOff);
+    usedOn.add(benchId);
+    swaps.push({
+      off: { playerId: pickedOff, msOnField: msAt(pickedOff) },
+      on: { playerId: benchId, msOnBench: msAt(benchId) },
+      zone: pickedZone,
+    });
   }
-  const on = chipMatchedOn ?? anyOn;
-  if (!on) return null;
+  return swaps;
+}
 
-  return { off: { playerId: off.playerId, msOnField: off.msOnField }, on, zone: off.zone };
+// Legacy single-swap helper — keeps callers that only want the
+// top suggestion working without rebuilding the array → first
+// pattern. New callers should use `suggestLeagueSubs` directly.
+export function suggestNextLeagueSub(
+  events: GameEvent[],
+  currentQuarter: number,
+  currentLineup: LeagueLineup,
+  excludeOffPlayers: readonly string[],
+  elapsedMs: number,
+  chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
+): LeagueSubSuggestion | null {
+  const all = suggestLeagueSubs(
+    events,
+    currentQuarter,
+    currentLineup,
+    excludeOffPlayers,
+    elapsedMs,
+    chipByPlayerId,
+  );
+  return all[0] ?? null;
 }
