@@ -42,7 +42,9 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import {
   startLeagueGame,
   saveLeagueLineupDraft,
@@ -131,11 +133,20 @@ export function LeagueLineupPicker({
   const vestRequiredDh = reqs?.dh === true;
   const vestsRequired = vestRequiredFr || vestRequiredDh;
 
-  // ── Loaned players (read-only in the spike) ─────────────────
-  const loanedIds = useMemo(
+  // ── Loaned players ──────────────────────────────────────────
+  // Same shape AFL's LineupPicker uses — optimistic local toggle
+  // backed by the markLoan server action through the write queue.
+  // The loanedIds set drives playersForLineup (suggester sees the
+  // post-lend set), the lent-chip list in Game settings, and the
+  // pull-out logic when a lend toggles ON (player gets yanked
+  // from forwards / backs / bench so the formation grid stays in
+  // sync with the suggester's view).
+  const [loanedIds, setLoanedIds] = useState<Set<string>>(
     () => new Set(initialLoanedIds),
-    [initialLoanedIds],
   );
+  const [lendPickerOpen, setLendPickerOpen] = useState(false);
+  const [loanError, setLoanError] = useState<string | null>(null);
+  const [loanPending, startLoanTransition] = useTransition();
   const lentPlayers = useMemo(
     () => players.filter((p) => loanedIds.has(p.id)),
     [players, loanedIds],
@@ -367,6 +378,79 @@ export function LeagueLineupPicker({
         prev.includes(playerId) ? prev : [...prev, playerId],
       );
     }
+  }
+
+  // ── Lend handler ────────────────────────────────────────────
+  // Mirrors AFL `LineupPicker.handleLendToggle`. Optimistic flip
+  // of the loanedIds set + a markLoan write to the queue. When a
+  // lend toggles ON we yank the player from forwards / backs /
+  // bench (the suggester sees them filtered out via
+  // playersForLineup). When a lend toggles OFF the player lands
+  // back on the bench so the coach can place them. Errors roll
+  // back the optimistic state.
+  function handleLendToggle(playerId: string, nextLoaned: boolean) {
+    setLoanError(null);
+    setLoanedIds((prev) => {
+      const next = new Set(prev);
+      if (nextLoaned) next.add(playerId);
+      else next.delete(playerId);
+      return next;
+    });
+    if (nextLoaned) {
+      setForwardIds((prev) => prev.filter((id) => id !== playerId));
+      setBackIds((prev) => prev.filter((id) => id !== playerId));
+      setBenchIds((prev) => prev.filter((id) => id !== playerId));
+      if (frId === playerId) setFrId(null);
+      if (dhId === playerId) setDhId(null);
+      // Also scrub from the vest rotation overrides — a lent
+      // player can't wear FR or DH in any period.
+      setFrOverrides((prev) => {
+        const next: typeof prev = {};
+        for (const k of Object.keys(prev)) {
+          next[Number(k)] = prev[Number(k)] === playerId ? null : prev[Number(k)];
+        }
+        return next;
+      });
+      setDhOverrides((prev) => {
+        const next: typeof prev = {};
+        for (const k of Object.keys(prev)) {
+          next[Number(k)] = prev[Number(k)] === playerId ? null : prev[Number(k)];
+        }
+        return next;
+      });
+    } else {
+      // Bring back — park them on the bench so the coach can
+      // slot them in. Suggester will pick them up next mode-switch.
+      setBenchIds((prev) =>
+        prev.includes(playerId) ? prev : [...prev, playerId],
+      );
+    }
+    startLoanTransition(() => {
+      // markLoan is registered with the write queue (kind:
+      // "markLoan") so we go through the queue for idempotency +
+      // offline replay, same shape as AFL's call site. elapsed_ms
+      // is 0 because the lend predates kickoff.
+      const { flushed } = enqueueLiveAction("markLoan", [
+        auth,
+        gameId,
+        {
+          player_id: playerId,
+          loaned: nextLoaned,
+          quarter: 1,
+          elapsed_ms: 0,
+        },
+      ]);
+      flushed.catch(() => {
+        // Permanent failure — roll back the optimistic flip.
+        setLoanedIds((prev) => {
+          const next = new Set(prev);
+          if (nextLoaned) next.delete(playerId);
+          else next.add(playerId);
+          return next;
+        });
+        setLoanError("Couldn't update loan — try again.");
+      });
+    });
   }
 
   // ── Tap / swap state machine ────────────────────────────────
@@ -901,24 +985,51 @@ export function LeagueLineupPicker({
                 {ageGroup.periodLabelPlural ?? "periods"} per player).
               </p>
             </div>
-            {lentPlayers.length > 0 && (
-              <div className="space-y-1">
-                <Label className="text-xs">Lent to opposition</Label>
-                <div className="flex flex-wrap gap-1.5">
-                  {lentPlayers.map((p) => (
-                    <span
-                      key={p.id}
-                      className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn"
+            <div className="space-y-1">
+              <Label className="text-xs">Lend a player</Label>
+              <p className="text-[11px] text-ink-mute">
+                Lent players sit out for the rest of the game until
+                you bring them back.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {lentPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                  >
+                    {p.jersey_number != null && (
+                      <span className="font-semibold tabular-nums">
+                        {p.jersey_number}
+                      </span>
+                    )}
+                    <span>{p.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLendToggle(p.id, false)}
+                      disabled={loanPending}
+                      aria-label={`Bring ${p.full_name} back`}
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
                     >
-                      {p.full_name}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-[11px] text-ink-mute">
-                  Manage lent players from the squad page.
-                </p>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLendPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Lend a player
+                </button>
               </div>
-            )}
+              {loanError && (
+                <p className="mt-1 text-xs text-danger" role="alert">
+                  {loanError}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1187,6 +1298,31 @@ export function LeagueLineupPicker({
           onToggleBench={handleActionToggleBench}
           isOnField={actionIsOnField}
           onClose={() => setActionSheetPlayerId(null)}
+        />
+      )}
+
+      {/* Lend-player picker modal — opens from the "+ Lend a
+          player" button in Game settings. Same SlotFillSheet AFL
+          uses for symmetry; candidates are every squad player
+          who isn't already lent. */}
+      {lendPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Lend"
+          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
+          emptyMessage="Everyone is already lent."
+          candidates={players
+            .filter((p) => !loanedIds.has(p.id))
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => {
+            handleLendToggle(pid, true);
+            setLendPickerOpen(false);
+          }}
+          onCancel={() => setLendPickerOpen(false)}
         />
       )}
     </div>
