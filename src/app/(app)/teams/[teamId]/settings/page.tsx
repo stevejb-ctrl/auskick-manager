@@ -79,7 +79,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   if (isAdmin) {
     const { data: rawInvites } = await supabase
       .from("team_invites")
-      .select("id, token, role, email_hint, created_at, expires_at")
+      .select(
+        "id, token, role, email_hint, invited_email, email_sent_at, email_send_count, created_at, expires_at"
+      )
       .eq("team_id", params.teamId)
       .is("accepted_at", null)
       .is("revoked_at", null)
