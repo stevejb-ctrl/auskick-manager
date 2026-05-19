@@ -592,19 +592,16 @@ export function LineupPicker({
                 );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);
-                // Sub interval surfaces in the summary only when
-                // the coach explicitly overrode it AND the
-                // override differs from the live suggestion. Steve
-                // 2026-05-17 — when the field moved up into the
-                // collapse, the closed header needs to signal
-                // "you've changed something" without forcing the
-                // coach to expand.
-                if (
-                  subMinInput !== null &&
-                  effectiveSubMin !== suggestedMin
-                ) {
-                  bits.push(`Sub every ${effectiveSubMin}m`);
-                }
+                // Sub interval always shows the EFFECTIVE value
+                // (override if the coach typed one, otherwise the
+                // live suggestion). Steve 2026-05-20 — unlike
+                // Players-on-field, the sub-interval number is
+                // meaningful even when at default ("sub every
+                // 3m" tells a real story; "12 on field" doesn't).
+                // Showing it unconditionally means the coach can
+                // scan the closed header and know exactly how
+                // their game's pacing is set up.
+                bits.push(`Sub every ${effectiveSubMin}m`);
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
