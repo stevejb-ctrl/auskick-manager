@@ -417,3 +417,139 @@ describe("suggestVestRotation — proportionate vest fairness", () => {
     expect(rotation.fr[0]).toBe("p2");
   });
 });
+
+// ─── DH symmetry ─────────────────────────────────────────────
+// FR and DH share the same generic ranking helper, so the FR
+// behaviour above implicitly covers DH. These tests pin the DH
+// path explicitly so a future divergence (e.g. someone hard-
+// coding `frCount` in a DH branch) can't sneak through.
+
+describe("DH vest — proportionate fairness mirrors FR", () => {
+  it("suggestLeagueLineup: zero-DH-count player wins over a positive-DH-count player", () => {
+    reset();
+    const players = [makePlayer("p1", 1), makePlayer("p2", 2)];
+    // p1 has worn DH; p2 has not. p2 wins the zero tier.
+    const seasonEvents = buildGame({
+      gameId: "g1",
+      field: ["p1", "p2"],
+      bench: [],
+      periodCount: 1,
+      vests: [{ player: "p1", vest: "dh", quarter: 1 }],
+    });
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 2,
+      forwardCount: 2,
+      seasonEvents,
+      requiredUnbrokenPeriods: 0,
+      // FR off so DH isn't excluded by the FR pick first.
+      vestRequirements: { fr: false, dh: true },
+    });
+    expect(result.suggestedDh).toBe("p2");
+  });
+
+  it("suggestLeagueLineup: lower DH ratio wins once everyone has had a go", () => {
+    reset();
+    // p1: 1 DH in 4 appearances (25%)
+    // p2: 1 DH in 2 appearances (50%)
+    // Both past the zero tier → p1 wins on lower ratio.
+    const players = [makePlayer("p1", 1), makePlayer("p2", 2)];
+    const seasonEvents = [
+      ...buildGame({
+        gameId: "g1",
+        field: ["p1"],
+        bench: [],
+        periodCount: 1,
+        vests: [{ player: "p1", vest: "dh", quarter: 1 }],
+      }),
+      ...buildGame({ gameId: "g2", field: ["p1"], bench: [], periodCount: 1 }),
+      ...buildGame({ gameId: "g3", field: ["p1"], bench: [], periodCount: 1 }),
+      ...buildGame({ gameId: "g4", field: ["p1"], bench: [], periodCount: 1 }),
+      ...buildGame({
+        gameId: "g5",
+        field: ["p2"],
+        bench: [],
+        periodCount: 1,
+        vests: [{ player: "p2", vest: "dh", quarter: 1 }],
+      }),
+      ...buildGame({ gameId: "g6", field: ["p2"], bench: [], periodCount: 1 }),
+    ];
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 2,
+      forwardCount: 2,
+      seasonEvents,
+      requiredUnbrokenPeriods: 0,
+      vestRequirements: { fr: false, dh: true },
+    });
+    expect(result.suggestedDh).toBe("p1");
+  });
+
+  it("suggestVestRotation: zero-DH player first when any candidate has never worn DH", () => {
+    reset();
+    const players = [
+      makePlayer("p1", 1),
+      makePlayer("p2", 2),
+      makePlayer("p3", 3),
+    ];
+    const seasonEvents = buildGame({
+      gameId: "g1",
+      field: ["p1"],
+      bench: [],
+      periodCount: 1,
+      vests: [{ player: "p1", vest: "dh", quarter: 1 }],
+    });
+    const rotation = suggestVestRotation({
+      onFieldIds: ["p1", "p2", "p3"],
+      players,
+      seasonEvents,
+      requiredUnbrokenPeriods: 0,
+      vestRequirements: { fr: false, dh: true },
+      periodCount: 1,
+    });
+    expect(rotation.dh[0]).toBe("p2");
+  });
+
+  it("suggestVestRotation: reliable attendee wins DH tiebreak when ratios are equal", () => {
+    reset();
+    // p1: 1 DH / 5 games (20%) — reliable
+    // p2: 2 DH / 10 games (20%) — more games, also reliable
+    // Same ratio → games DESC tiebreak → p2 wins.
+    const players = [makePlayer("p1", 1), makePlayer("p2", 2)];
+    const games: GameEvent[] = [];
+    for (let i = 1; i <= 5; i++) {
+      games.push(
+        ...buildGame({
+          gameId: `p1g${i}`,
+          field: ["p1"],
+          bench: [],
+          periodCount: 1,
+          vests: i === 1 ? [{ player: "p1", vest: "dh", quarter: 1 }] : [],
+        }),
+      );
+    }
+    for (let i = 1; i <= 10; i++) {
+      games.push(
+        ...buildGame({
+          gameId: `p2g${i}`,
+          field: ["p2"],
+          bench: [],
+          periodCount: 1,
+          vests:
+            i === 1 || i === 6
+              ? [{ player: "p2", vest: "dh", quarter: 1 }]
+              : [],
+        }),
+      );
+    }
+    const rotation = suggestVestRotation({
+      onFieldIds: ["p1", "p2"],
+      players,
+      seasonEvents: games,
+      requiredUnbrokenPeriods: 0,
+      vestRequirements: { fr: false, dh: true },
+      periodCount: 1,
+    });
+    expect(rotation.dh[0]).toBe("p2");
+  });
+});
