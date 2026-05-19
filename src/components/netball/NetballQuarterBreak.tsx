@@ -128,7 +128,7 @@ interface Props {
    * the shared `Player.chip` field — this prop just supplies the
    * team-level per-chip split/group mode.
    */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }

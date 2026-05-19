@@ -5,7 +5,14 @@ import { updateTeamChipSettings } from "@/app/(app)/teams/[teamId]/settings/acti
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { CHIP_COLORS, CHIP_KEYS, type ChipKey, type ChipMode } from "@/lib/chips";
+import {
+  CHIP_COLORS,
+  CHIP_KEYS,
+  CHIP_MODES,
+  CHIP_MODE_LABEL,
+  type ChipKey,
+  type ChipMode,
+} from "@/lib/chips";
 
 interface CohortChipsSettingsProps {
   teamId: string;
@@ -63,12 +70,15 @@ export function CohortChipsSettings({
       <p className="text-sm font-semibold text-ink">Player chips</p>
       <p className="mt-1 text-xs text-ink-dim">
         Tag your squad with up to three chips. For each chip, pick how the
-        suggester should treat chip-mates:{" "}
+        suggester treats chip-mates:{" "}
         <strong className="text-ink">Split</strong> spreads them across
-        zones (e.g. mix older with younger);{" "}
-        <strong className="text-ink">Group</strong> keeps them together
-        (e.g. a player who needs to stay paired with specific teammates).
-        Leave a label blank to hide the chip.
+        zones,{" "}
+        <strong className="text-ink">Group</strong> keeps them together,
+        or pick{" "}
+        <strong className="text-ink">Forward / Centre / Back</strong> to
+        preference chip-mates toward a specific area of the ground (once
+        mandatory rotations age out, some kids settle into a position —
+        Steve 2026-05-20). Leave a label blank to hide the chip.
       </p>
       <div className="mt-3 grid gap-4 sm:grid-cols-3">
         {CHIP_KEYS.map((k) => (
@@ -90,45 +100,37 @@ export function CohortChipsSettings({
               disabled={isPending || !isAdmin}
               maxLength={32}
             />
-            <div role="radiogroup" aria-label={`Chip ${k.toUpperCase()} mode`}>
-              <div className="flex rounded-md border border-hairline bg-surface text-xs">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={modes[k] === "split"}
-                  onClick={() =>
-                    setModes((prev) => ({ ...prev, [k]: "split" }))
-                  }
-                  disabled={isPending || !isAdmin}
-                  className={`flex-1 rounded-l-md px-3 py-1.5 font-medium transition-colors ${
-                    modes[k] === "split"
-                      ? "bg-ink text-warm"
-                      : "text-ink-dim hover:bg-surface-alt"
-                  } disabled:opacity-60`}
-                >
-                  Split
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={modes[k] === "group"}
-                  onClick={() =>
-                    setModes((prev) => ({ ...prev, [k]: "group" }))
-                  }
-                  disabled={isPending || !isAdmin}
-                  className={`flex-1 rounded-r-md px-3 py-1.5 font-medium transition-colors ${
-                    modes[k] === "group"
-                      ? "bg-ink text-warm"
-                      : "text-ink-dim hover:bg-surface-alt"
-                  } disabled:opacity-60`}
-                >
-                  Group
-                </button>
-              </div>
+            {/* Steve 2026-05-20: was a 2-button radio toggle
+                (Split | Group). Now five modes; switched to a
+                select so the per-chip card stays tight. Helper
+                line under the select adapts to the picked mode. */}
+            <div>
+              <label
+                htmlFor={`chip-${k}-mode`}
+                className="sr-only"
+              >
+                Chip {k.toUpperCase()} mode
+              </label>
+              <select
+                id={`chip-${k}-mode`}
+                value={modes[k]}
+                onChange={(e) =>
+                  setModes((prev) => ({
+                    ...prev,
+                    [k]: e.target.value as ChipMode,
+                  }))
+                }
+                disabled={isPending || !isAdmin}
+                className="w-full rounded-md border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+              >
+                {CHIP_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {CHIP_MODE_LABEL[m]}
+                  </option>
+                ))}
+              </select>
               <p className="mt-1 text-[11px] text-ink-mute">
-                {modes[k] === "split"
-                  ? "Spreads chip-mates across zones."
-                  : "Keeps chip-mates together."}
+                {modeHelpText(modes[k])}
               </p>
             </div>
           </div>
@@ -163,4 +165,19 @@ export function CohortChipsSettings({
       )}
     </div>
   );
+}
+
+function modeHelpText(mode: ChipMode): string {
+  switch (mode) {
+    case "split":
+      return "Spreads chip-mates across zones.";
+    case "group":
+      return "Keeps chip-mates together.";
+    case "forward":
+      return "Prefers chip-mates in forward zones.";
+    case "centre":
+      return "Prefers chip-mates in midfield / centre.";
+    case "back":
+      return "Prefers chip-mates in defensive zones.";
+  }
 }

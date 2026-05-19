@@ -168,4 +168,138 @@ describe("Phase D — chip-spread", () => {
       expect(byZone[z]).toContain("b");
     }
   });
+
+  // ─── Zone-preference modes (Steve 2026-05-20) ──────────────
+  // Three new chip modes pull chip-mates toward a specific zone
+  // family without hard-locking them. zones3 mapping is direct:
+  // forward → fwd, centre → mid, back → back.
+
+  it("zone-forward mode lands all chip-A players in the forward zone", () => {
+    // 3 chip-A forwards + 9 plain players, exactly 12 on-field at
+    // 4-4-4. With no chip the suggester would spread chip-A
+    // evenly; with forward mode all three should cluster in fwd.
+    const players: Player[] = [
+      ...Array.from({ length: 3 }, (_, i) => p(`a${i}`, "a")),
+      ...Array.from({ length: 9 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aInFwd = byZone.fwd.filter((c) => c === "a").length;
+    // Forward zone caps at 4 (12 / 3); all 3 chip-A should fit.
+    expect(aInFwd).toBe(3);
+    expect(byZone.back).not.toContain("a");
+    expect(byZone.mid).not.toContain("a");
+  });
+
+  it("zone-back mode lands all chip-B players in the back zone", () => {
+    const players: Player[] = [
+      ...Array.from({ length: 3 }, (_, i) => p(`b${i}`, "b")),
+      ...Array.from({ length: 9 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { b: "back" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const bInBack = byZone.back.filter((c) => c === "b").length;
+    expect(bInBack).toBe(3);
+    expect(byZone.mid).not.toContain("b");
+    expect(byZone.fwd).not.toContain("b");
+  });
+
+  it("zone-centre mode pulls chip-A into mid even when forwards are empty", () => {
+    // 2 chip-A centres in a 12-player squad. Without any chip
+    // pressure the suggester might distribute them; centre mode
+    // should pull both into mid.
+    const players: Player[] = [
+      p("a0", "a"),
+      p("a1", "a"),
+      ...Array.from({ length: 10 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "centre" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aInMid = byZone.mid.filter((c) => c === "a").length;
+    expect(aInMid).toBe(2);
+  });
+
+  it("zone preference yields when in-game diversity demands fresh rotation", () => {
+    // A player already placed in fwd this game gets a +1000 bonus
+    // to land somewhere fresh. The zone-forward chip's +800 bonus
+    // shouldn't override that — fairness still wins. Simulates
+    // mid-rotation: forward-chipped player has played fwd for a
+    // full quarter already.
+    const FULL_QUARTER_MS = 12 * 60 * 1000;
+    const seasonMins = {};
+    // Player a0 has played fwd already this game → in-game
+    // diversity bonus for back/mid > zone-forward chip bonus.
+    const gameMs = {
+      a0: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+    };
+    const players: Player[] = [
+      p("a0", "a"),
+      ...Array.from({ length: 11 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      seasonMins,
+      0,
+      zoneCapsFor(12, "zones3"),
+      gameMs,
+      {},
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    // a0 should be placed in back or mid (fresh zone), NOT fwd.
+    expect(lineup.fwd).not.toContain("a0");
+  });
 });

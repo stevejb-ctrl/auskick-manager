@@ -128,7 +128,7 @@ interface LineupPickerProps {
    * the team-level per-chip split/group mode. Optional for
    * back-compat with callers pre-dating this prop.
    */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /**
    * Team-level default for "allow mid-quarter subs" (mirrors the
    * team Settings toggle). Used as the fallback when no per-game

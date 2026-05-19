@@ -8,7 +8,7 @@ import {
   saveLineupDraft,
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -76,7 +76,7 @@ interface LineupPickerProps {
    * (e.g. a player who needs to stay paired with specific teammates),
    * while "split" (default) spreads them across zones.
    */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
   /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the

@@ -408,7 +408,7 @@ export interface NetballSuggestInput {
    * shape exactly.
    */
   chipByPlayerId?: Record<string, "a" | "b" | "c" | null | undefined>;
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per
@@ -417,6 +417,24 @@ export interface NetballSuggestInput {
 // same-chip overlap is the dominant signal among season-rarity ties
 // but never overrides "don't repeat third".
 const NETBALL_CHIP_PENALTY_BASE = 50;
+
+// Flat zone-preference bonus (Steve 2026-05-20). Applies when a
+// chip's mode is "forward" / "centre" / "back" — the netball
+// suggester maps these to the existing thirds via `primaryThirdFor`:
+//   forward → attack-third (GS, GA, WA)
+//   centre  → centre-third (C)
+//   back    → defence-third (WD, GD, GK)
+// The bonus fires for every candidate position in the matching
+// third, so a forward-chipped player rotates GS/GA/WA across
+// quarters via the existing tier-2 same-position penalty.
+//
+// Magnitude 50000 sits between tier-1 unplayedThirdBonus (100000,
+// which can still override when fairness demands) and tier-2
+// samePositionPenalty (-50000, same magnitude — but the chip bonus
+// is per-third while tier-2 is per-position, so within a matching
+// third the same-position penalty still rotates the player across
+// the three positions there).
+const NETBALL_CHIP_ZONE_BONUS = 50000;
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
   const {
@@ -538,28 +556,45 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     // Tier 5: prefer positions they've played least across the season.
     const seasonRarity = -seasonCount;
 
-    // Tier 6: cohort-chip placement preference. AFL parity. Apply
-    // per-third — count same-chip players already placed in
-    // candidateThird, magnitude scales with n² so two clustering
-    // each contribute 4×base, three contribute 9×base, etc. "split"
-    // mode = penalty; "group" mode = bonus. Chips with no mode set
-    // default to "split" (matches AFL's
-    // `chipModeByKey[myChip] ?? "split"`).
+    // Tier 6: cohort-chip placement preference. AFL parity, five
+    // modes (Steve 2026-05-20):
+    //
+    //   - split  → per-third n²×base PENALTY, discourages cluster
+    //   - group  → per-third n²×base BONUS, encourages cluster
+    //   - forward → flat BONUS when candidateThird is attack-third
+    //   - centre → flat BONUS when candidateThird is centre-third
+    //   - back   → flat BONUS when candidateThird is defence-third
+    //
+    // Default ("split") matches AFL's `chipModeByKey[myChip] ??
+    // "split"` so chips without an explicit mode stay on the
+    // legacy spread behaviour.
     let chipTerm = 0;
     if (candidateThird && chipByPlayerId) {
       const myChip = chipByPlayerId[pid];
       if (myChip) {
-        const placed = placedInThird[candidateThird];
-        if (placed && placed.size > 0) {
-          let sameChip = 0;
-          placed.forEach((other) => {
-            if (chipByPlayerId[other] === myChip) sameChip++;
-          });
-          if (sameChip > 0) {
-            const magnitude =
-              sameChip * sameChip * NETBALL_CHIP_PENALTY_BASE;
-            const mode = chipModeByKey?.[myChip] ?? "split";
-            chipTerm = mode === "group" ? magnitude : -magnitude;
+        const mode = chipModeByKey?.[myChip] ?? "split";
+        if (mode === "forward" || mode === "centre" || mode === "back") {
+          const targetThird =
+            mode === "forward"
+              ? "attack-third"
+              : mode === "centre"
+                ? "centre-third"
+                : "defence-third";
+          if (candidateThird === targetThird) {
+            chipTerm = NETBALL_CHIP_ZONE_BONUS;
+          }
+        } else {
+          const placed = placedInThird[candidateThird];
+          if (placed && placed.size > 0) {
+            let sameChip = 0;
+            placed.forEach((other) => {
+              if (chipByPlayerId[other] === myChip) sameChip++;
+            });
+            if (sameChip > 0) {
+              const magnitude =
+                sameChip * sameChip * NETBALL_CHIP_PENALTY_BASE;
+              chipTerm = mode === "group" ? magnitude : -magnitude;
+            }
           }
         }
       }

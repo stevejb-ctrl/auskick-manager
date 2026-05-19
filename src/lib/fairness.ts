@@ -21,6 +21,12 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
+import {
+  type ChipKey,
+  type ChipMode,
+  type ChipZoneMode,
+  isChipZoneMode,
+} from "@/lib/chips";
 
 export type ZoneMinutes = Record<Zone, number>;
 export type PlayerZoneMinutes = Record<string, ZoneMinutes>;
@@ -484,7 +490,7 @@ export function suggestStartingLineup(
    * (e.g. a player who needs to stay paired with specific teammates).
    * Missing keys default to "split".
    */
-  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">> = {},
+  chipModeByKey: Partial<Record<"a" | "b" | "c", ChipMode>> = {},
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -646,7 +652,7 @@ export function suggestStartingLineup(
 
 // ─── Chip-spread penalty (Phase D) ────────────────────────────
 // Soft constraint applied during placement so chip-mates either
-// spread (default) or group together (per chip's `mode`).
+// spread, group together, or land in a preferred zone family.
 //
 // Split mode (default): quadratic POSITIVE penalty in the count
 // already placed in the target zone. 1st same-chip = 0, 2nd = 50,
@@ -656,15 +662,55 @@ export function suggestStartingLineup(
 // Group mode: same magnitude but NEGATIVE so the same-chip zone
 // becomes the cheapest option. 1st = 0, 2nd = -50, 3rd = -200,
 // 4th = -450. Funnels chip-mates into one zone (subject to caps).
+//
+// Zone modes (forward / centre / back, Steve 2026-05-20): flat
+// NEGATIVE for placements in the preferred zone family, 0
+// otherwise. Magnitude `CHIP_ZONE_BONUS` is large enough to
+// reliably pull when the rest of the score tiers are roughly
+// neutral, but smaller than IN_GAME_DIVERSITY so an unplayed
+// fresh-zone placement can still override the preference when
+// fairness demands. Family mapping:
+//   forward → fwd, hfwd
+//   centre  → mid
+//   back    → back, hback
+// The bonus fires on EVERY zone in the family so the player
+// rotates within their preferred area across quarters via the
+// existing other-tier scoring.
 const CHIP_PENALTY_BASE = 50;
+const CHIP_ZONE_BONUS = 800;
+
+// Zone family per zone-preference mode. Public so the AFL
+// suggester's swap path can re-use it; netball has its own
+// third-based mapping inside its own fairness module.
+export const CHIP_ZONE_FAMILY: Record<ChipZoneMode, ReadonlyArray<Zone>> = {
+  forward: ["fwd", "hfwd"],
+  centre: ["mid"],
+  back: ["back", "hback"],
+};
+
+function zoneMatchesChipMode(zone: Zone, mode: ChipZoneMode): boolean {
+  return CHIP_ZONE_FAMILY[mode].includes(zone);
+}
+
 function buildChipPenaltyFor(
-  chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
-  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">>,
+  chipByPlayerId: Record<string, ChipKey | null | undefined>,
+  chipModeByKey: Partial<Record<ChipKey, ChipMode>>,
   placedByZone: Map<Zone, Set<string>>,
 ) {
   return (pid: string, target: Zone): number => {
     const myChip = chipByPlayerId[pid];
     if (!myChip) return 0;
+    const mode = chipModeByKey[myChip] ?? "split";
+
+    // Zone-preference modes: flat bonus for zone-family matches,
+    // 0 otherwise. Doesn't scale with placement density (n²)
+    // because the preference is per-player-per-zone, not
+    // cluster-shaped like split/group.
+    if (isChipZoneMode(mode)) {
+      return zoneMatchesChipMode(target, mode) ? -CHIP_ZONE_BONUS : 0;
+    }
+
+    // Split / group: existing cluster-shaped scoring.
     const placed = placedByZone.get(target);
     if (!placed) return 0;
     let sameChip = 0;
@@ -673,7 +719,6 @@ function buildChipPenaltyFor(
     });
     if (sameChip === 0) return 0;
     const magnitude = sameChip * sameChip * CHIP_PENALTY_BASE;
-    const mode = chipModeByKey[myChip] ?? "split";
     return mode === "group" ? -magnitude : magnitude;
   };
 }

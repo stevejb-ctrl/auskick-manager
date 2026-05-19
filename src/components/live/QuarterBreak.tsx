@@ -20,7 +20,7 @@ import {
   startQuarter as startQuarterAction,
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
 import {
   ALL_ZONES,
   suggestStartingLineup,
@@ -82,7 +82,7 @@ interface QuarterBreakProps {
   /** Default on-field size for the team's age group (shown as a hint). */
   defaultOnFieldSize: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
   onStarted: () => void;
 }
 
