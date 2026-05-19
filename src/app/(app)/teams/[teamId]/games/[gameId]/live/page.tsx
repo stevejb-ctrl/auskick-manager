@@ -207,11 +207,20 @@ export default async function LivePage({ params }: LivePageProps) {
     const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
     const hasStarted = replay.lineup !== null;
 
+    // Season events (this-game-excluded) — drives the lineup-picker's
+    // fairness suggester AND the live KickoffPicker's per-player
+    // kickoff-count badges. Lifted out of the !hasStarted branch
+    // (Steve 2026-05-19) so the live surface gets the same season
+    // history view as the pre-kickoff picker.
+    const allLeagueSeasonEvents = await getSeasonEvents(params.teamId);
+    const leagueSeasonEvents = allLeagueSeasonEvents.filter(
+      (e) => e.game_id !== params.gameId,
+    );
+
     if (!hasStarted) {
-      // Pre-kickoff: load saved draft (if any) and season events
-      // for the fairness suggester, then render the picker. The
-      // season events drive Auto Suggest's ranking; an empty
-      // season just falls back to jersey-number ordering.
+      // Pre-kickoff: load saved draft (if any) and use the season
+      // events fetched above to drive the picker's fairness ranking.
+      // Empty season → jersey-number fallback.
       const { data: draftRow } = await supabase
         .from("game_lineup_drafts")
         .select("lineup, updated_at")
@@ -223,11 +232,6 @@ export default async function LivePage({ params }: LivePageProps) {
             updated_at: (draftRow as { updated_at: string }).updated_at,
           }
         : null;
-
-      const allLeagueSeasonEvents = await getSeasonEvents(params.teamId);
-      const leagueSeasonEvents = allLeagueSeasonEvents.filter(
-        (e) => e.game_id !== params.gameId,
-      );
 
       // Pre-game lent-player set — walk this game's player_loan
       // events, latest-per-player wins. Mirrors the AFL pre-kickoff
@@ -301,6 +305,7 @@ export default async function LivePage({ params }: LivePageProps) {
           trackScoring={trackScoring}
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
+          seasonEvents={leagueSeasonEvents as GameEvent[]}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

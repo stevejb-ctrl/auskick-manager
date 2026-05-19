@@ -385,3 +385,30 @@ export function kickoffRecordedForPeriod(
 export function kickoffTakers(events: GameEvent[]): Set<string> {
   return new Set(readKickoffEvents(events).map((e) => e.player_id));
 }
+
+/**
+ * Per-player kickoff totals across an event log — typically called
+ * with season events to surface "Asher · K 3" under each candidate
+ * in the kickoff picker. Mirrors `seasonVestCountsByPlayer` shape so
+ * the picker can render kickoff history with the same UX rhythm the
+ * vest picker uses for FR/DH.
+ *
+ * Steve 2026-05-19: "I'd like to record how many times each player
+ * has kicked off over the season and show this like we do for the
+ * DH/FR."
+ *
+ * Caller decides scope: passing `seasonEvents` (this-game-excluded)
+ * gives the pre-period count; passing `thisGameEvents` gives the
+ * mid-game cycle count; passing the union gives the rolling total.
+ * The function itself is just a tally — no filtering.
+ */
+export function seasonKickoffCountsByPlayer(
+  events: GameEvent[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const ev of events) {
+    if (ev.type !== "kickoff_taken" || !ev.player_id) continue;
+    out[ev.player_id] = (out[ev.player_id] ?? 0) + 1;
+  }
+  return out;
+}

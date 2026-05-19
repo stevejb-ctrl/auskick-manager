@@ -7,6 +7,7 @@ import {
   nextEligibleKickoffTakers,
   kickoffRecordedForPeriod,
   kickoffTakers,
+  seasonKickoffCountsByPlayer,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, GameEventType } from "@/lib/types";
 
@@ -357,5 +358,68 @@ describe("kickoffRecordedForPeriod + kickoffTakers", () => {
     reset();
     const events = [kickoff("p1", 1), kickoff("p2", 2)];
     expect(kickoffTakers(events)).toEqual(new Set(["p1", "p2"]));
+  });
+});
+
+// ─── seasonKickoffCountsByPlayer ─────────────────────────────
+// Steve 2026-05-19: KickoffPicker now surfaces per-player season
+// kickoff counts so the coach can balance the §16 rotation across
+// the whole season, not just one game.
+
+describe("seasonKickoffCountsByPlayer", () => {
+  it("returns an empty record when there are no kickoff events", () => {
+    reset();
+    expect(seasonKickoffCountsByPlayer([])).toEqual({});
+    expect(
+      seasonKickoffCountsByPlayer([
+        ev("quarter_start", { quarter: 1 }),
+        ev("try", {}, "p1"),
+      ]),
+    ).toEqual({});
+  });
+
+  it("counts one kickoff per kickoff_taken event", () => {
+    reset();
+    const events = [kickoff("p1", 1), kickoff("p2", 1), kickoff("p3", 2)];
+    expect(seasonKickoffCountsByPlayer(events)).toEqual({
+      p1: 1,
+      p2: 1,
+      p3: 1,
+    });
+  });
+
+  it("aggregates multiple kickoffs per player", () => {
+    reset();
+    const events = [
+      kickoff("p1", 1),
+      kickoff("p1", 2),
+      kickoff("p2", 3),
+      kickoff("p1", 4),
+    ];
+    expect(seasonKickoffCountsByPlayer(events)).toEqual({
+      p1: 3,
+      p2: 1,
+    });
+  });
+
+  it("ignores kickoff_taken events with no player_id", () => {
+    reset();
+    // Defensive: shouldn't happen in production (kickoff_taken
+    // always carries a player_id) but tally must be robust to a
+    // future bug rather than throwing or counting null.
+    const stray = ev("kickoff_taken", { period: 1 }, null);
+    const real = kickoff("p1", 1);
+    expect(seasonKickoffCountsByPlayer([stray, real])).toEqual({ p1: 1 });
+  });
+
+  it("ignores non-kickoff events", () => {
+    reset();
+    const events = [
+      ev("try", {}, "p1"),
+      kickoff("p1", 1),
+      ev("vest_assigned", { vest: "fr", period: 1 }, "p2"),
+      ev("conversion_attempt", { made: true, force: false }, "p1"),
+    ];
+    expect(seasonKickoffCountsByPlayer(events)).toEqual({ p1: 1 });
   });
 });

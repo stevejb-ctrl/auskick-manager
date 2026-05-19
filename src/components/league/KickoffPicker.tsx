@@ -14,7 +14,7 @@
 // "Skip" to record nothing — laws don't mandate tracking, just the
 // rotation.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton, Guernsey } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -22,6 +22,7 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import {
   kickoffCycle,
   nextEligibleKickoffTakers,
+  seasonKickoffCountsByPlayer,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
@@ -30,6 +31,13 @@ interface KickoffPickerProps {
   gameId: string;
   squad: Player[];
   events: GameEvent[];
+  /**
+   * Prior season events (this game excluded). Drives the per-
+   * candidate "K {N}" badge so the coach can see how often each
+   * player has kicked off across the season. Empty / undefined =
+   * first game of the season, badges hidden.
+   */
+  seasonEvents?: GameEvent[];
   /** The period this kickoff is for (1-indexed). */
   period: number;
   /** Tap "Skip" — closes the picker without writing. */
@@ -41,6 +49,7 @@ export function KickoffPicker({
   gameId,
   squad,
   events,
+  seasonEvents,
   period,
   onSkip,
 }: KickoffPickerProps) {
@@ -52,6 +61,24 @@ export function KickoffPicker({
   const eligible = new Set(nextEligibleKickoffTakers(events, squadIds));
   const showResetBanner
     = cycle.taken.size === 0 && events.some((e) => e.type === "kickoff_taken");
+  // Per-player kickoff totals from prior season games + earlier
+  // periods of THIS game. Shown under each candidate as "K {N}" so
+  // the coach can balance kickoff exposure the same way VestPlanRow
+  // surfaces FR/DH season counts. Memoised because the season log
+  // can be long and we re-render on each pending-tap.
+  const kickoffCounts = useMemo(() => {
+    const seasonCounts = seasonKickoffCountsByPlayer(seasonEvents ?? []);
+    const thisGameCounts = seasonKickoffCountsByPlayer(events);
+    const merged: Record<string, number> = { ...seasonCounts };
+    for (const [id, n] of Object.entries(thisGameCounts)) {
+      merged[id] = (merged[id] ?? 0) + n;
+    }
+    return merged;
+  }, [seasonEvents, events]);
+  // Suppress badges entirely when nobody in the squad has ever
+  // kicked off — clean-slate first-game-of-season reads better
+  // without zeros plastered across every tile.
+  const anyKickoffsRecorded = squad.some((p) => (kickoffCounts[p.id] ?? 0) > 0);
 
   async function commit(kickerId: string) {
     setPendingId(kickerId);
@@ -93,6 +120,7 @@ export function KickoffPicker({
         {squad.map((p) => {
           const canPick = eligible.has(p.id);
           const isPending = pendingId === p.id;
+          const kickoffCount = kickoffCounts[p.id] ?? 0;
           return (
             <button
               key={p.id}
@@ -110,7 +138,23 @@ export function KickoffPicker({
                 num={p.jersey_number != null ? String(p.jersey_number) : ""}
                 size={26}
               />
-              <span className="min-w-0 flex-1 truncate">{p.full_name}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{p.full_name}</span>
+                {/* Season kickoff count — matches VestPlanRow's
+                    "FR N · DH N" rhythm but for the K rotation.
+                    Hidden when the whole squad is at zero (cleaner
+                    first-game-of-season look). */}
+                {anyKickoffsRecorded && (
+                  <span
+                    className={`font-mono text-[9px] uppercase tracking-micro ${
+                      kickoffCount > 0 ? "font-bold text-warn" : "text-ink-mute"
+                    }`}
+                    aria-label={`Kicked off ${kickoffCount} ${kickoffCount === 1 ? "time" : "times"} this season`}
+                  >
+                    K {kickoffCount}
+                  </span>
+                )}
+              </span>
               {!canPick && (
                 <span className="text-[10px] uppercase tracking-wide">Done</span>
               )}

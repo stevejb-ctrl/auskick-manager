@@ -57,6 +57,14 @@ interface LeagueLiveGameProps {
   trackScoring: boolean;
   state: LeagueGameState;
   thisGameEvents: GameEvent[];
+  /**
+   * Prior season events (this game's events excluded). Drives the
+   * KickoffPicker's "Asher · K 3" per-candidate badge so the coach
+   * can see who's kicked off most often across the season at the
+   * moment they pick this period's kicker. Empty array = first
+   * game of the season → all candidates show 0.
+   */
+  seasonEvents: GameEvent[];
   isAdmin: boolean;
   exitHref: string;
 }
@@ -72,6 +80,7 @@ export function LeagueLiveGame({
   trackScoring,
   state,
   thisGameEvents,
+  seasonEvents,
   isAdmin,
   exitHref,
 }: LeagueLiveGameProps) {
@@ -1063,6 +1072,7 @@ export function LeagueLiveGame({
             gameId={game.id}
             squad={squad}
             events={thisGameEvents}
+            seasonEvents={seasonEvents}
             period={state.currentQuarter}
             onSkip={() => {
               kickoffSkippedRef.current.add(state.currentQuarter);
