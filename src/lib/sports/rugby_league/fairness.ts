@@ -870,52 +870,56 @@ export function suggestLeagueLineup(
       : Math.floor(defaultOnFieldSize / 2);
   const targetBacks = Math.max(0, defaultOnFieldSize - targetForwards);
 
-  // Chip-aware zone distribution — TWO PASSES so chipped players
-  // claim their preferred zone before unchipped players consume the
-  // slots. A single fairness-ranked walk lets the top-ranked
-  // unchipped players fill the forwards pool first, and any chipped
-  // forwards further down the rank end up in backs by overflow —
-  // exactly the bug the picker was rendering (forward-chip green
-  // dots on players placed in the backs row).
+  // Starter selection is pure fairness — top N by rank go on the
+  // field, the rest sit. The chip decides ZONE among starters but
+  // doesn't decide WHO starts. Earlier draft ran two passes
+  // (chipped first, unchipped after) which let a lower-ranked
+  // chipped player take a slot off a higher-ranked unchipped
+  // player — penalising the chip-less. Steve 2026-05-19.
   //
-  //   Pass 1: walk fairness-ranked; place each CHIPPED player into
-  //           their preferred zone if there's room. Overflow (e.g.
-  //           more forward chips than targetForwards) carries over
-  //           to pass 2.
-  //   Pass 2: walk fairness-ranked; place remaining players
-  //           (unchipped + chip-overflow) into whichever pool has
-  //           room. Backs first when forwards are saturated so
-  //           the suggestion keeps the F/B ratio close to the
-  //           configured target. Anyone who can't fit goes to bench.
+  //   Pass 1: walk starters (top-N fairness); place each into
+  //           their preferred zone when chipped and the zone has
+  //           room. Anyone unplaced (unchipped or chip-overflow)
+  //           parks for pass 2.
+  //   Pass 2: fill any unplaced starter into whichever zone has
+  //           room. Forwards first (the target capacity guarantees
+  //           every starter lands somewhere).
+  //
+  // Bench is just the tail of the fairness rank — players past
+  // the on-field cut.
+  const starters = ranked.slice(0, defaultOnFieldSize);
+  const benchTail = ranked.slice(defaultOnFieldSize);
   const forwards: string[] = [];
   const backs: string[] = [];
-  const bench: string[] = [];
-  const placed = new Set<string>();
+  const unplaced: typeof starters = [];
 
-  for (const p of ranked) {
+  for (const p of starters) {
     const zone = chipZone(p.chip);
-    if (!zone) continue;
     if (zone === "forward" && forwards.length < targetForwards) {
       forwards.push(p.id);
-      placed.add(p.id);
     } else if (zone === "back" && backs.length < targetBacks) {
       backs.push(p.id);
-      placed.add(p.id);
+    } else {
+      // Either unchipped or chip-overflow (their preferred zone
+      // is already full). Defer until chipped starters have all
+      // had a shot at their natural fit.
+      unplaced.push(p);
     }
   }
 
-  for (const p of ranked) {
-    if (placed.has(p.id)) continue;
+  for (const p of unplaced) {
     if (forwards.length < targetForwards) {
       forwards.push(p.id);
     } else if (backs.length < targetBacks) {
       backs.push(p.id);
-    } else {
-      bench.push(p.id);
     }
+    // No `else { bench.push }` path — starters.length always
+    // equals targetForwards + targetBacks so the loop always
+    // places every unplaced starter.
   }
 
   const fieldPicks = [...forwards, ...backs];
+  const bench = benchTail.map((p) => p.id);
 
   // Vest suggestions: choose among on-field players, biased toward
   // fewest historical appearances of THAT vest, with FR / DH

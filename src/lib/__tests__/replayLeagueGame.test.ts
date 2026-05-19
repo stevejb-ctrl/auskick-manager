@@ -487,4 +487,81 @@ describe("suggestLeagueLineup — chip-aware zone distribution", () => {
     expect(result.lineup.forwards).toHaveLength(3); // floor(7/2)
     expect(result.lineup.backs).toHaveLength(4); // remainder
   });
+
+  it("does NOT penalise unchipped players — top-N by fairness gets starters; chip only routes the zone (Steve 2026-05-19)", () => {
+    // Mock a season where the unchipped players (u1, u2) have a
+    // big shortfall — they've missed unbroken halves repeatedly
+    // and rank ahead of the chipped roster on fairness. The
+    // chipped players (f1, b1, b2) have a clean record. Older
+    // version of the suggester ran "chipped first" passes which
+    // bumped u1/u2 to the bench while still seating low-fairness
+    // chipped players — bug under test.
+    //
+    // We construct the shortfall via a previous game's events: u1
+    // and u2 are listed in lineup_set but never reach quarter_end
+    // (no quarter_start), so unbrokenPeriodCompliance flags them
+    // as zero unbroken periods → high shortfall.
+    const players: Player[] = [
+      p("u1", 1),
+      p("u2", 2),
+      p("f1", 3, "a"),
+      p("b1", 4, "b"),
+      p("b2", 5, "b"),
+    ];
+    // Prior game lineup_set + a finalised event so the
+    // unbrokenPeriod helper has structure to tally — but no
+    // quarter starts/ends so EVERY player gets 0 unbroken
+    // periods, putting u1 + u2 at the top of the rank by shared
+    // shortfall + jersey tiebreak. (Field-size 4 → bench 1.)
+    const ts = (n: number) => new Date(2026, 0, 1, 0, 0, n).toISOString();
+    const seasonEvents: GameEvent[] = [
+      {
+        id: "e1",
+        game_id: "g0",
+        type: "lineup_set",
+        player_id: null,
+        metadata: {
+          lineup: {
+            forwards: ["f1"],
+            backs: ["b1", "b2"],
+            bench: ["u1", "u2"],
+          },
+          sport: "rugby_league",
+        },
+        created_by: null,
+        created_at: ts(1),
+      },
+    ];
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 4,
+      forwardCount: 2,
+      seasonEvents,
+      requiredUnbrokenPeriods: 1,
+    });
+    // u1 + u2 should be in the starters (they outrank everyone
+    // on fairness via jersey + shared shortfall) — NOT benched.
+    const starters = new Set([
+      ...result.lineup.forwards,
+      ...result.lineup.backs,
+    ]);
+    expect(starters.has("u1")).toBe(true);
+    expect(starters.has("u2")).toBe(true);
+    // Chipped players still go to their preferred zone WHEN they
+    // start. f1 (forward chip) → forwards if it makes the cut.
+    if (starters.has("f1")) {
+      expect(result.lineup.forwards).toContain("f1");
+    }
+    if (starters.has("b1")) {
+      expect(result.lineup.backs).toContain("b1");
+    }
+    if (starters.has("b2")) {
+      expect(result.lineup.backs).toContain("b2");
+    }
+    // The bench player is the LOWEST fairness rank, not one of
+    // u1 / u2 (the unchipped players who were being penalised).
+    expect(result.lineup.bench).toHaveLength(1);
+    expect(result.lineup.bench[0]).not.toBe("u1");
+    expect(result.lineup.bench[0]).not.toBe("u2");
+  });
 });
