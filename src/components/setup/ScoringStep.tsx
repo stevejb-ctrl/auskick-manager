@@ -2,6 +2,8 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
+import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
+import type { ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface ScoringStepProps {
@@ -12,6 +14,15 @@ interface ScoringStepProps {
   sportId?: "afl" | "netball";
   /** Current quarter-length override in seconds, or null to use age-group default. */
   initialQuarterLengthSeconds?: number | null;
+  /**
+   * Existing chip labels and modes on the team. A freshly-created team
+   * has all-null labels (which the chip card treats as "off"); coaches
+   * who opt in during onboarding fill them in here and the SquadStep
+   * picks them up so chips can be applied as players are added. Steve
+   * 2026-05-20.
+   */
+  initialChipLabels?: { a: string | null; b: string | null; c: string | null };
+  initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
 }
 
 export function ScoringStep({
@@ -20,6 +31,8 @@ export function ScoringStep({
   initialEnabled,
   sportId = "afl",
   initialQuarterLengthSeconds = null,
+  initialChipLabels = { a: null, b: null, c: null },
+  initialChipModes = { a: "split", b: "split", c: "split" },
 }: ScoringStepProps) {
   const blurb =
     sportId === "netball" ? (
@@ -73,6 +86,42 @@ export function ScoringStep({
           initialOverrideSeconds={initialQuarterLengthSeconds}
         />
       )}
+
+      {/* Optional player chips — coaches who want to tag cohorts within
+          the squad (older / younger, returning / new, friends-stay-
+          together) can label up to three chip slots here and apply them
+          on the next step as they add players. Hidden inside a <details>
+          so the config step doesn't feel busy for the casual case. The
+          card itself treats blank labels as "off", so closing the
+          disclosure without filling anything in is the no-op default.
+          CohortChipsSettings supplies its own card chrome — the
+          <details> is just a transparent show/hide wrapper so we don't
+          end up with a double-bordered card-in-card. Steve 2026-05-20. */}
+      <details className="group">
+        <summary className="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-hairline bg-surface-alt px-5 py-3 text-sm font-semibold text-ink list-none [&::-webkit-details-marker]:hidden hover:border-brand-600">
+          <span className="flex flex-col gap-0.5">
+            <span>Player chips (optional)</span>
+            <span className="text-xs font-normal text-ink-dim">
+              Tag cohorts within the squad — e.g. older/younger, mates who
+              should stay grouped, or kids who play best in a set zone.
+            </span>
+          </span>
+          <span
+            className="ml-3 text-ink-mute transition-transform duration-fast ease-out-quart group-open:rotate-180"
+            aria-hidden
+          >
+            ▾
+          </span>
+        </summary>
+        <div className="mt-3">
+          <CohortChipsSettings
+            teamId={teamId}
+            initialLabels={initialChipLabels}
+            initialModes={initialChipModes}
+            isAdmin
+          />
+        </div>
+      </details>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
         <Link

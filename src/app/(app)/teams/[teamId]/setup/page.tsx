@@ -68,7 +68,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   ] = await Promise.all([
     adminClient
       .from("teams")
-      .select("name, age_group, sport, track_scoring, quarter_length_seconds, playhq_url")
+      .select(
+        "name, age_group, sport, track_scoring, quarter_length_seconds, playhq_url, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode",
+      )
       .eq("id", params.teamId)
       .maybeSingle(),
     adminClient
@@ -101,6 +103,40 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   // teams get their NetSetGO/Modified config here (not U8-U17).
   const ageGroupCfg = getAgeGroupConfig(sport, team.age_group as string | null);
 
+  // Chip fields are surfaced in the config step (so coaches can opt in
+  // during onboarding) AND the squad step (so chips can be applied as
+  // each player is added). Steve 2026-05-20.
+  type ChipModeOrNull = import("@/lib/chips").ChipMode | null;
+  const teamWithChips = team as {
+    chip_a_label?: string | null;
+    chip_b_label?: string | null;
+    chip_c_label?: string | null;
+    chip_a_mode?: ChipModeOrNull;
+    chip_b_mode?: ChipModeOrNull;
+    chip_c_mode?: ChipModeOrNull;
+  };
+  const chipLabels = {
+    a: teamWithChips.chip_a_label ?? null,
+    b: teamWithChips.chip_b_label ?? null,
+    c: teamWithChips.chip_c_label ?? null,
+  };
+  const chipModes: {
+    a: import("@/lib/chips").ChipMode;
+    b: import("@/lib/chips").ChipMode;
+    c: import("@/lib/chips").ChipMode;
+  } = {
+    a: teamWithChips.chip_a_mode ?? "split",
+    b: teamWithChips.chip_b_mode ?? "split",
+    c: teamWithChips.chip_c_mode ?? "split",
+  };
+  const chipModesPartial: Partial<
+    Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>
+  > = {
+    a: teamWithChips.chip_a_mode ?? undefined,
+    b: teamWithChips.chip_b_mode ?? undefined,
+    c: teamWithChips.chip_c_mode ?? undefined,
+  };
+
   if (step === "config") {
     return (
       <ScoringStep
@@ -111,6 +147,8 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         initialQuarterLengthSeconds={
           (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
         }
+        initialChipLabels={chipLabels}
+        initialChipModes={chipModes}
       />
     );
   }
@@ -129,6 +167,8 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         players={players}
         sportId={sport}
+        chipLabels={chipLabels}
+        chipModes={chipModesPartial}
       />
     );
   }
