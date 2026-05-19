@@ -49,11 +49,13 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
+import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
 import {
   startLeagueGame,
   saveLeagueLineupDraft,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import {
+  seasonVestCountsByPlayer,
   suggestLeagueLineup,
   suggestVestRotation,
 } from "@/lib/sports/rugby_league/fairness";
@@ -134,6 +136,7 @@ export function LeagueLineupPickerFormation({
   const reqs = ageGroup.vestRequirements;
   const vestRequiredFr = reqs?.fr === true;
   const vestRequiredDh = reqs?.dh === true;
+  const vestsRequired = vestRequiredFr || vestRequiredDh;
 
   // ── Loaned players (read-only in the spike) ─────────────────
   const loanedIds = useMemo(
@@ -154,6 +157,16 @@ export function LeagueLineupPickerFormation({
   const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
   const [lineupMode, setLineupMode] = useState<"suggested" | "manual">(() =>
     initialDraft ? "manual" : "suggested",
+  );
+
+  // ── Season vest counts ──────────────────────────────────────
+  // Per-player tallies of how many times each player has worn FR
+  // and DH across the season so far. Surfaces under each candidate
+  // in the rotation plan's picker so the coach can balance vest
+  // exposure without having to memorise prior weeks.
+  const seasonVestCounts = useMemo(
+    () => seasonVestCountsByPlayer(seasonEvents),
+    [seasonEvents],
   );
 
   // ── Initial suggestion ──────────────────────────────────────
@@ -181,15 +194,36 @@ export function LeagueLineupPickerFormation({
     () => initialDraft?.lineup.bench ?? initialSuggestion.lineup.bench,
   );
 
-  // Period-1 vest holders. Period 2+ rotation gets generated on
-  // save via suggestVestRotation. Coach edits at half-time via
-  // the in-game vest assignment card.
+  // Period-1 vest holders — wired to the long-press on-field flow.
   const [frId, setFrId] = useState<string | null>(
     () => initialSuggestion.suggestedFr,
   );
   const [dhId, setDhId] = useState<string | null>(
     () => initialSuggestion.suggestedDh,
   );
+
+  // ── Period 2+ vest rotation overrides ───────────────────────
+  // The full rotation plan is derived at render time from
+  // `suggestVestRotation`, with per-period coach overrides layered
+  // on top. Period 1 is sourced from `frId`/`dhId` (controlled by
+  // the long-press flow on the on-field tile) so the rotation plan
+  // card stays in sync with the formation pitch.
+  //
+  // `frOverrides[period]` and `dhOverrides[period]` are 1-indexed
+  // keys (so the API matches "Half 2" / "Quarter 3" reading). A
+  // value of `null` means "no wearer" (coach explicitly cleared);
+  // a missing key means "use the suggester".
+  const [frOverrides, setFrOverrides] = useState<
+    Record<number, string | null>
+  >({});
+  const [dhOverrides, setDhOverrides] = useState<
+    Record<number, string | null>
+  >({});
+  /** Open inline picker for the rotation plan — `{ vest, period }` or null. */
+  const [vestPlanEdit, setVestPlanEdit] = useState<{
+    vest: "fr" | "dh";
+    period: number;
+  } | null>(null);
 
   // ── Sub interval ────────────────────────────────────────────
   const gameMinutes
@@ -528,15 +562,17 @@ export function LeagueLineupPickerFormation({
     [forwardIds, backIds, benchIds],
   );
 
-  // Build the full per-period vest plan at save time. Period 1
-  // uses the coach's manual picks; period 2+ comes from the
+  // Build the full per-period vest plan. Period 1 reads from the
+  // coach's manual `frId`/`dhId` picks; period 2+ defaults to the
   // chip-aware suggester so the rotation is laws-§12-legal across
-  // the whole game. Coach can still edit period 2+ via the in-
-  // game half-time vest card.
-  function buildVestPlan(): {
+  // the whole game, with `frOverrides` / `dhOverrides` applied on
+  // top when the coach has manually picked a different wearer for
+  // a later period. Used both as a memoized derivation (for the
+  // rotation plan UI) and at save time.
+  const vestPlan = useMemo<{
     fr: (string | null)[];
     dh: (string | null)[];
-  } {
+  }>(() => {
     const rotation = suggestVestRotation({
       onFieldIds: fieldIds,
       players: playersForLineup,
@@ -549,16 +585,125 @@ export function LeagueLineupPickerFormation({
     const dh = rotation.dh.slice();
     if (vestRequiredFr) fr[0] = frId;
     if (vestRequiredDh) dh[0] = dhId;
-    // Re-enforce "no player wears the same vest twice" against
-    // period 1's manual override — clear any later period that
-    // duplicates the coach's pick.
-    for (let i = 1; i < fr.length; i++) {
-      if (fr[i] && fr[i] === frId) fr[i] = null;
+    // Layer coach overrides on top of the suggester.
+    for (const [periodStr, val] of Object.entries(frOverrides)) {
+      const i = Number(periodStr) - 1;
+      if (i >= 1 && i < fr.length) fr[i] = val;
     }
-    for (let i = 1; i < dh.length; i++) {
-      if (dh[i] && dh[i] === dhId) dh[i] = null;
+    for (const [periodStr, val] of Object.entries(dhOverrides)) {
+      const i = Number(periodStr) - 1;
+      if (i >= 1 && i < dh.length) dh[i] = val;
+    }
+    // Enforce "once a player has worn any vest, they're excluded
+    // from any other vest in a later period" — earlier draft used
+    // per-vest sets which let the same player wear FR in H1 then
+    // DH in H2. Combined `seenAny` blocks that. Period 1 picks win
+    // ties (walked first); later duplicates clear.
+    const seenAny = new Set<string>();
+    for (let i = 0; i < Math.max(fr.length, dh.length); i++) {
+      const frId_ = fr[i] ?? null;
+      const dhId_ = dh[i] ?? null;
+      if (frId_) {
+        if (seenAny.has(frId_)) fr[i] = null;
+        else seenAny.add(frId_);
+      }
+      if (dhId_) {
+        if (seenAny.has(dhId_)) dh[i] = null;
+        else seenAny.add(dhId_);
+      }
     }
     return { fr, dh };
+  }, [
+    fieldIds,
+    playersForLineup,
+    seasonEvents,
+    ageGroup.minUnbrokenPeriods,
+    ageGroup.periodCount,
+    reqs,
+    vestRequiredFr,
+    vestRequiredDh,
+    frId,
+    dhId,
+    frOverrides,
+    dhOverrides,
+  ]);
+
+  /**
+   * Override one period's FR or DH assignment. Enforces the
+   * any-vest-once rule: clears the picked player from BOTH the
+   * `fr` and `dh` overrides for every OTHER period (so a player
+   * wearing FR in H1 can't also be DH in H2 — they're locked out
+   * of any vest in any later period). Mutual exclusion within a
+   * period (FR != DH) is also enforced.
+   */
+  function setVestPlanEntry(
+    vest: "fr" | "dh",
+    period: number,
+    playerId: string | null,
+  ) {
+    // Period 1 is bound to `frId` / `dhId` (the long-press flow on
+    // the on-field tile reads / writes the same state). When the
+    // coach edits period 1 via the rotation plan card, update
+    // BOTH so the two affordances stay in sync.
+    if (period === 1) {
+      if (vest === "fr") {
+        setFrId(playerId);
+        // Same-period mutual exclusion: clear DH if it was the
+        // same player.
+        if (playerId && dhId === playerId) setDhId(null);
+      } else {
+        setDhId(playerId);
+        if (playerId && frId === playerId) setFrId(null);
+      }
+      // Period 1 change can violate "any vest worn once": if the
+      // new wearer was overridden into a later period, scrub them.
+      if (playerId) {
+        setFrOverrides((prev) => {
+          const next = { ...prev };
+          for (const periodStr of Object.keys(next)) {
+            if (next[Number(periodStr)] === playerId) {
+              next[Number(periodStr)] = null;
+            }
+          }
+          return next;
+        });
+        setDhOverrides((prev) => {
+          const next = { ...prev };
+          for (const periodStr of Object.keys(next)) {
+            if (next[Number(periodStr)] === playerId) {
+              next[Number(periodStr)] = null;
+            }
+          }
+          return next;
+        });
+      }
+      return;
+    }
+    setFrOverrides((prev) => {
+      const next = { ...prev };
+      if (vest === "fr") next[period] = playerId;
+      // Clear THIS player from every OTHER period of FR.
+      if (playerId) {
+        for (let i = 1; i < vestPlan.fr.length; i++) {
+          if (i + 1 === period && vest === "fr") continue;
+          if (vestPlan.fr[i] === playerId) next[i + 1] = null;
+        }
+      }
+      return next;
+    });
+    setDhOverrides((prev) => {
+      const next = { ...prev };
+      if (vest === "dh") next[period] = playerId;
+      // Clear THIS player from every OTHER period of DH (covers
+      // the "FR in H1 → blocked from DH in H2" case).
+      if (playerId) {
+        for (let i = 1; i < vestPlan.dh.length; i++) {
+          if (i + 1 === period && vest === "dh") continue;
+          if (vestPlan.dh[i] === playerId) next[i + 1] = null;
+        }
+      }
+      return next;
+    });
   }
 
   async function handleSavePlan() {
@@ -596,7 +741,7 @@ export function LeagueLineupPickerFormation({
       if (!proceed) return;
     }
     setError(null);
-    const vestPlan = buildVestPlan();
+    // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
       const result = await startLeagueGame(
         auth,
@@ -816,8 +961,8 @@ export function LeagueLineupPickerFormation({
               Starting field
             </h3>
             <p className="mt-0.5 text-[11px] text-ink-mute">
-              {fwdLabel} top of pitch · {backLabel} bottom · long-press
-              any tile for actions.
+              Tap two players to switch positions. Long-press a
+              player for other actions.
             </p>
           </div>
           <span
@@ -861,6 +1006,151 @@ export function LeagueLineupPickerFormation({
         disabled={isPending}
       />
 
+      {/* ── Vest rotation plan ─────────────────────────────────
+          Period 1 reflects the long-press on-field picks (read-only
+          here — the source of truth is the field tile). Period 2+
+          is auto-picked from season fairness via
+          `suggestVestRotation` and overridable per period. Hidden
+          for ages with no vest requirements (U6/U7) and for any
+          age with only one period (1 period = period 1 only,
+          nothing to show beyond it). */}
+      {vestsRequired && ageGroup.periodCount > 1 && (
+        <SFCard pad={0} className="overflow-hidden">
+          <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
+            <span
+              aria-hidden="true"
+              className="block h-5 w-1 rounded-sm bg-warn"
+            />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                Vest rotation plan
+              </h3>
+              <p className="text-[11px] text-ink-mute">
+                Auto-picked from fairness — tap any pick to swap.
+                Once a player wears a vest in one half, they&rsquo;re
+                excluded from the other.
+              </p>
+            </div>
+          </div>
+          <ul className="divide-y divide-hairline">
+            {Array.from({ length: ageGroup.periodCount }).map((_, periodIdx) => {
+              const periodNum = periodIdx + 1;
+              const periodAbbrev
+                = ageGroup.periodLabel === "half" ? "H" : "Q";
+              const frPickId = vestPlan.fr[periodIdx] ?? null;
+              const dhPickId = vestPlan.dh[periodIdx] ?? null;
+              return (
+                <li key={periodIdx} className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 flex-shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+                      {periodAbbrev}
+                      {periodNum}
+                    </span>
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      {vestRequiredFr && (
+                        <VestPlanPill
+                          vest="fr"
+                          label="FR"
+                          playerName={
+                            frPickId
+                              ? playerById.get(frPickId)?.full_name ?? "?"
+                              : null
+                          }
+                          isEditing={
+                            vestPlanEdit?.vest === "fr"
+                            && vestPlanEdit?.period === periodNum
+                          }
+                          onToggle={() =>
+                            setVestPlanEdit((prev) =>
+                              prev?.vest === "fr" && prev?.period === periodNum
+                                ? null
+                                : { vest: "fr", period: periodNum },
+                            )
+                          }
+                        />
+                      )}
+                      {vestRequiredDh && (
+                        <VestPlanPill
+                          vest="dh"
+                          label="DH"
+                          playerName={
+                            dhPickId
+                              ? playerById.get(dhPickId)?.full_name ?? "?"
+                              : null
+                          }
+                          isEditing={
+                            vestPlanEdit?.vest === "dh"
+                            && vestPlanEdit?.period === periodNum
+                          }
+                          onToggle={() =>
+                            setVestPlanEdit((prev) =>
+                              prev?.vest === "dh" && prev?.period === periodNum
+                                ? null
+                                : { vest: "dh", period: periodNum },
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                  {vestPlanEdit?.period === periodNum && (
+                    <VestPlanCandidatePicker
+                      vest={vestPlanEdit.vest}
+                      currentPickId={
+                        vestPlanEdit.vest === "fr" ? frPickId : dhPickId
+                      }
+                      fieldIds={fieldIds}
+                      playerById={playerById}
+                      seasonVestCounts={seasonVestCounts}
+                      // Exclude any player already assigned ANY
+                      // vest in another period (combined fr+dh —
+                      // wearing FR in H1 locks the player out of
+                      // BOTH vests in H2), plus the OTHER vest's
+                      // wearer for the SAME period so FR != DH at
+                      // any one time.
+                      excludeIds={
+                        new Set([
+                          ...vestPlan.fr
+                            .map((id, i) =>
+                              i !== periodIdx && id ? id : null,
+                            )
+                            .filter((id): id is string => Boolean(id)),
+                          ...vestPlan.dh
+                            .map((id, i) =>
+                              i !== periodIdx && id ? id : null,
+                            )
+                            .filter((id): id is string => Boolean(id)),
+                          ...(vestPlanEdit.vest === "fr"
+                            && vestPlan.dh[periodIdx]
+                            ? [vestPlan.dh[periodIdx] as string]
+                            : []),
+                          ...(vestPlanEdit.vest === "dh"
+                            && vestPlan.fr[periodIdx]
+                            ? [vestPlan.fr[periodIdx] as string]
+                            : []),
+                        ])
+                      }
+                      onPick={(playerId) => {
+                        setVestPlanEntry(
+                          vestPlanEdit.vest,
+                          periodNum,
+                          playerId,
+                        );
+                        setVestPlanEdit(null);
+                      }}
+                      onClear={() => {
+                        setVestPlanEntry(vestPlanEdit.vest, periodNum, null);
+                        setVestPlanEdit(null);
+                      }}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </SFCard>
+      )}
+
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={benchIds.length}
@@ -892,16 +1182,11 @@ export function LeagueLineupPickerFormation({
           onToggleInjury={() => setActionSheetPlayerId(null)}
           onToggleLoan={() => setActionSheetPlayerId(null)}
           onSwitch={handleActionSwitch}
-          moveToLabel={
-            actionIsOnField
-              ? actionZone === "forward"
-                ? backLabel
-                : fwdLabel
-              : undefined
-          }
-          onMovePosition={
-            actionIsOnField ? handleActionMovePosition : undefined
-          }
+          // "Move to {Forwards/Backs}" hidden from the long-press
+          // menu (Steve 2026-05-19) — coaches handle forward/back
+          // re-ratios manually via tap-to-swap. Leaving the prop
+          // off in the picker keeps the LockModal's button suite
+          // shorter for the most common use case.
           onAssignFr={vestRequiredFr ? handleMakeFr : undefined}
           onAssignDh={vestRequiredDh ? handleMakeDh : undefined}
           isFr={frId === actionSheetPlayerId}

@@ -57,21 +57,23 @@ interface FieldSlot {
 const FIELD_SLOTS: FieldSlot[] = [
   // Forwards — 2 rows of 2, closest to the opponent try line.
   // Inner pair sits higher (row-1), outer pair wider (row-2).
-  { id: "fwd-1", role: "forward", x: 36, y: 18 },
-  { id: "fwd-2", role: "forward", x: 64, y: 18 },
-  { id: "fwd-3", role: "forward", x: 26, y: 31 },
-  { id: "fwd-4", role: "forward", x: 74, y: 31 },
+  // Inner-pair x widened from 36/64 → 32/68 to clear the bigger
+  // 26%-wide tiles without overlapping at the centre.
+  { id: "fwd-1", role: "forward", x: 32, y: 18 },
+  { id: "fwd-2", role: "forward", x: 68, y: 18 },
+  { id: "fwd-3", role: "forward", x: 24, y: 31 },
+  { id: "fwd-4", role: "forward", x: 76, y: 31 },
   // DH + FR — middle of the field, well separated and staggered.
   // DH stands closer to the ruck so it sits left + slightly higher;
   // FR is the first receiver, sitting right + slightly back.
-  { id: "dh", role: "dh", x: 30, y: 45 },
-  { id: "fr", role: "fr", x: 70, y: 52 },
+  { id: "dh", role: "dh", x: 28, y: 45 },
+  { id: "fr", role: "fr", x: 72, y: 52 },
   // Backs — 2 rows of 2 behind the halves. Outer pair wider
   // (centres/wingers), inner pair tighter.
-  { id: "back-1", role: "back", x: 26, y: 64 },
-  { id: "back-2", role: "back", x: 74, y: 64 },
-  { id: "back-3", role: "back", x: 36, y: 77 },
-  { id: "back-4", role: "back", x: 64, y: 77 },
+  { id: "back-1", role: "back", x: 24, y: 64 },
+  { id: "back-2", role: "back", x: 76, y: 64 },
+  { id: "back-3", role: "back", x: 32, y: 77 },
+  { id: "back-4", role: "back", x: 68, y: 77 },
   // Fullback — alone at the back.
   { id: "fullback", role: "fullback", x: 50, y: 88 },
 ];
@@ -120,20 +122,40 @@ function arrangeFieldSlots(
       : backsRest;
     let fwdIdx = 0;
     let backIdx = 0;
-    return FIELD_SLOTS.map((slot) => {
-      if (slot.role === "fr") return { slot, player: frPlayer };
-      if (slot.role === "dh") return { slot, player: dhPlayer };
-      if (slot.role === "fullback") return { slot, player: fullbackPlayer };
-      if (slot.role === "forward") {
-        const player = forwardsRest[fwdIdx] ?? null;
-        if (player) fwdIdx++;
+    const result: { slot: FieldSlot; player: Player | null }[] = FIELD_SLOTS.map(
+      (slot) => {
+        if (slot.role === "fr") return { slot, player: frPlayer };
+        if (slot.role === "dh") return { slot, player: dhPlayer };
+        if (slot.role === "fullback") return { slot, player: fullbackPlayer };
+        if (slot.role === "forward") {
+          const player = forwardsRest[fwdIdx] ?? null;
+          if (player) fwdIdx++;
+          return { slot, player };
+        }
+        // role === "back"
+        const player = backsForSlots[backIdx] ?? null;
+        if (player) backIdx++;
         return { slot, player };
-      }
-      // role === "back"
-      const player = backsForSlots[backIdx] ?? null;
-      if (player) backIdx++;
-      return { slot, player };
-    });
+      },
+    );
+    // Overflow pass — if the lineup has more forwards than the
+    // formation has forward slots (or vice versa), the excess
+    // players were silently dropped by the zone-respecting first
+    // pass. Place them in any still-empty slot so every on-field
+    // player is visible. Steve 2026-05-19: lineup of 5F + 6B routed
+    // through 4 forward slots dropped the 5th forward; pitch
+    // showed 10 tiles + 1 EMPTY while the count chip said "11/11".
+    const overflow: Player[] = [
+      ...forwardsRest.slice(fwdIdx),
+      ...backsForSlots.slice(backIdx),
+    ];
+    for (const row of result) {
+      if (row.player) continue;
+      const next = overflow.shift();
+      if (!next) break;
+      row.player = next;
+    }
+    return result;
   }
 
   // Legacy path — no zone info, fill slots in declaration order.
@@ -318,7 +340,13 @@ export function LeagueField({
               const slotStyle: React.CSSProperties = {
                 left: `${slot.x}%`,
                 top: `${slot.y}%`,
-                width: "22%",
+                // Tile width tuned so two tiles per row leave a
+                // small gap at the centre. 26% is the sweet spot:
+                // wide enough that "Phillip D"-style names render
+                // without the inner truncate ellipsis kicking in,
+                // narrow enough that forwards row 1 (x=32/68)
+                // doesn't crash into the row centre.
+                width: "26%",
               };
               return (
                 <div

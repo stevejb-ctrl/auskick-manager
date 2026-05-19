@@ -31,12 +31,14 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard, SFIcon, Guernsey } from "@/components/sf";
+import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
 import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   startLeagueGame,
   saveLeagueLineupDraft,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import {
+  seasonVestCountsByPlayer,
   suggestLeagueLineup,
   suggestVestRotation,
 } from "@/lib/sports/rugby_league/fairness";
@@ -185,6 +187,13 @@ export function LeagueLineupPicker({
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
+  );
+
+  // Per-player season vest tallies — drives the "FR 3 · DH 1"
+  // hint under each candidate in the rotation plan picker.
+  const seasonVestCounts = useMemo(
+    () => seasonVestCountsByPlayer(seasonEvents),
+    [seasonEvents],
   );
 
   // Two on-field buckets — forwards above, backs below. The picker
@@ -721,27 +730,37 @@ export function LeagueLineupPicker({
     period: number,
     playerId: string | null,
   ) {
-    const setter = vest === "fr" ? setFrByPeriod : setDhByPeriod;
-    setter((prev) => {
+    // Combined any-vest exclusion: setting playerId for one period
+    // clears them from ANY vest in any OTHER period (so a player
+    // wearing FR in H1 can't also be DH in H2 — once they've worn
+    // any vest, they're locked out of any vest for the rest of the
+    // game). Mutual exclusion within the same period (FR != DH)
+    // still applies.
+    setFrByPeriod((prev) => {
       const next = prev.slice();
-      // Clear this player from any OTHER period of the same vest —
-      // no player wears the same vest twice in a game.
+      if (vest === "fr") next[period] = playerId;
+      // Clear THIS player from every OTHER period of FR.
       if (playerId) {
         for (let i = 0; i < next.length; i++) {
+          if (vest === "fr" && i === period) continue;
           if (next[i] === playerId) next[i] = null;
         }
       }
-      next[period] = playerId;
       return next;
     });
-    // Same-period mutual exclusion: if the other vest in this same
-    // period is now the same player, clear it.
-    if (playerId) {
-      const otherSetter = vest === "fr" ? setDhByPeriod : setFrByPeriod;
-      otherSetter((prev) =>
-        prev.map((id, i) => (i === period && id === playerId ? null : id)),
-      );
-    }
+    setDhByPeriod((prev) => {
+      const next = prev.slice();
+      if (vest === "dh") next[period] = playerId;
+      // Clear THIS player from every OTHER period of DH (covers
+      // the "FR in H1 → blocked from DH in H2" case).
+      if (playerId) {
+        for (let i = 0; i < next.length; i++) {
+          if (vest === "dh" && i === period) continue;
+          if (next[i] === playerId) next[i] = null;
+        }
+      }
+      return next;
+    });
   }
 
   // ── Ordered field rows: Forwards (FR-first) then Backs (DH-first) ──
@@ -1339,7 +1358,6 @@ export function LeagueLineupPicker({
                         <VestPlanPill
                           vest="fr"
                           label="FR"
-                          playerId={frPickId}
                           playerName={
                             frPickId
                               ? playerById.get(frPickId)?.full_name ?? "?"
@@ -1362,7 +1380,6 @@ export function LeagueLineupPicker({
                         <VestPlanPill
                           vest="dh"
                           label="DH"
-                          playerId={dhPickId}
                           playerName={
                             dhPickId
                               ? playerById.get(dhPickId)?.full_name ?? "?"
@@ -1391,12 +1408,21 @@ export function LeagueLineupPicker({
                       }
                       fieldIds={fieldIds}
                       playerById={playerById}
+                      seasonVestCounts={seasonVestCounts}
                       excludeIds={
-                        // Exclude players already wearing this vest
-                        // in other periods + the OTHER vest wearer
-                        // for this same period.
+                        // Exclude players already wearing ANY vest
+                        // in another period (combined fr+dh — once
+                        // a player has worn one vest they're out of
+                        // both vests for the rest of the game),
+                        // plus the OTHER vest's wearer for this
+                        // same period so FR != DH simultaneously.
                         new Set([
-                          ...(vestPlanEdit.vest === "fr" ? frByPeriod : dhByPeriod)
+                          ...frByPeriod
+                            .map((id, i) =>
+                              i !== periodIdx && id ? id : null,
+                            )
+                            .filter((id): id is string => Boolean(id)),
+                          ...dhByPeriod
                             .map((id, i) =>
                               i !== periodIdx && id ? id : null,
                             )
@@ -1571,127 +1597,6 @@ function LendPickerSheet({
   );
 }
 
-// ─── Vest plan pill ──────────────────────────────────────────
-// One clickable chip representing a single period's FR or DH
-// assignment. Empty state surfaces "Pick" so the coach sees it's
-// editable. Editing state shows brand-coloured ring.
-interface VestPlanPillProps {
-  vest: "fr" | "dh";
-  /** Short label — "FR" or "DH". */
-  label: string;
-  playerId: string | null;
-  playerName: string | null;
-  isEditing: boolean;
-  onToggle: () => void;
-}
-function VestPlanPill({
-  vest,
-  label,
-  playerName,
-  isEditing,
-  onToggle,
-}: VestPlanPillProps) {
-  const tagBg
-    = vest === "fr"
-      ? "bg-warn/15 text-warn"
-      : "bg-brand-600/15 text-brand-700";
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition-colors ${
-        isEditing
-          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500"
-          : "border-hairline bg-surface hover:border-brand-500/40 hover:bg-surface-alt"
-      }`}
-    >
-      <span
-        className={`rounded-sm px-1 font-mono text-[9px] font-bold uppercase tracking-micro ${tagBg}`}
-      >
-        {label}
-      </span>
-      <span className="min-w-0 truncate font-medium text-ink">
-        {playerName ?? <span className="text-ink-mute italic">Pick…</span>}
-      </span>
-    </button>
-  );
-}
-
-// ─── Vest plan candidate picker ──────────────────────────────
-// Inline expanding picker — opens beneath the row when the coach
-// taps a `VestPlanPill`. Lists every on-field player who hasn't
-// already been used for this vest in another period (and isn't
-// wearing the OTHER vest in this same period).
-interface VestPlanCandidatePickerProps {
-  vest: "fr" | "dh";
-  currentPickId: string | null;
-  fieldIds: readonly string[];
-  playerById: Map<string, Player>;
-  /** Player ids ineligible for this slot (other-period dupes + same-period mutual exclusion). */
-  excludeIds: Set<string>;
-  onPick: (playerId: string) => void;
-  onClear: () => void;
-}
-function VestPlanCandidatePicker({
-  vest,
-  currentPickId,
-  fieldIds,
-  playerById,
-  excludeIds,
-  onPick,
-  onClear,
-}: VestPlanCandidatePickerProps) {
-  const candidates = fieldIds
-    .filter((id) => !excludeIds.has(id))
-    .map((id) => playerById.get(id))
-    .filter((p): p is Player => Boolean(p));
-  return (
-    <div className="mt-2 rounded-md border border-hairline bg-surface-alt/60 p-2">
-      {candidates.length === 0 ? (
-        <p className="px-2 py-1 text-xs text-ink-mute">
-          Nobody eligible — every other field player has already worn
-          the {vest === "fr" ? "FR" : "DH"} vest this game.
-        </p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3">
-          {candidates.map((p) => {
-            const isCurrent = p.id === currentPickId;
-            return (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(p.id)}
-                  className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors ${
-                    isCurrent
-                      ? "border-brand-600 bg-brand-50 text-brand-700"
-                      : "border-hairline bg-surface hover:border-brand-500/40"
-                  }`}
-                >
-                  {isCurrent && (
-                    <span aria-hidden className="text-[10px]">
-                      ✓
-                    </span>
-                  )}
-                  <span className="min-w-0 truncate font-medium text-ink">
-                    {p.full_name}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {currentPickId && (
-        <div className="mt-1.5 flex justify-end">
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-[11px] font-medium text-ink-mute underline-offset-2 hover:text-ink hover:underline"
-          >
-            Clear pick
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
+// VestPlanPill + VestPlanCandidatePicker now live in
+// `./VestPlanRow` so the formation picker can reuse them.
+// Steve 2026-05-19.

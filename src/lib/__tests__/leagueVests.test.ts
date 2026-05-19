@@ -6,7 +6,8 @@ import {
   eligibleForVest,
   eligibleVestCandidates,
 } from "@/lib/sports/rugby_league/vests";
-import type { GameEvent, GameEventType } from "@/lib/types";
+import { suggestVestRotation } from "@/lib/sports/rugby_league/fairness";
+import type { GameEvent, GameEventType, Player } from "@/lib/types";
 
 let _ts = 0;
 function ev(
@@ -175,5 +176,82 @@ describe("vestHistoryByPlayer", () => {
   it("returns an empty object when no vests have been assigned", () => {
     reset();
     expect(vestHistoryByPlayer([])).toEqual({});
+  });
+});
+
+// ─── suggestVestRotation — combined-vest exclusion ────────────
+
+function makePlayer(id: string, jersey: number | null = null): Player {
+  return {
+    id,
+    team_id: "t1",
+    full_name: id.toUpperCase(),
+    jersey_number: jersey,
+    is_active: true,
+    created_by: "u1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+describe("suggestVestRotation — combined-vest exclusion (any vest worn once)", () => {
+  it("never reassigns a player to ANY vest after they've worn one in an earlier period (Steve 2026-05-19)", () => {
+    // Six on-field players for a 2-half game with FR + DH required.
+    // The suggester picks 4 distinct wearers (FR H1, DH H1, FR H2,
+    // DH H2). Each player can wear at most ONE vest across the game.
+    const players = [
+      makePlayer("p1", 1),
+      makePlayer("p2", 2),
+      makePlayer("p3", 3),
+      makePlayer("p4", 4),
+      makePlayer("p5", 5),
+      makePlayer("p6", 6),
+    ];
+    const rotation = suggestVestRotation({
+      onFieldIds: players.map((p) => p.id),
+      players,
+      seasonEvents: [],
+      requiredUnbrokenPeriods: 1,
+      vestRequirements: { fr: true, dh: true },
+      periodCount: 2,
+    });
+    expect(rotation.fr).toHaveLength(2);
+    expect(rotation.dh).toHaveLength(2);
+    // Collect every non-null pick across both vests.
+    const picks = [...rotation.fr, ...rotation.dh].filter(
+      (id): id is string => Boolean(id),
+    );
+    // Each unique → no player wears more than one vest across
+    // both halves of the game.
+    expect(new Set(picks).size).toBe(picks.length);
+    expect(picks).toHaveLength(4);
+  });
+
+  it("returns null for a period's pick when the field is too shallow to satisfy the any-vest rule", () => {
+    // Three on-field players, FR+DH required, 2 periods → 4 unique
+    // wearers needed but only 3 candidates. Some periods will end
+    // up with null picks rather than reusing a player.
+    const players = [
+      makePlayer("p1", 1),
+      makePlayer("p2", 2),
+      makePlayer("p3", 3),
+    ];
+    const rotation = suggestVestRotation({
+      onFieldIds: players.map((p) => p.id),
+      players,
+      seasonEvents: [],
+      requiredUnbrokenPeriods: 1,
+      vestRequirements: { fr: true, dh: true },
+      periodCount: 2,
+    });
+    const picks = [...rotation.fr, ...rotation.dh].filter(
+      (id): id is string => Boolean(id),
+    );
+    expect(new Set(picks).size).toBe(picks.length);
+    // 4 total slots, 3 unique candidates → exactly one slot is null.
+    const nulls
+      = rotation.fr.filter((x) => x === null).length
+      + rotation.dh.filter((x) => x === null).length;
+    expect(nulls).toBe(1);
   });
 });

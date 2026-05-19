@@ -279,16 +279,23 @@ export function LockModal({
                   formation lineup picker (live game uses Replace
                   instead, above). isOnField gates these because vest
                   wearers have to be on the field at kickoff. */}
+              {/* Vest assignments — full-saturation backgrounds and
+                  white text so contrast clears WCAG AA at any brand.
+                  Earlier draft used `bg-{token}/90 text-warm` which
+                  blended 10% of the surface (off-white) into the
+                  background; for the cooler brand-600 green that
+                  dropped contrast against cream text below 4.5:1.
+                  Steve 2026-05-19. */}
               {onAssignFr && isOnField && (
                 <button
                   type="button"
                   onClick={onAssignFr}
-                  className="flex w-full flex-col items-center rounded-md bg-warn/90 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-warn"
+                  className="flex w-full flex-col items-center rounded-md bg-warn px-4 py-3 text-white transition-colors duration-fast ease-out-quart hover:bg-warn/90"
                 >
                   <span className="text-sm font-bold">
                     {isFr ? "Remove First Receiver" : "Make First Receiver"}
                   </span>
-                  <span className="mt-0.5 text-xs opacity-90">
+                  <span className="mt-0.5 text-xs text-white/90">
                     Wears the FR vest at kickoff
                   </span>
                 </button>
@@ -297,12 +304,12 @@ export function LockModal({
                 <button
                   type="button"
                   onClick={onAssignDh}
-                  className="flex w-full flex-col items-center rounded-md bg-brand-600/90 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-600"
+                  className="flex w-full flex-col items-center rounded-md bg-brand-700 px-4 py-3 text-white transition-colors duration-fast ease-out-quart hover:bg-brand-600"
                 >
                   <span className="text-sm font-bold">
                     {isDh ? "Remove Dummy Half" : "Make Dummy Half"}
                   </span>
-                  <span className="mt-0.5 text-xs opacity-90">
+                  <span className="mt-0.5 text-xs text-white/90">
                     Wears the DH vest at kickoff
                   </span>
                 </button>

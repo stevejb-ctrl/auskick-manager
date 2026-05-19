@@ -176,27 +176,29 @@ function LeaguePlayerTileImpl({
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
-        {/* Top-left badges — vest > injury > loan. Only one shows
-            at a time, in priority order. */}
-        {vest && !injured && !loaned && (
-          <span className="absolute left-1 top-1">
-            <PlayerVestBadge vest={vest} dimmed={variant === "bench"} />
-          </span>
-        )}
-        {injured && (
-          <span
-            className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-            aria-label="Injured"
-          >
-            INJ
-          </span>
-        )}
-        {loaned && !injured && (
-          <span
-            className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-            aria-label="Lent to opposition"
-          >
-            LENT
+        {/* State badges — vest > injury > loan. Inlined above the
+            name (previously absolute top-left, which overlapped the
+            centered name on narrow tiles). Only one badge shows at
+            a time, in priority order. */}
+        {(vest || injured || loaned) && (
+          <span className="inline-flex h-3.5 items-center">
+            {injured ? (
+              <span
+                className="rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+                aria-label="Injured"
+              >
+                INJ
+              </span>
+            ) : loaned ? (
+              <span
+                className="rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+                aria-label="Lent to opposition"
+              >
+                LENT
+              </span>
+            ) : vest ? (
+              <PlayerVestBadge vest={vest} dimmed={variant === "bench"} />
+            ) : null}
           </span>
         )}
 

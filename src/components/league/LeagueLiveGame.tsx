@@ -1313,24 +1313,9 @@ export function LeagueLiveGame({
           onReplaceVest={
             actionSheetVest ? handleReplaceVestFromActionSheet : undefined
           }
-          moveToLabel={
-            actionSheetOnField && state.lineup
-              ? state.lineup.forwards.includes(actionSheetPlayer.id)
-                ? "Backs"
-                : "Forwards"
-              : undefined
-          }
-          onMovePosition={
-            actionSheetOnField && state.lineup
-              ? () =>
-                  void handleMoveLeaguePosition(
-                    actionSheetPlayer.id,
-                    state.lineup!.forwards.includes(actionSheetPlayer.id)
-                      ? "back"
-                      : "forward",
-                  )
-              : undefined
-          }
+          // "Move to {Forwards/Backs}" hidden from the long-press
+          // menu (Steve 2026-05-19) — coaches handle forward/back
+          // re-ratios manually via tap-to-swap.
           onClose={() => setActionSheetPlayerId(null)}
         />
       )}
