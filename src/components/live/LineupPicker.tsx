@@ -592,6 +592,19 @@ export function LineupPicker({
                 );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);
+                // Sub interval surfaces in the summary only when
+                // the coach explicitly overrode it AND the
+                // override differs from the live suggestion. Steve
+                // 2026-05-17 — when the field moved up into the
+                // collapse, the closed header needs to signal
+                // "you've changed something" without forcing the
+                // coach to expand.
+                if (
+                  subMinInput !== null &&
+                  effectiveSubMin !== suggestedMin
+                ) {
+                  bits.push(`Sub every ${effectiveSubMin}m`);
+                }
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
@@ -682,6 +695,44 @@ export function LineupPicker({
                   empty slot first to choose where you&apos;re short.
                 </p>
               )}
+            </div>
+
+            {/* Sub interval — Steve 2026-05-17: moved up from a
+                standalone card below the zone grid into the Game
+                settings collapse, alongside Rotation + Players on
+                field. All pre-game match-shape knobs now live in
+                one place. The suggested value is dynamic (recomputes
+                from bench size + game length), so the helper line
+                still surfaces it in the explainer below the input. */}
+            <div>
+              <Label
+                htmlFor="sub-minutes"
+                className="!mb-1 block text-xs font-semibold text-ink"
+              >
+                Sub interval
+              </Label>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <p className="text-xs text-ink-mute">
+                    Suggested {suggestedMin} min — {benchCount} on bench,{" "}
+                    {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
+                    {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
+                    {gameMinutes} min.
+                  </p>
+                </div>
+                <div className="w-24">
+                  <Input
+                    id="sub-minutes"
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={subMinInput ?? String(suggestedMin)}
+                    onChange={(e) => setSubMinInput(e.target.value)}
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Lend a player */}
@@ -884,34 +935,11 @@ export function LineupPicker({
         })}
       </div>
 
-      {/* ── Sub interval ─────────────────────────────────────────────── */}
-      <SFCard>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor="sub-minutes" className="mb-1">
-              Sub interval
-            </Label>
-            <p className="text-xs text-ink-mute">
-              Suggested {suggestedMin} min — {benchCount} on bench,{" "}
-              {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
-              {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
-              {gameMinutes} min.
-            </p>
-          </div>
-          <div className="w-full sm:w-24">
-            <Input
-              id="sub-minutes"
-              type="number"
-              min={1}
-              max={10}
-              step={0.5}
-              value={subMinInput ?? String(suggestedMin)}
-              onChange={(e) => setSubMinInput(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-        </div>
-      </SFCard>
+      {/* Sub interval input moved UP into the Game settings
+          collapse (Steve 2026-05-17) so all pre-game match-shape
+          knobs sit in one place. Empty here intentionally —
+          keeping the spot for grep so a future audit doesn't re-
+          introduce the card. */}
 
       {serverError && (
         <p className="text-sm text-danger" role="alert">
