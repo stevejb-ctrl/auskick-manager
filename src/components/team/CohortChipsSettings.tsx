@@ -13,6 +13,7 @@ import {
   type ChipKey,
   type ChipMode,
 } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 
 interface CohortChipsSettingsProps {
   teamId: string;
@@ -84,10 +85,7 @@ export function CohortChipsSettings({
         {CHIP_KEYS.map((k) => (
           <div key={k} className="space-y-2 rounded-md border border-hairline bg-surface-alt p-3">
             <Label htmlFor={`chip-${k}-label`} className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className={`inline-block h-3 w-3 rounded-full ${CHIP_COLORS[k].dot}`}
-              />
+              <ChipIndicator chipKey={k} mode={modes[k]} />
               Chip {k.toUpperCase()}
             </Label>
             <Input

@@ -22,7 +22,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group, sport, chip_a_label, chip_b_label, chip_c_label")
+      .select("age_group, sport, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", teamId)
       .single(),
   ]);
@@ -42,12 +42,23 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
         chip_a_label: string | null;
         chip_b_label: string | null;
         chip_c_label: string | null;
+        chip_a_mode?: import("@/lib/chips").ChipMode | null;
+        chip_b_mode?: import("@/lib/chips").ChipMode | null;
+        chip_c_mode?: import("@/lib/chips").ChipMode | null;
       }
     | null;
   const chipLabels = {
     a: teamRow?.chip_a_label ?? null,
     b: teamRow?.chip_b_label ?? null,
     c: teamRow?.chip_c_label ?? null,
+  };
+  // Threaded into PlayerRow so the chip indicator surfaces the
+  // zone-preference letter (F / C / B) when the chip mode is
+  // forward / centre / back. Steve 2026-05-20.
+  const chipModes: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>> = {
+    a: teamRow?.chip_a_mode ?? undefined,
+    b: teamRow?.chip_b_mode ?? undefined,
+    c: teamRow?.chip_c_mode ?? undefined,
   };
 
   const allPlayers = players ?? [];
@@ -99,6 +110,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 canEdit={isAdmin}
                 showJersey={showJersey}
                 chipLabels={chipLabels}
+                chipModes={chipModes}
               />
             ))}
           </ul>
@@ -123,6 +135,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 canEdit={isAdmin}
                 showJersey={showJersey}
                 chipLabels={chipLabels}
+                chipModes={chipModes}
               />
             ))}
           </ul>

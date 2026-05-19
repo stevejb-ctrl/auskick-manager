@@ -295,6 +295,8 @@ describe("Phase D — chip-spread", () => {
       gameMs,
       {},
       {},
+      {},
+      {},
       chipMap,
       { a: "forward" },
     );

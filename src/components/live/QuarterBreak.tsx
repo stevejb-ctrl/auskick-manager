@@ -21,6 +21,7 @@ import {
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
   ALL_ZONES,
   suggestStartingLineup,
@@ -1435,11 +1436,10 @@ export function QuarterBreak({
                             <span className="flex items-center gap-1.5">
                               <span className="font-medium text-ink">
                                 {p.chip && (
-                                  <span
-                                    aria-hidden
-                                    className={`mr-1 inline-block h-2 w-2 rounded-full align-middle ${
-                                      CHIP_COLORS[p.chip as ChipKey].dot
-                                    }`}
+                                  <ChipIndicator
+                                    chipKey={p.chip as ChipKey}
+                                    mode={chipModeByKey[p.chip as ChipKey]}
+                                    className="mr-1 align-middle"
                                   />
                                 )}
                                 {p.full_name}

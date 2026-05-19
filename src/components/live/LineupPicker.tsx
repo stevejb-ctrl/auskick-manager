@@ -9,6 +9,7 @@ import {
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -869,11 +870,10 @@ export function LineupPicker({
                           <Guernsey num={p.jersey_number ?? ""} size={32} />
                           <span className="min-w-0 flex-1 truncate font-medium text-ink">
                             {p.chip && (
-                              <span
-                                aria-hidden
-                                className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${
-                                  CHIP_COLORS[p.chip as ChipKey].dot
-                                }`}
+                              <ChipIndicator
+                                chipKey={p.chip as ChipKey}
+                                mode={chipModeByKey[p.chip as ChipKey]}
+                                className="mr-1.5 align-middle"
                               />
                             )}
                             {p.full_name}
