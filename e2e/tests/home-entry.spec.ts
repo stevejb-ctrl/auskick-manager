@@ -56,6 +56,28 @@ test.describe("unauthenticated entry", () => {
     }
   });
 
+  test("hero presents the binary choice — iOS app or web", async ({ page }) => {
+    // The hero CTA row is the only fold where the two entry paths sit
+    // side-by-side as a deliberate either/or. Pin the contract:
+    //   1. The App Store badge is the first CTA.
+    //   2. The "Sign in via web" button sits next to it.
+    //   3. "Try the demo" is no longer in the hero row (it lives in the
+    //      marketing header nav now) — keep an assertion that catches
+    //      it sneaking back into the hero by accident, which would break
+    //      the binary-choice framing.
+    await page.goto("/");
+    const heroBadge = page
+      .getByRole("link", { name: /download siren footy on the app store/i })
+      .first();
+    await expect(heroBadge).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /^sign in via web$/i })
+    ).toBeVisible();
+    // Demo CTA only exists in the header nav, not the hero.
+    const demoLinks = page.getByRole("link", { name: /^try (the )?demo$/i });
+    await expect(demoLinks).toHaveCount(1);
+  });
+
   test("unauthenticated native shell on / redirects to /login", async ({
     context,
     page,

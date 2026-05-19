@@ -69,6 +69,11 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
   }
 
   if (variant === "hero") {
+    // The hero CTA row offers a binary choice: install the iOS app
+    // (handled by AppStoreBadge next to this component) or use the
+    // web app right here. Label is "Sign in via web" so the pair
+    // reads parallel — one path takes you to the App Store, the other
+    // takes you to the web sign-in flow.
     return signedIn ? (
       <Link
         href="/dashboard"
@@ -81,7 +86,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
         href="/login"
         className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
       >
-        Start free
+        Sign in via web
       </Link>
     );
   }
