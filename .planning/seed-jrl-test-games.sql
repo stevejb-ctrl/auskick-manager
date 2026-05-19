@@ -357,3 +357,19 @@ begin
     end loop;
   end loop;
 end $$;
+
+-- ─── Default-available rule ──────────────────────────────────
+-- Mirrors `seedDefaultAvailability` from src/lib/games/. Every
+-- active squad member starts the game marked Available; coach
+-- un-selects no-shows. The app's createGame / PlayHQ adopt / cron
+-- sync / demo seed paths all call the TS helper — this raw-SQL
+-- seed bypasses those code paths so the rule has to be applied
+-- explicitly here. ON CONFLICT keeps the script idempotent if the
+-- coach has already toggled availability between runs.
+insert into public.game_availability (game_id, player_id, status, updated_by)
+select g.id, p.id, 'available', '00000000-0000-0000-0000-00000000bbbb'
+from public.games g
+join public.teams t on t.id = g.team_id
+join public.players p on p.team_id = t.id and p.is_active = true
+where t.name like 'JRL Test %'
+on conflict (game_id, player_id) do nothing;
