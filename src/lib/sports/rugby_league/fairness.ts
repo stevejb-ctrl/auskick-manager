@@ -885,6 +885,37 @@ interface SeasonFairnessRow {
   frCount: number;
   /** Total DH appearances across the season. */
   dhCount: number;
+  /**
+   * Total ms on field across the season's prior games. Sums
+   * `playerMsOnField` per game.
+   */
+  msPlayed: number;
+  /**
+   * Total game-ms available to this player across attended games.
+   * For each game they showed up to, we add the FULL playing time
+   * of that game (sum of `quarter_end.elapsed_ms` over its periods).
+   *
+   * Why "attended → credit full game": a player who turned up gets
+   * the same denominator regardless of how the coach chose to
+   * rotate them. That means a kid who showed up for 3 games and was
+   * benched the whole time has ratio 0 (high priority) — they
+   * deserve a go. A kid who showed up to 10 games and played most
+   * of them naturally has a higher denominator.
+   *
+   * Players who didn't attend a game add nothing to BOTH numerator
+   * and denominator for that game — so an absentee's ratio reflects
+   * only the games they were present for. This is what makes the
+   * fairness ratio "proportionate" rather than "gross".
+   */
+  msAvailable: number;
+  /**
+   * Number of prior games where this player was on the field at any
+   * point (lineup_set field set OR swapped on mid-game). Used as
+   * the denominator for the FR / DH ratios — vest fairness is
+   * measured against how often you were eligible for a vest, not
+   * how many games you turned up to bench-only.
+   */
+  onFieldAppearances: number;
 }
 
 /**
@@ -941,6 +972,9 @@ function computeSeasonFairness(
         games: 0,
         frCount: 0,
         dhCount: 0,
+        msPlayed: 0,
+        msAvailable: 0,
+        onFieldAppearances: 0,
       };
       out.set(id, row);
     }
@@ -949,11 +983,52 @@ function computeSeasonFairness(
 
   byGame.forEach((gameEvents) => {
     const compliance = unbrokenPeriodCompliance(gameEvents, required);
+
+    // Game-ms available = sum of every `quarter_end` elapsed_ms.
+    // Periods that never closed (game still in progress, or events
+    // got lost) contribute zero. Computed once per game and added
+    // to every attending player's denominator.
+    let gameMsAvailable = 0;
+    for (const ev of gameEvents) {
+      if (ev.type !== "quarter_end") continue;
+      const meta = ev.metadata as { elapsed_ms?: number };
+      if (typeof meta.elapsed_ms === "number") {
+        gameMsAvailable += meta.elapsed_ms;
+      }
+    }
+
+    // Per-player ms on field for this game. Pass 0/0 for the live-
+    // stint extension so only CLOSED stints count — for a finished
+    // game the function closes all stints at quarter_end so the
+    // result is the full total.
+    const msByPlayer = playerMsOnField(gameEvents, 0, 0);
+
+    // Track who hit the field at any point this game (lineup_set
+    // field set or swap-on). Drives `onFieldAppearances` — the
+    // denominator for vest ratios.
+    const onFieldThisGame = new Set<string>();
+    for (const ev of gameEvents) {
+      if (ev.type === "lineup_set") {
+        const meta = ev.metadata as { lineup?: Partial<LeagueLineup> };
+        if (meta.lineup) {
+          const lineup = normalizeLeagueLineup(meta.lineup);
+          for (const id of leagueOnField(lineup)) onFieldThisGame.add(id);
+        }
+      } else if (ev.type === "swap") {
+        const meta = ev.metadata as { on_player_id?: string };
+        if (meta.on_player_id) onFieldThisGame.add(meta.on_player_id);
+      }
+    }
+
     Object.entries(compliance).forEach(([playerId, c]) => {
       const row = slot(playerId);
       row.games++;
       if (!c.compliant) row.shortfall++;
+      row.msAvailable += gameMsAvailable;
+      row.msPlayed += msByPlayer[playerId] ?? 0;
+      if (onFieldThisGame.has(playerId)) row.onFieldAppearances++;
     });
+
     // Vest tallies from this game's vest_assigned events.
     for (const ev of gameEvents) {
       if (ev.type !== "vest_assigned" || !ev.player_id) continue;
@@ -964,6 +1039,33 @@ function computeSeasonFairness(
   });
 
   return out;
+}
+
+// ─── Proportionate fairness ratios ──────────────────────────
+// Steve 2026-05-19: gross-count fairness (shortfall + games) gave
+// a no-show kid the same "fewer games" priority bump as a kid
+// who'd been at every game but quietly underplayed. The new sort
+// uses RATIOS — playtime as a share of available time, vests as
+// a share of on-field appearances — so a 90%-time kid is always
+// at 90% regardless of total minutes. Tiebreak then prefers the
+// RELIABLE attendee, not the absentee.
+
+/** msPlayed / msAvailable; 0 when no availability data yet. */
+function playtimeRatio(row: SeasonFairnessRow | undefined): number {
+  if (!row || row.msAvailable <= 0) return 0;
+  return row.msPlayed / row.msAvailable;
+}
+
+/** frCount / onFieldAppearances; 0 when no on-field history yet. */
+function frRatio(row: SeasonFairnessRow | undefined): number {
+  if (!row || row.onFieldAppearances <= 0) return 0;
+  return row.frCount / row.onFieldAppearances;
+}
+
+/** dhCount / onFieldAppearances; 0 when no on-field history yet. */
+function dhRatio(row: SeasonFairnessRow | undefined): number {
+  if (!row || row.onFieldAppearances <= 0) return 0;
+  return row.dhCount / row.onFieldAppearances;
 }
 
 export function suggestLeagueLineup(
@@ -983,18 +1085,38 @@ export function suggestLeagueLineup(
     requiredUnbrokenPeriods,
   );
 
-  // Field ranking — primary by shortfall desc, then games asc, then
-  // jersey-number asc. Players without a fairness row (haven't
-  // appeared yet) get default zeros — they sort by jersey number.
+  // Field ranking — proportionate fairness, not gross counts.
+  // Steve 2026-05-19: the old "games ASC" tier penalised reliable
+  // attendees in favour of no-shows. A kid who's missed half the
+  // season looks "lower games" and would jump to the front; the
+  // reliable kid at every game would sit behind them. The rule is
+  // now:
+  //   1. shortfall DESC — §6 enforcement is still primary. Owed
+  //      unbroken periods get paid back regardless of attendance.
+  //   2. playtime ratio ASC — proportion of available time on
+  //      field, NOT gross minutes. A no-show kid playing 100%
+  //      of their attended time looks identical to a reliable
+  //      kid playing 100%. A 50%-ratio kid jumps ahead of a
+  //      90%-ratio kid even when the 90% kid has more total
+  //      minutes (because the 90% kid is already getting their
+  //      share). Players with no history yet (ratio 0) get high
+  //      priority — same as "needs a go".
+  //   3. games DESC — reliable attendees first on ties. Once
+  //      everyone's caught up, the kid at every week gets the
+  //      next go, not the kid who just showed up.
+  //   4. jersey ASC — deterministic stable tiebreak.
   const ranked = [...players].sort((a, b) => {
     const fa = fairness.get(a.id);
     const fb = fairness.get(b.id);
     const sa = fa?.shortfall ?? 0;
     const sb = fb?.shortfall ?? 0;
-    if (sa !== sb) return sb - sa; // more shortfall first
+    if (sa !== sb) return sb - sa;
+    const ra = playtimeRatio(fa);
+    const rb = playtimeRatio(fb);
+    if (ra !== rb) return ra - rb;
     const ga = fa?.games ?? 0;
     const gb = fb?.games ?? 0;
-    if (ga !== gb) return ga - gb; // fewer games first
+    if (ga !== gb) return gb - ga;
     const ja = a.jersey_number ?? Number.MAX_SAFE_INTEGER;
     const jb = b.jersey_number ?? Number.MAX_SAFE_INTEGER;
     return ja - jb;
@@ -1060,33 +1182,54 @@ export function suggestLeagueLineup(
   const fieldPicks = [...forwards, ...backs];
   const bench = benchTail.map((p) => p.id);
 
-  // Vest suggestions: choose among on-field players, biased toward
-  // fewest historical appearances of THAT vest, with FR / DH
-  // mutually exclusive.
+  // Vest suggestions — proportionate, with a "give everyone a go"
+  // first-tier (Steve 2026-05-19):
+  //   1. Zero-count first — players who have NEVER worn this vest
+  //      get priority while anyone in the pool is still at 0.
+  //      Implements "everyone gets a go over the year".
+  //   2. Vest ratio ASC — vestCount / onFieldAppearances. Lower
+  //      share of vest-history per chance = next go.
+  //   3. games DESC — reliable attendees first on ties.
+  //   4. jersey ASC — stable tiebreak.
+  // FR / DH stay mutually exclusive per period.
   let suggestedFr: string | null = null;
   let suggestedDh: string | null = null;
 
+  const jerseyOf = (id: string) =>
+    players.find((p) => p.id === id)?.jersey_number ?? Number.MAX_SAFE_INTEGER;
+  const compareVest = (
+    a: string,
+    b: string,
+    countFor: (row: SeasonFairnessRow | undefined) => number,
+    ratioFor: (row: SeasonFairnessRow | undefined) => number,
+  ) => {
+    const fa = fairness.get(a);
+    const fb = fairness.get(b);
+    const ca = countFor(fa);
+    const cb = countFor(fb);
+    const za = ca === 0 ? 0 : 1;
+    const zb = cb === 0 ? 0 : 1;
+    if (za !== zb) return za - zb;
+    const ra = ratioFor(fa);
+    const rb = ratioFor(fb);
+    if (ra !== rb) return ra - rb;
+    const ga = fa?.games ?? 0;
+    const gb = fb?.games ?? 0;
+    if (ga !== gb) return gb - ga;
+    return jerseyOf(a) - jerseyOf(b);
+  };
+
   if (vestRequirements?.fr) {
-    const frRanked = [...fieldPicks].sort((a, b) => {
-      const fa = fairness.get(a)?.frCount ?? 0;
-      const fb = fairness.get(b)?.frCount ?? 0;
-      if (fa !== fb) return fa - fb;
-      const ja = players.find((p) => p.id === a)?.jersey_number ?? 0;
-      const jb = players.find((p) => p.id === b)?.jersey_number ?? 0;
-      return ja - jb;
-    });
+    const frRanked = [...fieldPicks].sort((a, b) =>
+      compareVest(a, b, (r) => r?.frCount ?? 0, frRatio),
+    );
     suggestedFr = frRanked[0] ?? null;
   }
   if (vestRequirements?.dh) {
     const dhPool = fieldPicks.filter((id) => id !== suggestedFr);
-    const dhRanked = [...dhPool].sort((a, b) => {
-      const fa = fairness.get(a)?.dhCount ?? 0;
-      const fb = fairness.get(b)?.dhCount ?? 0;
-      if (fa !== fb) return fa - fb;
-      const ja = players.find((p) => p.id === a)?.jersey_number ?? 0;
-      const jb = players.find((p) => p.id === b)?.jersey_number ?? 0;
-      return ja - jb;
-    });
+    const dhRanked = [...dhPool].sort((a, b) =>
+      compareVest(a, b, (r) => r?.dhCount ?? 0, dhRatio),
+    );
     suggestedDh = dhRanked[0] ?? null;
   }
 
@@ -1262,14 +1405,33 @@ export function suggestVestRotation(
   const jerseyOf = (id: string) =>
     players.find((p) => p.id === id)?.jersey_number ?? Number.MAX_SAFE_INTEGER;
 
+  // Vest rank tiers (Steve 2026-05-19):
+  //   1. Zero-count first — anyone who's never worn THIS vest gets
+  //      priority while any zero-count candidate remains.
+  //   2. Vest ratio ASC — vestCount / onFieldAppearances. The
+  //      reliable kid at every game wearing FR once-per-5-games
+  //      (20%) gets next pick over the once-only kid at 50%.
+  //   3. games DESC — reliable attendees first on ties.
+  //   4. jersey ASC — stable tiebreak.
   const rank = (
     pool: string[],
     countFor: (row: SeasonFairnessRow | undefined) => number,
+    ratioFor: (row: SeasonFairnessRow | undefined) => number,
   ) =>
     [...pool].sort((a, b) => {
-      const ca = countFor(fairness.get(a));
-      const cb = countFor(fairness.get(b));
-      if (ca !== cb) return ca - cb;
+      const fa = fairness.get(a);
+      const fb = fairness.get(b);
+      const ca = countFor(fa);
+      const cb = countFor(fb);
+      const za = ca === 0 ? 0 : 1;
+      const zb = cb === 0 ? 0 : 1;
+      if (za !== zb) return za - zb;
+      const ra = ratioFor(fa);
+      const rb = ratioFor(fb);
+      if (ra !== rb) return ra - rb;
+      const ga = fa?.games ?? 0;
+      const gb = fb?.games ?? 0;
+      if (ga !== gb) return gb - ga;
       return jerseyOf(a) - jerseyOf(b);
     });
 
@@ -1288,7 +1450,7 @@ export function suggestVestRotation(
     let dhPick: string | null = null;
     if (vestRequirements?.fr) {
       const pool = onFieldIds.filter((id) => !usedAnyVest.has(id));
-      const ranked = rank(pool, (row) => row?.frCount ?? 0);
+      const ranked = rank(pool, (row) => row?.frCount ?? 0, frRatio);
       frPick = ranked[0] ?? null;
       if (frPick) usedAnyVest.add(frPick);
     }
@@ -1296,7 +1458,7 @@ export function suggestVestRotation(
       const pool = onFieldIds.filter(
         (id) => !usedAnyVest.has(id) && id !== frPick,
       );
-      const ranked = rank(pool, (row) => row?.dhCount ?? 0);
+      const ranked = rank(pool, (row) => row?.dhCount ?? 0, dhRatio);
       dhPick = ranked[0] ?? null;
       if (dhPick) usedAnyVest.add(dhPick);
     }
