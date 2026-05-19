@@ -1,27 +1,37 @@
 "use client";
 
 // ─── LeagueLineupPicker ──────────────────────────────────────
-// Pre-game lineup selection — mirrors the AFL LineupPicker shape
-// closely so coaches who run an AFL team and a rugby-league team
-// see the same UX.
+// Pre-game lineup picker: rugby pitch (forwards / backs zones,
+// FR / DH slots, fullback at the back) + bench strip + LockModal
+// long-press menu. Coaches think about RL lineups in terms of
+// who's standing WHERE on the pitch, so this view shows the
+// actual shape rather than a row-list of names.
 //
-//   1. Game Settings (collapsible)
-//      ─ Rotation mode: Suggested / Set manually
-//      ─ Players on field: select dropdown (legal range for the age
-//        group, default flagged as recommended)
-//      ─ Lend a player: chip list + "+ Lend a player" picker
-//   2. Starting field — single SFCard with a row list (no zones,
-//      since junior RL is positionless). FR and DH render as the
-//      first two rows so the coach can see vest assignments at a
-//      glance. Each row has a Guernsey jersey icon (number-free
-//      for RL), the player name, and a swap icon on the right.
-//   3. Tap a row → action sheet appears below the lineup card
-//      with: Make/Remove FR · Make/Remove DH · Swap · Bench.
-//   4. Sub interval — same shape AFL uses.
+// Promoted from spike (`LeagueLineupPickerFormation`) to the
+// default picker (Steve 2026-05-19). The old row-list picker
+// was deleted in the same commit.
 //
-// Confirming kicks the game off via `startLeagueGame` which
-// atomically writes lineup_set + quarter_start + vest_assigned
-// for period 1 + persists the sub interval on the games row.
+// Interaction model (mirrors live game):
+//   * Tap a player tile  → select them (yellow ring)
+//   * Tap a second tile  → completes a swap. Field↔bench moves
+//                          them between buckets; field↔field
+//                          swaps their zone (forward ↔ back)
+//                          or position within the same zone.
+//   * Tap a vacant slot  → with a bench player selected, promote
+//                          them into that slot's zone.
+//   * Long-press a tile  → opens the shared `LockModal` with
+//                          pre-game actions: Switch (enter swap
+//                          mode), Make/Remove FR, Make/Remove DH,
+//                          Bench, Lend.
+//
+// Vest rotation across later periods: rendered in the Vest
+// rotation plan card under the bench. Auto-picked from season
+// fairness; every period editable (period 1 stays in sync with
+// the on-field long-press / action sheet flow).
+//
+// Lend a player: managed from the squad page. The game-settings
+// collapse shows lent players (read-only chips) and a link to
+// the squad page.
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -30,9 +40,9 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { SFButton, SFCard, SFIcon, Guernsey } from "@/components/sf";
+import { SFButton, SFCard } from "@/components/sf";
+import { LockModal } from "@/components/live/LockModal";
 import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
-import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import {
   startLeagueGame,
   saveLeagueLineupDraft,
@@ -51,34 +61,22 @@ import type {
   LiveAuth,
   Player,
 } from "@/lib/types";
+import { LeagueField } from "./LeagueField";
+import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
-// ─── Sub-interval suggestion helpers (mirrors AFL, +RL §6) ────
-// AFL has no analogue of Junior RL Law §6 (every player gets at
-// least N unbroken periods). The base formula spreads
-// `bench × gameMinutes` across the squad. RL has to do the same
-// AFTER reserving each player's required unbroken window — coaches
-// CAN'T sub during a player's unbroken stint, so rotation
-// effectively only happens during the remaining time. Without
-// this correction the suggested interval is roughly double what
-// the rotation pool can actually use, and the coach is left with
-// bench players who never get on.
-function restsPerPlayer(benchSize: number): number {
-  return Math.max(1, Math.ceil(benchSize / 2));
-}
+// Sub-minute formula from the previous picker — kept inline so the
+// spike doesn't fan-out into shared modules until we know it
+// sticks. RL §6 lock minutes are subtracted from rotateable time
+// so the per-bench-share interval reflects what the coach can
+// actually use, not the raw game length.
 function suggestedSubMinutes(
   benchSize: number,
   totalPlayers: number,
   gameMinutes: number,
-  /**
-   * Minutes per player that are LOCKED for the unbroken-period
-   * requirement (RL Laws §6). 0 for AFL/netball. Subtracted from
-   * the gameMinutes pool before the per-bench share is divided,
-   * since rotation can only happen outside the locked window.
-   */
   unbrokenLockedMinutes: number = 0,
 ): number {
   if (benchSize <= 0 || totalPlayers <= 0) return 4;
-  const rests = restsPerPlayer(benchSize);
+  const rests = Math.max(1, Math.ceil(benchSize / 2));
   const rotateableMinutes = Math.max(
     1,
     gameMinutes - unbrokenLockedMinutes,
@@ -100,12 +98,6 @@ interface LeagueLineupPickerProps {
   backHref?: string | null;
   seasonEvents: GameEvent[];
   initialLoanedIds?: string[];
-  /**
-   * Coach-defined chip labels — chip A is the Forward role, chip B
-   * is the Back role (RL convention seeded by migration 0039). Used
-   * to label the two field sections in the picker; falls back to
-   * "Forwards" / "Backs" when null.
-   */
   chipLabels?: {
     a: string | null;
     b: string | null;
@@ -133,38 +125,17 @@ export function LeagueLineupPicker({
     initialDraft?.updated_at ?? null,
   );
   const [error, setError] = useState<string | null>(null);
-  /**
-   * Transient inline notice ("Charlie B moved up from the bench")
-   * shown after the picker re-arranges the lineup automatically —
-   * e.g. when the coach lends out a starting field player and a
-   * bench candidate slides into the empty slot. Cleared on any
-   * other state change.
-   */
-  const [lineupNotice, setLineupNotice] = useState<string | null>(null);
 
   const reqs = ageGroup.vestRequirements;
   const vestRequiredFr = reqs?.fr === true;
   const vestRequiredDh = reqs?.dh === true;
   const vestsRequired = vestRequiredFr || vestRequiredDh;
 
-  // ── Game Settings collapsible state ─────────────────────────
-  const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
-  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
-  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">(() =>
-    initialDraft ? "manual" : "suggested",
-  );
-
-  // ── Loaned players ──────────────────────────────────────────
-  // Sport-agnostic — same `markLoan` action AFL uses. Toggling
-  // dispatches a `player_loan` event; the picker optimistically
-  // updates the chip set + rolls back on server error.
-  const [loanedIds, setLoanedIds] = useState<Set<string>>(
+  // ── Loaned players (read-only in the spike) ─────────────────
+  const loanedIds = useMemo(
     () => new Set(initialLoanedIds),
+    [initialLoanedIds],
   );
-  const [loanError, setLoanError] = useState<string | null>(null);
-  const [loanPending, startLoanTransition] = useTransition();
-  const [lendPickerOpen, setLendPickerOpen] = useState(false);
-
   const lentPlayers = useMemo(
     () => players.filter((p) => loanedIds.has(p.id)),
     [players, loanedIds],
@@ -172,6 +143,23 @@ export function LeagueLineupPicker({
   const playersForLineup = useMemo(
     () => players.filter((p) => !loanedIds.has(p.id)),
     [players, loanedIds],
+  );
+
+  // ── Game settings collapsible state ─────────────────────────
+  const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
+  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
+  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">(() =>
+    initialDraft ? "manual" : "suggested",
+  );
+
+  // ── Season vest counts ──────────────────────────────────────
+  // Per-player tallies of how many times each player has worn FR
+  // and DH across the season so far. Surfaces under each candidate
+  // in the rotation plan's picker so the coach can balance vest
+  // exposure without having to memorise prior weeks.
+  const seasonVestCounts = useMemo(
+    () => seasonVestCountsByPlayer(seasonEvents),
+    [seasonEvents],
   );
 
   // ── Initial suggestion ──────────────────────────────────────
@@ -189,19 +177,6 @@ export function LeagueLineupPicker({
     [],
   );
 
-  // Per-player season vest tallies — drives the "FR 3 · DH 1"
-  // hint under each candidate in the rotation plan picker.
-  const seasonVestCounts = useMemo(
-    () => seasonVestCountsByPlayer(seasonEvents),
-    [seasonEvents],
-  );
-
-  // Two on-field buckets — forwards above, backs below. The picker
-  // tracks them separately so the coach can override a player's
-  // position for THIS game without touching their chip (which is
-  // the season-long default). Renders as two stacked cards on the
-  // page; the union `fieldIds` derived below feeds legacy code
-  // paths (FR/DH vest plan validation, capacity checks).
   const [forwardIds, setForwardIds] = useState<string[]>(
     () => initialDraft?.lineup.forwards ?? initialSuggestion.lineup.forwards,
   );
@@ -212,70 +187,31 @@ export function LeagueLineupPicker({
     () => initialDraft?.lineup.bench ?? initialSuggestion.lineup.bench,
   );
 
-  // ── Derived bucket helpers ──────────────────────────────────
-  // Most call sites care about "is this player on the field?" or
-  // "how many players are on the field?". They don't need to know
-  // which zone, so a derived union keeps the existing logic
-  // readable. Use these instead of touching forwardIds/backIds
-  // directly when a zone-agnostic answer is fine.
-  const fieldIds = useMemo(
-    () => [...forwardIds, ...backIds],
-    [forwardIds, backIds],
+  // Period-1 vest holders — wired to the long-press on-field flow.
+  const [frId, setFrId] = useState<string | null>(
+    () => initialSuggestion.suggestedFr,
   );
-  const zoneOf = (id: string): LeagueZone | null => {
-    if (forwardIds.includes(id)) return "forward";
-    if (backIds.includes(id)) return "back";
-    return null;
-  };
-  // ── Vest rotation plan ──────────────────────────────────────
-  // FR + DH wearers planned for EVERY period, not just period 1.
-  // Coaches want to tell kids ahead of time ("you're DH in half 2")
-  // and the rotation rule ("one vest worn once per game") only
-  // verifies legal when seen across the whole game. The initial
-  // suggestion runs through `suggestVestRotation` so each period's
-  // pick respects the no-twice rule against earlier periods.
-  const initialVestRotation = useMemo(
-    () => {
-      const initialOnField
-        = initialDraft
-          ? [
-              ...initialDraft.lineup.forwards,
-              ...initialDraft.lineup.backs,
-            ]
-          : [
-              ...initialSuggestion.lineup.forwards,
-              ...initialSuggestion.lineup.backs,
-            ];
-      return suggestVestRotation({
-        onFieldIds: initialOnField,
-        players: playersForLineup,
-        seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
-        vestRequirements: reqs,
-        periodCount: ageGroup.periodCount,
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+  const [dhId, setDhId] = useState<string | null>(
+    () => initialSuggestion.suggestedDh,
   );
-  const [frByPeriod, setFrByPeriod] = useState<(string | null)[]>(() =>
-    initialDraft
-      ? Array(ageGroup.periodCount).fill(null)
-      : initialVestRotation.fr,
-  );
-  const [dhByPeriod, setDhByPeriod] = useState<(string | null)[]>(() =>
-    initialDraft
-      ? Array(ageGroup.periodCount).fill(null)
-      : initialVestRotation.dh,
-  );
-  // Aliases for period-1 — the field rows still tag FR / DH against
-  // period 1 since that's who runs out at kickoff.
-  const frId = frByPeriod[0] ?? null;
-  const dhId = dhByPeriod[0] ?? null;
-  const setFrId = (id: string | null) =>
-    setFrByPeriod((prev) => [id, ...prev.slice(1)]);
-  const setDhId = (id: string | null) =>
-    setDhByPeriod((prev) => [id, ...prev.slice(1)]);
+
+  // ── Period 2+ vest rotation overrides ───────────────────────
+  // The full rotation plan is derived at render time from
+  // `suggestVestRotation`, with per-period coach overrides layered
+  // on top. Period 1 is sourced from `frId`/`dhId` (controlled by
+  // the long-press flow on the on-field tile) so the rotation plan
+  // card stays in sync with the formation pitch.
+  //
+  // `frOverrides[period]` and `dhOverrides[period]` are 1-indexed
+  // keys (so the API matches "Half 2" / "Quarter 3" reading). A
+  // value of `null` means "no wearer" (coach explicitly cleared);
+  // a missing key means "use the suggester".
+  const [frOverrides, setFrOverrides] = useState<
+    Record<number, string | null>
+  >({});
+  const [dhOverrides, setDhOverrides] = useState<
+    Record<number, string | null>
+  >({});
   /** Open inline picker for the rotation plan — `{ vest, period }` or null. */
   const [vestPlanEdit, setVestPlanEdit] = useState<{
     vest: "fr" | "dh";
@@ -285,10 +221,6 @@ export function LeagueLineupPicker({
   // ── Sub interval ────────────────────────────────────────────
   const gameMinutes
     = (ageGroup.periodSeconds * ageGroup.periodCount) / 60;
-  // Each player's locked unbroken-stint pool. Pulled from the age
-  // group's `minUnbrokenPeriods` requirement (RL §6: U6–U9 = 2
-  // quarters; U10–U12 = 1 half). Multiplied by one period length so
-  // the result is minutes the coach can't rotate during, per player.
   const periodMinutes = ageGroup.periodSeconds / 60;
   const unbrokenLockedMinutes
     = (ageGroup.minUnbrokenPeriods ?? 0) * periodMinutes;
@@ -315,7 +247,55 @@ export function LeagueLineupPicker({
     [players],
   );
 
-  // Sorted dropdown options. The default size is marked recommended.
+  // ── Derived lookups ─────────────────────────────────────────
+  const fieldIds = useMemo(
+    () => [...forwardIds, ...backIds],
+    [forwardIds, backIds],
+  );
+  const fieldPlayers = useMemo(
+    () =>
+      fieldIds
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p)),
+    [fieldIds, playerById],
+  );
+  const forwardPlayers = useMemo(
+    () =>
+      forwardIds
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p)),
+    [forwardIds, playerById],
+  );
+  const backPlayers = useMemo(
+    () =>
+      backIds
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p)),
+    [backIds, playerById],
+  );
+  const benchPlayers = useMemo(
+    () =>
+      benchIds
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p)),
+    [benchIds, playerById],
+  );
+  const zoneOf = (id: string): LeagueZone | null => {
+    if (forwardIds.includes(id)) return "forward";
+    if (backIds.includes(id)) return "back";
+    return null;
+  };
+
+  // Pre-game vest preview (no events yet — just the period-1
+  // picks) so LeagueField can render the FR/DH badges.
+  const vestByPlayer = useMemo<Record<string, "fr" | "dh">>(() => {
+    const map: Record<string, "fr" | "dh"> = {};
+    if (frId) map[frId] = "fr";
+    if (dhId) map[dhId] = "dh";
+    return map;
+  }, [frId, dhId]);
+
+  // ── Sizes dropdown ──────────────────────────────────────────
   const sizeOptions = useMemo(() => {
     const out: { value: number; label: string }[] = [];
     for (let s = minOnFieldSize; s <= maxOnFieldSize; s++) {
@@ -323,20 +303,33 @@ export function LeagueLineupPicker({
         = s === defaultOnFieldSize
           ? " — recommended"
           : s === defaultOnFieldSize - 1
-          ? " — 1 empty position"
-          : s < defaultOnFieldSize
-          ? ` — ${defaultOnFieldSize - s} empty positions`
-          : ` — ${s - defaultOnFieldSize} extra`;
+            ? " — 1 empty position"
+            : s < defaultOnFieldSize
+              ? ` — ${defaultOnFieldSize - s} empty positions`
+              : ` — ${s - defaultOnFieldSize} extra`;
       out.push({ value: s, label: `${s} on field${tag}` });
     }
     return out;
   }, [defaultOnFieldSize, minOnFieldSize, maxOnFieldSize]);
 
-  // ── Action sheet (FR / DH / Swap / Bench) ───────────────────
-  const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
-  const [awaitingSwapPick, setAwaitingSwapPick] = useState(false);
+  // ── Selection / action-sheet state ──────────────────────────
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(
+    null,
+  );
+  const [actionSheetPlayerId, setActionSheetPlayerId] = useState<string | null>(
+    null,
+  );
 
-  function moveFieldToBench(playerId: string) {
+  // Clear selection if the selected player gets benched / loaned
+  // away by an upstream change.
+  useEffect(() => {
+    if (selectedPlayerId && loanedIds.has(selectedPlayerId)) {
+      setSelectedPlayerId(null);
+    }
+  }, [loanedIds, selectedPlayerId]);
+
+  // ── Move primitives ─────────────────────────────────────────
+  function moveToBench(playerId: string) {
     setForwardIds((prev) => prev.filter((id) => id !== playerId));
     setBackIds((prev) => prev.filter((id) => id !== playerId));
     setBenchIds((prev) =>
@@ -345,18 +338,10 @@ export function LeagueLineupPicker({
     if (frId === playerId) setFrId(null);
     if (dhId === playerId) setDhId(null);
   }
-  /**
-   * Pull a bench player onto the field. Routes to forwards or backs
-   * by the player's chip — Forward-chipped players land in forwards;
-   * Back-chipped land in backs; unchipped fall through to whichever
-   * zone has room (forwards first). Coach can then move them via
-   * "Make Forward" / "Make Back" in the action sheet if the
-   * auto-routing put them in the wrong row.
-   */
-  function moveBenchToField(playerId: string, preferred?: LeagueZone) {
+  function moveToField(playerId: string, preferred?: LeagueZone) {
     const player = playerById.get(playerId);
-    const chipPref = chipZone(player?.chip);
-    const target: LeagueZone = preferred ?? chipPref ?? "forward";
+    const target: LeagueZone
+      = preferred ?? chipZone(player?.chip) ?? "forward";
     setBenchIds((prev) => prev.filter((id) => id !== playerId));
     if (target === "forward") {
       setForwardIds((prev) =>
@@ -370,8 +355,7 @@ export function LeagueLineupPicker({
       setForwardIds((prev) => prev.filter((id) => id !== playerId));
     }
   }
-  /** Toggle a player between forwards and backs without leaving the field. */
-  function moveBetweenZones(playerId: string, toZone: LeagueZone) {
+  function moveToZone(playerId: string, toZone: LeagueZone) {
     if (toZone === "forward") {
       setBackIds((prev) => prev.filter((id) => id !== playerId));
       setForwardIds((prev) =>
@@ -385,138 +369,140 @@ export function LeagueLineupPicker({
     }
   }
 
-  function handleRowTap(playerId: string, onField: boolean) {
+  // ── Tap / swap state machine ────────────────────────────────
+  // Mirrors the live-game tap-tap-swap UX. First tap selects.
+  // Second tap on a DIFFERENT player either swaps zones (both on
+  // field) or swaps field/bench membership.
+  function handleTileTap(playerId: string) {
     setError(null);
-    // Swap completion path: an on-field player has been picked
-    // and the coach taps a second row — atomic swap. The on-coming
-    // player joins the zone the off-going one vacated, preserving
-    // the forward-back ratio without needing manual zone toggling.
-    if (awaitingSwapPick && actionPlayerId && actionPlayerId !== playerId) {
-      const source = actionPlayerId;
-      const sourceOnField = fieldIds.includes(source);
-      if (sourceOnField && onField) {
-        // Both on field — pass the vest, no field/bench shuffle.
-        if (frId === source) setFrId(playerId);
-        if (dhId === source) setDhId(playerId);
-      } else if (sourceOnField && !onField) {
-        // Field → bench swap. Slot the on-coming bench player into
-        // whichever zone the source vacated.
-        const sourceZone = zoneOf(source) ?? "forward";
-        moveFieldToBench(source);
-        moveBenchToField(playerId, sourceZone);
-      } else if (!sourceOnField && onField) {
-        const targetZone = zoneOf(playerId) ?? "forward";
-        moveFieldToBench(playerId);
-        moveBenchToField(source, targetZone);
-      } else {
-        // Both on bench — no-op (shouldn't happen via UI gates).
-      }
-      setLineupMode("manual");
-      setActionPlayerId(null);
-      setAwaitingSwapPick(false);
+    setLineupMode("manual");
+    if (!selectedPlayerId) {
+      setSelectedPlayerId(playerId);
       return;
     }
-    // Open action sheet (or close if tapping the same row again).
-    setAwaitingSwapPick(false);
-    setActionPlayerId((prev) => (prev === playerId ? null : playerId));
+    if (selectedPlayerId === playerId) {
+      // Tapping the same tile deselects.
+      setSelectedPlayerId(null);
+      return;
+    }
+    const sourceZone = zoneOf(selectedPlayerId);
+    const targetZone = zoneOf(playerId);
+    const sourceOnField = sourceZone !== null;
+    const targetOnField = targetZone !== null;
+    if (sourceOnField && targetOnField) {
+      // Both on field → exchange zone membership (preserves the
+      // ratio if they were in different zones, or just reorders
+      // within the same zone).
+      const sZone = sourceZone!;
+      const tZone = targetZone!;
+      if (sZone === tZone) {
+        const arr = sZone === "forward" ? forwardIds.slice() : backIds.slice();
+        const i = arr.indexOf(selectedPlayerId);
+        const j = arr.indexOf(playerId);
+        if (i >= 0 && j >= 0) {
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        if (sZone === "forward") setForwardIds(arr);
+        else setBackIds(arr);
+      } else {
+        // Cross-zone — swap their bucket membership.
+        const swap = (arr: string[]) =>
+          arr.map((id) =>
+            id === selectedPlayerId
+              ? playerId
+              : id === playerId
+                ? selectedPlayerId
+                : id,
+          );
+        setForwardIds((prev) => swap(prev));
+        setBackIds((prev) => swap(prev));
+      }
+    } else if (sourceOnField && !targetOnField) {
+      // Field → bench swap. Bench player joins source's zone.
+      moveToBench(selectedPlayerId);
+      moveToField(playerId, sourceZone!);
+    } else if (!sourceOnField && targetOnField) {
+      // Bench → field swap. Source joins target's zone.
+      moveToBench(playerId);
+      moveToField(selectedPlayerId, targetZone!);
+    }
+    // Both on bench: no-op.
+    setSelectedPlayerId(null);
   }
 
-  function handleMakeForward() {
-    if (!actionPlayerId) return;
-    setLineupMode("manual");
-    if (zoneOf(actionPlayerId) === "back") {
-      moveBetweenZones(actionPlayerId, "forward");
-    } else if (!fieldIds.includes(actionPlayerId)) {
-      // Action sheet on a bench player → promote them as a forward.
-      if (fieldIds.length >= onFieldSize) {
-        setError(
-          `Already at ${onFieldSize} on field — bench someone first.`,
-        );
-        setActionPlayerId(null);
-        return;
-      }
-      moveBenchToField(actionPlayerId, "forward");
-    }
-    setActionPlayerId(null);
-  }
-  function handleMakeBack() {
-    if (!actionPlayerId) return;
-    setLineupMode("manual");
-    if (zoneOf(actionPlayerId) === "forward") {
-      moveBetweenZones(actionPlayerId, "back");
-    } else if (!fieldIds.includes(actionPlayerId)) {
-      if (fieldIds.length >= onFieldSize) {
-        setError(
-          `Already at ${onFieldSize} on field — bench someone first.`,
-        );
-        setActionPlayerId(null);
-        return;
-      }
-      moveBenchToField(actionPlayerId, "back");
-    }
-    setActionPlayerId(null);
+  function handleTileLongPress(playerId: string) {
+    setActionSheetPlayerId(playerId);
+    setSelectedPlayerId(null);
   }
 
+  function handleVacantSpotTap() {
+    if (!selectedPlayerId) return;
+    if (!benchIds.includes(selectedPlayerId)) return;
+    if (fieldIds.length >= onFieldSize) {
+      setError(
+        `Already at ${onFieldSize} on field — bench someone first.`,
+      );
+      return;
+    }
+    moveToField(selectedPlayerId);
+    setSelectedPlayerId(null);
+  }
+
+  // ── Action sheet handlers ───────────────────────────────────
   function handleMakeFr() {
-    if (!actionPlayerId) return;
+    if (!actionSheetPlayerId) return;
     setLineupMode("manual");
-    if (frId === actionPlayerId) {
+    if (frId === actionSheetPlayerId) {
       setFrId(null);
     } else {
-      setFrId(actionPlayerId);
-      if (dhId === actionPlayerId) setDhId(null);
+      setFrId(actionSheetPlayerId);
+      if (dhId === actionSheetPlayerId) setDhId(null);
     }
-    setActionPlayerId(null);
+    setActionSheetPlayerId(null);
   }
   function handleMakeDh() {
-    if (!actionPlayerId) return;
+    if (!actionSheetPlayerId) return;
     setLineupMode("manual");
-    if (dhId === actionPlayerId) {
+    if (dhId === actionSheetPlayerId) {
       setDhId(null);
     } else {
-      setDhId(actionPlayerId);
-      if (frId === actionPlayerId) setFrId(null);
+      setDhId(actionSheetPlayerId);
+      if (frId === actionSheetPlayerId) setFrId(null);
     }
-    setActionPlayerId(null);
+    setActionSheetPlayerId(null);
   }
-  function handleEnterSwap() {
-    setAwaitingSwapPick(true);
-  }
-  function handleBench() {
-    if (!actionPlayerId) return;
+  function handleActionMovePosition() {
+    if (!actionSheetPlayerId) return;
+    const z = zoneOf(actionSheetPlayerId);
+    if (z === null) return;
     setLineupMode("manual");
-    if (fieldIds.includes(actionPlayerId)) {
-      moveFieldToBench(actionPlayerId);
-    } else if (benchIds.includes(actionPlayerId)) {
+    moveToZone(actionSheetPlayerId, z === "forward" ? "back" : "forward");
+    setActionSheetPlayerId(null);
+  }
+  function handleActionToggleBench() {
+    if (!actionSheetPlayerId) return;
+    setLineupMode("manual");
+    if (zoneOf(actionSheetPlayerId) !== null) {
+      moveToBench(actionSheetPlayerId);
+    } else {
       if (fieldIds.length >= onFieldSize) {
         setError(
           `Already at ${onFieldSize} on field — bench someone first.`,
         );
-        setActionPlayerId(null);
+        setActionSheetPlayerId(null);
         return;
       }
-      moveBenchToField(actionPlayerId);
+      moveToField(actionSheetPlayerId);
     }
-    setActionPlayerId(null);
+    setActionSheetPlayerId(null);
   }
-  function handleCancelAction() {
-    setActionPlayerId(null);
-    setAwaitingSwapPick(false);
+  function handleActionSwitch() {
+    if (!actionSheetPlayerId) return;
+    setSelectedPlayerId(actionSheetPlayerId);
+    setActionSheetPlayerId(null);
   }
 
   // ── Mode + size handlers ────────────────────────────────────
-  function applyRotationFromField(fieldIdsForSuggest: string[]) {
-    const rotation = suggestVestRotation({
-      onFieldIds: fieldIdsForSuggest,
-      players: playersForLineup,
-      seasonEvents,
-      requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
-      vestRequirements: reqs,
-      periodCount: ageGroup.periodCount,
-    });
-    setFrByPeriod(rotation.fr);
-    setDhByPeriod(rotation.dh);
-  }
   function handleModeChange(next: "suggested" | "manual") {
     if (next === lineupMode) return;
     setLineupMode(next);
@@ -532,15 +518,17 @@ export function LeagueLineupPicker({
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);
       setBenchIds(r.lineup.bench);
-      applyRotationFromField([...r.lineup.forwards, ...r.lineup.backs]);
+      setFrId(r.suggestedFr);
+      setDhId(r.suggestedDh);
     } else {
       // Manual: everyone on bench so the coach builds from scratch.
       setForwardIds([]);
       setBackIds([]);
       setBenchIds(playersForLineup.map((p) => p.id));
-      setFrByPeriod(Array(ageGroup.periodCount).fill(null));
-      setDhByPeriod(Array(ageGroup.periodCount).fill(null));
+      setFrId(null);
+      setDhId(null);
     }
+    setSelectedPlayerId(null);
   }
   function handleSizeChange(next: number) {
     setOnFieldSize(next);
@@ -556,116 +544,161 @@ export function LeagueLineupPicker({
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);
       setBenchIds(r.lineup.bench);
-      applyRotationFromField([...r.lineup.forwards, ...r.lineup.backs]);
+      setFrId(r.suggestedFr);
+      setDhId(r.suggestedDh);
     }
   }
 
-  // ── Lend handlers ───────────────────────────────────────────
-  function handleLendToggle(playerId: string, nextLoaned: boolean) {
-    setLoanError(null);
-    setLineupNotice(null);
-    setLoanedIds((prev) => {
-      const next = new Set(prev);
-      if (nextLoaned) next.add(playerId);
-      else next.delete(playerId);
-      return next;
-    });
-    if (nextLoaned) {
-      // Drop the lent player out of both buckets, AND if they were
-      // a starting field player auto-promote the first non-lent
-      // bench player into the empty slot. Without this, lending a
-      // starter silently drops the field below the on-field target
-      // (Steve 2026-05-18: "it was not made clear that his spot had
-      // to be filled by a player on the bench").
-      const lentZone = zoneOf(playerId);
-      const wasOnField = lentZone !== null;
-      let nextForwards = forwardIds.filter((id) => id !== playerId);
-      let nextBacks = backIds.filter((id) => id !== playerId);
-      let nextBench = benchIds.filter((id) => id !== playerId);
-      if (wasOnField) {
-        // Promote a non-lent bench player. Prefer one whose chip
-        // matches the vacated zone so the position ratio holds.
-        const targetChip = lentZone === "forward" ? "a" : "b";
-        const chipMatch = nextBench.find(
-          (id) =>
-            !loanedIds.has(id) &&
-            id !== playerId &&
-            (playerById.get(id)?.chip ?? null) === targetChip,
-        );
-        const promote
-          = chipMatch
-          ?? nextBench.find(
-            (id) => !loanedIds.has(id) && id !== playerId,
-          );
-        if (promote) {
-          if (lentZone === "forward") nextForwards = [...nextForwards, promote];
-          else nextBacks = [...nextBacks, promote];
-          nextBench = nextBench.filter((id) => id !== promote);
-          const promoteName
-            = playerById.get(promote)?.full_name ?? "A bench player";
-          const lentName
-            = playerById.get(playerId)?.full_name ?? "the lent player";
-          setLineupNotice(
-            `${promoteName} moved up from the bench to fill ${lentName}'s spot.`,
-          );
-        } else {
-          setLineupNotice(
-            "Nobody on the bench to fill the empty starting spot — drop the on-field count or bring someone back.",
-          );
-        }
-      }
-      setForwardIds(nextForwards);
-      setBackIds(nextBacks);
-      setBenchIds(nextBench);
-      // Clear the lent player from EVERY period of the rotation
-      // plan — they're not coming back this game. Same for DH.
-      setFrByPeriod((prev) =>
-        prev.map((id) => (id === playerId ? null : id)),
-      );
-      setDhByPeriod((prev) =>
-        prev.map((id) => (id === playerId ? null : id)),
-      );
-    } else {
-      // Returning: park on bench.
-      setBenchIds((prev) =>
-        prev.includes(playerId) ? prev : [...prev, playerId],
-      );
-    }
-    startLoanTransition(async () => {
-      const result = await markLoan(auth, gameId, {
-        player_id: playerId,
-        loaned: nextLoaned,
-        quarter: 1,
-        elapsed_ms: 0,
-      });
-      if (!result.success) {
-        setLoanedIds((prev) => {
-          const next = new Set(prev);
-          if (nextLoaned) next.delete(playerId);
-          else next.add(playerId);
-          return next;
-        });
-        setLoanError(result.error ?? "Couldn't update loan.");
-      }
-    });
-  }
-
-  // ── Reset selection when player set churns ──────────────────
-  // Lending a player or swapping them off can leave a stale
-  // actionPlayerId pointing at someone no longer relevant.
-  useEffect(() => {
-    if (actionPlayerId && loanedIds.has(actionPlayerId)) {
-      setActionPlayerId(null);
-      setAwaitingSwapPick(false);
-    }
-  }, [loanedIds, actionPlayerId]);
-
+  // ── Save / start ────────────────────────────────────────────
   const lineup: LeagueLineup = useMemo(
     () => ({ forwards: forwardIds, backs: backIds, bench: benchIds }),
     [forwardIds, backIds, benchIds],
   );
 
-  // ── Save plan / start game ──────────────────────────────────
+  // Build the full per-period vest plan. Period 1 reads from the
+  // coach's manual `frId`/`dhId` picks; period 2+ defaults to the
+  // chip-aware suggester so the rotation is laws-§12-legal across
+  // the whole game, with `frOverrides` / `dhOverrides` applied on
+  // top when the coach has manually picked a different wearer for
+  // a later period. Used both as a memoized derivation (for the
+  // rotation plan UI) and at save time.
+  const vestPlan = useMemo<{
+    fr: (string | null)[];
+    dh: (string | null)[];
+  }>(() => {
+    const rotation = suggestVestRotation({
+      onFieldIds: fieldIds,
+      players: playersForLineup,
+      seasonEvents,
+      requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+      vestRequirements: reqs,
+      periodCount: ageGroup.periodCount,
+    });
+    const fr = rotation.fr.slice();
+    const dh = rotation.dh.slice();
+    if (vestRequiredFr) fr[0] = frId;
+    if (vestRequiredDh) dh[0] = dhId;
+    // Layer coach overrides on top of the suggester.
+    for (const [periodStr, val] of Object.entries(frOverrides)) {
+      const i = Number(periodStr) - 1;
+      if (i >= 1 && i < fr.length) fr[i] = val;
+    }
+    for (const [periodStr, val] of Object.entries(dhOverrides)) {
+      const i = Number(periodStr) - 1;
+      if (i >= 1 && i < dh.length) dh[i] = val;
+    }
+    // Enforce "once a player has worn any vest, they're excluded
+    // from any other vest in a later period" — earlier draft used
+    // per-vest sets which let the same player wear FR in H1 then
+    // DH in H2. Combined `seenAny` blocks that. Period 1 picks win
+    // ties (walked first); later duplicates clear.
+    const seenAny = new Set<string>();
+    for (let i = 0; i < Math.max(fr.length, dh.length); i++) {
+      const frId_ = fr[i] ?? null;
+      const dhId_ = dh[i] ?? null;
+      if (frId_) {
+        if (seenAny.has(frId_)) fr[i] = null;
+        else seenAny.add(frId_);
+      }
+      if (dhId_) {
+        if (seenAny.has(dhId_)) dh[i] = null;
+        else seenAny.add(dhId_);
+      }
+    }
+    return { fr, dh };
+  }, [
+    fieldIds,
+    playersForLineup,
+    seasonEvents,
+    ageGroup.minUnbrokenPeriods,
+    ageGroup.periodCount,
+    reqs,
+    vestRequiredFr,
+    vestRequiredDh,
+    frId,
+    dhId,
+    frOverrides,
+    dhOverrides,
+  ]);
+
+  /**
+   * Override one period's FR or DH assignment. Enforces the
+   * any-vest-once rule: clears the picked player from BOTH the
+   * `fr` and `dh` overrides for every OTHER period (so a player
+   * wearing FR in H1 can't also be DH in H2 — they're locked out
+   * of any vest in any later period). Mutual exclusion within a
+   * period (FR != DH) is also enforced.
+   */
+  function setVestPlanEntry(
+    vest: "fr" | "dh",
+    period: number,
+    playerId: string | null,
+  ) {
+    // Period 1 is bound to `frId` / `dhId` (the long-press flow on
+    // the on-field tile reads / writes the same state). When the
+    // coach edits period 1 via the rotation plan card, update
+    // BOTH so the two affordances stay in sync.
+    if (period === 1) {
+      if (vest === "fr") {
+        setFrId(playerId);
+        // Same-period mutual exclusion: clear DH if it was the
+        // same player.
+        if (playerId && dhId === playerId) setDhId(null);
+      } else {
+        setDhId(playerId);
+        if (playerId && frId === playerId) setFrId(null);
+      }
+      // Period 1 change can violate "any vest worn once": if the
+      // new wearer was overridden into a later period, scrub them.
+      if (playerId) {
+        setFrOverrides((prev) => {
+          const next = { ...prev };
+          for (const periodStr of Object.keys(next)) {
+            if (next[Number(periodStr)] === playerId) {
+              next[Number(periodStr)] = null;
+            }
+          }
+          return next;
+        });
+        setDhOverrides((prev) => {
+          const next = { ...prev };
+          for (const periodStr of Object.keys(next)) {
+            if (next[Number(periodStr)] === playerId) {
+              next[Number(periodStr)] = null;
+            }
+          }
+          return next;
+        });
+      }
+      return;
+    }
+    setFrOverrides((prev) => {
+      const next = { ...prev };
+      if (vest === "fr") next[period] = playerId;
+      // Clear THIS player from every OTHER period of FR.
+      if (playerId) {
+        for (let i = 1; i < vestPlan.fr.length; i++) {
+          if (i + 1 === period && vest === "fr") continue;
+          if (vestPlan.fr[i] === playerId) next[i + 1] = null;
+        }
+      }
+      return next;
+    });
+    setDhOverrides((prev) => {
+      const next = { ...prev };
+      if (vest === "dh") next[period] = playerId;
+      // Clear THIS player from every OTHER period of DH (covers
+      // the "FR in H1 → blocked from DH in H2" case).
+      if (playerId) {
+        for (let i = 1; i < vestPlan.dh.length; i++) {
+          if (i + 1 === period && vest === "dh") continue;
+          if (vestPlan.dh[i] === playerId) next[i + 1] = null;
+        }
+      }
+      return next;
+    });
+  }
+
   async function handleSavePlan() {
     setSavePending(true);
     setError(null);
@@ -701,6 +734,7 @@ export function LeagueLineupPicker({
       if (!proceed) return;
     }
     setError(null);
+    // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
       const result = await startLeagueGame(
         auth,
@@ -708,183 +742,13 @@ export function LeagueLineupPicker({
         lineup,
         fieldIds.length,
         true,
-        { fr: frByPeriod, dh: dhByPeriod },
+        vestPlan,
         subIntervalSeconds,
       );
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
       }
     });
-  }
-
-  // ── Vest rotation plan edits ────────────────────────────────
-  /**
-   * Override one period's FR or DH assignment. Enforces the same
-   * "one vest worn once per game" rule in-memory by clearing any
-   * other period that has this player wearing the same vest (a
-   * player can't be assigned twice). Mutual exclusion within a
-   * period (FR != DH) is also enforced.
-   */
-  function setVestPlanEntry(
-    vest: "fr" | "dh",
-    period: number,
-    playerId: string | null,
-  ) {
-    // Combined any-vest exclusion: setting playerId for one period
-    // clears them from ANY vest in any OTHER period (so a player
-    // wearing FR in H1 can't also be DH in H2 — once they've worn
-    // any vest, they're locked out of any vest for the rest of the
-    // game). Mutual exclusion within the same period (FR != DH)
-    // still applies.
-    setFrByPeriod((prev) => {
-      const next = prev.slice();
-      if (vest === "fr") next[period] = playerId;
-      // Clear THIS player from every OTHER period of FR.
-      if (playerId) {
-        for (let i = 0; i < next.length; i++) {
-          if (vest === "fr" && i === period) continue;
-          if (next[i] === playerId) next[i] = null;
-        }
-      }
-      return next;
-    });
-    setDhByPeriod((prev) => {
-      const next = prev.slice();
-      if (vest === "dh") next[period] = playerId;
-      // Clear THIS player from every OTHER period of DH (covers
-      // the "FR in H1 → blocked from DH in H2" case).
-      if (playerId) {
-        for (let i = 0; i < next.length; i++) {
-          if (vest === "dh" && i === period) continue;
-          if (next[i] === playerId) next[i] = null;
-        }
-      }
-      return next;
-    });
-  }
-
-  // ── Ordered field rows: Forwards (FR-first) then Backs (DH-first) ──
-  // The two zones render as separate sections under one "Starting
-  // field" header so the coach can see the F/B split at a glance.
-  // Vest wearers float to the top of each zone — FR usually sits in
-  // forwards (front-rower), DH in forwards (hooker / dummy-half), but
-  // the coach can override the zone independently, so we just lift
-  // whichever vest sits in whichever zone.
-  const orderedForwardIds = useMemo(() => {
-    const rest = forwardIds.filter((id) => id !== frId && id !== dhId);
-    const head: string[] = [];
-    if (frId && forwardIds.includes(frId)) head.push(frId);
-    if (dhId && forwardIds.includes(dhId)) head.push(dhId);
-    return [...head, ...rest];
-  }, [forwardIds, frId, dhId]);
-  const orderedBackIds = useMemo(() => {
-    const rest = backIds.filter((id) => id !== frId && id !== dhId);
-    const head: string[] = [];
-    if (frId && backIds.includes(frId)) head.push(frId);
-    if (dhId && backIds.includes(dhId)) head.push(dhId);
-    return [...head, ...rest];
-  }, [backIds, frId, dhId]);
-
-  // ── Inline action sheet renderer ────────────────────────────
-  // Rendered directly under the tapped row (field or bench) so the
-  // controls feel attached to the player rather than floating at the
-  // bottom of the screen. Hidden entirely when in swap-pick mode —
-  // the row already shows the "Swapping…" label, and the next tap
-  // lands on the partner row.
-  function renderInlineActionSheet(playerId: string, onField: boolean) {
-    if (actionPlayerId !== playerId) return null;
-    const isFr = frId === playerId;
-    const isDh = dhId === playerId;
-    return (
-      <div className="border-t border-hairline bg-surface-alt/60 px-4 py-3">
-        {awaitingSwapPick ? (
-          <div className="flex items-center justify-between gap-2 text-xs text-ink-mute">
-            <span>
-              Tap another player to swap.{" "}
-              <span className="text-ink-dim">
-                On-field ↔ on-field swaps vests; field ↔ bench swaps positions.
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={handleCancelAction}
-              className="font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline"
-              disabled={isPending}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {vestRequiredFr && onField && (
-              <SFButton
-                size="sm"
-                variant={isFr ? "primary" : "subtle"}
-                onClick={handleMakeFr}
-                disabled={isPending}
-                full
-              >
-                {isFr ? "Remove FR" : "Make FR"}
-              </SFButton>
-            )}
-            {vestRequiredDh && onField && (
-              <SFButton
-                size="sm"
-                variant={isDh ? "primary" : "subtle"}
-                onClick={handleMakeDh}
-                disabled={isPending}
-                full
-              >
-                {isDh ? "Remove DH" : "Make DH"}
-              </SFButton>
-            )}
-            {/* Forward / Back toggle — only shown when player is on
-                field AND not already in that zone. Coach can override
-                the chip-default position for this game only. */}
-            {onField && zoneOf(playerId) !== "forward" && (
-              <SFButton
-                size="sm"
-                variant="subtle"
-                onClick={handleMakeForward}
-                disabled={isPending}
-                full
-              >
-                Make Forward
-              </SFButton>
-            )}
-            {onField && zoneOf(playerId) !== "back" && (
-              <SFButton
-                size="sm"
-                variant="subtle"
-                onClick={handleMakeBack}
-                disabled={isPending}
-                full
-              >
-                Make Back
-              </SFButton>
-            )}
-            <SFButton
-              size="sm"
-              variant="subtle"
-              onClick={handleEnterSwap}
-              disabled={isPending}
-              full
-            >
-              Swap
-            </SFButton>
-            <SFButton
-              size="sm"
-              variant="ghost"
-              onClick={handleBench}
-              disabled={isPending}
-              full
-            >
-              {onField ? "Bench" : "Add to field"}
-            </SFButton>
-          </div>
-        )}
-      </div>
-    );
   }
 
   const confirmDisabled
@@ -900,11 +764,20 @@ export function LeagueLineupPicker({
       lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
-    bits.push(
-      lentPlayers.length > 0 ? `${lentPlayers.length} lent` : "No lent",
-    );
+    bits.push(`${(subIntervalSeconds / 60).toFixed(1)} min subs`);
+    if (lentPlayers.length > 0) bits.push(`${lentPlayers.length} lent`);
     return bits.join(" · ");
   })();
+
+  // ── Action sheet derived ────────────────────────────────────
+  const actionPlayer = actionSheetPlayerId
+    ? playerById.get(actionSheetPlayerId) ?? null
+    : null;
+  const actionIsOnField
+    = actionSheetPlayerId !== null && zoneOf(actionSheetPlayerId) !== null;
+  const actionZone = actionSheetPlayerId ? zoneOf(actionSheetPlayerId) : null;
+  const fwdLabel = chipLabels?.a || "Forwards";
+  const backLabel = chipLabels?.b || "Backs";
 
   return (
     <div className="space-y-4 pb-32">
@@ -915,8 +788,8 @@ export function LeagueLineupPicker({
           {ageGroup.label} starting lineup
         </h1>
         <p className="text-xs text-ink-mute">
-          {onFieldSize} on the field. Tap a player for actions: make FR,
-          make DH, swap, or bench.
+          Tap a player to select, tap a second to swap. Long-press for
+          FR / DH / position / bench.
         </p>
       </header>
 
@@ -957,56 +830,47 @@ export function LeagueLineupPicker({
             </svg>
           </span>
         </button>
-
         {gameSettingsOpen && (
           <div
             id="lineup-game-settings"
             className="space-y-4 border-t border-hairline px-4 py-4"
           >
-            {/* Rotation mode */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Rotation</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <SFButton
-                  variant={lineupMode === "suggested" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
+            <div className="space-y-2">
+              <Label className="text-xs">Rotation mode</Label>
+              <div className="inline-flex rounded-md border border-hairline bg-surface">
+                <button
+                  type="button"
                   onClick={() => handleModeChange("suggested")}
+                  className={`px-3 py-1.5 text-xs font-medium ${
+                    lineupMode === "suggested"
+                      ? "bg-ink text-warm"
+                      : "text-ink-dim hover:bg-surface-alt"
+                  } rounded-l-md`}
                 >
-                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-                </SFButton>
-                <SFButton
-                  variant={lineupMode === "manual" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
+                  Auto-suggest
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleModeChange("manual")}
+                  className={`px-3 py-1.5 text-xs font-medium ${
+                    lineupMode === "manual"
+                      ? "bg-ink text-warm"
+                      : "text-ink-dim hover:bg-surface-alt"
+                  } rounded-r-md`}
                 >
-                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-                </SFButton>
+                  Set manually
+                </button>
               </div>
-              <p className="mt-1.5 text-xs text-ink-mute">
-                {lineupMode === "suggested"
-                  ? "Auto-rotates — players with less season time get the start, FR and DH biased to least-worn."
-                  : "Blank field at kickoff. Build the lineup manually from the bench."}
-              </p>
             </div>
-
-            {/* Players on field */}
-            <div>
-              <Label
-                htmlFor="rl-on-field-size"
-                className="!mb-1 block text-xs font-semibold text-ink"
-              >
+            <div className="space-y-2">
+              <Label htmlFor="on-field-size" className="text-xs">
                 Players on field
               </Label>
               <select
-                id="rl-on-field-size"
+                id="on-field-size"
                 value={onFieldSize}
-                disabled={isPending}
-                onChange={(e) =>
-                  handleSizeChange(parseInt(e.target.value, 10))
-                }
-                className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+                onChange={(e) => handleSizeChange(parseInt(e.target.value, 10))}
+                className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm"
               >
                 {sizeOptions.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -1014,73 +878,71 @@ export function LeagueLineupPicker({
                   </option>
                 ))}
               </select>
-              <p className="mt-1.5 text-xs text-ink-mute">
-                Drop the count if you&apos;re short a player or two — the
-                game can run below the recommended minimum at local-league
-                discretion.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sub-interval" className="text-xs">
+                Sub interval (minutes)
+              </Label>
+              <Input
+                id="sub-interval"
+                type="number"
+                inputMode="decimal"
+                step={0.5}
+                min={1}
+                max={10}
+                value={subMinInput}
+                onChange={(e) => setSubMinInput(e.target.value)}
+                className="w-32"
+              />
+              <p className="text-[11px] text-ink-mute">
+                Suggested: {suggestedSubMin.toFixed(1)} min (accounts for
+                {" "}
+                {ageGroup.minUnbrokenPeriods ?? 0} unbroken{" "}
+                {ageGroup.periodLabelPlural ?? "periods"} per player).
               </p>
             </div>
-
-            {/* Lend a player */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Lend a player</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Lent players sit out for the rest of the game until you
-                bring them back.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {lentPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                  >
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLendToggle(p.id, false)}
-                      disabled={loanPending}
-                      aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+            {lentPlayers.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Lent to opposition</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {lentPlayers.map((p) => (
+                    <span
+                      key={p.id}
+                      className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setLendPickerOpen(true)}
-                  disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
-                >
-                  <span aria-hidden>+</span>
-                  Lend a player
-                </button>
-              </div>
-              {loanError && (
-                <p className="mt-1 text-xs text-danger" role="alert">
-                  {loanError}
+                      {p.full_name}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-ink-mute">
+                  Manage lent players from the squad page.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* ── Starting field — row list ─────────────────────────── */}
-      {/* Lineup auto-rearrangement notice (e.g. bench player
-          promoted after a lend). Cleared on the next user action.
-          Uses warn-soft to draw the eye without reading as an error
-          — the picker did something on the coach's behalf and they
-          should know what changed. */}
-      {lineupNotice && (
-        <div
-          role="status"
-          className="rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs text-warn"
-        >
-          {lineupNotice}
+      {/* ── Selection helper banner ──────────────────────────── */}
+      {selectedPlayerId && (
+        <div className="rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs text-brand-800">
+          Selected{" "}
+          <strong className="font-semibold">
+            {playerById.get(selectedPlayerId)?.full_name ?? "player"}
+          </strong>
+          . Tap another tile to swap, or tap an empty slot to move them
+          there.{" "}
+          <button
+            type="button"
+            onClick={() => setSelectedPlayerId(null)}
+            className="ml-1 underline-offset-2 hover:underline"
+          >
+            Cancel
+          </button>
         </div>
       )}
 
+      {/* ── Field (formation) + Bench ────────────────────────── */}
       <SFCard pad={0} className="overflow-hidden">
         <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
           <span
@@ -1091,12 +953,11 @@ export function LeagueLineupPicker({
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
               Starting field
             </h3>
+            <p className="mt-0.5 text-[11px] text-ink-mute">
+              Tap two players to switch positions. Long-press a
+              player for other actions.
+            </p>
           </div>
-          {/* Prominent count pill — colour-coded by status. With 11
-              positionless players (no zone groupings to anchor on),
-              a discrete `9 / 11` label is hard to read at a glance,
-              so we give the count a pill background that turns warn
-              when short and brand when at target. */}
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-xs font-bold tabular-nums ${
               fieldIds.length === onFieldSize
@@ -1105,225 +966,48 @@ export function LeagueLineupPicker({
                   ? "bg-warn/15 text-warn"
                   : "bg-alarm/15 text-alarm"
             }`}
-            aria-label={`${fieldIds.length} of ${onFieldSize} players on field`}
           >
             {fieldIds.length} / {onFieldSize}
           </span>
         </div>
-        {/* Inline shortfall banner — same colour as the pill, says
-            exactly what's missing so the coach doesn't have to do
-            mental math. Mirrors the "Need 2 more" affordances AFL
-            shows below short zones. */}
-        {fieldIds.length < onFieldSize && (
-          <div className="border-b border-hairline bg-warn-soft px-4 py-2 text-xs text-warn">
-            Need{" "}
-            <strong className="font-mono tabular-nums">
-              {onFieldSize - fieldIds.length}
-            </strong>{" "}
-            more on the field — tap a bench player below to add them.
-          </div>
-        )}
-        {fieldIds.length === 0 ? (
-          <p className="px-4 py-4 text-xs text-ink-mute">
-            Nobody on the field — tap a bench player below to start
-            building the lineup.
-          </p>
-        ) : (
-          (() => {
-            // Render forwards then backs as two visually-distinct
-            // sections within the single Starting-field card. Each
-            // section has its own count chip; numbering restarts at
-            // 1 inside each zone so the coach reads "Forwards 1–4"
-            // and "Backs 1–5" naturally.
-            const renderRow = (id: string, idx: number) => {
-              const p = playerById.get(id);
-              if (!p) return null;
-              const isFr = frId === id;
-              const isDh = dhId === id;
-              const isSelected = actionPlayerId === id;
-              const isAwaitingFor = awaitingSwapPick && actionPlayerId === id;
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    onClick={() => handleRowTap(id, true)}
-                    disabled={isPending}
-                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                      isSelected
-                        ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
-                        : "hover:bg-surface-alt"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className="w-5 flex-shrink-0 text-center font-mono text-xs font-semibold tabular-nums text-ink-mute"
-                    >
-                      {idx + 1}
-                    </span>
-                    <Guernsey num="" size={32} />
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                      {p.full_name}
-                    </span>
-                    {isFr && (
-                      <span className="rounded-sm bg-warn/15 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
-                        FR
-                      </span>
-                    )}
-                    {isDh && (
-                      <span className="rounded-sm bg-brand-600/15 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700">
-                        DH
-                      </span>
-                    )}
-                    {isAwaitingFor ? (
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
-                        Swapping…
-                      </span>
-                    ) : (
-                      <span className="text-ink-mute opacity-60">
-                        <SFIcon.swap />
-                      </span>
-                    )}
-                  </button>
-                  {renderInlineActionSheet(id, true)}
-                </li>
-              );
-            };
-            const targetForwards
-              = ageGroup.forwardCount !== undefined
-                ? ageGroup.forwardCount
-                : Math.floor(onFieldSize / 2);
-            const targetBacks = Math.max(0, onFieldSize - targetForwards);
-            const fwdLabel = (chipLabels?.a ?? null) || "Forwards";
-            const backLabel = (chipLabels?.b ?? null) || "Backs";
-            return (
-              <div>
-                <div className="flex items-center gap-2 border-b border-hairline bg-surface-alt/60 px-4 py-1.5">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                    {fwdLabel}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
-                      orderedForwardIds.length === targetForwards
-                        ? "bg-brand-600/15 text-brand-700"
-                        : orderedForwardIds.length < targetForwards
-                          ? "bg-warn/15 text-warn"
-                          : "bg-alarm/15 text-alarm"
-                    }`}
-                  >
-                    {orderedForwardIds.length} / {targetForwards}
-                  </span>
-                </div>
-                {orderedForwardIds.length === 0 ? (
-                  <p className="px-4 py-3 text-xs text-ink-mute">
-                    No forwards yet — tap a bench player and pick
-                    &quot;Make Forward&quot; (or swap one in).
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-hairline">
-                    {orderedForwardIds.map((id, idx) => renderRow(id, idx))}
-                  </ul>
-                )}
-                <div className="flex items-center gap-2 border-t border-b border-hairline bg-surface-alt/60 px-4 py-1.5">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                    {backLabel}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
-                      orderedBackIds.length === targetBacks
-                        ? "bg-brand-600/15 text-brand-700"
-                        : orderedBackIds.length < targetBacks
-                          ? "bg-warn/15 text-warn"
-                          : "bg-alarm/15 text-alarm"
-                    }`}
-                  >
-                    {orderedBackIds.length} / {targetBacks}
-                  </span>
-                </div>
-                {orderedBackIds.length === 0 ? (
-                  <p className="px-4 py-3 text-xs text-ink-mute">
-                    No backs yet — tap a bench player and pick
-                    &quot;Make Back&quot;.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-hairline">
-                    {orderedBackIds.map((id, idx) => renderRow(id, idx))}
-                  </ul>
-                )}
-              </div>
-            );
-          })()
-        )}
-      </SFCard>
-
-      {/* ── Bench — row list ──────────────────────────────────── */}
-      <SFCard pad={0} className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-          <span
-            aria-hidden="true"
-            className="block h-5 w-1 rounded-sm bg-ink-mute"
+        <div className="p-3">
+          <LeagueField
+            players={fieldPlayers}
+            forwardPlayers={forwardPlayers}
+            backPlayers={backPlayers}
+            onFieldSize={onFieldSize}
+            vestByPlayer={vestByPlayer}
+            selectedPlayerId={selectedPlayerId}
+            onPlayerClick={handleTileTap}
+            onPlayerLongPress={handleTileLongPress}
+            onVacantSpotTap={
+              selectedPlayerId && benchIds.includes(selectedPlayerId)
+                ? handleVacantSpotTap
+                : undefined
+            }
+            disabled={isPending}
           />
-          <div className="min-w-0 flex-1">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
-              Bench
-            </h3>
-          </div>
-          <span className="inline-flex items-center rounded-full bg-surface-alt px-2.5 py-0.5 font-mono text-xs font-bold tabular-nums text-ink-dim">
-            {benchIds.length}
-          </span>
         </div>
-        {benchIds.length === 0 ? (
-          <p className="px-4 py-4 text-xs text-ink-mute">
-            Everyone&apos;s on the field.
-          </p>
-        ) : (
-          <ul className="divide-y divide-hairline">
-            {benchIds.map((id, idx) => {
-              const p = playerById.get(id);
-              if (!p) return null;
-              const isSelected = actionPlayerId === id;
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    onClick={() => handleRowTap(id, false)}
-                    disabled={isPending}
-                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                      isSelected
-                        ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
-                        : "hover:bg-surface-alt"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className="w-5 flex-shrink-0 text-center font-mono text-xs font-semibold tabular-nums text-ink-mute"
-                    >
-                      {idx + 1}
-                    </span>
-                    <Guernsey num="" size={32} color="#7E867E" />
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink-dim">
-                      {p.full_name}
-                    </span>
-                    <span className="text-ink-mute opacity-60">
-                      <SFIcon.swap />
-                    </span>
-                  </button>
-                  {renderInlineActionSheet(id, false)}
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </SFCard>
 
-      {/* ── Vest rotation plan ───────────────────────────────── */}
-      {/* Pre-game plan for FR / DH across every period. Auto-
-          suggested from season fairness, biased to least-worn-this-
-          season, with the "one vest worn once per game" rule
-          enforced automatically (the suggester walks period-by-
-          period excluding earlier assignments). Each row is
-          tappable to override; the half-time card still lets the
-          coach replace on the day. */}
-      {vestsRequired && (
+      <LeagueBenchStrip
+        players={benchPlayers}
+        vestByPlayer={vestByPlayer}
+        selectedPlayerId={selectedPlayerId}
+        onPlayerClick={handleTileTap}
+        onPlayerLongPress={handleTileLongPress}
+        disabled={isPending}
+      />
+
+      {/* ── Vest rotation plan ─────────────────────────────────
+          Period 1 reflects the long-press on-field picks (read-only
+          here — the source of truth is the field tile). Period 2+
+          is auto-picked from season fairness via
+          `suggestVestRotation` and overridable per period. Hidden
+          for ages with no vest requirements (U6/U7) and for any
+          age with only one period (1 period = period 1 only,
+          nothing to show beyond it). */}
+      {vestsRequired && ageGroup.periodCount > 1 && (
         <SFCard pad={0} className="overflow-hidden">
           <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
             <span
@@ -1335,23 +1019,25 @@ export function LeagueLineupPicker({
                 Vest rotation plan
               </h3>
               <p className="text-[11px] text-ink-mute">
-                Auto-picked from fairness — tap a name to swap. No
-                player wears the same vest twice.
+                Auto-picked from fairness — tap any pick to swap.
+                Once a player wears a vest in one half, they&rsquo;re
+                excluded from the other.
               </p>
             </div>
           </div>
           <ul className="divide-y divide-hairline">
             {Array.from({ length: ageGroup.periodCount }).map((_, periodIdx) => {
-              const periodLabel = ageGroup.periodLabel ?? "period";
-              const periodLabelCap
-                = periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1);
-              const frPickId = frByPeriod[periodIdx] ?? null;
-              const dhPickId = dhByPeriod[periodIdx] ?? null;
+              const periodNum = periodIdx + 1;
+              const periodAbbrev
+                = ageGroup.periodLabel === "half" ? "H" : "Q";
+              const frPickId = vestPlan.fr[periodIdx] ?? null;
+              const dhPickId = vestPlan.dh[periodIdx] ?? null;
               return (
                 <li key={periodIdx} className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="w-12 flex-shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-                      {periodLabelCap} {periodIdx + 1}
+                      {periodAbbrev}
+                      {periodNum}
                     </span>
                     <div className="flex flex-1 flex-wrap items-center gap-2">
                       {vestRequiredFr && (
@@ -1365,13 +1051,13 @@ export function LeagueLineupPicker({
                           }
                           isEditing={
                             vestPlanEdit?.vest === "fr"
-                            && vestPlanEdit?.period === periodIdx
+                            && vestPlanEdit?.period === periodNum
                           }
                           onToggle={() =>
                             setVestPlanEdit((prev) =>
-                              prev?.vest === "fr" && prev?.period === periodIdx
+                              prev?.vest === "fr" && prev?.period === periodNum
                                 ? null
-                                : { vest: "fr", period: periodIdx },
+                                : { vest: "fr", period: periodNum },
                             )
                           }
                         />
@@ -1387,20 +1073,20 @@ export function LeagueLineupPicker({
                           }
                           isEditing={
                             vestPlanEdit?.vest === "dh"
-                            && vestPlanEdit?.period === periodIdx
+                            && vestPlanEdit?.period === periodNum
                           }
                           onToggle={() =>
                             setVestPlanEdit((prev) =>
-                              prev?.vest === "dh" && prev?.period === periodIdx
+                              prev?.vest === "dh" && prev?.period === periodNum
                                 ? null
-                                : { vest: "dh", period: periodIdx },
+                                : { vest: "dh", period: periodNum },
                             )
                           }
                         />
                       )}
                     </div>
                   </div>
-                  {vestPlanEdit?.period === periodIdx && (
+                  {vestPlanEdit?.period === periodNum && (
                     <VestPlanCandidatePicker
                       vest={vestPlanEdit.vest}
                       currentPickId={
@@ -1409,42 +1095,44 @@ export function LeagueLineupPicker({
                       fieldIds={fieldIds}
                       playerById={playerById}
                       seasonVestCounts={seasonVestCounts}
+                      // Exclude any player already assigned ANY
+                      // vest in another period (combined fr+dh —
+                      // wearing FR in H1 locks the player out of
+                      // BOTH vests in H2), plus the OTHER vest's
+                      // wearer for the SAME period so FR != DH at
+                      // any one time.
                       excludeIds={
-                        // Exclude players already wearing ANY vest
-                        // in another period (combined fr+dh — once
-                        // a player has worn one vest they're out of
-                        // both vests for the rest of the game),
-                        // plus the OTHER vest's wearer for this
-                        // same period so FR != DH simultaneously.
                         new Set([
-                          ...frByPeriod
+                          ...vestPlan.fr
                             .map((id, i) =>
                               i !== periodIdx && id ? id : null,
                             )
                             .filter((id): id is string => Boolean(id)),
-                          ...dhByPeriod
+                          ...vestPlan.dh
                             .map((id, i) =>
                               i !== periodIdx && id ? id : null,
                             )
                             .filter((id): id is string => Boolean(id)),
-                          ...(vestPlanEdit.vest === "fr" && dhByPeriod[periodIdx]
-                            ? [dhByPeriod[periodIdx] as string]
+                          ...(vestPlanEdit.vest === "fr"
+                            && vestPlan.dh[periodIdx]
+                            ? [vestPlan.dh[periodIdx] as string]
                             : []),
-                          ...(vestPlanEdit.vest === "dh" && frByPeriod[periodIdx]
-                            ? [frByPeriod[periodIdx] as string]
+                          ...(vestPlanEdit.vest === "dh"
+                            && vestPlan.fr[periodIdx]
+                            ? [vestPlan.fr[periodIdx] as string]
                             : []),
                         ])
                       }
                       onPick={(playerId) => {
                         setVestPlanEntry(
                           vestPlanEdit.vest,
-                          periodIdx,
+                          periodNum,
                           playerId,
                         );
                         setVestPlanEdit(null);
                       }}
                       onClear={() => {
-                        setVestPlanEntry(vestPlanEdit.vest, periodIdx, null);
+                        setVestPlanEntry(vestPlanEdit.vest, periodNum, null);
                         setVestPlanEdit(null);
                       }}
                     />
@@ -1456,147 +1144,51 @@ export function LeagueLineupPicker({
         </SFCard>
       )}
 
-      {/* ── Sub interval ─────────────────────────────────────── */}
-      <SFCard>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor="rl-sub-minutes" className="mb-1">
-              Sub interval
-            </Label>
-            <p className="text-xs text-ink-mute">
-              Suggested {suggestedSubMin} min — {benchIds.length} on bench,{" "}
-              {players.length} total, ≈{restsPerPlayer(benchIds.length)} rest
-              {restsPerPlayer(benchIds.length) === 1 ? "" : "s"} each over{" "}
-              {gameMinutes} min.
-              {unbrokenLockedMinutes > 0 && (
-                <>
-                  {" "}Adjusted for Junior Law §6: each player needs{" "}
-                  {ageGroup.minUnbrokenPeriods === 1
-                    ? "one unbroken half"
-                    : `${ageGroup.minUnbrokenPeriods} unbroken quarters`}{" "}
-                  ({unbrokenLockedMinutes} min locked per player), so
-                  rotations only happen across the remaining{" "}
-                  {Math.max(0, gameMinutes - unbrokenLockedMinutes)} min.
-                </>
-              )}
-            </p>
-          </div>
-          <div className="w-full sm:w-24">
-            <Input
-              id="rl-sub-minutes"
-              type="number"
-              min={1}
-              max={10}
-              step={0.5}
-              value={subMinInput}
-              onChange={(e) => setSubMinInput(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-        </div>
-      </SFCard>
-
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={benchIds.length}
-        onFieldLabel="on field"
-        onSavePlan={auth.kind === "team" ? handleSavePlan : undefined}
+        onSavePlan={
+          auth.kind === "team" ? () => void handleSavePlan() : undefined
+        }
         savePending={savePending}
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
         confirmLabel={
-          ageGroup.periodCount === 2 ? "Ready for kickoff" : "Ready for Q1"
+          ageGroup.periodLabel === "half" ? "Ready for H1" : "Ready for Q1"
         }
         confirmDisabled={confirmDisabled}
         confirmLoading={isPending}
       />
 
-      {/* Lend-player picker modal */}
-      {lendPickerOpen && (
-        <LendPickerSheet
-          candidates={players.filter((p) => !loanedIds.has(p.id))}
-          onCancel={() => setLendPickerOpen(false)}
-          onPick={(pid) => {
-            setLendPickerOpen(false);
-            handleLendToggle(pid, true);
-          }}
-          pending={loanPending}
+      {/* ── Long-press action sheet ──────────────────────────── */}
+      {actionPlayer && (
+        <LockModal
+          player={actionPlayer}
+          currentLock={null}
+          currentZone={null}
+          isInjured={false}
+          isLoaned={false}
+          seasonLoanMins={0}
+          squadLoanMins={0}
+          onUnlock={() => setActionSheetPlayerId(null)}
+          onToggleInjury={() => setActionSheetPlayerId(null)}
+          onToggleLoan={() => setActionSheetPlayerId(null)}
+          onSwitch={handleActionSwitch}
+          // "Move to {Forwards/Backs}" hidden from the long-press
+          // menu (Steve 2026-05-19) — coaches handle forward/back
+          // re-ratios manually via tap-to-swap. Leaving the prop
+          // off in the picker keeps the LockModal's button suite
+          // shorter for the most common use case.
+          onAssignFr={vestRequiredFr ? handleMakeFr : undefined}
+          onAssignDh={vestRequiredDh ? handleMakeDh : undefined}
+          isFr={frId === actionSheetPlayerId}
+          isDh={dhId === actionSheetPlayerId}
+          onToggleBench={handleActionToggleBench}
+          isOnField={actionIsOnField}
+          onClose={() => setActionSheetPlayerId(null)}
         />
       )}
     </div>
   );
 }
-
-// ─── Lend-picker sheet ───────────────────────────────────────
-// Lightweight modal listing every squad player who isn't already
-// lent. AFL uses the shared `SlotFillSheet`; for RL we keep it
-// inline to avoid a heavy import — the surface is small enough.
-interface LendPickerSheetProps {
-  candidates: Player[];
-  onPick: (playerId: string) => void;
-  onCancel: () => void;
-  pending: boolean;
-}
-function LendPickerSheet({
-  candidates,
-  onPick,
-  onCancel,
-  pending,
-}: LendPickerSheetProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-      <div
-        role="dialog"
-        aria-label="Lend a player"
-        className="w-full max-w-md rounded-t-2xl bg-surface p-4 shadow-modal sm:rounded-2xl"
-      >
-        <header className="mb-2 flex items-start justify-between">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
-              Lend a player
-            </h2>
-            <p className="text-xs text-ink-mute">
-              Pick a player to lend to the opposition for the rest of the
-              game.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-2 py-1 text-sm text-ink-mute hover:bg-surface-alt"
-          >
-            Cancel
-          </button>
-        </header>
-        {candidates.length === 0 ? (
-          <p className="px-2 py-4 text-center text-sm text-ink-mute">
-            Everyone is already lent.
-          </p>
-        ) : (
-          <ul className="divide-y divide-hairline">
-            {candidates.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(p.id)}
-                  disabled={pending}
-                  className="flex w-full items-center gap-3 px-2 py-2.5 text-left text-sm transition-colors hover:bg-surface-alt disabled:opacity-60"
-                >
-                  <Guernsey num="" size={28} />
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                    {p.full_name}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// VestPlanPill + VestPlanCandidatePicker now live in
-// `./VestPlanRow` so the formation picker can reuse them.
-// Steve 2026-05-19.

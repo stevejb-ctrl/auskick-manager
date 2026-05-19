@@ -1,8 +1,8 @@
 "use client";
 
 // ─── Vest plan UI primitives ─────────────────────────────────
-// Two small pieces used by both the legacy `LeagueLineupPicker`
-// and the formation picker:
+// Two small pieces used by `LeagueLineupPicker` (and any future
+// sibling picker that wants the same UX):
 //
 //   * `VestPlanPill` — one clickable chip showing a planned FR / DH
 //     wearer for a single period. Empty state surfaces "Pick…" so
@@ -11,13 +11,10 @@
 //
 //   * `VestPlanCandidatePicker` — inline expanding picker that
 //     drops under the pill. Lists on-field players who haven't
-//     already been used for this vest in another planned period
-//     (Laws §12 — one vest worn once per game) and aren't wearing
-//     the OTHER vest in the same period.
-//
-// Hoisted to its own file (Steve 2026-05-19) so the new formation
-// picker can reuse the exact same UI without duplicating the
-// implementation.
+//     already been used for ANY vest in another planned period
+//     (any-vest-once rule — once you've worn FR in H1 you're out
+//     of FR AND DH for H2) and aren't wearing the OTHER vest in
+//     the same period.
 
 import type { Player } from "@/lib/types";
 
