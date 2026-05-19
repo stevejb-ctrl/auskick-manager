@@ -82,7 +82,7 @@ const AFL_COPY: BrandCopy = {
   heroTitle: { before: "Run game day. Keep your head up.", italic: "", after: "" },
   heroSubtitle:
     "Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play.",
-  heroTrust: "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL",
+  heroTrust: "FREE 2026 SEASON · WORKS ON ANY PHONE · NOW ON THE APP STORE",
   metaDescription:
     "Junior AFL game manager. Fair three-zone rotations, live score, late arrivals and fill-ins handled automatically.",
   trustBand: [
