@@ -26,20 +26,25 @@ export function AppStoreBadge({
   const palette = isDark
     ? "bg-warm text-ink border-warm hover:bg-surface-alt"
     : "bg-ink text-warm border-ink hover:bg-ink/85";
+  // h-11 matches the 44px brand button next to it in the hero
+  // (px-5 py-2.5 text-base = ~44px). Inner content is sized to fit
+  // inside that fixed box and visually balance the sibling CTA — the
+  // previous unconstrained badge rendered ~50px and read as the heavier
+  // of the two options instead of an equal.
   return (
     <Link
       href={APP_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Download Siren Footy on the App Store"
-      className={`inline-flex items-center gap-2.5 rounded-md border px-4 py-2 leading-none transition-colors duration-fast ease-out-quart ${palette} ${className}`}
+      className={`inline-flex h-11 items-center gap-2 rounded-md border px-4 leading-none transition-colors duration-fast ease-out-quart ${palette} ${className}`}
     >
-      <AppleMark className="h-7 w-7 shrink-0" />
+      <AppleMark className="h-6 w-6 shrink-0" />
       <span className="flex flex-col">
-        <span className="text-[10px] font-medium tracking-wide">
+        <span className="text-[9px] font-medium tracking-wide">
           Download on the
         </span>
-        <span className="mt-1 text-lg font-semibold tracking-tight">
+        <span className="mt-0.5 text-sm font-semibold tracking-tight">
           App Store
         </span>
       </span>
