@@ -1087,6 +1087,7 @@ export function LeagueLineupPicker({
             forwardPlayers={forwardPlayers}
             backPlayers={backPlayers}
             onFieldSize={onFieldSize}
+            vestRequirements={reqs}
             vestByPlayer={vestByPlayer}
             selectedPlayerId={selectedPlayerId}
             onPlayerClick={handleTileTap}

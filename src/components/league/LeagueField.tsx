@@ -26,57 +26,11 @@
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
+import {
+  getFieldSlots,
+  type FieldSlot,
+} from "@/lib/sports/rugby_league/fieldFormation";
 import { LeaguePlayerTile } from "./LeaguePlayerTile";
-
-// ─── Field formation slots ──────────────────────────────────
-// Approximate rugby league formation rendered in portrait, with
-// our team attacking the TOP try line. The 11 slots break into:
-//
-//   Forwards (4) — two staggered rows at the top of the field.
-//   FR + DH (2)  — middle, slightly staggered.
-//   Backs (4)    — two staggered rows behind the halves.
-//   Fullback (1) — alone at the back near our own try line.
-//
-// `x` is left-percentage from the pitch edge; `y` is top-percentage.
-// Tiles are absolute-positioned with `translate(-50%, -50%)` so the
-// coordinate is the centre of the tile. Coordinates are tuned for a
-// 4:5 portrait pitch — change with care; tiles overlap fast.
-type FieldSlotRole =
-  | "forward"
-  | "fr"
-  | "dh"
-  | "back"
-  | "fullback";
-interface FieldSlot {
-  id: string;
-  role: FieldSlotRole;
-  x: number;
-  y: number;
-}
-
-const FIELD_SLOTS: FieldSlot[] = [
-  // Forwards — 2 rows of 2, closest to the opponent try line.
-  // Inner pair sits higher (row-1), outer pair wider (row-2).
-  // Inner-pair x widened from 36/64 → 32/68 to clear the bigger
-  // 26%-wide tiles without overlapping at the centre.
-  { id: "fwd-1", role: "forward", x: 32, y: 18 },
-  { id: "fwd-2", role: "forward", x: 68, y: 18 },
-  { id: "fwd-3", role: "forward", x: 24, y: 31 },
-  { id: "fwd-4", role: "forward", x: 76, y: 31 },
-  // DH + FR — middle of the field, well separated and staggered.
-  // DH stands closer to the ruck so it sits left + slightly higher;
-  // FR is the first receiver, sitting right + slightly back.
-  { id: "dh", role: "dh", x: 28, y: 45 },
-  { id: "fr", role: "fr", x: 72, y: 52 },
-  // Backs — 2 rows of 2 behind the halves. Outer pair wider
-  // (centres/wingers), inner pair tighter.
-  { id: "back-1", role: "back", x: 24, y: 64 },
-  { id: "back-2", role: "back", x: 76, y: 64 },
-  { id: "back-3", role: "back", x: 32, y: 77 },
-  { id: "back-4", role: "back", x: 68, y: 77 },
-  // Fullback — alone at the back.
-  { id: "fullback", role: "fullback", x: 50, y: 88 },
-];
 
 /**
  * Assign each on-field player to a formation slot. FR / DH vest
@@ -95,6 +49,7 @@ const FIELD_SLOTS: FieldSlot[] = [
 function arrangeFieldSlots(
   players: Player[],
   vestByPlayer: Record<string, VestType>,
+  slots: FieldSlot[],
   forwardPlayers?: Player[],
   backPlayers?: Player[],
 ): { slot: FieldSlot; player: Player | null }[] {
@@ -122,7 +77,7 @@ function arrangeFieldSlots(
       : backsRest;
     let fwdIdx = 0;
     let backIdx = 0;
-    const result: { slot: FieldSlot; player: Player | null }[] = FIELD_SLOTS.map(
+    const result: { slot: FieldSlot; player: Player | null }[] = slots.map(
       (slot) => {
         if (slot.role === "fr") return { slot, player: frPlayer };
         if (slot.role === "dh") return { slot, player: dhPlayer };
@@ -163,7 +118,7 @@ function arrangeFieldSlots(
     (p) => p.id !== frPlayer?.id && p.id !== dhPlayer?.id,
   );
   let restIdx = 0;
-  return FIELD_SLOTS.map((slot) => {
+  return slots.map((slot) => {
     if (slot.role === "fr") return { slot, player: frPlayer };
     if (slot.role === "dh") return { slot, player: dhPlayer };
     const player = rest[restIdx] ?? null;
@@ -184,8 +139,14 @@ interface LeagueFieldProps {
   /** On-field backs bucket. The LAST back is treated as the
    *  fullback unless the lineup is empty. */
   backPlayers?: Player[];
-  /** Target on-field size — drives the vacant-spot placeholder render. */
+  /** Target on-field size — drives the formation slot count and
+   *  vacant-spot placeholder render. Required for accurate per-age
+   *  layouts (U6 = 6 slots, U10 = 11, U12 = 13, etc.). */
   onFieldSize?: number;
+  /** Vest gates from the age-group config — controls whether the
+   *  FR / DH named slots appear in the formation. Defaults to
+   *  no-vests (U6/U7 shape) when omitted. */
+  vestRequirements?: { fr: boolean; dh: boolean };
   triesByPlayer?: Record<string, number>;
   totalMsByPlayer?: Record<string, number>;
   vestByPlayer?: Record<string, VestType>;
@@ -208,6 +169,7 @@ export function LeagueField({
   forwardPlayers,
   backPlayers,
   onFieldSize,
+  vestRequirements,
   triesByPlayer,
   totalMsByPlayer,
   vestByPlayer,
@@ -323,16 +285,22 @@ export function LeagueField({
 
           {/* Player band — absolute-positioned slots in a rugby
               league formation (attacking the TOP try line). The
-              `FIELD_SLOTS` array below lays out 11 reference
-              positions; players are assigned by vest first (FR + DH
-              into the middle slots), then the remaining fill the
-              forwards / backs / fullback positions in lineup order.
-              Unfilled slots render vacant placeholders so the gap is
-              visible. */}
+              slot array comes from `getFieldSlots(onFieldSize, vestReqs)`
+              so U6 renders 6 tiles, U10 renders 11, U12 renders 13,
+              etc. Players are assigned by vest first (FR + DH into
+              the middle slots when the age group requires them), then
+              the remaining fill the forwards / backs / fullback
+              positions in lineup order. Unfilled slots render vacant
+              placeholders so the gap is visible. */}
           {(() => {
+            const slots = getFieldSlots(
+              typeof onFieldSize === "number" ? onFieldSize : 11,
+              vestRequirements,
+            );
             const arrangement = arrangeFieldSlots(
               players,
               vestByPlayer ?? {},
+              slots,
               forwardPlayers,
               backPlayers,
             );

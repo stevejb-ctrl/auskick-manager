@@ -968,6 +968,7 @@ export function LeagueLiveGame({
             forwardPlayers={forwardPlayers}
             backPlayers={backPlayers}
             onFieldSize={game.on_field_size}
+            vestRequirements={ageGroup.vestRequirements}
             triesByPlayer={state.playerTries}
             totalMsByPlayer={totalMsByPlayer}
             vestByPlayer={vestByPlayer}
