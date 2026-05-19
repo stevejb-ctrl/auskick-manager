@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import type { GameEvent, GameEventType } from "@/lib/types";
+import {
+  replayLeagueGame,
+  suggestLeagueLineup,
+} from "@/lib/sports/rugby_league/fairness";
+import type { GameEvent, GameEventType, Player } from "@/lib/types";
 
 // Tiny factory — keeps the test bodies focused on the assertions.
 let _ts = 0;
@@ -355,5 +358,133 @@ describe("replayLeagueGame — forward/back zones", () => {
     expect(state.lineup?.forwards).toEqual(["legacy1", "legacy2"]);
     expect(state.lineup?.backs).toEqual([]);
     expect(state.lineup?.bench).toEqual(["benched"]);
+  });
+});
+
+describe("suggestLeagueLineup — chip-aware zone distribution", () => {
+  // Minimal Player factory — only the fields the suggester reads
+  // (id, jersey_number, chip) matter; the rest are stub strings so
+  // tests stay focused on the routing behaviour under test.
+  function p(
+    id: string,
+    jersey: number,
+    chip: "a" | "b" | null = null,
+  ): Player {
+    return {
+      id,
+      team_id: "t1",
+      full_name: id,
+      jersey_number: jersey,
+      is_active: true,
+      chip,
+      created_by: "u1",
+      created_at: "2026-05-19T00:00:00Z",
+      updated_at: "2026-05-19T00:00:00Z",
+    };
+  }
+
+  it("places forward-chipped players into the forwards bucket even when unchipped players outrank them on fairness", () => {
+    // Regression for the picker bug: an 11-player squad where the
+    // top-ranked players are unchipped and the chipped forwards sit
+    // lower in the rank. A single-pass walk lets the unchipped
+    // players consume all the forward slots, spilling the chipped
+    // forwards into backs — which the formation picker then
+    // renders as green dots on the back row, contradicting the
+    // chip's stored position.
+    const players: Player[] = [
+      // Unchipped first (lower jersey → ranks first on the
+      // jersey-number tiebreak when nobody has season events).
+      p("u1", 1),
+      p("u2", 2),
+      p("u3", 3),
+      p("u4", 4),
+      p("u5", 5),
+      p("u6", 6),
+      // Chipped forwards sit further down the rank.
+      p("f1", 7, "a"),
+      p("f2", 8, "a"),
+      p("f3", 9, "a"),
+      // Chipped backs.
+      p("b1", 10, "b"),
+      p("b2", 11, "b"),
+      // Overflow — won't make the on-field cut.
+      p("u7", 12),
+    ];
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 11,
+      forwardCount: 5,
+      seasonEvents: [],
+      requiredUnbrokenPeriods: 1,
+    });
+    // All three forward-chipped players land in forwards…
+    expect(result.lineup.forwards).toContain("f1");
+    expect(result.lineup.forwards).toContain("f2");
+    expect(result.lineup.forwards).toContain("f3");
+    // …and the back-chipped players land in backs.
+    expect(result.lineup.backs).toContain("b1");
+    expect(result.lineup.backs).toContain("b2");
+    // No chipped player ends up in the wrong zone.
+    expect(result.lineup.backs).not.toContain("f1");
+    expect(result.lineup.backs).not.toContain("f2");
+    expect(result.lineup.backs).not.toContain("f3");
+    expect(result.lineup.forwards).not.toContain("b1");
+    expect(result.lineup.forwards).not.toContain("b2");
+    // Field totals respect the F/B split.
+    expect(result.lineup.forwards).toHaveLength(5);
+    expect(result.lineup.backs).toHaveLength(6);
+    expect(result.lineup.bench).toHaveLength(1);
+  });
+
+  it("spills chip-overflow when a chipped zone is already saturated", () => {
+    // Six forward-chipped players for only 4 forward slots — two
+    // must spill into backs. Verifies the second pass correctly
+    // catches chip-overflow rather than dropping them on the bench.
+    const players: Player[] = [
+      p("f1", 1, "a"),
+      p("f2", 2, "a"),
+      p("f3", 3, "a"),
+      p("f4", 4, "a"),
+      p("f5", 5, "a"),
+      p("f6", 6, "a"),
+      p("u1", 7),
+      p("u2", 8),
+    ];
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 8,
+      forwardCount: 4,
+      seasonEvents: [],
+      requiredUnbrokenPeriods: 1,
+    });
+    expect(result.lineup.forwards).toHaveLength(4);
+    expect(result.lineup.backs).toHaveLength(4);
+    // First-pass picks (by jersey-number rank) fill the forwards.
+    expect(result.lineup.forwards).toEqual(
+      expect.arrayContaining(["f1", "f2", "f3", "f4"]),
+    );
+    // Overflow forwards land in backs alongside the unchipped fill.
+    const inBacks = new Set(result.lineup.backs);
+    expect(inBacks.has("f5") || inBacks.has("f6")).toBe(true);
+  });
+
+  it("falls back to floor(n/2) forwards when forwardCount is omitted", () => {
+    const players: Player[] = [
+      p("u1", 1),
+      p("u2", 2),
+      p("u3", 3),
+      p("u4", 4),
+      p("u5", 5),
+      p("u6", 6),
+      p("u7", 7),
+    ];
+    const result = suggestLeagueLineup({
+      players,
+      defaultOnFieldSize: 7,
+      seasonEvents: [],
+      requiredUnbrokenPeriods: 1,
+    });
+    expect(result.lineup.forwards).toHaveLength(3); // floor(7/2)
+    expect(result.lineup.backs).toHaveLength(4); // remainder
   });
 });

@@ -748,6 +748,38 @@ interface SeasonFairnessRow {
   dhCount: number;
 }
 
+/**
+ * Per-player season vest-wearing totals. Used by the lineup picker
+ * to surface "FR 3 · DH 1" under each candidate so the coach can
+ * see at a glance who's had more / fewer vest stints across the
+ * season before manually overriding the suggester. Built from the
+ * SAME event log + game-grouping the suggester uses, so the
+ * numbers always match what the auto-pick was trying to balance.
+ *
+ * Steve 2026-05-19: exposed publicly because the existing
+ * `computeSeasonFairness` lookup is module-private (used only by
+ * the suggester).
+ */
+export interface SeasonVestCount {
+  fr: number;
+  dh: number;
+}
+
+export function seasonVestCountsByPlayer(
+  seasonEvents: GameEvent[],
+): Record<string, SeasonVestCount> {
+  const out: Record<string, SeasonVestCount> = {};
+  for (const ev of seasonEvents) {
+    if (ev.type !== "vest_assigned" || !ev.player_id) continue;
+    const meta = ev.metadata as { vest?: string };
+    if (meta.vest !== "fr" && meta.vest !== "dh") continue;
+    out[ev.player_id] ??= { fr: 0, dh: 0 };
+    if (meta.vest === "fr") out[ev.player_id].fr += 1;
+    else out[ev.player_id].dh += 1;
+  }
+  return out;
+}
+
 function computeSeasonFairness(
   events: GameEvent[],
   required: number,
@@ -838,38 +870,49 @@ export function suggestLeagueLineup(
       : Math.floor(defaultOnFieldSize / 2);
   const targetBacks = Math.max(0, defaultOnFieldSize - targetForwards);
 
-  // Chip-aware zone distribution. Walk the fairness-ranked list and
-  // place each player by chip:
-  //   * Forward chip → forwards pool until it's full, then backs.
-  //   * Back chip    → backs pool until it's full, then forwards.
-  //   * No chip      → wherever has room (forwards first to keep the
-  //     suggestion stable when nobody is chipped).
-  // Overflow players land on the bench in fairness order.
+  // Chip-aware zone distribution — TWO PASSES so chipped players
+  // claim their preferred zone before unchipped players consume the
+  // slots. A single fairness-ranked walk lets the top-ranked
+  // unchipped players fill the forwards pool first, and any chipped
+  // forwards further down the rank end up in backs by overflow —
+  // exactly the bug the picker was rendering (forward-chip green
+  // dots on players placed in the backs row).
+  //
+  //   Pass 1: walk fairness-ranked; place each CHIPPED player into
+  //           their preferred zone if there's room. Overflow (e.g.
+  //           more forward chips than targetForwards) carries over
+  //           to pass 2.
+  //   Pass 2: walk fairness-ranked; place remaining players
+  //           (unchipped + chip-overflow) into whichever pool has
+  //           room. Backs first when forwards are saturated so
+  //           the suggestion keeps the F/B ratio close to the
+  //           configured target. Anyone who can't fit goes to bench.
   const forwards: string[] = [];
   const backs: string[] = [];
   const bench: string[] = [];
+  const placed = new Set<string>();
+
   for (const p of ranked) {
     const zone = chipZone(p.chip);
-    const place = (preferred: LeagueZone) => {
-      if (
-        preferred === "forward" &&
-        forwards.length < targetForwards
-      ) {
-        forwards.push(p.id);
-        return true;
-      }
-      if (preferred === "back" && backs.length < targetBacks) {
-        backs.push(p.id);
-        return true;
-      }
-      return false;
-    };
-    if (zone && place(zone)) continue;
-    // Either no chip or chip's preferred zone is full — fall through
-    // to whichever pool has room.
-    if (forwards.length < targetForwards) forwards.push(p.id);
-    else if (backs.length < targetBacks) backs.push(p.id);
-    else bench.push(p.id);
+    if (!zone) continue;
+    if (zone === "forward" && forwards.length < targetForwards) {
+      forwards.push(p.id);
+      placed.add(p.id);
+    } else if (zone === "back" && backs.length < targetBacks) {
+      backs.push(p.id);
+      placed.add(p.id);
+    }
+  }
+
+  for (const p of ranked) {
+    if (placed.has(p.id)) continue;
+    if (forwards.length < targetForwards) {
+      forwards.push(p.id);
+    } else if (backs.length < targetBacks) {
+      backs.push(p.id);
+    } else {
+      bench.push(p.id);
+    }
   }
 
   const fieldPicks = [...forwards, ...backs];
@@ -1089,25 +1132,30 @@ export function suggestVestRotation(
 
   const fr: (string | null)[] = [];
   const dh: (string | null)[] = [];
-  const usedFr = new Set<string>();
-  const usedDh = new Set<string>();
+  // Single combined "has worn any vest this game" set. Earlier
+  // draft used separate `usedFr` / `usedDh` sets — allowed the
+  // same player to wear FR in one half and DH in another. Steve
+  // 2026-05-19: rule clarified to "once a player has worn any
+  // vest, they're excluded from any vest in any later period".
+  // The combined set enforces that automatically.
+  const usedAnyVest = new Set<string>();
 
   for (let p = 0; p < periodCount; p++) {
     let frPick: string | null = null;
     let dhPick: string | null = null;
     if (vestRequirements?.fr) {
-      const pool = onFieldIds.filter((id) => !usedFr.has(id));
+      const pool = onFieldIds.filter((id) => !usedAnyVest.has(id));
       const ranked = rank(pool, (row) => row?.frCount ?? 0);
       frPick = ranked[0] ?? null;
-      if (frPick) usedFr.add(frPick);
+      if (frPick) usedAnyVest.add(frPick);
     }
     if (vestRequirements?.dh) {
       const pool = onFieldIds.filter(
-        (id) => !usedDh.has(id) && id !== frPick,
+        (id) => !usedAnyVest.has(id) && id !== frPick,
       );
       const ranked = rank(pool, (row) => row?.dhCount ?? 0);
       dhPick = ranked[0] ?? null;
-      if (dhPick) usedDh.add(dhPick);
+      if (dhPick) usedAnyVest.add(dhPick);
     }
     fr.push(frPick);
     dh.push(dhPick);
