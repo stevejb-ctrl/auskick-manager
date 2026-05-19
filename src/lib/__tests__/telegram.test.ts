@@ -14,6 +14,22 @@ describe("formatSignupMessage", () => {
     expect(msg).toContain("a&amp;b&lt;c&gt;d@example.com");
     expect(msg).not.toContain("a&b");
   });
+
+  it("omits the Provider line when no provider is supplied", () => {
+    const msg = formatSignupMessage("u@x.com", "t");
+    expect(msg).not.toContain("Provider");
+  });
+
+  it("includes the Provider line when supplied", () => {
+    const msg = formatSignupMessage("u@x.com", "t", "google");
+    expect(msg).toContain("Provider: google");
+  });
+
+  it("HTML-escapes the provider", () => {
+    const msg = formatSignupMessage("u@x.com", "t", "<weird>");
+    expect(msg).toContain("Provider: &lt;weird&gt;");
+    expect(msg).not.toContain("Provider: <weird>");
+  });
 });
 
 describe("formatTeamMessage", () => {

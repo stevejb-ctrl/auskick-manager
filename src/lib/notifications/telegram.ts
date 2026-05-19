@@ -5,8 +5,20 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export function formatSignupMessage(email: string, time: string): string {
-  return `🎉 <b>New Siren Footy signup</b>\n\nEmail: ${escapeHtml(email)}\nTime: ${time}`;
+export function formatSignupMessage(
+  email: string,
+  time: string,
+  provider?: string,
+): string {
+  // Provider arg added 2026-05-17: OAuth signups (Google / Apple)
+  // were silently bypassing the notify path because only the
+  // email/password SignupForm called notifySignup. The /auth/
+  // callback route now fires it too — including the provider here
+  // disambiguates "new email signup" vs "new OAuth signup".
+  // Pre-existing callers (just the email/password form) can omit
+  // the arg and the line is suppressed for backwards compat.
+  const providerLine = provider ? `\nProvider: ${escapeHtml(provider)}` : "";
+  return `🎉 <b>New Siren Footy signup</b>\n\nEmail: ${escapeHtml(email)}${providerLine}\nTime: ${time}`;
 }
 
 export function formatTeamMessage(
