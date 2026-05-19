@@ -86,13 +86,13 @@ const SPORTS = [
 // Bench depth — 6 extra so the suggester always has rotation room.
 const BENCH = 6;
 
-// Hard squad cap enforced by `enforce_max_players` trigger
-// (migrations/0001_initial_schema.sql:91). Any insert that would
-// push the team past this errors. U13+ default to 18 on-field
-// which exceeds the cap — those teams play short until / unless
-// the trigger is relaxed via migration. Steve 2026-05-20: capping
-// at the trigger limit for now and surfacing the trade-off.
-const MAX_ACTIVE = 15;
+// Hard squad cap enforced by `enforce_max_players` trigger.
+// Bumped from 15 → 30 in migration 0037 (Steve 2026-05-20) so
+// AFL U13+ squads can fill their default 18 on-field lineup +
+// real bench depth, and netball coaches can carry rotating
+// attendees as fill-ins. Keep the script's constant in lockstep
+// with the DB trigger or backfills silently cap short.
+const MAX_ACTIVE = 30;
 
 // Generic name pool. Deliberately bland — these are demo squads,
 // not real kids. Mix of first names + surnames; combined randomly
