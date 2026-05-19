@@ -38,15 +38,18 @@ function makePlayer(i: number, teamId: string): Player {
 // AFL Junior Match Policy (per Play AFL handbook). If any of these
 // numbers regress in the config, the assertion makes the change
 // surface-level instead of silent.
+// AFL Community Policy: 15-a-side through to U15s; 18-a-side only
+// from U16 up. The earlier U13-U15 defaults of 18 were wrong; Steve
+// 2026-05-20 caught it during the per-age-group seed pass.
 const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
   U8: 6,
   U9: 9,
   U10: 12,
   U11: 15,
   U12: 15,
-  U13: 18,
-  U14: 18,
-  U15: 18,
+  U13: 15,
+  U14: 15,
+  U15: 15,
   U16: 18,
   U17: 18,
 };
@@ -97,7 +100,8 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
       expect(caps.mid).toBeGreaterThan(0);
       expect(caps.fwd).toBeGreaterThan(0);
     } else {
-      // 5-position model (U13+) should populate all 5 lines for 18-a-side.
+      // 5-position model (U13+) should populate all 5 lines, whether
+      // the team's playing 15-a-side (U13-U15) or 18-a-side (U16+).
       for (const z of ["back", "hback", "mid", "hfwd", "fwd"] as const) {
         expect(caps[z]).toBeGreaterThan(0);
       }

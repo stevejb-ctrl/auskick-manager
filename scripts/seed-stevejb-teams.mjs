@@ -63,9 +63,12 @@ const SPORTS = [
       { id: "U10", name: "U10", defaultOnFieldSize: 12 },
       { id: "U11", name: "U11", defaultOnFieldSize: 15 },
       { id: "U12", name: "U12", defaultOnFieldSize: 15 },
-      { id: "U13", name: "U13", defaultOnFieldSize: 18 },
-      { id: "U14", name: "U14", defaultOnFieldSize: 18 },
-      { id: "U15", name: "U15", defaultOnFieldSize: 18 },
+      // U13-U15 are 15-a-side per AFL Community Policy; 18-a-side
+      // kicks in at U16. Steve 2026-05-20 — earlier rev had U13-U15
+      // wrongly at 18, matched the bad ageGroups.ts defaults.
+      { id: "U13", name: "U13", defaultOnFieldSize: 15 },
+      { id: "U14", name: "U14", defaultOnFieldSize: 15 },
+      { id: "U15", name: "U15", defaultOnFieldSize: 15 },
       { id: "U16", name: "U16", defaultOnFieldSize: 18 },
       { id: "U17", name: "U17", defaultOnFieldSize: 18 },
     ],
@@ -88,10 +91,12 @@ const BENCH = 6;
 
 // Hard squad cap enforced by `enforce_max_players` trigger.
 // Bumped from 15 → 30 in migration 0037 (Steve 2026-05-20) so
-// AFL U13+ squads can fill their default 18 on-field lineup +
-// real bench depth, and netball coaches can carry rotating
-// attendees as fill-ins. Keep the script's constant in lockstep
-// with the DB trigger or backfills silently cap short.
+// AFL U16+ squads can fill their 18 on-field lineup + real
+// bench depth, and netball coaches can carry rotating attendees
+// as fill-ins. (Earlier rev of this comment said "U13+" — that
+// was wrong; U13-U15 are 15-a-side, only U16+ goes to 18.)
+// Keep the script's constant in lockstep with the DB trigger or
+// backfills silently cap short.
 const MAX_ACTIVE = 30;
 
 // Generic name pool. Deliberately bland — these are demo squads,
