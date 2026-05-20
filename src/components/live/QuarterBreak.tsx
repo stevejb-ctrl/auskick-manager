@@ -25,6 +25,7 @@ import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
   ALL_ZONES,
   suggestStartingLineup,
+  zoneCapsFor,
   zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
   type SeasonAvailability,
@@ -117,6 +118,18 @@ export function QuarterBreak({
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
+  // Display caps for the zone-card headers + "+ Add player"
+  // affordance — based on the age-group DEFAULT, not the
+  // currently-chosen on-field size. When the coach has reduced
+  // count below default (e.g. 15→13), the zone header still
+  // reads `3 / 5` rather than `3 / 4` so the missing slots are
+  // visible, and the + Add row stays surfaced until the zone is
+  // at default capacity. zoneCaps remains the source of truth
+  // for the suggester / placement loop. Steve 2026-05-20.
+  const displayZoneCaps = useMemo(
+    () => zoneCapsFor(defaultOnFieldSize, positionModel),
+    [defaultOnFieldSize, positionModel],
+  );
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   // Steve 2026-05-16: parity with netball Q-break, which has been
   // surfacing a per-player goal-count badge on its tiles since the
@@ -1350,7 +1363,7 @@ export function QuarterBreak({
               </h3>
               <span className="text-xs tabular-nums text-ink-mute">
                 {draft[slot].length}
-                {slot !== "bench" && ` / ${zoneCaps[slot]}`}
+                {slot !== "bench" && ` / ${displayZoneCaps[slot]}`}
               </span>
             </div>
             {draft[slot].length === 0 ? (
@@ -1522,7 +1535,7 @@ export function QuarterBreak({
                     row that opens the SlotFillSheet. Lets the coach
                     grow a short-handed zone without juggling swaps.
                     Bench has no cap, so it never renders. */}
-                {slot !== "bench" && draft[slot].length < zoneCaps[slot] && (
+                {slot !== "bench" && draft[slot].length < displayZoneCaps[slot] && (
                   <li>
                     <button
                       type="button"
