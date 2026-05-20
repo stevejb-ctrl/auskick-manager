@@ -16,6 +16,19 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "@/lib/live/persistStorage";
 
+/**
+ * Legacy constant — fixed 12-min quarter. NO LONGER the source of
+ * truth for the in-game clock; that now flows through the
+ * `quarterMs` prop in LiveGame → GameHeader, sourced from
+ * `getEffectiveQuarterSeconds(game, team, ageGroupConfig)` so each
+ * age group reads its own length (U13+ = 20 min, etc).
+ *
+ * Kept exported only because a unit test pins the value at 12
+ * minutes — a sanity check that the legacy default hasn't drifted.
+ * If you're writing runtime code that needs a quarter length,
+ * thread the `quarterMs` prop down instead of importing this.
+ * Steve 2026-05-20.
+ */
 export const QUARTER_MS = 12 * 60 * 1000;
 import {
   emptyLineup,

@@ -1292,6 +1292,7 @@ export function LiveGame({
       isPreGame={isPreGame}
       isFinished={isFinished}
       clockMultiplier={clockMultiplier}
+      quarterMs={quarterMs}
       isPending={isPending}
       clockPulseKey={clockPulseKey}
       // Q-by-Q chip surfaces only when there's something to show
