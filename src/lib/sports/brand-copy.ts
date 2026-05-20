@@ -111,7 +111,7 @@ const AFL_COPY: BrandCopy = {
       id: "rotations",
       eyebrow: "Fair rotations",
       title: { before: "Every player gets a ", italic: "fair", after: " run." },
-      body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time — without you having to count.",
+      body: "The rotation engine tracks minutes in each zone across every quarter and nudges you toward balanced playing time, without you having to count.",
       bullets: [
         "Per-zone minute bars visible at a glance",
         "Colour-coded fairness indicators",
@@ -126,13 +126,13 @@ const AFL_COPY: BrandCopy = {
       title: {
         before: "Keep the scoreboard ",
         italic: "honest",
-        after: " — if you want to.",
+        after: ", if you want to.",
       },
-      body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically — or not. Your call.",
+      body: "Scoring is completely optional. If you do use it, log goals and behinds for both sides with one tap. A goal song can play automatically, or not. Your call.",
       bullets: [
-        "Score tracking is opt-in — skip it if you don’t need it",
+        "Score tracking is opt-in. Skip it if you don’t need it",
         "Opponent score tracked alongside yours",
-        "Optional goal song — enable it or leave it off",
+        "Optional goal song. Enable it or leave it off",
       ],
       image: "/marketing/screenshots/scoring.png",
       imageAlt: "Score tracking with celebration chip visible",
@@ -145,7 +145,7 @@ const AFL_COPY: BrandCopy = {
         italic: "leave",
         after: " home.",
       },
-      body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match — Siren rebalances rotations automatically.",
+      body: "Mark each player available or unavailable the night before. If the other team is running short, drop your numbers to match and Siren rebalances rotations automatically.",
       bullets: [
         "One tap to mark a player available or unavailable",
         "Run a smaller squad to match the opposition",
@@ -179,14 +179,14 @@ const AFL_COPY: BrandCopy = {
         italic: "rest",
         after: ".",
       },
-      body: "Three coloured chips per team, optional. Link them to positions — Forward, Centre, Back — so kids who own a zone keep playing there, with chip dots that match the in-game zone tiles. Or define your own: \"older / younger\" to mix experience every line, \"stays with these kids\" for partnerships. The suggester weaves the chips into every starting lineup and quarter-break shuffle.",
+      body: "Three coloured chips per team, optional. Link them to positions (Forward, Centre, Back) so kids who own a zone keep playing there, with chip dots that match the in-game zone tiles. Or define your own: \"older / younger\" to mix experience every line, \"stays with these kids\" for partnerships. The suggester weaves the chips into every starting lineup and quarter-break shuffle.",
       bullets: [
-        "Link chips to positions in one tap — colours match the in-game zone tiles",
-        "Custom chips for non-positional cohorts — split spreads them, group keeps them paired",
-        "Off by default — recommended from U11 up, once mandatory zone rotations age out",
+        "Link chips to positions in one tap. Colours match the in-game zone tiles",
+        "Custom chips for non-positional cohorts. Split spreads them, group keeps them paired",
+        "Off by default. Recommended from U11 up, once mandatory zone rotations age out",
       ],
       image: "/marketing/screenshots/chips.png",
-      imageAlt: "Player chips settings: three modes — Off, Linked to positions (Forward / Centre / Back with zone-coloured dots), or Custom labels with split / group modes",
+      imageAlt: "Player chips settings: three modes (Off, Linked to positions with Forward / Centre / Back zone-coloured dots, or Custom labels with split / group modes)",
     },
     {
       id: "quarterly",
@@ -196,7 +196,7 @@ const AFL_COPY: BrandCopy = {
         italic: "plan",
         after: ".",
       },
-      body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually — the fairness score updates live as you adjust.",
+      body: "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually. The fairness score updates live as you adjust.",
       bullets: [
         "Suggested lineup based on zone equity",
         "One tap to accept or drag to customise",
@@ -213,7 +213,7 @@ const AFL_COPY: BrandCopy = {
         italic: "one",
         after: " tap.",
       },
-      body: "Send the run-link to a parent on the sideline and they become the scorer for the day — no app download, no account, no setup. A magic link gets them straight in.",
+      body: "Send the run-link to a parent on the sideline and they become the scorer for the day. No app download, no account, no setup. A magic link gets them straight in.",
       bullets: [
         "Full scoring access via a single shareable link",
         "No app download or account needed",
@@ -270,7 +270,7 @@ const NETBALL_COPY: BrandCopy = {
     after: "",
   },
   heroSubtitle:
-    "Seven positions, three thirds, no rolling subs. Siren tracks who’s played what, respects the rules of play, and suggests a fair rotation for every quarter — so every kid gets a turn at GS, not just the same three all season.",
+    "Seven positions, three thirds, no rolling subs. Siren tracks who’s played what, respects the rules of play, and suggests a fair rotation for every quarter, so every kid gets a turn at GS, not just the same three all season.",
   heroTrust: "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL",
   metaDescription:
     "Junior netball game manager. Fair position rotations, quarter-break lineup suggestions, rules-of-play enforced, live score tracking.",
@@ -304,7 +304,7 @@ const NETBALL_COPY: BrandCopy = {
         italic: "circle",
         after: ".",
       },
-      body: "Siren counts how many times each player has rostered into each position across the season — GS through GK — and nudges you toward an even spread. No more ‘you were GS last week too’ arguments.",
+      body: "Siren counts how many times each player has rostered into each position across the season (GS through GK) and nudges you toward an even spread. No more ‘you were GS last week too’ arguments.",
       bullets: [
         "Per-position appearance counts, season and game",
         "Coefficient-of-variation fairness score (0–100)",
@@ -316,7 +316,7 @@ const NETBALL_COPY: BrandCopy = {
       // a stats table. The rotations *story* still lands via the
       // copy + bullets above; the screenshot just primes recognition.
       image: "/marketing/screenshots/netball/live-game.png",
-      imageAlt: "Netball live court — Bondi Bandits vs Tamarama Tigers, Q4 in progress, all 7 positions filled",
+      imageAlt: "Netball live court. Bondi Bandits vs Tamarama Tigers, Q4 in progress, all 7 positions filled",
     },
     {
       // Mirrors AFL's "scoring" feature copy, with the only tweak
@@ -328,16 +328,16 @@ const NETBALL_COPY: BrandCopy = {
       title: {
         before: "Keep the scoreboard ",
         italic: "honest",
-        after: " — if you want to.",
+        after: ", if you want to.",
       },
-      body: "Scoring is completely optional. If you do use it, log goals for both sides with one tap. A goal song can play automatically — or not. Your call.",
+      body: "Scoring is completely optional. If you do use it, log goals for both sides with one tap. A goal song can play automatically, or not. Your call.",
       bullets: [
-        "Score tracking is opt-in — skip it if you don’t need it",
+        "Score tracking is opt-in. Skip it if you don’t need it",
         "Opponent score tracked alongside yours",
-        "Optional goal song — enable it or leave it off",
+        "Optional goal song. Enable it or leave it off",
       ],
       image: "/marketing/screenshots/netball/scoring.png",
-      imageAlt: "Netball score view — tap +Goal for the home shooter, +G for the opposition",
+      imageAlt: "Netball score view. Tap +Goal for the home shooter, +G for the opposition",
     },
     {
       id: "quarterly",
@@ -384,7 +384,7 @@ const NETBALL_COPY: BrandCopy = {
         "Lend a player to the opposition and track their time separately",
       ],
       image: "/marketing/screenshots/netball/flexibility.png",
-      imageAlt: "Netball player-actions sheet over the live court — lock, injury, and lend options for the selected player",
+      imageAlt: "Netball player-actions sheet over the live court. Lock, injury, and lend options for the selected player",
     },
     {
       id: "chips",
@@ -394,9 +394,9 @@ const NETBALL_COPY: BrandCopy = {
         italic: "mix",
         after: " on every third.",
       },
-      body: "Tag your squad with up to three coloured chips — you decide what each one means. \"Shooter / mid / defender preference\" so every quarter has the right balance. \"Stays with these kids\" for a player who shoots better next to a familiar GA. Siren reads the chips into every quarter-break suggestion.",
+      body: "Tag your squad with up to three coloured chips. You decide what each one means. \"Shooter / mid / defender preference\" so every quarter has the right balance. \"Stays with these kids\" for a player who shoots better next to a familiar GA. Siren reads the chips into every quarter-break suggestion.",
       bullets: [
-        "Three coach-defined chips per team — name them whatever you want",
+        "Three coach-defined chips per team. Name them whatever you want",
         "Split mode spreads chip-mates across positions (mix shooters / defenders)",
         "Group mode keeps chip-mates together (kids with social needs, partner pairs)",
       ],
@@ -418,7 +418,7 @@ const NETBALL_COPY: BrandCopy = {
         "Late arrivals slotted in at the next break",
       ],
       image: "/marketing/screenshots/netball/availability.png",
-      imageAlt: "Pre-game availability list — Bondi Bandits roster with available/unavailable chips and a fill-in row at the bottom",
+      imageAlt: "Pre-game availability list. Bondi Bandits roster with available/unavailable chips and a fill-in row at the bottom",
     },
     {
       id: "share",
@@ -428,7 +428,7 @@ const NETBALL_COPY: BrandCopy = {
         italic: "one",
         after: " tap.",
       },
-      body: "Send the run-link to a parent on the sideline — they become the scorer for the day. No app download, no account. A magic link gets them straight in.",
+      body: "Send the run-link to a parent on the sideline. They become the scorer for the day. No app download, no account. A magic link gets them straight in.",
       bullets: [
         "Scoring access via a single shareable link",
         "No app download or account needed",
@@ -456,7 +456,7 @@ const NETBALL_COPY: BrandCopy = {
         "Works alongside manually created games",
       ],
       image: "/marketing/screenshots/netball/fixtures.png",
-      imageAlt: "Bondi Bandits Games tab — PlayHQ import card with the upcoming and completed netball fixtures listed below",
+      imageAlt: "Bondi Bandits Games tab. PlayHQ import card with the upcoming and completed netball fixtures listed below",
     },
     {
       id: "stats",
@@ -469,7 +469,7 @@ const NETBALL_COPY: BrandCopy = {
         "Leading scorer across the season",
       ],
       image: "/marketing/screenshots/netball/stats.png",
-      imageAlt: "Netball player-statistics table — games, minutes, and per-third %, with GS/GA/WA/etc. breakdowns under each",
+      imageAlt: "Netball player-statistics table. Games, minutes, and per-third %, with GS/GA/WA/etc. breakdowns under each",
     },
   ],
 };
