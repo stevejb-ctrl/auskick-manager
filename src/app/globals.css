@@ -250,3 +250,35 @@ html[data-motion="reduce"] *::after {
     display: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   iOS Safari / WKWebView: prevent the "stuck zoom" trap.
+
+   WebKit auto-zooms a focused form field whose computed font-size is
+   < 16px. Once zoomed, if the user pans horizontally the engine can
+   fail to restore zoom on blur — the page looks slightly enlarged
+   and offset, with no obvious way to dismiss it. The fix is to keep
+   every form-control font-size >= 16px on touch devices.
+
+   Tailwind's `text-sm` (14px) is the trigger everywhere we use it
+   on inputs (LoginField, Input.tsx, raw <input>/<textarea>/<select>
+   in forms across the app). Rather than hand-bumping every call
+   site — which would also widen the visual text in places where the
+   design wants 14px on desktop — we apply a CSS override here that
+   ONLY targets touch-primary devices via (hover: none) +
+   (pointer: coarse). Desktop keeps the original 14px input
+   typography; iOS / Android no longer trigger the focus zoom.
+
+   Excluded input types are zero-glyph or natively-rendered (the
+   16px rule wouldn't apply anyway), kept out to avoid layout shifts
+   on color pickers, file uploaders, and range sliders.
+
+   Steve 2026-05-20.
+   ───────────────────────────────────────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
