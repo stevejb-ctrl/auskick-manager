@@ -19,7 +19,7 @@
 // PlayerTile) — it just won't be legible. Bumping those callers
 // to md is a separate decision because tile space is tight.
 
-import { CHIP_COLORS, isChipZoneMode, type ChipKey, type ChipMode } from "@/lib/chips";
+import { chipPalette, isChipZoneMode, type ChipKey, type ChipMode } from "@/lib/chips";
 
 interface ChipIndicatorProps {
   chipKey: ChipKey;
@@ -56,11 +56,16 @@ export function ChipIndicator({
   // refer to positions.
   const letter = isZone && mode ? mode[0].toUpperCase() : null;
   const dim = SIZE[size];
+  // chipPalette switches to the zone-colour triad (zone-f /
+  // zone-c / zone-b) when mode is a zone mode, so coaches see
+  // the same orange / fuchsia / blue the field tiles use. Falls
+  // back to the A/B/C brand palette for split / group modes.
+  const palette = chipPalette(chipKey, mode);
   return (
     <span
       aria-hidden
       title={title}
-      className={`inline-flex items-center justify-center rounded-full ${dim.circle} ${CHIP_COLORS[chipKey].dot} ${className}`}
+      className={`inline-flex items-center justify-center rounded-full ${dim.circle} ${palette.dot} ${className}`}
     >
       {letter && (
         <span

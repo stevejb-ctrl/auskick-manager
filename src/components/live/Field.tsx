@@ -6,6 +6,7 @@ import type { Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
 import { positionsFor } from "@/lib/ageGroups";
 import { PlayerTile } from "@/components/live/PlayerTile";
+import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface FieldProps {
   playersById: Map<string, Player>;
@@ -29,6 +30,12 @@ interface FieldProps {
    */
   displayZoneCaps?: ZoneCaps;
   positionModel: PositionModel;
+  /**
+   * Team-level chip modes. Forwarded to PlayerTile so the inline
+   * chip dot reads the same zone-colour palette the rest of the
+   * app uses when a chip is position-linked. Steve 2026-05-20.
+   */
+  chipModeByKey?: Partial<Record<ChipKey, ChipMode>>;
   playerScores?: Record<string, { goals: number; behinds: number }>;
   totalPairs?: number;
   /**
@@ -71,6 +78,7 @@ export function Field({
   zoneCaps,
   displayZoneCaps,
   positionModel,
+  chipModeByKey,
   playerScores,
   totalPairs,
   wakeUpKey = null,
@@ -271,6 +279,7 @@ export function Field({
                             : null
                       }
                       score={playerScores?.[pid]}
+                      chipModes={chipModeByKey}
                     />
                   );
                   return isOrphan ? (

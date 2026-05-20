@@ -4,7 +4,7 @@ import { memo, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { chipPalette, type ChipKey, type ChipMode } from "@/lib/chips";
 import { hapticTap } from "@/lib/haptics";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
@@ -37,6 +37,16 @@ interface PlayerTileProps {
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
   lockMode?: "field" | "zone" | null;
   score?: { goals: number; behinds: number };
+  /**
+   * Per-chip modes from the team row (split / group / forward /
+   * centre / back). When the player's chip mode is a zone mode,
+   * the inline 6px chip dot uses the zone-colour palette (zone-f
+   * / zone-c / zone-b) so it matches the field tile and chip
+   * indicators elsewhere. Optional — legacy callers without
+   * mode-awareness get the A/B/C brand palette via chipPalette's
+   * fallback. Steve 2026-05-20.
+   */
+  chipModes?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 function formatMinSec(ms: number): string {
@@ -60,6 +70,7 @@ function PlayerTileImpl({
   loaned,
   lockMode,
   score,
+  chipModes,
 }: PlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // P1-9 in MICRO-INTERACTIONS-PLAN.md: at 300ms into a long-press
@@ -308,7 +319,10 @@ function PlayerTileImpl({
           <span
             aria-hidden
             className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-              CHIP_COLORS[player.chip as ChipKey].dot
+              chipPalette(
+                player.chip as ChipKey,
+                chipModes?.[player.chip as ChipKey],
+              ).dot
             }`}
           />
         )}

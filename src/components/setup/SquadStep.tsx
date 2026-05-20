@@ -66,6 +66,7 @@ export function SquadStep({
           takenJerseys={takenJerseys}
           showJersey={showJersey}
           chipLabels={chipLabels}
+          chipModes={chipModes}
         />
       </div>
 

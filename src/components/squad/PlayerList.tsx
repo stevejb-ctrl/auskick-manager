@@ -83,6 +83,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               takenJerseys={takenJerseys}
               showJersey={showJersey}
               chipLabels={chipLabels}
+              chipModes={chipModes}
             />
           </div>
         </SFCard>

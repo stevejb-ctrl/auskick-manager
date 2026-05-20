@@ -104,3 +104,83 @@ export const CHIP_COLORS: Record<ChipKey, ChipPalette> = {
     selectedText: "text-zone-c",
   },
 };
+
+/**
+ * Zone-mode palette — used when a chip's mode is `forward` /
+ * `centre` / `back`. The dot recolours to match the in-game zone
+ * tokens (bg-zone-f / bg-zone-c / bg-zone-b — see tailwind.config)
+ * so coaches reading the chip in the squad list or lineup picker
+ * see the same orange-vermillion / fuchsia / royal-blue triad
+ * the field tiles use. Steve 2026-05-20: the position-linked
+ * configuration is now the default coach flow, so the visual
+ * connection between chip and zone needs to be immediate.
+ */
+export const ZONE_CHIP_COLORS: Record<ChipZoneMode, ChipPalette> = {
+  forward: {
+    dot: "bg-zone-f",
+    selectedBorder: "border-zone-f",
+    selectedBg: "bg-zone-f/10",
+    selectedText: "text-zone-f",
+  },
+  centre: {
+    dot: "bg-zone-c",
+    selectedBorder: "border-zone-c",
+    selectedBg: "bg-zone-c/10",
+    selectedText: "text-zone-c",
+  },
+  back: {
+    dot: "bg-zone-b",
+    selectedBorder: "border-zone-b",
+    selectedBg: "bg-zone-b/10",
+    selectedText: "text-zone-b",
+  },
+};
+
+/**
+ * Resolve the right palette for a chip render. When the chip's
+ * mode is a zone mode (forward / centre / back) the zone palette
+ * wins — visual connection to the in-game zone colours overrides
+ * the A/B/C convention. Falls back to CHIP_COLORS[chipKey] for
+ * split / group modes (custom cohorts like older/younger or
+ * mates-stay-together where no zone is implied).
+ */
+export function chipPalette(key: ChipKey, mode?: ChipMode): ChipPalette {
+  if (isChipZoneMode(mode)) return ZONE_CHIP_COLORS[mode];
+  return CHIP_COLORS[key];
+}
+
+/**
+ * Canonical "linked to positions" preset — chip A→Forward,
+ * chip B→Centre, chip C→Back. When the team's chip settings
+ * match this preset exactly, the settings UI surfaces a
+ * simplified position-linked summary instead of the 3-card
+ * custom configurator. The Forward-Centre-Back ordering is
+ * fixed (matches the field render: top of screen → bottom).
+ */
+export const POSITION_LINKED_PRESET: {
+  labels: Record<ChipKey, string>;
+  modes: Record<ChipKey, ChipMode>;
+} = {
+  labels: { a: "Forward", b: "Centre", c: "Back" },
+  modes: { a: "forward", b: "centre", c: "back" },
+};
+
+/**
+ * True iff the team's chip configuration matches the
+ * position-linked preset (Forward / Centre / Back labels +
+ * forward / centre / back modes). Used by CohortChipsSettings
+ * to decide which UI branch to render on first paint.
+ */
+export function isPositionLinkedChipConfig(
+  labels: { a: string | null; b: string | null; c: string | null },
+  modes: { a: ChipMode; b: ChipMode; c: ChipMode },
+): boolean {
+  return (
+    labels.a === POSITION_LINKED_PRESET.labels.a &&
+    labels.b === POSITION_LINKED_PRESET.labels.b &&
+    labels.c === POSITION_LINKED_PRESET.labels.c &&
+    modes.a === POSITION_LINKED_PRESET.modes.a &&
+    modes.b === POSITION_LINKED_PRESET.modes.b &&
+    modes.c === POSITION_LINKED_PRESET.modes.c
+  );
+}

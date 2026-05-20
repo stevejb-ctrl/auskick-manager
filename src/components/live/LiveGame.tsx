@@ -1465,6 +1465,7 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               displayZoneCaps={displayZoneCaps}
+              chipModeByKey={chipModeByKey}
               injuredIds={injuredIds}
               lockedIds={lockedIds}
               zoneLockedPlayers={zoneLockedPlayers}

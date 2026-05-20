@@ -167,6 +167,7 @@ export function PlayerRow({
                   value={chip}
                   onChange={setChip}
                   labels={chipLabels}
+                  modes={chipModes}
                   disabled={isPending}
                 />
               </div>
