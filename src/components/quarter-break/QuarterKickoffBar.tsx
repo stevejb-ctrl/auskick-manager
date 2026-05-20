@@ -38,7 +38,7 @@ export function QuarterKickoffBar({
   loading = false,
 }: QuarterKickoffBarProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 md:sticky md:inset-x-auto">
       <div className="mx-auto max-w-4xl">
         <SFButton
           onClick={onConfirm}
