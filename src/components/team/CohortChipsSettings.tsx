@@ -303,18 +303,16 @@ export function CohortChipsSettings({
       ) : hideSaveButton ? (
         // Onboarding: no standalone Save button (the page-level
         // Continue is the single forward action). Auto-save runs
-        // via the debounced useEffect above; show the saved/
-        // saving state so the user has feedback without an
-        // explicit button to tap.
-        <div className="mt-3 h-4 text-xs text-ink-mute">
-          {isPending
-            ? "Saving…"
-            : dirty
-              ? "Unsaved changes will apply when you continue."
-              : savedAt
-                ? <span className="text-ok">Saved.</span>
-                : null}
-        </div>
+        // silently via the debounced useEffect above.
+        //
+        // Steve 2026-05-20: dropped the dirty / saving / saved
+        // status indicator entirely — it cycled through three
+        // states for every radio click and felt like a glitch.
+        // Save errors still surface via the `error` block above,
+        // so a failure isn't silent; the happy path is now just
+        // quiet, which is the right default for a settings
+        // selector that doesn't need to feel like a form submit.
+        null
       ) : (
         <div className="mt-3 flex items-center gap-2">
           <SFButton
