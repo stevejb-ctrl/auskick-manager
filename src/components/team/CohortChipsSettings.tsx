@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import {
   CHIP_KEYS,
-  CHIP_MODES,
   CHIP_MODE_LABEL,
+  CUSTOM_CHIP_MODES,
   POSITION_LINKED_PRESET,
+  isChipZoneMode,
   isPositionLinkedChipConfig,
   type ChipKey,
   type ChipMode,
@@ -221,7 +222,19 @@ export function CohortChipsSettings({
           <ModeRadio
             label="Custom"
             active={mode === "custom"}
-            onClick={() => setMode("custom")}
+            onClick={() => {
+              // Sanitize: the Custom dropdown only exposes split /
+              // group, so any zone mode left over from a previous
+              // Linked-to-positions visit needs to fall back to
+              // "split" or the <select> renders with no valid
+              // option highlighted.
+              setModes((prev) => ({
+                a: isChipZoneMode(prev.a) ? "split" : prev.a,
+                b: isChipZoneMode(prev.b) ? "split" : prev.b,
+                c: isChipZoneMode(prev.c) ? "split" : prev.c,
+              }));
+              setMode("custom");
+            }}
           />
         </div>
       </fieldset>
@@ -374,7 +387,7 @@ function CustomChipGrid({
               disabled={isPending || !isAdmin}
               className="w-full rounded-md border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
             >
-              {CHIP_MODES.map((m) => (
+              {CUSTOM_CHIP_MODES.map((m) => (
                 <option key={m} value={m}>
                   {CHIP_MODE_LABEL[m]}
                 </option>

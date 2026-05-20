@@ -29,6 +29,17 @@ export type ChipKey = (typeof CHIP_KEYS)[number];
 export type ChipMode = "split" | "group" | "forward" | "centre" | "back";
 export const CHIP_MODES: ChipMode[] = ["split", "group", "forward", "centre", "back"];
 
+/**
+ * Modes the Custom chip configurator surfaces. The three zone
+ * modes (forward / centre / back) are intentionally excluded —
+ * coaches who want zone preference should use the dedicated
+ * "Linked to positions" option in CohortChipsSettings, which
+ * applies the canonical Forward/Centre/Back preset in one tap.
+ * Keeping zone modes in the Custom dropdown was confusing post-
+ * rework: two paths to the same destination. Steve 2026-05-20.
+ */
+export const CUSTOM_CHIP_MODES: ChipMode[] = ["split", "group"];
+
 export const CHIP_ZONE_MODES = ["forward", "centre", "back"] as const;
 export type ChipZoneMode = (typeof CHIP_ZONE_MODES)[number];
 
