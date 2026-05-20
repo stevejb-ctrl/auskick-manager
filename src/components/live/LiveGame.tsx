@@ -490,8 +490,16 @@ export function LiveGame({
     const lineupHasAnyPlayer =
       fullStoreState.lineup.bench.length > 0 ||
       ALL_ZONES.some((z) => fullStoreState.lineup[z].length > 0);
+    // Read activeGameId from the live store (not the selector closure)
+    // so the check sees the just-committed init from a sibling effect
+    // run in the same tick. Without this, React 18 dev-mode strict
+    // mount + persist-rehydration can queue two effect runs both
+    // capturing `activeGameId === null` in their closures; the
+    // second run then falls through and re-inits with
+    // clockStartedAt=null, silently pausing the freshly-started
+    // clock. Steve 2026-05-20 demo clock-auto-resume fix.
     if (
-      activeGameId === gameId &&
+      fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
       lineupHasAnyPlayer
     ) {
