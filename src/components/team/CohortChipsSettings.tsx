@@ -48,28 +48,34 @@ interface CohortChipsSettingsProps {
 // players settle into preferred positions.
 const ROTATION_MANDATED_AGE_GROUPS = new Set(["U8", "U9", "U10", "U11"]);
 
-type Mode = "positions" | "custom";
+type Mode = "off" | "positions" | "custom";
 
-// Coach configures up to three player chips per team. Two
-// approaches, picked via the top toggle:
+// Coach configures up to three player chips per team. Three
+// approaches, picked via the top segmented radio:
+//
+//   Off (default for new teams) — chips disabled. No chip picker
+//     surfaces on the player editor; the player list rows have no
+//     chip indicators. Coaches who don't care about cohorts (most
+//     juniors) never see the feature surface. Steve 2026-05-20:
+//     added so the feature is genuinely opt-in and the U11-/U12+
+//     recommendation banner can sit alongside a real "no thanks"
+//     choice instead of nudging coaches toward a setup they
+//     wouldn't otherwise pick.
 //
 //   Linked to positions — the canonical preset. Chip A→Forward,
 //     B→Centre, C→Back, with modes set to forward/centre/back so
 //     the suggester preferences chipped players into their family
-//     zone. Single tap; no per-chip editing. Steve 2026-05-20:
-//     replaces the old "configure each chip's mode separately"
-//     flow, which was the right primitive but a lot of clicks
-//     for the most common case.
+//     zone. Single tap; no per-chip editing.
 //
-//   Custom — the original 3-card layout. Useful for cohorts
-//     that aren't position-based (older / younger, returning
-//     players, mates-stay-together, etc.). Each chip gets a
-//     label and a mode (split / group / forward / centre / back).
+//   Custom — the original 3-card layout. Useful for cohorts that
+//     aren't position-based (older / younger, returning players,
+//     mates-stay-together, etc.). Each chip gets a label and a
+//     mode (split / group / forward / centre / back).
 //
 // The mode the UI surfaces on first paint is derived from the
-// existing values — if labels + modes match the position-linked
-// preset exactly, we show Linked-to-positions; otherwise Custom.
-// No new column on the teams row.
+// existing values — all labels blank → Off, all labels + modes
+// match the position-linked preset → Linked to positions, else
+// Custom. No new column on the teams row.
 export function CohortChipsSettings({
   teamId,
   initialLabels,
@@ -85,10 +91,14 @@ export function CohortChipsSettings({
 
   // Top toggle state. Initialized from the existing chip data so a
   // coach who set this up in the position-linked path comes back
-  // to the same layout next visit.
-  const [mode, setMode] = useState<Mode>(
-    initialIsLinked || allLabelsBlank(initialLabels) ? "positions" : "custom",
-  );
+  // to the same layout next visit. All-blank → Off (the default
+  // for new teams); preset match → Linked to positions; anything
+  // else → Custom.
+  const [mode, setMode] = useState<Mode>(() => {
+    if (allLabelsBlank(initialLabels)) return "off";
+    if (initialIsLinked) return "positions";
+    return "custom";
+  });
 
   // Local editable state — only meaningful in "custom" mode. The
   // "positions" mode just renders the canonical preset, no editing.
@@ -101,8 +111,21 @@ export function CohortChipsSettings({
 
   // Payload the Save action will send — derived from the current
   // mode, NOT from the local labels/modes which are stale once
-  // the user flips to position-linked.
+  // the user flips between Off / positions / custom.
   const payload = useMemo(() => {
+    if (mode === "off") {
+      // Clear labels (so the picker doesn't surface) and reset
+      // modes to the safest default. "split" is the historical
+      // default for unset chips and the suggester's no-op behaviour.
+      return {
+        chip_a_label: null,
+        chip_b_label: null,
+        chip_c_label: null,
+        chip_a_mode: "split" as ChipMode,
+        chip_b_mode: "split" as ChipMode,
+        chip_c_mode: "split" as ChipMode,
+      };
+    }
     if (mode === "positions") {
       return {
         chip_a_label: POSITION_LINKED_PRESET.labels.a,
@@ -158,22 +181,24 @@ export function CohortChipsSettings({
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <p className="text-sm font-semibold text-ink">Player chips</p>
       <p className="mt-1 text-xs text-ink-dim">
-        Tag groups of players so the suggester treats them as a
-        cohort.{" "}
+        Chips are <strong className="text-ink">optional</strong>. Leave
+        as <strong className="text-ink">Off</strong> if you want the
+        suggester to rotate the squad evenly with no cohort hints.{" "}
         <strong className="text-ink">Linked to positions</strong> is the
         quick path — Forward / Centre / Back chips appear in the player
         editor and the suggester places each chipped player in their
         preferred area of the ground.{" "}
         <strong className="text-ink">Custom</strong> opens the three
         chips up for arbitrary labels (older / younger, mates, etc.)
-        with finer control over each chip&apos;s behaviour.
+        with finer control over each chip&apos;s behaviour. You can
+        come back and change this anytime.
       </p>
 
       {sport === "afl" && ageGroup && (
         <AgeRecommendationNote ageGroup={ageGroup} />
       )}
 
-      {/* Top mode selector — a 2-button segmented radio so the choice
+      {/* Top mode selector — a 3-button segmented radio so the choice
           reads as primary, not a hidden checkbox. Disabled state
           covers non-admin viewers. */}
       <fieldset className="mt-3" disabled={!isAdmin || isPending}>
@@ -183,6 +208,11 @@ export function CohortChipsSettings({
           aria-label="Chip configuration mode"
           className="inline-flex rounded-md border border-hairline bg-surface-alt p-0.5"
         >
+          <ModeRadio
+            label="Off"
+            active={mode === "off"}
+            onClick={() => setMode("off")}
+          />
           <ModeRadio
             label="Linked to positions"
             active={mode === "positions"}
@@ -196,7 +226,9 @@ export function CohortChipsSettings({
         </div>
       </fieldset>
 
-      {mode === "positions" ? (
+      {mode === "off" ? (
+        <OffModeSummary />
+      ) : mode === "positions" ? (
         <PositionLinkedSummary />
       ) : (
         <CustomChipGrid
@@ -236,6 +268,22 @@ export function CohortChipsSettings({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Off-mode summary ────────────────────────────────────────
+// Reassures coaches who picked "Off" that they haven't lost
+// anything — the feature is simply hidden until they come back.
+function OffModeSummary() {
+  return (
+    <div className="mt-3 rounded-md border border-dashed border-hairline bg-surface-alt px-4 py-3 text-xs text-ink-dim">
+      <strong className="text-ink">Chips are off.</strong> The chip
+      picker won&apos;t appear on the player editor and the suggester
+      will rotate the squad without any cohort hints. Switch to{" "}
+      <strong className="text-ink">Linked to positions</strong> or{" "}
+      <strong className="text-ink">Custom</strong> any time you want
+      to start using them.
     </div>
   );
 }

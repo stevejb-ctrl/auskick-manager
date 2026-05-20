@@ -100,10 +100,13 @@ export function ScoringStep({
       <details className="group">
         <summary className="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-hairline bg-surface-alt px-5 py-3 text-sm font-semibold text-ink list-none [&::-webkit-details-marker]:hidden hover:border-brand-600">
           <span className="flex flex-col gap-0.5">
-            <span>Player chips (optional)</span>
+            <span>Player chips (optional — set up now or later)</span>
             <span className="text-xs font-normal text-ink-dim">
-              Tag cohorts within the squad — e.g. older/younger, mates who
-              should stay grouped, or kids who play best in a set zone.
+              Tag cohorts within the squad — e.g. older/younger, mates
+              who should stay grouped, or kids who play best in a set
+              zone. <strong className="text-ink">Skip for now</strong>{" "}
+              if you&apos;re not sure — you can come back from Team
+              Settings any time.
             </span>
           </span>
           <span
