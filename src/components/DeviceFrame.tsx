@@ -21,13 +21,18 @@ export function DeviceFrame({ children }: DeviceFrameProps) {
       {/* Bezel — ink-black ring, generous corner radius */}
       <div className="md:rounded-[3rem] md:bg-ink md:p-[10px] md:shadow-2xl md:ring-1 md:ring-black/20">
         {/* Screen — scrollable at fixed device dimensions.
-            md:[transform:translateZ(0)] makes this the containing block for
-            position:fixed descendants so modals/dialogs (which use
-            `fixed inset-0`) stay inside the phone frame on desktop instead
-            of escaping to the viewport. Only applied at md+ — on mobile the
-            modal should fill the actual viewport as it always has. */}
+            Steve 2026-05-20: the earlier `md:[transform:translateZ(0)]`
+            here created a new containing block for position:fixed
+            descendants — intended to keep modals inside the phone frame
+            on desktop, but it was ALSO trapping the live-game
+            LiveStickyScoreBar (which uses fixed bottom-0) inside the
+            inner overflow:auto box, leaving the score bar floating
+            mid-page instead of pinning to the visible bottom. Dropped
+            the transform; modals on the desktop demo will visually
+            escape the bezel, which is a minor cosmetic quirk vs the
+            score-bar bug it was causing. */}
         <div
-          className="md:relative md:w-[390px] md:overflow-y-auto md:rounded-[2.5rem] md:bg-warm md:[transform:translateZ(0)]"
+          className="md:relative md:w-[390px] md:overflow-y-auto md:rounded-[2.5rem] md:bg-warm"
           style={{ maxHeight: "min(844px, 90vh)" } as React.CSSProperties}
         >
           {children}

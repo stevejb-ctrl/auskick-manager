@@ -1351,10 +1351,14 @@ export function QuarterBreak({
         </p>
       )}
 
-      {/* Always 2-col (was sm:grid-cols-2 which collapsed below
-          640px). Matches the LineupPicker pre-game layout so the
-          coach sees the same shape pre-kickoff and at the break. */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Keep sm:grid-cols-2 — Q-break cards carry "STAYS / MOVES"
+          labels + minute progress bars per row, so the 2-col
+          phone layout cramped player names onto two lines (Logan /
+          Clark, Casey / Brown). LineupPicker's pre-game cards are
+          shorter (Guernsey + truncated name + swap icon) and look
+          fine in 2-col on phones, so that one stays unconditional.
+          Steve 2026-05-20 (reverting last commit's Q-break half). */}
+      <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((slot) => (
           <div
             key={slot}
