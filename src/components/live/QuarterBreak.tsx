@@ -1351,7 +1351,10 @@ export function QuarterBreak({
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Always 2-col (was sm:grid-cols-2 which collapsed below
+          640px). Matches the LineupPicker pre-game layout so the
+          coach sees the same shape pre-kickoff and at the break. */}
+      <div className="grid grid-cols-2 gap-3">
         {slots.map((slot) => (
           <div
             key={slot}

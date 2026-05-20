@@ -816,7 +816,12 @@ export function LineupPicker({
       )}
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Always 2-col, including on phones (was `sm:grid-cols-2`,
+          which collapsed to single column below 640px and made the
+          screen feel huge on iPhones). Each card is narrow but the
+          tile content is short — player name + Guernsey + swap
+          icon — so it reads cleanly. Steve 2026-05-20. */}
+      <div className="grid grid-cols-2 gap-3">
         {slots.map((slot) => {
           const isBench = slot === "bench";
           const cap = isBench ? null : displayZoneCaps[slot];
