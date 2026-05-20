@@ -548,11 +548,12 @@ export function LineupPicker({
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
-    // pb sized for the two-row sticky footer (stats + Save plan row
-    // ~32px, big primary "Ready for Q1" ~52px, container py + gap
-    // ~22px). 8rem clears it with breathing room over the iPhone
-    // home indicator (Steve 2026-05-13).
-    <div className="space-y-4 pb-[calc(8rem+env(safe-area-inset-bottom))]">
+    // Footer is `position: sticky` so it occupies real flow space —
+    // no bottom-padding workaround needed. Prior `pb-[calc(8rem+…)]`
+    // pushed the parent's bottom edge so far below the sticky
+    // element that sticky released its pin partway down the scroll
+    // (Steve 2026-05-20 demo fix).
+    <div className="space-y-4">
       <LineupPickerBreadcrumb backHref={backHref} />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
@@ -816,12 +817,10 @@ export function LineupPicker({
       )}
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
-      {/* Always 2-col, including on phones (was `sm:grid-cols-2`,
-          which collapsed to single column below 640px and made the
-          screen feel huge on iPhones). Each card is narrow but the
-          tile content is short — player name + Guernsey + swap
-          icon — so it reads cleanly. Steve 2026-05-20. */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Single column — user feedback 2026-05-20: 2-col was too
+          cramped inside the demo phone-frame for the FWD / CENTRE /
+          BACK / BENCH cards. */}
+      <div className="grid grid-cols-1 gap-3">
         {slots.map((slot) => {
           const isBench = slot === "bench";
           const cap = isBench ? null : displayZoneCaps[slot];

@@ -392,7 +392,7 @@ export default async function RunPage({ params }: RunPageProps) {
   const enoughAvailable = availableCount >= g.on_field_size;
 
   return (
-    <div className="space-y-6 p-3 pb-32">
+    <div className="space-y-6 p-3">
       <GameInfoHeader teamName={teamName} g={g} />
 
       {/* Orientation banner — only shows pre-kickoff (no lineup_set
@@ -426,13 +426,11 @@ export default async function RunPage({ params }: RunPageProps) {
       {/* Sticky-bottom "Continue to starting lineup" CTA. Matches
           the authenticated /availability page's pattern so the
           runner-token surface and the team-coach surface look
-          identical. Steve 2026-05-20: was inline (mid-page) and
-          using variant="accent" (green) — both drifted from the
-          authenticated render which has been fixed-bottom + ink-
-          black for months. Realigned. The `pb-32` on the outer
-          container above gives the bench-list room to clear the
-          fixed bar. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+          identical. Steve 2026-05-20: now `position: sticky` rather
+          than `fixed` so it works correctly inside the DeviceFrame's
+          transformed scroll container on the desktop demo, where
+          `fixed` was scrolling with content instead of pinning. */}
+      <div className="sticky bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
         <div className="mx-auto max-w-4xl space-y-1">
           {!enoughAvailable && (
             <p className="text-xs text-ink-mute">

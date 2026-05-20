@@ -1351,14 +1351,12 @@ export function QuarterBreak({
         </p>
       )}
 
-      {/* Keep sm:grid-cols-2 — Q-break cards carry "STAYS / MOVES"
-          labels + minute progress bars per row, so the 2-col
-          phone layout cramped player names onto two lines (Logan /
-          Clark, Casey / Brown). LineupPicker's pre-game cards are
-          shorter (Guernsey + truncated name + swap icon) and look
-          fine in 2-col on phones, so that one stays unconditional.
-          Steve 2026-05-20 (reverting last commit's Q-break half). */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Single column — user feedback 2026-05-20: the prior
+          `sm:grid-cols-2` (1-col phones, 2-col tablet+) still
+          rendered 2-col inside the desktop demo phone-frame
+          (md+ viewport but only ~390px wide), where it cramped
+          player names and the STAYS / MOVES + progress bars. */}
+      <div className="grid grid-cols-1 gap-3">
         {slots.map((slot) => (
           <div
             key={slot}

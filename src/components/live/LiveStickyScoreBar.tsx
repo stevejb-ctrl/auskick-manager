@@ -47,7 +47,7 @@ export function LiveStickyScoreBar({
   undoStrip,
 }: LiveStickyScoreBarProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
+    <div className="sticky bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast">
       <div className="mx-auto max-w-4xl">
         {scorebug}
         {undoStrip}
