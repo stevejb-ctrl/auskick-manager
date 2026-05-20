@@ -75,15 +75,15 @@ export function TeamBasicsForm({
               active={sport === "afl"}
               onClick={() => handleSportChange("afl")}
               disabled={isPending}
-              title="AFL / Auskick"
-              subtitle="U8–U17 · quarters · rolling subs"
+              title="Junior AFL"
+              subtitle="U8–U17. Manage subs, rotations (3 zones), scoring and more."
             />
             <SportPill
               active={sport === "netball"}
               onClick={() => handleSportChange("netball")}
               disabled={isPending}
-              title="Netball"
-              subtitle="Set–Open · GS through GK · quarter-break subs"
+              title="Junior Netball"
+              subtitle="Manage subs, rotations (3 zones, 7 positions), scoring and more."
             />
           </div>
         </div>
