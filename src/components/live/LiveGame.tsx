@@ -76,6 +76,7 @@ import {
   ALL_ZONES,
   emptyZoneMs,
   suggestSwaps,
+  zoneCapsFor,
   type GameState,
   type PlayerZoneMinutes,
   type SeasonAvailability,
@@ -261,6 +262,16 @@ export function LiveGame({
   suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // Display caps for the on-field grid — based on the age-group
+  // DEFAULT, not the current persisted on-field size. When the coach
+  // has reduced count below the default (e.g. 15→13 via Q-break
+  // match-adjustments), Field still draws the missing positions as
+  // "Empty" placeholder tiles so the visual zone shape stays
+  // recognisable. Steve 2026-05-20.
+  const displayZoneCaps = useMemo(
+    () => zoneCapsFor(defaultOnFieldSize, positionModel),
+    [defaultOnFieldSize, positionModel],
+  );
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -1452,6 +1463,7 @@ export function LiveGame({
               swapOffs={swapOffs}
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
+              displayZoneCaps={displayZoneCaps}
               injuredIds={injuredIds}
               lockedIds={lockedIds}
               zoneLockedPlayers={zoneLockedPlayers}
