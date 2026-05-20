@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { updateTeamChipSettings } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
@@ -25,29 +25,38 @@ interface CohortChipsSettingsProps {
   /**
    * Sport — drives the AFL-specific recommendation note. Netball
    * doesn't have an equivalent mandatory-rotation rule so the
-   * U11-/U12+ guidance isn't shown for netball teams. Optional —
+   * U10-/U11+ guidance isn't shown for netball teams. Optional —
    * defaults to "afl" so legacy callers keep the existing copy.
    */
   sport?: "afl" | "netball";
   /**
    * The team's age_group id. Used to surface an age-appropriate
-   * recommendation: U11 and under AFL teams get a "not
-   * recommended" caveat (the AFL Junior Match Policy mandates
-   * equal-time rotation through positions, so position-locking
-   * works against the rules); U12+ AFL teams get a positive
-   * "may help" note. Optional — when missing, no recommendation
-   * is shown either way. Steve 2026-05-20.
+   * recommendation only when Linked-to-positions is selected: AFL
+   * U10 and under teams get a "not recommended" caveat; U11+ get
+   * a positive "may help" note. Optional — when missing, no
+   * recommendation is shown either way. Steve 2026-05-20.
    */
   ageGroup?: string | null;
+  /**
+   * In the onboarding flow there's a single Continue button at the
+   * bottom of the step that submits all the step's controls at
+   * once, so the chip card's standalone "Save chip settings"
+   * button is redundant and confusing. When `true`, the Save row
+   * is hidden and dirty changes commit on the parent Continue
+   * tap via the existing per-input server actions. Steve
+   * 2026-05-20.
+   */
+  hideSaveButton?: boolean;
 }
 
 // AFL age groups where the Junior Match Policy mandates equal-time
 // rotation across the field (i.e. coaches MUST move every player
 // through every position group across the season). Position-locking
-// chips works against this rule and shouldn't be the default
-// recommendation. From U12 the mandate eases and coaches can let
-// players settle into preferred positions.
-const ROTATION_MANDATED_AGE_GROUPS = new Set(["U8", "U9", "U10", "U11"]);
+// chips works against this rule. The 3-zone rotation system ends
+// at U10 — U11 onwards is fair game for position-linked chips.
+// Steve 2026-05-20 (corrected from U8-U11 to U8-U10 after coach
+// feedback).
+const ROTATION_MANDATED_AGE_GROUPS = new Set(["U8", "U9", "U10"]);
 
 type Mode = "off" | "positions" | "custom";
 
@@ -84,6 +93,7 @@ export function CohortChipsSettings({
   isAdmin,
   sport = "afl",
   ageGroup = null,
+  hideSaveButton = false,
 }: CohortChipsSettingsProps) {
   const initialIsLinked = useMemo(
     () => isPositionLinkedChipConfig(initialLabels, initialModes),
@@ -109,6 +119,18 @@ export function CohortChipsSettings({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Tracks the payload that's known-persisted to the DB. Used by
+  // the dirty check + the onboarding auto-save effect so a user
+  // who's just saved doesn't trigger another auto-save loop. Steve
+  // 2026-05-20.
+  const lastSavedPayloadRef = useRef({
+    chip_a_label: initialLabels.a,
+    chip_b_label: initialLabels.b,
+    chip_c_label: initialLabels.c,
+    chip_a_mode: initialModes.a,
+    chip_b_mode: initialModes.b,
+    chip_c_mode: initialModes.c,
+  });
 
   // Payload the Save action will send — derived from the current
   // mode, NOT from the local labels/modes which are stale once
@@ -148,25 +170,21 @@ export function CohortChipsSettings({
   }, [mode, labels, modes]);
 
   const dirty = useMemo(() => {
-    const initialPayload = {
-      chip_a_label: initialLabels.a,
-      chip_b_label: initialLabels.b,
-      chip_c_label: initialLabels.c,
-      chip_a_mode: initialModes.a,
-      chip_b_mode: initialModes.b,
-      chip_c_mode: initialModes.c,
-    };
+    const saved = lastSavedPayloadRef.current;
     return (
-      payload.chip_a_label !== initialPayload.chip_a_label ||
-      payload.chip_b_label !== initialPayload.chip_b_label ||
-      payload.chip_c_label !== initialPayload.chip_c_label ||
-      payload.chip_a_mode !== initialPayload.chip_a_mode ||
-      payload.chip_b_mode !== initialPayload.chip_b_mode ||
-      payload.chip_c_mode !== initialPayload.chip_c_mode
+      payload.chip_a_label !== saved.chip_a_label ||
+      payload.chip_b_label !== saved.chip_b_label ||
+      payload.chip_c_label !== saved.chip_c_label ||
+      payload.chip_a_mode !== saved.chip_a_mode ||
+      payload.chip_b_mode !== saved.chip_b_mode ||
+      payload.chip_c_mode !== saved.chip_c_mode
     );
-  }, [payload, initialLabels, initialModes]);
+    // payload changes ref-equality on every render — that's the
+    // intended trigger. lastSavedPayloadRef updates imperatively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload]);
 
-  function handleSave() {
+  function commitSave() {
     setError(null);
     startTransition(async () => {
       const result = await updateTeamChipSettings(teamId, payload);
@@ -174,30 +192,38 @@ export function CohortChipsSettings({
         setError(result.error);
         return;
       }
+      lastSavedPayloadRef.current = payload;
+      // setSavedAt triggers a re-render which causes the dirty
+      // useMemo to re-evaluate against the updated ref. Without
+      // this, the "Saved." message wouldn't appear because the
+      // memo would still think we're dirty.
       setSavedAt(Date.now());
     });
   }
 
+  // Onboarding auto-save: when `hideSaveButton` is true, there's no
+  // standalone Save button in the card — the parent flow (e.g.
+  // ScoringStep) drives the page-level Continue. We auto-commit
+  // chip changes with a short debounce so the user's selections
+  // persist without an extra click. Steve 2026-05-20.
+  useEffect(() => {
+    if (!hideSaveButton || !isAdmin || !dirty || isPending) return;
+    const timer = window.setTimeout(() => {
+      commitSave();
+    }, 400);
+    return () => window.clearTimeout(timer);
+    // commitSave captures the current payload; it's safe to omit
+    // because we only fire on dirty transitions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, dirty, hideSaveButton, isAdmin, isPending]);
+
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-      <p className="text-sm font-semibold text-ink">Player chips</p>
+      <p className="text-sm font-semibold text-ink">Player chips (optional)</p>
       <p className="mt-1 text-xs text-ink-dim">
-        Chips are <strong className="text-ink">optional</strong>. Leave
-        as <strong className="text-ink">Off</strong> if you want the
-        suggester to rotate the squad evenly with no cohort hints.{" "}
-        <strong className="text-ink">Linked to positions</strong> is the
-        quick path — Forward / Centre / Back chips appear in the player
-        editor and the suggester places each chipped player in their
-        preferred area of the ground.{" "}
-        <strong className="text-ink">Custom</strong> opens the three
-        chips up for arbitrary labels (older / younger, mates, etc.)
-        with finer control over each chip&apos;s behaviour. You can
-        come back and change this anytime.
+        Tag groups of players so the suggester treats them as a cohort.
+        You can change or remove this anytime.
       </p>
-
-      {sport === "afl" && ageGroup && (
-        <AgeRecommendationNote ageGroup={ageGroup} />
-      )}
 
       {/* Top mode selector — a 3-button segmented radio so the choice
           reads as primary, not a hidden checkbox. Disabled state
@@ -239,6 +265,14 @@ export function CohortChipsSettings({
         </div>
       </fieldset>
 
+      {/* Age-aware recommendation — only relevant for
+          Linked-to-positions. When Off or Custom is selected the
+          guidance is noise. AFL only; netball has no equivalent
+          rotation mandate so the note never renders for them. */}
+      {mode === "positions" && sport === "afl" && ageGroup && (
+        <AgeRecommendationNote ageGroup={ageGroup} />
+      )}
+
       {mode === "off" ? (
         <OffModeSummary />
       ) : mode === "positions" ? (
@@ -266,11 +300,26 @@ export function CohortChipsSettings({
         <p className="mt-3 text-xs text-ink-mute">
           Only admins can change chip settings.
         </p>
+      ) : hideSaveButton ? (
+        // Onboarding: no standalone Save button (the page-level
+        // Continue is the single forward action). Auto-save runs
+        // via the debounced useEffect above; show the saved/
+        // saving state so the user has feedback without an
+        // explicit button to tap.
+        <div className="mt-3 h-4 text-xs text-ink-mute">
+          {isPending
+            ? "Saving…"
+            : dirty
+              ? "Unsaved changes will apply when you continue."
+              : savedAt
+                ? <span className="text-ok">Saved.</span>
+                : null}
+        </div>
       ) : (
         <div className="mt-3 flex items-center gap-2">
           <SFButton
             size="sm"
-            onClick={handleSave}
+            onClick={commitSave}
             disabled={!dirty || isPending}
             loading={isPending}
           >
@@ -440,44 +489,43 @@ function allLabelsBlank(labels: {
 
 // ─── Age-aware recommendation note ───────────────────────────
 // Surfaces AFL-specific guidance about WHEN position-linked
-// chips are appropriate.
+// chips are appropriate. Only rendered when the coach has
+// selected "Linked to positions" — the note is noise on Off /
+// Custom where the position preference doesn't apply.
 //
-// U11 and under: the AFL Junior Match Policy mandates equal-time
-//   rotation across every position. Position-locking chips works
-//   against that rule and shouldn't be the recommended path —
-//   coaches MUST move every kid through forwards, centres, and
-//   backs across the season. Show a warning-tinted note pointing
-//   them at the Custom flow if they have a non-positional cohort.
+// U10 and under: the AFL Junior Match Policy mandates equal-
+//   time rotation through every zone (the 3-zone rotation
+//   system applies up to and including U10). Position-locking
+//   chips works against that. Warning-tinted "not recommended".
 //
-// U12 and above: the rotation mandate eases; players start
-//   forming natural strengths in specific positions, and the
-//   coach's job shifts toward giving those strengths room to
-//   develop. Show a positive-tinted "may help" note that frames
-//   position-linking as the right tool for the age band.
+// U11 and above: rotation requirements ease and players start
+//   forming natural strengths. Positive "useful from here" note.
 //
-// Steve 2026-05-20.
+// Steve 2026-05-20: corrected threshold from U11→U10 after
+// coach feedback — the mandatory 3-zone rotation ends at U10.
 function AgeRecommendationNote({ ageGroup }: { ageGroup: string }) {
-  const isU11OrUnder = ROTATION_MANDATED_AGE_GROUPS.has(ageGroup);
-  if (isU11OrUnder) {
+  const isU10OrUnder = ROTATION_MANDATED_AGE_GROUPS.has(ageGroup);
+  if (isU10OrUnder) {
     return (
       <div className="mt-3 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs text-warn">
         <strong className="font-semibold">
-          Not recommended for U11 and under.
+          Not recommended for U10 and under.
         </strong>{" "}
-        The AFL Junior Match Policy mandates equal-time rotation
-        through every position at this age, so locking players to a
-        zone works against the rules. Use{" "}
-        <strong className="font-semibold">Custom</strong> if you want
-        chips for non-positional cohorts (mates, returning players,
-        etc.).
+        AFL rules at this age require equal-time rotation through
+        every zone, so locking players to a position works against
+        the policy. Switch to{" "}
+        <strong className="font-semibold">Off</strong> for full
+        rotation, or use{" "}
+        <strong className="font-semibold">Custom</strong> for non-
+        positional cohorts (mates, returning players, etc.).
       </div>
     );
   }
   return (
     <div className="mt-3 rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-ok">
-      <strong className="font-semibold">Useful from U12 up.</strong>{" "}
-      Mandatory all-positions rotation eases at this age and players
-      start forming natural strengths. Position-linked chips help the
+      <strong className="font-semibold">Useful from U11 up.</strong>{" "}
+      Mandatory all-zones rotation eases at this age and players
+      start forming natural strengths. Linked-to-positions helps the
       suggester balance the team toward those strengths while still
       handling fair rotation around them.
     </div>

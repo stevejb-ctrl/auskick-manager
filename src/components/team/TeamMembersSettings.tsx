@@ -61,9 +61,9 @@ export function TeamMembersSettings({
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-semibold text-ink">Team members</h2>
+        <h2 className="text-base font-semibold text-ink">Team managers</h2>
         <span className="text-xs text-ink-mute">
-          {members.length} {members.length === 1 ? "member" : "members"}
+          {members.length} {members.length === 1 ? "manager" : "managers"}
         </span>
       </div>
 
@@ -461,6 +461,16 @@ function InviteForm({
   return (
     <form
       onSubmit={handleSubmit}
+      // noValidate so the HTML5 type="email" validation doesn't
+      // block an intentional submit with an empty email field.
+      // Our handleSubmit handles the empty case (it just falls
+      // through to the token-link createInvite path) but some
+      // browsers — especially WKWebView under iOS — surface an
+      // implicit "invalid email" prompt before our handler runs.
+      // The server action still validates non-empty submissions
+      // against EMAIL_RE, so this is a UX-only relaxation. Steve
+      // 2026-05-20.
+      noValidate
       className="space-y-3 rounded-md border border-hairline bg-surface-alt p-4"
     >
       <div className="space-y-1">

@@ -99,18 +99,27 @@ export function SquadStep({
         )}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Link
-          href={`/teams/${teamId}`}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
-        >
-          Skip for now
-        </Link>
+      <div className="flex justify-end">
         <Link
           href={`/teams/${teamId}/setup?step=games`}
           className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
           Continue
+        </Link>
+      </div>
+
+      {/* Skip-for-now lives separated from the Continue button —
+          previously stacked together and easy to mistap on mobile.
+          Now sits as a small ghost link AFTER an explicit visual
+          gap, with extra `mt-6` breathing room and centred text so
+          it reads as an unstyled-link-ish escape route, not a
+          competing CTA. Steve 2026-05-20. */}
+      <div className="flex justify-center pt-2">
+        <Link
+          href={`/teams/${teamId}`}
+          className="text-xs font-medium text-ink-mute underline-offset-4 hover:text-ink hover:underline"
+        >
+          Skip onboarding for now
         </Link>
       </div>
     </div>

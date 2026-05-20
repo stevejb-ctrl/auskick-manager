@@ -119,7 +119,7 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     periodCount: 4,
     periodSeconds: 10 * 60,
     subIntervalSeconds: 10 * 60,
-    tracksScoreDefault: false,
+    tracksScoreDefault: true,
     notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {
@@ -134,7 +134,7 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     periodCount: 4,
     periodSeconds: 10 * 60,
     subIntervalSeconds: 10 * 60,
-    tracksScoreDefault: false,
+    tracksScoreDefault: true,
     notes: "NetSetGO Go: 7-a-side, introduction to all 7 positions. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {

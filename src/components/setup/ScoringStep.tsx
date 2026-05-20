@@ -87,59 +87,43 @@ export function ScoringStep({
         />
       )}
 
-      {/* Optional player chips — coaches who want to tag cohorts within
-          the squad (older / younger, returning / new, friends-stay-
-          together) can label up to three chip slots here and apply them
-          on the next step as they add players. Hidden inside a <details>
-          so the config step doesn't feel busy for the casual case. The
-          card itself treats blank labels as "off", so closing the
-          disclosure without filling anything in is the no-op default.
-          CohortChipsSettings supplies its own card chrome — the
-          <details> is just a transparent show/hide wrapper so we don't
-          end up with a double-bordered card-in-card. Steve 2026-05-20. */}
-      <details className="group">
-        <summary className="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-hairline bg-surface-alt px-5 py-3 text-sm font-semibold text-ink list-none [&::-webkit-details-marker]:hidden hover:border-brand-600">
-          <span className="flex flex-col gap-0.5">
-            <span>Player chips (optional — set up now or later)</span>
-            <span className="text-xs font-normal text-ink-dim">
-              Tag cohorts within the squad — e.g. older/younger, mates
-              who should stay grouped, or kids who play best in a set
-              zone. <strong className="text-ink">Skip for now</strong>{" "}
-              if you&apos;re not sure — you can come back from Team
-              Settings any time.
-            </span>
-          </span>
-          <span
-            className="ml-3 text-ink-mute transition-transform duration-fast ease-out-quart group-open:rotate-180"
-            aria-hidden
-          >
-            ▾
-          </span>
-        </summary>
-        <div className="mt-3">
-          <CohortChipsSettings
-            teamId={teamId}
-            initialLabels={initialChipLabels}
-            initialModes={initialChipModes}
-            isAdmin
-            sport={sportId}
-            ageGroup={ageGroup.id}
-          />
-        </div>
-      </details>
+      {/* Optional player chips — coaches who want to tag cohorts
+          within the squad (older / younger, mates, position-locked
+          regulars) can configure them here. Rendered open by
+          default because the previous dashed-border <details>
+          collapse was a custom UI element we never used elsewhere
+          and read as unclickable. The card defaults to Off so a
+          coach who doesn't engage with it leaves at "no chips" and
+          can come back later via Team Settings. Steve 2026-05-20:
+          replaces the <details> wrapper. */}
+      <CohortChipsSettings
+        teamId={teamId}
+        initialLabels={initialChipLabels}
+        initialModes={initialChipModes}
+        isAdmin
+        sport={sportId}
+        ageGroup={ageGroup.id}
+        hideSaveButton
+      />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Link
-          href={`/teams/${teamId}`}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
-        >
-          Skip for now
-        </Link>
+      <div className="flex justify-end">
         <Link
           href={`/teams/${teamId}/setup?step=squad`}
           className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
           Continue
+        </Link>
+      </div>
+
+      {/* Skip-for-now — small ghost link separated from the
+          Continue CTA so it doesn't read as a competing primary
+          action and can't be mistapped on mobile. Steve 2026-05-20. */}
+      <div className="flex justify-center pt-2">
+        <Link
+          href={`/teams/${teamId}`}
+          className="text-xs font-medium text-ink-mute underline-offset-4 hover:text-ink hover:underline"
+        >
+          Skip onboarding for now
         </Link>
       </div>
     </div>

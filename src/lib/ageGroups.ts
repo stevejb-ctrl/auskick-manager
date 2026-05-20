@@ -34,7 +34,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     maxSquadSize: 20,
     quarterSeconds: 10 * 60,
     subIntervalSeconds: 3 * 60,
-    tracksScoreDefault: false,
+    tracksScoreDefault: true,
     notes: "6-a-side, no scores, hold-release tackling.",
   },
   U9: {
@@ -47,7 +47,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     maxSquadSize: 20,
     quarterSeconds: 12 * 60,
     subIntervalSeconds: 3 * 60,
-    tracksScoreDefault: false,
+    tracksScoreDefault: true,
     notes: "9-a-side by default, up to 12-a-side, no scores, zone rotations.",
   },
   U10: {
@@ -60,7 +60,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     maxSquadSize: 20,
     quarterSeconds: 12 * 60,
     subIntervalSeconds: 3 * 60,
-    tracksScoreDefault: false,
+    tracksScoreDefault: true,
     notes: "12-a-side, 3 zones, non-graded.",
   },
   U11: {
