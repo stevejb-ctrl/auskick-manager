@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
+  addExistingMember,
   createInvite,
+  lookupInviteRecipient,
   removeMember,
   revokeInvite,
   sendInviteEmail,
   updateMemberRole,
+  type InviteRecipientLookup,
 } from "@/app/(app)/teams/[teamId]/settings/member-actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -218,6 +221,16 @@ type EmailStatus =
   | { kind: "sent"; recipient: string }
   | { kind: "failed"; recipient: string; error: string };
 
+type LookupState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "result"; result: InviteRecipientLookup };
+
+// Debounce gap between keystrokes and the profiles lookup. Tuned to
+// avoid hammering the lookup endpoint on every character while still
+// feeling responsive — most admins finish typing in well under a second.
+const LOOKUP_DEBOUNCE_MS = 400;
+
 function InviteForm({
   teamId,
   onClose,
@@ -229,9 +242,37 @@ function InviteForm({
   const [invitedEmail, setInvitedEmail] = useState("");
   const [isPending, startTransition] = useTransition();
   const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [addedMemberName, setAddedMemberName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [emailStatus, setEmailStatus] = useState<EmailStatus>({ kind: "none" });
+  const [lookup, setLookup] = useState<LookupState>({ kind: "idle" });
+
+  // Debounced lookup: when the email field looks like a valid address,
+  // ask the server whether a Siren account exists for it so the submit
+  // can branch into the direct-add path. Empty / invalid values reset
+  // to idle so the unknown-email hint doesn't flash while typing.
+  useEffect(() => {
+    const trimmed = invitedEmail.trim();
+    if (!trimmed || !isEmail(trimmed)) {
+      setLookup({ kind: "idle" });
+      return;
+    }
+    setLookup({ kind: "loading" });
+    const handle = setTimeout(async () => {
+      const res = await lookupInviteRecipient(teamId, trimmed);
+      // Drop the result if the email changed while we were waiting.
+      // Without this the form can flicker between branches as the
+      // admin types.
+      if (invitedEmail.trim() !== trimmed) return;
+      if (!res.success || !res.result) {
+        setLookup({ kind: "result", result: { kind: "unknown" } });
+        return;
+      }
+      setLookup({ kind: "result", result: res.result });
+    }, LOOKUP_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [invitedEmail, teamId]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -244,6 +285,42 @@ function InviteForm({
       return;
     }
 
+    // Direct-add branch: known existing user, not yet on this team.
+    // Skip the token + email flow entirely.
+    if (
+      lookup.kind === "result" &&
+      lookup.result.kind === "existing" &&
+      trimmed
+    ) {
+      const userId = lookup.result.userId;
+      const displayName = lookup.result.fullName;
+      startTransition(async () => {
+        const res = await addExistingMember(teamId, role, userId);
+        if (!res.success) {
+          setError(res.error);
+          return;
+        }
+        setAddedMemberName(displayName);
+      });
+      return;
+    }
+
+    // Already-a-member shouldn't normally reach here (the button is
+    // disabled), but guard anyway so a double-click race doesn't
+    // create a stray invite token.
+    if (
+      lookup.kind === "result" &&
+      lookup.result.kind === "already_member" &&
+      trimmed
+    ) {
+      setError("This person is already a member of the team.");
+      return;
+    }
+
+    // Default branch: token-based invite. Used for unknown emails,
+    // empty emails, and (intentionally) for the in-flight loading
+    // case — the link still works for Apple "Hide My Email" users
+    // who'll always land in this branch.
     startTransition(async () => {
       const res = await createInvite(teamId, role, trimmed || null);
       if (!res.success) {
@@ -277,6 +354,43 @@ function InviteForm({
     } catch {
       setCopied(false);
     }
+  }
+
+  // Direct-add success view: simpler than the token flow — there's
+  // no link to share, the new member already has access.
+  if (addedMemberName) {
+    return (
+      <div
+        className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4"
+        data-testid="invite-added"
+      >
+        <p className="text-sm font-semibold text-emerald-800">
+          ✓ Added <span className="font-bold">{addedMemberName}</span> to the
+          team as {ROLE_LABEL[role]}.
+        </p>
+        <p className="text-xs text-emerald-900/70">
+          They&rsquo;ve been notified by push and email. They can leave the team
+          from its settings page if they didn&rsquo;t expect this.
+        </p>
+        <div className="flex gap-2 pt-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setAddedMemberName(null);
+              setInvitedEmail("");
+              setLookup({ kind: "idle" });
+            }}
+          >
+            Add another
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (createdToken && url) {
@@ -378,10 +492,10 @@ function InviteForm({
           placeholder="parent@example.com"
           disabled={isPending}
         />
-        <p className="text-xs text-ink-mute">
-          We’ll email a join link to this address. Leave blank to copy and share
-          manually.
-        </p>
+        <LookupHint
+          email={invitedEmail.trim()}
+          lookup={lookup}
+        />
       </div>
 
       {error && (
@@ -391,8 +505,17 @@ function InviteForm({
       )}
 
       <div className="flex gap-2">
-        <Button type="submit" size="sm" loading={isPending}>
-          {invitedEmail.trim() ? "Send invite" : "Create invite link"}
+        <Button
+          type="submit"
+          size="sm"
+          loading={isPending}
+          disabled={
+            isPending ||
+            (lookup.kind === "result" &&
+              lookup.result.kind === "already_member")
+          }
+        >
+          {submitLabel({ email: invitedEmail.trim(), lookup, role })}
         </Button>
         <Button
           type="button"
@@ -405,6 +528,93 @@ function InviteForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function submitLabel({
+  email,
+  lookup,
+  role,
+}: {
+  email: string;
+  lookup: LookupState;
+  role: TeamRole;
+}): string {
+  if (!email) return "Create invite link";
+  if (lookup.kind === "result") {
+    if (lookup.result.kind === "existing") {
+      return `Add ${lookup.result.fullName} as ${ROLE_LABEL[role]}`;
+    }
+    if (lookup.result.kind === "already_member") {
+      return "Already a member";
+    }
+  }
+  return "Send invite";
+}
+
+/**
+ * Inline helper text under the email field that reflects what the
+ * submit button is about to do, based on the lookup state. Three real
+ * surfaces:
+ *
+ *   - empty / typing      → generic "we'll email a join link" copy.
+ *   - existing Siren user → green "already has Siren — add directly" chip.
+ *   - already a member    → muted disabled note.
+ *   - unknown email       → fallback copy + a one-liner explaining why
+ *                           Apple "Hide My Email" users always land here.
+ */
+function LookupHint({
+  email,
+  lookup,
+}: {
+  email: string;
+  lookup: LookupState;
+}) {
+  if (!email) {
+    return (
+      <p className="text-xs text-ink-mute">
+        We&rsquo;ll email a join link to this address. Leave blank to copy and
+        share manually.
+      </p>
+    );
+  }
+  if (lookup.kind === "loading" || lookup.kind === "idle") {
+    return (
+      <p className="text-xs text-ink-mute" data-testid="lookup-loading">
+        Checking…
+      </p>
+    );
+  }
+  const r = lookup.result;
+  if (r.kind === "existing") {
+    return (
+      <p
+        className="text-xs font-medium text-emerald-700"
+        data-testid="lookup-existing"
+      >
+        ✓ {r.fullName} already has a Siren account — adding them directly.
+      </p>
+    );
+  }
+  if (r.kind === "already_member") {
+    return (
+      <p
+        className="text-xs font-medium text-ink-dim"
+        data-testid="lookup-already-member"
+      >
+        Already a member of this team.
+      </p>
+    );
+  }
+  // Unknown email — fall through to the token-based invite. Note about
+  // Apple's Hide My Email so admins who get a "no account found"
+  // result for a coach they're certain has Siren don't panic.
+  return (
+    <p className="text-xs text-ink-mute" data-testid="lookup-unknown">
+      We&rsquo;ll email a join link to this address. If they signed up with
+      Apple and chose <em>Hide My Email</em>, we can&rsquo;t see their account
+      from here — the link still reaches them via Apple&rsquo;s relay.
+    </p>
   );
 }
 

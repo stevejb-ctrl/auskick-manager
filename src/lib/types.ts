@@ -133,7 +133,7 @@ export interface TeamInvite {
   accepted_at: string | null;
   accepted_by: string | null;
   revoked_at: string | null;
-  // Email-driven invites (migration 0037). When `invited_email` is null
+  // Email-driven invites (migration 0039). When `invited_email` is null
   // the row represents a legacy copy-link-only invite and the remaining
   // fields stay null/0 forever.
   invited_email: string | null;

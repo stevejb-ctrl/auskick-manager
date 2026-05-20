@@ -2,12 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { CONTACT_FROM, getResend } from "@/lib/resend";
 import { EMAIL_RE, maskEmail } from "@/lib/email/validate";
-import { buildInviteEmail } from "@/lib/email/inviteTemplate";
+import {
+  buildInviteEmail,
+  buildMemberAddedEmail,
+} from "@/lib/email/inviteTemplate";
+import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
 import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
 import type { ActionResult, TeamRole } from "@/lib/types";
+
+/** Result of a profiles-by-email lookup for the invite form. */
+export type InviteRecipientLookup =
+  | { kind: "existing"; userId: string; fullName: string }
+  | { kind: "already_member" }
+  | { kind: "unknown" };
 
 // Minimum gap between two sends of the SAME invite email. Stops a
 // double-click from double-sending and gives the recipient a chance to
@@ -321,4 +332,178 @@ export async function removeMember(
 
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
+}
+
+/**
+ * Look up a profile by email so the invite form can offer a direct-add
+ * path when the recipient already has a Siren account. Three outcomes:
+ *
+ *   - `existing`       — profile matched and they're not yet a member
+ *                        of this team. UI swaps "Send invite" for an
+ *                        "Add {name} to team" button.
+ *   - `already_member` — they're already on this team. UI disables
+ *                        the submit and shows a friendly message.
+ *   - `unknown`        — no profiles row matched. Falls through to the
+ *                        existing token + email-invite flow. Apple
+ *                        Sign-In "Hide My Email" users always land
+ *                        here because their stored email is the
+ *                        @privaterelay.appleid.com relay, not the
+ *                        address the admin typed.
+ *
+ * Admin-only — exposes "does a Siren user with this email exist?"
+ * which we don't want to leak past team admins.
+ */
+export async function lookupInviteRecipient(
+  teamId: string,
+  email: string,
+): Promise<ActionResult & { result?: InviteRecipientLookup }> {
+  const { error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const trimmed = email.trim();
+  if (!trimmed || !EMAIL_RE.test(trimmed)) {
+    return { success: false, error: "Please use a valid email address." };
+  }
+
+  // Admin client bypasses the RLS that scopes profile reads to team
+  // members — we need to check arbitrary emails here, not just
+  // existing team-mates.
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id, full_name")
+    .ilike("email", trimmed)
+    .maybeSingle();
+
+  if (!profile) {
+    return { success: true, result: { kind: "unknown" } };
+  }
+
+  const { data: membership } = await admin
+    .from("team_memberships")
+    .select("user_id")
+    .eq("team_id", teamId)
+    .eq("user_id", profile.id)
+    .maybeSingle();
+
+  if (membership) {
+    return { success: true, result: { kind: "already_member" } };
+  }
+
+  return {
+    success: true,
+    result: {
+      kind: "existing",
+      userId: profile.id,
+      fullName: profile.full_name?.trim() || trimmed,
+    },
+  };
+}
+
+/**
+ * Skip the invite-token round-trip for users we already know exist on
+ * Siren. Inserts the membership directly and notifies the new member
+ * via push (if they've registered a device) and email. The acting
+ * admin is captured as `invited_by` for audit symmetry with
+ * link-accepted memberships.
+ *
+ * Auto-accept on the new member's behalf is the consent model the
+ * project picked — they get a clear "you were added" notification
+ * with a leave-team escape hatch in the team's settings.
+ */
+export async function addExistingMember(
+  teamId: string,
+  role: TeamRole,
+  userId: string,
+): Promise<ActionResult & { teamId?: string }> {
+  const { user, error } = await getAuthedAdmin(teamId);
+  if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
+
+  const admin = createAdminClient();
+
+  const { error: insertError } = await admin.from("team_memberships").insert({
+    team_id: teamId,
+    user_id: userId,
+    role,
+    invited_by: user.id,
+  });
+
+  // 23505 = unique_violation. Means the user is already a team_member
+  // (race with another admin adding them, or a double-click). Treat as
+  // success — same outcome — and skip the notification so we don't
+  // double-notify.
+  const isFirstAdd = !insertError;
+  if (insertError && insertError.code !== "23505") {
+    return { success: false, error: insertError.message };
+  }
+
+  if (isFirstAdd) {
+    const [teamRes, adminProfileRes, newMemberRes] = await Promise.all([
+      admin.from("teams").select("name").eq("id", teamId).maybeSingle(),
+      admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+      admin.from("profiles").select("email").eq("id", userId).maybeSingle(),
+    ]);
+
+    const teamName = teamRes.data?.name ?? "your team";
+    const adminName = adminProfileRes.data?.full_name?.trim() || "Your coach";
+    const recipientEmail = newMemberRes.data?.email ?? null;
+    const teamUrl = `${publicOrigin()}/teams/${teamId}/games`;
+    const roleLabel = ROLE_LABEL[role];
+    const roleSummary = ROLE_SUMMARY[role];
+
+    // Push notification — best-effort. sendPushNotification swallows
+    // errors so a stalled FCM call can't roll back the membership.
+    await sendPushNotification({
+      user_id: userId,
+      title: "You were added to a team",
+      body: `${adminName} added you to ${teamName} as ${roleLabel}.`,
+      data: { team_id: teamId },
+    });
+
+    // Email notification — only if we have a verified Resend setup AND
+    // a recipient address. For Apple "Hide My Email" users this is the
+    // relay address, which Apple forwards to the real inbox just fine.
+    if (recipientEmail) {
+      const { subject, text, html } = buildMemberAddedEmail({
+        teamName,
+        adminName,
+        roleLabel,
+        roleSummary,
+        teamUrl,
+      });
+
+      if (!process.env.RESEND_API_KEY) {
+        console.warn(
+          `[invite] RESEND_API_KEY not set — would email ${maskEmail(recipientEmail)} after direct-add to team ${teamId}`,
+        );
+      } else {
+        try {
+          const resend = getResend();
+          const result = await resend.emails.send({
+            from: CONTACT_FROM,
+            to: recipientEmail,
+            subject,
+            text,
+            html,
+          });
+          if (result.error) {
+            console.error(
+              `[invite] direct-add email failed for ${maskEmail(recipientEmail)}:`,
+              String(result.error.message ?? result.error),
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[invite] direct-add email crashed for ${maskEmail(recipientEmail)}:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath("/dashboard");
+  return { success: true, teamId };
 }

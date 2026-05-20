@@ -1,6 +1,6 @@
 -- ============================================================
 -- Auskick Manager — Email-driven team invites
--- Run in the Supabase SQL Editor after 0036.
+-- Run in the Supabase SQL Editor after 0038.
 -- ============================================================
 
 -- Adds the columns needed to send an invite link via email from inside
