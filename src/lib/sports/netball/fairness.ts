@@ -428,45 +428,50 @@ const NETBALL_CHIP_PENALTY_BASE = 50;
 // third, so a forward-chipped player rotates GS/GA/WA across
 // quarters via the existing tier-2 same-position penalty.
 //
-// Steve 2026-05-20 (later same day): bumped from 50000 → 180000
-// so the chip preference DOMINATES tier-1's unplayedThirdBonus
-// (+100000) AND the combined penalty stack that builds up over
-// multiple quarters in the same family (samePos -50000 +
-// sameThird -10000 = -60000). Previous value sat below
-// unplayedThird, so a forward-chipped player who already played
-// in attack-third got pulled to centre/defence for "play every
-// third" rotation. With 180000:
-//   chip in already-played third = +180000 - 60000 = +120000
-//   unplayed other third         = +100000
-//   → chip wins, player stays in family
+// Steve 2026-05-20 (third pass same day): bumped to 350000 so the
+// chip outranks the ENTIRE routine fairness stack including
+// teammateRepeatPenalty (-150000 per mate, 1 mate's worth).
+// Coach intent: a chipped forward goes to attack-third every
+// quarter where possible. When 1 chip-mate is also placed in
+// attack-third for Q2, repeating that placement is the coach's
+// explicit design, not an incidental clump to split apart.
 //
-// Why 180000 specifically:
-//   - 100000 unplayedThirdBonus
-//   -  50000 samePositionPenalty (per-position; fires when the
-//     player has already played the candidate position this game)
-//   -  10000 sameThirdAsLastPenalty
-//   -------
-//   = 160000 worst-case rotation pressure within the family
-//   → chipTerm of 180000 has a +20000 buffer above that.
+// Priority order (high → low rank in the score sum):
+//   1. chipTerm                +350000  ← coach's explicit pick
+//   2. teammateRepeatPenalty   -150000  per mate (still nudges,
+//                                       2+ mates can override)
+//   3. unplayedThirdBonus      +100000  ← bowed to chip
+//   4. samePositionPenalty      -50000  ← rotates GS/GA/WA within family
+//   5. sameThirdAsLastPenalty   -10000
+//   6. seasonRarity            ~single  ← tiebreaker
 //
-// Critical edge: centre-third has ONLY ONE position (C). A
-// centre-chipped player would rotate OUT of C after Q1 if
-// chipTerm < 160000 (samePos + sameThird drag C to -60000, vs
-// unplayed +100000). At 180000 they stay in C across the full
-// game, which IS what coaches mean by "centre chip".
+// Worst-case stacked-against-chip math:
+//   chip in attack-third, played GS this game, last Q was attack,
+//   1 last-Q mate already placed in attack-third for the new Q:
+//     0 unplayedBonus (third played)
+//     -50000 samePos (if candidate is GS again) or 0 (if GA/WA)
+//     -10000 sameThird
+//     +350000 chip
+//     -150000 partnership (1 mate)
+//     = +140000 worst, +190000 best within-family-rotation
+//   fresh other-third position, unplayed, no mate:
+//     +100000
+//   → chip wins by at least 40000 ✓
 //
-// New stack (per-zone tiers, sign = sign of contribution to score):
-//   teammateRepeatPenalty:       -150000 per mate ← split-mates beats chip (intended)
-//   chipTerm:                    +180000          ← chip family wins routine rotation
-//   unplayedThirdBonus:          +100000          ← bowed to chip
-//   samePositionPenalty:          -50000          ← rotates GS/GA/WA within family
-//   sameThirdAsLastPenalty:       -10000          ← bowed to chip
-//   seasonRarity:                 -seasonCount    ← still a tiebreaker
+// 2-mate partnership still overrides (each -150000):
+//   chip in attack-third with 2 mates: 350000 - 300000 - 60000 = -10000
+//   fresh other-third: +100000
+//   → other wins by 110000. Intentional escape — 2 chip-mates
+//   from last Q in the same third for THIS quarter is a hard
+//   clump. Coaches who don't want it split should pick "split"
+//   or "group" mode rather than a zone mode.
 //
-// Within a chip-preferred third the per-position rotation tiers
-// (-50000 same-position, -10000 stale-third) still distribute the
-// player across the three positions in their family across Qs.
-const NETBALL_CHIP_ZONE_BONUS = 180000;
+// Centre-chipped player keeps C across all 4 quarters even though
+// centre-third has only 1 position:
+//   C (samePos every Q after Q1): -50000 -10000 + 350000 = +290000
+//   fresh other-third: +100000
+//   → C wins by 190000, very comfortably.
+const NETBALL_CHIP_ZONE_BONUS = 350000;
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
   const {

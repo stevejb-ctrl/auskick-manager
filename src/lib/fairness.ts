@@ -670,21 +670,44 @@ export function suggestStartingLineup(
 //
 // Zone modes (forward / centre / back, Steve 2026-05-20): flat
 // NEGATIVE for placements in the preferred zone family, 0
-// otherwise. Steve 2026-05-20 (later same day): bumped from 800
-// to 2500 so the chip preference DOMINATES routine fairness
-// rotation — was sitting below IN_GAME_DIVERSITY (+1000) so a
-// forward-chipped player who already played fwd this game kept
-// getting yanked into back/mid for "fresh zone" rotation. With
-// 2500 the chip wins against the combined IN_GAME_DIVERSITY
-// (+1000) + SAME_AS_LAST_Q (-800) + SEASON_DIVERSITY (+500)
-// stack (max ~1500 against the chip). What still overrides:
-//   - zone full (loop short-circuits before scoring)
-//   - PARTNERSHIP_PENALTY hits the cap (1500) when a Q-1
-//     teammate is already in the chip-family zone — splitting
-//     mates remains hard
+// otherwise. Steve 2026-05-20 (third pass same day): bumped to
+// 5000 so the chip outranks the ENTIRE routine fairness stack,
+// not just sameAsLastQ. Coach intent: "if they're chipped as a
+// forward, place them in forwards" is unconditional — the only
+// thing that should override is zone-full (a soft cap-based
+// escape valve, not a magnitude one).
+//
+// Priority order (high → low rank in the score sum):
+//   1. CHIP_ZONE_BONUS              +5000   ← coach's explicit pick
+//   2. PARTNERSHIP_PENALTY (cap)    -1500   ← split last-Q mates
+//   3. IN_GAME_DIVERSITY            +1000   ← play every zone every game
+//   4. SAME_AS_LAST_Q                -800   ← don't repeat zones
+//   5. SEASON_DIVERSITY              +500   ← mild season balance
+//   6. fairnessTerm                ~0-small ← proportional to gap
+//
+// Worst-case stacked-against-chip math (AFL):
+//   chip zone, played, sameAsLastQ, 1 mate from last Q:
+//     0 IGD - 800 + 500 + 5000 - 1500 = +3200
+//   fresh other zone, unplayed, no mate:
+//     +1000 + 500 = +1500
+//   → chip wins by 1700 ✓
+//
+// What still overrides:
+//   - zone full (loop's openZones filter short-circuits before
+//     scoring — soft cap-based constraint, not a magnitude tier)
 //   - chip-family overflow: 5 forward-chipped + 4 fwd slots →
 //     4 go fwd, 5th falls to next-best zone via openZones
-// Family mapping:
+//
+// What DOESN'T override (intentionally):
+//   - partnership splitting: when both players are chip-mates,
+//     bunching is the coach's explicit intent, not incidental
+//   - in-game diversity: chip-mate stays in their family every
+//     quarter where possible, even after playing the family zone
+//   - season fairness: same as above; an explicit chip overrides
+//     "play every zone over the season" rotation
+//
+// Family mapping (positions5 entries kept for legacy game replay
+// even though no AGE_GROUPS entry uses positions5 anymore):
 //   forward → fwd, hfwd
 //   centre  → mid
 //   back    → back, hback
@@ -692,7 +715,7 @@ export function suggestStartingLineup(
 // rotates within their preferred area across quarters via the
 // existing other-tier scoring.
 const CHIP_PENALTY_BASE = 50;
-const CHIP_ZONE_BONUS = 2500;
+const CHIP_ZONE_BONUS = 5000;
 
 // Zone family per zone-preference mode. Public so the AFL
 // suggester's swap path can re-use it; netball has its own

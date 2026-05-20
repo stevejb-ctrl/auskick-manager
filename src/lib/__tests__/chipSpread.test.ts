@@ -307,6 +307,56 @@ describe("Phase D — chip-spread", () => {
     expect(lineup.fwd).toContain("a0");
   });
 
+  it("zone preference outranks IN_GAME_DIVERSITY even with partnership stacking against the chip-family zone", () => {
+    // Steve 2026-05-20 (third pass): coaches asked for the chip
+    // to outrank in-game-diversity unconditionally — including
+    // cases where partnership-splitting + samePos + sameAsLastQ
+    // all pull AGAINST the chip-family zone. Bumped chip from
+    // 2500 → 5000 to clear the entire routine-fairness stack.
+    //
+    // Fixture: a0 is forward-chipped, played fwd in Q1, has a
+    // mate (a1, also chip-A) from Q1's fwd line. Without the
+    // bump, the partnership penalty + sameAsLastQ would drag
+    // a0's fwd score below a fresh back/mid; the algorithm
+    // would yank a0 out of forwards. With 5000 the chip wins.
+    const FULL_QUARTER_MS = 12 * 60 * 1000;
+    const gameMs = {
+      a0: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+      a1: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+    };
+    const players: Player[] = [
+      p("a0", "a"),
+      p("a1", "a"), // mate — also forward-chipped, both in fwd Q1
+      ...Array.from({ length: 10 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+    // a0 and a1 were teammates in fwd last Q.
+    const previousZoneTeammates = {
+      a0: new Set(["a1"]),
+      a1: new Set(["a0"]),
+    };
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      gameMs,
+      { a0: "fwd", a1: "fwd" }, // previousQuarterZones
+      {},
+      previousZoneTeammates,
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    // Both chip-A players still land in fwd this Q — partnership
+    // doesn't override an explicit chip family.
+    expect(lineup.fwd).toContain("a0");
+    expect(lineup.fwd).toContain("a1");
+  });
+
   it("forward-chip yields only when the forward zone is FULL (overflow spillover)", () => {
     // Five forward-chipped players + seven plain players + zones3 caps
     // (4-4-4). Forward has 4 slots; 4 chip-A land there and the 5th
