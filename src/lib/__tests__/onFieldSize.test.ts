@@ -68,11 +68,14 @@ describe("Netball on-field-size: zoneCapsFor + suggestStartingLineup", () => {
 });
 
 describe("Edge cases", () => {
-  it("clamps oversized requests to the model's hardMax", () => {
-    // zoneCapsFor's hardMax is 18 for positions5, 15 for zones3.
+  it("clamps oversized requests to the shared hardMax", () => {
+    // Steve 2026-05-20: zoneCapsFor's hardMax is 18 for both models
+    // now. Previously zones3 capped at 15, which silently dropped
+    // 3 players when U16/U17 (now zones3, was positions5) ran their
+    // default 18-a-side lineup.
     expect(
       Object.values(zoneCapsFor(99, "zones3")).reduce((a, b) => a + b, 0),
-    ).toBeLessThanOrEqual(15);
+    ).toBeLessThanOrEqual(18);
     expect(
       Object.values(zoneCapsFor(99, "positions5")).reduce((a, b) => a + b, 0),
     ).toBeLessThanOrEqual(18);

@@ -96,13 +96,16 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
   U13: {
     id: "U13",
     label: "Under 13",
-    positionModel: "positions5",
-    // AFL Community Policy: 15-a-side through to U15s; 18-a-side
-    // doesn't kick in until U16. Steve 2026-05-20 — previously
-    // configured at 18 here, which was wrong. Stays on
-    // `positions5` (the 5-zone model handles squads down to 12
-    // and the Q-break match-adjustments dropdown lets coaches
-    // shrink further on the day if they're short).
+    // Steve 2026-05-20: all AFL age groups now use the 3-zone model
+    // (back / mid / fwd). The 5-position senior-style model
+    // (back / hback / mid / hfwd / fwd) felt like overkill for
+    // junior coaches who mostly think in lines; coaches asked to
+    // simplify. The `positions5` value still lives in the
+    // PositionModel union — old game events (lineup_set,
+    // period_break_swap) can include hback/hfwd stints and the
+    // replay/stats code keeps handling them — but no AGE_GROUPS
+    // entry uses it any more.
+    positionModel: "zones3",
     defaultOnFieldSize: 15,
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
@@ -110,12 +113,12 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 5 position groups.",
+    notes: "15-a-side, 3 zones (5-5-5 split by default).",
   },
   U14: {
     id: "U14",
     label: "Under 14",
-    positionModel: "positions5",
+    positionModel: "zones3",
     defaultOnFieldSize: 15,
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
@@ -123,12 +126,12 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 5 position groups.",
+    notes: "15-a-side, 3 zones (5-5-5 split by default).",
   },
   U15: {
     id: "U15",
     label: "Under 15",
-    positionModel: "positions5",
+    positionModel: "zones3",
     defaultOnFieldSize: 15,
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
@@ -136,12 +139,12 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 18 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 5 position groups.",
+    notes: "15-a-side, 3 zones (5-5-5 split by default).",
   },
   U16: {
     id: "U16",
     label: "Under 16",
-    positionModel: "positions5",
+    positionModel: "zones3",
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
@@ -149,12 +152,12 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "Full 18-a-side, senior-style structure.",
+    notes: "18-a-side, 3 zones (6-6-6 split by default).",
   },
   U17: {
     id: "U17",
     label: "Under 17",
-    positionModel: "positions5",
+    positionModel: "zones3",
     defaultOnFieldSize: 18,
     minOnFieldSize: 12,
     maxOnFieldSize: 18,
@@ -162,7 +165,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "Full 18-a-side, senior-style structure.",
+    notes: "18-a-side, 3 zones (6-6-6 split by default).",
   },
 };
 

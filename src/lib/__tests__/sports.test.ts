@@ -64,11 +64,15 @@ describe("AFL sport config", () => {
     expect(aflSport.scoreTypes.find((s) => s.id === "behind")?.points).toBe(1);
   });
 
-  it("U10 uses 3 zones, U13 uses 5", () => {
-    const u10 = aflSport.ageGroups.find((a) => a.id === "U10");
-    const u13 = aflSport.ageGroups.find((a) => a.id === "U13");
-    expect(u10?.positions).toEqual(["back", "mid", "fwd"]);
-    expect(u13?.positions).toEqual(["back", "hback", "mid", "hfwd", "fwd"]);
+  it("every AFL age group uses 3 zones (back / mid / fwd)", () => {
+    // Steve 2026-05-20: simplified from the previous junior-vs-senior
+    // split (U10 zones3, U13+ positions5). Coaches found the 5-zone
+    // senior model overkill for juniors; every age now lines up the
+    // same. Test pins ALL groups, not just U10 + U13, so a future
+    // accidental flip back to positions5 fails loudly.
+    for (const ag of aflSport.ageGroups) {
+      expect(ag.positions).toEqual(["back", "mid", "fwd"]);
+    }
   });
 });
 

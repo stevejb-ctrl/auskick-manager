@@ -42,14 +42,19 @@ function emptyCaps(): ZoneCaps {
 }
 
 // Distribute an on-field size across the model's zones.
-// 3-zone: remainder fills mid first, then back (11 → 4-4-3, 10 → 3-4-3, 9 → 3-3-3).
+// 3-zone: remainder fills mid first, then back. 12 → 4-4-4, 15 → 5-5-5,
+// 18 → 6-6-6, 11 → 4-4-3, 10 → 3-4-3.
 // 5-position: remainder fills mid first, then the half-lines, then back/fwd.
+// Steve 2026-05-20: hardMax used to clamp zones3 to 15, which silently
+// dropped 3 players off the field when U16/U17 (now zones3, was
+// positions5) ran their default 18-a-side lineup. Both models now
+// share the 18-player ceiling.
 export function zoneCapsFor(
   onFieldSize: number,
   model: PositionModel = "zones3"
 ): ZoneCaps {
   const zones = positionsFor(model);
-  const hardMax = model === "positions5" ? 18 : 15;
+  const hardMax = 18;
   const size = Math.max(0, Math.min(hardMax, Math.floor(onFieldSize)));
   const base = Math.floor(size / zones.length);
   const rem = size % zones.length;
