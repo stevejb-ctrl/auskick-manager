@@ -21,7 +21,32 @@ interface CohortChipsSettingsProps {
   initialLabels: { a: string | null; b: string | null; c: string | null };
   initialModes: { a: ChipMode; b: ChipMode; c: ChipMode };
   isAdmin: boolean;
+  /**
+   * Sport — drives the AFL-specific recommendation note. Netball
+   * doesn't have an equivalent mandatory-rotation rule so the
+   * U11-/U12+ guidance isn't shown for netball teams. Optional —
+   * defaults to "afl" so legacy callers keep the existing copy.
+   */
+  sport?: "afl" | "netball";
+  /**
+   * The team's age_group id. Used to surface an age-appropriate
+   * recommendation: U11 and under AFL teams get a "not
+   * recommended" caveat (the AFL Junior Match Policy mandates
+   * equal-time rotation through positions, so position-locking
+   * works against the rules); U12+ AFL teams get a positive
+   * "may help" note. Optional — when missing, no recommendation
+   * is shown either way. Steve 2026-05-20.
+   */
+  ageGroup?: string | null;
 }
+
+// AFL age groups where the Junior Match Policy mandates equal-time
+// rotation across the field (i.e. coaches MUST move every player
+// through every position group across the season). Position-locking
+// chips works against this rule and shouldn't be the default
+// recommendation. From U12 the mandate eases and coaches can let
+// players settle into preferred positions.
+const ROTATION_MANDATED_AGE_GROUPS = new Set(["U8", "U9", "U10", "U11"]);
 
 type Mode = "positions" | "custom";
 
@@ -50,6 +75,8 @@ export function CohortChipsSettings({
   initialLabels,
   initialModes,
   isAdmin,
+  sport = "afl",
+  ageGroup = null,
 }: CohortChipsSettingsProps) {
   const initialIsLinked = useMemo(
     () => isPositionLinkedChipConfig(initialLabels, initialModes),
@@ -141,6 +168,10 @@ export function CohortChipsSettings({
         chips up for arbitrary labels (older / younger, mates, etc.)
         with finer control over each chip&apos;s behaviour.
       </p>
+
+      {sport === "afl" && ageGroup && (
+        <AgeRecommendationNote ageGroup={ageGroup} />
+      )}
 
       {/* Top mode selector — a 2-button segmented radio so the choice
           reads as primary, not a hidden checkbox. Disabled state
@@ -344,6 +375,52 @@ function allLabelsBlank(labels: {
   c: string | null;
 }): boolean {
   return !labels.a && !labels.b && !labels.c;
+}
+
+// ─── Age-aware recommendation note ───────────────────────────
+// Surfaces AFL-specific guidance about WHEN position-linked
+// chips are appropriate.
+//
+// U11 and under: the AFL Junior Match Policy mandates equal-time
+//   rotation across every position. Position-locking chips works
+//   against that rule and shouldn't be the recommended path —
+//   coaches MUST move every kid through forwards, centres, and
+//   backs across the season. Show a warning-tinted note pointing
+//   them at the Custom flow if they have a non-positional cohort.
+//
+// U12 and above: the rotation mandate eases; players start
+//   forming natural strengths in specific positions, and the
+//   coach's job shifts toward giving those strengths room to
+//   develop. Show a positive-tinted "may help" note that frames
+//   position-linking as the right tool for the age band.
+//
+// Steve 2026-05-20.
+function AgeRecommendationNote({ ageGroup }: { ageGroup: string }) {
+  const isU11OrUnder = ROTATION_MANDATED_AGE_GROUPS.has(ageGroup);
+  if (isU11OrUnder) {
+    return (
+      <div className="mt-3 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs text-warn">
+        <strong className="font-semibold">
+          Not recommended for U11 and under.
+        </strong>{" "}
+        The AFL Junior Match Policy mandates equal-time rotation
+        through every position at this age, so locking players to a
+        zone works against the rules. Use{" "}
+        <strong className="font-semibold">Custom</strong> if you want
+        chips for non-positional cohorts (mates, returning players,
+        etc.).
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-ok">
+      <strong className="font-semibold">Useful from U12 up.</strong>{" "}
+      Mandatory all-positions rotation eases at this age and players
+      start forming natural strengths. Position-linked chips help the
+      suggester balance the team toward those strengths while still
+      handling fair rotation around them.
+    </div>
+  );
 }
 
 function modeHelpText(mode: ChipMode): string {

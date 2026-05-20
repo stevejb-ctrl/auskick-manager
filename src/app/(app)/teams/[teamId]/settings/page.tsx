@@ -164,6 +164,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
               "split") as import("@/lib/chips").ChipMode,
         }}
         isAdmin={isAdmin}
+        sport={sport}
+        ageGroup={(team as { age_group?: string | null }).age_group ?? null}
       />
       <TeamSongSettings
         teamId={params.teamId}

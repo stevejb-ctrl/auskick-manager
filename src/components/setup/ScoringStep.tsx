@@ -119,6 +119,8 @@ export function ScoringStep({
             initialLabels={initialChipLabels}
             initialModes={initialChipModes}
             isAdmin
+            sport={sportId}
+            ageGroup={ageGroup.id}
           />
         </div>
       </details>
