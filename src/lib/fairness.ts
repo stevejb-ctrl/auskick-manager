@@ -670,11 +670,21 @@ export function suggestStartingLineup(
 //
 // Zone modes (forward / centre / back, Steve 2026-05-20): flat
 // NEGATIVE for placements in the preferred zone family, 0
-// otherwise. Magnitude `CHIP_ZONE_BONUS` is large enough to
-// reliably pull when the rest of the score tiers are roughly
-// neutral, but smaller than IN_GAME_DIVERSITY so an unplayed
-// fresh-zone placement can still override the preference when
-// fairness demands. Family mapping:
+// otherwise. Steve 2026-05-20 (later same day): bumped from 800
+// to 2500 so the chip preference DOMINATES routine fairness
+// rotation — was sitting below IN_GAME_DIVERSITY (+1000) so a
+// forward-chipped player who already played fwd this game kept
+// getting yanked into back/mid for "fresh zone" rotation. With
+// 2500 the chip wins against the combined IN_GAME_DIVERSITY
+// (+1000) + SAME_AS_LAST_Q (-800) + SEASON_DIVERSITY (+500)
+// stack (max ~1500 against the chip). What still overrides:
+//   - zone full (loop short-circuits before scoring)
+//   - PARTNERSHIP_PENALTY hits the cap (1500) when a Q-1
+//     teammate is already in the chip-family zone — splitting
+//     mates remains hard
+//   - chip-family overflow: 5 forward-chipped + 4 fwd slots →
+//     4 go fwd, 5th falls to next-best zone via openZones
+// Family mapping:
 //   forward → fwd, hfwd
 //   centre  → mid
 //   back    → back, hback
@@ -682,7 +692,7 @@ export function suggestStartingLineup(
 // rotates within their preferred area across quarters via the
 // existing other-tier scoring.
 const CHIP_PENALTY_BASE = 50;
-const CHIP_ZONE_BONUS = 800;
+const CHIP_ZONE_BONUS = 2500;
 
 // Zone family per zone-preference mode. Public so the AFL
 // suggester's swap path can re-use it; netball has its own

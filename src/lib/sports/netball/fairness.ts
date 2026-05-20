@@ -428,13 +428,45 @@ const NETBALL_CHIP_PENALTY_BASE = 50;
 // third, so a forward-chipped player rotates GS/GA/WA across
 // quarters via the existing tier-2 same-position penalty.
 //
-// Magnitude 50000 sits between tier-1 unplayedThirdBonus (100000,
-// which can still override when fairness demands) and tier-2
-// samePositionPenalty (-50000, same magnitude — but the chip bonus
-// is per-third while tier-2 is per-position, so within a matching
-// third the same-position penalty still rotates the player across
-// the three positions there).
-const NETBALL_CHIP_ZONE_BONUS = 50000;
+// Steve 2026-05-20 (later same day): bumped from 50000 → 180000
+// so the chip preference DOMINATES tier-1's unplayedThirdBonus
+// (+100000) AND the combined penalty stack that builds up over
+// multiple quarters in the same family (samePos -50000 +
+// sameThird -10000 = -60000). Previous value sat below
+// unplayedThird, so a forward-chipped player who already played
+// in attack-third got pulled to centre/defence for "play every
+// third" rotation. With 180000:
+//   chip in already-played third = +180000 - 60000 = +120000
+//   unplayed other third         = +100000
+//   → chip wins, player stays in family
+//
+// Why 180000 specifically:
+//   - 100000 unplayedThirdBonus
+//   -  50000 samePositionPenalty (per-position; fires when the
+//     player has already played the candidate position this game)
+//   -  10000 sameThirdAsLastPenalty
+//   -------
+//   = 160000 worst-case rotation pressure within the family
+//   → chipTerm of 180000 has a +20000 buffer above that.
+//
+// Critical edge: centre-third has ONLY ONE position (C). A
+// centre-chipped player would rotate OUT of C after Q1 if
+// chipTerm < 160000 (samePos + sameThird drag C to -60000, vs
+// unplayed +100000). At 180000 they stay in C across the full
+// game, which IS what coaches mean by "centre chip".
+//
+// New stack (per-zone tiers, sign = sign of contribution to score):
+//   teammateRepeatPenalty:       -150000 per mate ← split-mates beats chip (intended)
+//   chipTerm:                    +180000          ← chip family wins routine rotation
+//   unplayedThirdBonus:          +100000          ← bowed to chip
+//   samePositionPenalty:          -50000          ← rotates GS/GA/WA within family
+//   sameThirdAsLastPenalty:       -10000          ← bowed to chip
+//   seasonRarity:                 -seasonCount    ← still a tiebreaker
+//
+// Within a chip-preferred third the per-position rotation tiers
+// (-50000 same-position, -10000 stale-third) still distribute the
+// player across the three positions in their family across Qs.
+const NETBALL_CHIP_ZONE_BONUS = 180000;
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
   const {
