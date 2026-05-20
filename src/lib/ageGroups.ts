@@ -110,7 +110,10 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
     maxSquadSize: 25,
-    quarterSeconds: 15 * 60,
+    // Steve 2026-05-20: U13+ all play 20-min quarters under the
+    // AFL Junior Match Policy. Previously U13/U14 were configured
+    // at 15 and U15 at 18 — both wrong.
+    quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
     notes: "15-a-side, 3 zones (5-5-5 split by default).",
@@ -123,7 +126,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
     maxSquadSize: 25,
-    quarterSeconds: 15 * 60,
+    quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
     notes: "15-a-side, 3 zones (5-5-5 split by default).",
@@ -136,11 +139,20 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     minOnFieldSize: 12,
     maxOnFieldSize: 15,
     maxSquadSize: 25,
-    quarterSeconds: 18 * 60,
+    quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
     notes: "15-a-side, 3 zones (5-5-5 split by default).",
   },
+  // ─── Legacy unsplit U16 / U17 ────────────────────────────
+  // Steve 2026-05-20: kept in AGE_GROUPS so existing teams whose
+  // age_group column still reads "U16" / "U17" continue to
+  // resolve via `ageGroupOf()` without falling through to U10.
+  // DROPPED from AGE_GROUP_ORDER below so the new-team picker
+  // doesn't surface them — new teams pick gender-explicit IDs
+  // (U16_boys / U16_girls / etc.). Both legacy entries match
+  // the boys config (18-a-side), which is what the picker was
+  // implicitly producing before the split.
   U16: {
     id: "U16",
     label: "Under 16",
@@ -152,7 +164,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+    notes: "18-a-side, 3 zones (6-6-6 split by default). Legacy — created before the U16 Boys / U16 Girls split.",
   },
   U17: {
     id: "U17",
@@ -165,12 +177,103 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
+    notes: "18-a-side, 3 zones (6-6-6 split by default). Legacy — created before the U17 Boys / U17 Girls split.",
+  },
+  // ─── Gender-split U16 / U17 / U18 ────────────────────────
+  // AFL Junior Match Policy splits at U16+: Boys play 18-a-side,
+  // Girls play 16-a-side. U18 is new — wasn't in the pre-split
+  // catalogue at all.
+  U16_boys: {
+    id: "U16_boys",
+    label: "Under 16 Boys",
+    positionModel: "zones3",
+    defaultOnFieldSize: 18,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 18,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
     notes: "18-a-side, 3 zones (6-6-6 split by default).",
+  },
+  U16_girls: {
+    id: "U16_girls",
+    label: "Under 16 Girls",
+    positionModel: "zones3",
+    defaultOnFieldSize: 16,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 16,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
+    notes: "16-a-side, 3 zones (5-6-5 split by default).",
+  },
+  U17_boys: {
+    id: "U17_boys",
+    label: "Under 17 Boys",
+    positionModel: "zones3",
+    defaultOnFieldSize: 18,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 18,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
+    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+  },
+  U17_girls: {
+    id: "U17_girls",
+    label: "Under 17 Girls",
+    positionModel: "zones3",
+    defaultOnFieldSize: 16,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 16,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
+    notes: "16-a-side, 3 zones (5-6-5 split by default).",
+  },
+  U18_boys: {
+    id: "U18_boys",
+    label: "Under 18 Boys",
+    positionModel: "zones3",
+    defaultOnFieldSize: 18,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 18,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
+    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+  },
+  U18_girls: {
+    id: "U18_girls",
+    label: "Under 18 Girls",
+    positionModel: "zones3",
+    defaultOnFieldSize: 16,
+    minOnFieldSize: 12,
+    maxOnFieldSize: 16,
+    maxSquadSize: 25,
+    quarterSeconds: 20 * 60,
+    subIntervalSeconds: 4 * 60,
+    tracksScoreDefault: true,
+    notes: "16-a-side, 3 zones (5-6-5 split by default).",
   },
 };
 
+// Ordered list surfaced by the new-team picker + age-group flow
+// tests. Excludes the legacy unsplit "U16" / "U17" — those stay
+// in AGE_GROUPS for backwards compatibility with existing teams
+// but don't appear as picker options for new teams. New teams
+// pick the gender-explicit IDs (U16_boys / U16_girls / etc.).
+// Steve 2026-05-20.
 export const AGE_GROUP_ORDER: AgeGroup[] = [
-  "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17",
+  "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15",
+  "U16_boys", "U16_girls",
+  "U17_boys", "U17_girls",
+  "U18_boys", "U18_girls",
 ];
 
 const ZONES3: Zone[] = ["back", "mid", "fwd"];

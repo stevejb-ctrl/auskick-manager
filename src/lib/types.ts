@@ -64,8 +64,20 @@ export type AgeGroup =
   | "U13"
   | "U14"
   | "U15"
+  // Steve 2026-05-20: U16+ splits by gender — Boys play 18-a-side,
+  // Girls play 16-a-side per AFL Junior Match Policy. The unsplit
+  // "U16" / "U17" IDs stay in the union as legacy aliases (older
+  // teams created before the split was added) and resolve to the
+  // boys config; the new-team picker only surfaces the explicit
+  // gendered IDs.
   | "U16"
-  | "U17";
+  | "U16_boys"
+  | "U16_girls"
+  | "U17"
+  | "U17_boys"
+  | "U17_girls"
+  | "U18_boys"
+  | "U18_girls";
 
 export type PositionModel = "zones3" | "positions5";
 

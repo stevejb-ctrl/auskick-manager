@@ -213,11 +213,13 @@ describe("replayGame — roster_shrink", () => {
   it("mutates the lineup: removed players move from their zone to bench", () => {
     const events = buildShrinkEventStream(["fA", "bA"]);
     const state = replayGame(events);
+    expect(state.lineup).not.toBeNull();
+    const lineup = state.lineup!;
 
-    expect(state.lineup.fwd).not.toContain("fA");
-    expect(state.lineup.back).not.toContain("bA");
-    expect(state.lineup.bench).toContain("fA");
-    expect(state.lineup.bench).toContain("bA");
+    expect(lineup.fwd).not.toContain("fA");
+    expect(lineup.back).not.toContain("bA");
+    expect(lineup.bench).toContain("fA");
+    expect(lineup.bench).toContain("bA");
   });
 
   it("closes open stints at the shrink's elapsed_ms (basePlayedZoneMs reflects it)", () => {
@@ -245,9 +247,11 @@ describe("replayGame — roster_shrink", () => {
   it("handles a shrink that removes multiple players from one zone in a single event", () => {
     const events = buildShrinkEventStream(["fA", "fB", "fC"]);
     const state = replayGame(events);
+    expect(state.lineup).not.toBeNull();
+    const lineup = state.lineup!;
 
-    expect(state.lineup.fwd).toEqual(["fD", "fE"]);
-    expect(state.lineup.bench).toEqual(
+    expect(lineup.fwd).toEqual(["fD", "fE"]);
+    expect(lineup.bench).toEqual(
       expect.arrayContaining(["fA", "fB", "fC"]),
     );
     // Each player gets their pre-shrink minutes attributed.
@@ -286,11 +290,13 @@ describe("replayGame — roster_shrink", () => {
       ev("quarter_end", { quarter: 1, elapsed_ms: 12 * 60 * 1000 }),
     ];
     const state = replayGame(events);
+    expect(state.lineup).not.toBeNull();
+    const lineup = state.lineup!;
 
     // fA is back on mid, mB is on the bench.
-    expect(state.lineup.mid).toContain("fA");
-    expect(state.lineup.bench).toContain("mB");
-    expect(state.lineup.fwd).not.toContain("fA");
+    expect(lineup.mid).toContain("fA");
+    expect(lineup.bench).toContain("mB");
+    expect(lineup.fwd).not.toContain("fA");
     // fA's stint history: 30s in fwd before the shrink, plus the
     // rest of the quarter in mid after the swap-on.
     expect(state.basePlayedZoneMs.fA?.fwd).toBe(SHRINK_AT_MS);

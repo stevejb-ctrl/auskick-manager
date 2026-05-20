@@ -39,9 +39,11 @@ function makePlayer(i: number, teamId: string): Player {
 // numbers regress in the config, the assertion makes the change
 // surface-level instead of silent.
 // AFL Community Policy ladder:
-//   U8 → 6, U9 → 9, U10/U11/U12 → 12, U13/U14/U15 → 15, U16/U17 → 18.
+//   U8 → 6, U9 → 9, U10/U11/U12 → 12, U13/U14/U15 → 15,
+//   U16-U18 Boys → 18, U16-U18 Girls → 16.
 // Earlier rev had U11/U12 at 15 and U13/U14/U15 at 18 — both wrong;
-// Steve 2026-05-20 corrected during the per-age-group seed pass.
+// Steve 2026-05-20 corrected during the per-age-group seed pass,
+// then split U16+ by gender same day.
 const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
   U8: 6,
   U9: 9,
@@ -51,8 +53,20 @@ const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
   U13: 15,
   U14: 15,
   U15: 15,
+  // Legacy unsplit entries — kept in AGE_GROUPS for old-team
+  // compatibility but no longer surface in AGE_GROUP_ORDER, so
+  // the iterating test below skips them. Pin the expected
+  // values anyway so a future accidental change in the legacy
+  // record still fails the type check.
   U16: 18,
   U17: 18,
+  // Split entries — Boys 18, Girls 16.
+  U16_boys: 18,
+  U16_girls: 16,
+  U17_boys: 18,
+  U17_girls: 16,
+  U18_boys: 18,
+  U18_girls: 16,
 };
 
 describe("Age group defaults match AFL Junior Match Policy", () => {

@@ -47,10 +47,16 @@ describe("sport registry", () => {
 });
 
 describe("AFL sport config", () => {
-  it("has 10 age groups (U8-U17)", () => {
-    expect(aflSport.ageGroups).toHaveLength(10);
+  it("has 14 age groups (U8-U15 + U16/U17/U18 each split Boys/Girls)", () => {
+    // Steve 2026-05-20: U16+ now splits by gender — Boys play
+    // 18-a-side, Girls play 16-a-side per AFL Junior Match
+    // Policy. The legacy unsplit U16 / U17 IDs are still in
+    // AGE_GROUPS for back-compat with existing teams but are
+    // excluded from AGE_GROUP_ORDER (= aflSport.ageGroups).
+    expect(aflSport.ageGroups).toHaveLength(14);
     expect(aflSport.ageGroups[0].id).toBe("U8");
-    expect(aflSport.ageGroups[9].id).toBe("U17");
+    expect(aflSport.ageGroups[8].id).toBe("U16_boys");
+    expect(aflSport.ageGroups[13].id).toBe("U18_girls");
   });
 
   it("uses rolling substitution and quarters", () => {
