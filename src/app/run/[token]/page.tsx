@@ -392,7 +392,7 @@ export default async function RunPage({ params }: RunPageProps) {
   const enoughAvailable = availableCount >= g.on_field_size;
 
   return (
-    <div className="space-y-6 p-3">
+    <div className="space-y-6 p-3 pb-32">
       <GameInfoHeader teamName={teamName} g={g} />
 
       {/* Orientation banner — only shows pre-kickoff (no lineup_set
@@ -423,33 +423,48 @@ export default async function RunPage({ params }: RunPageProps) {
         />
       </section>
 
-      <div className="flex flex-col items-end gap-1">
-        {!enoughAvailable && (
-          <p className="text-xs text-ink-mute">
-            Mark at least {g.on_field_size} players available to continue.
-          </p>
-        )}
-        {/* SFButton polymorphism doesn't honour `disabled` on its
-            link variant (Next.js Link ignores it), so swap to the
-            button variant when the gate hasn't passed. Same look,
-            properly disabled. */}
-        {enoughAvailable ? (
-          <SFButton
-            href={`/run/${params.token}/lineup`}
-            variant="accent"
-            iconAfter={<SFIcon.chevronRight color="currentColor" />}
-          >
-            Continue to starting lineup
-          </SFButton>
-        ) : (
-          <SFButton
-            variant="accent"
-            iconAfter={<SFIcon.chevronRight color="currentColor" />}
-            disabled
-          >
-            Continue to starting lineup
-          </SFButton>
-        )}
+      {/* Sticky-bottom "Continue to starting lineup" CTA. Matches
+          the authenticated /availability page's pattern so the
+          runner-token surface and the team-coach surface look
+          identical. Steve 2026-05-20: was inline (mid-page) and
+          using variant="accent" (green) — both drifted from the
+          authenticated render which has been fixed-bottom + ink-
+          black for months. Realigned. The `pb-32` on the outer
+          container above gives the bench-list room to clear the
+          fixed bar. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
+        <div className="mx-auto max-w-4xl space-y-1">
+          {!enoughAvailable && (
+            <p className="text-xs text-ink-mute">
+              Mark at least {g.on_field_size} players available to continue.
+            </p>
+          )}
+          {/* SFButton polymorphism doesn't honour `disabled` on its
+              link variant (Next.js Link ignores it), so swap to the
+              button variant when the gate hasn't passed. Same look,
+              properly disabled. */}
+          {enoughAvailable ? (
+            <SFButton
+              href={`/run/${params.token}/lineup`}
+              variant="primary"
+              size="lg"
+              full
+              iconAfter={<SFIcon.chevronRight color="currentColor" />}
+            >
+              Continue to starting lineup
+            </SFButton>
+          ) : (
+            <SFButton
+              variant="primary"
+              size="lg"
+              full
+              iconAfter={<SFIcon.chevronRight color="currentColor" />}
+              disabled
+            >
+              Continue to starting lineup
+            </SFButton>
+          )}
+        </div>
       </div>
     </div>
   );
