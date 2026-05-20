@@ -118,8 +118,11 @@ test("admin invites a parent, parent accepts via /join/[token]", async ({
     // Lands on the Games tab (not the team home) after accepting,
     // so a brand-new parent doesn't see the home-tab setup
     // affordances that could trick them into creating a new team.
+    // 30s budget — the /teams/[id]/games route is often cold on the
+    // first hit and acceptInvite also waits up to 5s on the push
+    // notification call before falling through.
     await userPage.waitForURL(new RegExp(`/teams/${team.id}/games`), {
-      timeout: 10_000,
+      timeout: 30_000,
     });
 
     // --- Step 3: DB confirms membership ---
@@ -390,4 +393,125 @@ test("blank email = link-only invite (no email columns populated)", async ({
     });
 
   await ctx.close();
+});
+
+// ---------------------------------------------------------------
+// Direct-add for existing Siren users
+// ---------------------------------------------------------------
+
+test("entering an existing Siren user's email swaps Send invite for direct-add", async ({
+  browser,
+}) => {
+  test.setTimeout(60_000);
+
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  // Create a separate Siren user who'll be the direct-add target.
+  // They have a real profile but aren't a member of `team` yet, so
+  // the lookup should return "existing" and the form should switch
+  // into the direct-add branch.
+  const target = await createTestUser(admin, {
+    email: `existing-target-${Date.now()}@siren.test`,
+    password: "target-test-pw-1234",
+    fullName: "Existing Target",
+  });
+
+  try {
+    const { ctx, page } = await openInviteForm(browser, team.id);
+    await page.getByLabel(/^email/i).fill(target.email);
+
+    // Debounced lookup resolves to "existing" — the green hint chip
+    // appears and the submit button relabels with the matched name.
+    await expect(page.getByTestId("lookup-existing")).toBeVisible({
+      timeout: 10_000,
+    });
+    const directAddButton = page.getByRole("button", {
+      name: /^add existing target as game manager$/i,
+    });
+    await expect(directAddButton).toBeVisible();
+    await directAddButton.click();
+
+    // Success surface: green "Added X to the team" panel, NOT the
+    // copyable-link panel — the direct path skips the token entirely.
+    await expect(page.getByTestId("invite-added")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("invite-created")).not.toBeVisible();
+
+    // DB confirms the membership was inserted and NO team_invites row
+    // was created — the lookup branch should bypass the token table.
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin
+            .from("team_memberships")
+            .select("role, invited_by")
+            .eq("team_id", team.id)
+            .eq("user_id", target.id)
+            .maybeSingle();
+          return data;
+        },
+        { timeout: 15_000, intervals: [200, 500, 500, 1000, 1000, 2000] },
+      )
+      .toMatchObject({ role: "game_manager", invited_by: ownerId });
+
+    const { count: inviteCount } = await admin
+      .from("team_invites")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", team.id);
+    expect(inviteCount ?? 0).toBe(0);
+
+    await ctx.close();
+  } finally {
+    await deleteTestUser(admin, target.id);
+  }
+});
+
+test("looking up an email of an existing team member disables submit", async ({
+  browser,
+}) => {
+  test.setTimeout(60_000);
+
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  // Seed an existing user AND a membership row so the lookup returns
+  // "already_member" not "existing".
+  const target = await createTestUser(admin, {
+    email: `already-member-${Date.now()}@siren.test`,
+    password: "target-test-pw-1234",
+    fullName: "Already Member",
+  });
+
+  try {
+    await admin.from("team_memberships").insert({
+      team_id: team.id,
+      user_id: target.id,
+      role: "parent",
+      invited_by: ownerId,
+    });
+
+    const { ctx, page } = await openInviteForm(browser, team.id);
+    await page.getByLabel(/^email/i).fill(target.email);
+
+    await expect(page.getByTestId("lookup-already-member")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page.getByRole("button", { name: /^already a member$/i }),
+    ).toBeDisabled();
+
+    await ctx.close();
+  } finally {
+    await deleteTestUser(admin, target.id);
+  }
 });
