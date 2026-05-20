@@ -41,7 +41,7 @@ export function ChipPicker({ value, onChange, labels, modes, disabled }: ChipPic
             aria-hidden
             className="inline-block h-3 w-3 rounded-full border border-dashed border-ink-mute"
           />
-          Unset
+          Any
         </button>
         {CHIP_KEYS.map((k) => {
           const label = labels[k];
