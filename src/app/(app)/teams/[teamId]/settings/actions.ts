@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeChipMode } from "@/lib/chips";
 import type { ActionResult } from "@/lib/types";
 
 const BUCKET = "team-songs";
@@ -274,16 +275,20 @@ export async function updateTeamChipSettings(
     const trimmed = (v ?? "").trim();
     return trimmed === "" ? null : trimmed.slice(0, 32);
   };
-  const normMode = (v: string) => (v === "group" ? "group" : "split");
+  // Mode validation lives in @/lib/chips (single canonical
+  // version). Steve 2026-05-20: was inline as
+  // `v === "group" ? "group" : "split"` which silently dropped
+  // forward/centre/back picks — see normalizeChipMode jsdoc for
+  // the full post-mortem.
   const { error: updateError } = await supabase
     .from("teams")
     .update({
       chip_a_label: normLabel(patch.chip_a_label),
       chip_b_label: normLabel(patch.chip_b_label),
       chip_c_label: normLabel(patch.chip_c_label),
-      chip_a_mode: normMode(patch.chip_a_mode),
-      chip_b_mode: normMode(patch.chip_b_mode),
-      chip_c_mode: normMode(patch.chip_c_mode),
+      chip_a_mode: normalizeChipMode(patch.chip_a_mode),
+      chip_b_mode: normalizeChipMode(patch.chip_b_mode),
+      chip_c_mode: normalizeChipMode(patch.chip_c_mode),
     })
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };

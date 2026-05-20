@@ -43,6 +43,24 @@ export function isChipZoneMode(mode: ChipMode | undefined): mode is ChipZoneMode
 }
 
 /**
+ * Canonical normaliser for chip mode strings on the way INTO the
+ * database. Any value not in the ChipMode union falls back to
+ * "split" so a future enum extension at the DB level (or a
+ * stale client posting an unknown value) can't corrupt the
+ * column. Steve 2026-05-20: extracted from settings/actions.ts
+ * after the original inline normaliser silently collapsed every
+ * mode to "split"|"group", which silently dropped every zone-
+ * preference (forward / centre / back) pick before it reached
+ * the DB. Single canonical version now — every write path that
+ * persists a chip mode MUST funnel through this.
+ */
+const VALID_CHIP_MODES: ReadonlySet<ChipMode> = new Set(CHIP_MODES);
+export function normalizeChipMode(v: string | null | undefined): ChipMode {
+  if (typeof v !== "string") return "split";
+  return VALID_CHIP_MODES.has(v as ChipMode) ? (v as ChipMode) : "split";
+}
+
+/**
  * Human-readable label for each chip mode — used in settings
  * tooltips and any future surface that surfaces the active mode
  * in conversational copy.
