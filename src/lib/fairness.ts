@@ -196,6 +196,24 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
           if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
         }
       }
+    } else if (ev.type === "roster_shrink" && lineup) {
+      // Mid-quarter on-field-size reduction. Metadata carries the
+      // list of players to drop from their zones; for each one we
+      // close the open stint and push them to bench. Mirrors the
+      // injury / player_loan handlers but acts on multiple players
+      // in one event. Steve 2026-05-20.
+      const ids = ((ev.metadata as { remove_player_ids?: string[] })
+        .remove_player_ids ?? []) as string[];
+      for (const pid of ids) {
+        const z = zoneOf(lineup, pid);
+        if (!z) continue;
+        const sz = stintZ[pid] ?? z;
+        add(pid, sz, elapsed - (stintStart[pid] ?? 0));
+        delete stintStart[pid];
+        delete stintZ[pid];
+        lineup[z] = lineup[z].filter((p) => p !== pid);
+        if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
+      }
     }
   }
 
@@ -1156,6 +1174,23 @@ export function replayGame(events: GameEvent[]): GameState {
           addLoan(pid, elapsed - start);
           delete state.loanStartMs[pid];
         }
+      }
+    } else if (ev.type === "roster_shrink" && state.lineup) {
+      // Mid-quarter on-field-size reduction. Close each removed
+      // player's open stint and move them to bench. Mirrors the
+      // gameZoneMinutes handler — same shape, same fields.
+      // Steve 2026-05-20.
+      const ids = ((ev.metadata as { remove_player_ids?: string[] })
+        .remove_player_ids ?? []) as string[];
+      for (const pid of ids) {
+        const z = zoneOf(state.lineup, pid);
+        if (!z) continue;
+        const sz = state.stintZone[pid] ?? z;
+        addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
+        delete state.stintStartMs[pid];
+        delete state.stintZone[pid];
+        state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
+        if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
       }
     } else if (ev.type === "goal") {
       state.teamScore.goals++;

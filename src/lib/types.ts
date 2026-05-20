@@ -240,6 +240,15 @@ export type GameEventType =
   | "score_undo"
   | "field_zone_swap"
   | "player_loan"
+  // Mid-quarter on-field-size REDUCTION. Metadata:
+  //   { remove_player_ids: string[], new_size, quarter, elapsed_ms }
+  // Replays as: close each removed player's open stint, drop them
+  // from their zone, push them to bench. Used by
+  // LiveGameSettingsModal when the coach shrinks field count
+  // mid-quarter. Growing doesn't need an event — the
+  // games.on_field_size update + displayZoneCaps suffices and
+  // the coach drags via existing swap UI (Steve 2026-05-20).
+  | "roster_shrink"
   // Netball: subs only happen at period breaks, so we emit a single
   // lineup-snapshot event per break instead of per-player `swap`s.
   | "period_break_swap";

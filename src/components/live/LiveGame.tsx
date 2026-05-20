@@ -1524,6 +1524,10 @@ export function LiveGame({
                 auth={auth}
                 gameId={gameId}
                 subIntervalSeconds={subIntervalSeconds}
+                currentOnFieldSize={currentOnFieldSize}
+                minOnFieldSize={minOnFieldSize}
+                maxOnFieldSize={maxOnFieldSize}
+                playersById={playersById}
               />
             }
           />
