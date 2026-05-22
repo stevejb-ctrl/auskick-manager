@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
+import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
@@ -195,6 +196,14 @@ export async function startNetballGame(
   // Direct insert above bypasses insertEvent — invalidate the
   // season-events cache explicitly.
   invalidateSeasonEvents(w.teamId);
+
+  // Telegram ping on Q1 kickoff — same gate as AFL `startGame`.
+  // Fire before the redirect since redirect() throws and unwinds
+  // the function. See notifyGameStarted for the demo-skip + soft-
+  // fail rationale.
+  if (startQuarterToo) {
+    notifyGameStarted(w.supabase, w.teamId, gameId, w.userId).catch(() => {});
+  }
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);

@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
+import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -202,6 +203,19 @@ export async function startGame(
   // the new lineup_set / quarter_start rows.
   invalidateSeasonEvents(w.teamId);
 
+  // Telegram ping on Q1 kickoff — fire-and-forget so a slow Telegram
+  // API can't hold the redirect. Gated on `startQuarterToo` so we
+  // only ping on the first quarter (Q2–Q4 use a separate path), and
+  // we skip the demo team so exploration on /demo doesn't pollute
+  // the signal. Steve uses this to count real game-starts each
+  // weekend; one ping per game is the target. Must be awaited
+  // before the `redirect()` below — redirect() throws NEXT_REDIRECT
+  // and unwinds the function, so anything we want fired-and-
+  // forgot has to be kicked off before that throw.
+  if (startQuarterToo) {
+    notifyGameStarted(w.supabase, w.teamId, gameId, w.userId).catch(() => {});
+  }
+
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
@@ -210,6 +224,7 @@ export async function startGame(
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
 }
+
 
 // ─── Pre-game lineup draft ───────────────────────────────────
 // Save / load the night-before plan. One row per game keyed by

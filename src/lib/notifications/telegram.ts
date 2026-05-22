@@ -38,6 +38,30 @@ export function formatTeamMessage(
   return `🏉 <b>New team created</b>\n\nName: ${escapeHtml(name)}\nAge group: ${ageGroup}${sportLine}\nCreated by: ${escapeHtml(createdBy)}\nTime: ${time}`;
 }
 
+export function formatGameStartedMessage(input: {
+  teamName: string;
+  opponent: string;
+  sport: string;
+  startedBy: string;
+  time: string;
+}): string {
+  // Fires once per game on Q1 kickoff (gated by `startQuarterToo` in
+  // startGame / startNetballGame). Q2–Q4 starts don't ping — they're
+  // continuations of the same game, and Steve wants a count of
+  // distinct games being played, not a buzzing phone every break.
+  // Demo team is filtered out at the call site so exploration on
+  // /demo doesn't pollute the signal.
+  const { teamName, opponent, sport, startedBy, time } = input;
+  return [
+    `🏁 <b>Game started</b>`,
+    ``,
+    `Team: ${escapeHtml(teamName)} (${escapeHtml(sport)})`,
+    `vs: ${escapeHtml(opponent)}`,
+    `Started by: ${escapeHtml(startedBy)}`,
+    `Time: ${time}`,
+  ].join("\n");
+}
+
 export async function sendTelegramNotification(text: string): Promise<void> {
   if (!TOKEN || !CHAT_ID) return;
 
