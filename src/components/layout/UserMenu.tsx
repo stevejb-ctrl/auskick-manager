@@ -86,6 +86,19 @@ export function UserMenu({ email }: UserMenuProps) {
           >
             My account
           </Link>
+          {/* Always-available entry point for a parent who picks up a
+              join code from a second coach after already being on
+              another team. Lives next to My account in the avatar
+              dropdown so they don't have to leave every existing team
+              just to find the join surface again. */}
+          <Link
+            href="/join-team"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2.5 text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Join a team
+          </Link>
           <button
             type="button"
             role="menuitem"

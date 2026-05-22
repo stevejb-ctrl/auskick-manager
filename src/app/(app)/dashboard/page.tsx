@@ -104,6 +104,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         Create a new team
       </SFButton>
 
+      {/* Secondary "Join with a code" CTA — mirrors the dual path
+          on /welcome so a parent who reached the empty-state
+          dashboard (via ?welcome=skipped, or after leaving every
+          team they were in) still sees the join-by-code entry
+          point and doesn't have to hunt for it in the header menu. */}
+      <p className="text-center text-xs text-ink-mute">
+        Got a join code?{" "}
+        <Link
+          href="/join-team"
+          className="font-medium text-brand-700 hover:text-brand-800"
+        >
+          Join a team
+        </Link>
+      </p>
+
       {/* Secondary link to /account. Mirrors the avatar menu in the
           (app) header — same destination, two entry points so users
           coming straight to the dashboard from a deep link don't have

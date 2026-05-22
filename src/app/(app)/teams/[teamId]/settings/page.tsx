@@ -29,7 +29,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode, join_code")
       .eq("id", params.teamId)
       .single(),
     user
@@ -101,6 +101,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         isAdmin={isAdmin}
         members={members}
         invites={invites}
+        joinCode={
+          (team as { join_code?: string | null }).join_code ?? null
+        }
       />
       <TrackScoringToggle
         teamId={params.teamId}

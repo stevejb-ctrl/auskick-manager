@@ -5,6 +5,7 @@ import {
   addExistingMember,
   createInvite,
   lookupInviteRecipient,
+  regenerateJoinCode,
   removeMember,
   revokeInvite,
   sendInviteEmail,
@@ -50,6 +51,12 @@ interface TeamMembersSettingsProps {
   isAdmin: boolean;
   members: MemberRow[];
   invites: PendingInvite[];
+  /**
+   * Team join code, displayed in the admin-only JoinCodeSection.
+   * Nullable to be defensive about pre-migration data, though
+   * 0041's NOT NULL constraint means real teams will always have one.
+   */
+  joinCode: string | null;
 }
 
 export function TeamMembersSettings({
@@ -57,13 +64,14 @@ export function TeamMembersSettings({
   isAdmin,
   members,
   invites,
+  joinCode,
 }: TeamMembersSettingsProps) {
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-semibold text-ink">Team managers</h2>
+        <h2 className="text-base font-semibold text-ink">Team members</h2>
         <span className="text-xs text-ink-mute">
-          {members.length} {members.length === 1 ? "manager" : "managers"}
+          {members.length} {members.length === 1 ? "member" : "members"}
         </span>
       </div>
 
@@ -78,10 +86,99 @@ export function TeamMembersSettings({
         ))}
       </ul>
 
+      {isAdmin && joinCode && (
+        <div className="mt-6 border-t border-hairline pt-5">
+          <JoinCodeSection teamId={teamId} initialCode={joinCode} />
+        </div>
+      )}
+
       {isAdmin && (
         <div className="mt-6 border-t border-hairline pt-5">
           <InviteSection teamId={teamId} invites={invites} />
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Join-code section (admin-only) ─────────────────────────────
+
+function JoinCodeSection({
+  teamId,
+  initialCode,
+}: {
+  teamId: string;
+  initialCode: string;
+}) {
+  const [code, setCode] = useState(initialCode);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function handleRegenerate() {
+    setError(null);
+    if (
+      !confirm(
+        "Regenerate the join code? The old one will stop working immediately. " +
+          "Anyone using the old code will need the new one to join.",
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await regenerateJoinCode(teamId);
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
+      if (res.code) setCode(res.code);
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-sm font-semibold text-ink">Team join code</h3>
+      </div>
+      <p className="text-xs text-ink-mute">
+        Parents with a Siren account can enter this code to join the team as a
+        parent. Read it aloud at the sideline, or copy and text it. Regenerate
+        any time if it leaks.
+      </p>
+      <div className="flex items-center gap-2">
+        <code
+          className="flex-1 rounded border border-hairline bg-surface-alt px-3 py-2 text-center font-mono text-lg font-bold tracking-[0.18em] text-ink"
+          data-testid="team-join-code"
+        >
+          {code}
+        </code>
+        <Button type="button" size="sm" onClick={copy}>
+          {copied ? "Copied!" : "Copy"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleRegenerate}
+          loading={isPending}
+        >
+          Regenerate
+        </Button>
+      </div>
+      {error && (
+        <p className="text-xs text-danger" role="alert">
+          {error}
+        </p>
       )}
     </div>
   );
