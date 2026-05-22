@@ -104,6 +104,11 @@ interface LeagueLineupPickerProps {
     a: string | null;
     b: string | null;
   };
+  /** Per-chip modes — drives the F/B chip-letter overlay on each
+   *  player tile for zone-mode chips (forward / back at RL). */
+  chipModes?: Partial<
+    Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
+  >;
 }
 
 export function LeagueLineupPicker({
@@ -119,6 +124,7 @@ export function LeagueLineupPicker({
   seasonEvents,
   initialLoanedIds = [],
   chipLabels,
+  chipModes,
 }: LeagueLineupPickerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1090,6 +1096,7 @@ export function LeagueLineupPicker({
             vestRequirements={reqs}
             vestByPlayer={vestByPlayer}
             selectedPlayerId={selectedPlayerId}
+            chipModes={chipModes}
             onPlayerClick={handleTileTap}
             onPlayerLongPress={handleTileLongPress}
             onVacantSpotTap={
@@ -1106,6 +1113,7 @@ export function LeagueLineupPicker({
         players={benchPlayers}
         vestByPlayer={vestByPlayer}
         selectedPlayerId={selectedPlayerId}
+        chipModes={chipModes}
         onPlayerClick={handleTileTap}
         onPlayerLongPress={handleTileLongPress}
         disabled={isPending}

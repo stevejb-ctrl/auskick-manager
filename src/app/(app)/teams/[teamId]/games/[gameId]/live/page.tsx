@@ -18,6 +18,7 @@ import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
 
 /**
@@ -121,10 +122,24 @@ export default async function LivePage({ params }: LivePageProps) {
   // branch below also threads it through `<NetballLiveGame>` so
   // chip placement applies to netball rotations too (Steve
   // 2026-05-16 AFL parity).
+  // Chip modes — normalised through `normalizeChipMode` so any
+  // unknown value (stale client write, future enum extension)
+  // collapses to "split" rather than corrupting the column or
+  // breaking the type. Includes the new zone-preference modes
+  // (forward / centre / back) introduced for the RL F/B chip
+  // letter overlay; RL teams only ever pick forward / back from
+  // the picker, centre is AFL-only and inert for RL. Steve
+  // 2026-05-20.
   const teamChipModes = {
-    a: ((teamRow as { chip_a_mode?: "split" | "group" } | null)?.chip_a_mode ?? "split") as import("@/lib/chips").ChipMode,
-    b: ((teamRow as { chip_b_mode?: "split" | "group" } | null)?.chip_b_mode ?? "split") as import("@/lib/chips").ChipMode,
-    c: ((teamRow as { chip_c_mode?: "split" | "group" } | null)?.chip_c_mode ?? "split") as import("@/lib/chips").ChipMode,
+    a: normalizeChipMode(
+      (teamRow as { chip_a_mode?: string | null } | null)?.chip_a_mode,
+    ),
+    b: normalizeChipMode(
+      (teamRow as { chip_b_mode?: string | null } | null)?.chip_b_mode,
+    ),
+    c: normalizeChipMode(
+      (teamRow as { chip_c_mode?: string | null } | null)?.chip_c_mode,
+    ),
   };
   // Chip labels — RL uses these to title the Forwards / Backs cards
   // in the lineup picker. AFL + netball just pass them through to
@@ -286,6 +301,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,
               }}
+              chipModes={teamChipModes}
             />
           )}
         </div>
@@ -306,6 +322,7 @@ export default async function LivePage({ params }: LivePageProps) {
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
+          chipModes={teamChipModes}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

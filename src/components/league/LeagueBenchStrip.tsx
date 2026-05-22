@@ -35,6 +35,11 @@ interface LeagueBenchStripProps {
   /** Total pairs in the current rotation — drives the per-tile
    *  pair-number badge for multi-swap rotations. */
   totalSwapPairs?: number;
+  /** Per-chip modes from the team row. Forwarded to bench tiles
+   *  so zone-mode chips render the F/B letter overlay. */
+  chipModes?: Partial<
+    Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
+  >;
   onPlayerClick?: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
   disabled?: boolean;
@@ -52,6 +57,7 @@ export function LeagueBenchStrip({
   selectedPlayerId,
   swapOns,
   totalSwapPairs = 0,
+  chipModes,
   onPlayerClick,
   onPlayerLongPress,
   disabled,
@@ -87,6 +93,7 @@ export function LeagueBenchStrip({
                     }
                   : null
               }
+              chipModes={chipModes}
               onClick={onPlayerClick ? () => onPlayerClick(p.id) : undefined}
               onLongPress={
                 onPlayerLongPress

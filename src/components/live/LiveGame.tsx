@@ -184,7 +184,7 @@ interface LiveGameProps {
   /** Sport+age default — shown as a "(default)" tag on the dropdown. */
   defaultOnFieldSize: number;
   /** Per-chip mode (split/group) — passed to QuarterBreak's suggester. */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
   exitHref?: string;
   /**
    * True when the current user has admin role on this team. Drives

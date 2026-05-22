@@ -76,7 +76,7 @@ interface LineupPickerProps {
    * (e.g. a player who needs to stay paired with specific teammates),
    * while "split" (default) spreads them across zones.
    */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
   /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the

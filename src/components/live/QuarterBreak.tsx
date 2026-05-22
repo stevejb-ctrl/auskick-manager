@@ -82,7 +82,7 @@ interface QuarterBreakProps {
   /** Default on-field size for the team's age group (shown as a hint). */
   defaultOnFieldSize: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
   onStarted: () => void;
 }
 

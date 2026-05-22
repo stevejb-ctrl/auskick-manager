@@ -262,9 +262,9 @@ export async function updateTeamChipSettings(
     chip_a_label: string | null;
     chip_b_label: string | null;
     chip_c_label: string | null;
-    chip_a_mode: "split" | "group";
-    chip_b_mode: "split" | "group";
-    chip_c_mode: "split" | "group";
+    chip_a_mode: import("@/lib/chips").ChipMode;
+    chip_b_mode: import("@/lib/chips").ChipMode;
+    chip_c_mode: import("@/lib/chips").ChipMode;
   },
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);

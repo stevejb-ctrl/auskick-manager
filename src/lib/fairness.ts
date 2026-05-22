@@ -484,7 +484,7 @@ export function suggestStartingLineup(
    * (e.g. a player who needs to stay paired with specific teammates).
    * Missing keys default to "split".
    */
-  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">> = {},
+  chipModeByKey: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>> = {},
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -659,7 +659,7 @@ export function suggestStartingLineup(
 const CHIP_PENALTY_BASE = 50;
 function buildChipPenaltyFor(
   chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
-  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">>,
+  chipModeByKey: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>,
   placedByZone: Map<Zone, Set<string>>,
 ) {
   return (pid: string, target: Zone): number => {

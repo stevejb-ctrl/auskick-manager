@@ -23,7 +23,8 @@
 import { memo, useRef, useState } from "react";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
@@ -64,6 +65,18 @@ interface LeaguePlayerTileProps {
     pair: number;
     totalPairs: number;
   } | null;
+  /**
+   * Per-chip modes from the team row (split / group / forward /
+   * back; centre is AFL-only and inert for RL). When the
+   * player's chip mode is a zone mode, the inline chip indicator
+   * surfaces the F/B letter inside the dot using the zone-colour
+   * palette so it reads as the zone they'll be biased to. Steve
+   * 2026-05-20.
+   *
+   * Optional — legacy callers without mode-awareness get the
+   * plain coloured dot via chipPalette's fallback.
+   */
+  chipModes?: Partial<Record<ChipKey, ChipMode>>;
   onClick?: () => void;
   /** Long-press handler — opens per-player action sheet. */
   onLongPress?: () => void;
@@ -91,6 +104,7 @@ function LeaguePlayerTileImpl({
   injured = false,
   loaned = false,
   swap = null,
+  chipModes,
   onClick,
   onLongPress,
   disabled = false,
@@ -248,21 +262,24 @@ function LeaguePlayerTileImpl({
         )}
 
         {/* Name — big and bold, truncated. Mirrors AFL's middle row.
-            Leading chip dot when the player has a cohort tag — matches
-            PlayerTile.tsx so coaches who switch sports get the same
-            visual cue. RL has no zone-based suggester, so the dot is
-            purely informational (coach eyeballs balance across field
-            vs bench). */}
-        <span className="truncate text-sm font-bold leading-tight text-ink">
+            Leading chip indicator when the player has a cohort tag —
+            uses the shared ChipIndicator so zone-mode chips (forward /
+            back) surface their F / B letter inside the dot, matching
+            the affordance AFL uses for F / C / B. For non-zone modes
+            (split / group / undefined) the indicator renders as a
+            plain coloured dot — same as the legacy look. Steve
+            2026-05-20. */}
+        <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
           {player.chip && (
-            <span
-              aria-hidden
-              className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-                CHIP_COLORS[player.chip as ChipKey].dot
-              }`}
+            <ChipIndicator
+              chipKey={player.chip as ChipKey}
+              mode={chipModes?.[player.chip as ChipKey]}
+              size="md"
             />
           )}
-          {lastInitial ? `${firstName} ${lastInitial}` : firstName}
+          <span className="truncate">
+            {lastInitial ? `${firstName} ${lastInitial}` : firstName}
+          </span>
         </span>
 
         {/* Bottom row — kick badge + jersey · minutes, INLINE.
@@ -334,6 +351,18 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
   if (a.onClick !== b.onClick) return false;
   if (a.onLongPress !== b.onLongPress) return false;
   if (a.disabled !== b.disabled) return false;
+  // chipModes is a small record — compare the three keys directly so a
+  // settings change (split → forward) invalidates the cached tile and
+  // the F/B letter overlay updates without a full remount.
+  if (a.chipModes !== b.chipModes) {
+    if (
+      a.chipModes?.a !== b.chipModes?.a
+      || a.chipModes?.b !== b.chipModes?.b
+      || a.chipModes?.c !== b.chipModes?.c
+    ) {
+      return false;
+    }
+  }
   if (quantize(a.totalMs) !== quantize(b.totalMs)) return false;
   // conversion is an object — shallow compare its fields.
   if (a.conversion !== b.conversion) {

@@ -202,7 +202,7 @@ interface NetballLiveGameProps {
    * a netball coach who configures chips on their team settings
    * actually sees them influence the rotation.
    */
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
   /**
    * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
    * on each own-team goal commit. AFL has had this since song

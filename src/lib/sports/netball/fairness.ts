@@ -408,7 +408,7 @@ export interface NetballSuggestInput {
    * shape exactly.
    */
   chipByPlayerId?: Record<string, "a" | "b" | "c" | null | undefined>;
-  chipModeByKey?: Partial<Record<"a" | "b" | "c", "split" | "group">>;
+  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per

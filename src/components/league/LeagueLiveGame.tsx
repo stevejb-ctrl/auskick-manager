@@ -65,6 +65,15 @@ interface LeagueLiveGameProps {
    * game of the season → all candidates show 0.
    */
   seasonEvents: GameEvent[];
+  /**
+   * Per-chip modes from the team row (split / group / forward /
+   * back). Drives the F/B chip-letter overlay on each player tile
+   * for zone-mode chips. Optional — defaults to all "split" if
+   * caller omits, which matches the legacy plain-dot behaviour.
+   */
+  chipModes?: Partial<
+    Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
+  >;
   isAdmin: boolean;
   exitHref: string;
 }
@@ -81,6 +90,7 @@ export function LeagueLiveGame({
   state,
   thisGameEvents,
   seasonEvents,
+  chipModes,
   isAdmin,
   exitHref,
 }: LeagueLiveGameProps) {
@@ -1035,6 +1045,7 @@ export function LeagueLiveGame({
             selectedPlayerId={selectedPlayerId}
             swapOffs={swapOffs}
             totalSwapPairs={totalSwapPairs}
+            chipModes={chipModes}
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
             onVacantSpotTap={
@@ -1056,6 +1067,7 @@ export function LeagueLiveGame({
             selectedPlayerId={selectedPlayerId}
             swapOns={swapOns}
             totalSwapPairs={totalSwapPairs}
+            chipModes={chipModes}
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
             disabled={pending}

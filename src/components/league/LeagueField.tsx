@@ -167,6 +167,12 @@ interface LeagueFieldProps {
    *  per-tile pair-number badge — shown only when totalPairs > 1
    *  so a single-swap rotation reads as a clean arrow. */
   totalSwapPairs?: number;
+  /** Per-chip modes from the team row (split / group / forward /
+   *  back). Forwarded to each tile so zone-mode chips render the
+   *  F/B letter inside the dot. */
+  chipModes?: Partial<
+    Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
+  >;
   onPlayerClick?: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
   /** Tap on a vacant slot — used to bring a selected bench player on. */
@@ -192,6 +198,7 @@ export function LeagueField({
   selectedPlayerId,
   swapOffs,
   totalSwapPairs = 0,
+  chipModes,
   onPlayerClick,
   onPlayerLongPress,
   onVacantSpotTap,
@@ -357,6 +364,7 @@ export function LeagueField({
                             }
                           : null
                       }
+                      chipModes={chipModes}
                       onClick={
                         onPlayerClick
                           ? () => onPlayerClick(player.id)
