@@ -507,3 +507,60 @@ export async function addExistingMember(
   revalidatePath("/dashboard");
   return { success: true, teamId };
 }
+
+/**
+ * Rotate the team's join code. Admin-only. Used when the code leaks
+ * (a parent forwards it past the immediate family, an ex-coach's
+ * phone gets borrowed, etc.). The DB function `generate_team_join_code`
+ * does the actual generation so the alphabet + length stay defined
+ * in one place.
+ *
+ * Returns the new code so the UI can update without a round-trip.
+ * Retries once on the (vanishingly rare) unique-index violation —
+ * any third collision is almost certainly the function itself being
+ * broken, in which case the error is the right surface.
+ */
+export async function regenerateJoinCode(
+  teamId: string,
+): Promise<ActionResult & { code?: string }> {
+  const { error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  // Admin client: we need the DB function and the update to bypass
+  // RLS (the function is `security definer`-shaped to ordinary
+  // callers, but the simpler path is the service-role bypass we
+  // already use elsewhere in this file).
+  const admin = createAdminClient();
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data: candidate, error: rpcError } = await admin.rpc(
+      "generate_team_join_code",
+    );
+    const code = typeof candidate === "string" ? candidate : null;
+    if (rpcError || !code) {
+      return {
+        success: false,
+        error: rpcError?.message ?? "Couldn't generate a new code.",
+      };
+    }
+
+    const { error: updateError } = await admin
+      .from("teams")
+      .update({ join_code: code })
+      .eq("id", teamId);
+
+    if (!updateError) {
+      revalidatePath(`/teams/${teamId}/settings`);
+      return { success: true, code };
+    }
+    // 23505 = unique_violation. Loop once to try a fresh code.
+    if (updateError.code !== "23505") {
+      return { success: false, error: updateError.message };
+    }
+  }
+
+  return {
+    success: false,
+    error: "Couldn't generate a unique code — please try again.",
+  };
+}

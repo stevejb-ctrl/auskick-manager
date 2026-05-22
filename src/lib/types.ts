@@ -119,6 +119,14 @@ export interface Team {
   chip_a_mode: import("@/lib/chips").ChipMode;
   chip_b_mode: import("@/lib/chips").ChipMode;
   chip_c_mode: import("@/lib/chips").ChipMode;
+  /**
+   * Short, phone-typing-friendly code the manager can hand to a
+   * parent verbally. Parent enters it on /join-team to land as a
+   * `parent` membership. Migration 0041. Format: "ABCD-EFGH" from a
+   * 31-char alphabet (no 0/O/1/I/L). Reusable until the manager
+   * regenerates it from team settings.
+   */
+  join_code: string;
   created_by: string;
   created_at: string;
   updated_at: string;
