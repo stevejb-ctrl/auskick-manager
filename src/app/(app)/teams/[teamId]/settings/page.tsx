@@ -29,7 +29,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode, join_code")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     user
@@ -43,6 +43,24 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   ]);
 
   if (!team) notFound();
+
+  // Read `join_code` in its own query so a deploy that beats the
+  // migration to prod still renders the rest of the page. Migration
+  // 0041 added the column; if it hasn't been applied yet the SELECT
+  // errors and we keep joinCode = null. JoinCodeSection already
+  // renders only when joinCode is non-null, so the panel just
+  // doesn't appear until the migration is in. Once 0041 is applied
+  // everywhere this two-step can be inlined back into the SELECT
+  // above.
+  let joinCode: string | null = null;
+  const { data: codeRow } = await supabase
+    .from("teams")
+    .select("join_code")
+    .eq("id", params.teamId)
+    .maybeSingle();
+  if (codeRow) {
+    joinCode = (codeRow as { join_code?: string | null }).join_code ?? null;
+  }
 
   const isAdmin = membership?.role === "admin";
   const sport = ((team.sport as string | null) ?? "afl") as Sport;
@@ -101,9 +119,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         isAdmin={isAdmin}
         members={members}
         invites={invites}
-        joinCode={
-          (team as { join_code?: string | null }).join_code ?? null
-        }
+        joinCode={joinCode}
       />
       <TrackScoringToggle
         teamId={params.teamId}
