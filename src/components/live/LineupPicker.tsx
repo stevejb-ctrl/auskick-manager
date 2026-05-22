@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   markLoan,
   saveLineupDraft,
@@ -481,9 +481,31 @@ export function LineupPicker({
   // zero server state changed.
   const [startModalOpen, setStartModalOpen] = useState(false);
 
+  // Anchor for walking up the DOM to reset scrolled ancestors before
+  // the modal mounts — see handleOpenStartModal for the why.
+  const lineupPickerRootRef = useRef<HTMLDivElement>(null);
+
   function handleOpenStartModal() {
     setServerError(null);
     if (onFieldCount === 0) return;
+    // Same scroll-reset as QuarterBreak. The public /run/{token}
+    // demo wraps the app in DeviceFrame, whose `translateZ(0)` makes
+    // it a containing block for `position: fixed` descendants. With
+    // the GM scrolled mid-picker, the modal then renders at the top
+    // of the framed area and its primary "Start Q1" button can fall
+    // below the visible scroll window. Reset every scrolled ancestor
+    // so the modal centres in view. window.scrollTo covers the non-
+    // framed (mobile / installed PWA) case.
+    if (typeof document !== "undefined") {
+      let el = lineupPickerRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     setStartModalOpen(true);
   }
 
@@ -553,7 +575,7 @@ export function LineupPicker({
     // pushed the parent's bottom edge so far below the sticky
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
-    <div className="space-y-4">
+    <div ref={lineupPickerRootRef} className="space-y-4">
       <LineupPickerBreadcrumb backHref={backHref} />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────

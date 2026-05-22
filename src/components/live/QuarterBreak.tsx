@@ -738,8 +738,34 @@ export function QuarterBreak({
   // lineup" cleanly cancels — zero server writes.
   const [startModalOpen, setStartModalOpen] = useState(false);
 
+  // Anchor for walking up the DOM tree to find scrolled ancestors —
+  // see the comment in handleOpenStartModal below.
+  const quarterBreakRootRef = useRef<HTMLDivElement>(null);
+
   function handleOpenStartModal() {
     setError(null);
+    // Reset every scrolled ancestor before opening the modal. The
+    // public demo at /run/{token} wraps the app in DeviceFrame, which
+    // applies `transform: translateZ(0)` for rounded-corner clipping
+    // — that transform makes the frame a containing block for any
+    // `position: fixed` descendant, so the modal anchors to the
+    // phone-frame's bounds rather than the browser viewport. When the
+    // GM has scrolled the frame's content down to see the back of the
+    // lineup, the modal then renders at the top of the frame and its
+    // primary "Start Q{n}" button can drop below the visible scroll
+    // window. Scrolling everything to 0 first puts the user at the
+    // top of the frame, which is where the modal centres. window.
+    // scrollTo covers the non-framed (mobile / installed PWA) case.
+    if (typeof document !== "undefined") {
+      let el = quarterBreakRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     setStartModalOpen(true);
   }
 
@@ -783,7 +809,7 @@ export function QuarterBreak({
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={quarterBreakRootRef} className="space-y-4">
       {/* Orientation strip — Steve 2026-05-13: the hero card used to
           dominate the QB top, but with the rotation toggle moved out
           (commit ba04bd1) and the fairness number removed in this
