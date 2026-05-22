@@ -916,3 +916,41 @@ export async function assignLeagueVest(
     idempotencyKey,
   );
 }
+
+// ─── Mid-game sub-interval override ──────────────────────────
+// Updates games.sub_interval_seconds for THIS game only — leaves
+// the team default untouched. Drives the SubDueModal cadence on
+// the next router.refresh().
+//
+// Steve 2026-05-20: AFL has the same mid-game knob in
+// LiveGameSettingsButton; this is the RL parity for the sub-
+// interval slice of that affordance. Mid-game on-field-size
+// shrink (the other half of the AFL modal) depends on main's
+// roster_shrink event migration — deferred to the post-merge
+// follow-up.
+//
+// Bounds: 30..600 seconds (30s minimum because anything tighter
+// is a spam vector; 600s = 10 min cap because longer than that
+// means SubDueModal effectively never fires).
+export async function setLeagueSubInterval(
+  auth: LiveAuth,
+  gameId: string,
+  subIntervalSeconds: number,
+): Promise<ActionResult> {
+  const writer = await resolveWriter(auth, gameId);
+  if (writer.error) return { success: false, error: writer.error };
+  const clamped = Math.max(
+    30,
+    Math.min(600, Math.round(subIntervalSeconds)),
+  );
+  const { error: updateError } = await writer.supabase
+    .from("games")
+    .update({ sub_interval_seconds: clamped })
+    .eq("id", gameId);
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+  invalidateSeasonEvents(writer.teamId);
+  revalidatePath(`/teams/${writer.teamId}/games/${gameId}/live`);
+  return { success: true };
+}

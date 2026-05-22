@@ -33,7 +33,7 @@
 // collapse shows lent players (read-only chips) and a link to
 // the squad page.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -128,6 +128,10 @@ export function LeagueLineupPicker({
 }: LeagueLineupPickerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Anchor for the DeviceFrame scroll-reset before kickoff (see
+  // handleStartGame). Mirrors AFL's QuarterBreak / LineupPicker
+  // fix in ff771c6.
+  const pickerRootRef = useRef<HTMLDivElement>(null);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(
     initialDraft?.updated_at ?? null,
@@ -823,6 +827,21 @@ export function LeagueLineupPicker({
       );
       if (!proceed) return;
     }
+    // Reset scrolled ancestors before kickoff so the live view
+    // lands at the top of the DeviceFrame on the public /run demo.
+    // See LeagueLiveGame.handleStartNextPeriod for the full
+    // rationale — same DeviceFrame containing-block bug. Mirrors
+    // AFL's fix in ff771c6.
+    if (typeof document !== "undefined") {
+      let el = pickerRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     setError(null);
     // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
@@ -870,7 +889,7 @@ export function LeagueLineupPicker({
   const backLabel = chipLabels?.b || "Backs";
 
   return (
-    <div className="space-y-4 pb-32">
+    <div ref={pickerRootRef} className="space-y-4 pb-32">
       <LineupPickerBreadcrumb backHref={backHref ?? undefined} />
 
       <header className="space-y-1 px-1">

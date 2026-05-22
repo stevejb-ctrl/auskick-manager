@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
@@ -179,6 +180,8 @@ export function LeagueLiveGame({
   }
 
   const hooterFiredRef = useRef(false);
+  // Anchor for the DeviceFrame scroll-reset (see handleStartNextPeriod).
+  const liveRootRef = useRef<HTMLDivElement>(null);
 
   // ── Period label resolver ─────────────────────────────────────
   const periodLabel = ageGroup.periodLabel ?? "quarter";
@@ -520,6 +523,28 @@ export function LeagueLiveGame({
   async function handleStartNextPeriod() {
     setPending(true);
     setError(null);
+    // Reset any scrolled ancestors before transitioning to the next
+    // period. The public demo at /run/{token} wraps the app in
+    // DeviceFrame, which applies `transform: translateZ(0)` for
+    // its rounded-corner clipping — that transform makes the frame
+    // a containing block for any `position: fixed` descendant. When
+    // the GM has scrolled the QB content down (e.g. to see the
+    // bench rotation suggestion) before tapping "Ready for Q{n}",
+    // the post-transition live view can render with the field
+    // below the visible scroll window inside the frame. Scrolling
+    // every ancestor to 0 first guarantees the next view lands at
+    // the top of the frame. `window.scrollTo` covers the non-
+    // framed (installed PWA) case. Mirrors AFL's fix in ff771c6.
+    if (typeof document !== "undefined") {
+      let el = liveRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     const next = state.currentQuarter + 1;
     const { flushed } = enqueueLiveAction("startLeagueQuarter", [
       auth,
@@ -986,7 +1011,7 @@ export function LeagueLiveGame({
     = actionSheetPlayerId != null && loanedSet.has(actionSheetPlayerId);
 
   return (
-    <div className={`space-y-3 ${stickyPb}`.trim()}>
+    <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
       <LiveTopBar exitHref={exitHref} game={game} />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -1181,6 +1206,20 @@ export function LeagueLiveGame({
         isAdmin={isAdmin}
         auth={auth}
         gameId={game.id}
+        extra={
+          // Mid-game sub-interval override. Hidden when the team
+          // never configured a sub interval (null) — the team
+          // default would be the surface to change in that case.
+          // Restricted to admins so a parent / shared-link viewer
+          // can't change the rotation cadence mid-game.
+          subIntervalSeconds != null && isAdmin ? (
+            <LeagueGameSettingsButton
+              auth={auth}
+              gameId={game.id}
+              subIntervalSeconds={subIntervalSeconds}
+            />
+          ) : null
+        }
       />
 
       {/* End-period-early lives on the scorebug clock pill now —
