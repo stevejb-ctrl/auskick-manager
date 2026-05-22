@@ -6,12 +6,21 @@ import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { CHIP_COLORS, CHIP_KEYS, type ChipKey, type ChipMode } from "@/lib/chips";
+import type { Sport } from "@/lib/types";
 
 interface CohortChipsSettingsProps {
   teamId: string;
   initialLabels: { a: string | null; b: string | null; c: string | null };
   initialModes: { a: ChipMode; b: ChipMode; c: ChipMode };
   isAdmin: boolean;
+  /**
+   * Sport drives the chip-c gate. Rugby League uses chip A
+   * (Forward) + chip B (Back) only — chip C is dead UI for RL
+   * teams and only confuses coaches. AFL + netball keep all
+   * three. Defaults to AFL behaviour (all three visible) so
+   * legacy callers don't change. Steve 2026-05-20.
+   */
+  sport?: Sport;
 }
 
 // Three labeled chip slots — coach decides what each chip means
@@ -24,12 +33,27 @@ export function CohortChipsSettings({
   initialLabels,
   initialModes,
   isAdmin,
+  sport,
 }: CohortChipsSettingsProps) {
   const [labels, setLabels] = useState(initialLabels);
   const [modes, setModes] = useState<Record<ChipKey, ChipMode>>(initialModes);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Rugby League is a two-zone sport (Forwards + Backs). The chip-C
+  // row would always be unused noise, so hide it for RL teams. AFL +
+  // netball + any unspecified sport keep all three for backwards
+  // compatibility.
+  const visibleChipKeys = (
+    sport === "rugby_league"
+      ? CHIP_KEYS.filter((k) => k !== "c")
+      : CHIP_KEYS
+  ) as ChipKey[];
+  // 2-col grid when chip-c is hidden, 3-col otherwise — keeps each
+  // row of chips visually balanced rather than orphaning chip-B in
+  // a 3-col grid with one missing cell.
+  const gridCols
+    = visibleChipKeys.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
 
   function handleSave() {
     setError(null);
@@ -70,8 +94,22 @@ export function CohortChipsSettings({
         (e.g. a player who needs to stay paired with specific teammates).
         Leave a label blank to hide the chip.
       </p>
-      <div className="mt-3 grid gap-4 sm:grid-cols-3">
-        {CHIP_KEYS.map((k) => (
+      <div className={`mt-3 grid gap-4 ${gridCols}`}>
+        {visibleChipKeys.map((k) => {
+          // RL coaches get an opinionated placeholder steering them
+          // toward the Forward / Back naming convention the lineup
+          // picker zone cards use ("Forwards" / "Backs"). AFL +
+          // netball keep the neutral "Optional label" prompt — they
+          // tag for any reason (mates, mate-of-coach, regulars).
+          const placeholder
+            = sport === "rugby_league"
+              ? k === "a"
+                ? "e.g. Forward"
+                : k === "b"
+                  ? "e.g. Back"
+                  : "Optional label"
+              : "Optional label";
+          return (
           <div key={k} className="space-y-2 rounded-md border border-hairline bg-surface-alt p-3">
             <Label htmlFor={`chip-${k}-label`} className="flex items-center gap-2">
               <span
@@ -86,7 +124,7 @@ export function CohortChipsSettings({
               onChange={(e) =>
                 setLabels((prev) => ({ ...prev, [k]: e.target.value }))
               }
-              placeholder="Optional label"
+              placeholder={placeholder}
               disabled={isPending || !isAdmin}
               maxLength={32}
             />
@@ -132,7 +170,8 @@ export function CohortChipsSettings({
               </p>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {error && (
         <p

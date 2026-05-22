@@ -1,6 +1,12 @@
--- Combined seed: teams + players + games + availability. Runs
--- against a freshly-reset local Supabase. Owner = super-admin seed
+-- Combined seed: teams + players + games + availability.
+-- Idempotent — drops existing JRL Test rows first so re-running
+-- gives a fresh, predictable state. Owner = super-admin seed
 -- user; the AFTER INSERT trigger creates the membership row.
+
+-- Wipe any prior JRL Test rows. CASCADE pulls memberships,
+-- players, games, availability with the teams. Safe because the
+-- `JRL Test %` prefix is namespaced and won't hit real teams.
+delete from public.teams where name like 'JRL Test %';
 
 insert into public.teams (id, name, created_by, age_group, sport, track_scoring)
 select gen_random_uuid(), 'JRL Test ' || age, '00000000-0000-0000-0000-00000000bbbb', age, 'rugby_league',

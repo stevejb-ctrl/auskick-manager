@@ -90,22 +90,22 @@ export function TeamBasicsForm({
               active={sport === "afl"}
               onClick={() => handleSportChange("afl")}
               disabled={isPending}
-              title="AFL / Auskick"
-              subtitle="U8–U17 · quarters · rolling subs"
+              title="Junior AFL"
+              subtitle="U8–U17. Manage subs, rotations, scoring and more."
             />
             <SportPill
               active={sport === "netball"}
               onClick={() => handleSportChange("netball")}
               disabled={isPending}
-              title="Netball"
-              subtitle="Set–Open · GS through GK · quarter-break subs"
+              title="Junior Netball"
+              subtitle="Set–Open. Manage subs, rotations (3 zones, 7 positions), scoring and more."
             />
             <SportPill
               active={sport === "rugby_league"}
               onClick={() => handleSportChange("rugby_league")}
               disabled={isPending}
-              title="Rugby League"
-              subtitle="U6–U12 · tag → tackle · vest + kick rotations"
+              title="Junior Rugby League"
+              subtitle="U6–U12. Manage subs, vest + kick rotations, scoring and more."
             />
           </div>
         </div>

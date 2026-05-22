@@ -163,6 +163,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           ),
         }}
         isAdmin={isAdmin}
+        sport={sport}
       />
       <TeamSongSettings
         teamId={params.teamId}
