@@ -164,6 +164,21 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   );
   void _startingLineup;
 
+  // Belt-and-braces walkthrough suppression. The chromium project's
+  // storageState already has `gm-walkthrough-seen=1` (set by
+  // auth.setup), but a CI run where Q-end timed out 300+ times on a
+  // backdrop-intercepts-pointer error suggests *some* modal was
+  // sitting on top of QuarterEndModal. Most likely culprit is the
+  // walkthrough auto-open on first /live visit if the localStorage
+  // key happens to not carry through for this fresh team's context.
+  // addInitScript fires before the page's own scripts so the gate
+  // in LiveGame.tsx:437 sees the key on first read. Same pattern as
+  // the netball spec's `suppressWalkthrough` helper.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page
     .getByRole("button", { name: /^ready for q1$/i })
