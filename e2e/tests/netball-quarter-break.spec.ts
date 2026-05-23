@@ -225,7 +225,15 @@ async function enterQBreakView(
  * either state — useful both as a "Q-break component mounted"
  * canary and as the click target for the toggle test.
  */
-const ROTATION_TOGGLE = /suggested rotation/i;
+// Matches the toggle's accessible name in both the active state
+// ("✓ Suggested") and the inactive state ("Suggested"). Label was
+// shortened from "Suggested rotation" to plain "Suggested" when the
+// three-mode pill row (Suggested / Keep last quarter / Set manually)
+// landed — see RotationModeToggle.tsx — but the regex still pinned
+// the old copy. Anchored with `^` so it doesn't accidentally match
+// the longer "Suggested rotation" string if it ever reappears in
+// surrounding copy.
+const ROTATION_TOGGLE = /^(?:✓\s*)?Suggested$/i;
 
 // ─── NETBALL-02 mandatory tests ───────────────────────────
 
@@ -241,9 +249,9 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   // suggestedLineup. The rotation-toggle button is the canonical
   // evidence — it only renders inside NetballQuarterBreak. The 3-mode
   // toggle defaults to "suggested" so the active button reads
-  // "✓ Suggested rotation"; ROTATION_TOGGLE matches both the active
-  // and inactive variants for robustness against any future
-  // default-state change.
+  // "✓ Suggested"; ROTATION_TOGGLE matches both the active and
+  // inactive variants for robustness against any future default-
+  // state change.
   await expect(
     page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });

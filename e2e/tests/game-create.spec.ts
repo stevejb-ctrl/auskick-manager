@@ -24,7 +24,9 @@ test.describe.configure({ mode: "parallel" });
 const cases: Array<{ ageGroup: AgeGroup; expectedSize: number }> = [
   { ageGroup: "U8", expectedSize: 6 },
   { ageGroup: "U10", expectedSize: 12 },
-  { ageGroup: "U13", expectedSize: 18 },
+  // U13 dropped from 18 (5-position) to 15 (3-zone 5-5-5) when commit
+  // 108ffd0 flipped every AFL age group onto the 3-zone model.
+  { ageGroup: "U13", expectedSize: 15 },
 ];
 
 for (const { ageGroup, expectedSize } of cases) {
