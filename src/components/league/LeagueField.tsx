@@ -28,6 +28,7 @@ import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import {
   getFieldSlots,
+  pickBestForSlot,
   type FieldSlot,
 } from "@/lib/sports/rugby_league/fieldFormation";
 import { LeaguePlayerTile } from "./LeaguePlayerTile";
@@ -97,18 +98,51 @@ function arrangeFieldSlots(
     // formation has forward slots (or vice versa), the excess
     // players were silently dropped by the zone-respecting first
     // pass. Place them in any still-empty slot so every on-field
-    // player is visible. Steve 2026-05-19: lineup of 5F + 6B routed
-    // through 4 forward slots dropped the 5th forward; pitch
-    // showed 10 tiles + 1 EMPTY while the count chip said "11/11".
-    const overflow: Player[] = [
-      ...forwardsRest.slice(fwdIdx),
-      ...backsForSlots.slice(backIdx),
-    ];
+    // player is visible.
+    //
+    // CHIP-PREFERENCE-AWARE ROUTING (Steve 2026-05-23): a previous
+    // version just shifted overflow off the front in declaration
+    // order, which would shove a back-chipped player into an empty
+    // forward slot when an unchipped option was also available. The
+    // U10 case that triggered this: FR + DH both drawn from the
+    // forwards bucket → only 3 forward-bucket players left for 5
+    // forward slots → 2 empty fwd slots. Backs bucket had a mix of
+    // B-chipped and unchipped players spilling over; the old logic
+    // placed whichever came first in the array regardless of chip.
+    //
+    // Fix: when filling an empty slot from the cross-zone overflow,
+    // pick the LEAST-mismatched candidate first. Unchipped players
+    // (no chip preference) go to wrong-zone slots before strongly
+    // zone-chipped players are forced there.
+    //
+    // Within-zone overflow (forward-bucket surplus into a forward
+    // slot, or back-bucket surplus into a back slot) preserves
+    // declaration order — those are right-zone placements anyway.
+    const fwdOverflow: Player[] = forwardsRest.slice(fwdIdx);
+    const backOverflow: Player[] = backsForSlots.slice(backIdx);
+
     for (const row of result) {
       if (row.player) continue;
-      const next = overflow.shift();
-      if (!next) break;
-      row.player = next;
+      // Resolve the target zone for this slot. fullback counts as
+      // a back position; fr / dh slots shouldn't reach here (the
+      // first pass fills them by vest), but if they do, default to
+      // back for fr and forward for dh per their real-RL position.
+      const slotZone: "forward" | "back" =
+        row.slot.role === "forward" || row.slot.role === "dh"
+          ? "forward"
+          : "back";
+      // Prefer same-zone overflow first (right-zone placement,
+      // declaration order preserved), then cross-zone overflow
+      // with chip-mismatch-aware pick.
+      const sameZonePool
+        = slotZone === "forward" ? fwdOverflow : backOverflow;
+      const crossZonePool
+        = slotZone === "forward" ? backOverflow : fwdOverflow;
+      const picked
+        = sameZonePool.shift()
+        ?? pickBestForSlot(crossZonePool, slotZone);
+      if (!picked) break;
+      row.player = picked;
     }
     return result;
   }

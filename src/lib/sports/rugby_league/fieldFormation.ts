@@ -132,3 +132,49 @@ export function getFieldSlots(
   if (onFieldSize === 13) return FIELD_SLOTS_13_FR_DH;
   return FIELD_SLOTS_11_FR_DH;
 }
+
+// ─── Chip-aware overflow placement ───────────────────────────
+// When the formation has more slots in a zone than the lineup
+// has players for that zone, the leftover players from the
+// OTHER zone fill the empties. This used to happen in declaration
+// order, which shoved strongly-chipped players (e.g. a B-chip
+// labelled "Back") into wrong-zone slots even when an unchipped
+// player was available. Steve 2026-05-23 hit this on a U10 game
+// where DH + FR were both drawn from the forwards bucket, leaving
+// 2 forward slots to fill from the backs surplus.
+//
+// `slotMismatchScore` ranks a chip's fit for a target slot zone:
+//   0 → no chip / right zone chip   (preferred for that slot)
+//   1 → wrong zone chip             (mismatch, last resort)
+// `pickBestForSlot` mutates the pool: removes and returns the
+// lowest-scoring (best-fit) player, or null if empty.
+
+export type ChipForSlot = string | null | undefined;
+export type SlotZoneTarget = "forward" | "back";
+
+export function slotMismatchScore(
+  chip: ChipForSlot,
+  slotZone: SlotZoneTarget,
+): number {
+  if (!chip) return 0;
+  if (slotZone === "forward" && chip === "a") return 0;
+  if (slotZone === "back" && chip === "b") return 0;
+  return 1;
+}
+
+export function pickBestForSlot<T extends { chip: ChipForSlot }>(
+  pool: T[],
+  slotZone: SlotZoneTarget,
+): T | null {
+  if (pool.length === 0) return null;
+  let bestIdx = 0;
+  let bestScore = slotMismatchScore(pool[0].chip, slotZone);
+  for (let i = 1; i < pool.length; i++) {
+    const s = slotMismatchScore(pool[i].chip, slotZone);
+    if (s < bestScore) {
+      bestIdx = i;
+      bestScore = s;
+    }
+  }
+  return pool.splice(bestIdx, 1)[0];
+}
