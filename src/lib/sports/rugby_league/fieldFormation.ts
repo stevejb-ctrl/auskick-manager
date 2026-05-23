@@ -162,7 +162,7 @@ export function slotMismatchScore(
   return 1;
 }
 
-export function pickBestForSlot<T extends { chip: ChipForSlot }>(
+export function pickBestForSlot<T extends { chip?: ChipForSlot }>(
   pool: T[],
   slotZone: SlotZoneTarget,
 ): T | null {

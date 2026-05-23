@@ -41,10 +41,35 @@ interface LeagueFullTimeReviewProps {
   ageGroup: AgeGroupConfig;
   /** Track-scoring gate — hides the score boxes when off (U6/U7 default). */
   trackScoring: boolean;
+  /** True when the age group has goal-kicking (U8+); gates conversion chips. */
+  kickingAllowed?: boolean;
   /** ms elapsed at full-time, written into the game_finalised event metadata. */
   finalisedElapsedMs: number;
   teamName: string;
   opponentName: string;
+  /**
+   * Score-edit callbacks — same chips the live scorebug surfaces,
+   * embedded inline in the review card so the coach can reconcile
+   * the score without scrolling to the sticky scorebar (Steve
+   * 2026-05-23: the bottom chips were too easy to miss).
+   *
+   * Each callback maps 1:1 to a LeagueScoreBug action:
+   *   onTeamTry         → opens the scorer picker
+   *   onTeamConversion  → opens the conversion dialog
+   *   onOpponentTry     → direct write
+   *   onOpponentConversion → direct write
+   *   onUndo            → undo the most recent surviving scoring event
+   *
+   * All callbacks optional — if a sport / age group disables a chip
+   * upstream (e.g. U6 has no scoring), the matching button hides.
+   */
+  onTeamTry?: () => void;
+  onTeamConversion?: () => void;
+  onOpponentTry?: () => void;
+  onOpponentConversion?: () => void;
+  onUndo?: () => void;
+  /** Pending guard — disables chips while a write is in flight. */
+  scorePending?: boolean;
 }
 
 export function LeagueFullTimeReview({
@@ -54,9 +79,16 @@ export function LeagueFullTimeReview({
   events,
   ageGroup,
   trackScoring,
+  kickingAllowed = false,
   finalisedElapsedMs,
   teamName,
   opponentName,
+  onTeamTry,
+  onTeamConversion,
+  onOpponentTry,
+  onOpponentConversion,
+  onUndo,
+  scorePending = false,
 }: LeagueFullTimeReviewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -170,14 +202,95 @@ export function LeagueFullTimeReview({
         </div>
       )}
 
-      {trackScoring && (
-        <p className="mt-3 text-xs text-ink-mute">
-          Need to fix something? Tap{" "}
-          <strong className="text-ink-dim">Undo last score</strong> on the
-          scorebug, or use the <strong className="text-ink-dim">+T</strong> /{" "}
-          <strong className="text-ink-dim">+C</strong> chips to add a missed
-          one before finalising.
-        </p>
+      {/* Inline score-adjustments panel — same chips the live
+          scorebug exposes, surfaced HERE so the coach doesn't have
+          to scroll down to the sticky scorebar to fix a miscount.
+          +T / +C add a missed score (+T opens the scorer picker
+          for our team; +C opens the conversion dialog when kicking
+          is allowed). Opponent +T / +C write directly because
+          there's no scorer to attribute. Undo pops the most
+          recent surviving scoring event (LIFO). Hidden entirely
+          when scoring is off. Steve 2026-05-23. */}
+      {trackScoring && (onTeamTry || onTeamConversion || onOpponentTry || onOpponentConversion || onUndo) && (
+        <section className="mt-3 rounded-md border border-hairline bg-surface-alt p-3">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+            Score adjustments
+          </p>
+          <p className="mt-0.5 text-[11px] text-ink-mute">
+            Spotted a miscount? Add a missed score with +T / +C, or
+            undo the most recent one.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2">
+              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                {teamName}
+              </p>
+              <div className="flex gap-1.5">
+                {onTeamTry && (
+                  <button
+                    type="button"
+                    onClick={onTeamTry}
+                    disabled={scorePending}
+                    className="flex-1 rounded-sm bg-brand-600 px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                  >
+                    + Try
+                  </button>
+                )}
+                {onTeamConversion && kickingAllowed && (
+                  <button
+                    type="button"
+                    onClick={onTeamConversion}
+                    disabled={scorePending}
+                    className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
+                  >
+                    + Conv
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2">
+              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                {opponentName}
+              </p>
+              <div className="flex gap-1.5">
+                {onOpponentTry && (
+                  <button
+                    type="button"
+                    onClick={onOpponentTry}
+                    disabled={scorePending}
+                    className="flex-1 rounded-sm bg-ink px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/85 disabled:opacity-60"
+                  >
+                    + Try
+                  </button>
+                )}
+                {onOpponentConversion && kickingAllowed && (
+                  <button
+                    type="button"
+                    onClick={onOpponentConversion}
+                    disabled={scorePending}
+                    className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60"
+                  >
+                    + Conv
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          {onUndo
+            && (state.teamScore.points > 0 || state.opponentScore.points > 0)
+            && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onUndo}
+                  disabled={scorePending}
+                  className="rounded-sm px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-micro text-warn underline-offset-2 transition-colors duration-fast ease-out-quart hover:bg-warn-soft hover:underline disabled:opacity-60"
+                >
+                  ↶ Undo last score
+                </button>
+              </div>
+            )}
+        </section>
       )}
 
       {error && (

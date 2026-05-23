@@ -1178,9 +1178,29 @@ export function LeagueLiveGame({
           events={thisGameEvents}
           ageGroup={ageGroup}
           trackScoring={trackScoring}
+          kickingAllowed={kickingAllowed}
           finalisedElapsedMs={elapsedMs}
           teamName={teamName}
           opponentName={game.opponent || "Opponent"}
+          // Inline score-edit chips — same callbacks the live
+          // scorebug uses at full-time review (scorebug stays at
+          // the bottom; this surface duplicates them inside the
+          // card so coaches don't have to scroll). Gated on
+          // `isAtFinalQ` (the parent already enforces that).
+          onTeamTry={() => setScorerPickerOpen(true)}
+          onTeamConversion={
+            kickingAllowed ? handleOpenConversionDialog : undefined
+          }
+          onOpponentTry={handleRecordOpponentTry}
+          onOpponentConversion={
+            kickingAllowed ? handleRecordOpponentConversion : undefined
+          }
+          onUndo={
+            state.teamScore.points > 0 || state.opponentScore.points > 0
+              ? handleUndoScore
+              : undefined
+          }
+          scorePending={pending}
         />
       )}
 
