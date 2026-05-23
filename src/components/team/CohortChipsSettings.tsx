@@ -5,7 +5,8 @@ import { updateTeamChipSettings } from "@/app/(app)/teams/[teamId]/settings/acti
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { CHIP_COLORS, CHIP_KEYS, type ChipKey, type ChipMode } from "@/lib/chips";
+import { CHIP_KEYS, isChipZoneMode, type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Sport } from "@/lib/types";
 
 interface CohortChipsSettingsProps {
@@ -86,13 +87,26 @@ export function CohortChipsSettings({
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <p className="text-sm font-semibold text-ink">Player chips</p>
       <p className="mt-1 text-xs text-ink-dim">
-        Tag your squad with up to three chips. For each chip, pick how the
-        suggester should treat chip-mates:{" "}
-        <strong className="text-ink">Split</strong> spreads them across
-        zones (e.g. mix older with younger);{" "}
-        <strong className="text-ink">Group</strong> keeps them together
-        (e.g. a player who needs to stay paired with specific teammates).
-        Leave a label blank to hide the chip.
+        {sport === "rugby_league" ? (
+          <>
+            Tag your squad with up to two chips for{" "}
+            <strong className="text-ink">Forwards</strong> and{" "}
+            <strong className="text-ink">Backs</strong>. The picker
+            steers chipped players toward their preferred zone, but
+            fairness can still override on a tight rotation. Leave a
+            label blank to hide the chip.
+          </>
+        ) : (
+          <>
+            Tag your squad with up to three chips. For each chip, pick
+            how the suggester should treat chip-mates:{" "}
+            <strong className="text-ink">Split</strong> spreads them
+            across zones (e.g. mix older with younger);{" "}
+            <strong className="text-ink">Group</strong> keeps them
+            together (e.g. a player who needs to stay paired with
+            specific teammates). Leave a label blank to hide the chip.
+          </>
+        )}
       </p>
       <div className={`mt-3 grid gap-4 ${gridCols}`}>
         {visibleChipKeys.map((k) => {
@@ -109,12 +123,49 @@ export function CohortChipsSettings({
                   ? "e.g. Back"
                   : "Optional label"
               : "Optional label";
+          // RL: the only two valid modes per chip are forward + back
+          // (no cluster modes). Render a Forward/Back pair instead of
+          // Split/Group, defaulted by chip key (A = forward, B = back).
+          // Other sports keep the Split/Group toggle they had before.
+          const isRl = sport === "rugby_league";
+          const modeButtons: { mode: ChipMode; label: string }[] = isRl
+            ? [
+                { mode: "forward", label: "Forward" },
+                { mode: "back", label: "Back" },
+              ]
+            : [
+                { mode: "split", label: "Split" },
+                { mode: "group", label: "Group" },
+              ];
+          const modeBlurb = (() => {
+            const m = modes[k];
+            switch (m) {
+              case "forward":
+                return "Steers chip-mates toward the forwards.";
+              case "back":
+                return "Steers chip-mates toward the backs.";
+              case "centre":
+                return "Steers chip-mates toward the centre.";
+              case "group":
+                return "Keeps chip-mates together.";
+              case "split":
+              default:
+                return "Spreads chip-mates across zones.";
+            }
+          })();
           return (
           <div key={k} className="space-y-2 rounded-md border border-hairline bg-surface-alt p-3">
             <Label htmlFor={`chip-${k}-label`} className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className={`inline-block h-3 w-3 rounded-full ${CHIP_COLORS[k].dot}`}
+              {/* Mode-aware chip indicator — surfaces F/B/C letter
+                  inside the dot when a zone mode is active, falls
+                  back to the plain coloured dot for split/group.
+                  Steve 2026-05-23: brings the settings dot in line
+                  with the live tile so coaches see the same chip
+                  affordance everywhere. */}
+              <ChipIndicator
+                chipKey={k}
+                mode={modes[k]}
+                size="md"
               />
               Chip {k.toUpperCase()}
             </Label>
@@ -130,44 +181,47 @@ export function CohortChipsSettings({
             />
             <div role="radiogroup" aria-label={`Chip ${k.toUpperCase()} mode`}>
               <div className="flex rounded-md border border-hairline bg-surface text-xs">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={modes[k] === "split"}
-                  onClick={() =>
-                    setModes((prev) => ({ ...prev, [k]: "split" }))
-                  }
-                  disabled={isPending || !isAdmin}
-                  className={`flex-1 rounded-l-md px-3 py-1.5 font-medium transition-colors ${
-                    modes[k] === "split"
-                      ? "bg-ink text-warm"
-                      : "text-ink-dim hover:bg-surface-alt"
-                  } disabled:opacity-60`}
-                >
-                  Split
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={modes[k] === "group"}
-                  onClick={() =>
-                    setModes((prev) => ({ ...prev, [k]: "group" }))
-                  }
-                  disabled={isPending || !isAdmin}
-                  className={`flex-1 rounded-r-md px-3 py-1.5 font-medium transition-colors ${
-                    modes[k] === "group"
-                      ? "bg-ink text-warm"
-                      : "text-ink-dim hover:bg-surface-alt"
-                  } disabled:opacity-60`}
-                >
-                  Group
-                </button>
+                {modeButtons.map((btn, i) => {
+                  const isFirst = i === 0;
+                  const isLast = i === modeButtons.length - 1;
+                  const cornerClass = isFirst
+                    ? "rounded-l-md"
+                    : isLast
+                      ? "rounded-r-md"
+                      : "";
+                  const active = modes[k] === btn.mode;
+                  return (
+                    <button
+                      key={btn.mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() =>
+                        setModes((prev) => ({ ...prev, [k]: btn.mode }))
+                      }
+                      disabled={isPending || !isAdmin}
+                      className={`flex-1 ${cornerClass} px-3 py-1.5 font-medium transition-colors ${
+                        active
+                          ? "bg-ink text-warm"
+                          : "text-ink-dim hover:bg-surface-alt"
+                      } disabled:opacity-60`}
+                    >
+                      {btn.label}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="mt-1 text-[11px] text-ink-mute">
-                {modes[k] === "split"
-                  ? "Spreads chip-mates across zones."
-                  : "Keeps chip-mates together."}
-              </p>
+              <p className="mt-1 text-[11px] text-ink-mute">{modeBlurb}</p>
+              {/* RL teams arriving with a legacy split/group mode get
+                  a one-tap "fix it" hint so they're not stuck with a
+                  cluster mode in a two-zone sport. */}
+              {isRl && !isChipZoneMode(modes[k]) && (
+                <p className="mt-1 text-[11px] font-medium text-warn">
+                  Pick Forward or Back to activate this chip — Split /
+                  Group are an AFL / netball cluster behaviour and
+                  won't bias rugby league rotations.
+                </p>
+              )}
             </div>
           </div>
           );
