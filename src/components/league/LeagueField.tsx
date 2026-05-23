@@ -288,20 +288,23 @@ export function LeagueField({
           <GoalPosts placement="top" />
           <GoalPosts placement="bottom" />
 
-          {/* In-goal "TRY" labels in each corner of the in-goal
-              areas (the strip between the touch line and the try
-              line). */}
+          {/* Zone labels in the in-goal corners — orients the coach
+              on which try line their team is attacking. Forwards
+              sit at the top of the pitch (attacking the opponent
+              try line); Backs sit at the bottom (defending our own
+              try line). Steve 2026-05-23: replaces the symmetrical
+              "TRY" labels which were ambiguous about direction. */}
           <span
             aria-hidden
             className="pointer-events-none absolute left-2 top-1 font-mono text-[9px] font-bold uppercase tracking-micro text-white/70"
           >
-            Try
+            Forward
           </span>
           <span
             aria-hidden
             className="pointer-events-none absolute bottom-1 right-2 font-mono text-[9px] font-bold uppercase tracking-micro text-white/70"
           >
-            Try
+            Back
           </span>
 
           {/* Player band — absolute-positioned slots in a rugby
