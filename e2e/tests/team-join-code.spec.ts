@@ -24,21 +24,41 @@ import { makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
+// Must match the alphabet in migration 0041's
+// `public.generate_team_join_code()`. Both sides skip 0/O/1/I/L so
+// the parent doesn't fat-finger a lookalike. If the test seeds a
+// code with any of those, joinTeamByCode's normaliser will reject
+// it as garbage before the DB lookup even runs.
+const SAFE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function randomJoinCode(): string {
+  let s = "";
+  for (let i = 0; i < 8; i++) {
+    s += SAFE_ALPHABET[Math.floor(Math.random() * SAFE_ALPHABET.length)];
+  }
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}`;
+}
+
 // Helper — seeds a team and writes a deterministic join_code into
 // the row (trigger fills nulls, so an explicit value wins). Lets the
 // test know the code without an extra round-trip.
+//
+// Code is generated from the safe alphabet so it round-trips through
+// `joinTeamByCode`'s normaliser, and a random suffix per call keeps
+// the unique `teams.join_code` index happy when Playwright retries
+// (the previous attempt's team row is still alive between retries).
 async function makeTeamWithCode(
   admin: ReturnType<typeof createAdminClient>,
   ownerId: string,
-  code: string,
 ) {
+  const code = randomJoinCode();
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
   const { error } = await admin
     .from("teams")
     .update({ join_code: code })
     .eq("id", team.id);
   if (error) throw new Error(`makeTeamWithCode update: ${error.message}`);
-  return team;
+  return { team, code };
 }
 
 test("team settings shows the join code with a Regenerate button", async ({
@@ -50,7 +70,7 @@ test("team settings shows the join code with a Regenerate button", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeamWithCode(admin, ownerId, "TEST-CODE");
+  const { team, code } = await makeTeamWithCode(admin, ownerId);
 
   const ctx = await browser.newContext({
     storageState: "playwright/.auth/super-admin.json",
@@ -58,7 +78,7 @@ test("team settings shows the join code with a Regenerate button", async ({
   const page = await ctx.newPage();
   await page.goto(`/teams/${team.id}/settings`);
 
-  await expect(page.getByTestId("team-join-code")).toHaveText("TEST-CODE");
+  await expect(page.getByTestId("team-join-code")).toHaveText(code);
   await expect(
     page.getByRole("button", { name: /^regenerate$/i }),
   ).toBeVisible();
@@ -73,7 +93,7 @@ test("regenerate replaces the code with a fresh one", async ({ browser }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeamWithCode(admin, ownerId, "OLD1-CODE");
+  const { team, code: originalCode } = await makeTeamWithCode(admin, ownerId);
 
   const ctx = await browser.newContext({
     storageState: "playwright/.auth/super-admin.json",
@@ -87,7 +107,7 @@ test("regenerate replaces the code with a fresh one", async ({ browser }) => {
   await page.goto(`/teams/${team.id}/settings`);
   await page.getByRole("button", { name: /^regenerate$/i }).click();
 
-  // DB code should change off "OLD1-CODE" within a few seconds.
+  // DB code should change off the seeded one within a few seconds.
   await expect
     .poll(
       async () => {
@@ -100,7 +120,7 @@ test("regenerate replaces the code with a fresh one", async ({ browser }) => {
       },
       { timeout: 10_000, intervals: [200, 500, 500, 1000, 1000] },
     )
-    .not.toBe("OLD1-CODE");
+    .not.toBe(originalCode);
 
   // And the new code must match the canonical XXXX-XXXX format from
   // the migration's 31-char alphabet (no 0/O/1/I/L allowed).
@@ -125,7 +145,7 @@ test("parent enters a valid code on /join-team → lands on /games", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeamWithCode(admin, ownerId, "PRNT-JOIN");
+  const { team, code } = await makeTeamWithCode(admin, ownerId);
 
   // Brand-new parent account, not yet a member of anything.
   const parent = await createTestUser(admin, {
@@ -152,8 +172,12 @@ test("parent enters a valid code on /join-team → lands on /games", async ({
     });
 
     await page.goto("/join-team");
-    // Type a casing/format-shifted version to exercise the normaliser.
-    await page.getByTestId("join-code-input").fill("prntjoin");
+    // Type a casing/format-shifted version of the seeded code to
+    // exercise the normaliser: lowercase, hyphen stripped. The
+    // normaliser upper-cases and re-hyphenates back to the canonical
+    // XXXX-XXXX shape the DB lookup keys on.
+    const typedCode = code.replace("-", "").toLowerCase();
+    await page.getByTestId("join-code-input").fill(typedCode);
     await page.getByRole("button", { name: /^join team$/i }).click();
 
     // Lands on the team's Games tab — same destination as the
