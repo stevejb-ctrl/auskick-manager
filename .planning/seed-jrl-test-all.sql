@@ -8,9 +8,25 @@
 -- `JRL Test %` prefix is namespaced and won't hit real teams.
 delete from public.teams where name like 'JRL Test %';
 
-insert into public.teams (id, name, created_by, age_group, sport, track_scoring)
-select gen_random_uuid(), 'JRL Test ' || age, '00000000-0000-0000-0000-00000000bbbb', age, 'rugby_league',
-  case when age in ('U6', 'U7') then false else true end
+-- RL teams pre-seed chip A = Forward, chip B = Back so the F/B
+-- letter overlay shows on the player tiles + the field zone
+-- palette reads as orange/blue out of the box. Mirrors createTeam's
+-- behaviour for RL (src/app/(app)/dashboard/actions.ts).
+insert into public.teams (
+  id, name, created_by, age_group, sport, track_scoring,
+  chip_a_label, chip_b_label, chip_a_mode, chip_b_mode
+)
+select
+  gen_random_uuid(),
+  'JRL Test ' || age,
+  '00000000-0000-0000-0000-00000000bbbb',
+  age,
+  'rugby_league',
+  case when age in ('U6', 'U7') then false else true end,
+  'Forward',
+  'Back',
+  'forward',
+  'back'
 from unnest(array['U6','U7','U8','U9','U10','U11','U12']) as t(age);
 
 do $$

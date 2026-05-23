@@ -67,6 +67,14 @@ export async function createTeam(
     trackScoring: initialTrackScoring,
   });
 
+  // Rugby League is a two-zone sport (Forwards + Backs). Pre-set
+  // chip A → Forward, chip B → Back, and label them so the team
+  // works out of the box: coaches see the F/B letter overlay on
+  // player tiles + the orange/blue field zone palette without
+  // having to dig into Settings → Player chips. Coach can still
+  // override the labels (or clear them to hide the chip) later.
+  // AFL + netball keep the legacy `split` default — they don't
+  // ship with a forced zone mode. Steve 2026-05-23.
   const insertRow: {
     id: string;
     name: string;
@@ -74,8 +82,18 @@ export async function createTeam(
     age_group: string;
     sport: Sport;
     track_scoring?: boolean;
+    chip_a_label?: string;
+    chip_b_label?: string;
+    chip_a_mode?: import("@/lib/chips").ChipMode;
+    chip_b_mode?: import("@/lib/chips").ChipMode;
   } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
   if (initialTrackScoring) insertRow.track_scoring = true;
+  if (sport === "rugby_league") {
+    insertRow.chip_a_label = "Forward";
+    insertRow.chip_b_label = "Back";
+    insertRow.chip_a_mode = "forward";
+    insertRow.chip_b_mode = "back";
+  }
 
   const { error: insertError } = await supabase
     .from("teams")
