@@ -25,15 +25,18 @@ import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { Label } from "@/components/ui/Label";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import {
   netballSport,
+  pickNetballPositionsToFill,
   primaryThirdFor,
 } from "@/lib/sports/netball";
 import {
@@ -64,13 +67,26 @@ const SLOT_LABEL: Record<Slot, string> = {
   bench: "Bench",
 };
 
-// Map third → bar-segment colour. Same palette tokens AFL uses (orange
-// = forward / fuchsia = centre / blue = back) so a coach who manages
-// both sports doesn't have to relearn the colour code.
+// Map third → bar-segment colour. Same palette tokens AFL uses
+// (orange = forward / emerald = centre / blue = back, per the
+// 2026-05-23 centre-colour swap) so a coach who manages both
+// sports doesn't have to relearn the colour code.
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
   attack: "bg-zone-f",
   centre: "bg-zone-c",
   defence: "bg-zone-b",
+};
+
+// Section-header text tint by slot (third). Bench stays neutral.
+// Mirrors the AFL QuarterBreak treatment so the per-third card
+// header colour matches the bar-segment colour on each player
+// tile inside the card. Steve 2026-05-23 — parent feedback to
+// link labels to colours visibly.
+const SLOT_HEADER_TEXT: Record<Slot, string> = {
+  "attack-third": "text-zone-f",
+  "centre-third": "text-zone-c",
+  "defence-third": "text-zone-b",
+  bench: "text-ink-dim",
 };
 
 interface Props {
@@ -118,7 +134,9 @@ interface Props {
     // null when the slot was empty (no sub-out player) — see
     // NetballLiveGame's MidQuarterSub for the full story.
     outPlayerId: string | null;
-    inPlayerId: string;
+    // null when the sub VACATES the position (short-squad "Move to
+    // empty position" — emits paired vacate + fill subs).
+    inPlayerId: string | null;
     atMs: number;
   }>;
   /**
@@ -128,7 +146,18 @@ interface Props {
    * the shared `Player.chip` field — this prop just supplies the
    * team-level per-chip split/group mode.
    */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /**
+   * Steve 2026-05-23: short-squad on-court size. When omitted, falls
+   * back to `ageGroup.defaultOnFieldSize` so existing surfaces are
+   * full-strength. When set, the suggester only fills `onFieldSize`
+   * positions and the validator accepts the shorter lineup. The
+   * Q-break also prefers to keep whichever positions the previous
+   * quarter had filled — preserves the coach's blank-slot choice
+   * across breaks instead of drifting back to the default fill
+   * priority every Q.
+   */
+  currentOnFieldSize?: number;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -152,6 +181,7 @@ export function NetballQuarterBreak({
   midQuarterSubs,
   trackScoring = true,
   chipModeByKey = {},
+  currentOnFieldSize,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -160,6 +190,43 @@ export function NetballQuarterBreak({
     [squad],
   );
   const positions = ageGroup.positions;
+
+  // Short-squad target for this break — clamped to the age group's
+  // min/max so a stale on_field_size column doesn't corrupt the
+  // suggester input. Defaults to the age group's full-strength size
+  // for surfaces that don't yet thread the prop.
+  const effectiveOnFieldSize = Math.max(
+    ageGroup.minOnFieldSize,
+    Math.min(
+      ageGroup.maxOnFieldSize,
+      Math.floor(currentOnFieldSize ?? ageGroup.defaultOnFieldSize),
+    ),
+  );
+
+  // Positions to fill for the next quarter. When the previous
+  // quarter's actual filled positions sum to the same on-field size
+  // (no late arrivals / loans mid-quarter), reuse those exact
+  // positions — that's how a Q1 manual "leave WA blank instead of
+  // WD" choice survives into Q2 instead of getting wiped by the
+  // default fill priority. Otherwise fall back to the default
+  // priority. Matches the AFL `effectiveZoneCaps` pattern from
+  // 8a92f71.
+  const positionsToFill = useMemo(() => {
+    const prev = previousLineup;
+    if (prev) {
+      const filled = new Set(
+        positions.filter((p) => (prev.positions[p]?.length ?? 0) > 0),
+      );
+      if (filled.size === effectiveOnFieldSize) {
+        return pickNetballPositionsToFill(
+          ageGroup,
+          effectiveOnFieldSize,
+          filled,
+        );
+      }
+    }
+    return pickNetballPositionsToFill(ageGroup, effectiveOnFieldSize);
+  }, [ageGroup, previousLineup, positions, effectiveOnFieldSize]);
 
   // ─── Position grouping by third (drives section order) ────
   // Order top→bottom: Attack, Centre, Defence, Bench. Same as the live
@@ -259,7 +326,11 @@ export function NetballQuarterBreak({
     );
     const base = suggestNetballLineup({
       playerIds: candidatePool,
-      positions,
+      // Short-squad: only fill the positions chosen by
+      // `positionsToFill` above — either the previous quarter's
+      // shape (preserves a coach's manual blank-slot move) or
+      // the default fill priority.
+      positions: positionsToFill,
       season,
       thisGame,
       isAllowed: (_pid, posId) => positions.includes(posId),
@@ -694,7 +765,11 @@ export function NetballQuarterBreak({
     // can leave one open). validateLineup catches the most common
     // shapes: empty position, doubled-up position, dup across
     // position+bench. Surfaces the first issue inline.
-    const validation = netballSport.validateLineup?.(draft, ageGroup);
+    const validation = netballSport.validateLineup?.(
+      draft,
+      ageGroup,
+      effectiveOnFieldSize,
+    );
     if (validation && !validation.ok) {
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
@@ -808,6 +883,38 @@ export function NetballQuarterBreak({
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [_adjustPending, startAdjustTransition] = useTransition();
 
+  // Mid-game on-field-size override (Steve 2026-05-23). Mirrors the
+  // pre-game LineupPicker dropdown so a coach who didn't know they'd
+  // be short until kickoff can adjust at Q1 break, or grow back to
+  // full strength when a late player turns up. The size lives on
+  // games.on_field_size; the page rerender threads the new value
+  // back as `currentOnFieldSize` and the suggester picks up the
+  // new shape.
+  const sizeOptions = useMemo(() => {
+    const opts: number[] = [];
+    for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {
+      opts.push(n);
+    }
+    return opts;
+  }, [ageGroup.maxOnFieldSize, ageGroup.minOnFieldSize]);
+  const [sizePending, startSizeTransition] = useTransition();
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  function handleOnFieldSizeChange(next: number) {
+    setSizeError(null);
+    const clamped = Math.max(
+      ageGroup.minOnFieldSize,
+      Math.min(ageGroup.maxOnFieldSize, next),
+    );
+    if (clamped === effectiveOnFieldSize) return;
+    startSizeTransition(async () => {
+      const result = await setNetballOnFieldSize(auth, gameId, clamped);
+      if (!result.success) {
+        setSizeError(result.error);
+      }
+    });
+  }
+
   // Toggle handlers — both follow the optimistic pattern: flip the
   // local store first so the chip updates instantly, then write the
   // event. The next page revalidate rebuilds injuredIds/loanedIds
@@ -893,12 +1000,16 @@ export function NetballQuarterBreak({
                 // lead with rotation mode AND always surface lent/
                 // injured (including "No lent" / "No injured") so
                 // the closed header doubles as a discovery hint for
-                // what's inside. Mirrors AFL QB. No on-field-size
-                // chip — netball is fixed at 7 per the rules.
+                // what's inside. Mirrors AFL QB. Steve 2026-05-23:
+                // on-field-size chip surfaces only below default,
+                // matching the pre-game LineupPicker's pattern.
                 const bits: string[] = [];
                 if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
                 else bits.push("Manual lineup");
+                if (effectiveOnFieldSize < ageGroup.defaultOnFieldSize) {
+                  bits.push(`${effectiveOnFieldSize} on court`);
+                }
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
@@ -955,6 +1066,58 @@ export function NetballQuarterBreak({
                 onChange={handleModeChange}
               />
             </div>
+
+            {/* Short-squad on-court size — Steve 2026-05-23. Mirrors
+                the pre-game LineupPicker dropdown so a coach can also
+                grow (player arrived at Q-break) or shrink (player
+                left at half) mid-game. Persists via
+                `setNetballOnFieldSize` which clamps to the age
+                group's min/max and writes games.on_field_size; the
+                page rerender threads the new value back through
+                `currentOnFieldSize` so the suggester picks the right
+                count for this break. Only renders when the age group
+                actually supports a range. */}
+            {sizeOptions.length > 1 && (
+              <div>
+                <Label
+                  htmlFor="netball-qb-on-field-size"
+                  className="!mb-1 block text-xs font-semibold text-ink"
+                >
+                  Players on court
+                </Label>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-ink-mute">
+                      Adjust mid-game if a player arrives late or
+                      leaves early. Siren will keep the same blank
+                      positions when growing back to full strength,
+                      or drop the lowest-priority positions when
+                      shrinking.
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    <select
+                      id="netball-qb-on-field-size"
+                      value={effectiveOnFieldSize}
+                      onChange={(e) => handleOnFieldSizeChange(Number(e.target.value))}
+                      disabled={isPending || sizePending}
+                      className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
+                    >
+                      {sizeOptions.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {sizeError && (
+                  <p className="mt-1 text-xs text-danger" role="alert">
+                    {sizeError}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Lend a player */}
             <div>
@@ -1221,7 +1384,9 @@ export function NetballQuarterBreak({
               className="rounded-md border border-hairline bg-surface p-3 shadow-card"
             >
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                <h3
+                  className={`font-mono text-[11px] font-bold uppercase tracking-micro ${SLOT_HEADER_TEXT[slot]}`}
+                >
                   {SLOT_LABEL[slot]}
                 </h3>
                 <span className="text-xs tabular-nums text-ink-mute">

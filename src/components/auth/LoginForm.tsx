@@ -138,7 +138,12 @@ export function LoginForm() {
         style={{ lineHeight: 1.05 }}
       >
         Run your team&apos;s{" "}
-        <span className="font-serif italic font-normal">season</span>
+        {/* Steve 2026-05-17: marketing design refresh swapped the
+            italic-serif accent for a brand-coloured one — same Geist
+            700 weight, just the per-host accent hue (footy green /
+            netball sky-blue). Mirrors TitleAccent's default treatment
+            on light surfaces. */}
+        <span className="text-brand-500">season</span>
       </h1>
       <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
         New or returning, enter your email and we&apos;ll get you in.

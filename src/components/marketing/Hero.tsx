@@ -1,11 +1,11 @@
 import Image from "next/image";
-import Link from "next/link";
 import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { FieldOval } from "@/components/marketing/FieldOval";
 import { CourtMotif } from "@/components/marketing/CourtMotif";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
+import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
@@ -45,14 +45,15 @@ export function Hero() {
               {copy.heroSubtitle}
             </p>
 
+            {/* Binary CTA row: install the iOS app OR use the web app.
+                App Store leads (the newer of the two paths); web sign-in
+                is the equal-weight alternative. The "Try the demo" path
+                stays reachable via the marketing header nav. iOS app is
+                footy-only in v1 (see mobile/capacitor.config.ts) so the
+                badge only renders on the AFL brand for now. */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
+              {brand.id === "afl" && <AppStoreBadge theme="light" />}
               <MarketingAuthCTAs variant="hero" />
-              <Link
-                href="/demo"
-                className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-5 py-2.5 text-base font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-              >
-                Try the demo
-              </Link>
             </div>
 
             <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">

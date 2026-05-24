@@ -703,13 +703,18 @@ describe("integration: netballSport.validateLineup + suggest", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("emptyGenericLineup + validate fails with all-empty issues", () => {
+  it("emptyGenericLineup + validate fails with a count error", () => {
     const empty = emptyGenericLineup(["gs", "ga", "wa", "c", "wd", "gd", "gk"]);
     const openAge = netballSport.ageGroups.find((a) => a.id === "open")!;
     const result = netballSport.validateLineup!(empty, openAge);
     expect(result.ok).toBe(false);
-    // All 7 positions should trigger "empty" errors.
-    expect(result.issues.filter((i) => /empty/i.test(i.message))).toHaveLength(7);
+    // Validator now emits one count error ("Need 7 players on court
+    // — 7 positions are empty") rather than seven per-position
+    // "empty" issues. Per-position empties are valid for short-squad
+    // games; the only thing the validator cares about is the count.
+    expect(
+      result.issues.some((i) => /Need 7 players on court/.test(i.message)),
+    ).toBe(true);
   });
 
   it("isPositionAllowedInZone matches position allowedZones", () => {

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   markLoan,
   saveLineupDraft,
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -76,7 +77,7 @@ interface LineupPickerProps {
    * (e.g. a player who needs to stay paired with specific teammates),
    * while "split" (default) spreads them across zones.
    */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
   /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
@@ -480,9 +481,31 @@ export function LineupPicker({
   // zero server state changed.
   const [startModalOpen, setStartModalOpen] = useState(false);
 
+  // Anchor for walking up the DOM to reset scrolled ancestors before
+  // the modal mounts — see handleOpenStartModal for the why.
+  const lineupPickerRootRef = useRef<HTMLDivElement>(null);
+
   function handleOpenStartModal() {
     setServerError(null);
     if (onFieldCount === 0) return;
+    // Same scroll-reset as QuarterBreak. The public /run/{token}
+    // demo wraps the app in DeviceFrame, whose `translateZ(0)` makes
+    // it a containing block for `position: fixed` descendants. With
+    // the GM scrolled mid-picker, the modal then renders at the top
+    // of the framed area and its primary "Start Q1" button can fall
+    // below the visible scroll window. Reset every scrolled ancestor
+    // so the modal centres in view. window.scrollTo covers the non-
+    // framed (mobile / installed PWA) case.
+    if (typeof document !== "undefined") {
+      let el = lineupPickerRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     setStartModalOpen(true);
   }
 
@@ -547,11 +570,12 @@ export function LineupPicker({
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
-    // pb sized for the two-row sticky footer (stats + Save plan row
-    // ~32px, big primary "Ready for Q1" ~52px, container py + gap
-    // ~22px). 8rem clears it with breathing room over the iPhone
-    // home indicator (Steve 2026-05-13).
-    <div className="space-y-4 pb-[calc(8rem+env(safe-area-inset-bottom))]">
+    // Footer is `position: sticky` so it occupies real flow space —
+    // no bottom-padding workaround needed. Prior `pb-[calc(8rem+…)]`
+    // pushed the parent's bottom edge so far below the sticky
+    // element that sticky released its pin partway down the scroll
+    // (Steve 2026-05-20 demo fix).
+    <div ref={lineupPickerRootRef} className="space-y-4">
       <LineupPickerBreadcrumb backHref={backHref} />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
@@ -592,6 +616,16 @@ export function LineupPicker({
                 );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);
+                // Sub interval always shows the EFFECTIVE value
+                // (override if the coach typed one, otherwise the
+                // live suggestion). Steve 2026-05-20 — unlike
+                // Players-on-field, the sub-interval number is
+                // meaningful even when at default ("sub every
+                // 3m" tells a real story; "12 on field" doesn't).
+                // Showing it unconditionally means the coach can
+                // scan the closed header and know exactly how
+                // their game's pacing is set up.
+                bits.push(`Sub every ${effectiveSubMin}m`);
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
@@ -684,6 +718,44 @@ export function LineupPicker({
               )}
             </div>
 
+            {/* Sub interval — Steve 2026-05-17: moved up from a
+                standalone card below the zone grid into the Game
+                settings collapse, alongside Rotation + Players on
+                field. All pre-game match-shape knobs now live in
+                one place. The suggested value is dynamic (recomputes
+                from bench size + game length), so the helper line
+                still surfaces it in the explainer below the input. */}
+            <div>
+              <Label
+                htmlFor="sub-minutes"
+                className="!mb-1 block text-xs font-semibold text-ink"
+              >
+                Sub interval
+              </Label>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <p className="text-xs text-ink-mute">
+                    Suggested {suggestedMin} min — {benchCount} on bench,{" "}
+                    {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
+                    {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
+                    {gameMinutes} min.
+                  </p>
+                </div>
+                <div className="w-24">
+                  <Input
+                    id="sub-minutes"
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={subMinInput ?? String(suggestedMin)}
+                    onChange={(e) => setSubMinInput(e.target.value)}
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Lend a player */}
             <div>
               <p className="text-xs font-semibold text-ink">Lend a player</p>
@@ -767,7 +839,10 @@ export function LineupPicker({
       )}
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Single column — user feedback 2026-05-20: 2-col was too
+          cramped inside the demo phone-frame for the FWD / CENTRE /
+          BACK / BENCH cards. */}
+      <div className="grid grid-cols-1 gap-3">
         {slots.map((slot) => {
           const isBench = slot === "bench";
           const cap = isBench ? null : displayZoneCaps[slot];
@@ -785,7 +860,17 @@ export function LineupPicker({
                   }`}
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  {/* Header tinted to match the zone — coach can
+                      trace "BACK in blue" right through to the
+                      blue bar on each player tile. Steve 2026-05-23
+                      (parent feedback: hard to correlate labels
+                      with the per-tile colour stripes). Bench
+                      stays neutral ink. */}
+                  <h3
+                    className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
+                      isBench ? "text-ink" : zoneHeaderText(slot)
+                    }`}
+                  >
                     {slotLabel(slot)}
                   </h3>
                 </div>
@@ -821,11 +906,10 @@ export function LineupPicker({
                           <Guernsey num={p.jersey_number ?? ""} size={32} />
                           <span className="min-w-0 flex-1 truncate font-medium text-ink">
                             {p.chip && (
-                              <span
-                                aria-hidden
-                                className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${
-                                  CHIP_COLORS[p.chip as ChipKey].dot
-                                }`}
+                              <ChipIndicator
+                                chipKey={p.chip as ChipKey}
+                                mode={chipModeByKey[p.chip as ChipKey]}
+                                className="mr-1.5 align-middle"
                               />
                             )}
                             {p.full_name}
@@ -884,34 +968,11 @@ export function LineupPicker({
         })}
       </div>
 
-      {/* ── Sub interval ─────────────────────────────────────────────── */}
-      <SFCard>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor="sub-minutes" className="mb-1">
-              Sub interval
-            </Label>
-            <p className="text-xs text-ink-mute">
-              Suggested {suggestedMin} min — {benchCount} on bench,{" "}
-              {totalCount} total, ≈{restsPerPlayer(benchCount)} rest
-              {restsPerPlayer(benchCount) === 1 ? "" : "s"} each over{" "}
-              {gameMinutes} min.
-            </p>
-          </div>
-          <div className="w-full sm:w-24">
-            <Input
-              id="sub-minutes"
-              type="number"
-              min={1}
-              max={10}
-              step={0.5}
-              value={subMinInput ?? String(suggestedMin)}
-              onChange={(e) => setSubMinInput(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-        </div>
-      </SFCard>
+      {/* Sub interval input moved UP into the Game settings
+          collapse (Steve 2026-05-17) so all pre-game match-shape
+          knobs sit in one place. Empty here intentionally —
+          keeping the spot for grep so a future audit doesn't re-
+          introduce the card. */}
 
       {serverError && (
         <p className="text-sm text-danger" role="alert">
@@ -996,5 +1057,25 @@ function zoneAccent(zone: Zone): string {
       return "bg-zone-b/70";
     case "back":
       return "bg-zone-b";
+  }
+}
+
+/**
+ * Tailwind text-colour class for the section-header label
+ * ("FORWARD" / "CENTRE" / "BACK") so the heading text colour
+ * matches the accent strip + the per-tile colour bars. Steve
+ * 2026-05-23 — parent feedback that the labels and colours
+ * weren't visually tied together at thumbnail size.
+ */
+function zoneHeaderText(zone: Zone): string {
+  switch (zone) {
+    case "fwd":
+    case "hfwd":
+      return "text-zone-f";
+    case "mid":
+      return "text-zone-c";
+    case "back":
+    case "hback":
+      return "text-zone-b";
   }
 }

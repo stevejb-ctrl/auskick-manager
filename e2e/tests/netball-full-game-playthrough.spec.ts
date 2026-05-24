@@ -134,25 +134,21 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
     })),
   );
 
-  // Skip the LineupPicker → Start game UI flow (covered by
-  // netball-live-flow.spec.ts and netball-walkthrough.spec.ts).
-  // Seed lineup_set + status=in_progress directly so we land in
-  // the pre-Q1 branch with the await-kickoff modal one tap away.
-  // GenericLineup shape: { positions: { gs:[id], ... }, bench:[...] }.
-  const positions: Record<string, string[]> = Object.fromEntries(
-    NETBALL_LINEUP_KEYS.map((k, i) => [k, [players[i].id]]),
-  );
-  const bench = players.slice(NETBALL_LINEUP_KEYS.length).map((p) => p.id);
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "lineup_set",
-    metadata: { lineup: { positions, bench } },
-    created_by: ownerId,
-  });
-  await admin
-    .from("games")
-    .update({ status: "in_progress" })
-    .eq("id", game.id);
+  // Drive the picker → modal → Start path through the actual UI.
+  // The previous shortcut (seed lineup_set + status=in_progress
+  // directly to land in a "lineup committed, kickoff awaiting"
+  // intermediate state) no longer works — the May 15 two-step
+  // kickoff refactor folded that state away. NetballLineupPicker
+  // now only mounts when there's NO lineup_set, hosts the kickoff
+  // modal in-place, and the modal commits both lineup_set and
+  // quarter_start atomically via startNetballGame's
+  // startQuarterToo=true. So this test now routes through the
+  // picker explicitly. The picker's auto-suggest fills the
+  // starting lineup on mount so the confirm button is enabled
+  // without further input from the test.
+  //
+  // NOTE: we no longer flip `status=in_progress` here either; the
+  // server action does that as part of the kickoff write.
 
   // Suppress the netball walkthrough modal so its overlay doesn't
   // intercept the test's first interactions. Same pattern as

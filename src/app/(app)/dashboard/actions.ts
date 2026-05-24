@@ -113,7 +113,11 @@ export async function createTeam(
     name,
     ageGroup,
     user.email ?? user.id,
-    new Date().toISOString()
+    new Date().toISOString(),
+    // Use the friendly long name from sport config ("Australian
+    // Rules Football" / "Netball") instead of the raw id — easier
+    // to scan in Telegram than "afl" / "netball". Steve 2026-05-17.
+    cfg.name,
   );
   // Fire-and-forget — Telegram outage must not block team creation
   sendTelegramNotification(text).catch(() => {});

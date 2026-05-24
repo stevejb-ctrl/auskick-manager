@@ -2,6 +2,8 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
+import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
+import type { ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -18,6 +20,15 @@ interface ScoringStepProps {
   sportId?: Sport;
   /** Current quarter-length override in seconds, or null to use age-group default. */
   initialQuarterLengthSeconds?: number | null;
+  /**
+   * Existing chip labels and modes on the team. A freshly-created team
+   * has all-null labels (which the chip card treats as "off"); coaches
+   * who opt in during onboarding fill them in here and the SquadStep
+   * picks them up so chips can be applied as players are added. Steve
+   * 2026-05-20.
+   */
+  initialChipLabels?: { a: string | null; b: string | null; c: string | null };
+  initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
 }
 
 export function ScoringStep({
@@ -26,6 +37,8 @@ export function ScoringStep({
   initialEnabled,
   sportId = "afl",
   initialQuarterLengthSeconds = null,
+  initialChipLabels = { a: null, b: null, c: null },
+  initialChipModes = { a: "split", b: "split", c: "split" },
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
   // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
@@ -109,18 +122,43 @@ export function ScoringStep({
         />
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Link
-          href={`/teams/${teamId}`}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
-        >
-          Skip for now
-        </Link>
+      {/* Optional player chips — coaches who want to tag cohorts
+          within the squad (older / younger, mates, position-locked
+          regulars) can configure them here. Rendered open by
+          default because the previous dashed-border <details>
+          collapse was a custom UI element we never used elsewhere
+          and read as unclickable. The card defaults to Off so a
+          coach who doesn't engage with it leaves at "no chips" and
+          can come back later via Team Settings. Steve 2026-05-20:
+          replaces the <details> wrapper. */}
+      <CohortChipsSettings
+        teamId={teamId}
+        initialLabels={initialChipLabels}
+        initialModes={initialChipModes}
+        isAdmin
+        sport={sportId}
+        ageGroup={ageGroup.id}
+        hideSaveButton
+      />
+
+      <div className="flex justify-end">
         <Link
           href={`/teams/${teamId}/setup?step=squad`}
           className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
           Continue
+        </Link>
+      </div>
+
+      {/* Skip-for-now — small ghost link separated from the
+          Continue CTA so it doesn't read as a competing primary
+          action and can't be mistapped on mobile. Steve 2026-05-20. */}
+      <div className="flex justify-center pt-2">
+        <Link
+          href={`/teams/${teamId}`}
+          className="text-xs font-medium text-ink-mute underline-offset-4 hover:text-ink hover:underline"
+        >
+          Skip onboarding for now
         </Link>
       </div>
     </div>

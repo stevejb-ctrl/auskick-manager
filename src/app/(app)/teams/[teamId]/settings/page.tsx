@@ -45,6 +45,24 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   if (!team) notFound();
 
+  // Read `join_code` in its own query so a deploy that beats the
+  // migration to prod still renders the rest of the page. Migration
+  // 0041 added the column; if it hasn't been applied yet the SELECT
+  // errors and we keep joinCode = null. JoinCodeSection already
+  // renders only when joinCode is non-null, so the panel just
+  // doesn't appear until the migration is in. Once 0041 is applied
+  // everywhere this two-step can be inlined back into the SELECT
+  // above.
+  let joinCode: string | null = null;
+  const { data: codeRow } = await supabase
+    .from("teams")
+    .select("join_code")
+    .eq("id", params.teamId)
+    .maybeSingle();
+  if (codeRow) {
+    joinCode = (codeRow as { join_code?: string | null }).join_code ?? null;
+  }
+
   const isAdmin = membership?.role === "admin";
   const sport = ((team.sport as string | null) ?? "afl") as Sport;
 
@@ -80,7 +98,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   if (isAdmin) {
     const { data: rawInvites } = await supabase
       .from("team_invites")
-      .select("id, token, role, email_hint, created_at, expires_at")
+      .select(
+        "id, token, role, email_hint, invited_email, email_sent_at, email_send_count, created_at, expires_at"
+      )
       .eq("team_id", params.teamId)
       .is("accepted_at", null)
       .is("revoked_at", null)
@@ -100,6 +120,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         isAdmin={isAdmin}
         members={members}
         invites={invites}
+        joinCode={joinCode}
       />
       <TrackScoringToggle
         teamId={params.teamId}
@@ -164,6 +185,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         }}
         isAdmin={isAdmin}
         sport={sport}
+        ageGroup={(team as { age_group?: string | null }).age_group ?? null}
       />
       <TeamSongSettings
         teamId={params.teamId}

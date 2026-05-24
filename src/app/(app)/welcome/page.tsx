@@ -61,17 +61,21 @@ export default async function WelcomePage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-8 py-4 sm:py-8">
-      {/* Hero */}
+      {/* Hero — phrased so it works for both audiences who land here:
+          coaches setting up a new team AND parents who signed up to
+          join an existing one. The two CTAs at the bottom split into
+          those paths. */}
       <div className="space-y-3 text-center">
         <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
           Welcome to Siren
         </p>
         <h1 className="text-3xl font-bold tracking-tightest text-ink sm:text-4xl">
-          G&rsquo;day Coach 👋
+          G&rsquo;day 👋
         </h1>
         <p className="mx-auto max-w-md text-base text-ink-dim sm:text-lg">
-          Let&rsquo;s get your team ready for round 1. Takes about three
-          minutes, and you can skip any step and come back to it later.
+          Let&rsquo;s get you onto a team. If you&rsquo;re a coach setting up
+          your own, the wizard takes about three minutes. If your coach
+          already has a team and gave you a code, jump straight in.
         </p>
       </div>
 
@@ -96,17 +100,29 @@ export default async function WelcomePage() {
         ))}
       </ol>
 
-      {/* CTA */}
+      {/* CTAs — two equal paths so a parent who came to join a
+          coach's team doesn't get pushed into the create-team wizard,
+          and a coach setting up for the first time doesn't get pushed
+          into the join flow. The "Join with a code" path is the
+          handoff for parents who got a code verbally on the sideline
+          or via text from the coach. */}
       <div className="space-y-3">
         <Link
           href="/teams/new"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-5 py-3.5 text-base font-semibold text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
-          Let&rsquo;s go
+          Set up a new team
+          <span aria-hidden>→</span>
+        </Link>
+        <Link
+          href="/join-team"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-brand-600 bg-surface px-5 py-3.5 text-base font-semibold text-brand-700 shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-50"
+        >
+          Join with a code
           <span aria-hidden>→</span>
         </Link>
         <p className="text-center text-xs text-ink-mute">
-          Already been invited to a team?{" "}
+          Already a member?{" "}
           <Link
             href="/dashboard?welcome=skipped"
             className="font-medium text-brand-700 hover:text-brand-800"

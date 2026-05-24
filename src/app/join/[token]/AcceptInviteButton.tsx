@@ -22,7 +22,11 @@ export function AcceptInviteButton({ token }: AcceptInviteButtonProps) {
         setError(res.error);
         return;
       }
-      router.push(`/teams/${res.teamId}`);
+      // Land on the Games tab specifically, not the team home. The
+       // home tab surfaces setup affordances that can confuse a brand-
+       // new parent into thinking they need to create something — the
+       // games tab is the schedule view they actually came for.
+      router.push(`/teams/${res.teamId}/games`);
       router.refresh();
     });
   }

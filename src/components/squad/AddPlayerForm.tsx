@@ -6,6 +6,7 @@ import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { ChipPicker } from "@/components/squad/ChipPicker";
+import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -20,6 +21,12 @@ interface AddPlayerFormProps {
   showJersey?: boolean;
   /** Optional team-defined labels for the three chip slots. */
   chipLabels?: { a: string | null; b: string | null; c: string | null };
+  /**
+   * Optional per-chip modes — passed straight through to ChipPicker
+   * so the swatch colours match the in-game zone palette when the
+   * team has linked chips to positions. Steve 2026-05-20.
+   */
+  chipModes?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 export function AddPlayerForm({
@@ -29,6 +36,7 @@ export function AddPlayerForm({
   takenJerseys,
   showJersey = true,
   chipLabels,
+  chipModes,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
@@ -134,6 +142,7 @@ export function AddPlayerForm({
             value={chip}
             onChange={setChip}
             labels={chipLabels}
+            modes={chipModes}
             disabled={isPending}
           />
         )}

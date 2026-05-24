@@ -89,7 +89,7 @@ export function LineupPickerFooter({
   confirmIconAfter,
 }: LineupPickerFooterProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
+    <div className="sticky bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
       <div className="mx-auto flex max-w-4xl flex-col gap-2">
         {onSavePlan && (
           <div className="flex items-center justify-between gap-3">

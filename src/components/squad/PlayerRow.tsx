@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { Guernsey } from "@/components/sf";
 import { ChipPicker } from "@/components/squad/ChipPicker";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { type ChipKey } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 
 interface PlayerRowProps {
@@ -28,6 +29,14 @@ interface PlayerRowProps {
   showJersey?: boolean;
   /** Optional team-defined labels for chip A/B/C — drives the edit picker. */
   chipLabels?: { a: string | null; b: string | null; c: string | null };
+  /**
+   * Team-level chip modes (steve 2026-05-20). When supplied, the
+   * indicator next to a player's name surfaces the chip's zone
+   * preference letter (F / C / B) if the mode is forward/centre/
+   * back. Optional for backwards compat with callers that don't
+   * know team settings.
+   */
+  chipModes?: Partial<Record<ChipKey, import("@/lib/chips").ChipMode>>;
 }
 
 export function PlayerRow({
@@ -37,6 +46,7 @@ export function PlayerRow({
   canEdit,
   showJersey = true,
   chipLabels,
+  chipModes,
 }: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.full_name);
@@ -157,6 +167,7 @@ export function PlayerRow({
                   value={chip}
                   onChange={setChip}
                   labels={chipLabels}
+                  modes={chipModes}
                   disabled={isPending}
                 />
               </div>
@@ -180,14 +191,14 @@ export function PlayerRow({
         <>
           <span className="flex-1 text-sm font-medium text-ink">
             {player.chip && (
-              <span
-                aria-hidden
+              <ChipIndicator
+                chipKey={player.chip as ChipKey}
+                mode={chipModes?.[player.chip as ChipKey]}
                 title={
-                  chipLabels?.[player.chip as ChipKey] ?? `Chip ${player.chip.toUpperCase()}`
+                  chipLabels?.[player.chip as ChipKey] ??
+                  `Chip ${player.chip.toUpperCase()}`
                 }
-                className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${
-                  CHIP_COLORS[player.chip as ChipKey].dot
-                }`}
+                className="mr-2 align-middle"
               />
             )}
             {player.full_name}

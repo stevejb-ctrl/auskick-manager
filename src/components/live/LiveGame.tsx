@@ -23,6 +23,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
@@ -75,6 +76,7 @@ import {
   ALL_ZONES,
   emptyZoneMs,
   suggestSwaps,
+  zoneCapsFor,
   type GameState,
   type PlayerZoneMinutes,
   type SeasonAvailability,
@@ -82,7 +84,7 @@ import {
   type ZoneMinutes,
 } from "@/lib/fairness";
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
-import { positionsFor } from "@/lib/ageGroups";
+import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -183,8 +185,12 @@ interface LiveGameProps {
   maxOnFieldSize: number;
   /** Sport+age default — shown as a "(default)" tag on the dropdown. */
   defaultOnFieldSize: number;
-  /** Per-chip mode (split/group) — passed to QuarterBreak's suggester. */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  /**
+   * Per-chip mode — passed to QuarterBreak's suggester. Five
+   * modes since 2026-05-20: split / group / forward / centre /
+   * back.
+   */
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   exitHref?: string;
   /**
    * True when the current user has admin role on this team. Drives
@@ -256,6 +262,16 @@ export function LiveGame({
   suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // Display caps for the on-field grid — based on the age-group
+  // DEFAULT, not the current persisted on-field size. When the coach
+  // has reduced count below the default (e.g. 15→13 via Q-break
+  // match-adjustments), Field still draws the missing positions as
+  // "Empty" placeholder tiles so the visual zone shape stays
+  // recognisable. Steve 2026-05-20.
+  const displayZoneCaps = useMemo(
+    () => zoneCapsFor(defaultOnFieldSize, positionModel),
+    [defaultOnFieldSize, positionModel],
+  );
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -474,8 +490,16 @@ export function LiveGame({
     const lineupHasAnyPlayer =
       fullStoreState.lineup.bench.length > 0 ||
       ALL_ZONES.some((z) => fullStoreState.lineup[z].length > 0);
+    // Read activeGameId from the live store (not the selector closure)
+    // so the check sees the just-committed init from a sibling effect
+    // run in the same tick. Without this, React 18 dev-mode strict
+    // mount + persist-rehydration can queue two effect runs both
+    // capturing `activeGameId === null` in their closures; the
+    // second run then falls through and re-inits with
+    // clockStartedAt=null, silently pausing the freshly-started
+    // clock. Steve 2026-05-20 demo clock-auto-resume fix.
     if (
-      activeGameId === gameId &&
+      fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
       lineupHasAnyPlayer
     ) {
@@ -580,6 +604,34 @@ export function LiveGame({
       if (selected?.kind === "bench") {
         clearSelection();
         setPendingSwap({ off: "", on: selected.playerId, zone });
+        return;
+      }
+      // Field player selected + empty slot tapped → MOVE the player
+      // to the empty slot. Source zone becomes the new blank. Lets
+      // a coach playing short-squad shift the blank zone mid-game
+      // without going via bench (e.g. send a Back into an empty
+      // Forward, blank moves to Backs). Same-zone is a no-op — the
+      // player would just land where they already are.
+      if (selected?.kind === "field" && selected.zone !== zone) {
+        const pidA = selected.playerId;
+        const zoneA = selected.zone;
+        const quarter = Math.max(1, currentQuarter);
+        const elapsed_ms = scaledElapsedMs();
+        clearSelection();
+        applyFieldZoneSwap(pidA, zoneA, "", zone);
+        showSwapToast(`${shortName(pidA)} → ${ZONE_LABELS[zone]}`);
+        enqueueLiveAction("recordFieldZoneSwap", [
+          auth,
+          gameId,
+          {
+            player_a_id: pidA,
+            zone_a: zoneA,
+            player_b_id: null,
+            zone_b: zone,
+            quarter,
+            elapsed_ms,
+          },
+        ]);
       }
       return;
     }
@@ -1200,6 +1252,7 @@ export function LiveGame({
           maxOnFieldSize={maxOnFieldSize}
           defaultOnFieldSize={defaultOnFieldSize}
           chipModeByKey={chipModeByKey}
+          clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
         />
       </div>
@@ -1276,6 +1329,7 @@ export function LiveGame({
       isPreGame={isPreGame}
       isFinished={isFinished}
       clockMultiplier={clockMultiplier}
+      quarterMs={quarterMs}
       isPending={isPending}
       clockPulseKey={clockPulseKey}
       // Q-by-Q chip surfaces only when there's something to show
@@ -1447,6 +1501,8 @@ export function LiveGame({
               swapOffs={swapOffs}
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
+              displayZoneCaps={displayZoneCaps}
+              chipModeByKey={chipModeByKey}
               injuredIds={injuredIds}
               lockedIds={lockedIds}
               zoneLockedPlayers={zoneLockedPlayers}
@@ -1495,6 +1551,24 @@ export function LiveGame({
             auth={auth}
             gameId={gameId}
             isAdmin={isAdmin}
+            // Steve 2026-05-20: mid-game settings affordance —
+            // currently just the sub-interval override (drives
+            // the SubDueModal reminder cadence), but the modal
+            // is set up to take more knobs over time without
+            // adding new buttons to this row. AFL-only — the
+            // netball live shell doesn't pass this slot because
+            // netball has no sub-interval concept.
+            extra={
+              <LiveGameSettingsButton
+                auth={auth}
+                gameId={gameId}
+                subIntervalSeconds={subIntervalSeconds}
+                currentOnFieldSize={currentOnFieldSize}
+                minOnFieldSize={minOnFieldSize}
+                maxOnFieldSize={maxOnFieldSize}
+                playersById={playersById}
+              />
+            }
           />
         );
       })()}

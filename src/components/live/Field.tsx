@@ -6,6 +6,7 @@ import type { Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
 import { positionsFor } from "@/lib/ageGroups";
 import { PlayerTile } from "@/components/live/PlayerTile";
+import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface FieldProps {
   playersById: Map<string, Player>;
@@ -18,7 +19,23 @@ interface FieldProps {
   zoneLockedPlayers?: Record<string, Zone>;
   onLongPress?: (playerId: string) => void;
   zoneCaps: ZoneCaps;
+  /**
+   * Optional display caps (Steve 2026-05-20). When provided, the
+   * grid renders slots against THESE caps instead of `zoneCaps`,
+   * so reducing on-field size mid-game (e.g. 15→14 at Q-break)
+   * still shows empty placeholder tiles for the missing
+   * positions instead of silently shrinking the zone. Mirrors the
+   * LineupPicker's existing `displayZoneCaps` / `zoneCaps` split.
+   * Defaults to `zoneCaps` if omitted (legacy behaviour).
+   */
+  displayZoneCaps?: ZoneCaps;
   positionModel: PositionModel;
+  /**
+   * Team-level chip modes. Forwarded to PlayerTile so the inline
+   * chip dot reads the same zone-colour palette the rest of the
+   * app uses when a chip is position-linked. Steve 2026-05-20.
+   */
+  chipModeByKey?: Partial<Record<ChipKey, ChipMode>>;
   playerScores?: Record<string, { goals: number; behinds: number }>;
   totalPairs?: number;
   /**
@@ -59,11 +76,19 @@ export function Field({
   zoneLockedPlayers,
   onLongPress,
   zoneCaps,
+  displayZoneCaps,
   positionModel,
+  chipModeByKey,
   playerScores,
   totalPairs,
   wakeUpKey = null,
 }: FieldProps) {
+  // displayCaps drives the rendered slot count; zoneCaps drives the
+  // suggester / placement rules. They diverge only when on-field
+  // size has been reduced below the age-group default — at which
+  // point we want to render the missing positions as "Empty"
+  // placeholders rather than silently shrinking the zone.
+  const displayCaps = displayZoneCaps ?? zoneCaps;
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
   const lineup = useLiveGame((s) => s.lineup);
@@ -168,10 +193,34 @@ export function Field({
         {zones.map((key, idx) => {
           const ids = lineup[key];
           const cap = zoneCaps[key] ?? 0;
-          if (cap === 0 && ids.length === 0) return null;
+          const displayCap = displayCaps[key] ?? cap;
+          // Hide an entirely-empty zone only if BOTH the active cap
+          // and the display cap are 0 — otherwise we'd lose empty
+          // placeholders for a zone that's currently unfilled but
+          // still has display slots reserved (e.g. forward zone
+          // when the coach has reduced on-field count below the
+          // forward's contribution).
+          if (cap === 0 && displayCap === 0 && ids.length === 0) return null;
           const prevGroup = idx > 0 ? sideGroupOf(zones[idx - 1]) : null;
           const currGroup = sideGroupOf(key);
           const showDivider = prevGroup !== null && prevGroup !== currGroup;
+          // Slot count drives both player tiles and empty placeholder
+          // tiles in this zone's row of the 2-column grid.
+          const slotCount = Math.max(displayCap, ids.length);
+          // When the zone has an odd number of tiles, the last one
+          // lands alone in the bottom row of a grid-cols-2 grid and
+          // sits awkwardly left-aligned (Steve 2026-05-20: surfaced
+          // by U13+ zones3 where the default 5-5-5 split puts the
+          // 5th player in every zone on its own line). We span the
+          // orphan tile across both columns and centre it via
+          // mx-auto + a width that matches a normal half-cell, so
+          // it visually sits in the centre of the zone rather than
+          // left-pinned to column 1.
+          const orphanIdx = slotCount > 0 && slotCount % 2 === 1 ? slotCount - 1 : -1;
+          // 50% of grid - half of the 0.5rem (8px) gap = 50% - 0.25rem.
+          // Matches the width a tile would occupy in a normal grid cell.
+          const orphanWrapClass =
+            "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
 
           return (
             <Fragment key={key}>
@@ -179,18 +228,25 @@ export function Field({
                 <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
               )}
               <div className="grid grid-cols-2 gap-2">
-                {Array.from({ length: Math.max(cap, ids.length) }).map((_, slot) => {
+                {Array.from({ length: slotCount }).map((_, slot) => {
+                  const isOrphan = slot === orphanIdx;
                   const pid = ids[slot];
                   if (!pid) {
-                    return (
+                    const button = (
                       <button
-                        key={slot}
                         type="button"
                         onClick={() => onTapField("", key)}
-                        className="rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro text-white/60 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
+                        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro text-white/60 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
                       >
                         Empty
                       </button>
+                    );
+                    return isOrphan ? (
+                      <div key={slot} className={orphanWrapClass}>
+                        {button}
+                      </div>
+                    ) : (
+                      <Fragment key={slot}>{button}</Fragment>
                     );
                   }
                   const player = playersById.get(pid);
@@ -199,9 +255,8 @@ export function Field({
                     selected?.kind === "field" && selected.playerId === pid;
                   const dimmed =
                     selected?.kind === "field" ? !isSelected : false;
-                  return (
+                  const tile = (
                     <PlayerTile
-                      key={pid}
                       player={player}
                       currentZone={key}
                       onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
@@ -224,7 +279,15 @@ export function Field({
                             : null
                       }
                       score={playerScores?.[pid]}
+                      chipModes={chipModeByKey}
                     />
+                  );
+                  return isOrphan ? (
+                    <div key={pid} className={orphanWrapClass}>
+                      {tile}
+                    </div>
+                  ) : (
+                    <Fragment key={pid}>{tile}</Fragment>
                   );
                 })}
               </div>

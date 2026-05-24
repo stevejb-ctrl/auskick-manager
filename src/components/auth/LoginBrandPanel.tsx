@@ -1,5 +1,7 @@
 import { Eyebrow } from "@/components/sf";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { CourtMotif } from "@/components/marketing/CourtMotif";
+import { getBrand } from "@/lib/brand";
 
 /**
  * Right-hand dark column on the desktop login screen.
@@ -20,24 +22,38 @@ import { SirenWordmark } from "@/components/marketing/SirenWordmark";
  * inventing numbers and we don't have real ones to put there.
  */
 export function LoginBrandPanel() {
+  const brand = getBrand();
   return (
     <div className="relative hidden flex-1 overflow-hidden border-l border-hairline bg-ink p-14 text-warm md:flex md:flex-col">
-      {/* Decorative footy oval — same field motif as the home hero,
-          but giant and faded. */}
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute right-[-120px] top-1/2 -translate-y-1/2"
-        width="700"
-        height="800"
-        viewBox="0 0 200 220"
-        style={{ opacity: 0.08 }}
-      >
-        <ellipse cx="100" cy="110" rx="80" ry="100" fill="none" stroke="#fff" strokeWidth="0.8" />
-        <ellipse cx="100" cy="110" rx="55" ry="75" fill="none" stroke="#fff" strokeWidth="0.6" />
-        <ellipse cx="100" cy="110" rx="30" ry="45" fill="none" stroke="#fff" strokeWidth="0.5" />
-        <line x1="100" y1="10" x2="100" y2="210" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
-        <line x1="20" y1="110" x2="180" y2="110" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
-      </svg>
+      {/* Decorative motif — footy oval on AFL, court rectangle on
+          netball (Steve 2026-05-17, mirrors the marketing hero's
+          per-brand motif branch). Large, faded, anchored off the
+          right edge so it sits behind the copy block rather than
+          competing with it. */}
+      {brand.id === "netball" ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[-120px] top-1/2 -translate-y-1/2"
+          style={{ opacity: 0.08 }}
+        >
+          <CourtMotif size={620} dark />
+        </div>
+      ) : (
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[-120px] top-1/2 -translate-y-1/2"
+          width="700"
+          height="800"
+          viewBox="0 0 200 220"
+          style={{ opacity: 0.08 }}
+        >
+          <ellipse cx="100" cy="110" rx="80" ry="100" fill="none" stroke="#fff" strokeWidth="0.8" />
+          <ellipse cx="100" cy="110" rx="55" ry="75" fill="none" stroke="#fff" strokeWidth="0.6" />
+          <ellipse cx="100" cy="110" rx="30" ry="45" fill="none" stroke="#fff" strokeWidth="0.5" />
+          <line x1="100" y1="10" x2="100" y2="210" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
+          <line x1="20" y1="110" x2="180" y2="110" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
+        </svg>
+      )}
 
       {/* Wordmark — dark variant flips the text to warm on the ink panel */}
       <div className="relative">
@@ -52,7 +68,12 @@ export function LoginBrandPanel() {
           style={{ lineHeight: 1.04 }}
         >
           Fair rotations.{" "}
-          <span className="font-serif italic font-normal">Calmer</span>{" "}
+          {/* Steve 2026-05-17: marketing design refresh — dark-
+              surface variant of the accent. The brand-500 hue used
+              on light surfaces doesn't pop on `bg-ink`; marketing's
+              ScrollingFeatures uses `text-warm/90` for the same
+              dark-surface case, so we mirror it here. */}
+          <span className="text-warm/90">Calmer</span>{" "}
           sidelines. Happier kids.
         </h2>
 

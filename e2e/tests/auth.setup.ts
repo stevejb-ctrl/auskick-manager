@@ -20,6 +20,13 @@ import path from "node:path";
 const authFile = path.resolve(__dirname, "../../playwright/.auth/super-admin.json");
 
 setup("authenticate as super-admin", async ({ page }) => {
+  // Setup runs once per `npm run e2e`. First execution after `npm
+  // run db:reset` hits cold Next.js compiles for /login + /dashboard,
+  // which on Windows can take 60+ seconds combined. The default 30s
+  // test timeout is too tight for that path. Subsequent runs hit
+  // the warm cache and finish in seconds.
+  setup.setTimeout(180_000);
+
   const email = process.env.TEST_SUPER_ADMIN_EMAIL;
   const password = process.env.TEST_SUPER_ADMIN_PASSWORD;
   if (!email || !password) {
@@ -48,14 +55,26 @@ setup("authenticate as super-admin", async ({ page }) => {
   // stable data-testid hook so this doesn't drift if the link copy
   // is reworded.
   await page.goto("/login");
+  // LoginForm is a client component — wait for hydration before
+  // clicking the mode toggle. Without this, the click can fire while
+  // React is still hydrating, leaving the form in magic-link mode
+  // and the password field never renders. networkidle is a reliable
+  // hydration signal once the initial dev-server compile settles.
+  await page.waitForLoadState("networkidle");
   await page.getByTestId("login-mode-toggle").click();
+  // And wait for the mode-switched state to actually render before
+  // touching the password field — defends against React batching the
+  // state update past Playwright's first probe.
+  await page.getByTestId("login-password").waitFor({ state: "visible" });
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
 
   // Landing page after login is /dashboard. If the server redirects
   // somewhere else (e.g. /onboarding for new accounts), update this.
-  await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+  // Generous timeout absorbs Windows dev-server cold-compile of the
+  // /dashboard route on first run.
+  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
   await expect(page).toHaveURL(/\/dashboard/);
 
   // Pre-dismiss the live-game walkthrough modal. LiveGame.tsx opens

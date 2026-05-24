@@ -408,7 +408,7 @@ export interface NetballSuggestInput {
    * shape exactly.
    */
   chipByPlayerId?: Record<string, "a" | "b" | "c" | null | undefined>;
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per
@@ -417,6 +417,61 @@ export interface NetballSuggestInput {
 // same-chip overlap is the dominant signal among season-rarity ties
 // but never overrides "don't repeat third".
 const NETBALL_CHIP_PENALTY_BASE = 50;
+
+// Flat zone-preference bonus (Steve 2026-05-20). Applies when a
+// chip's mode is "forward" / "centre" / "back" — the netball
+// suggester maps these to the existing thirds via `primaryThirdFor`:
+//   forward → attack-third (GS, GA, WA)
+//   centre  → centre-third (C)
+//   back    → defence-third (WD, GD, GK)
+// The bonus fires for every candidate position in the matching
+// third, so a forward-chipped player rotates GS/GA/WA across
+// quarters via the existing tier-2 same-position penalty.
+//
+// Steve 2026-05-20 (third pass same day): bumped to 350000 so the
+// chip outranks the ENTIRE routine fairness stack including
+// teammateRepeatPenalty (-150000 per mate, 1 mate's worth).
+// Coach intent: a chipped forward goes to attack-third every
+// quarter where possible. When 1 chip-mate is also placed in
+// attack-third for Q2, repeating that placement is the coach's
+// explicit design, not an incidental clump to split apart.
+//
+// Priority order (high → low rank in the score sum):
+//   1. chipTerm                +350000  ← coach's explicit pick
+//   2. teammateRepeatPenalty   -150000  per mate (still nudges,
+//                                       2+ mates can override)
+//   3. unplayedThirdBonus      +100000  ← bowed to chip
+//   4. samePositionPenalty      -50000  ← rotates GS/GA/WA within family
+//   5. sameThirdAsLastPenalty   -10000
+//   6. seasonRarity            ~single  ← tiebreaker
+//
+// Worst-case stacked-against-chip math:
+//   chip in attack-third, played GS this game, last Q was attack,
+//   1 last-Q mate already placed in attack-third for the new Q:
+//     0 unplayedBonus (third played)
+//     -50000 samePos (if candidate is GS again) or 0 (if GA/WA)
+//     -10000 sameThird
+//     +350000 chip
+//     -150000 partnership (1 mate)
+//     = +140000 worst, +190000 best within-family-rotation
+//   fresh other-third position, unplayed, no mate:
+//     +100000
+//   → chip wins by at least 40000 ✓
+//
+// 2-mate partnership still overrides (each -150000):
+//   chip in attack-third with 2 mates: 350000 - 300000 - 60000 = -10000
+//   fresh other-third: +100000
+//   → other wins by 110000. Intentional escape — 2 chip-mates
+//   from last Q in the same third for THIS quarter is a hard
+//   clump. Coaches who don't want it split should pick "split"
+//   or "group" mode rather than a zone mode.
+//
+// Centre-chipped player keeps C across all 4 quarters even though
+// centre-third has only 1 position:
+//   C (samePos every Q after Q1): -50000 -10000 + 350000 = +290000
+//   fresh other-third: +100000
+//   → C wins by 190000, very comfortably.
+const NETBALL_CHIP_ZONE_BONUS = 350000;
 
 export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup {
   const {
@@ -538,28 +593,45 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     // Tier 5: prefer positions they've played least across the season.
     const seasonRarity = -seasonCount;
 
-    // Tier 6: cohort-chip placement preference. AFL parity. Apply
-    // per-third — count same-chip players already placed in
-    // candidateThird, magnitude scales with n² so two clustering
-    // each contribute 4×base, three contribute 9×base, etc. "split"
-    // mode = penalty; "group" mode = bonus. Chips with no mode set
-    // default to "split" (matches AFL's
-    // `chipModeByKey[myChip] ?? "split"`).
+    // Tier 6: cohort-chip placement preference. AFL parity, five
+    // modes (Steve 2026-05-20):
+    //
+    //   - split  → per-third n²×base PENALTY, discourages cluster
+    //   - group  → per-third n²×base BONUS, encourages cluster
+    //   - forward → flat BONUS when candidateThird is attack-third
+    //   - centre → flat BONUS when candidateThird is centre-third
+    //   - back   → flat BONUS when candidateThird is defence-third
+    //
+    // Default ("split") matches AFL's `chipModeByKey[myChip] ??
+    // "split"` so chips without an explicit mode stay on the
+    // legacy spread behaviour.
     let chipTerm = 0;
     if (candidateThird && chipByPlayerId) {
       const myChip = chipByPlayerId[pid];
       if (myChip) {
-        const placed = placedInThird[candidateThird];
-        if (placed && placed.size > 0) {
-          let sameChip = 0;
-          placed.forEach((other) => {
-            if (chipByPlayerId[other] === myChip) sameChip++;
-          });
-          if (sameChip > 0) {
-            const magnitude =
-              sameChip * sameChip * NETBALL_CHIP_PENALTY_BASE;
-            const mode = chipModeByKey?.[myChip] ?? "split";
-            chipTerm = mode === "group" ? magnitude : -magnitude;
+        const mode = chipModeByKey?.[myChip] ?? "split";
+        if (mode === "forward" || mode === "centre" || mode === "back") {
+          const targetThird =
+            mode === "forward"
+              ? "attack-third"
+              : mode === "centre"
+                ? "centre-third"
+                : "defence-third";
+          if (candidateThird === targetThird) {
+            chipTerm = NETBALL_CHIP_ZONE_BONUS;
+          }
+        } else {
+          const placed = placedInThird[candidateThird];
+          if (placed && placed.size > 0) {
+            let sameChip = 0;
+            placed.forEach((other) => {
+              if (chipByPlayerId[other] === myChip) sameChip++;
+            });
+            if (sameChip > 0) {
+              const magnitude =
+                sameChip * sameChip * NETBALL_CHIP_PENALTY_BASE;
+              chipTerm = mode === "group" ? magnitude : -magnitude;
+            }
           }
         }
       }
@@ -890,7 +962,13 @@ export function playerThirdMs(
       // the empty token to fill it). Skip the bench-add step for
       // those — there's no sub-out player to push to bench.
       outPlayerId: string | null;
-      inPlayerId: string;
+      // null when the sub VACATES the position. Used by short-squad
+      // "Move to empty position" (Steve 2026-05-23) which emits a
+      // pair of subs at the same atMs: one with inPlayerId=null to
+      // vacate the source, one with outPlayerId=null to fill the
+      // target. Skip the position-fill + bench-remove for vacate-
+      // only subs.
+      inPlayerId: string | null;
       atMs: number;
     }>,
   ) => {
@@ -905,11 +983,17 @@ export function playerThirdMs(
       if (dur > 0) addLineupTime(current, dur);
       const next: GenericLineup = {
         positions: { ...current.positions },
-        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+        bench:
+          sub.inPlayerId != null
+            ? current.bench.filter((id) => id !== sub.inPlayerId)
+            : [...current.bench],
       };
-      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
-        .concat([sub.inPlayerId]);
+      const remainAtPosition = (next.positions[sub.positionId] ?? [])
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
+      next.positions[sub.positionId] =
+        sub.inPlayerId != null
+          ? remainAtPosition.concat([sub.inPlayerId])
+          : remainAtPosition;
       if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
@@ -929,7 +1013,8 @@ export function playerThirdMs(
       midQuarterSubs?: Array<{
         positionId: string;
         outPlayerId: string | null;
-        inPlayerId: string;
+        // null = vacate-only (short-squad "Move to empty position").
+        inPlayerId: string | null;
         atMs: number;
       }>;
     };

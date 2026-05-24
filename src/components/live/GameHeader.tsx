@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   clockElapsedMs,
   formatClock,
-  QUARTER_MS,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -31,6 +30,15 @@ interface GameHeaderProps {
   isFinished: boolean;
   /** Speed multiplier for demo games — scales displayed elapsed time (default 1). */
   clockMultiplier?: number;
+  /**
+   * Quarter length in milliseconds. Cascade source: game override →
+   * team override → age-group default (`getEffectiveQuarterSeconds`).
+   * Required so the countdown reflects the actual age-group length
+   * (U13+ = 20 min, not the legacy hardcoded 12). Steve 2026-05-20:
+   * previously this component imported a hardcoded QUARTER_MS from
+   * the store; every game read 12 min no matter what age group.
+   */
+  quarterMs: number;
   /** True while a server action from this header (e.g. opponent score) is in flight. */
   isPending?: boolean;
   /**
@@ -106,6 +114,7 @@ export function GameHeader({
   isPreGame,
   isFinished,
   clockMultiplier = 1,
+  quarterMs,
   isPending = false,
   clockPulseKey = null,
   onShowQuarterScores,
@@ -127,8 +136,8 @@ export function GameHeader({
 
   const rawElapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs });
   const elapsed = rawElapsed * clockMultiplier;
-  const remaining = Math.max(0, QUARTER_MS - elapsed);
-  const overtime = elapsed > QUARTER_MS;
+  const remaining = Math.max(0, quarterMs - elapsed);
+  const overtime = elapsed > quarterMs;
 
   const quarterLabel = isPreGame
     ? "Pre"

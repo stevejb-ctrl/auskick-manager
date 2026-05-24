@@ -64,8 +64,20 @@ export type AgeGroup =
   | "U13"
   | "U14"
   | "U15"
+  // Steve 2026-05-20: U16+ splits by gender — Boys play 18-a-side,
+  // Girls play 16-a-side per AFL Junior Match Policy. The unsplit
+  // "U16" / "U17" IDs stay in the union as legacy aliases (older
+  // teams created before the split was added) and resolve to the
+  // boys config; the new-team picker only surfaces the explicit
+  // gendered IDs.
   | "U16"
-  | "U17";
+  | "U16_boys"
+  | "U16_girls"
+  | "U17"
+  | "U17_boys"
+  | "U17_girls"
+  | "U18_boys"
+  | "U18_girls";
 
 export type PositionModel = "zones3" | "positions5";
 
@@ -107,6 +119,14 @@ export interface Team {
   chip_a_mode: import("@/lib/chips").ChipMode;
   chip_b_mode: import("@/lib/chips").ChipMode;
   chip_c_mode: import("@/lib/chips").ChipMode;
+  /**
+   * Short, phone-typing-friendly code the manager can hand to a
+   * parent verbally. Parent enters it on /join-team to land as a
+   * `parent` membership. Migration 0041. Format: "ABCD-EFGH" from a
+   * 31-char alphabet (no 0/O/1/I/L). Reusable until the manager
+   * regenerates it from team settings.
+   */
+  join_code: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -133,6 +153,13 @@ export interface TeamInvite {
   accepted_at: string | null;
   accepted_by: string | null;
   revoked_at: string | null;
+  // Email-driven invites (migration 0039). When `invited_email` is null
+  // the row represents a legacy copy-link-only invite and the remaining
+  // fields stay null/0 forever.
+  invited_email: string | null;
+  email_sent_at: string | null;
+  email_send_count: number;
+  last_email_error: string | null;
 }
 
 /**
@@ -233,6 +260,15 @@ export type GameEventType =
   | "score_undo"
   | "field_zone_swap"
   | "player_loan"
+  // Mid-quarter on-field-size REDUCTION. Metadata:
+  //   { remove_player_ids: string[], new_size, quarter, elapsed_ms }
+  // Replays as: close each removed player's open stint, drop them
+  // from their zone, push them to bench. Used by
+  // LiveGameSettingsModal when the coach shrinks field count
+  // mid-quarter. Growing doesn't need an event — the
+  // games.on_field_size update + displayZoneCaps suffices and
+  // the coach drags via existing swap UI (Steve 2026-05-20).
+  | "roster_shrink"
   // Netball: subs only happen at period breaks, so we emit a single
   // lineup-snapshot event per break instead of per-player `swap`s.
   | "period_break_swap"

@@ -81,7 +81,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
           You&rsquo;re already a member of {teamName}.
         </p>
         <Link
-          href={`/teams/${inv.team_id}`}
+          href={`/teams/${inv.team_id}/games`}
           className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
         >
           Go to team →

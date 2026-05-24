@@ -32,6 +32,52 @@ test.describe("unauthenticated entry", () => {
     ).toBeVisible();
   });
 
+  test("AFL marketing page links to the iOS app on the App Store", async ({
+    page,
+  }) => {
+    // iOS app launched 2026-05-19 — the hero + final CTA each surface a
+    // "Download on the App Store" badge that deep-links to the live
+    // listing. Spec pins both that the badge renders AND that it points
+    // at the real Apple ID so a future copy-paste typo can't ship a
+    // dead link to thousands of marketing visitors.
+    await page.goto("/");
+    const badges = page.getByRole("link", {
+      name: /download siren footy on the app store/i,
+    });
+    // Hero badge + FinalCTA badge.
+    await expect(badges).toHaveCount(2);
+    for (const badge of await badges.all()) {
+      await expect(badge).toHaveAttribute(
+        "href",
+        "https://apps.apple.com/au/app/siren-footy/id6768541987"
+      );
+      await expect(badge).toHaveAttribute("target", "_blank");
+      await expect(badge).toHaveAttribute("rel", /noopener/);
+    }
+  });
+
+  test("hero presents the binary choice — iOS app or web", async ({ page }) => {
+    // The hero CTA row is the only fold where the two entry paths sit
+    // side-by-side as a deliberate either/or. Pin the contract:
+    //   1. The App Store badge is the first CTA.
+    //   2. The "Sign in via web" button sits next to it.
+    //   3. "Try the demo" is no longer in the hero row (it lives in the
+    //      marketing header nav now) — keep an assertion that catches
+    //      it sneaking back into the hero by accident, which would break
+    //      the binary-choice framing.
+    await page.goto("/");
+    const heroBadge = page
+      .getByRole("link", { name: /download siren footy on the app store/i })
+      .first();
+    await expect(heroBadge).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /^sign in via web$/i })
+    ).toBeVisible();
+    // Demo CTA only exists in the header nav, not the hero.
+    const demoLinks = page.getByRole("link", { name: /^try (the )?demo$/i });
+    await expect(demoLinks).toHaveCount(1);
+  });
+
   test("unauthenticated native shell on / redirects to /login", async ({
     context,
     page,

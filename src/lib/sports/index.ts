@@ -12,7 +12,12 @@ export {
   isSportId,
 } from "@/lib/sports/registry";
 export { aflSport } from "@/lib/sports/afl";
-export { netballSport, isPositionAllowedInZone, primaryThirdFor } from "@/lib/sports/netball";
+export {
+  netballSport,
+  isPositionAllowedInZone,
+  pickNetballPositionsToFill,
+  primaryThirdFor,
+} from "@/lib/sports/netball";
 export { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 
 /**

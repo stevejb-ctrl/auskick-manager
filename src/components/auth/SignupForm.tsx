@@ -57,8 +57,11 @@ export function SignupForm() {
       return;
     }
 
-    // Fire-and-forget — don't block navigation on Telegram availability
-    notifySignup(email).catch(() => {});
+    // Fire-and-forget — don't block navigation on Telegram availability.
+    // Pass "email" so the message disambiguates from the OAuth path
+    // (Google/Apple), which fires notifySignup from /auth/callback
+    // with provider="google" or "apple". Steve 2026-05-17.
+    notifySignup(email, "email").catch(() => {});
 
     router.push(next);
     router.refresh();

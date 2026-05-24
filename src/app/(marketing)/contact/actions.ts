@@ -1,11 +1,8 @@
 "use server";
 
 import { CONTACT_FROM, CONTACT_TO, getResend } from "@/lib/resend";
+import { EMAIL_RE } from "@/lib/email/validate";
 import type { ActionResult } from "@/lib/types";
-
-// Rough RFC-5322-lite check — good enough to catch typos without
-// rejecting anything a real inbox would accept.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const NAME_MAX = 100;
 const EMAIL_MAX = 200;

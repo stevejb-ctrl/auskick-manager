@@ -186,8 +186,21 @@ export interface SportConfig {
   fairnessModel: "zone-minutes" | "position-count-per-game" | "unbroken-period";
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
-  /** Optional: validate a lineup against position/zone eligibility. */
+  /**
+   * Optional: validate a lineup against position/zone eligibility.
+   *
+   * `onFieldSize` lets short-squad games (e.g. 6 players in a 7-on-
+   * court netball match) check that the lineup matches the chosen
+   * on-court count rather than the age group's default. Callers that
+   * don't care about a per-game override (or sports that don't yet
+   * support short squads) can omit it and the validator falls back to
+   * `ageGroup.defaultOnFieldSize`.
+   */
   // Signature uses `any` to avoid a circular dep with @/lib/types — the
   // AFL / netball configs narrow this in their own modules.
-  validateLineup?: (lineup: unknown, ageGroup: AgeGroupConfig) => ValidationResult;
+  validateLineup?: (
+    lineup: unknown,
+    ageGroup: AgeGroupConfig,
+    onFieldSize?: number,
+  ) => ValidationResult;
 }

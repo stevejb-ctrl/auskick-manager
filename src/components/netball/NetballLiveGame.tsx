@@ -202,7 +202,7 @@ interface NetballLiveGameProps {
    * a netball coach who configures chips on their team settings
    * actually sees them influence the rotation.
    */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /**
    * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
    * on each own-team goal commit. AFL has had this since song
@@ -809,7 +809,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   type MidQuarterSub = {
     positionId: string;
     outPlayerId: string | null;
-    inPlayerId: string;
+    // null = vacate-only (Steve 2026-05-23 short-squad "Move to empty
+    // position"). The "Move" action emits TWO subs with the same atMs:
+    //   1) { positionId: source, outPlayerId: X, inPlayerId: null }
+    //   2) { positionId: target, outPlayerId: null, inPlayerId: X }
+    // Replay processes them in order; the brief intermediate "X on
+    // bench" state lives for 0ms so time credit goes from source to
+    // target with no on-bench credit between.
+    inPlayerId: string | null;
     atMs: number;
   };
   const [midQuarterSubs, setMidQuarterSubs] = useState<MidQuarterSub[]>([]);
@@ -993,16 +1000,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       // Apply the sub: outPlayer leaves position, inPlayer takes it.
       // outPlayerId may be null when the slot was already empty
       // (coach lent a player + cancelled the picker, then later
-      // tapped the empty token to fill it). In that case there's
-      // nobody to filter out of the position list and nobody to
-      // bench — just plug the inPlayer in.
+      // tapped the empty token to fill it). inPlayerId may be null
+      // when the sub VACATES the position (short-squad "Move to
+      // empty position" emits a paired vacate + fill at the same
+      // atMs). Skip the matching step in either case.
       const next: GenericLineup = {
         positions: { ...current.positions },
-        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+        bench:
+          sub.inPlayerId != null
+            ? current.bench.filter((id) => id !== sub.inPlayerId)
+            : [...current.bench],
       };
-      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
-        .concat([sub.inPlayerId]);
+      const remaining = (next.positions[sub.positionId] ?? [])
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
+      next.positions[sub.positionId] =
+        sub.inPlayerId != null ? remaining.concat([sub.inPlayerId]) : remaining;
       if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
@@ -1508,7 +1520,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               ? `/teams/${auth.teamId}/games/${game.id}`
               : undefined
           }
-          onConfirm={async (lineup, quarterOverrideSeconds) =>
+          currentOnFieldSize={game.on_field_size}
+          onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
                 // Steve 2026-05-15: passes startQuarterToo=true so
@@ -1519,11 +1532,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 // one server call, the page goes straight from
                 // pre-kickoff to live play with no intermediate
                 // "lineup locked, ready the kickoff" state.
+                //
+                // Steve 2026-05-23: short-squad — pass the picker's
+                // chosen on-field-size through to the kickoff write
+                // so games.on_field_size reflects what the coach
+                // actually wanted. Falls back to defaultOnFieldSize
+                // when the dropdown wasn't touched (or wasn't shown
+                // in this picker configuration).
                 await startNetballGame(
                   auth,
                   game.id,
                   lineup,
-                  ageGroup.defaultOnFieldSize,
+                  chosenOnFieldSize ?? ageGroup.defaultOnFieldSize,
                   quarterOverrideSeconds,
                   /* startQuarterToo */ true,
                 );
@@ -1686,6 +1706,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           availableIds={availableIds}
           ageGroup={ageGroup}
           currentQuarter={currentQuarter}
+          currentOnFieldSize={game.on_field_size}
           previousLineup={onCourt}
           preAppliedLocks={(() => {
             // Filter out locks for players who are now injured or on
@@ -1974,6 +1995,67 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   const { playerId, positionId } = actionsTarget;
                   closeActions();
                   vacateAndPromptReplacement(playerId, positionId);
+                }
+              : undefined
+          }
+          emptyPositions={
+            allowMidQuarterSubs
+              ? ageGroup.positions.filter(
+                  (pid) => (onCourt.positions[pid]?.length ?? 0) === 0,
+                )
+              : []
+          }
+          onMoveToEmpty={
+            allowMidQuarterSubs
+              ? (targetPositionId) => {
+                  // Short-squad blank-slot reshuffle (Steve 2026-05-23).
+                  // The coach picked an empty position to send the
+                  // long-pressed player to. Emit a paired vacate+fill
+                  // in midQuarterSubs at the same atMs so the next
+                  // period_break_swap snapshots the move into events
+                  // and the replay engine processes them with no
+                  // on-bench credit between (intermediate state lives
+                  // for 0ms). Optimistic local-overlay flip mirrors
+                  // the in-game vacateAndPromptReplacement pattern.
+                  if (!actionsTarget?.positionId) return;
+                  const sourcePositionId = actionsTarget.positionId;
+                  const { playerId } = actionsTarget;
+                  if (sourcePositionId === targetPositionId) return;
+                  closeActions();
+                  const atMs = clockMs;
+                  setLocalOverlay((prev) => {
+                    const base =
+                      prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
+                    const next: GenericLineup = {
+                      positions: { ...base.positions },
+                      bench: [...base.bench],
+                    };
+                    next.positions[sourcePositionId] = (
+                      next.positions[sourcePositionId] ?? []
+                    ).filter((id) => id !== playerId);
+                    next.positions[targetPositionId] = [
+                      ...(next.positions[targetPositionId] ?? []).filter(
+                        (id) => id !== playerId,
+                      ),
+                      playerId,
+                    ];
+                    return next;
+                  });
+                  setMidQuarterSubs((prev) => [
+                    ...prev,
+                    {
+                      positionId: sourcePositionId,
+                      outPlayerId: playerId,
+                      inPlayerId: null,
+                      atMs,
+                    },
+                    {
+                      positionId: targetPositionId,
+                      outPlayerId: null,
+                      inPlayerId: playerId,
+                      atMs,
+                    },
+                  ]);
                 }
               : undefined
           }

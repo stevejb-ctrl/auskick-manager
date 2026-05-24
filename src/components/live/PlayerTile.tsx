@@ -4,7 +4,8 @@ import { memo, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { hapticTap } from "@/lib/haptics";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
@@ -37,6 +38,16 @@ interface PlayerTileProps {
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
   lockMode?: "field" | "zone" | null;
   score?: { goals: number; behinds: number };
+  /**
+   * Per-chip modes from the team row (split / group / forward /
+   * centre / back). When the player's chip mode is a zone mode,
+   * the inline 6px chip dot uses the zone-colour palette (zone-f
+   * / zone-c / zone-b) so it matches the field tile and chip
+   * indicators elsewhere. Optional — legacy callers without
+   * mode-awareness get the A/B/C brand palette via chipPalette's
+   * fallback. Steve 2026-05-20.
+   */
+  chipModes?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 function formatMinSec(ms: number): string {
@@ -60,6 +71,7 @@ function PlayerTileImpl({
   loaned,
   lockMode,
   score,
+  chipModes,
 }: PlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // P1-9 in MICRO-INTERACTIONS-PLAN.md: at 300ms into a long-press
@@ -302,17 +314,22 @@ function PlayerTileImpl({
         </span>
       )}
 
-      {/* Name (with leading chip dot if the player has a cohort chip) */}
-      <span className="truncate text-sm font-bold leading-tight text-ink">
+      {/* Name (with leading chip indicator if the player has a cohort chip).
+          Uses the shared ChipIndicator at md size so zone-mode chips
+          (forward / centre / back) surface their F / C / B letter
+          inside the dot — same affordance the lineup picker and
+          squad rows already use. Steve 2026-05-20. */}
+      <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
         {player.chip && (
-          <span
-            aria-hidden
-            className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-              CHIP_COLORS[player.chip as ChipKey].dot
-            }`}
+          <ChipIndicator
+            chipKey={player.chip as ChipKey}
+            mode={chipModes?.[player.chip as ChipKey]}
+            size="md"
           />
         )}
-        {lastInitial ? `${firstName} ${lastInitial}` : firstName}
+        <span className="truncate">
+          {lastInitial ? `${firstName} ${lastInitial}` : firstName}
+        </span>
       </span>
 
       {/* Jersey + time */}

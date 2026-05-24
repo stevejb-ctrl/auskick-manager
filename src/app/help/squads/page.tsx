@@ -134,7 +134,7 @@ export default function SquadsPage() {
           </li>
           <li>
             For an existing player, tap their row to open the edit form. Pick
-            a chip swatch (or leave it on <em>Unset</em>) and tap{" "}
+            a chip swatch (or leave it on <em>Any</em>) and tap{" "}
             <strong className="text-ink">Save</strong>.
           </li>
           <li>

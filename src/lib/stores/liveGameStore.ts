@@ -16,6 +16,19 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "@/lib/live/persistStorage";
 
+/**
+ * Legacy constant — fixed 12-min quarter. NO LONGER the source of
+ * truth for the in-game clock; that now flows through the
+ * `quarterMs` prop in LiveGame → GameHeader, sourced from
+ * `getEffectiveQuarterSeconds(game, team, ageGroupConfig)` so each
+ * age group reads its own length (U13+ = 20 min, etc).
+ *
+ * Kept exported only because a unit test pins the value at 12
+ * minutes — a sanity check that the legacy default hasn't drifted.
+ * If you're writing runtime code that needs a quarter length,
+ * thread the `quarterMs` prop down instead of importing this.
+ * Steve 2026-05-20.
+ */
 export const QUARTER_MS = 12 * 60 * 1000;
 import {
   emptyLineup,
@@ -119,7 +132,24 @@ export interface LiveGameState {
    * behaviour).
    */
   applyInjurySwap: (injuredId: string, replacementId: string) => void;
+  /**
+   * Two-on-field-player zone swap, OR a move-into-empty when `pidB`
+   * is `""`. The empty case is used on short-squad games to let the
+   * coach shift the blank slot between zones — pidA leaves zoneA,
+   * lands in zoneB, no partner moves the other way.
+   */
   applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
+  /**
+   * Mid-quarter on-field-size REDUCTION. Closes each removed player's
+   * open stint, drops them from their zone, pushes them to bench.
+   * Mirrors the fairness.ts replayGame `roster_shrink` handler so
+   * the in-memory state and the event-sourced state stay aligned.
+   *
+   * Caller must verify each id is currently on the field; ids that
+   * are already on bench (or not in the lineup at all) are
+   * silently ignored. Steve 2026-05-20.
+   */
+  applyRosterShrink: (removeIds: string[]) => void;
   setLineup: (lineup: Lineup) => void;
   setRotationMode: (mode: "suggested" | "manual") => void;
   startClock: () => void;
@@ -372,6 +402,27 @@ export const useLiveGame = create<LiveGameState>()(
       const stintStartMs = { ...prev.stintStartMs };
       const stintZone = { ...prev.stintZone };
 
+      // Move-into-empty: short-squad case where the coach is shifting
+      // the blank slot. pidA leaves zoneA, lands in zoneB; the empty
+      // slot is now in zoneA. No partner stint to close.
+      if (pidB === "") {
+        lineup[zoneA] = lineup[zoneA].filter((p) => p !== pidA);
+        lineup[zoneB] = [...lineup[zoneB], pidA];
+        const start = stintStartMs[pidA] ?? nowMs;
+        basePlayedZoneMs[pidA] = { ...(basePlayedZoneMs[pidA] ?? newZoneMs()) };
+        basePlayedZoneMs[pidA][zoneA] += Math.max(0, nowMs - start);
+        stintStartMs[pidA] = nowMs;
+        stintZone[pidA] = zoneB;
+        return {
+          lineup,
+          selected: null,
+          basePlayedZoneMs,
+          stintStartMs,
+          stintZone,
+          swapCount: prev.swapCount + 1,
+        };
+      }
+
       lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
       lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));
 
@@ -387,6 +438,39 @@ export const useLiveGame = create<LiveGameState>()(
       }
 
       return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone, swapCount: prev.swapCount + 1 };
+    }),
+
+  applyRosterShrink: (removeIds) =>
+    set((prev) => {
+      const lineup = cloneLineup(prev.lineup);
+      const nowMs = clockElapsedMs(prev);
+      const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
+      const stintStartMs = { ...prev.stintStartMs };
+      const stintZone = { ...prev.stintZone };
+
+      // For each id: find the current zone, close the stint (so the
+      // played minutes up to nowMs land in basePlayedZoneMs), drop
+      // the id from the zone array, push to bench.
+      for (const pid of removeIds) {
+        let foundZone: Zone | null = null;
+        for (const z of ["back", "hback", "mid", "hfwd", "fwd"] as Zone[]) {
+          if (lineup[z].includes(pid)) {
+            foundZone = z;
+            break;
+          }
+        }
+        if (!foundZone) continue;
+        const start = stintStartMs[pid] ?? nowMs;
+        const startZone = stintZone[pid] ?? foundZone;
+        basePlayedZoneMs[pid] = { ...(basePlayedZoneMs[pid] ?? newZoneMs()) };
+        basePlayedZoneMs[pid][startZone] += Math.max(0, nowMs - start);
+        delete stintStartMs[pid];
+        delete stintZone[pid];
+        lineup[foundZone] = lineup[foundZone].filter((p) => p !== pid);
+        if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
+      }
+
+      return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone };
     }),
 
   setRotationMode: (mode) => set({ rotationMode: mode }),

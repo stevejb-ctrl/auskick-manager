@@ -19,12 +19,7 @@
 // PlayerTile) — it just won't be legible. Bumping those callers
 // to md is a separate decision because tile space is tight.
 
-import {
-  chipPalette,
-  isChipZoneMode,
-  type ChipKey,
-  type ChipMode,
-} from "@/lib/chips";
+import { chipPalette, isChipZoneMode, type ChipKey, type ChipMode } from "@/lib/chips";
 
 interface ChipIndicatorProps {
   chipKey: ChipKey;

@@ -26,7 +26,11 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
-import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
+import {
+  netballSport,
+  pickNetballPositionsToFill,
+  primaryThirdFor,
+} from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
   type GenericLineup,
@@ -59,14 +63,19 @@ interface LineupPickerProps {
    */
   defaultQuarterSeconds?: number;
   /**
-   * Confirmation handler. When the picker has a quarter-length card,
-   * the second arg carries the chosen override in seconds (or null
-   * if the coach left it at the default). Q-break callers can ignore
-   * the second arg.
+   * Confirmation handler.
+   * - 2nd arg: per-game quarter-length override in seconds (or null
+   *   if the coach left it at default). Q-break callers can ignore.
+   * - 3rd arg: chosen on-field-size for short-squad games. When the
+   *   coach picked a non-default value via the size dropdown, this
+   *   carries it through to the kickoff write. Undefined means "use
+   *   the default", so callers that don't expose the dropdown stay
+   *   unchanged.
    */
   onConfirm: (
     lineup: GenericLineup,
     quarterLengthSeconds?: number | null,
+    onFieldSize?: number,
   ) => void | Promise<void>;
   confirmLabel?: string;
   disabled?: boolean;
@@ -128,7 +137,7 @@ interface LineupPickerProps {
    * the team-level per-chip split/group mode. Optional for
    * back-compat with callers pre-dating this prop.
    */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /**
    * Team-level default for "allow mid-quarter subs" (mirrors the
    * team Settings toggle). Used as the fallback when no per-game
@@ -144,6 +153,25 @@ interface LineupPickerProps {
    * which writes `games.allow_mid_quarter_subs`.
    */
   gameAllowMidQuarterSubs?: boolean | null;
+  /**
+   * Steve 2026-05-23: short-squad support. Currently-persisted
+   * on-field size for this game (from `games.on_field_size`). When
+   * omitted, defaults to the age group's `defaultOnFieldSize` and
+   * the picker behaves the way it always has (fill every position).
+   * When the coach picks a smaller value via the new size dropdown,
+   * the suggester fills only the high-priority positions per
+   * `pickNetballPositionsToFill` and the validator accepts the
+   * shorter lineup.
+   */
+  currentOnFieldSize?: number;
+  /**
+   * Callback fired when the coach changes the on-field-size
+   * dropdown. Parent persists the new value to `games.on_field_size`
+   * via `setNetballOnFieldSize` (which lives in netball-actions.ts).
+   * When omitted, the size dropdown is hidden — keeps the existing
+   * "full 7 only" surfaces working unchanged.
+   */
+  onChangeOnFieldSize?: (next: number) => void | Promise<void>;
 }
 
 export function NetballLineupPicker({
@@ -166,7 +194,27 @@ export function NetballLineupPicker({
   chipModeByKey = {},
   teamAllowMidQuarterSubs = false,
   gameAllowMidQuarterSubs = null,
+  currentOnFieldSize,
+  onChangeOnFieldSize,
 }: LineupPickerProps) {
+  // Effective short-squad size for this picker session. When the
+  // parent passes a value (game already had on_field_size set, even
+  // if it's the default), we honour it; otherwise fall back to the
+  // age group's default so existing surfaces are unchanged.
+  const [onFieldSize, setOnFieldSize] = useState<number>(
+    () => currentOnFieldSize ?? ageGroup.defaultOnFieldSize,
+  );
+  const sizeOptions = useMemo(() => {
+    const opts: number[] = [];
+    for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {
+      opts.push(n);
+    }
+    return opts;
+  }, [ageGroup.maxOnFieldSize, ageGroup.minOnFieldSize]);
+  const positionsToFill = useMemo(
+    () => pickNetballPositionsToFill(ageGroup, onFieldSize),
+    [ageGroup, onFieldSize],
+  );
   // Lend-a-player support (AFL parity, Steve 2026-05-16). When
   // `auth + gameId` are wired, the picker renders a "Lend a player"
   // section inside the Game settings collapse. Optimistic-with-
@@ -237,13 +285,20 @@ export function NetballLineupPicker({
   // players on bench. When the parent supplies an explicit
   // initialLineup (Q-break seed, restored draft) we use it as-is
   // and the toggle is irrelevant on first render.
-  const buildLineup = (mode: "suggested" | "manual"): GenericLineup => {
+  const buildLineup = (
+    mode: "suggested" | "manual",
+    positions: string[] = positionsToFill,
+  ): GenericLineup => {
     // Lent players never appear in the suggester pool or on the
     // bench — they're sitting this game out for the opposition.
     // Steve 2026-05-16 (AFL parity).
     const eligibleIds = availableIds.filter((id) => !loanedIds.has(id));
     if (mode === "manual" || eligibleIds.length === 0) {
       return {
+        // Empty positions are always the full age-group set so the
+        // rendering loop has every key present (empty array = empty
+        // tile). Short-squad just means fewer of those positions are
+        // SUPPOSED to be filled, not that the keys disappear.
         ...emptyGenericLineup(ageGroup.positions),
         bench: [...eligibleIds],
       };
@@ -267,7 +322,11 @@ export function NetballLineupPicker({
     );
     return suggestNetballLineup({
       playerIds: eligibleIds,
-      positions: ageGroup.positions,
+      // Short-squad: only fill the high-priority positions. Drop
+      // priority decided by `pickNetballPositionsToFill`. When
+      // onFieldSize == default this returns the full list, so the
+      // suggester behaves exactly as before for full-squad games.
+      positions,
       season,
       thisGame,
       isAllowed: (_pid, posId) => ageGroup.positions.includes(posId),
@@ -290,6 +349,26 @@ export function NetballLineupPicker({
     setLineupMode(next);
     setLineup(buildLineup(next));
     setSelected(null);
+  }
+
+  // Coach changed the on-field-size dropdown. Rebuild the lineup
+  // with the new positions-to-fill list (default fill priority for
+  // the new size), notify the parent so it can persist to
+  // `games.on_field_size`, and clear any selection so a stale
+  // highlight doesn't survive the size change.
+  function handleSizeChange(next: number) {
+    const clamped = Math.max(
+      ageGroup.minOnFieldSize,
+      Math.min(ageGroup.maxOnFieldSize, next),
+    );
+    if (clamped === onFieldSize) return;
+    setOnFieldSize(clamped);
+    const nextPositions = pickNetballPositionsToFill(ageGroup, clamped);
+    setLineup(buildLineup(lineupMode, nextPositions));
+    setSelected(null);
+    if (onChangeOnFieldSize) {
+      void onChangeOnFieldSize(clamped);
+    }
   }
 
   // Lend / un-lend a player. Optimistic local update — chips
@@ -551,7 +630,11 @@ export function NetballLineupPicker({
   const handleOpenStartModal = () => {
     if (disabled || saving) return;
     setError(null);
-    const validation = netballSport.validateLineup?.(lineup, ageGroup);
+    const validation = netballSport.validateLineup?.(
+      lineup,
+      ageGroup,
+      onFieldSize,
+    );
     if (validation && !validation.ok) {
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
@@ -595,7 +678,7 @@ export function NetballLineupPicker({
     }
     setSaving(true);
     try {
-      await onConfirm(lineup, quarterOverrideSeconds);
+      await onConfirm(lineup, quarterOverrideSeconds, onFieldSize);
     } finally {
       setSaving(false);
       setStartModalOpen(false);
@@ -709,6 +792,12 @@ export function NetballLineupPicker({
                 if (lendingEnabled && lentPlayers.length > 0) {
                   bits.push(`${lentPlayers.length} lent`);
                 }
+                // Short-squad surfaces in the summary ONLY when below
+                // the default (the common case is full-strength so
+                // we don't add visual noise for it).
+                if (onFieldSize < ageGroup.defaultOnFieldSize) {
+                  bits.push(`${onFieldSize} on court`);
+                }
                 // Mid-Q subs surfaces in the summary ONLY when it's on
                 // for this match (default off is the common case, no
                 // need to surface "off"). The "this match" suffix
@@ -779,6 +868,50 @@ export function NetballLineupPicker({
                   : "Every position starts open and the whole squad sits on the bench. Tap a player, then an empty position to place them. Switch back to Suggested any time to reset."}
               </p>
             </div>
+
+            {/* Short-squad on-court size. Renders whenever the age
+                group supports a range (min < max — true for every
+                netball age group today). Persistence happens at
+                kickoff via the onConfirm 3rd arg; the optional
+                `onChangeOnFieldSize` callback exists for future
+                draft-saving flows. */}
+            {sizeOptions.length > 1 && (
+              <div>
+                <Label
+                  htmlFor="netball-on-field-size"
+                  className="!mb-1 block text-xs font-semibold text-ink"
+                >
+                  Players on court
+                </Label>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-ink-mute">
+                      Defaults to {ageGroup.defaultOnFieldSize}. Drop to{" "}
+                      {ageGroup.minOnFieldSize}–{ageGroup.defaultOnFieldSize - 1}{" "}
+                      when you&apos;re short a player — Siren leaves the
+                      lowest-priority positions empty and you can
+                      reshuffle which ones by tapping a player and
+                      then an empty tile.
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    <select
+                      id="netball-on-field-size"
+                      value={onFieldSize}
+                      onChange={(e) => handleSizeChange(Number(e.target.value))}
+                      disabled={disabled || saving}
+                      className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
+                    >
+                      {sizeOptions.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Per-game quarter-length override (moved up from below
                 so all pre-game knobs sit in one collapse). */}

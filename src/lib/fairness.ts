@@ -21,6 +21,12 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
+import {
+  type ChipKey,
+  type ChipMode,
+  type ChipZoneMode,
+  isChipZoneMode,
+} from "@/lib/chips";
 
 export type ZoneMinutes = Record<Zone, number>;
 export type PlayerZoneMinutes = Record<string, ZoneMinutes>;
@@ -36,14 +42,19 @@ function emptyCaps(): ZoneCaps {
 }
 
 // Distribute an on-field size across the model's zones.
-// 3-zone: remainder fills mid first, then back (11 → 4-4-3, 10 → 3-4-3, 9 → 3-3-3).
+// 3-zone: remainder fills mid first, then back. 12 → 4-4-4, 15 → 5-5-5,
+// 18 → 6-6-6, 11 → 4-4-3, 10 → 3-4-3.
 // 5-position: remainder fills mid first, then the half-lines, then back/fwd.
+// Steve 2026-05-20: hardMax used to clamp zones3 to 15, which silently
+// dropped 3 players off the field when U16/U17 (now zones3, was
+// positions5) ran their default 18-a-side lineup. Both models now
+// share the 18-player ceiling.
 export function zoneCapsFor(
   onFieldSize: number,
   model: PositionModel = "zones3"
 ): ZoneCaps {
   const zones = positionsFor(model);
-  const hardMax = model === "positions5" ? 18 : 15;
+  const hardMax = 18;
   const size = Math.max(0, Math.min(hardMax, Math.floor(onFieldSize)));
   const base = Math.floor(size / zones.length);
   const rem = size % zones.length;
@@ -57,6 +68,44 @@ export function zoneCapsFor(
       : ["mid", "back", "fwd"];
   for (let i = 0; i < rem; i++) caps[priority[i]]++;
   return caps;
+}
+
+/**
+ * Returns zone caps that preserve the previous quarter's actual
+ * zone shape when possible — used by the Q-break suggester so a
+ * coach's manual "blank in Backs" choice in Q1 survives into Q2
+ * instead of getting wiped by the default fill priority.
+ *
+ * Logic:
+ *   1. If `previousLineup` is null/missing, return `fallbackCaps`
+ *      (typically the result of `zoneCapsFor(currentOnFieldSize)`).
+ *   2. Count the actual players in each zone of `previousLineup`.
+ *   3. If the per-zone sum equals `currentOnFieldSize`, return those
+ *      counts as the caps — preserves the previous quarter's
+ *      blank-slot zone choice.
+ *   4. Otherwise (size changed mid-game, late arrival / loan), fall
+ *      back to `fallbackCaps`.
+ *
+ * Pure function — used by QuarterBreak.tsx and any caller that
+ * needs the same preservation semantics. Extracting here makes
+ * the rule unit-testable without spinning up the React tree.
+ */
+export function deriveEffectiveZoneCaps(
+  previousLineup: Lineup | null | undefined,
+  currentOnFieldSize: number,
+  positionModel: PositionModel,
+  fallbackCaps: ZoneCaps,
+): ZoneCaps {
+  if (!previousLineup) return fallbackCaps;
+  const fromLineup: Partial<ZoneCaps> = {};
+  let total = 0;
+  for (const z of positionsFor(positionModel)) {
+    const n = previousLineup[z]?.length ?? 0;
+    fromLineup[z] = n;
+    total += n;
+  }
+  if (total !== currentOnFieldSize) return fallbackCaps;
+  return { ...fallbackCaps, ...fromLineup };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -184,6 +233,24 @@ export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
           lineup[z] = lineup[z].filter((p) => p !== pid);
           if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
         }
+      }
+    } else if (ev.type === "roster_shrink" && lineup) {
+      // Mid-quarter on-field-size reduction. Metadata carries the
+      // list of players to drop from their zones; for each one we
+      // close the open stint and push them to bench. Mirrors the
+      // injury / player_loan handlers but acts on multiple players
+      // in one event. Steve 2026-05-20.
+      const ids = ((ev.metadata as { remove_player_ids?: string[] })
+        .remove_player_ids ?? []) as string[];
+      for (const pid of ids) {
+        const z = zoneOf(lineup, pid);
+        if (!z) continue;
+        const sz = stintZ[pid] ?? z;
+        add(pid, sz, elapsed - (stintStart[pid] ?? 0));
+        delete stintStart[pid];
+        delete stintZ[pid];
+        lineup[z] = lineup[z].filter((p) => p !== pid);
+        if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
       }
     }
   }
@@ -484,7 +551,7 @@ export function suggestStartingLineup(
    * (e.g. a player who needs to stay paired with specific teammates).
    * Missing keys default to "split".
    */
-  chipModeByKey: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>> = {},
+  chipModeByKey: Partial<Record<"a" | "b" | "c", ChipMode>> = {},
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -646,7 +713,7 @@ export function suggestStartingLineup(
 
 // ─── Chip-spread penalty (Phase D) ────────────────────────────
 // Soft constraint applied during placement so chip-mates either
-// spread (default) or group together (per chip's `mode`).
+// spread, group together, or land in a preferred zone family.
 //
 // Split mode (default): quadratic POSITIVE penalty in the count
 // already placed in the target zone. 1st same-chip = 0, 2nd = 50,
@@ -656,15 +723,88 @@ export function suggestStartingLineup(
 // Group mode: same magnitude but NEGATIVE so the same-chip zone
 // becomes the cheapest option. 1st = 0, 2nd = -50, 3rd = -200,
 // 4th = -450. Funnels chip-mates into one zone (subject to caps).
+//
+// Zone modes (forward / centre / back, Steve 2026-05-20): flat
+// NEGATIVE for placements in the preferred zone family, 0
+// otherwise. Steve 2026-05-20 (third pass same day): bumped to
+// 5000 so the chip outranks the ENTIRE routine fairness stack,
+// not just sameAsLastQ. Coach intent: "if they're chipped as a
+// forward, place them in forwards" is unconditional — the only
+// thing that should override is zone-full (a soft cap-based
+// escape valve, not a magnitude one).
+//
+// Priority order (high → low rank in the score sum):
+//   1. CHIP_ZONE_BONUS              +5000   ← coach's explicit pick
+//   2. PARTNERSHIP_PENALTY (cap)    -1500   ← split last-Q mates
+//   3. IN_GAME_DIVERSITY            +1000   ← play every zone every game
+//   4. SAME_AS_LAST_Q                -800   ← don't repeat zones
+//   5. SEASON_DIVERSITY              +500   ← mild season balance
+//   6. fairnessTerm                ~0-small ← proportional to gap
+//
+// Worst-case stacked-against-chip math (AFL):
+//   chip zone, played, sameAsLastQ, 1 mate from last Q:
+//     0 IGD - 800 + 500 + 5000 - 1500 = +3200
+//   fresh other zone, unplayed, no mate:
+//     +1000 + 500 = +1500
+//   → chip wins by 1700 ✓
+//
+// What still overrides:
+//   - zone full (loop's openZones filter short-circuits before
+//     scoring — soft cap-based constraint, not a magnitude tier)
+//   - chip-family overflow: 5 forward-chipped + 4 fwd slots →
+//     4 go fwd, 5th falls to next-best zone via openZones
+//
+// What DOESN'T override (intentionally):
+//   - partnership splitting: when both players are chip-mates,
+//     bunching is the coach's explicit intent, not incidental
+//   - in-game diversity: chip-mate stays in their family every
+//     quarter where possible, even after playing the family zone
+//   - season fairness: same as above; an explicit chip overrides
+//     "play every zone over the season" rotation
+//
+// Family mapping (positions5 entries kept for legacy game replay
+// even though no AGE_GROUPS entry uses positions5 anymore):
+//   forward → fwd, hfwd
+//   centre  → mid
+//   back    → back, hback
+// The bonus fires on EVERY zone in the family so the player
+// rotates within their preferred area across quarters via the
+// existing other-tier scoring.
 const CHIP_PENALTY_BASE = 50;
+const CHIP_ZONE_BONUS = 5000;
+
+// Zone family per zone-preference mode. Public so the AFL
+// suggester's swap path can re-use it; netball has its own
+// third-based mapping inside its own fairness module.
+export const CHIP_ZONE_FAMILY: Record<ChipZoneMode, ReadonlyArray<Zone>> = {
+  forward: ["fwd", "hfwd"],
+  centre: ["mid"],
+  back: ["back", "hback"],
+};
+
+function zoneMatchesChipMode(zone: Zone, mode: ChipZoneMode): boolean {
+  return CHIP_ZONE_FAMILY[mode].includes(zone);
+}
+
 function buildChipPenaltyFor(
-  chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
-  chipModeByKey: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>,
+  chipByPlayerId: Record<string, ChipKey | null | undefined>,
+  chipModeByKey: Partial<Record<ChipKey, ChipMode>>,
   placedByZone: Map<Zone, Set<string>>,
 ) {
   return (pid: string, target: Zone): number => {
     const myChip = chipByPlayerId[pid];
     if (!myChip) return 0;
+    const mode = chipModeByKey[myChip] ?? "split";
+
+    // Zone-preference modes: flat bonus for zone-family matches,
+    // 0 otherwise. Doesn't scale with placement density (n²)
+    // because the preference is per-player-per-zone, not
+    // cluster-shaped like split/group.
+    if (isChipZoneMode(mode)) {
+      return zoneMatchesChipMode(target, mode) ? -CHIP_ZONE_BONUS : 0;
+    }
+
+    // Split / group: existing cluster-shaped scoring.
     const placed = placedByZone.get(target);
     if (!placed) return 0;
     let sameChip = 0;
@@ -673,7 +813,6 @@ function buildChipPenaltyFor(
     });
     if (sameChip === 0) return 0;
     const magnitude = sameChip * sameChip * CHIP_PENALTY_BASE;
-    const mode = chipModeByKey[myChip] ?? "split";
     return mode === "group" ? -magnitude : magnitude;
   };
 }
@@ -1006,7 +1145,7 @@ export function replayGame(events: GameEvent[]): GameState {
       const zoneA = meta2.zone_a;
       const pidB = meta2.player_b_id;
       const zoneB = meta2.zone_b;
-      if (pidA && zoneA && pidB && zoneB) {
+      if (pidA && zoneA && zoneB && pidB) {
         // Close both open stints at their current zones (using the
         // store's stintZone fallback for safety — defaults to the
         // event's recorded zone if stintZone isn't tracking them).
@@ -1029,6 +1168,18 @@ export function replayGame(events: GameEvent[]): GameState {
         state.stintZone[pidA] = zoneB;
         state.stintStartMs[pidB] = elapsed;
         state.stintZone[pidB] = zoneA;
+      } else if (pidA && zoneA && zoneB && !pidB) {
+        // Move-into-empty (short-squad blank-slot reshuffle). pidA
+        // leaves zoneA, lands in zoneB; the blank slot moves the
+        // other way. Mirror the store's applyFieldZoneSwap empty
+        // branch so a cold replay rebuilds the same lineup the live
+        // store has been tracking client-side.
+        const fromZ = state.stintZone[pidA] ?? zoneA;
+        addPlayed(pidA, fromZ, elapsed - (state.stintStartMs[pidA] ?? 0));
+        state.lineup[zoneA] = state.lineup[zoneA].filter((p) => p !== pidA);
+        state.lineup[zoneB] = [...state.lineup[zoneB], pidA];
+        state.stintStartMs[pidA] = elapsed;
+        state.stintZone[pidA] = zoneB;
       }
     } else if (ev.type === "player_arrived" && state.lineup && ev.player_id) {
       if (!state.lineup.bench.includes(ev.player_id)) {
@@ -1073,6 +1224,23 @@ export function replayGame(events: GameEvent[]): GameState {
           addLoan(pid, elapsed - start);
           delete state.loanStartMs[pid];
         }
+      }
+    } else if (ev.type === "roster_shrink" && state.lineup) {
+      // Mid-quarter on-field-size reduction. Close each removed
+      // player's open stint and move them to bench. Mirrors the
+      // gameZoneMinutes handler — same shape, same fields.
+      // Steve 2026-05-20.
+      const ids = ((ev.metadata as { remove_player_ids?: string[] })
+        .remove_player_ids ?? []) as string[];
+      for (const pid of ids) {
+        const z = zoneOf(state.lineup, pid);
+        if (!z) continue;
+        const sz = state.stintZone[pid] ?? z;
+        addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
+        delete state.stintStartMs[pid];
+        delete state.stintZone[pid];
+        state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
+        if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
       }
     } else if (ev.type === "goal") {
       state.teamScore.goals++;

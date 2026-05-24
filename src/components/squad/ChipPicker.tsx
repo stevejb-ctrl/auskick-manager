@@ -1,11 +1,19 @@
 "use client";
 
-import { CHIP_COLORS, CHIP_KEYS, type ChipKey } from "@/lib/chips";
+import { chipPalette, CHIP_KEYS, type ChipKey, type ChipMode } from "@/lib/chips";
 
 interface ChipPickerProps {
   value: ChipKey | "";
   onChange: (next: ChipKey | "") => void;
   labels: { a: string | null; b: string | null; c: string | null };
+  /**
+   * Optional per-chip modes (split / group / forward / centre /
+   * back). When provided, chips whose mode is a zone mode render
+   * with the zone-colour palette (zone-f / zone-c / zone-b)
+   * instead of the legacy A/B/C brand palette — same visual
+   * triad the field tiles use. Steve 2026-05-20.
+   */
+  modes?: Partial<Record<ChipKey, ChipMode>>;
   disabled?: boolean;
 }
 
@@ -13,7 +21,7 @@ interface ChipPickerProps {
 // add/edit forms when the team has at least one labeled chip.
 // The colored swatches make the chip visible at a glance; the
 // label sits underneath as a one-line hint.
-export function ChipPicker({ value, onChange, labels, disabled }: ChipPickerProps) {
+export function ChipPicker({ value, onChange, labels, modes, disabled }: ChipPickerProps) {
   return (
     <div className="space-y-1">
       <p className="text-xs font-semibold text-ink">Chip</p>
@@ -33,12 +41,13 @@ export function ChipPicker({ value, onChange, labels, disabled }: ChipPickerProp
             aria-hidden
             className="inline-block h-3 w-3 rounded-full border border-dashed border-ink-mute"
           />
-          Unset
+          Any
         </button>
         {CHIP_KEYS.map((k) => {
           const label = labels[k];
           if (!label) return null;
           const selected = value === k;
+          const palette = chipPalette(k, modes?.[k]);
           return (
             <button
               key={k}
@@ -47,14 +56,14 @@ export function ChipPicker({ value, onChange, labels, disabled }: ChipPickerProp
               disabled={disabled}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                 selected
-                  ? `${CHIP_COLORS[k].selectedBorder} ${CHIP_COLORS[k].selectedBg} ${CHIP_COLORS[k].selectedText}`
+                  ? `${palette.selectedBorder} ${palette.selectedBg} ${palette.selectedText}`
                   : "border-hairline bg-surface text-ink-mute hover:bg-surface-alt"
               } disabled:opacity-60`}
               aria-pressed={selected}
             >
               <span
                 aria-hidden
-                className={`inline-block h-3 w-3 rounded-full ${CHIP_COLORS[k].dot}`}
+                className={`inline-block h-3 w-3 rounded-full ${palette.dot}`}
               />
               {label}
             </button>

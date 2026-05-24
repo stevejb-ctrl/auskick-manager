@@ -20,10 +20,13 @@ import {
   startQuarter as startQuarterAction,
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey } from "@/lib/chips";
+import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
+import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
   ALL_ZONES,
+  deriveEffectiveZoneCaps,
   suggestStartingLineup,
+  zoneCapsFor,
   zoneTeammatesFromLineup,
   type PlayerZoneMinutes,
   type SeasonAvailability,
@@ -82,7 +85,14 @@ interface QuarterBreakProps {
   /** Default on-field size for the team's age group (shown as a hint). */
   defaultOnFieldSize: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
-  chipModeByKey?: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>;
+  chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
+  /**
+   * Demo-clock speed multiplier (default 1). Used to scale real-time
+   * stint durations into game-time when checking the "recent arrival"
+   * pin threshold, so the demo's 8× quarters don't treat every field
+   * player's whole-quarter stint as a recent sub.
+   */
+  clockMultiplier?: number;
   onStarted: () => void;
 }
 
@@ -94,6 +104,18 @@ const ZONE_BAR_COLOR: Record<Zone, string> = {
   mid: "bg-zone-c",
   hfwd: "bg-zone-f/70",
   fwd: "bg-zone-f",
+};
+
+// Section-header text tint — matches the per-tile colour stripes
+// so a coach scanning the Q-break can trace "BACK in blue" right
+// down to a player tile's blue bar without translating between
+// labels and colours. Steve 2026-05-23 (parent feedback follow-up).
+const ZONE_HEADER_TEXT: Record<Zone, string> = {
+  back: "text-zone-b",
+  hback: "text-zone-b",
+  mid: "text-zone-c",
+  hfwd: "text-zone-f",
+  fwd: "text-zone-f",
 };
 
 function emptyZM(): ZoneMinutes {
@@ -113,9 +135,37 @@ export function QuarterBreak({
   maxOnFieldSize,
   defaultOnFieldSize,
   chipModeByKey = {},
+  clockMultiplier = 1,
   onStarted,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
+  // Display caps for the zone-card headers + "+ Add player"
+  // affordance — based on the age-group DEFAULT, not the
+  // currently-chosen on-field size. When the coach has reduced
+  // count below default (e.g. 15→13), the zone header still
+  // reads `3 / 5` rather than `3 / 4` so the missing slots are
+  // visible, and the + Add row stays surfaced until the zone is
+  // at default capacity. zoneCaps remains the source of truth
+  // for the suggester / placement loop. Steve 2026-05-20.
+  const displayZoneCaps = useMemo(
+    () => zoneCapsFor(defaultOnFieldSize, positionModel),
+    [defaultOnFieldSize, positionModel],
+  );
+
+  // Effective suggester caps preserve the previous quarter's
+  // zone shape on short-squad games. Pure logic lives in
+  // `deriveEffectiveZoneCaps` in lib/fairness.ts so it's unit-
+  // testable across the AFL age-group matrix. Without this the
+  // suggester would re-derive caps from `currentOnFieldSize` via
+  // the priority `[mid, back, fwd]` and always park the blank
+  // slot in FWD on 11/12 — wiping the coach's Q1 manual
+  // move-to-Backs the moment Q2's break opens. Steve 2026-05-23
+  // from match-day feedback.
+  const effectiveZoneCaps = useMemo<ZoneCaps>(
+    () =>
+      deriveEffectiveZoneCaps(lineup, currentOnFieldSize, positionModel, zoneCaps),
+    [lineup, zoneCaps, currentOnFieldSize, positionModel],
+  );
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   // Steve 2026-05-16: parity with netball Q-break, which has been
   // surfacing a per-player goal-count badge on its tiles since the
@@ -310,10 +360,14 @@ export function QuarterBreak({
 
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
-    // Recent arrivals: short last stint
+    // Recent arrivals: short last stint. Compare in GAME time, not
+    // real time — the demo's 8× clock would otherwise treat every
+    // full-quarter stint (~90s real = 12 min game) as a recent sub
+    // and pin every field player to their previous zone, blocking
+    // the auto-rotation the UI promises. Steve 2026-05-20.
     for (const [pid, dur] of Object.entries(lastStintMs)) {
       const z = lastStintZone[pid];
-      if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
+      if (z && dur * clockMultiplier < RECENT_ARRIVAL_MS) pins[pid] = z;
     }
     // Field-locked: always stay in their last zone (never go to bench)
     for (const pid of lockedIds) {
@@ -325,7 +379,7 @@ export function QuarterBreak({
       pins[pid] = z;
     }
     return pins;
-  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
+  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers, clockMultiplier]);
 
   // Q-just-ended teammate cohorts, keyed by player id. Built from
   // the END-of-quarter lineup (already in the live store) so it
@@ -355,7 +409,7 @@ export function QuarterBreak({
       healthyForLineup,
       combinedZoneMins,
       currentQuarter * 1000 + healthyForLineup.length,
-      zoneCaps,
+      effectiveZoneCaps,
       currentGameZoneMins,
       pinnedPositions,
       lastStintZone,
@@ -377,7 +431,7 @@ export function QuarterBreak({
     combinedZoneMins,
     currentQuarter,
     lineup,
-    zoneCaps,
+    effectiveZoneCaps,
     currentGameZoneMins,
     pinnedPositions,
     lastStintZone,
@@ -712,8 +766,34 @@ export function QuarterBreak({
   // lineup" cleanly cancels — zero server writes.
   const [startModalOpen, setStartModalOpen] = useState(false);
 
+  // Anchor for walking up the DOM tree to find scrolled ancestors —
+  // see the comment in handleOpenStartModal below.
+  const quarterBreakRootRef = useRef<HTMLDivElement>(null);
+
   function handleOpenStartModal() {
     setError(null);
+    // Reset every scrolled ancestor before opening the modal. The
+    // public demo at /run/{token} wraps the app in DeviceFrame, which
+    // applies `transform: translateZ(0)` for rounded-corner clipping
+    // — that transform makes the frame a containing block for any
+    // `position: fixed` descendant, so the modal anchors to the
+    // phone-frame's bounds rather than the browser viewport. When the
+    // GM has scrolled the frame's content down to see the back of the
+    // lineup, the modal then renders at the top of the frame and its
+    // primary "Start Q{n}" button can drop below the visible scroll
+    // window. Scrolling everything to 0 first puts the user at the
+    // top of the frame, which is where the modal centres. window.
+    // scrollTo covers the non-framed (mobile / installed PWA) case.
+    if (typeof document !== "undefined") {
+      let el = quarterBreakRootRef.current?.parentElement ?? null;
+      while (el) {
+        if (el.scrollTop > 0) el.scrollTop = 0;
+        el = el.parentElement;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
     setStartModalOpen(true);
   }
 
@@ -757,7 +837,7 @@ export function QuarterBreak({
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={quarterBreakRootRef} className="space-y-4">
       {/* Orientation strip — Steve 2026-05-13: the hero card used to
           dominate the QB top, but with the rotation toggle moved out
           (commit ba04bd1) and the fairness number removed in this
@@ -1337,35 +1417,61 @@ export function QuarterBreak({
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Single column — user feedback 2026-05-20: the prior
+          `sm:grid-cols-2` (1-col phones, 2-col tablet+) still
+          rendered 2-col inside the desktop demo phone-frame
+          (md+ viewport but only ~390px wide), where it cramped
+          player names and the STAYS / MOVES + progress bars. */}
+      <div className="grid grid-cols-1 gap-3">
         {slots.map((slot) => (
           <div
             key={slot}
             className="rounded-md border border-hairline bg-surface p-3 shadow-card"
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3
+                className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
+                  slot === "bench" ? "text-ink-dim" : ZONE_HEADER_TEXT[slot]
+                }`}
+              >
                 {slotLabel(slot)}
               </h3>
               <span className="text-xs tabular-nums text-ink-mute">
                 {draft[slot].length}
-                {slot !== "bench" && ` / ${zoneCaps[slot]}`}
+                {slot !== "bench" && ` / ${displayZoneCaps[slot]}`}
               </span>
             </div>
             {draft[slot].length === 0 ? (
               slot === "bench" ? (
                 <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
               ) : (
-                // Tappable empty-zone placeholder. Opens the
-                // SlotFillSheet so the coach can pick a bench player
-                // for this zone without going through the two-tap
-                // swap dance — the only viable path in manual mode
-                // where every zone starts empty.
+                // Tappable empty-zone placeholder. Two modes:
+                //   - With a player selected (bench OR field): MOVE
+                //     them into this zone. `placeInZone` pulls them
+                //     out of wherever they currently live and drops
+                //     them here, so a Backs-selected player moving
+                //     into an empty Forward leaves an empty slot
+                //     where they came from — exactly the blank-slot
+                //     reshuffle a short-squad coach needs.
+                //   - With nothing selected: open the SlotFillSheet
+                //     so the coach can pick a bench player without
+                //     going through the two-tap swap dance.
                 <button
                   type="button"
-                  onClick={() => setFillTargetZone(slot)}
+                  onClick={() => {
+                    if (selected) {
+                      placeInZone(selected, slot);
+                      setSelected(null);
+                      return;
+                    }
+                    setFillTargetZone(slot);
+                  }}
                   className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-3 py-2.5 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                  aria-label={`Empty ${slotLabel(slot)} — tap to fill`}
+                  aria-label={
+                    selected
+                      ? `Move selected player to ${slotLabel(slot)}`
+                      : `Empty ${slotLabel(slot)} — tap to fill`
+                  }
                 >
                   <span
                     aria-hidden="true"
@@ -1373,7 +1479,9 @@ export function QuarterBreak({
                   >
                     +
                   </span>
-                  <span className="font-medium">Tap to fill</span>
+                  <span className="font-medium">
+                    {selected ? "Move here" : "Tap to fill"}
+                  </span>
                 </button>
               )
             ) : (
@@ -1435,11 +1543,10 @@ export function QuarterBreak({
                             <span className="flex items-center gap-1.5">
                               <span className="font-medium text-ink">
                                 {p.chip && (
-                                  <span
-                                    aria-hidden
-                                    className={`mr-1 inline-block h-2 w-2 rounded-full align-middle ${
-                                      CHIP_COLORS[p.chip as ChipKey].dot
-                                    }`}
+                                  <ChipIndicator
+                                    chipKey={p.chip as ChipKey}
+                                    mode={chipModeByKey[p.chip as ChipKey]}
+                                    className="mr-1 align-middle"
                                   />
                                 )}
                                 {p.full_name}
@@ -1519,16 +1626,29 @@ export function QuarterBreak({
                 })}
                 {/* Spare-capacity affordance — when a non-bench zone
                     has fewer players than its cap, surface a "+ Add"
-                    row that opens the SlotFillSheet. Lets the coach
-                    grow a short-handed zone without juggling swaps.
-                    Bench has no cap, so it never renders. */}
-                {slot !== "bench" && draft[slot].length < zoneCaps[slot] && (
+                    row. With a player selected (bench OR field), tap
+                    moves them here — same blank-slot reshuffle path
+                    as the empty-zone placeholder. With nothing
+                    selected, opens the SlotFillSheet. Bench has no
+                    cap, so it never renders. */}
+                {slot !== "bench" && draft[slot].length < displayZoneCaps[slot] && (
                   <li>
                     <button
                       type="button"
-                      onClick={() => setFillTargetZone(slot)}
+                      onClick={() => {
+                        if (selected) {
+                          placeInZone(selected, slot);
+                          setSelected(null);
+                          return;
+                        }
+                        setFillTargetZone(slot);
+                      }}
                       className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-2.5 py-2 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                      aria-label={`Add player to ${slotLabel(slot)}`}
+                      aria-label={
+                        selected
+                          ? `Move selected player to ${slotLabel(slot)}`
+                          : `Add player to ${slotLabel(slot)}`
+                      }
                     >
                       <span
                         aria-hidden="true"
@@ -1536,7 +1656,9 @@ export function QuarterBreak({
                       >
                         +
                       </span>
-                      <span className="font-medium">Add player</span>
+                      <span className="font-medium">
+                        {selected ? "Move here" : "Add player"}
+                      </span>
                     </button>
                   </li>
                 )}

@@ -86,5 +86,6 @@ export async function acceptInvite(
 
   revalidatePath("/dashboard");
   revalidatePath(`/teams/${invite.team_id}`);
+  revalidatePath(`/teams/${invite.team_id}/games`);
   return { success: true, teamId: invite.team_id };
 }

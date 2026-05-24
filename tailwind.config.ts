@@ -63,15 +63,22 @@ const config: Config = {
         field:          "var(--field)",
         court:          "var(--court)",
         "court-line":   "var(--court-line)",
-        // Colourblind-safe zone palette — three hue families roughly
-        // 70–80° apart (orange / fuchsia / blue) so adjacent zones stay
-        // distinguishable. Violet (#6D28D9) was too close on the hue
-        // wheel to royal blue and collapsed into a single purple-ish
-        // family; fuchsia-700 is a warm purple that separates cleanly
-        // from both orange and blue. All three pass WCAG AA (>=4.5)
-        // against white for text use.
+        // Colourblind-safe zone palette — three well-separated hue
+        // families (orange / green / blue) so adjacent zones stay
+        // distinguishable on small mobile screens. Steve 2026-05-23
+        // (parent feedback): the previous fuchsia centre (#A21CAF)
+        // and royal-blue back (#1D4ED8) collapsed on small phones —
+        // fuchsia's blue component competed with the back colour,
+        // both reading as "purple-ish blob" at thumbnail size.
+        // Swapped centre to emerald-700: a true green with zero
+        // blue component, unambiguous next to both back-blue and
+        // forward-vermillion. All three still pass WCAG AA (>=4.5)
+        // against white for text use; the broader hue spread also
+        // helps protan/deutan colourblindness (where reds-greens
+        // collapse, the blue → green → orange spread retains
+        // luminance contrast).
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
-        "zone-c":       "#A21CAF",   // centre — fuchsia / warm purple
+        "zone-c":       "#047857",   // centre — emerald-700
         "zone-b":       "#1D4ED8",   // back — royal blue
 
         // Thirds (netball domain language). Additive — not a rename

@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
+import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -202,6 +203,19 @@ export async function startGame(
   // the new lineup_set / quarter_start rows.
   invalidateSeasonEvents(w.teamId);
 
+  // Telegram ping on Q1 kickoff — fire-and-forget so a slow Telegram
+  // API can't hold the redirect. Gated on `startQuarterToo` so we
+  // only ping on the first quarter (Q2–Q4 use a separate path), and
+  // we skip the demo team so exploration on /demo doesn't pollute
+  // the signal. Steve uses this to count real game-starts each
+  // weekend; one ping per game is the target. Must be awaited
+  // before the `redirect()` below — redirect() throws NEXT_REDIRECT
+  // and unwinds the function, so anything we want fired-and-
+  // forgot has to be kicked off before that throw.
+  if (startQuarterToo) {
+    notifyGameStarted(w.supabase, w.teamId, gameId, w.userId).catch(() => {});
+  }
+
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
     revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
@@ -210,6 +224,7 @@ export async function startGame(
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
 }
+
 
 // ─── Pre-game lineup draft ───────────────────────────────────
 // Save / load the night-before plan. One row per game keyed by
@@ -302,6 +317,164 @@ export async function setOnFieldSize(
   const { error } = await w.supabase
     .from("games")
     .update({ on_field_size: value })
+    .eq("id", gameId);
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
+// ─── setOnFieldSizeMidGame ───────────────────────────────────
+// Mid-quarter on-field-size change driven by LiveGameSettingsModal.
+// Two shapes:
+//
+//   1. GROW (newSize > currentSize): only updates games.on_field_size.
+//      No event written — displayZoneCaps grows automatically and the
+//      coach drags bench players in via the existing swap UI.
+//
+//   2. SHRINK (newSize < currentSize): write a `roster_shrink` event
+//      carrying the chosen `remove_player_ids` (so replay can close
+//      each player's stint and move them to bench) AND update
+//      games.on_field_size in the same call. The number of players
+//      to remove MUST equal (currentSize - newSize); the caller
+//      (LiveGameSettingsModal) collects them via a follow-up picker.
+//
+// Steve 2026-05-20.
+export async function setOnFieldSizeMidGame(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    newSize: number;
+    removePlayerIds: string[];
+    quarter: number;
+    elapsedMs: number;
+  },
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { value: clampedSize, min, max } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    input.newSize,
+  );
+  if (!Number.isFinite(input.newSize)) {
+    return { success: false, error: "Invalid size." };
+  }
+  if (Math.floor(input.newSize) < min || Math.floor(input.newSize) > max) {
+    return {
+      success: false,
+      error: `On-field size must be between ${min} and ${max} for this age group.`,
+    };
+  }
+
+  // Need current games.on_field_size to decide grow vs. shrink and
+  // to validate the remove-list length. Single round-trip.
+  const { data: gameRow, error: readErr } = await w.supabase
+    .from("games")
+    .select("on_field_size")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (readErr) return { success: false, error: readErr.message };
+  if (!gameRow) return { success: false, error: "Game not found." };
+  const currentSize = (gameRow as { on_field_size: number }).on_field_size;
+
+  // No-op guard. Saves a redundant write + revalidate flash.
+  if (clampedSize === currentSize && input.removePlayerIds.length === 0) {
+    return { success: true };
+  }
+
+  // Shrink path: validate the remove-list length matches the size
+  // delta, then write the event. The event MUST land before the
+  // games row update so replay sees the stint-close at the
+  // correct elapsed_ms. (If the games row updates first and the
+  // event insert then fails, replay would see a smaller field
+  // with old lineup still in place.)
+  const sizeDelta = currentSize - clampedSize;
+  if (sizeDelta > 0) {
+    if (input.removePlayerIds.length !== sizeDelta) {
+      return {
+        success: false,
+        error: `Expected ${sizeDelta} player(s) to remove, got ${input.removePlayerIds.length}.`,
+      };
+    }
+    const evRes = await insertEvent(auth, gameId, "roster_shrink", {
+      player_id: null,
+      metadata: {
+        remove_player_ids: input.removePlayerIds,
+        new_size: clampedSize,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsedMs,
+      },
+    });
+    if (!evRes.success) return evRes;
+  } else if (input.removePlayerIds.length > 0) {
+    // Grow path with remove_player_ids supplied = caller bug.
+    return {
+      success: false,
+      error: "Cannot remove players when growing the field size.",
+    };
+  }
+
+  // Update games.on_field_size for both grow + shrink paths.
+  const { error: updErr } = await w.supabase
+    .from("games")
+    .update({ on_field_size: clampedSize })
+    .eq("id", gameId);
+  if (updErr) return { success: false, error: updErr.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
+/**
+ * Mid-game override of the sub-interval cadence (AFL only — drives
+ * the SubDueModal reminder). Coach realises mid-quarter that the
+ * pre-game guess was wrong (kids gassed at 4m, or barely warm at
+ * 6m) — this lets them dial it without restarting the game or
+ * waiting for the next break. The live page's RSC SELECT picks up
+ * the new value on the next refresh and the SubDueModal retimes
+ * from the new cadence.
+ *
+ * Validation matches the pre-game LineupPicker input: integer or
+ * half-minute, clamped to 1–10 minutes. Stored as seconds on the
+ * games row.
+ *
+ * Steve 2026-05-20.
+ */
+export async function setSubInterval(
+  auth: LiveAuth,
+  gameId: string,
+  seconds: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  if (!Number.isFinite(seconds)) {
+    return { success: false, error: "Invalid interval." };
+  }
+  if (seconds < 60 || seconds > 600) {
+    return {
+      success: false,
+      error: "Sub interval must be between 1 and 10 minutes.",
+    };
+  }
+  // Allow half-minute increments (matches the pre-game step=0.5
+  // input). Round to the nearest 30s so a 4.7-minute input doesn't
+  // land as 282s.
+  const rounded = Math.round(seconds / 30) * 30;
+
+  const { error } = await w.supabase
+    .from("games")
+    .update({ sub_interval_seconds: rounded })
     .eq("id", gameId);
   if (error) return { success: false, error: error.message };
 
@@ -789,7 +962,15 @@ export async function recordFieldZoneSwap(
   input: {
     player_a_id: string;
     zone_a: string;
-    player_b_id: string;
+    /**
+     * `null` = move-into-empty. Player A leaves `zone_a` and lands in
+     * `zone_b` with no partner moving the other way — used when the
+     * coach is playing a short squad and wants to shift the blank
+     * slot to a different zone (e.g. send a Back into an empty
+     * Forward, leaving the Back zone with the blank). When non-null,
+     * standard two-player zone swap as before.
+     */
+    player_b_id: string | null;
     zone_b: string;
     quarter: number;
     elapsed_ms: number;

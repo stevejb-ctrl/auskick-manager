@@ -45,11 +45,12 @@
   --court-line: #FFFFFF;
 
   /* Thirds palette (netball domain language). Centre is violet
-     (#7B5AA6) — the design's deliberate swap away from fuchsia
-     to open the hue gap against the new court-blue brand and
-     the defensive royal-blue. AFL's `zone-c` (fuchsia) stays
-     untouched on its own token so the AFL Field/PlayerTile
-     keep their existing colours. */
+     (#7B5AA6) — kept distinct from court-blue + defensive royal-
+     blue so a netball coach can tell thirds apart at thumbnail
+     size on a phone. AFL's `zone-c` lives on its own token
+     (now emerald, Steve 2026-05-23 — see tailwind.config.ts
+     for the rationale) so AFL Field/PlayerTile colours track
+     the AFL design language independently. */
   --third-a: #B83A2E;
   --third-c: #7B5AA6;
   --third-d: #1F5BAE;
@@ -248,5 +249,37 @@ html[data-motion="reduce"] *::after {
   }
   html::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   iOS Safari / WKWebView: prevent the "stuck zoom" trap.
+
+   WebKit auto-zooms a focused form field whose computed font-size is
+   < 16px. Once zoomed, if the user pans horizontally the engine can
+   fail to restore zoom on blur — the page looks slightly enlarged
+   and offset, with no obvious way to dismiss it. The fix is to keep
+   every form-control font-size >= 16px on touch devices.
+
+   Tailwind's `text-sm` (14px) is the trigger everywhere we use it
+   on inputs (LoginField, Input.tsx, raw <input>/<textarea>/<select>
+   in forms across the app). Rather than hand-bumping every call
+   site — which would also widen the visual text in places where the
+   design wants 14px on desktop — we apply a CSS override here that
+   ONLY targets touch-primary devices via (hover: none) +
+   (pointer: coarse). Desktop keeps the original 14px input
+   typography; iOS / Android no longer trigger the focus zoom.
+
+   Excluded input types are zero-glyph or natively-rendered (the
+   16px rule wouldn't apply anyway), kept out to avoid layout shifts
+   on color pickers, file uploaders, and range sliders.
+
+   Steve 2026-05-20.
+   ───────────────────────────────────────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px;
   }
 }

@@ -116,6 +116,15 @@ export async function ensureTestUser(
   if (error) throw new Error(`listUsers failed: ${error.message}`);
   const existing = data.users.find((u) => u.email === opts.email);
   if (existing) {
+    // Resync the password every run. `supabase db reset` does NOT
+    // wipe auth.users in current Supabase CLI versions, so a user
+    // created with a previous password (e.g. from a stale session
+    // or a stale .env.test) survives across resets and breaks login
+    // with the cryptic "Invalid login credentials" alert. Forcing
+    // the password match here keeps the auth setup deterministic.
+    await admin.auth.admin.updateUserById(existing.id, {
+      password: opts.password,
+    });
     if (opts.superAdmin) {
       await admin
         .from("profiles")

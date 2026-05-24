@@ -248,24 +248,21 @@ test("NETBALL-01: live state renders score bug + court + opponent name when Q1 i
   await expect(page.getByText(/test opponent/i).first()).toBeVisible();
 });
 
-test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — quarter_start is deferred to the modal CTA", async ({
+test("NETBALL-01: Ready for Q1 surfaces the await-kickoff modal — both events deferred to the modal CTA", async ({
   page,
 }) => {
-  // The "Start Q1" button no longer writes quarter_start directly.
-  // Tap it, the await-kickoff modal opens, and only the modal's CTA
-  // commits the server event so the umpire's whistle (not the lineup
-  // tap) decides when the clock kicks off. Mirrors AFL's modal-gated
-  // pattern.
-  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
-
-  // Seed pre-Q1 directly: a lineup_set event puts NetballLiveGame
-  // into the `currentQuarter === 0 && !quarterEnded` branch (the
-  // pre-Q1 picker with the "Start Q1" button). NO quarter_start yet.
-  // Mirrors seedQ1InProgress's lineup shape minus the quarter_start.
-  const positions: Record<string, string[]> = Object.fromEntries(
-    NETBALL_LINEUP_KEYS.map((k, i) => [k, [players[i].id]]),
-  );
-  const bench = players.slice(NETBALL_LINEUP_KEYS.length).map((p) => p.id);
+  // Two-step kickoff (Steve 2026-05-15 refactor): the "Ready for Q1"
+  // tap inside NetballLineupPicker no longer writes any server event.
+  // It opens NetballStartQuarterModal in-place. ONLY the modal's
+  // "Start Q1" tap calls startNetballGame with `startQuarterToo=true`,
+  // committing both `lineup_set` and `quarter_start` atomically so
+  // there's no intermediate "lineup locked, no whistle yet" page
+  // state (the umpire's whistle and the clock kickoff are bound to
+  // the same tap). Mirrors AFL's modal-gated pattern.
+  //
+  // Test seeds availability so the picker has a squad to suggest
+  // from, then verifies the picker → modal → atomic-commit chain.
+  const { team, game, players, admin } = await setupNetballTeam({ trackScoring: true });
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,
@@ -273,46 +270,39 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — quarter_start is
       status: "available" as const,
     })),
   );
-  await admin.from("game_events").insert({
-    game_id: game.id,
-    type: "lineup_set",
-    metadata: { lineup: { positions, bench } },
-    created_by: ownerId,
-  });
-  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // First tap on the page-level "Ready for Q1" button — surfaces
-  // the await-kickoff modal. Renamed from "Start Q1" 2026-05-09
-  // to disambiguate from the modal's "Start Q1" CTA (Stagehand
-  // showed agents looping when both shared the accessible name).
+  // Picker's "Ready for Q1" CTA — NetballLineupPicker is mounted by
+  // NetballLiveGame's `!hasStarted` branch because no lineup_set
+  // event exists yet. The picker auto-suggests a starting lineup on
+  // mount so the confirm button is enabled without further input.
   const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
   await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
   await readyForQ1.click();
 
-  // The modal renders "Ready for Q1" as a heading. Pre-modal-feature
-  // the button would have fired startNetballQuarter directly and the
-  // page would already be in LIVE state; the heading would never appear.
+  // Modal opens — heading "Ready for Q1" lives inside
+  // NetballStartQuarterModal (mirrors AFL StartQuarterModal).
   await expect(
     page.getByRole("heading", { name: /^ready for q1$/i }),
   ).toBeVisible({ timeout: 2_000 });
 
-  // No quarter_start event yet — the modal must be tapped first.
+  // CRITICAL: opening the modal must NOT commit anything yet. Coach
+  // can hit "Back to lineup" if the umpire hasn't whistled. No
+  // lineup_set, no quarter_start.
   await page.waitForTimeout(500);
   const { data: preEvents } = await admin
     .from("game_events")
     .select("type")
     .eq("game_id", game.id)
-    .eq("type", "quarter_start");
+    .in("type", ["lineup_set", "quarter_start"]);
   expect(preEvents ?? []).toHaveLength(0);
 
-  // Tap the modal CTA "Start Q1" — distinct from the page-level
-  // "Ready for Q1" button.
+  // Modal CTA "Start Q1" — fires the atomic commit.
   await page.getByRole("button", { name: /^start q1$/i }).click();
 
-  // quarter_start lands now.
+  // Both events land now in the same server round-trip.
   await expect
     .poll(
       async () => {
@@ -320,14 +310,18 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — quarter_start is
           .from("game_events")
           .select("type, metadata")
           .eq("game_id", game.id)
-          .eq("type", "quarter_start");
-        return (data ?? []).filter(
-          (e) => (e.metadata as { quarter?: number } | null)?.quarter === 1,
-        ).length;
+          .in("type", ["lineup_set", "quarter_start"]);
+        const lineupSet = (data ?? []).some((e) => e.type === "lineup_set");
+        const quarterStart = (data ?? []).some(
+          (e) =>
+            e.type === "quarter_start" &&
+            (e.metadata as { quarter?: number } | null)?.quarter === 1,
+        );
+        return lineupSet && quarterStart;
       },
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
-    .toBe(1);
+    .toBe(true);
 });
 
 // ─── NETBALL-04: live-shell suppression mirror ────────────
@@ -686,6 +680,14 @@ test("NETBALL-08: long-press → Switch swaps a court player for a bench player 
   // The change is local-overlay only until the next quarter break
   // confirms via period_break_swap.
   const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  // The Switch-player button in NetballPlayerActions is gated on
+  // `allow_mid_quarter_subs` (Steve 2026-05-16 — most netball comps
+  // ban mid-Q subs, so the affordance is opt-in per team). Flip it
+  // here so the long-press menu surfaces the Switch CTA at all.
+  await admin
+    .from("teams")
+    .update({ allow_mid_quarter_subs: true })
+    .eq("id", team.id);
   await seedQ1InProgress({
     admin,
     gameId: game.id,
@@ -880,7 +882,7 @@ test("ABSTRACT-03: team.quarter_length_seconds=480 fires the auto-hooter at the 
   // matches the modal heading "Ready for Q2" and is distinct from
   // the modal CTA "Start Q2".)
   await expect(
-    page.getByRole("button", { name: /ready for q2|suggested rotation/i }).first(),
+    page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -928,7 +930,11 @@ test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length
 
   // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
   // means no page.reload() is needed; the Q-break shell auto-renders.
+  // The Q-break primary CTA is "Ready for Q{n}" — "Start Q{n}" lives
+  // inside NetballStartQuarterModal, which is reached only after the
+  // user taps "Ready for Q2". Match the same regex as the sibling test
+  // above (NETBALL-01 auto-hooter).
   await expect(
-    page.getByRole("button", { name: /start q2|suggested rotation/i }).first(),
+    page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });

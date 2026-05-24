@@ -168,4 +168,231 @@ describe("Phase D — chip-spread", () => {
       expect(byZone[z]).toContain("b");
     }
   });
+
+  // ─── Zone-preference modes (Steve 2026-05-20) ──────────────
+  // Three new chip modes pull chip-mates toward a specific zone
+  // family without hard-locking them. zones3 mapping is direct:
+  // forward → fwd, centre → mid, back → back.
+
+  it("zone-forward mode lands all chip-A players in the forward zone", () => {
+    // 3 chip-A forwards + 9 plain players, exactly 12 on-field at
+    // 4-4-4. With no chip the suggester would spread chip-A
+    // evenly; with forward mode all three should cluster in fwd.
+    const players: Player[] = [
+      ...Array.from({ length: 3 }, (_, i) => p(`a${i}`, "a")),
+      ...Array.from({ length: 9 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aInFwd = byZone.fwd.filter((c) => c === "a").length;
+    // Forward zone caps at 4 (12 / 3); all 3 chip-A should fit.
+    expect(aInFwd).toBe(3);
+    expect(byZone.back).not.toContain("a");
+    expect(byZone.mid).not.toContain("a");
+  });
+
+  it("zone-back mode lands all chip-B players in the back zone", () => {
+    const players: Player[] = [
+      ...Array.from({ length: 3 }, (_, i) => p(`b${i}`, "b")),
+      ...Array.from({ length: 9 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { b: "back" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const bInBack = byZone.back.filter((c) => c === "b").length;
+    expect(bInBack).toBe(3);
+    expect(byZone.mid).not.toContain("b");
+    expect(byZone.fwd).not.toContain("b");
+  });
+
+  it("zone-centre mode pulls chip-A into mid even when forwards are empty", () => {
+    // 2 chip-A centres in a 12-player squad. Without any chip
+    // pressure the suggester might distribute them; centre mode
+    // should pull both into mid.
+    const players: Player[] = [
+      p("a0", "a"),
+      p("a1", "a"),
+      ...Array.from({ length: 10 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "centre" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aInMid = byZone.mid.filter((c) => c === "a").length;
+    expect(aInMid).toBe(2);
+  });
+
+  it("zone preference DOMINATES in-game diversity (chip-mate stays in family across quarters)", () => {
+    // Steve 2026-05-20: was the inverse — used to assert that a
+    // forward-chipped player who played fwd in Q1 gets rotated
+    // OUT for IN_GAME_DIVERSITY. Coach feedback: "if they're
+    // chipped as a forward, we should be placing them in the
+    // forwards where possible". Bumped CHIP_ZONE_BONUS from 800
+    // → 2500 so the chip outranks the combined IN_GAME_DIVERSITY
+    // (+1000) + SAME_AS_LAST_Q (-800) stack. This test pins the
+    // new behaviour.
+    const FULL_QUARTER_MS = 12 * 60 * 1000;
+    // Player a0 already played fwd for a full quarter — Q1 finished,
+    // Q2 starting. previousQuarterZones tags a0 as having been in fwd.
+    const gameMs = {
+      a0: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+    };
+    const players: Player[] = [
+      p("a0", "a"),
+      ...Array.from({ length: 11 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      gameMs,
+      { a0: "fwd" }, // previousQuarterZones — a0 was fwd in Q1
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    // a0 should STAY in fwd despite having played there in Q1.
+    expect(lineup.fwd).toContain("a0");
+  });
+
+  it("zone preference outranks IN_GAME_DIVERSITY even with partnership stacking against the chip-family zone", () => {
+    // Steve 2026-05-20 (third pass): coaches asked for the chip
+    // to outrank in-game-diversity unconditionally — including
+    // cases where partnership-splitting + samePos + sameAsLastQ
+    // all pull AGAINST the chip-family zone. Bumped chip from
+    // 2500 → 5000 to clear the entire routine-fairness stack.
+    //
+    // Fixture: a0 is forward-chipped, played fwd in Q1, has a
+    // mate (a1, also chip-A) from Q1's fwd line. Without the
+    // bump, the partnership penalty + sameAsLastQ would drag
+    // a0's fwd score below a fresh back/mid; the algorithm
+    // would yank a0 out of forwards. With 5000 the chip wins.
+    const FULL_QUARTER_MS = 12 * 60 * 1000;
+    const gameMs = {
+      a0: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+      a1: { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: FULL_QUARTER_MS },
+    };
+    const players: Player[] = [
+      p("a0", "a"),
+      p("a1", "a"), // mate — also forward-chipped, both in fwd Q1
+      ...Array.from({ length: 10 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+    // a0 and a1 were teammates in fwd last Q.
+    const previousZoneTeammates = {
+      a0: new Set(["a1"]),
+      a1: new Set(["a0"]),
+    };
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      gameMs,
+      { a0: "fwd", a1: "fwd" }, // previousQuarterZones
+      {},
+      previousZoneTeammates,
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    // Both chip-A players still land in fwd this Q — partnership
+    // doesn't override an explicit chip family.
+    expect(lineup.fwd).toContain("a0");
+    expect(lineup.fwd).toContain("a1");
+  });
+
+  it("forward-chip yields only when the forward zone is FULL (overflow spillover)", () => {
+    // Five forward-chipped players + seven plain players + zones3 caps
+    // (4-4-4). Forward has 4 slots; 4 chip-A land there and the 5th
+    // must overflow to mid or back. This pins the "where possible"
+    // qualifier — chip preference is dominant but soft, never blocks.
+    const players: Player[] = [
+      ...Array.from({ length: 5 }, (_, i) => p(`a${i}`, "a")),
+      ...Array.from({ length: 7 }, (_, i) => p(`x${i}`)),
+    ];
+    const chipMap: Record<string, "a" | "b" | "c" | null | undefined> = {};
+    for (const pl of players) chipMap[pl.id] = pl.chip ?? null;
+
+    const lineup = suggestStartingLineup(
+      players,
+      {},
+      0,
+      zoneCapsFor(12, "zones3"),
+      {},
+      {},
+      {},
+      {},
+      {},
+      chipMap,
+      { a: "forward" },
+    );
+
+    const byZone = chipsByZone(lineup, players);
+    const aInFwd = byZone.fwd.filter((c) => c === "a").length;
+    const aOnBenchOrElsewhere =
+      byZone.back.filter((c) => c === "a").length +
+      byZone.mid.filter((c) => c === "a").length +
+      lineup.bench.filter((id) => id.startsWith("a")).length;
+
+    // All 4 fwd slots taken by chip-A, the 5th lands elsewhere
+    // (mid, back, or bench depending on tiebreakers).
+    expect(aInFwd).toBe(4);
+    expect(aOnBenchOrElsewhere).toBe(1);
+  });
 });

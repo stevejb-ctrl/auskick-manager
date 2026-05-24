@@ -86,12 +86,22 @@ export async function AvailabilityList({
   // Fill-ins are always available — addFillIn stamps an availability row for them.
   available += fillIns.length;
 
-  // When a required minimum is provided, show "X of N" and turn the
-  // pill warm-orange-ish until the threshold is met. The body hint
-  // below tells the user what to do next so they're not just staring
-  // at a stuck "Start game" button.
+  // When a required minimum is provided, show the warm-orange-ish
+  // tint until the threshold is met. The body hint below tells the
+  // user what to do next so they're not just staring at a stuck
+  // "Start game" button.
+  //
+  // Steve 2026-05-20: the count pill now reads "X of N available"
+  // where N is the TOTAL squad (active players + fill-ins), not
+  // the on-field-size minimum. Previously the denominator was the
+  // `requiredAvailable` minimum, which read as "X of 12" for a
+  // 12-on-field U10 team — looked wrong when the squad had 18
+  // available because "18 of 12" doesn't make sense. The minimum
+  // still gates `needsMore` for the warning copy; only the
+  // displayed denominator changes.
   const needsMore =
     typeof requiredAvailable === "number" && available < requiredAvailable;
+  const totalRoster = squad.length + fillIns.length;
   return (
     <div className="space-y-4">
       <div className="flex gap-2 text-sm">
@@ -102,9 +112,7 @@ export async function AvailabilityList({
               : "border-ok/30 bg-ok/10 text-ok"
           }`}
         >
-          {typeof requiredAvailable === "number"
-            ? `${available} of ${requiredAvailable} available`
-            : `${available} available`}
+          {`${available} of ${totalRoster} available`}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-alt px-3 py-1 font-semibold text-ink-mute">
           {unavailable} unavailable
