@@ -70,6 +70,44 @@ export function zoneCapsFor(
   return caps;
 }
 
+/**
+ * Returns zone caps that preserve the previous quarter's actual
+ * zone shape when possible — used by the Q-break suggester so a
+ * coach's manual "blank in Backs" choice in Q1 survives into Q2
+ * instead of getting wiped by the default fill priority.
+ *
+ * Logic:
+ *   1. If `previousLineup` is null/missing, return `fallbackCaps`
+ *      (typically the result of `zoneCapsFor(currentOnFieldSize)`).
+ *   2. Count the actual players in each zone of `previousLineup`.
+ *   3. If the per-zone sum equals `currentOnFieldSize`, return those
+ *      counts as the caps — preserves the previous quarter's
+ *      blank-slot zone choice.
+ *   4. Otherwise (size changed mid-game, late arrival / loan), fall
+ *      back to `fallbackCaps`.
+ *
+ * Pure function — used by QuarterBreak.tsx and any caller that
+ * needs the same preservation semantics. Extracting here makes
+ * the rule unit-testable without spinning up the React tree.
+ */
+export function deriveEffectiveZoneCaps(
+  previousLineup: Lineup | null | undefined,
+  currentOnFieldSize: number,
+  positionModel: PositionModel,
+  fallbackCaps: ZoneCaps,
+): ZoneCaps {
+  if (!previousLineup) return fallbackCaps;
+  const fromLineup: Partial<ZoneCaps> = {};
+  let total = 0;
+  for (const z of positionsFor(positionModel)) {
+    const n = previousLineup[z]?.length ?? 0;
+    fromLineup[z] = n;
+    total += n;
+  }
+  if (total !== currentOnFieldSize) return fallbackCaps;
+  return { ...fallbackCaps, ...fromLineup };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 function emptyZM(): ZoneMinutes {
   return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };

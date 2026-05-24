@@ -24,6 +24,7 @@ import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
 import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
   ALL_ZONES,
+  deriveEffectiveZoneCaps,
   suggestStartingLineup,
   zoneCapsFor,
   zoneTeammatesFromLineup,
@@ -140,30 +141,19 @@ export function QuarterBreak({
   );
 
   // Effective suggester caps preserve the previous quarter's
-  // zone shape on short-squad games. Without this the suggester
-  // re-derives caps from `currentOnFieldSize` via the priority
-  // `[mid, back, fwd]`, which always parks the blank slot in
-  // FWD on 11/12 — wiping the coach's Q1 manual move-to-Backs
-  // the moment Q2's break opens. Steve 2026-05-23 from match-day
-  // feedback. Falls back to the prop (i.e. zoneCapsFor) when:
-  //   - on_field_size changed mid-game (late arrival / loaned
-  //     player) so the previous shape doesn't sum to the new
-  //     size, OR
-  //   - the previous lineup doesn't exist (first quarter), OR
-  //   - the previous lineup is full-strength (no blank to
-  //     preserve — fall back is equivalent anyway).
-  const effectiveZoneCaps = useMemo<ZoneCaps>(() => {
-    if (!lineup) return zoneCaps;
-    const fromLineup: Partial<ZoneCaps> = {};
-    let total = 0;
-    for (const z of positionsFor(positionModel)) {
-      const n = lineup[z]?.length ?? 0;
-      fromLineup[z] = n;
-      total += n;
-    }
-    if (total !== currentOnFieldSize) return zoneCaps;
-    return { ...zoneCaps, ...fromLineup };
-  }, [lineup, zoneCaps, currentOnFieldSize, positionModel]);
+  // zone shape on short-squad games. Pure logic lives in
+  // `deriveEffectiveZoneCaps` in lib/fairness.ts so it's unit-
+  // testable across the AFL age-group matrix. Without this the
+  // suggester would re-derive caps from `currentOnFieldSize` via
+  // the priority `[mid, back, fwd]` and always park the blank
+  // slot in FWD on 11/12 — wiping the coach's Q1 manual
+  // move-to-Backs the moment Q2's break opens. Steve 2026-05-23
+  // from match-day feedback.
+  const effectiveZoneCaps = useMemo<ZoneCaps>(
+    () =>
+      deriveEffectiveZoneCaps(lineup, currentOnFieldSize, positionModel, zoneCaps),
+    [lineup, zoneCaps, currentOnFieldSize, positionModel],
+  );
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   // Steve 2026-05-16: parity with netball Q-break, which has been
   // surfacing a per-player goal-count badge on its tiles since the
