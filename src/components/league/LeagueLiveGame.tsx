@@ -775,46 +775,79 @@ export function LeagueLiveGame({
   }
 
   /**
-   * Empty slot was tapped. When a bench player is selected, move
-   * them onto the field via a fresh `lineup_set` — no swap-off
-   * needed because the slot is already empty. The replay engine
-   * picks up the new field/bench split and the formation re-renders
-   * with the player filling the previously-empty slot.
+   * Empty slot was tapped. Two paths depending on what's selected:
    *
-   * No-op when nothing's selected — the empty slot stays clickable
-   * but does nothing until the coach picks a bench player.
+   *   1. **Bench player selected** — promote them onto the field
+   *      via a fresh `lineup_set`, targeting the TAPPED slot's
+   *      zone (not the player's chip preference). A coach tapping
+   *      the empty FWD slot lands the bench player in FWD even if
+   *      they're B-chipped, because the explicit tap-target is a
+   *      stronger signal than the chip default.
+   *
+   *   2. **Field player selected** — move them to the tapped
+   *      zone via `league_position_change`. This is the short-
+   *      squad "shift the blank to the other zone" affordance.
+   *      Example: 10 players in an 11-on-field U10 game leaves an
+   *      empty forward slot; the coach wants the blank in backs
+   *      instead. Solution: select a back player, tap the empty
+   *      forward slot — that back moves to forwards and the back
+   *      slot they vacated becomes the new empty. Mirrors AFL's
+   *      commit 8a92f71.
+   *
+   * Same-zone tap when the selected field player is already in the
+   * target zone is a no-op (avoids a no-effect position_change
+   * round-trip). Nothing-selected is also a no-op.
    */
-  async function handleVacantSpotTap() {
+  async function handleVacantSpotTap(slotZone: "forward" | "back") {
     if (!selectedPlayer || !state.lineup) return;
-    if (!state.lineup.bench.includes(selectedPlayer.id)) return;
-    setPending(true);
-    // Route the promoted bench player by chip — Forward chip lands
-    // in forwards, Back chip lands in backs, unchipped fall through
-    // to forwards (keeps the slot-fill stable when nobody is
-    // chipped).
-    const promoted = squad.find((p) => p.id === selectedPlayer.id) ?? null;
-    const targetZone
-      = promoted?.chip === "b" ? "back" : "forward";
-    const nextForwards
-      = targetZone === "forward"
-        ? [...state.lineup.forwards, selectedPlayer.id]
-        : state.lineup.forwards;
-    const nextBacks
-      = targetZone === "back"
-        ? [...state.lineup.backs, selectedPlayer.id]
-        : state.lineup.backs;
-    const nextBench = state.lineup.bench.filter(
-      (id) => id !== selectedPlayer.id,
-    );
-    const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
-      auth,
-      game.id,
-      { forwards: nextForwards, backs: nextBacks, bench: nextBench },
-    ]);
-    await flushed;
-    setPending(false);
-    handleClearSelection();
-    router.refresh();
+    const isBench = state.lineup.bench.includes(selectedPlayer.id);
+    const isField
+      = state.lineup.forwards.includes(selectedPlayer.id)
+      || state.lineup.backs.includes(selectedPlayer.id);
+
+    if (isBench) {
+      // Bench → field: tap-target zone wins over chip preference.
+      setPending(true);
+      const nextForwards
+        = slotZone === "forward"
+          ? [...state.lineup.forwards, selectedPlayer.id]
+          : state.lineup.forwards;
+      const nextBacks
+        = slotZone === "back"
+          ? [...state.lineup.backs, selectedPlayer.id]
+          : state.lineup.backs;
+      const nextBench = state.lineup.bench.filter(
+        (id) => id !== selectedPlayer.id,
+      );
+      const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
+        auth,
+        game.id,
+        { forwards: nextForwards, backs: nextBacks, bench: nextBench },
+      ]);
+      await flushed;
+      setPending(false);
+      handleClearSelection();
+      router.refresh();
+      return;
+    }
+
+    if (isField) {
+      // Field → opposite zone: position change. No-op if already
+      // in the tapped zone (e.g. coach taps an empty FWD slot
+      // with a forward selected — they were going to move within
+      // forwards, which isn't a thing; just clear and bail).
+      const currentZone: "forward" | "back" = state.lineup.forwards.includes(
+        selectedPlayer.id,
+      )
+        ? "forward"
+        : "back";
+      if (currentZone === slotZone) {
+        handleClearSelection();
+        return;
+      }
+      await handleMoveLeaguePosition(selectedPlayer.id, slotZone);
+      handleClearSelection();
+    }
   }
 
   async function handleAddLateArrival(playerId: string) {
@@ -1074,10 +1107,15 @@ export function LeagueLiveGame({
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
             onVacantSpotTap={
-              selectedPlayer && selectedOnBench
-                ? handleVacantSpotTap
-                : undefined
+              // Wire the empty-slot tap whenever ANY player is
+              // selected — bench OR field. The handler routes:
+              //   bench-selected → lineup_set into the tapped zone
+              //   field-selected → position_change to the tapped
+              //                    zone (no-op if same zone)
+              // Steve 2026-05-23 short-squad fix.
+              selectedPlayer ? handleVacantSpotTap : undefined
             }
+            vacantSpotPrimed={Boolean(selectedPlayer)}
             disabled={pending}
           />
           <LeagueBenchStrip

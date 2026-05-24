@@ -209,8 +209,32 @@ interface LeagueFieldProps {
   >;
   onPlayerClick?: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
-  /** Tap on a vacant slot — used to bring a selected bench player on. */
-  onVacantSpotTap?: () => void;
+  /**
+   * Tap on a vacant slot. Two routes through this callback:
+   *
+   *   1. Bench player selected → bring them on. The slot's zone
+   *      tells the caller which zone to place them into (so a coach
+   *      tapping the empty FWD slot lands the bench player in FWD
+   *      regardless of their chip).
+   *   2. Field player selected (mid-quarter only) → move them to
+   *      the tapped zone via `league_position_change`. This is the
+   *      "swap-to-empty" affordance that lets a coach shift a
+   *      short-squad blank slot from forwards to backs (or vice
+   *      versa) without restarting the lineup. Steve 2026-05-23
+   *      port of AFL's commit 8a92f71.
+   *
+   * `zone` is derived from the tapped slot's role: "forward" for
+   * forward / DH slots, "back" for back / FR / fullback slots.
+   * The orchestrator decides which path to take based on what's
+   * currently selected.
+   */
+  onVacantSpotTap?: (zone: "forward" | "back") => void;
+  /**
+   * When true, vacant slots advertise themselves as a "Move here"
+   * target — visible cue that the tap will land an action.
+   * Typically wired to "a player is currently selected" upstream.
+   */
+  vacantSpotPrimed?: boolean;
   disabled?: boolean;
   /** Q1-kickoff wake-up halo trigger. */
   wakeUpKey?: number | null;
@@ -236,6 +260,7 @@ export function LeagueField({
   onPlayerClick,
   onPlayerLongPress,
   onVacantSpotTap,
+  vacantSpotPrimed = false,
   disabled,
   wakeUpKey = null,
 }: LeagueFieldProps) {
@@ -416,7 +441,20 @@ export function LeagueField({
                     />
                   ) : (
                     <VacantSpot
+                      // Derive the tap-target zone from the slot's
+                      // role: forward + dh slots are forward-zone
+                      // (DH is structurally a forward in real RL);
+                      // back + fr + fullback slots are back-zone
+                      // (FR is a halfback). The orchestrator uses
+                      // this to route the move correctly when the
+                      // coach taps an empty slot.
+                      slotZone={
+                        slot.role === "forward" || slot.role === "dh"
+                          ? "forward"
+                          : "back"
+                      }
                       onTap={onVacantSpotTap}
+                      primed={vacantSpotPrimed}
                       disabled={disabled}
                     />
                   )}
@@ -544,34 +582,58 @@ function DashedLine({ top, bottom }: { top?: string; bottom?: string }) {
 // ─── Vacant-spot placeholder ────────────────────────────────
 // Renders an empty player tile slot so the field shortfall is
 // visible at a glance. When `onTap` is provided, it becomes a
-// button — tapping it brings the currently-selected bench player
-// onto the field (orchestrator handles the lineup_set write).
+// button:
+//   * a bench player is selected → tapping promotes them to the
+//     field, targeting the tapped zone (so a coach tapping the
+//     empty FWD slot lands them in FWD regardless of chip);
+//   * a field player is selected → tapping moves THAT player to
+//     this slot's zone via `league_position_change` (the short-
+//     squad "shift the blank to the other zone" affordance).
 // Dashed border matches the "lend a player" affordance in the
 // lineup picker so coaches recognise it as a "needs filling" slot.
+// When `primed` is true (something's selected), the copy flips to
+// "Move here" + brand-tinted border so the affordance reads as
+// actionable rather than passive. Steve 2026-05-23.
 function VacantSpot({
+  slotZone,
   onTap,
+  primed,
   disabled,
 }: {
-  onTap?: () => void;
+  slotZone: "forward" | "back";
+  onTap?: (zone: "forward" | "back") => void;
+  primed?: boolean;
   disabled?: boolean;
 }) {
   const baseClasses
-    = "flex w-full items-center justify-center rounded-md border border-dashed border-white/70 bg-white/10 px-1.5 py-3 text-center text-[11px] font-medium text-white/80";
+    = "flex w-full items-center justify-center rounded-md border border-dashed px-1.5 py-3 text-center text-[11px] font-medium";
+  const passiveTone = "border-white/70 bg-white/10 text-white/80";
+  // When primed, swap the muted white-on-green look for a brand-
+  // tinted dash so the empty slot reads as a tap target — same
+  // colour family the selected player tile + swap suggestion use.
+  const primedTone
+    = "border-warm bg-warm/15 text-warm shadow-card";
+  const tone = primed ? primedTone : passiveTone;
+  const label = primed ? "Move here" : "Empty";
   if (onTap) {
     return (
       <button
         type="button"
-        onClick={onTap}
+        onClick={() => onTap(slotZone)}
         disabled={disabled}
-        aria-label="Empty slot — tap to bring a bench player on"
-        className={`${baseClasses} transition-all duration-fast ease-out-quart hover:bg-white/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50`}
+        aria-label={
+          primed
+            ? `Move selected player to ${slotZone === "forward" ? "forwards" : "backs"}`
+            : "Empty slot — tap to bring a bench player on"
+        }
+        className={`${baseClasses} ${tone} transition-all duration-fast ease-out-quart hover:bg-white/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50`}
       >
-        <span className="font-mono uppercase tracking-micro">Empty</span>
+        <span className="font-mono uppercase tracking-micro">{label}</span>
       </button>
     );
   }
   return (
-    <div role="presentation" className={baseClasses}>
+    <div role="presentation" className={`${baseClasses} ${passiveTone}`}>
       <span className="font-mono uppercase tracking-micro">Empty</span>
     </div>
   );

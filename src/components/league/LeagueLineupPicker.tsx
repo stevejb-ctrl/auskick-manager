@@ -529,16 +529,36 @@ export function LeagueLineupPicker({
     setSelectedPlayerId(null);
   }
 
-  function handleVacantSpotTap() {
+  function handleVacantSpotTap(slotZone: "forward" | "back") {
     if (!selectedPlayerId) return;
-    if (!benchIds.includes(selectedPlayerId)) return;
-    if (fieldIds.length >= onFieldSize) {
-      setError(
-        `Already at ${onFieldSize} on field — bench someone first.`,
-      );
+    // Bench → field: tap-target zone wins over chip preference.
+    if (benchIds.includes(selectedPlayerId)) {
+      if (fieldIds.length >= onFieldSize) {
+        setError(
+          `Already at ${onFieldSize} on field — bench someone first.`,
+        );
+        return;
+      }
+      moveToField(selectedPlayerId, slotZone);
+      setSelectedPlayerId(null);
       return;
     }
-    moveToField(selectedPlayerId);
+    // Field → opposite zone: move between forwards/backs. No-op if
+    // the selected player is already in the tapped zone. Mirrors
+    // the live-game short-squad fix (Steve 2026-05-23).
+    const currentZone: LeagueZone | null = forwardIds.includes(
+      selectedPlayerId,
+    )
+      ? "forward"
+      : backIds.includes(selectedPlayerId)
+        ? "back"
+        : null;
+    if (!currentZone) return;
+    if (currentZone === slotZone) {
+      setSelectedPlayerId(null);
+      return;
+    }
+    moveToZone(selectedPlayerId, slotZone);
     setSelectedPlayerId(null);
   }
 
@@ -1119,10 +1139,14 @@ export function LeagueLineupPicker({
             onPlayerClick={handleTileTap}
             onPlayerLongPress={handleTileLongPress}
             onVacantSpotTap={
-              selectedPlayerId && benchIds.includes(selectedPlayerId)
-                ? handleVacantSpotTap
-                : undefined
+              // Wire empty-slot taps for ANY selection — bench OR
+              // field. Pre-game equivalent of the live-game short-
+              // squad fix: a coach with 10 players in an 11-on-field
+              // game wants to choose which zone holds the blank, not
+              // get it auto-assigned. Steve 2026-05-23.
+              selectedPlayerId ? handleVacantSpotTap : undefined
             }
+            vacantSpotPrimed={Boolean(selectedPlayerId)}
             disabled={isPending}
           />
         </div>
