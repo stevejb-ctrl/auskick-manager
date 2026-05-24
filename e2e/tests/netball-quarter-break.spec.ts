@@ -235,6 +235,24 @@ async function enterQBreakView(
 // surrounding copy.
 const ROTATION_TOGGLE = /^(?:✓\s*)?Suggested$/i;
 
+// The rotation toggle now lives inside the collapsed "Game settings"
+// section in NetballQuarterBreak (Steve 2026-05-13: moved out of the
+// hero strip to declutter the header). Tests that target the toggle
+// must expand the collapse first. The trigger is a button labelled
+// "Game settings" sitting above the rotation modes — opening it
+// reveals RotationModeToggle, on-field-size dropdown, and the loan/
+// injury manager.
+async function expandGameSettings(page: import("@playwright/test").Page) {
+  const trigger = page.getByRole("button", { name: /game settings/i });
+  // The collapse only re-renders when matchAdjustmentsOpen flips, so
+  // clicking when already open would toggle it shut. Guard with
+  // aria-expanded — Next render carries the new attribute.
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+    await trigger.click();
+  }
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+}
+
 // ─── NETBALL-02 mandatory tests ───────────────────────────
 
 test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after Q1 auto-ends", async ({
@@ -251,7 +269,9 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   // toggle defaults to "suggested" so the active button reads
   // "✓ Suggested"; ROTATION_TOGGLE matches both the active and
   // inactive variants for robustness against any future default-
-  // state change.
+  // state change. The toggle now lives inside the collapsed
+  // "Game settings" section — expand it first.
+  await expandGameSettings(page);
   await expect(
     page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
@@ -301,9 +321,13 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
 
   // Suggested-rotation button is active by default (lineupMode
   // initializes to "suggested" — the active state shows a "✓ "
-  // prefix). Confirm the active variant is on screen.
+  // prefix). Confirm the active variant is on screen. The toggle
+  // sits inside the collapsed "Game settings" section now, so
+  // expand before asserting. Label was shortened from "Suggested
+  // rotation" to "Suggested" when the three-mode pill row landed.
+  await expandGameSettings(page);
   await expect(
-    page.getByRole("button", { name: /✓ Suggested rotation/ }),
+    page.getByRole("button", { name: /^✓\s*Suggested$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Each unplayed player's tile must include "Bench → ${POSITION}"
@@ -491,7 +515,10 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   // The suggester ran with Kotara's full season history feeding the
   // tier-5 utilisation tiebreak. The pure-function logic is covered
   // by netballFairness.test.ts; here we just verify the Q-break shell
-  // rendered against the real-history seed.
+  // rendered against the real-history seed. The rotation toggle now
+  // lives inside the collapsed "Game settings" section — expand it
+  // first so the canary button is in the DOM.
+  await expandGameSettings(page);
   await expect(
     page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
