@@ -107,6 +107,13 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     await expect(scheduleBtn).toBeEnabled();
     await scheduleBtn.click();
 
+    // Wait for the modal to close. handleSubmit calls onClose() AFTER
+    // the server action returns, so a closed modal proves the action
+    // settled and router.refresh() has been kicked off. Without this
+    // wait, the very next page.goto could collide with the in-flight
+    // RSC refresh and surface as net::ERR_ABORTED in CI.
+    await expect(modal).toBeHidden({ timeout: 10_000 });
+
     // ── Assert: schedule columns set, banner visible ────────────────
     await expect
       .poll(
@@ -127,13 +134,15 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     await expect(
       page.getByTestId("deletion-scheduled-banner"),
     ).toBeVisible();
-    await page.goto("/dashboard");
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     await expect(
       page.getByTestId("deletion-scheduled-banner"),
     ).toBeVisible();
 
     // ── Restore → schedule columns clear, banner gone ───────────────
-    await page.goto("/account");
+    // Use domcontentloaded to avoid waiting on long-tail RSC prefetch
+    // chatter under CI load, which was tripping net::ERR_ABORTED.
+    await page.goto("/account", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: /restore account/i }).click();
     await expect
       .poll(async () => {
