@@ -809,7 +809,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   type MidQuarterSub = {
     positionId: string;
     outPlayerId: string | null;
-    inPlayerId: string;
+    // null = vacate-only (Steve 2026-05-23 short-squad "Move to empty
+    // position"). The "Move" action emits TWO subs with the same atMs:
+    //   1) { positionId: source, outPlayerId: X, inPlayerId: null }
+    //   2) { positionId: target, outPlayerId: null, inPlayerId: X }
+    // Replay processes them in order; the brief intermediate "X on
+    // bench" state lives for 0ms so time credit goes from source to
+    // target with no on-bench credit between.
+    inPlayerId: string | null;
     atMs: number;
   };
   const [midQuarterSubs, setMidQuarterSubs] = useState<MidQuarterSub[]>([]);
@@ -993,16 +1000,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       // Apply the sub: outPlayer leaves position, inPlayer takes it.
       // outPlayerId may be null when the slot was already empty
       // (coach lent a player + cancelled the picker, then later
-      // tapped the empty token to fill it). In that case there's
-      // nobody to filter out of the position list and nobody to
-      // bench — just plug the inPlayer in.
+      // tapped the empty token to fill it). inPlayerId may be null
+      // when the sub VACATES the position (short-squad "Move to
+      // empty position" emits a paired vacate + fill at the same
+      // atMs). Skip the matching step in either case.
       const next: GenericLineup = {
         positions: { ...current.positions },
-        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+        bench:
+          sub.inPlayerId != null
+            ? current.bench.filter((id) => id !== sub.inPlayerId)
+            : [...current.bench],
       };
-      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
-        .concat([sub.inPlayerId]);
+      const remaining = (next.positions[sub.positionId] ?? [])
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
+      next.positions[sub.positionId] =
+        sub.inPlayerId != null ? remaining.concat([sub.inPlayerId]) : remaining;
       if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
@@ -1983,6 +1995,67 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   const { playerId, positionId } = actionsTarget;
                   closeActions();
                   vacateAndPromptReplacement(playerId, positionId);
+                }
+              : undefined
+          }
+          emptyPositions={
+            allowMidQuarterSubs
+              ? ageGroup.positions.filter(
+                  (pid) => (onCourt.positions[pid]?.length ?? 0) === 0,
+                )
+              : []
+          }
+          onMoveToEmpty={
+            allowMidQuarterSubs
+              ? (targetPositionId) => {
+                  // Short-squad blank-slot reshuffle (Steve 2026-05-23).
+                  // The coach picked an empty position to send the
+                  // long-pressed player to. Emit a paired vacate+fill
+                  // in midQuarterSubs at the same atMs so the next
+                  // period_break_swap snapshots the move into events
+                  // and the replay engine processes them with no
+                  // on-bench credit between (intermediate state lives
+                  // for 0ms). Optimistic local-overlay flip mirrors
+                  // the in-game vacateAndPromptReplacement pattern.
+                  if (!actionsTarget?.positionId) return;
+                  const sourcePositionId = actionsTarget.positionId;
+                  const { playerId } = actionsTarget;
+                  if (sourcePositionId === targetPositionId) return;
+                  closeActions();
+                  const atMs = clockMs;
+                  setLocalOverlay((prev) => {
+                    const base =
+                      prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
+                    const next: GenericLineup = {
+                      positions: { ...base.positions },
+                      bench: [...base.bench],
+                    };
+                    next.positions[sourcePositionId] = (
+                      next.positions[sourcePositionId] ?? []
+                    ).filter((id) => id !== playerId);
+                    next.positions[targetPositionId] = [
+                      ...(next.positions[targetPositionId] ?? []).filter(
+                        (id) => id !== playerId,
+                      ),
+                      playerId,
+                    ];
+                    return next;
+                  });
+                  setMidQuarterSubs((prev) => [
+                    ...prev,
+                    {
+                      positionId: sourcePositionId,
+                      outPlayerId: playerId,
+                      inPlayerId: null,
+                      atMs,
+                    },
+                    {
+                      positionId: targetPositionId,
+                      outPlayerId: null,
+                      inPlayerId: playerId,
+                      atMs,
+                    },
+                  ]);
                 }
               : undefined
           }

@@ -264,6 +264,39 @@ export async function saveNetballLineupDraft(
   return { success: true };
 }
 
+// ─── setNetballOnFieldSize ───────────────────────────────────
+// Mid-game on-court size override. Used by NetballQuarterBreak's
+// new size dropdown so a coach can grow (player arrived late at
+// a Q-break) or shrink (player left at half-time) the lineup
+// between quarters. Writes the clamped value to
+// `games.on_field_size`; the page rerender threads the new value
+// through to the Q-break suggester via `currentOnFieldSize`,
+// which then picks the right number of positions to fill.
+//
+// No event written — this is a game config, not an audit-trail
+// entry. Matches AFL's `setOnFieldSize` (in non-netball actions.ts).
+export async function setNetballOnFieldSize(
+  auth: LiveAuth,
+  gameId: string,
+  onFieldSize: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { value } = await clampOnFieldSize(w.supabase, w.teamId, onFieldSize);
+  const { error } = await w.supabase
+    .from("games")
+    .update({ on_field_size: value })
+    .eq("id", gameId);
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  }
+  return { success: true };
+}
+
 // ─── periodBreakSwap ─────────────────────────────────────────
 // Snapshot the lineup about to take the court at a quarter break.
 //
@@ -287,7 +320,13 @@ export async function periodBreakSwap(
     // replacement followed by a tap-to-fill). Replay engine skips
     // the bench-add for those.
     outPlayerId: string | null;
-    inPlayerId: string;
+    // null when the player VACATES the position (Steve 2026-05-23
+    // short-squad: "Move to empty position" emits a pair of subs
+    // with the same atMs — one with inPlayerId=null to vacate the
+    // source, one with outPlayerId=null to fill the target). Replay
+    // engine treats null inPlayerId as "leave position empty after
+    // this sub" and skips the position-fill step.
+    inPlayerId: string | null;
     atMs: number;
   }>,
   idempotencyKey?: string,

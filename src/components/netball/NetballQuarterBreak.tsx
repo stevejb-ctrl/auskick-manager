@@ -25,9 +25,11 @@ import { Button } from "@/components/ui/Button";
 import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { Label } from "@/components/ui/Label";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
@@ -119,7 +121,9 @@ interface Props {
     // null when the slot was empty (no sub-out player) — see
     // NetballLiveGame's MidQuarterSub for the full story.
     outPlayerId: string | null;
-    inPlayerId: string;
+    // null when the sub VACATES the position (short-squad "Move to
+    // empty position" — emits paired vacate + fill subs).
+    inPlayerId: string | null;
     atMs: number;
   }>;
   /**
@@ -866,6 +870,38 @@ export function NetballQuarterBreak({
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [_adjustPending, startAdjustTransition] = useTransition();
 
+  // Mid-game on-field-size override (Steve 2026-05-23). Mirrors the
+  // pre-game LineupPicker dropdown so a coach who didn't know they'd
+  // be short until kickoff can adjust at Q1 break, or grow back to
+  // full strength when a late player turns up. The size lives on
+  // games.on_field_size; the page rerender threads the new value
+  // back as `currentOnFieldSize` and the suggester picks up the
+  // new shape.
+  const sizeOptions = useMemo(() => {
+    const opts: number[] = [];
+    for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {
+      opts.push(n);
+    }
+    return opts;
+  }, [ageGroup.maxOnFieldSize, ageGroup.minOnFieldSize]);
+  const [sizePending, startSizeTransition] = useTransition();
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  function handleOnFieldSizeChange(next: number) {
+    setSizeError(null);
+    const clamped = Math.max(
+      ageGroup.minOnFieldSize,
+      Math.min(ageGroup.maxOnFieldSize, next),
+    );
+    if (clamped === effectiveOnFieldSize) return;
+    startSizeTransition(async () => {
+      const result = await setNetballOnFieldSize(auth, gameId, clamped);
+      if (!result.success) {
+        setSizeError(result.error);
+      }
+    });
+  }
+
   // Toggle handlers — both follow the optimistic pattern: flip the
   // local store first so the chip updates instantly, then write the
   // event. The next page revalidate rebuilds injuredIds/loanedIds
@@ -951,12 +987,16 @@ export function NetballQuarterBreak({
                 // lead with rotation mode AND always surface lent/
                 // injured (including "No lent" / "No injured") so
                 // the closed header doubles as a discovery hint for
-                // what's inside. Mirrors AFL QB. No on-field-size
-                // chip — netball is fixed at 7 per the rules.
+                // what's inside. Mirrors AFL QB. Steve 2026-05-23:
+                // on-field-size chip surfaces only below default,
+                // matching the pre-game LineupPicker's pattern.
                 const bits: string[] = [];
                 if (lineupMode === "suggested") bits.push("Auto-rebalanced");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
                 else bits.push("Manual lineup");
+                if (effectiveOnFieldSize < ageGroup.defaultOnFieldSize) {
+                  bits.push(`${effectiveOnFieldSize} on court`);
+                }
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
@@ -1013,6 +1053,58 @@ export function NetballQuarterBreak({
                 onChange={handleModeChange}
               />
             </div>
+
+            {/* Short-squad on-court size — Steve 2026-05-23. Mirrors
+                the pre-game LineupPicker dropdown so a coach can also
+                grow (player arrived at Q-break) or shrink (player
+                left at half) mid-game. Persists via
+                `setNetballOnFieldSize` which clamps to the age
+                group's min/max and writes games.on_field_size; the
+                page rerender threads the new value back through
+                `currentOnFieldSize` so the suggester picks the right
+                count for this break. Only renders when the age group
+                actually supports a range. */}
+            {sizeOptions.length > 1 && (
+              <div>
+                <Label
+                  htmlFor="netball-qb-on-field-size"
+                  className="!mb-1 block text-xs font-semibold text-ink"
+                >
+                  Players on court
+                </Label>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-ink-mute">
+                      Adjust mid-game if a player arrives late or
+                      leaves early. Siren will keep the same blank
+                      positions when growing back to full strength,
+                      or drop the lowest-priority positions when
+                      shrinking.
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    <select
+                      id="netball-qb-on-field-size"
+                      value={effectiveOnFieldSize}
+                      onChange={(e) => handleOnFieldSizeChange(Number(e.target.value))}
+                      disabled={isPending || sizePending}
+                      className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
+                    >
+                      {sizeOptions.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {sizeError && (
+                  <p className="mt-1 text-xs text-danger" role="alert">
+                    {sizeError}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Lend a player */}
             <div>

@@ -7,6 +7,10 @@
 //   - Mark injured / un-injure
 //   - Lend to opposition / bring back
 //   - Lock to this position for the next quarter break
+//   - Switch player (mid-Q sub, when allow_mid_quarter_subs is on)
+//   - Move to empty position (short-squad blank-slot reshuffle,
+//     when allow_mid_quarter_subs is on and there's at least one
+//     empty position on court)
 //   - Cancel
 //
 // AFL's "Lock to field" / "Lock to zone" don't apply: netball's
@@ -15,6 +19,7 @@
 // to pin a strong shooter into GS for next quarter uses the
 // lock-for-next-break action instead — a soft signal to the suggester.
 
+import { useState } from "react";
 import type { Player } from "@/lib/types";
 import { netballSport } from "@/lib/sports/netball";
 
@@ -40,6 +45,16 @@ interface Props {
    * vacateAndPromptReplacement flow only goes field → bench.
    */
   onSwitch?: () => void;
+  /**
+   * Short-squad blank-slot reshuffle (Steve 2026-05-23). Empty
+   * position ids on court right now. When the array is non-empty AND
+   * `onMoveToEmpty` is wired AND the long-pressed player is on the
+   * court, the modal surfaces a "Move to empty position" action; tap
+   * it to reveal one button per empty position. Selecting one moves
+   * the player there and leaves their current position empty.
+   */
+  emptyPositions?: string[];
+  onMoveToEmpty?: (targetPositionId: string) => void;
   onClose: () => void;
 }
 
@@ -56,6 +71,8 @@ export function NetballPlayerActions({
   onLockForNextBreak,
   onUnlock,
   onSwitch,
+  emptyPositions = [],
+  onMoveToEmpty,
   onClose,
 }: Props) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -63,6 +80,19 @@ export function NetballPlayerActions({
     ? netballSport.allPositions.find((p) => p.id === positionId)
     : null;
   const positionLabel = pos?.shortLabel ?? "Bench";
+
+  // Two-step picker state for "Move to empty position". The first
+  // tap on the action button flips the modal into a sub-mode that
+  // shows one button per empty position; "Back" returns to the
+  // root menu. Keeps the modal compact instead of always rendering
+  // a long list of position buttons.
+  const [showEmptyPicker, setShowEmptyPicker] = useState(false);
+  const canMoveToEmpty =
+    !!onMoveToEmpty &&
+    !!positionId &&
+    !isInjured &&
+    !isLoaned &&
+    emptyPositions.length > 0;
 
   return (
     <div
@@ -87,6 +117,43 @@ export function NetballPlayerActions({
         </h2>
 
         <div className="flex flex-col gap-2">
+          {/* Move-to-empty picker sub-mode — when the coach taps the
+              "Move to empty position" action below, the modal flips
+              into this sub-mode and shows one button per empty
+              position on court. Picking one fires onMoveToEmpty and
+              the parent handles the lineup mutation. "Back" returns
+              to the root menu so the coach can still inject / lend /
+              lock without re-opening the long-press. */}
+          {showEmptyPicker ? (
+            <>
+              <p className="text-xs text-ink-mute">
+                Move {firstName} from {positionLabel} to:
+              </p>
+              {emptyPositions.map((pid) => {
+                const empty = netballSport.allPositions.find((p) => p.id === pid);
+                const label = empty?.shortLabel ?? pid.toUpperCase();
+                const full = empty?.label ?? pid;
+                return (
+                  <ActionButton
+                    key={pid}
+                    variant="primary"
+                    onClick={() => {
+                      onMoveToEmpty?.(pid);
+                    }}
+                  >
+                    → {label} <span className="text-xs opacity-80">({full})</span>
+                  </ActionButton>
+                );
+              })}
+              <ActionButton
+                variant="ghost"
+                onClick={() => setShowEmptyPicker(false)}
+              >
+                ← Back
+              </ActionButton>
+            </>
+          ) : (
+          <>
           {/* Switch — mid-quarter sub. Only for field players (the
               vacate-and-prompt flow is field → bench). Hide if the
               player's already injured or loaned because those flows
@@ -94,6 +161,22 @@ export function NetballPlayerActions({
           {onSwitch && positionId && !isInjured && !isLoaned && (
             <ActionButton variant="primary" onClick={onSwitch}>
               🔄 Switch player
+            </ActionButton>
+          )}
+
+          {/* Move to empty position — short-squad blank-slot
+              reshuffle. Only renders when the coach has empty
+              positions on court AND mid-Q subs are enabled (the
+              parent gates `onMoveToEmpty` on
+              `allowMidQuarterSubs`). One tap reveals the picker
+              sub-mode above; selecting a target moves this player
+              there and leaves their current position empty. */}
+          {canMoveToEmpty && (
+            <ActionButton
+              variant="primary"
+              onClick={() => setShowEmptyPicker(true)}
+            >
+              ↔ Move to empty position
             </ActionButton>
           )}
 
@@ -139,6 +222,8 @@ export function NetballPlayerActions({
           <ActionButton variant="ghost" onClick={onClose}>
             Cancel
           </ActionButton>
+          </>
+          )}
         </div>
       </div>
     </div>

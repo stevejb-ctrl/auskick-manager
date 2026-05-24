@@ -962,7 +962,13 @@ export function playerThirdMs(
       // the empty token to fill it). Skip the bench-add step for
       // those — there's no sub-out player to push to bench.
       outPlayerId: string | null;
-      inPlayerId: string;
+      // null when the sub VACATES the position. Used by short-squad
+      // "Move to empty position" (Steve 2026-05-23) which emits a
+      // pair of subs at the same atMs: one with inPlayerId=null to
+      // vacate the source, one with outPlayerId=null to fill the
+      // target. Skip the position-fill + bench-remove for vacate-
+      // only subs.
+      inPlayerId: string | null;
       atMs: number;
     }>,
   ) => {
@@ -977,11 +983,17 @@ export function playerThirdMs(
       if (dur > 0) addLineupTime(current, dur);
       const next: GenericLineup = {
         positions: { ...current.positions },
-        bench: current.bench.filter((id) => id !== sub.inPlayerId),
+        bench:
+          sub.inPlayerId != null
+            ? current.bench.filter((id) => id !== sub.inPlayerId)
+            : [...current.bench],
       };
-      next.positions[sub.positionId] = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId)
-        .concat([sub.inPlayerId]);
+      const remainAtPosition = (next.positions[sub.positionId] ?? [])
+        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
+      next.positions[sub.positionId] =
+        sub.inPlayerId != null
+          ? remainAtPosition.concat([sub.inPlayerId])
+          : remainAtPosition;
       if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
         next.bench = [...next.bench, sub.outPlayerId];
       }
@@ -1001,7 +1013,8 @@ export function playerThirdMs(
       midQuarterSubs?: Array<{
         positionId: string;
         outPlayerId: string | null;
-        inPlayerId: string;
+        // null = vacate-only (short-squad "Move to empty position").
+        inPlayerId: string | null;
         atMs: number;
       }>;
     };
