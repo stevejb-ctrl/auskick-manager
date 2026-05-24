@@ -860,7 +860,17 @@ export function LineupPicker({
                   }`}
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  {/* Header tinted to match the zone — coach can
+                      trace "BACK in blue" right through to the
+                      blue bar on each player tile. Steve 2026-05-23
+                      (parent feedback: hard to correlate labels
+                      with the per-tile colour stripes). Bench
+                      stays neutral ink. */}
+                  <h3
+                    className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
+                      isBench ? "text-ink" : zoneHeaderText(slot)
+                    }`}
+                  >
                     {slotLabel(slot)}
                   </h3>
                 </div>
@@ -1047,5 +1057,25 @@ function zoneAccent(zone: Zone): string {
       return "bg-zone-b/70";
     case "back":
       return "bg-zone-b";
+  }
+}
+
+/**
+ * Tailwind text-colour class for the section-header label
+ * ("FORWARD" / "CENTRE" / "BACK") so the heading text colour
+ * matches the accent strip + the per-tile colour bars. Steve
+ * 2026-05-23 — parent feedback that the labels and colours
+ * weren't visually tied together at thumbnail size.
+ */
+function zoneHeaderText(zone: Zone): string {
+  switch (zone) {
+    case "fwd":
+    case "hfwd":
+      return "text-zone-f";
+    case "mid":
+      return "text-zone-c";
+    case "back":
+    case "hback":
+      return "text-zone-b";
   }
 }

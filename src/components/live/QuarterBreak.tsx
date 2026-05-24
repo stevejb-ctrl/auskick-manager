@@ -106,6 +106,18 @@ const ZONE_BAR_COLOR: Record<Zone, string> = {
   fwd: "bg-zone-f",
 };
 
+// Section-header text tint — matches the per-tile colour stripes
+// so a coach scanning the Q-break can trace "BACK in blue" right
+// down to a player tile's blue bar without translating between
+// labels and colours. Steve 2026-05-23 (parent feedback follow-up).
+const ZONE_HEADER_TEXT: Record<Zone, string> = {
+  back: "text-zone-b",
+  hback: "text-zone-b",
+  mid: "text-zone-c",
+  hfwd: "text-zone-f",
+  fwd: "text-zone-f",
+};
+
 function emptyZM(): ZoneMinutes {
   return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
 }
@@ -1417,7 +1429,11 @@ export function QuarterBreak({
             className="rounded-md border border-hairline bg-surface p-3 shadow-card"
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3
+                className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
+                  slot === "bench" ? "text-ink-dim" : ZONE_HEADER_TEXT[slot]
+                }`}
+              >
                 {slotLabel(slot)}
               </h3>
               <span className="text-xs tabular-nums text-ink-mute">
