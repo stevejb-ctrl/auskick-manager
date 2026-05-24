@@ -21,7 +21,15 @@ test.describe.configure({ mode: "parallel" });
 
 test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
   const admin = createAdminClient();
-  const name = `Tag ${Date.now()}`;
+  const name = `Tag ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // ── Cleanup leftover test tags from previous runs/retries ──
+  // The test used to assume a fresh /admin/tags list had exactly
+  // one row (bare `getByRole("listitem")`), but failed runs and
+  // CI retries leave stale `Tag <timestamp>` rows behind. Purge
+  // anything matching that pattern so list scoping stays
+  // unambiguous even across reruns.
+  await admin.from("contact_tags").delete().like("name", "Tag %");
 
   await page.goto("/admin/tags");
 
@@ -57,24 +65,34 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
 
   // ── Rename ─────────────────────────────────────────────────
   // Tags render as <li> rows. Edit swaps the chip for an input +
-  // a Save / Cancel button pair (per TagManager.tsx). Once edit
-  // mode engages the row's visible text becomes the input value,
-  // so a `hasText: name` filter would no longer match. The test
-  // creates exactly one tag on a fresh /admin/tags page, so a
-  // bare `getByRole("listitem")` is unambiguous.
-  const row = page.getByRole("listitem");
-  await row.getByRole("button", { name: /^edit$/i }).click();
+  // a Save / Cancel button pair (per TagManager.tsx). Scope by the
+  // visible name so the right row is selected even when leftover
+  // rows from a previous test still exist. Once Edit is clicked the
+  // chip is replaced with an <input> — but the row is the only one
+  // showing a Save button, so we re-resolve via the Save affordance
+  // instead of relying on the original hasText match.
+  const editRow = page
+    .getByRole("listitem")
+    .filter({ hasText: name });
+  await editRow.getByRole("button", { name: /^edit$/i }).click();
+
+  // In edit mode, only one <li> has a textbox + Save button — locate
+  // by the Save button rather than the (now-mutating) text content.
+  const editingRow = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("button", { name: /^save$/i }) });
   const renamed = `${name} renamed`;
-  await row.getByRole("textbox").fill(renamed);
-  await row.getByRole("button", { name: /^save$/i }).click();
+  await editingRow.getByRole("textbox").fill(renamed);
+  await editingRow.getByRole("button", { name: /^save$/i }).click();
   await expect(page.getByText(renamed)).toBeVisible();
 
   // ── Delete ─────────────────────────────────────────────────
   // handleDelete calls window.confirm(); accept it preemptively so
-  // the click-handler doesn't block. Still only one tag in the list.
+  // the click-handler doesn't block.
   page.once("dialog", (d) => d.accept());
   await page
     .getByRole("listitem")
+    .filter({ hasText: renamed })
     .getByRole("button", { name: /^delete$/i })
     .click();
 
