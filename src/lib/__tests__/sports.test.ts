@@ -15,6 +15,7 @@ import {
   aflSport,
   netballSport,
   isPositionAllowedInZone,
+  pickNetballPositionsToFill,
 } from "@/lib/sports";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
@@ -180,7 +181,11 @@ describe("netball rules of play — isPositionAllowedInZone", () => {
 describe("netball validateLineup", () => {
   const openAge = netballSport.ageGroups.find((a) => a.id === "open")!;
 
-  it("rejects a lineup with missing positions", () => {
+  it("rejects a lineup with missing positions when no on-field-size override", () => {
+    // 2 positions filled, default Open age group requires 7.
+    // The validator no longer emits per-position "X is empty"
+    // issues (short squads leave the lowest-priority positions
+    // blank by design). It surfaces a single count error instead.
     const result = netballSport.validateLineup!(
       {
         positions: { gs: ["p1"], ga: ["p2"] },
@@ -189,7 +194,9 @@ describe("netball validateLineup", () => {
       openAge,
     );
     expect(result.ok).toBe(false);
-    expect(result.issues.some((i) => i.positionId === "wa")).toBe(true);
+    expect(
+      result.issues.some((i) => /Need 7 players on court/.test(i.message)),
+    ).toBe(true);
   });
 
   it("rejects a lineup with two players in the same position", () => {
@@ -233,6 +240,162 @@ describe("netball validateLineup", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.issues.some((i) => i.playerId === "p1")).toBe(true);
+  });
+
+  // ─── Short-squad support (≤ default on court) ─────────────────
+  // Match-day scenario: coach has 5 or 6 players for a 7-on-court
+  // age group and chooses to start the game short. Validator must
+  // accept the chosen on-field-size as the target and bless the
+  // lineup when filledCount === target.
+
+  it("accepts a 6-on-court lineup when onFieldSize=6", () => {
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          // WD intentionally left empty — matches the default fill
+          // priority for 7-position groups (drop WD first).
+          gs: ["p1"], ga: ["p2"], wa: ["p3"], c: ["p4"], gd: ["p5"], gk: ["p6"],
+        },
+        bench: [],
+      },
+      openAge,
+      6,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("accepts a 5-on-court lineup when onFieldSize=5", () => {
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          // Both wings empty — keeps shooters + defenders + centre.
+          gs: ["p1"], ga: ["p2"], c: ["p3"], gd: ["p4"], gk: ["p5"],
+        },
+        bench: [],
+      },
+      openAge,
+      5,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("rejects 6-on-court if only 5 positions filled", () => {
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          gs: ["p1"], ga: ["p2"], c: ["p3"], gd: ["p4"], gk: ["p5"],
+        },
+        bench: [],
+      },
+      openAge,
+      6,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => /Need 6 players on court/.test(i.message))).toBe(true);
+  });
+
+  it("rejects 6-on-court if 7 positions filled (too many)", () => {
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          gs: ["p1"], ga: ["p2"], wa: ["p3"], c: ["p4"], wd: ["p5"], gd: ["p6"], gk: ["p7"],
+        },
+        bench: [],
+      },
+      openAge,
+      6,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => /Too many on court/.test(i.message))).toBe(true);
+  });
+
+  it("clamps a below-min onFieldSize back to the age-group minimum", () => {
+    // Open's minOnFieldSize = 5. Asking for 3 should be clamped to 5,
+    // so a 5-filled lineup still validates.
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          gs: ["p1"], ga: ["p2"], c: ["p3"], gd: ["p4"], gk: ["p5"],
+        },
+        bench: [],
+      },
+      openAge,
+      3,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts blank position choice that differs from default fill priority", () => {
+    // Coach manually chose to leave Wing Attack empty (not WD as the
+    // default fill priority would do). Validator doesn't care WHICH
+    // position is blank — only that the count matches.
+    const result = netballSport.validateLineup!(
+      {
+        positions: {
+          gs: ["p1"], ga: ["p2"], c: ["p3"], wd: ["p4"], gd: ["p5"], gk: ["p6"],
+        },
+        bench: [],
+      },
+      openAge,
+      6,
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("pickNetballPositionsToFill", () => {
+  const openAge = netballSport.ageGroups.find((a) => a.id === "open")!;
+  const setAge = netballSport.ageGroups.find((a) => a.id === "set")!;
+
+  it("returns the full position list when onFieldSize equals default", () => {
+    expect(pickNetballPositionsToFill(openAge, 7)).toEqual([
+      "gs", "ga", "wa", "c", "wd", "gd", "gk",
+    ]);
+  });
+
+  it("drops WD first when onFieldSize=6 (Open age group)", () => {
+    expect(pickNetballPositionsToFill(openAge, 6)).toEqual([
+      "gs", "ga", "wa", "c", "gd", "gk",
+    ]);
+  });
+
+  it("drops both wings when onFieldSize=5 (Open age group)", () => {
+    expect(pickNetballPositionsToFill(openAge, 5)).toEqual([
+      "gs", "ga", "c", "gd", "gk",
+    ]);
+  });
+
+  it("drops Centre first when onFieldSize=4 (Set age group)", () => {
+    expect(pickNetballPositionsToFill(setAge, 4)).toEqual([
+      "gs", "ga", "gd", "gk",
+    ]);
+  });
+
+  it("preserves the coach's previously-filled positions when count matches", () => {
+    // Coach filled an unusual set in Q1 (left WA empty instead of
+    // the default WD). Q2 should default to the same shape.
+    const alreadyFilled = new Set(["gs", "ga", "c", "wd", "gd", "gk"]);
+    expect(pickNetballPositionsToFill(openAge, 6, alreadyFilled)).toEqual([
+      "gs", "ga", "c", "wd", "gd", "gk",
+    ]);
+  });
+
+  it("falls back to fill priority when alreadyFilled count doesn't match target", () => {
+    // alreadyFilled is full 7 but target is 6 — coach reduced the
+    // on-field-size between quarters. Use the default priority.
+    const alreadyFilled = new Set(["gs", "ga", "wa", "c", "wd", "gd", "gk"]);
+    expect(pickNetballPositionsToFill(openAge, 6, alreadyFilled)).toEqual([
+      "gs", "ga", "wa", "c", "gd", "gk",
+    ]);
+  });
+
+  it("clamps below-min onFieldSize up to the age group's minimum", () => {
+    // Open's minOnFieldSize = 5.
+    expect(pickNetballPositionsToFill(openAge, 2)).toEqual([
+      "gs", "ga", "c", "gd", "gk",
+    ]);
   });
 });
 

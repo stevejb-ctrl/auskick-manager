@@ -207,9 +207,63 @@ interface GenericLineup {
   bench: string[];
 }
 
+// ─── Short-squad fill priority ───────────────────────────────
+// When a netball coach runs fewer than `defaultOnFieldSize` players
+// on court (5-on-court for a 7-position age group, 4-on-court for
+// Set), the lineup picker fills positions in THIS order and leaves
+// the trailing positions empty. Choice reflects common short-squad
+// netball practice: keep both shooters (GS/GA) and both defenders
+// (GD/GK), then Centre, then sacrifice the wings — Wing Defence
+// first, Wing Attack second. Set's 5-position lineup drops Centre
+// first because GS/GA/GD/GK are the four positions that can score
+// or guard the goal circle. Coach can always override by selecting
+// a court player and tapping a different empty position; the
+// suggester preserves that shape into the next quarter via
+// `pickNetballPositionsToFill(ageGroup, onFieldSize, alreadyFilled)`.
+const NETBALL_FILL_PRIORITY: Record<string, readonly string[]> = {
+  set: ["gs", "ga", "gd", "gk", "c"],
+  go: ["gs", "ga", "gk", "gd", "c", "wa", "wd"],
+  "11u": ["gs", "ga", "gk", "gd", "c", "wa", "wd"],
+  "12u": ["gs", "ga", "gk", "gd", "c", "wa", "wd"],
+  "13u": ["gs", "ga", "gk", "gd", "c", "wa", "wd"],
+  open: ["gs", "ga", "gk", "gd", "c", "wa", "wd"],
+};
+
+/**
+ * Returns the position ids that should be filled for a given
+ * `onFieldSize`, in canonical render order (the age group's
+ * `positions` array order).
+ *
+ * If `alreadyFilled` is supplied AND its size matches the requested
+ * target, returns those positions — this is how the Q-break suggester
+ * preserves the previous quarter's blank-slot choice. Without that
+ * preservation, Q2 would re-derive from `NETBALL_FILL_PRIORITY` and
+ * overwrite whatever the coach manually arranged in Q1.
+ */
+export function pickNetballPositionsToFill(
+  ageGroup: AgeGroupConfig,
+  onFieldSize: number,
+  alreadyFilled?: ReadonlySet<string>,
+): string[] {
+  const target = Math.max(
+    ageGroup.minOnFieldSize,
+    Math.min(ageGroup.maxOnFieldSize, Math.floor(onFieldSize)),
+  );
+
+  // Preserve the previous quarter's blank-slot shape when possible.
+  if (alreadyFilled && alreadyFilled.size === target) {
+    return ageGroup.positions.filter((p) => alreadyFilled.has(p));
+  }
+
+  const priority = NETBALL_FILL_PRIORITY[ageGroup.id] ?? ageGroup.positions;
+  const filled = new Set(priority.slice(0, target));
+  return ageGroup.positions.filter((p) => filled.has(p));
+}
+
 function validateNetballLineup(
   lineup: unknown,
   ageGroup: AgeGroupConfig,
+  onFieldSize?: number,
 ): ValidationResult {
   const issues: ValidationIssue[] = [];
   const l = lineup as GenericLineup;
@@ -221,20 +275,32 @@ function validateNetballLineup(
     };
   }
 
-  // Each active position in this age group must have exactly one player.
+  // Clamp on-field-size to the age group's bounds so a stale game row
+  // with an out-of-range value (e.g. on_field_size=12 left over from
+  // a sport-flip) doesn't poison the validation. Falls back to the
+  // default when the caller didn't pass anything — preserves the
+  // pre-short-squad semantics for older call sites that haven't been
+  // updated yet.
+  const target = Math.max(
+    ageGroup.minOnFieldSize,
+    Math.min(
+      ageGroup.maxOnFieldSize,
+      Math.floor(onFieldSize ?? ageGroup.defaultOnFieldSize),
+    ),
+  );
+
+  // No position may have more than one player. (Empty is OK now —
+  // short-squad games leave the lowest-priority positions blank.)
   // Error copy uses the FULL position name ("Goal Shooter"), not the
   // short code ("GS") — Stagehand 2026-05-09 kid-runner persona showed
   // that "GS is empty" reads as jargon to anyone who doesn't know
   // netball positions. The full name is self-explanatory and only
   // adds a few characters to the modal.
+  let filledCount = 0;
   for (const pid of ageGroup.positions) {
     const occupants = l.positions[pid] ?? [];
-    if (occupants.length === 0) {
-      issues.push({
-        kind: "error",
-        message: `${positionFullLabel(pid)} is empty.`,
-        positionId: pid,
-      });
+    if (occupants.length === 1) {
+      filledCount++;
     } else if (occupants.length > 1) {
       issues.push({
         kind: "error",
@@ -242,6 +308,26 @@ function validateNetballLineup(
         positionId: pid,
       });
     }
+  }
+
+  // Filled count must match the target on-field size. Was previously
+  // "every position must be filled" — relaxed to support short-squad
+  // games where fewer players show up than the default 7-on-court
+  // (or 5-on-court for the Set age group).
+  if (filledCount < target) {
+    const short = target - filledCount;
+    issues.push({
+      kind: "error",
+      message:
+        short === 1
+          ? `Need ${target} players on court — 1 position is empty.`
+          : `Need ${target} players on court — ${short} positions are empty.`,
+    });
+  } else if (filledCount > target) {
+    issues.push({
+      kind: "error",
+      message: `Too many on court — ${filledCount} positions filled, target is ${target}.`,
+    });
   }
 
   // No position outside the age group's set.
