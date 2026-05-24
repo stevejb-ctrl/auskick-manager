@@ -45,11 +45,12 @@
   --court-line: #FFFFFF;
 
   /* Thirds palette (netball domain language). Centre is violet
-     (#7B5AA6) — the design's deliberate swap away from fuchsia
-     to open the hue gap against the new court-blue brand and
-     the defensive royal-blue. AFL's `zone-c` (fuchsia) stays
-     untouched on its own token so the AFL Field/PlayerTile
-     keep their existing colours. */
+     (#7B5AA6) — kept distinct from court-blue + defensive royal-
+     blue so a netball coach can tell thirds apart at thumbnail
+     size on a phone. AFL's `zone-c` lives on its own token
+     (now emerald, Steve 2026-05-23 — see tailwind.config.ts
+     for the rationale) so AFL Field/PlayerTile colours track
+     the AFL design language independently. */
   --third-a: #B83A2E;
   --third-c: #7B5AA6;
   --third-d: #1F5BAE;
