@@ -930,7 +930,11 @@ test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length
 
   // Plan 05-04: router.refresh() in NetballLiveGame's auto-hooter effect
   // means no page.reload() is needed; the Q-break shell auto-renders.
+  // The Q-break primary CTA is "Ready for Q{n}" — "Start Q{n}" lives
+  // inside NetballStartQuarterModal, which is reached only after the
+  // user taps "Ready for Q2". Match the same regex as the sibling test
+  // above (NETBALL-01 auto-hooter).
   await expect(
-    page.getByRole("button", { name: /start q2|suggested/i }).first(),
+    page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
