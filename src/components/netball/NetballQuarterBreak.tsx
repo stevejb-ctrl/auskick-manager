@@ -67,13 +67,26 @@ const SLOT_LABEL: Record<Slot, string> = {
   bench: "Bench",
 };
 
-// Map third → bar-segment colour. Same palette tokens AFL uses (orange
-// = forward / fuchsia = centre / blue = back) so a coach who manages
-// both sports doesn't have to relearn the colour code.
+// Map third → bar-segment colour. Same palette tokens AFL uses
+// (orange = forward / emerald = centre / blue = back, per the
+// 2026-05-23 centre-colour swap) so a coach who manages both
+// sports doesn't have to relearn the colour code.
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
   attack: "bg-zone-f",
   centre: "bg-zone-c",
   defence: "bg-zone-b",
+};
+
+// Section-header text tint by slot (third). Bench stays neutral.
+// Mirrors the AFL QuarterBreak treatment so the per-third card
+// header colour matches the bar-segment colour on each player
+// tile inside the card. Steve 2026-05-23 — parent feedback to
+// link labels to colours visibly.
+const SLOT_HEADER_TEXT: Record<Slot, string> = {
+  "attack-third": "text-zone-f",
+  "centre-third": "text-zone-c",
+  "defence-third": "text-zone-b",
+  bench: "text-ink-dim",
 };
 
 interface Props {
@@ -1371,7 +1384,9 @@ export function NetballQuarterBreak({
               className="rounded-md border border-hairline bg-surface p-3 shadow-card"
             >
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                <h3
+                  className={`font-mono text-[11px] font-bold uppercase tracking-micro ${SLOT_HEADER_TEXT[slot]}`}
+                >
                   {SLOT_LABEL[slot]}
                 </h3>
                 <span className="text-xs tabular-nums text-ink-mute">
