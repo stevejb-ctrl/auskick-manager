@@ -1508,7 +1508,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               ? `/teams/${auth.teamId}/games/${game.id}`
               : undefined
           }
-          onConfirm={async (lineup, quarterOverrideSeconds) =>
+          currentOnFieldSize={game.on_field_size}
+          onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
                 // Steve 2026-05-15: passes startQuarterToo=true so
@@ -1519,11 +1520,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 // one server call, the page goes straight from
                 // pre-kickoff to live play with no intermediate
                 // "lineup locked, ready the kickoff" state.
+                //
+                // Steve 2026-05-23: short-squad — pass the picker's
+                // chosen on-field-size through to the kickoff write
+                // so games.on_field_size reflects what the coach
+                // actually wanted. Falls back to defaultOnFieldSize
+                // when the dropdown wasn't touched (or wasn't shown
+                // in this picker configuration).
                 await startNetballGame(
                   auth,
                   game.id,
                   lineup,
-                  ageGroup.defaultOnFieldSize,
+                  chosenOnFieldSize ?? ageGroup.defaultOnFieldSize,
                   quarterOverrideSeconds,
                   /* startQuarterToo */ true,
                 );
@@ -1686,6 +1694,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           availableIds={availableIds}
           ageGroup={ageGroup}
           currentQuarter={currentQuarter}
+          currentOnFieldSize={game.on_field_size}
           previousLineup={onCourt}
           preAppliedLocks={(() => {
             // Filter out locks for players who are now injured or on

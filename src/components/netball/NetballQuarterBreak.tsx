@@ -34,6 +34,7 @@ import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import {
   netballSport,
+  pickNetballPositionsToFill,
   primaryThirdFor,
 } from "@/lib/sports/netball";
 import {
@@ -129,6 +130,17 @@ interface Props {
    * team-level per-chip split/group mode.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /**
+   * Steve 2026-05-23: short-squad on-court size. When omitted, falls
+   * back to `ageGroup.defaultOnFieldSize` so existing surfaces are
+   * full-strength. When set, the suggester only fills `onFieldSize`
+   * positions and the validator accepts the shorter lineup. The
+   * Q-break also prefers to keep whichever positions the previous
+   * quarter had filled — preserves the coach's blank-slot choice
+   * across breaks instead of drifting back to the default fill
+   * priority every Q.
+   */
+  currentOnFieldSize?: number;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
@@ -152,6 +164,7 @@ export function NetballQuarterBreak({
   midQuarterSubs,
   trackScoring = true,
   chipModeByKey = {},
+  currentOnFieldSize,
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
@@ -160,6 +173,43 @@ export function NetballQuarterBreak({
     [squad],
   );
   const positions = ageGroup.positions;
+
+  // Short-squad target for this break — clamped to the age group's
+  // min/max so a stale on_field_size column doesn't corrupt the
+  // suggester input. Defaults to the age group's full-strength size
+  // for surfaces that don't yet thread the prop.
+  const effectiveOnFieldSize = Math.max(
+    ageGroup.minOnFieldSize,
+    Math.min(
+      ageGroup.maxOnFieldSize,
+      Math.floor(currentOnFieldSize ?? ageGroup.defaultOnFieldSize),
+    ),
+  );
+
+  // Positions to fill for the next quarter. When the previous
+  // quarter's actual filled positions sum to the same on-field size
+  // (no late arrivals / loans mid-quarter), reuse those exact
+  // positions — that's how a Q1 manual "leave WA blank instead of
+  // WD" choice survives into Q2 instead of getting wiped by the
+  // default fill priority. Otherwise fall back to the default
+  // priority. Matches the AFL `effectiveZoneCaps` pattern from
+  // 8a92f71.
+  const positionsToFill = useMemo(() => {
+    const prev = previousLineup;
+    if (prev) {
+      const filled = new Set(
+        positions.filter((p) => (prev.positions[p]?.length ?? 0) > 0),
+      );
+      if (filled.size === effectiveOnFieldSize) {
+        return pickNetballPositionsToFill(
+          ageGroup,
+          effectiveOnFieldSize,
+          filled,
+        );
+      }
+    }
+    return pickNetballPositionsToFill(ageGroup, effectiveOnFieldSize);
+  }, [ageGroup, previousLineup, positions, effectiveOnFieldSize]);
 
   // ─── Position grouping by third (drives section order) ────
   // Order top→bottom: Attack, Centre, Defence, Bench. Same as the live
@@ -259,7 +309,11 @@ export function NetballQuarterBreak({
     );
     const base = suggestNetballLineup({
       playerIds: candidatePool,
-      positions,
+      // Short-squad: only fill the positions chosen by
+      // `positionsToFill` above — either the previous quarter's
+      // shape (preserves a coach's manual blank-slot move) or
+      // the default fill priority.
+      positions: positionsToFill,
       season,
       thisGame,
       isAllowed: (_pid, posId) => positions.includes(posId),
@@ -694,7 +748,11 @@ export function NetballQuarterBreak({
     // can leave one open). validateLineup catches the most common
     // shapes: empty position, doubled-up position, dup across
     // position+bench. Surfaces the first issue inline.
-    const validation = netballSport.validateLineup?.(draft, ageGroup);
+    const validation = netballSport.validateLineup?.(
+      draft,
+      ageGroup,
+      effectiveOnFieldSize,
+    );
     if (validation && !validation.ok) {
       setError(validation.issues[0]?.message ?? "Lineup is not valid.");
       return;
