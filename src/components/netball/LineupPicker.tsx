@@ -888,7 +888,7 @@ export function NetballLineupPicker({
                     <p className="text-xs text-ink-mute">
                       Defaults to {ageGroup.defaultOnFieldSize}. Drop to{" "}
                       {ageGroup.minOnFieldSize}–{ageGroup.defaultOnFieldSize - 1}{" "}
-                      when you're short a player — Siren leaves the
+                      when you&apos;re short a player — Siren leaves the
                       lowest-priority positions empty and you can
                       reshuffle which ones by tapping a player and
                       then an empty tile.
