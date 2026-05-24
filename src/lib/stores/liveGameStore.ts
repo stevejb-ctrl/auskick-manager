@@ -132,6 +132,12 @@ export interface LiveGameState {
    * behaviour).
    */
   applyInjurySwap: (injuredId: string, replacementId: string) => void;
+  /**
+   * Two-on-field-player zone swap, OR a move-into-empty when `pidB`
+   * is `""`. The empty case is used on short-squad games to let the
+   * coach shift the blank slot between zones — pidA leaves zoneA,
+   * lands in zoneB, no partner moves the other way.
+   */
   applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
   /**
    * Mid-quarter on-field-size REDUCTION. Closes each removed player's
@@ -395,6 +401,27 @@ export const useLiveGame = create<LiveGameState>()(
       const basePlayedZoneMs = { ...prev.basePlayedZoneMs };
       const stintStartMs = { ...prev.stintStartMs };
       const stintZone = { ...prev.stintZone };
+
+      // Move-into-empty: short-squad case where the coach is shifting
+      // the blank slot. pidA leaves zoneA, lands in zoneB; the empty
+      // slot is now in zoneA. No partner stint to close.
+      if (pidB === "") {
+        lineup[zoneA] = lineup[zoneA].filter((p) => p !== pidA);
+        lineup[zoneB] = [...lineup[zoneB], pidA];
+        const start = stintStartMs[pidA] ?? nowMs;
+        basePlayedZoneMs[pidA] = { ...(basePlayedZoneMs[pidA] ?? newZoneMs()) };
+        basePlayedZoneMs[pidA][zoneA] += Math.max(0, nowMs - start);
+        stintStartMs[pidA] = nowMs;
+        stintZone[pidA] = zoneB;
+        return {
+          lineup,
+          selected: null,
+          basePlayedZoneMs,
+          stintStartMs,
+          stintZone,
+          swapCount: prev.swapCount + 1,
+        };
+      }
 
       lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
       lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));

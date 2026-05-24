@@ -1107,7 +1107,7 @@ export function replayGame(events: GameEvent[]): GameState {
       const zoneA = meta2.zone_a;
       const pidB = meta2.player_b_id;
       const zoneB = meta2.zone_b;
-      if (pidA && zoneA && pidB && zoneB) {
+      if (pidA && zoneA && zoneB && pidB) {
         // Close both open stints at their current zones (using the
         // store's stintZone fallback for safety — defaults to the
         // event's recorded zone if stintZone isn't tracking them).
@@ -1130,6 +1130,18 @@ export function replayGame(events: GameEvent[]): GameState {
         state.stintZone[pidA] = zoneB;
         state.stintStartMs[pidB] = elapsed;
         state.stintZone[pidB] = zoneA;
+      } else if (pidA && zoneA && zoneB && !pidB) {
+        // Move-into-empty (short-squad blank-slot reshuffle). pidA
+        // leaves zoneA, lands in zoneB; the blank slot moves the
+        // other way. Mirror the store's applyFieldZoneSwap empty
+        // branch so a cold replay rebuilds the same lineup the live
+        // store has been tracking client-side.
+        const fromZ = state.stintZone[pidA] ?? zoneA;
+        addPlayed(pidA, fromZ, elapsed - (state.stintStartMs[pidA] ?? 0));
+        state.lineup[zoneA] = state.lineup[zoneA].filter((p) => p !== pidA);
+        state.lineup[zoneB] = [...state.lineup[zoneB], pidA];
+        state.stintStartMs[pidA] = elapsed;
+        state.stintZone[pidA] = zoneB;
       }
     } else if (ev.type === "player_arrived" && state.lineup && ev.player_id) {
       if (!state.lineup.bench.includes(ev.player_id)) {

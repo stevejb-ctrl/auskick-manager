@@ -138,6 +138,32 @@ export function QuarterBreak({
     () => zoneCapsFor(defaultOnFieldSize, positionModel),
     [defaultOnFieldSize, positionModel],
   );
+
+  // Effective suggester caps preserve the previous quarter's
+  // zone shape on short-squad games. Without this the suggester
+  // re-derives caps from `currentOnFieldSize` via the priority
+  // `[mid, back, fwd]`, which always parks the blank slot in
+  // FWD on 11/12 — wiping the coach's Q1 manual move-to-Backs
+  // the moment Q2's break opens. Steve 2026-05-23 from match-day
+  // feedback. Falls back to the prop (i.e. zoneCapsFor) when:
+  //   - on_field_size changed mid-game (late arrival / loaned
+  //     player) so the previous shape doesn't sum to the new
+  //     size, OR
+  //   - the previous lineup doesn't exist (first quarter), OR
+  //   - the previous lineup is full-strength (no blank to
+  //     preserve — fall back is equivalent anyway).
+  const effectiveZoneCaps = useMemo<ZoneCaps>(() => {
+    if (!lineup) return zoneCaps;
+    const fromLineup: Partial<ZoneCaps> = {};
+    let total = 0;
+    for (const z of positionsFor(positionModel)) {
+      const n = lineup[z]?.length ?? 0;
+      fromLineup[z] = n;
+      total += n;
+    }
+    if (total !== currentOnFieldSize) return zoneCaps;
+    return { ...zoneCaps, ...fromLineup };
+  }, [lineup, zoneCaps, currentOnFieldSize, positionModel]);
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   // Steve 2026-05-16: parity with netball Q-break, which has been
   // surfacing a per-player goal-count badge on its tiles since the
@@ -381,7 +407,7 @@ export function QuarterBreak({
       healthyForLineup,
       combinedZoneMins,
       currentQuarter * 1000 + healthyForLineup.length,
-      zoneCaps,
+      effectiveZoneCaps,
       currentGameZoneMins,
       pinnedPositions,
       lastStintZone,
@@ -403,7 +429,7 @@ export function QuarterBreak({
     combinedZoneMins,
     currentQuarter,
     lineup,
-    zoneCaps,
+    effectiveZoneCaps,
     currentGameZoneMins,
     pinnedPositions,
     lastStintZone,
@@ -1413,16 +1439,33 @@ export function QuarterBreak({
               slot === "bench" ? (
                 <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
               ) : (
-                // Tappable empty-zone placeholder. Opens the
-                // SlotFillSheet so the coach can pick a bench player
-                // for this zone without going through the two-tap
-                // swap dance — the only viable path in manual mode
-                // where every zone starts empty.
+                // Tappable empty-zone placeholder. Two modes:
+                //   - With a player selected (bench OR field): MOVE
+                //     them into this zone. `placeInZone` pulls them
+                //     out of wherever they currently live and drops
+                //     them here, so a Backs-selected player moving
+                //     into an empty Forward leaves an empty slot
+                //     where they came from — exactly the blank-slot
+                //     reshuffle a short-squad coach needs.
+                //   - With nothing selected: open the SlotFillSheet
+                //     so the coach can pick a bench player without
+                //     going through the two-tap swap dance.
                 <button
                   type="button"
-                  onClick={() => setFillTargetZone(slot)}
+                  onClick={() => {
+                    if (selected) {
+                      placeInZone(selected, slot);
+                      setSelected(null);
+                      return;
+                    }
+                    setFillTargetZone(slot);
+                  }}
                   className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-3 py-2.5 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                  aria-label={`Empty ${slotLabel(slot)} — tap to fill`}
+                  aria-label={
+                    selected
+                      ? `Move selected player to ${slotLabel(slot)}`
+                      : `Empty ${slotLabel(slot)} — tap to fill`
+                  }
                 >
                   <span
                     aria-hidden="true"
@@ -1430,7 +1473,9 @@ export function QuarterBreak({
                   >
                     +
                   </span>
-                  <span className="font-medium">Tap to fill</span>
+                  <span className="font-medium">
+                    {selected ? "Move here" : "Tap to fill"}
+                  </span>
                 </button>
               )
             ) : (
@@ -1575,16 +1620,29 @@ export function QuarterBreak({
                 })}
                 {/* Spare-capacity affordance — when a non-bench zone
                     has fewer players than its cap, surface a "+ Add"
-                    row that opens the SlotFillSheet. Lets the coach
-                    grow a short-handed zone without juggling swaps.
-                    Bench has no cap, so it never renders. */}
+                    row. With a player selected (bench OR field), tap
+                    moves them here — same blank-slot reshuffle path
+                    as the empty-zone placeholder. With nothing
+                    selected, opens the SlotFillSheet. Bench has no
+                    cap, so it never renders. */}
                 {slot !== "bench" && draft[slot].length < displayZoneCaps[slot] && (
                   <li>
                     <button
                       type="button"
-                      onClick={() => setFillTargetZone(slot)}
+                      onClick={() => {
+                        if (selected) {
+                          placeInZone(selected, slot);
+                          setSelected(null);
+                          return;
+                        }
+                        setFillTargetZone(slot);
+                      }}
                       className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-2.5 py-2 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                      aria-label={`Add player to ${slotLabel(slot)}`}
+                      aria-label={
+                        selected
+                          ? `Move selected player to ${slotLabel(slot)}`
+                          : `Add player to ${slotLabel(slot)}`
+                      }
                     >
                       <span
                         aria-hidden="true"
@@ -1592,7 +1650,9 @@ export function QuarterBreak({
                       >
                         +
                       </span>
-                      <span className="font-medium">Add player</span>
+                      <span className="font-medium">
+                        {selected ? "Move here" : "Add player"}
+                      </span>
                     </button>
                   </li>
                 )}

@@ -962,7 +962,15 @@ export async function recordFieldZoneSwap(
   input: {
     player_a_id: string;
     zone_a: string;
-    player_b_id: string;
+    /**
+     * `null` = move-into-empty. Player A leaves `zone_a` and lands in
+     * `zone_b` with no partner moving the other way — used when the
+     * coach is playing a short squad and wants to shift the blank
+     * slot to a different zone (e.g. send a Back into an empty
+     * Forward, leaving the Back zone with the blank). When non-null,
+     * standard two-player zone swap as before.
+     */
+    player_b_id: string | null;
     zone_b: string;
     quarter: number;
     elapsed_ms: number;

@@ -84,7 +84,7 @@ import {
   type ZoneMinutes,
 } from "@/lib/fairness";
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
-import { positionsFor } from "@/lib/ageGroups";
+import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -604,6 +604,34 @@ export function LiveGame({
       if (selected?.kind === "bench") {
         clearSelection();
         setPendingSwap({ off: "", on: selected.playerId, zone });
+        return;
+      }
+      // Field player selected + empty slot tapped → MOVE the player
+      // to the empty slot. Source zone becomes the new blank. Lets
+      // a coach playing short-squad shift the blank zone mid-game
+      // without going via bench (e.g. send a Back into an empty
+      // Forward, blank moves to Backs). Same-zone is a no-op — the
+      // player would just land where they already are.
+      if (selected?.kind === "field" && selected.zone !== zone) {
+        const pidA = selected.playerId;
+        const zoneA = selected.zone;
+        const quarter = Math.max(1, currentQuarter);
+        const elapsed_ms = scaledElapsedMs();
+        clearSelection();
+        applyFieldZoneSwap(pidA, zoneA, "", zone);
+        showSwapToast(`${shortName(pidA)} → ${ZONE_LABELS[zone]}`);
+        enqueueLiveAction("recordFieldZoneSwap", [
+          auth,
+          gameId,
+          {
+            player_a_id: pidA,
+            zone_a: zoneA,
+            player_b_id: null,
+            zone_b: zone,
+            quarter,
+            elapsed_ms,
+          },
+        ]);
       }
       return;
     }
