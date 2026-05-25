@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Pre-push lint gate
+#
+# Why: `next build` runs ESLint as part of its compile step, so any
+# unescaped JSX entity, missing-key warning promoted to error, etc.
+# fails the Vercel deploy AND the CI lint job before tests even
+# start. Catching it locally costs ~10s; catching it on Vercel costs
+# a failed deploy + a redo cycle.
+#
+# What it runs: `npm run lint` (= `next lint`). Warnings are allowed
+# through (next lint exits 0 on warnings); only errors block the
+# push.
+#
+# Bypass (use sparingly — only when you know the lint error is
+# pre-existing or you're pushing a WIP branch for review):
+#
+#   git push --no-verify
+#
+# Hook is wired via core.hooksPath = .githooks (set by the npm
+# `prepare` script). To activate manually after cloning a fresh
+# worktree without running `npm install`:
+#
+#   git config core.hooksPath .githooks
+#
+# To opt out for a single repo (e.g. you're debugging git itself):
+#
+#   git config --unset core.hooksPath
+
+set -e
+
+# Skip if there are no commits being pushed (e.g. `git push --tags`
+# only, or a no-op push). The stdin protocol per `man githooks` —
+# each line is "<local_ref> <local_oid> <remote_ref> <remote_oid>".
+# If every local_oid is the zero OID, nothing's being pushed.
+has_commits=0
+while read -r _local_ref local_oid _remote_ref _remote_oid; do
+  if [ "$local_oid" != "0000000000000000000000000000000000000000" ]; then
+    has_commits=1
+    break
+  fi
+done
+
+if [ "$has_commits" = "0" ]; then
+  exit 0
+fi
+
+echo "[pre-push] Running npm run lint…"
+
+if ! npm run lint --silent; then
+  echo ""
+  echo "❌ [pre-push] Lint failed — push aborted."
+  echo ""
+  echo "Fix the errors above and try again. To bypass this check"
+  echo "for a single push (e.g. WIP / draft PR), use:"
+  echo ""
+  echo "    git push --no-verify"
+  echo ""
+  exit 1
+fi
+
+echo "[pre-push] ✓ Lint clean."
