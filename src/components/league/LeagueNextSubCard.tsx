@@ -252,6 +252,10 @@ export function LeagueNextSubCard({
                     onClick={(e) => {
                       e.stopPropagation();
                       onApplyOne(s);
+                      // Collapse after a single-pair commit — mirrors
+                      // AFL's SwapCard which closes on any commit so
+                      // the coach can see the field update immediately.
+                      setOpen(false);
                     }}
                     className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
@@ -264,7 +268,12 @@ export function LeagueNextSubCard({
           <div className="border-t border-white/10 bg-white/[0.03] px-3 py-3">
             <button
               type="button"
-              onClick={onApplyAll}
+              onClick={() => {
+                onApplyAll();
+                // Collapse the card so the coach sees the field
+                // update straight away — mirrors AFL's SwapCard.
+                setOpen(false);
+              }}
               disabled={pending}
               className="flex w-full items-center justify-center gap-2 rounded-sm bg-brand-600 py-2.5 text-sm font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
             >

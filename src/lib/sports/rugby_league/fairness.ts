@@ -344,7 +344,25 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
       }
 
       case "injury": {
-        removeFromLineup(ev.player_id);
+        // Injury is a FLAG only — no lineup mutation. The on-field
+        // player stays in their forwards/backs slot and renders with
+        // an INJ badge (driven by `injuredIds` derived from events in
+        // the orchestrator). The physical field→bench move comes from
+        // the `swap` event that fires alongside the injury event when
+        // a replacement is picked — just like AFL's
+        // `handleInjuryReplacement` which enqueues `markInjury` +
+        // `recordSwap` in sequence.
+        //
+        // This also fixes the "vacant slot in wrong position" bug:
+        // because the player stays in their forwards/backs array at
+        // their original index, the formation arranger keeps their
+        // slot in place. Once the swap fires, the replacement takes
+        // the exact same array index → exact same visual slot.
+        //
+        // Prior implementation called `removeFromLineup` which
+        // removed the player from ALL three buckets — they vanished
+        // from the UI entirely and the vacant slot appeared at the
+        // END of the zone row rather than the player's position.
         break;
       }
 

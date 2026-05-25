@@ -19,6 +19,10 @@ import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
+import {
+  InjuryReplacementModal,
+  type InjuryReplacementCandidate,
+} from "@/components/live/InjuryReplacementModal";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
@@ -133,6 +137,17 @@ export function LeagueLiveGame({
    * lingers until the next vest_assigned lands).
    */
   const dismissedForceVestRef = useRef<Set<string>>(new Set());
+  /**
+   * When set, the InjuryReplacementModal is shown so the coach can
+   * pick a replacement for a just-injured field player — mirrors
+   * AFL's pattern. The modal fires both `markInjury` + `recordLeagueSwap`
+   * so the swap physically moves the injured player to the bench and
+   * places the replacement in the exact same field slot.
+   */
+  const [injuryReplacementModal, setInjuryReplacementModal] = useState<{
+    injuredId: string;
+    zone: "forward" | "back";
+  } | null>(null);
 
   const kickoffSkippedRef = useRef<Set<number>>(new Set());
   const [kickoffSkippedTick, setKickoffSkippedTick] = useState(0);
@@ -890,6 +905,29 @@ export function LeagueLiveGame({
   }
 
   async function handleToggleInjury(playerId: string, injured: boolean) {
+    // Marking a FIELD player injured: prompt for a replacement before
+    // firing anything — mirrors AFL's InjuryReplacementModal flow.
+    // The modal fires both markInjury + recordLeagueSwap so the swap
+    // physically moves the injured player to bench and the replacement
+    // lands at the exact same field slot (same index in the forwards /
+    // backs array). If there are no swappable bench players, or the
+    // player is on the bench (toggling recovery), skip straight to the
+    // direct path.
+    if (injured && state.lineup) {
+      const zone: "forward" | "back" | null = state.lineup.forwards.includes(
+        playerId,
+      )
+        ? "forward"
+        : state.lineup.backs.includes(playerId)
+          ? "back"
+          : null;
+      if (zone !== null && swappableBench.length > 0) {
+        setActionSheetPlayerId(null);
+        setInjuryReplacementModal({ injuredId: playerId, zone });
+        return;
+      }
+    }
+    // Direct path: recovery, bench-player injury, or no bench available.
     setPending(true);
     const { flushed } = enqueueLiveAction("markInjury", [
       auth,
@@ -904,6 +942,72 @@ export function LeagueLiveGame({
     await flushed;
     setPending(false);
     setActionSheetPlayerId(null);
+    router.refresh();
+  }
+
+  /**
+   * Coach picked a replacement from the InjuryReplacementModal.
+   * Fires markInjury + recordLeagueSwap in order so the replay sees:
+   *   1. injury (flag only — player stays in field slot)
+   *   2. swap (off=injured, on=replacement) — replacement takes the
+   *      exact same slot; injured moves to bench with INJ badge.
+   */
+  async function handleInjuryReplacement(
+    injuredId: string,
+    replacementId: string,
+    zone: "forward" | "back",
+  ) {
+    void zone; // included for parity with AFL signature; RL swap infers zone from lineup
+    setInjuryReplacementModal(null);
+    setPending(true);
+    // Enqueue injury flag then swap. FIFO queue ensures injury lands
+    // before the swap on the server, matching AFL's sequencing.
+    const { flushed: injFlushed } = enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
+        player_id: injuredId,
+        injured: true,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+      },
+    ]);
+    const { flushed: swapFlushed } = enqueueLiveAction("recordLeagueSwap", [
+      auth,
+      game.id,
+      {
+        off_player_id: injuredId,
+        on_player_id: replacementId,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+      },
+    ]);
+    await Promise.all([injFlushed, swapFlushed]).catch(() => {
+      // individual failures already handled by queue retry cap
+    });
+    setPending(false);
+    router.refresh();
+  }
+
+  /**
+   * Coach tapped "Mark injured without replacement" — just flag the
+   * player as injured, leave their field slot vacant.
+   */
+  async function handleInjuryMarkOnly(playerId: string) {
+    setInjuryReplacementModal(null);
+    setPending(true);
+    const { flushed } = enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
+        player_id: playerId,
+        injured: true,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+      },
+    ]);
+    await flushed;
+    setPending(false);
     router.refresh();
   }
 
@@ -1541,6 +1645,45 @@ export function LeagueLiveGame({
           onClose={() => setActionSheetPlayerId(null)}
         />
       )}
+
+      {/* Injury replacement picker — shown when a field player is marked
+          injured and there are swappable bench players. Mirrors AFL's
+          InjuryReplacementModal pattern: fires markInjury + swap so the
+          replacement lands at the exact field slot the injured player
+          vacated. "Mark injured without replacement" leaves the slot
+          visually empty (INJ badge still on the field tile). */}
+      {injuryReplacementModal && (() => {
+        const injPlayer = squad.find(
+          (p) => p.id === injuryReplacementModal.injuredId,
+        );
+        if (!injPlayer) return null;
+        // Candidates = swappable bench players sorted least-played first
+        // (same sort AFL uses so the most-owed player is top of the list).
+        const candidates: InjuryReplacementCandidate[] = swappableBench
+          .map((p) => ({
+            player: p,
+            totalMs: totalMsByPlayer[p.id] ?? 0,
+          }))
+          .sort((a, b) => a.totalMs - b.totalMs);
+        return (
+          <InjuryReplacementModal
+            injuredPlayer={injPlayer}
+            zone={injuryReplacementModal.zone}
+            candidates={candidates}
+            onPickReplacement={(rid) =>
+              void handleInjuryReplacement(
+                injuryReplacementModal.injuredId,
+                rid,
+                injuryReplacementModal.zone,
+              )
+            }
+            onSkipReplacement={() =>
+              void handleInjuryMarkOnly(injuryReplacementModal.injuredId)
+            }
+            onCancel={() => setInjuryReplacementModal(null)}
+          />
+        );
+      })()}
 
       {/* First-tap long-press discovery hint. */}
       <LongPressHint enabled={isPeriodActive} />

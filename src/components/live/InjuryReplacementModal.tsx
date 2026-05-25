@@ -3,6 +3,12 @@
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
+/** AFL Zone ids (back | hback | mid | hfwd | fwd) widen to string so
+ *  other sports (rugby league: "forward" | "back") can pass their own
+ *  zone ids. The component falls back to capitalising the raw string
+ *  when the id isn't in ZONE_SHORT_LABELS. */
+type ZoneOrString = Zone | string;
+
 export interface InjuryReplacementCandidate {
   player: Player;
   /** Total ms this player has been on the field this game (for sort + display). */
@@ -12,8 +18,10 @@ export interface InjuryReplacementCandidate {
 interface InjuryReplacementModalProps {
   /** The player about to be marked injured (currently on field). */
   injuredPlayer: Player;
-  /** Zone they're vacating — shown so the coach knows which spot to fill. */
-  zone: Zone;
+  /** Zone they're vacating — shown so the coach knows which spot to fill.
+   *  Accepts an AFL Zone id OR a plain string (e.g. "forward" / "back"
+   *  for rugby league). Non-AFL zone ids are capitalised as a fallback. */
+  zone: ZoneOrString;
   /**
    * Bench candidates eligible to take the spot, ALREADY SORTED by ascending
    * totalMs (least played first). The top of the list is rendered as the
@@ -50,7 +58,13 @@ export function InjuryReplacementModal({
   onCancel,
 }: InjuryReplacementModalProps) {
   const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
-  const zoneLabel = ZONE_SHORT_LABELS[zone];
+  // AFL zones map to short labels via ZONE_SHORT_LABELS. Non-AFL zones
+  // (e.g. "forward" / "back" for rugby league) get capitalised as a
+  // fallback so the modal copy is readable for any sport.
+  const zoneLabel
+    = zone in ZONE_SHORT_LABELS
+      ? ZONE_SHORT_LABELS[zone as Zone]
+      : String(zone).charAt(0).toUpperCase() + String(zone).slice(1);
 
   return (
     <div
