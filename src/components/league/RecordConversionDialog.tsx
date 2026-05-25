@@ -120,12 +120,21 @@ export function RecordConversionDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
+      {/*
+       * max-h caps the panel so it can never extend behind the
+       * LiveTopBar on mobile. LiveTopBar = env(safe-area-inset-top)
+       * + 44px content row. The player list is flex-1 overflow-y-auto
+       * so it scrolls inside the capped height while the header and
+       * force-toggle footer stay pinned. sm: override via sm:rounded-2xl
+       * / sm:max-h-[90dvh] keeps the centred desktop layout tidy.
+       */}
       <div
         role="dialog"
         aria-label="Record conversion"
-        className="w-full max-w-md rounded-t-2xl bg-surface p-4 shadow-modal sm:rounded-2xl"
+        className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-modal sm:rounded-2xl max-h-[calc(100dvh-env(safe-area-inset-top)-44px)] sm:max-h-[90dvh]"
       >
-        <header className="mb-3 flex items-center justify-between">
+        {/* Header — pinned, never scrolls out of view */}
+        <header className="flex flex-shrink-0 items-center justify-between px-4 pt-4 pb-3">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
               Record conversion
@@ -143,100 +152,106 @@ export function RecordConversionDialog({
           </button>
         </header>
 
-        {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-        {showFreshBanner && (
-          <InlineAlert kind="warn">
-            {neverKickedOnField.length === 1
-              ? "One on-field player hasn't kicked this game — they go first."
-              : `${neverKickedOnField.length} on-field players haven't kicked this game — they go first.`}
-          </InlineAlert>
-        )}
-        {showResetBanner && (
-          <InlineAlert kind="warn">
-            Rotation reset — everyone on the field has kicked. The next pick
-            starts a new cycle.
-          </InlineAlert>
-        )}
+        {/* Alerts + scrollable player list */}
+        <div className="flex-1 overflow-y-auto px-4">
+          {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+          {showFreshBanner && (
+            <InlineAlert kind="warn">
+              {neverKickedOnField.length === 1
+                ? "One on-field player hasn't kicked this game — they go first."
+                : `${neverKickedOnField.length} on-field players haven't kicked this game — they go first.`}
+            </InlineAlert>
+          )}
+          {showResetBanner && (
+            <InlineAlert kind="warn">
+              Rotation reset — everyone on the field has kicked. The next pick
+              starts a new cycle.
+            </InlineAlert>
+          )}
 
-        <div className="mt-2 space-y-1.5">
-          {onFieldPlayers.map((p) => {
-            const canPick = force || eligible.has(p.id);
-            const alreadyKickedInCycle = cycle.attempted.has(p.id);
-            const totalAttemptsForPlayer = totalAttempts[p.id] ?? 0;
-            const everKicked = totalAttemptsForPlayer > 0;
-            // Status label — three states the dialog can communicate
-            // when this player is not currently in the eligible pool:
-            //   * "Already kicked this cycle" — they're in the current
-            //     rotation (cycle.attempted) → wait until reset.
-            //   * "Kicked earlier this game" — cycle has since reset,
-            //     but a never-kicker on field jumps the queue, so
-            //     this player isn't eligible right now.
-            //   * Nothing — they're an eligible pick.
-            const statusLabel = !canPick && alreadyKickedInCycle
-              ? "Already kicked this cycle"
-              : !canPick && everKicked
-                ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`
-                : null;
-            const isPending = pendingKickerId === p.id;
-            return (
-              <div
-                key={p.id}
-                className={[
-                  "flex items-center justify-between rounded-lg border px-3 py-2",
-                  canPick
-                    ? "border-hairline bg-surface hover:border-brand-600"
-                    : "border-hairline bg-surface-alt opacity-60",
-                ].join(" ")}
-              >
-                <div className="flex items-center gap-2">
-                  <Guernsey
-                    num={p.jersey_number != null ? String(p.jersey_number) : ""}
-                    size={26}
-                  />
-                  <div className="text-sm">
-                    <span className="font-medium text-ink">{p.full_name}</span>
-                    {statusLabel && (
-                      <span className="ml-2 text-xs text-ink-mute">
-                        {statusLabel}
-                      </span>
-                    )}
+          <div className="mt-2 space-y-1.5 pb-1">
+            {onFieldPlayers.map((p) => {
+              const canPick = force || eligible.has(p.id);
+              const alreadyKickedInCycle = cycle.attempted.has(p.id);
+              const totalAttemptsForPlayer = totalAttempts[p.id] ?? 0;
+              const everKicked = totalAttemptsForPlayer > 0;
+              // Status label — three states the dialog can communicate
+              // when this player is not currently in the eligible pool:
+              //   * "Already kicked this cycle" — they're in the current
+              //     rotation (cycle.attempted) → wait until reset.
+              //   * "Kicked earlier this game" — cycle has since reset,
+              //     but a never-kicker on field jumps the queue, so
+              //     this player isn't eligible right now.
+              //   * Nothing — they're an eligible pick.
+              const statusLabel = !canPick && alreadyKickedInCycle
+                ? "Already kicked this cycle"
+                : !canPick && everKicked
+                  ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`
+                  : null;
+              const isPending = pendingKickerId === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className={[
+                    "flex items-center justify-between rounded-lg border px-3 py-2",
+                    canPick
+                      ? "border-hairline bg-surface hover:border-brand-600"
+                      : "border-hairline bg-surface-alt opacity-60",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-2">
+                    <Guernsey
+                      num={p.jersey_number != null ? String(p.jersey_number) : ""}
+                      size={26}
+                    />
+                    <div className="text-sm">
+                      <span className="font-medium text-ink">{p.full_name}</span>
+                      {statusLabel && (
+                        <span className="ml-2 text-xs text-ink-mute">
+                          {statusLabel}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <SFButton
+                      size="sm"
+                      variant="primary"
+                      disabled={!canPick || isPending}
+                      onClick={() => commit(p.id, true)}
+                    >
+                      Made
+                    </SFButton>
+                    <SFButton
+                      size="sm"
+                      variant="ghost"
+                      disabled={!canPick || isPending}
+                      onClick={() => commit(p.id, false)}
+                    >
+                      Missed
+                    </SFButton>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <SFButton
-                    size="sm"
-                    variant="primary"
-                    disabled={!canPick || isPending}
-                    onClick={() => commit(p.id, true)}
-                  >
-                    Made
-                  </SFButton>
-                  <SFButton
-                    size="sm"
-                    variant="ghost"
-                    disabled={!canPick || isPending}
-                    onClick={() => commit(p.id, false)}
-                  >
-                    Missed
-                  </SFButton>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        <label className="mt-3 flex items-center gap-2 rounded-md bg-surface-alt px-3 py-2 text-xs text-ink-dim">
-          <input
-            type="checkbox"
-            checked={force}
-            onChange={(e) => setForce(e.target.checked)}
-            className="h-4 w-4 rounded border-hairline accent-brand-600"
-          />
-          <span>
-            <strong className="text-ink">Force</strong> — bypass rotation
-            (try-scorer fouled in the act of scoring, laws §15 carve-out).
-          </span>
-        </label>
+        {/* Force-toggle footer — pinned, never scrolls out of view */}
+        <div className="flex-shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-0">
+          <label className="mt-3 flex items-center gap-2 rounded-md bg-surface-alt px-3 py-2 text-xs text-ink-dim">
+            <input
+              type="checkbox"
+              checked={force}
+              onChange={(e) => setForce(e.target.checked)}
+              className="h-4 w-4 rounded border-hairline accent-brand-600"
+            />
+            <span>
+              <strong className="text-ink">Force</strong> — bypass rotation
+              (try-scorer fouled in the act of scoring, laws §15 carve-out).
+            </span>
+          </label>
+        </div>
       </div>
     </div>
   );
