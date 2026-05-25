@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# Pre-push lint gate
+# Pre-push gate: lint + vitest
 #
-# Why: `next build` runs ESLint as part of its compile step, so any
-# unescaped JSX entity, missing-key warning promoted to error, etc.
-# fails the Vercel deploy AND the CI lint job before tests even
-# start. Catching it locally costs ~10s; catching it on Vercel costs
-# a failed deploy + a redo cycle.
+# Why: two classes of "shouldn't ship to main" bugs have bitten before:
 #
-# What it runs: `npm run lint` (= `next lint`). Warnings are allowed
-# through (next lint exits 0 on warnings); only errors block the
-# push.
+#   1. Lint errors that break `next build` (the Vercel deploy step
+#      runs ESLint as part of compile). Unescaped JSX entities and
+#      missing-key warnings have shipped twice this week — each one
+#      cost a failed deploy + re-push round trip. Catching locally
+#      costs ~10s.
 #
-# Bypass (use sparingly — only when you know the lint error is
-# pre-existing or you're pushing a WIP branch for review):
+#   2. Vitest regressions. ~735 unit tests cover the pure-function
+#      sport logic (fairness, replayers, suggesters, validators). A
+#      broken replayer or suggester is invisible to lint and to
+#      `next build` but corrupts every downstream feature. Adding
+#      vitest to the gate keeps main green at near-zero cost (~5s).
+#
+# Sequence: lint first (cheap, fails fast on the most common issue),
+# then vitest (slower but more thorough).
+#
+# Bypass (use sparingly — only when you know the failure is pre-
+# existing or you're pushing a WIP branch for review):
 #
 #   git push --no-verify
 #
@@ -59,3 +66,19 @@ if ! npm run lint --silent; then
 fi
 
 echo "[pre-push] ✓ Lint clean."
+echo "[pre-push] Running npm test (vitest)…"
+
+if ! npm test --silent; then
+  echo ""
+  echo "❌ [pre-push] Vitest failed — push aborted."
+  echo ""
+  echo "Fix the failing tests above and try again. To bypass this"
+  echo "check for a single push (e.g. you've inherited a pre-existing"
+  echo "failure that isn't yours to fix right now), use:"
+  echo ""
+  echo "    git push --no-verify"
+  echo ""
+  exit 1
+fi
+
+echo "[pre-push] ✓ Vitest clean."
