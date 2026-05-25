@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
@@ -13,12 +12,15 @@ interface LiveTopBarProps {
   /** Game row — drives the round/date/venue strip in the centre. */
   game: Game;
   /**
-   * Optional walkthrough trigger. When provided, the right-hand "?"
-   * affordance is a button that calls this (used inside LiveGame /
-   * NetballLiveGame where the WalkthroughModal lives). When absent
-   * (server-rendered surfaces like the AFL pre-kickoff page), the
-   * "?" is a Link to the static /help page instead, so the affordance
-   * is consistent across every /live state.
+   * Walkthrough trigger. Opens the in-place WalkthroughModal when
+   * provided. When absent, the "?" affordance is NOT rendered —
+   * Steve 2026-05-25 reported a critical trap in the iOS Capacitor
+   * shell: the previous Link-to-/help fallback navigated out of
+   * /live into the marketing-styled /help page, which has no way
+   * back to the game (no Capacitor-aware "back to app" link, no
+   * browser chrome in the WebView). Surfaces that legitimately
+   * need a help affordance must wire `onHelp` to a modal handler
+   * rather than relying on the Link fallback.
    */
   onHelp?: () => void;
 }
@@ -80,44 +82,43 @@ export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
             <span className="truncate">· {game.location}</span>
           )}
         </div>
-        {/* Feedback trigger sits IMMEDIATELY before the "?" so the
-            two utility affordances form a small cluster on the right
-            edge. Same 44/28pt rhythm as the help pill so the eye
-            reads them as a pair. Steve 2026-05-25: moved here from
-            the floating FAB position which was overlapping the
-            opposition +G/+B scoring chip mid-game. */}
-        <FeedbackHeaderButton />
+        {/* Right-edge utility cluster: feedback + walkthrough "?".
+            Wrapped in a zero-gap sub-flex so the two 44pt tap boxes
+            sit flush; the visible 28pt pills inside read as a tight
+            two-icon group instead of two stand-alone affordances
+            (Steve 2026-05-25 — feedback was too far from "?").
+            -mr-1 nudges the cluster slightly closer to the
+            edge for the same compactness reason.
+            The "?" only renders when a real in-place walkthrough
+            handler is provided — the previous Link-to-/help fallback
+            was a critical trap inside the iOS Capacitor shell
+            (marketing-styled /help has no way back into the game).
+            Surfaces that legitimately need help on the right must
+            wire onHelp to a modal; never a Link. */}
+        <div className="-mr-1 flex items-center">
+          <FeedbackHeaderButton />
 
-        {/* The visible "?" pill is 28pt, but the surrounding button
-            keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve
-            2026-05-15: previously the whole 44pt area got the
-            `rounded-full border` chrome, which read as oversized
-            against the small text + Exit label. iOS-native pattern
-            is a small visible glyph centered in a generous tap area
-            — `group` here just keeps the hover/active state on the
-            inner pill rather than the whole outer surface. */}
-        {onHelp ? (
-          <button
-            type="button"
-            onClick={onHelp}
-            className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
-            aria-label="Open walkthrough"
-          >
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
-              ?
-            </span>
-          </button>
-        ) : (
-          <Link
-            href="/help"
-            className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
-            aria-label="Open help"
-          >
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
-              ?
-            </span>
-          </Link>
-        )}
+          {/* The visible "?" pill is 28pt, but the surrounding button
+              keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve
+              2026-05-15: previously the whole 44pt area got the
+              `rounded-full border` chrome, which read as oversized
+              against the small text + Exit label. iOS-native pattern
+              is a small visible glyph centered in a generous tap area
+              — `group` here just keeps the hover/active state on the
+              inner pill rather than the whole outer surface. */}
+          {onHelp && (
+            <button
+              type="button"
+              onClick={onHelp}
+              className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
+              aria-label="Open walkthrough"
+            >
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
+                ?
+              </span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
