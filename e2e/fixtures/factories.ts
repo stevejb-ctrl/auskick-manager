@@ -15,7 +15,7 @@ import type { AgeGroup } from "../../src/lib/types";
 export interface MakeTeamOpts {
   name?: string;
   ageGroup?: string;
-  sport?: "afl" | "netball";
+  sport?: "afl" | "netball" | "rugby_league";
   ownerId: string; // profile id of the admin who "created" this team
 }
 

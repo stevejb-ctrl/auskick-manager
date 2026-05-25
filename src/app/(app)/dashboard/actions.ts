@@ -47,11 +47,57 @@ export async function createTeam(
   // RLS policy.
   const teamId = crypto.randomUUID();
 
-  console.log("[createTeam] inserting team", { teamId, userId: user.id, name, ageGroup, sport });
+  // Rugby league bakes the scoring rule into the laws: tag at U6/U7
+  // (no scoreboard), modified tackle at U8+ (tries + conversions).
+  // Pre-set `track_scoring` to match the age-group default so a
+  // brand-new U8+ RL team can record tries from the first whistle
+  // without the coach having to remember to toggle it on. AFL and
+  // netball keep the explicit toggle in ScoringStep (DB default
+  // `false` preserved for them — same contract as before).
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  const initialTrackScoring
+    = sport === "rugby_league" && ageCfg?.tracksScoreDefault === true;
+
+  console.log("[createTeam] inserting team", {
+    teamId,
+    userId: user.id,
+    name,
+    ageGroup,
+    sport,
+    trackScoring: initialTrackScoring,
+  });
+
+  // Rugby League is a two-zone sport (Forwards + Backs). Pre-set
+  // chip A → Forward, chip B → Back, and label them so the team
+  // works out of the box: coaches see the F/B letter overlay on
+  // player tiles + the orange/blue field zone palette without
+  // having to dig into Settings → Player chips. Coach can still
+  // override the labels (or clear them to hide the chip) later.
+  // AFL + netball keep the legacy `split` default — they don't
+  // ship with a forced zone mode. Steve 2026-05-23.
+  const insertRow: {
+    id: string;
+    name: string;
+    created_by: string;
+    age_group: string;
+    sport: Sport;
+    track_scoring?: boolean;
+    chip_a_label?: string;
+    chip_b_label?: string;
+    chip_a_mode?: import("@/lib/chips").ChipMode;
+    chip_b_mode?: import("@/lib/chips").ChipMode;
+  } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
+  if (initialTrackScoring) insertRow.track_scoring = true;
+  if (sport === "rugby_league") {
+    insertRow.chip_a_label = "Forward";
+    insertRow.chip_b_label = "Back";
+    insertRow.chip_a_mode = "forward";
+    insertRow.chip_b_mode = "back";
+  }
 
   const { error: insertError } = await supabase
     .from("teams")
-    .insert({ id: teamId, name, created_by: user.id, age_group: ageGroup, sport });
+    .insert(insertRow);
 
   if (insertError) {
     console.error("[createTeam] insert failed", insertError);

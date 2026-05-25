@@ -13,6 +13,7 @@ import {
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
 import { getAgeGroupConfig } from "@/lib/sports";
+import { normalizeChipMode } from "@/lib/chips";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -172,15 +173,15 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             (team as { chip_c_label?: string | null }).chip_c_label ?? null,
         }}
         initialModes={{
-          a:
-            ((team as { chip_a_mode?: "split" | "group" }).chip_a_mode ??
-              "split") as import("@/lib/chips").ChipMode,
-          b:
-            ((team as { chip_b_mode?: "split" | "group" }).chip_b_mode ??
-              "split") as import("@/lib/chips").ChipMode,
-          c:
-            ((team as { chip_c_mode?: "split" | "group" }).chip_c_mode ??
-              "split") as import("@/lib/chips").ChipMode,
+          a: normalizeChipMode(
+            (team as { chip_a_mode?: string | null }).chip_a_mode,
+          ),
+          b: normalizeChipMode(
+            (team as { chip_b_mode?: string | null }).chip_b_mode,
+          ),
+          c: normalizeChipMode(
+            (team as { chip_c_mode?: string | null }).chip_c_mode,
+          ),
         }}
         isAdmin={isAdmin}
         sport={sport}

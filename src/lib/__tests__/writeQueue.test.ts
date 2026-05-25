@@ -301,6 +301,81 @@ describe("writeQueue", () => {
     expect(maxInflight).toBe(1);
     expect(useWriteQueue.getState().queue).toEqual([]);
   });
+
+  it("treats a handler that returns undefined as a soft failure — pauses the lane, does not crash the drain (Steve 2026-05-18: availability toggle bug)", async () => {
+    // Server-action stubs from Next.js have been seen returning a
+    // Promise<undefined> in rare paths (notably revalidatePath +
+    // concurrent router.refresh). Without the defensive guard in
+    // dispatchOp, this would crash the entire drain loop with
+    // "Cannot read properties of undefined (reading 'success')",
+    // bricking every other queued write until the page reloaded.
+    const malformed = vi.fn(
+      async () => undefined as unknown as ActionResult,
+    );
+    const goodHandler = vi.fn(
+      async (): Promise<ActionResult> => ({ success: true }),
+    );
+    registerActionHandler("malformed", malformed);
+    registerActionHandler("good", goodHandler);
+
+    useWriteQueue.getState().enqueue("malformed", []);
+    useWriteQueue.getState().enqueue("good", []);
+    await useWriteQueue.getState().drain();
+    await flushMicrotasks(20);
+
+    // Good lane drained independently because lanes are isolated.
+    // Malformed op: depending on whether the cap was reached on
+    // this drain pass, it'll either still be queued + paused OR
+    // already dropped after MAX_OP_ATTEMPTS — the only guarantee
+    // here is that it didn't crash the queue.
+    const state = useWriteQueue.getState();
+    expect(state.queue.find((q) => q.kind === "good")).toBeUndefined();
+  });
+
+  it("rejects the flushed promise + drops the op after MAX_OP_ATTEMPTS failures (Steve 2026-05-19: availability stuck in loading)", async () => {
+    // Permanent failure (auth rejected, validation error) — the
+    // queue should give up after MAX_OP_ATTEMPTS so the optimistic
+    // UI flip can roll back. Without this cap, the action retries
+    // forever and the UI spins indefinitely.
+    const alwaysFails = vi.fn(
+      async (): Promise<ActionResult> => ({
+        success: false,
+        error: "Not authorised.",
+      }),
+    );
+    registerActionHandler("fails", alwaysFails);
+
+    const { flushed } = useWriteQueue.getState().enqueue("fails", []);
+
+    // Track the flushed-promise outcome.
+    let rejected = false;
+    let rejectedWith: Error | null = null;
+    flushed.catch((err: Error) => {
+      rejected = true;
+      rejectedWith = err;
+    });
+
+    // Drive enough drain cycles to exceed the cap. Each failure
+    // pauses the kind; we have to manually resume between rounds
+    // to simulate the network-online retry path.
+    for (let i = 0; i < 10; i++) {
+      useWriteQueue.getState().resume();
+      await useWriteQueue.getState().drain();
+      await flushMicrotasks(20);
+      if (useWriteQueue.getState().queue.length === 0) break;
+    }
+    await flushMicrotasks(20);
+
+    // Op was dropped after the cap, flushed rejected, caller can
+    // roll back its optimistic UI.
+    const state = useWriteQueue.getState();
+    expect(state.queue.find((q) => q.kind === "fails")).toBeUndefined();
+    expect(rejected).toBe(true);
+    expect(rejectedWith).not.toBeNull();
+    expect((rejectedWith as unknown as Error).message).toContain(
+      "Not authorised",
+    );
+  });
 });
 
 // Helper: yield enough microtasks for a chain of awaits to settle.

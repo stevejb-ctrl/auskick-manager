@@ -10,7 +10,13 @@ interface SquadStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   players: Player[];
-  /** AFL teams show jersey numbers, netball teams don't. */
+  /**
+   * AFL + rugby league show jersey numbers (jersey-driven sports);
+   * netball doesn't (positions are letter-coded). Steve 2026-05-20:
+   * RL falls into the jersey-showing branch so the add-player form
+   * surfaces the jersey input that the lineup picker + tile time
+   * readouts rely on.
+   */
   sportId?: Sport;
   /**
    * Team chip labels (set in the previous "How we play" step). When
@@ -31,7 +37,12 @@ export function SquadStep({
   chipLabels,
   chipModes,
 }: SquadStepProps) {
-  const showJersey = sportId === "afl";
+  // AFL + rugby league show jersey numbers (jersey-driven sports);
+  // netball doesn't (positions are letter-coded). RL falls into the
+  // jersey-showing branch so the add-player form surfaces the
+  // jersey input that the lineup picker + tile time readouts rely
+  // on. Steve 2026-05-20.
+  const showJersey = sportId === "afl" || sportId === "rugby_league";
   const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);

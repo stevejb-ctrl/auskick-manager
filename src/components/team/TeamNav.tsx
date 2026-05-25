@@ -28,7 +28,13 @@ export function TeamNav({ teamId, teamName }: TeamNavProps) {
   return (
     <div className="space-y-3">
       <Link
-        href="/dashboard"
+        // ?list=1 bypasses the dashboard's single-team auto-redirect.
+        // Without this, a coach with only one team clicks "← My teams"
+        // and immediately bounces back to the same team page they
+        // came from — an infinite back-loop. The escape hatch lets
+        // them reach the actual team picker (and "+ New team")
+        // regardless of how many teams they own.
+        href="/dashboard?list=1"
         className="text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
       >
         ← My teams

@@ -7,7 +7,7 @@ import { ROLE_LABEL } from "@/lib/roles";
 import type { Team, TeamRole } from "@/lib/types";
 
 interface DashboardPageProps {
-  searchParams: { welcome?: string };
+  searchParams: { welcome?: string; list?: string };
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -48,7 +48,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // handles the login case via the last-accessed-team cookie, but
   // this branch covers the first-time-login case where no cookie
   // exists yet.
-  if (teams.length === 1) {
+  //
+  // Escape hatch: `?list=1` keeps the team list visible even for
+  // single-team users. The UserMenu's "Switch team" link uses this
+  // so coaches who only have one team can still get back to the
+  // list to create another, view the full team picker, etc.
+  // (Steve 2026-05-19: super-admin couldn't escape the single-team
+  // loop once auto-redirected into Kotara Koalas.)
+  if (teams.length === 1 && searchParams.list !== "1") {
     redirect(`/teams/${teams[0].id}`);
   }
 

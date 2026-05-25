@@ -70,12 +70,25 @@ export interface EnqueueResult {
    * the new state without breaking the queue's fire-and-forget
    * contract — fine for online users (resolves ~immediately) and
    * for offline users (resolves when the network returns and the
-   * queue drains). Never rejects: transient failures keep
-   * retrying, and the only "permanent" failure path is a missing
-   * handler, which would have to be a programming error.
+   * queue drains). Rejects (with the last error message) when the
+   * queue gives up on an op after `MAX_OP_ATTEMPTS` failures —
+   * lets the caller roll back any optimistic UI flip.
    */
   flushed: Promise<void>;
 }
+
+/**
+ * Stop retrying a failing op after this many attempts. Earlier
+ * draft retried forever, which left "permanent" failures (auth
+ * rejected, validation error) spinning the optimistic UI
+ * indefinitely. Steve 2026-05-19: availability toggle stuck in
+ * loading state when the server returned `{success: false}`.
+ *
+ * Transient network failures usually resolve in 1-2 retries, so
+ * 5 attempts gives enough headroom for a flaky reconnect without
+ * letting a genuine permanent error spin forever.
+ */
+export const MAX_OP_ATTEMPTS = 5;
 
 interface WriteQueueState {
   queue: QueueOp[];
@@ -91,12 +104,14 @@ interface WriteQueueState {
   clearQueue: () => void;
 }
 
-// In-memory map of op id → flushed-promise resolver. Lives
-// outside the zustand store because Promise callbacks can't be
-// serialized to disk. Only populated for ops enqueued during the
-// current page session; rehydrated ops from a previous session
-// have no caller waiting, so they drain without resolving anyone.
+// In-memory map of op id → flushed-promise resolver / rejecter.
+// Lives outside the zustand store because Promise callbacks can't
+// be serialized to disk. Only populated for ops enqueued during
+// the current page session; rehydrated ops from a previous session
+// have no caller waiting, so they drain (or get dropped at the
+// attempt cap) without resolving anyone.
 const flushedResolvers = new Map<string, () => void>();
+const flushedRejecters = new Map<string, (err: Error) => void>();
 
 // ─── Handler registry ─────────────────────────────────────────
 // Keyed by the same `kind` the caller passes to enqueue(). Phase
@@ -159,8 +174,9 @@ export const useWriteQueue = create<WriteQueueState>()(
           attemptCount: 0,
           queuedAt: Date.now(),
         };
-        const flushed = new Promise<void>((resolve) => {
+        const flushed = new Promise<void>((resolve, reject) => {
           flushedResolvers.set(id, resolve);
+          flushedRejecters.set(id, reject);
         });
         // Functional set so concurrent enqueues don't clobber each other.
         set((s) => ({ queue: [...s.queue, op] }));
@@ -257,7 +273,23 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     // Idempotency key appended as the final argument so handlers
     // don't have to know the queue exists — they just see one
     // extra optional positional.
-    result = await handler(...op.args, op.id);
+    const raw = (await handler(...op.args, op.id)) as ActionResult | undefined;
+    // Defensive: some Next.js server-action paths (notably ones
+    // that fire `revalidatePath` + later interact with router
+    // refresh) have been observed to surface a `Promise<undefined>`
+    // back through the action stub instead of the action's actual
+    // return value. Without this guard, the next line crashes the
+    // entire drain loop with "Cannot read properties of undefined
+    // (reading 'success')", which then bricks every other queued
+    // write until the page reloads. Steve 2026-05-18 (availability
+    // toggle).
+    result = raw && typeof raw === "object" && "success" in raw
+      ? raw
+      : {
+          success: false,
+          error:
+            "Action handler returned an unexpected response — the write will retry.",
+        };
   } catch (err) {
     result = {
       success: false,
@@ -282,29 +314,57 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     const resolve = flushedResolvers.get(op.id);
     if (resolve) {
       flushedResolvers.delete(op.id);
+      flushedRejecters.delete(op.id);
       resolve();
     }
     useWriteQueue.setState((s) => ({
       queue: s.queue.filter((q) => q.id !== op.id),
     }));
   } else {
-    // Failure: bump attemptCount, pause this kind. The op stays
-    // at its position so when resume() clears the pause, drain
-    // picks it up again from the same place.
-    useWriteQueue.setState((s) => ({
-      queue: s.queue.map((q) =>
-        q.id === op.id
-          ? {
-              ...q,
-              attemptCount: q.attemptCount + 1,
-              lastError: result.error,
-            }
-          : q,
-      ),
-      pausedKinds: s.pausedKinds.includes(op.kind)
-        ? s.pausedKinds
-        : [...s.pausedKinds, op.kind],
-    }));
+    const nextAttempt = op.attemptCount + 1;
+    if (nextAttempt >= MAX_OP_ATTEMPTS) {
+      // Hit the cap — give up on this op so the caller can roll
+      // back any optimistic UI. Without this, a permanent failure
+      // (auth rejected, validation error) leaves the optimistic
+      // flip spinning forever. Reject BEFORE popping the queue so
+      // the .catch() can read consistent state.
+      const reject = flushedRejecters.get(op.id);
+      if (reject) {
+        flushedResolvers.delete(op.id);
+        flushedRejecters.delete(op.id);
+        reject(
+          new Error(
+            result.error
+              ?? `Op ${op.kind} failed after ${MAX_OP_ATTEMPTS} attempts.`,
+          ),
+        );
+      }
+      useWriteQueue.setState((s) => ({
+        queue: s.queue.filter((q) => q.id !== op.id),
+        // Don't keep the kind paused — other ops of the same kind
+        // should still get a chance. The next op's success will
+        // clear any lingering state.
+        pausedKinds: s.pausedKinds.filter((k) => k !== op.kind),
+      }));
+    } else {
+      // Transient failure: bump attemptCount, pause this kind. The
+      // op stays at its position so when resume() clears the
+      // pause, drain picks it up again from the same place.
+      useWriteQueue.setState((s) => ({
+        queue: s.queue.map((q) =>
+          q.id === op.id
+            ? {
+                ...q,
+                attemptCount: nextAttempt,
+                lastError: result.error,
+              }
+            : q,
+        ),
+        pausedKinds: s.pausedKinds.includes(op.kind)
+          ? s.pausedKinds
+          : [...s.pausedKinds, op.kind],
+      }));
+    }
   }
 }
 

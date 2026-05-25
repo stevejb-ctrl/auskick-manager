@@ -27,12 +27,20 @@ export function TrackScoringToggle({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Score-shape varies by sport. Net `scoreTypes` would be cleaner but
-  // forcing a registry import into a client component for one string
-  // isn't worth it for two sports — branch inline and revisit when rugby
-  // lands and we have try/conv/pen/dropGoal to surface.
+  // Score-shape varies by sport.
+  //   - AFL: goals + behinds → "Track goals & behinds"
+  //   - Netball: goals only  → "Track goals"
+  //   - Rugby League: tries + conversions → "Track points" (the
+  //     coach's mental model; surfacing "tries & conversions" was
+  //     a mouthful for a toggle).
+  // A registry-driven label would be cleaner but isn't worth the
+  // client-component cost for three discrete sports.
   const heading =
-    sportId === "netball" ? "Track goals" : "Track goals & behinds";
+    sportId === "rugby_league"
+      ? "Track points"
+      : sportId === "netball"
+        ? "Track goals"
+        : "Track goals & behinds";
 
   function handleChange(next: boolean) {
     if (!isAdmin) return;

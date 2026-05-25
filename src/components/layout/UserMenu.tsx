@@ -79,6 +79,14 @@ export function UserMenu({ email }: UserMenuProps) {
             <p className="mt-0.5 truncate text-sm text-ink">{email}</p>
           </div>
           <Link
+            href="/dashboard?list=1"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2.5 text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Switch team
+          </Link>
+          <Link
             href="/account"
             role="menuitem"
             onClick={() => setOpen(false)}

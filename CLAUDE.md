@@ -1,5 +1,43 @@
 # Siren — Claude project instructions
 
+## Reuse before you fork — cross-sport consistency
+
+Siren ships three sports (AFL, netball, rugby league) that share the
+same coach. Anywhere the UX rule is the same across sports, the
+component MUST be shared — coaches who run a footy team AND a league
+team should feel muscle memory, not a re-skin.
+
+**Before adding any new component under `src/components/<sport>/`,
+search `src/components/{live,lineup,quarter-break,sf,ui}/` and the
+two sibling sport directories first.** If a near-fit already exists,
+reuse it (extend its props if needed). Only fork when the behaviour
+genuinely diverges.
+
+Examples of shared chrome that MUST be consumed verbatim:
+- `LiveTopBar`, `LiveStickyScoreBar`, `LiveAdminUtilityRow`
+- `ScoreRecordingDock`, `SubDueModal`, `ManualEndQuarterConfirm`
+- `LockModal` (long-press player actions — switch / injure / lend)
+- `LineupPickerBreadcrumb`, `LineupPickerFooter`
+- `LongPressHint`, `WalkthroughModal`, `LateArrivalMenu`,
+  `InjuryReplacementModal`
+- `sf/*` design primitives (`SFButton`, `SFCard`, `Guernsey`, etc.)
+
+Where sport-specific surfaces wrap shared chrome (e.g. `LeagueScoreBug`
+inside `LiveStickyScoreBar`), the wrapper must match the visual rhythm
+of its AFL/netball sibling — same token palette, same column counts,
+same badge positions. AFL is the reference implementation; deviate
+only with a clear reason and call it out in a comment.
+
+Anti-patterns to catch yourself doing:
+- Building a new modal component when `LockModal` would have done it.
+- Custom score chips when `GameHeader`'s `+G`/`+B` chip token works.
+- Horizontal-scroll benches when AFL's `grid-cols-4` already exists.
+- Forking `PlayerTile`'s layout instead of mirroring its row order.
+
+If the user has to ask "make it consistent with AFL", that's a bug —
+fix the component this session AND extract a shared primitive if the
+seam is wide enough to be re-violated.
+
 ## Testing is part of "done"
 
 When implementing a feature or fixing a bug that touches user-facing

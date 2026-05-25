@@ -64,7 +64,7 @@ interface SimResult {
 function simulateFourQuartersNoSubs(
   squad: Player[],
   chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined>,
-  chipModeByKey: Partial<Record<"a" | "b" | "c", "split" | "group">>,
+  chipModeByKey: Partial<Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>>,
 ): SimResult {
   const perQuarter: Lineup[] = [];
   const seasonZoneMs: PlayerZoneMinutes = {};

@@ -13,21 +13,27 @@ export type ChipKey = (typeof CHIP_KEYS)[number];
  *   - "group"   — funnel chip-mates into the same zone where
  *                 possible. Pairs of teammates who stick together.
  *   - "forward" — prefer chip-mates in forward zones. Soft-strong
- *                 bonus; fairness can still override. Steve
- *                 2026-05-20: once mandatory rotations age out
- *                 (AFL U11+) some kids settle naturally into a
- *                 position; this encodes that without needing
- *                 per-quarter Lock-to-zone taps.
- *   - "centre"  — prefer chip-mates in midfield / centre.
+ *                 bonus; fairness can still override. Once
+ *                 mandatory rotations age out (AFL U11+) some
+ *                 kids settle naturally into a position; this
+ *                 encodes that without per-quarter Lock-to-zone.
+ *   - "centre"  — prefer chip-mates in midfield / centre (AFL).
  *   - "back"    — prefer chip-mates in defensive zones.
  *
  * The three zone modes rotate WITHIN the family — a forward-
  * chipped AFL U13 may play fwd one quarter and hfwd the next; a
  * forward-chipped netball player rotates GS/GA/WA across quarters
- * via the existing same-position penalty.
+ * via the existing same-position penalty. Rugby league has only
+ * forwards + backs, no centre — RL teams just don't use centre.
  */
 export type ChipMode = "split" | "group" | "forward" | "centre" | "back";
-export const CHIP_MODES: ChipMode[] = ["split", "group", "forward", "centre", "back"];
+export const CHIP_MODES: ChipMode[] = [
+  "split",
+  "group",
+  "forward",
+  "centre",
+  "back",
+];
 
 /**
  * Modes the Custom chip configurator surfaces. The three zone
@@ -45,25 +51,28 @@ export type ChipZoneMode = (typeof CHIP_ZONE_MODES)[number];
 
 /**
  * Type guard — narrows a ChipMode to one of the three zone-
- * preference modes. Used by the AFL + netball suggesters to
- * decide whether the chip carries a zone preference vs the
- * existing cluster modes.
+ * preference modes. Used by the suggesters to decide whether the
+ * chip carries a zone preference, AND by tile / picker components
+ * to decide whether to render the F / C / B letter inside the
+ * chip dot.
  */
-export function isChipZoneMode(mode: ChipMode | undefined): mode is ChipZoneMode {
+export function isChipZoneMode(
+  mode: ChipMode | undefined,
+): mode is ChipZoneMode {
   return mode === "forward" || mode === "centre" || mode === "back";
 }
 
 /**
  * Canonical normaliser for chip mode strings on the way INTO the
  * database. Any value not in the ChipMode union falls back to
- * "split" so a future enum extension at the DB level (or a
- * stale client posting an unknown value) can't corrupt the
- * column. Steve 2026-05-20: extracted from settings/actions.ts
- * after the original inline normaliser silently collapsed every
- * mode to "split"|"group", which silently dropped every zone-
- * preference (forward / centre / back) pick before it reached
- * the DB. Single canonical version now — every write path that
- * persists a chip mode MUST funnel through this.
+ * "split" so a future enum extension at the DB level (or a stale
+ * client posting an unknown value) can't corrupt the column.
+ * Steve 2026-05-20: extracted from settings/actions.ts after the
+ * original inline normaliser silently collapsed every mode to
+ * "split"|"group", which silently dropped every zone-preference
+ * (forward / centre / back) pick before it reached the DB.
+ * Single canonical version now — every write path that persists
+ * a chip mode MUST funnel through this.
  */
 const VALID_CHIP_MODES: ReadonlySet<ChipMode> = new Set(CHIP_MODES);
 export function normalizeChipMode(v: string | null | undefined): ChipMode {
@@ -121,8 +130,8 @@ export const CHIP_COLORS: Record<ChipKey, ChipPalette> = {
  * `centre` / `back`. The dot recolours to match the in-game zone
  * tokens (bg-zone-f / bg-zone-c / bg-zone-b — see tailwind.config)
  * so coaches reading the chip in the squad list or lineup picker
- * see the same orange-vermillion / fuchsia / royal-blue triad
- * the field tiles use. Steve 2026-05-20: the position-linked
+ * see the same orange-vermillion / fuchsia / royal-blue triad the
+ * field tiles use. Steve 2026-05-20: the position-linked
  * configuration is now the default coach flow, so the visual
  * connection between chip and zone needs to be immediate.
  */
@@ -167,6 +176,9 @@ export function chipPalette(key: ChipKey, mode?: ChipMode): ChipPalette {
  * simplified position-linked summary instead of the 3-card
  * custom configurator. The Forward-Centre-Back ordering is
  * fixed (matches the field render: top of screen → bottom).
+ *
+ * Rugby League uses its OWN preset (Forward / Back, chip-C
+ * cleared) — see `RUGBY_LEAGUE_POSITION_LINKED_PRESET` below.
  */
 export const POSITION_LINKED_PRESET: {
   labels: Record<ChipKey, string>;
@@ -193,5 +205,41 @@ export function isPositionLinkedChipConfig(
     modes.a === POSITION_LINKED_PRESET.modes.a &&
     modes.b === POSITION_LINKED_PRESET.modes.b &&
     modes.c === POSITION_LINKED_PRESET.modes.c
+  );
+}
+
+/**
+ * Rugby-league-specific position-linked preset. RL plays two
+ * zones (Forwards + Backs), not three — so the preset uses
+ * chip A→Forward, chip B→Back, and CLEARS chip C (null label
+ * + split mode). The settings UI for RL hides the chip-C row
+ * entirely; this preset matches what the DB column should look
+ * like after a save in that mode. Steve 2026-05-23.
+ */
+export const RUGBY_LEAGUE_POSITION_LINKED_PRESET: {
+  labels: Record<ChipKey, string | null>;
+  modes: Record<ChipKey, ChipMode>;
+} = {
+  labels: { a: "Forward", b: "Back", c: null },
+  modes: { a: "forward", b: "back", c: "split" },
+};
+
+/**
+ * True iff the team's chip configuration matches the rugby-
+ * league position-linked preset (Forward / Back labels with
+ * matching forward / back modes; chip C must be cleared).
+ * Mirrors `isPositionLinkedChipConfig` for the 2-zone sport.
+ */
+export function isRugbyLeaguePositionLinkedChipConfig(
+  labels: { a: string | null; b: string | null; c: string | null },
+  modes: { a: ChipMode; b: ChipMode; c: ChipMode },
+): boolean {
+  return (
+    labels.a === RUGBY_LEAGUE_POSITION_LINKED_PRESET.labels.a
+    && labels.b === RUGBY_LEAGUE_POSITION_LINKED_PRESET.labels.b
+    && (labels.c === null || labels.c === "")
+    && modes.a === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.a
+    && modes.b === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.b
+    && modes.c === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.c
   );
 }

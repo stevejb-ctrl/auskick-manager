@@ -6,9 +6,14 @@ import { siteUrl } from "@/lib/seo";
 // Per-brand splash + chrome colours. Sourced from --brand-600 in
 // src/app/globals.css so the standalone install matches the in-app
 // theming exactly.
+//
+// `rugby_league` reuses the AFL palette in v1 — RL ships under the
+// existing Siren brand and gets its own colours when the brand phase
+// introduces sirenleague.com.au.
 const BRAND_THEME = {
   afl: { theme: "#2F6B3E", background: "#ffffff" },
   netball: { theme: "#2E7FB8", background: "#ffffff" },
+  rugby_league: { theme: "#2F6B3E", background: "#ffffff" },
 } as const;
 
 // Force per-request rendering so middleware's x-brand header is read

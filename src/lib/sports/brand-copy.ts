@@ -477,6 +477,11 @@ const NETBALL_COPY: BrandCopy = {
 const COPY: Record<SportId, BrandCopy> = {
   afl: AFL_COPY,
   netball: NETBALL_COPY,
+  // Rugby league ships under the existing Siren brand in v1 — no
+  // dedicated marketing site or screenshots yet. Reusing AFL_COPY keeps
+  // the marketing surface coherent until the future brand phase
+  // introduces sirenleague.com.au with its own copy + imagery.
+  rugby_league: AFL_COPY,
 };
 
 export function getBrandCopy(id: SportId): BrandCopy {

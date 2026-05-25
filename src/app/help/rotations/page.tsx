@@ -152,6 +152,72 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in rugby league</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Junior rugby league has FOUR distinct rotation mechanics that all
+          ride on the same live-game UI. Siren enforces each one so the
+          coach can&apos;t accidentally break a law.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Player rotation</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Rolling subs, same model as football. Tap a player on the field
+          then tap a bench player to swap them. The fairness engine surfaces
+          a suggestion when the sub interval ticks down.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Vested-role rotation (FR / DH)</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Junior Laws §12: the First Receiver wears a yellow vest at U8+;
+          the Dummy Half wears a pink vest at U9+. Both must rotate each
+          period and{" "}
+          <strong className="text-ink">no player wears the same vest
+          twice in a game</strong>. The vest card surfaces at the start of
+          each period and disables players who&apos;ve already had a turn.
+          An <strong className="text-ink">Replace</strong> affordance covers
+          the laws&apos; injury carve-out (the vest can pass to a
+          replacement for the rest of that period only).
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Goal-kick rotation</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Junior Laws §15: once a player has kicked at goal, they
+          can&apos;t kick again until everyone on the field at the time has
+          had a turn. After a try, the conversion dialog disables players
+          who&apos;ve already kicked this cycle and resets the rotation
+          once everyone&apos;s had a turn. A boot badge sits on each
+          on-field tile so you can see who&apos;s already kicked at a
+          glance, even before opening the dialog. The{" "}
+          <strong className="text-ink">Force</strong> toggle covers the
+          fouled-in-act-of-scoring carve-out.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Kickoff rotation</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Junior Laws §16: at the start of each period, every player on the
+          squad must have kicked off at least once before anyone takes a
+          second turn. The kickoff prompt surfaces at the start of each
+          period and disables players who&apos;ve already had a turn this
+          game. A small &quot;K&quot; chip on the player tile marks anyone
+          who&apos;s kicked off so far.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Unbroken-period coverage</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Junior Laws §6: every player must play at least{" "}
+          <strong className="text-ink">two unbroken quarters</strong>{" "}
+          (U6–U9) or <strong className="text-ink">one unbroken half</strong>{" "}
+          (U10–U12). &quot;Unbroken&quot; means on the field continuously
+          from period kickoff to hooter — no swaps off. The live screen
+          surfaces an at-risk panel with two buckets:
+          <em> players still owed an unbroken period</em>, and{" "}
+          <em>players currently on track this period — don&apos;t sub off</em>.
+          The post-game stats highlight any shortfalls so you can plan next
+          week&apos;s rotations accordingly.
+        </p>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Player tiles and badges</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Each player tile shows:

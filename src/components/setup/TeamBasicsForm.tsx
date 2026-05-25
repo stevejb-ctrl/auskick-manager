@@ -29,9 +29,19 @@ export function TeamBasicsForm({
   const [sport, setSport] = useState<Sport>(defaultSport);
   const cfg = useMemo(() => getSportConfig(sport), [sport]);
 
-  // Default age group per sport: AFL U10 (existing default); netball "go".
-  const defaultAgeFor = (s: Sport) =>
-    s === "afl" ? "U10" : "go";
+  // Default age group per sport. Each default is a "common entry"
+  // rather than the first id in the catalog — most clubs start at
+  // U10 for AFL and rugby league, and at NetSetGO "go" for netball.
+  const defaultAgeFor = (s: Sport) => {
+    switch (s) {
+      case "afl":
+        return "U10";
+      case "netball":
+        return "go";
+      case "rugby_league":
+        return "U10";
+    }
+  };
 
   const [name, setName] = useState("");
   const [ageGroup, setAgeGroup] = useState<string>(defaultAgeFor(sport));
@@ -70,7 +80,12 @@ export function TeamBasicsForm({
       {!lockSport && (
         <div className="space-y-1">
           <Label>Sport</Label>
-          <div className="grid grid-cols-2 gap-2">
+          {/*
+            One column on phones — three pills stacked is the most
+            scannable shape on a thumb. Switch to 3-up at sm+ so an
+            iPad / browser shows the field of choices at a glance.
+          */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <SportPill
               active={sport === "afl"}
               onClick={() => handleSportChange("afl")}
@@ -83,7 +98,14 @@ export function TeamBasicsForm({
               onClick={() => handleSportChange("netball")}
               disabled={isPending}
               title="Junior Netball"
-              subtitle="Manage subs, rotations (3 zones, 7 positions), scoring and more."
+              subtitle="Set–Open. Manage subs, rotations (3 zones, 7 positions), scoring and more."
+            />
+            <SportPill
+              active={sport === "rugby_league"}
+              onClick={() => handleSportChange("rugby_league")}
+              disabled={isPending}
+              title="Junior Rugby League"
+              subtitle="U6–U12. Manage subs, vest + kick rotations, scoring and more."
             />
           </div>
         </div>
@@ -96,7 +118,13 @@ export function TeamBasicsForm({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={sport === "afl" ? "e.g. Kingsway Roos" : "e.g. Kingsway Flyers"}
+          placeholder={
+            sport === "afl"
+              ? "e.g. Kingsway Roos"
+              : sport === "netball"
+              ? "e.g. Kingsway Flyers"
+              : "e.g. Kingsway Tigers"
+          }
           error={error ?? undefined}
           disabled={isPending}
           autoFocus
@@ -135,9 +163,9 @@ export function TeamBasicsForm({
 }
 
 // ─── Sport pill ──────────────────────────────────────────────
-// Radio-ish button with title + one-line capsule. Two only (AFL +
-// netball) so a simple 2-column grid is enough — revisit when rugby
-// lands.
+// Radio-ish button with title + one-line capsule. The parent wraps
+// these in a responsive 1-up (mobile) / 3-up (sm+) grid so all three
+// sports — AFL, Netball, Rugby League — are scannable at a glance.
 function SportPill({
   active,
   onClick,

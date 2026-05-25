@@ -88,15 +88,34 @@ export async function setAvailability(
 
   // Any team member — admin, game_manager, or parent — may toggle
   // availability. Parents are trusted to RSVP for their team.
-  // Fill-in add/remove and live-game ops stay admin/game_manager via
-  // their own authorizeManager calls below. Cached lookup.
+  // Super-admins bypass the membership check entirely so they can
+  // manage availability across every team without joining as
+  // members. Steve 2026-05-19: the availability toggle was stuck
+  // in a loading state because the super-admin didn't have a
+  // team_memberships row, so the action kept returning
+  // `{success: false, error: "Not authorised."}` and the write
+  // queue retried forever.
   const membership = await getMembership(auth.teamId, userId);
-
-  if (!membership) {
+  let isAuthorised = !!membership;
+  if (!isAuthorised) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_super_admin")
+      .eq("id", userId)
+      .maybeSingle<{ is_super_admin: boolean | null }>();
+    if (profile?.is_super_admin) isAuthorised = true;
+  }
+  if (!isAuthorised) {
     return { success: false, error: "Not authorised." };
   }
 
-  const { error } = await supabase.from("game_availability").upsert(
+  // Super-admins without team membership can't satisfy the RLS
+  // INSERT WITH CHECK on `game_availability` (which requires
+  // `updated_by` to be a member of the team). Use the admin client
+  // to bypass RLS when the caller is super-admin — auth was
+  // verified server-side above, so the admin escape is safe.
+  const writer = membership ? supabase : createAdminClient();
+  const { error } = await writer.from("game_availability").upsert(
     {
       game_id: gameId,
       player_id: playerId,

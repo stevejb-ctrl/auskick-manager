@@ -24,6 +24,8 @@ import {
 import type { GameSnapshot, Season } from "@/lib/dashboard/types";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
+import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
+import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { netballSport, getEffectiveQuarterSeconds } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 
@@ -131,6 +133,37 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     const arr = eventsByGame.get(ev.game_id) ?? [];
     arr.push(ev);
     eventsByGame.set(ev.game_id, arr);
+  }
+
+  // ─── Rugby league branch ──────────────────────────────────
+  // Junior RL stats are shaped by the laws: tries (4) + conversions
+  // (2), FR/DH vest history, kickoff rotation, and §6 unbroken-
+  // period compliance. The shared aggregator pipes through the
+  // same replay engines the live UI uses so live ↔ post-game
+  // numbers stay consistent.
+  if (sport === "rugby_league") {
+    const eventsByGameRecord: Record<string, GameEvent[]> = {};
+    eventsByGame.forEach((evs, gid) => {
+      eventsByGameRecord[gid] = evs;
+    });
+    const aggregate = aggregateLeagueSeasonFromGames(
+      seasonGames,
+      eventsByGameRecord,
+      sport,
+      team.age_group,
+    );
+    const playerNames: Record<string, string> = Object.fromEntries(
+      players.map((p) => [p.id, p.full_name]),
+    );
+    return (
+      <LeagueDashboardShell
+        seasons={seasons}
+        selectedYear={selectedYear}
+        playerNames={playerNames}
+        aggregate={aggregate}
+        totalGames={seasonGames.length}
+      />
+    );
   }
 
   // ─── Netball branch ───────────────────────────────────────

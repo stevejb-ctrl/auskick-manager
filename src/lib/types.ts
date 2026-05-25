@@ -82,7 +82,7 @@ export type AgeGroup =
 export type PositionModel = "zones3" | "positions5";
 
 /** Sport identifier stored on Team. Drives SportConfig lookup. */
-export type Sport = "afl" | "netball";
+export type Sport = "afl" | "netball" | "rugby_league";
 
 export interface Team {
   id: string;
@@ -271,7 +271,26 @@ export type GameEventType =
   | "roster_shrink"
   // Netball: subs only happen at period breaks, so we emit a single
   // lineup-snapshot event per break instead of per-player `swap`s.
-  | "period_break_swap";
+  | "period_break_swap"
+  // Rugby league scoring (try = 4, conversion = 2, opp variants).
+  // conversion_attempt metadata: { made: boolean, force?: boolean, tryEventId?: string }.
+  | "try"
+  | "opponent_try"
+  | "conversion_attempt"
+  | "opponent_conversion"
+  // Rugby league rotations. Junior Laws §15 (goal-kick) and §16 (kickoff)
+  // both rotate per-team; junior Laws §12 vests rotate per-period with
+  // a "no vest worn twice in one match" rule. All three are derived by
+  // replaying the event log — no separate state table.
+  | "kickoff_taken"
+  | "vest_assigned"
+  // Rugby league forward↔back position swap during live play. The
+  // coach long-presses a player tile and picks "Move to backs" /
+  // "Move to forwards"; we emit this event with metadata
+  // { to_zone: "forward" | "back" }. The replayer moves the player
+  // between the lineup.forwards and lineup.backs buckets without
+  // changing field membership. Single-player (no paired swap).
+  | "league_position_change";
 
 export interface Lineup {
   back: string[];
@@ -308,6 +327,54 @@ export function normalizeLineup(l: Partial<Lineup> | null | undefined): Lineup {
 
 export function emptyLineup(): Lineup {
   return { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
+}
+
+// ─── Rugby league lineup ─────────────────────────────────────
+// Two on-field buckets — forwards and backs — plus a bench. The
+// forward/back split is optional but coaches who lean on it get a
+// chip-driven auto-suggester that keeps forwards-with-forwards and
+// backs-with-backs. Vested roles (FR / DH) are still tracked
+// separately via vest_assigned events; a vest wearer is either a
+// forward or a back depending on which pool they sit in.
+//
+// Migration note: the original RL shape was `{ field, bench }`. We
+// keep `normalizeLeagueLineup` permissive so any legacy `field`
+// payloads collapse into `forwards` (best-guess), keeping replay of
+// old draft rows alive during the position-aware rollout.
+export interface LeagueLineup {
+  forwards: string[];
+  backs: string[];
+  bench: string[];
+}
+
+export type LeagueZone = "forward" | "back";
+
+export function emptyLeagueLineup(): LeagueLineup {
+  return { forwards: [], backs: [], bench: [] };
+}
+
+export function normalizeLeagueLineup(
+  l: Partial<LeagueLineup> | (Partial<LeagueLineup> & { field?: string[] }) | null | undefined,
+): LeagueLineup {
+  const legacyField = (l as { field?: string[] } | null | undefined)?.field;
+  // Pre-zone payloads stored everyone in `field`. Migrate by stuffing
+  // them all into `forwards` — the coach can rebalance from the
+  // picker. Without this fallback, a draft saved before the zone
+  // rollout would lose its on-field players.
+  return {
+    forwards: l?.forwards
+      ? [...l.forwards]
+      : legacyField
+        ? [...legacyField]
+        : [],
+    backs: l?.backs ? [...l.backs] : [],
+    bench: l?.bench ? [...l.bench] : [],
+  };
+}
+
+/** All on-field player ids (forwards + backs), in display order. */
+export function leagueOnField(lineup: LeagueLineup): string[] {
+  return [...lineup.forwards, ...lineup.backs];
 }
 
 export interface GameEvent {

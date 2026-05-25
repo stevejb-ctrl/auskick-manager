@@ -49,8 +49,9 @@ interface LiveAdminUtilityRowProps {
    * Optional extra action(s) rendered in the same row alongside
    * Late-arrival + Reset. Composed by the caller so sport-specific
    * affordances don't have to be plumbed through this shared shell.
-   * Steve 2026-05-20: AFL passes `<LiveGameSettingsButton>` here;
-   * netball passes nothing (no sub-interval concept).
+   * Steve 2026-05-20: AFL passes `<LiveGameSettingsButton>`,
+   * rugby league passes `<LeagueGameSettingsButton>`; netball
+   * passes nothing (no sub-interval concept).
    *
    * When `extra` is the ONLY thing renderable (no late candidates,
    * not admin), the row still mounts so the extra slot can surface.
@@ -70,8 +71,8 @@ export function LiveAdminUtilityRow({
   const showLate = candidates.length > 0;
   // Row mounts whenever ANY slot has content — extra now joins
   // late-candidates and isAdmin in the "is there anything to show"
-  // gate so the AFL Game-settings button surfaces even on a
-  // non-admin / no-late-arrivals render.
+  // gate so the Game-settings button (AFL or RL) surfaces even on
+  // a non-admin / no-late-arrivals render.
   if (!showLate && !isAdmin && !extra) return null;
   return (
     <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">

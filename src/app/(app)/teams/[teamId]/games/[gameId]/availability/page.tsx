@@ -52,7 +52,17 @@ export default async function AvailabilityPage({
         .single(),
     ]);
 
-  if (!game) notFound();
+  if (!game) {
+    // RLS denies reads to non-members, so a logged-in user landing
+    // on someone else's deep-link gets `game = null` — same outcome
+    // as a truly missing row. For authenticated users bounce to
+    // dashboard so they can pick a team they actually belong to;
+    // unauthenticated callers still get the 404 (don't leak whether
+    // the row exists). Steve 2026-05-19: post-login UX, super-admin
+    // landed on a Not Found page after re-auth.
+    if (user) redirect("/dashboard");
+    notFound();
+  }
 
   const g = game as Game;
 
