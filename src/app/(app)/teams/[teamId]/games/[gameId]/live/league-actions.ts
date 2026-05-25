@@ -917,17 +917,130 @@ export async function assignLeagueVest(
   );
 }
 
+// ─── Mid-game enforce_unbroken_periods toggle ────────────────
+// Per-game override for the Junior League §6 unbroken-period rule.
+// Updates games.enforce_unbroken_periods for THIS game only. The
+// team-level default lives on teams.enforce_unbroken_periods and
+// is updated via setEnforceUnbrokenPeriods in games/actions.ts.
+export async function setLeagueEnforceUnbrokenPeriods(
+  auth: LiveAuth,
+  gameId: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  const writer = await resolveWriter(auth, gameId);
+  if (writer.error) return { success: false, error: writer.error };
+  const { error: updateError } = await writer.supabase
+    .from("games")
+    .update({ enforce_unbroken_periods: enabled })
+    .eq("id", gameId);
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+  revalidatePath(`/teams/${writer.teamId}/games/${gameId}/live`);
+  return { success: true };
+}
+
+// ─── Mid-game on-field size change ───────────────────────────
+// Mirrors AFL's `setOnFieldSizeMidGame`. Two paths:
+//
+//   GROW  (newSize > current): only updates games.on_field_size.
+//         Empty slots appear on the RL field; the coach drags
+//         bench players in via the existing swap UI.
+//
+//   SHRINK (newSize < current): writes a `roster_shrink` event
+//         carrying the chosen `remove_player_ids` (so the RL
+//         replay can close each player's stint and push them to
+//         bench) AND updates games.on_field_size.
+//
+// The RL replay (fairness.ts) handles `roster_shrink` by removing
+// the listed players from forwards/backs and pushing them to bench.
+export async function setLeagueOnFieldSizeMidGame(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    newSize: number;
+    removePlayerIds: string[];
+    quarter: number;
+    elapsedMs: number;
+  },
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const { value: clampedSize, min, max } = await clampOnFieldSize(
+    w.supabase,
+    w.teamId,
+    input.newSize,
+  );
+
+  if (Math.floor(input.newSize) < min || Math.floor(input.newSize) > max) {
+    return {
+      success: false,
+      error: `On-field size must be between ${min} and ${max} for this age group.`,
+    };
+  }
+
+  const { data: gameRow, error: readErr } = await w.supabase
+    .from("games")
+    .select("on_field_size")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (readErr) return { success: false, error: readErr.message };
+  if (!gameRow) return { success: false, error: "Game not found." };
+  const currentSize = (gameRow as { on_field_size: number }).on_field_size;
+
+  // No-op guard — avoids a redundant write + revalidate flash.
+  if (clampedSize === currentSize && input.removePlayerIds.length === 0) {
+    return { success: true };
+  }
+
+  const sizeDelta = currentSize - clampedSize;
+  if (sizeDelta > 0) {
+    // Shrink: validate remove list length, then write the event.
+    // Event must land BEFORE the games row update so the RL replay
+    // sees the stint-close at the correct elapsed_ms.
+    if (input.removePlayerIds.length !== sizeDelta) {
+      return {
+        success: false,
+        error: `Expected ${sizeDelta} player(s) to remove, got ${input.removePlayerIds.length}.`,
+      };
+    }
+    const evRes = await insertEvent(auth, gameId, "roster_shrink", {
+      player_id: null,
+      metadata: {
+        remove_player_ids: input.removePlayerIds,
+        new_size: clampedSize,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsedMs,
+      },
+    });
+    if (!evRes.success) return evRes;
+  } else if (input.removePlayerIds.length > 0) {
+    return {
+      success: false,
+      error: "Cannot remove players when growing the field size.",
+    };
+  }
+
+  const { error: updErr } = await w.supabase
+    .from("games")
+    .update({ on_field_size: clampedSize })
+    .eq("id", gameId);
+  if (updErr) return { success: false, error: updErr.message };
+
+  invalidateSeasonEvents(w.teamId);
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
 // ─── Mid-game sub-interval override ──────────────────────────
 // Updates games.sub_interval_seconds for THIS game only — leaves
 // the team default untouched. Drives the SubDueModal cadence on
 // the next router.refresh().
-//
-// Steve 2026-05-20: AFL has the same mid-game knob in
-// LiveGameSettingsButton; this is the RL parity for the sub-
-// interval slice of that affordance. Mid-game on-field-size
-// shrink (the other half of the AFL modal) depends on main's
-// roster_shrink event migration — deferred to the post-merge
-// follow-up.
 //
 // Bounds: 30..600 seconds (30s minimum because anything tighter
 // is a spam vector; 600s = 10 min cap because longer than that

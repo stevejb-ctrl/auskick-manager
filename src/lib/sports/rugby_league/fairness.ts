@@ -385,6 +385,31 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         break;
       }
 
+      case "roster_shrink": {
+        // Mid-game on-field count reduction driven by the coach
+        // tapping "Players on field" → decreasing the number in
+        // Game Settings. Each player in `remove_player_ids` is
+        // moved from forwards/backs to bench — mirrors AFL's
+        // `roster_shrink` semantics. The games.on_field_size row
+        // is updated by the same server action that wrote this
+        // event; the RL field UI re-renders empty slots to match
+        // the new cap on the next router.refresh().
+        if (!state.lineup) break;
+        const shrinkMeta = meta as { remove_player_ids?: string[] };
+        const removeIds = shrinkMeta.remove_player_ids ?? [];
+        if (removeIds.length === 0) break;
+        let fwd = state.lineup.forwards.slice();
+        let bks = state.lineup.backs.slice();
+        const bnch = state.lineup.bench.slice();
+        for (const pid of removeIds) {
+          fwd = fwd.filter((p) => p !== pid);
+          bks = bks.filter((p) => p !== pid);
+          if (!bnch.includes(pid)) bnch.push(pid);
+        }
+        state.lineup = { forwards: fwd, backs: bks, bench: bnch };
+        break;
+      }
+
       default:
         // Ignore unknown event types — keeps the replay forward-
         // compatible if a future phase introduces RL events that
