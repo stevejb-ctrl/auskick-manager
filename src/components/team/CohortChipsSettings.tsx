@@ -261,9 +261,12 @@ export function CohortChipsSettings({
       </p>
 
       {/* Top mode selector — a 3-button segmented radio so the choice
-          reads as primary, not a hidden checkbox. Disabled state
-          covers non-admin viewers. */}
-      <fieldset className="mt-3" disabled={!isAdmin || isPending}>
+          reads as primary, not a hidden checkbox. Disabled state covers
+          non-admin viewers and (for the explicit-save flow only) while a
+          save transition is in-flight. In onboarding (hideSaveButton) the
+          auto-save is a silent background debounce — disabling the inputs
+          during it makes the card feel broken, so we skip it there. */}
+      <fieldset className="mt-3" disabled={!isAdmin || (isPending && !hideSaveButton)}>
         <legend className="sr-only">Chip configuration mode</legend>
         <div
           role="radiogroup"
@@ -320,6 +323,7 @@ export function CohortChipsSettings({
           setModes={setModes}
           isPending={isPending}
           isAdmin={isAdmin}
+          hideSaveButton={hideSaveButton}
           visibleKeys={visibleChipKeys}
         />
       )}
@@ -440,6 +444,13 @@ interface CustomChipGridProps {
   isPending: boolean;
   isAdmin: boolean;
   /**
+   * Mirror of the parent's `hideSaveButton`. When true, saves are
+   * silent background auto-saves and inputs must NOT be locked while
+   * `isPending` — that causes the flash-unselectable bug. Steve
+   * 2026-05-25.
+   */
+  hideSaveButton: boolean;
+  /**
    * Which chip keys to render. AFL + netball pass all three (A/B/C);
    * rugby league passes [A, B] only because chip-C is dead UI on a
    * 2-zone sport. Steve 2026-05-23.
@@ -454,8 +465,13 @@ function CustomChipGrid({
   setModes,
   isPending,
   isAdmin,
+  hideSaveButton,
   visibleKeys,
 }: CustomChipGridProps) {
+  // In onboarding (hideSaveButton) the save is a silent background
+  // debounce — the user must never feel it. Disable inputs only when
+  // the explicit Save button is present and a transition is in-flight.
+  const inputDisabled = !isAdmin || (isPending && !hideSaveButton);
   // 2-col grid when chip-C is hidden — keeps visible chips
   // balanced rather than orphaning chip-B in a 3-col grid with
   // one missing cell.
@@ -479,7 +495,7 @@ function CustomChipGrid({
               setLabels((prev) => ({ ...prev, [k]: e.target.value }))
             }
             placeholder="Optional label"
-            disabled={isPending || !isAdmin}
+            disabled={inputDisabled}
             maxLength={32}
           />
           <div>
@@ -495,7 +511,7 @@ function CustomChipGrid({
                   [k]: e.target.value as ChipMode,
                 }))
               }
-              disabled={isPending || !isAdmin}
+              disabled={inputDisabled}
               className="w-full rounded-md border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
             >
               {CUSTOM_CHIP_MODES.map((m) => (
