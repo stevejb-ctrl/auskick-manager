@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -828,6 +829,13 @@ export function LeagueLineupPicker({
     }
   }
 
+  // Two-step kickoff mirrors AFL's LineupPicker (Steve 2026-05-13):
+  // tapping "Ready for Q1/H1" opens StartQuarterModal in-place — only
+  // the modal's "Start" button writes lineup_set + quarter_start to the
+  // server. "Back to lineup" dismisses the modal cleanly with zero
+  // server state changed.
+  const [startModalOpen, setStartModalOpen] = useState(false);
+
   function handleStartGame() {
     if (fieldIds.length === 0) {
       setError("Pick at least one player for the field.");
@@ -863,6 +871,11 @@ export function LeagueLineupPicker({
       window.scrollTo({ top: 0, behavior: "auto" });
     }
     setError(null);
+    setStartModalOpen(true);
+  }
+
+  function handleConfirmStart() {
+    setError(null);
     // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
       const result = await startLeagueGame(
@@ -876,6 +889,7 @@ export function LeagueLineupPicker({
       );
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
+        setStartModalOpen(false);
       }
     });
   }
@@ -1350,6 +1364,25 @@ export function LeagueLineupPicker({
           onToggleBench={handleActionToggleBench}
           isOnField={actionIsOnField}
           onClose={() => setActionSheetPlayerId(null)}
+        />
+      )}
+
+      {/* Two-step kickoff modal — mirrors AFL's LineupPicker. Opens
+          on "Ready for Q1/H1", the modal's primary button is what
+          actually commits lineup_set + quarter_start. Period label
+          tracks the age group (U6–U9 quarters, U10+ halves). */}
+      {startModalOpen && (
+        <StartQuarterModal
+          quarter={1}
+          periodLabel={
+            (ageGroup.periodLabel ?? "quarter") as
+              | "quarter"
+              | "half"
+              | "period"
+          }
+          loading={isPending}
+          onStart={handleConfirmStart}
+          onCancel={() => setStartModalOpen(false)}
         />
       )}
 
