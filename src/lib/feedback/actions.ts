@@ -127,9 +127,21 @@ export async function submitFeedback(
   }
 
   // ─── 4. Insert ─────────────────────────────────────────────────
-  const { data: inserted, error: insertError } = await supabase
+  // Pre-generate the row UUID server-side so we don't need to read it
+  // back. The RLS SELECT policy on `feedback` is super-admin-only —
+  // so an anonymous presales `.insert(...).select("id").single()`
+  // would have PostgREST run the INSERT successfully but be unable to
+  // return the new row (the implicit SELECT for return=representation
+  // is rejected by RLS for anon), surfacing as "no rows" → action
+  // wrongly reports failure to a user whose row may or may not have
+  // committed. Pre-generating sidesteps the read-back entirely and
+  // gives us a stable ID to use for the telegram_ok backfill below.
+  // Same pattern as `createTeam` in dashboard/actions.ts.
+  const insertId = crypto.randomUUID();
+  const { error: insertError } = await supabase
     .from("feedback")
     .insert({
+      id: insertId,
       kind: input.kind,
       user_id: userId,
       email,
@@ -137,11 +149,9 @@ export async function submitFeedback(
       message,
       user_agent: userAgent,
       app_version: appVersion,
-    })
-    .select("id")
-    .single();
+    });
 
-  if (insertError || !inserted) {
+  if (insertError) {
     console.error("[submitFeedback] insert failed", insertError);
     return {
       success: false,
@@ -216,7 +226,7 @@ export async function submitFeedback(
     await admin
       .from("feedback")
       .update({ telegram_ok: telegramOk })
-      .eq("id", inserted.id);
+      .eq("id", insertId);
   } catch (err) {
     console.warn(
       "[submitFeedback] telegram_ok backfill skipped",
