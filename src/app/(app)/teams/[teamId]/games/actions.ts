@@ -49,9 +49,21 @@ export async function createGame(
     return { success: false, error: "Date and time are required." };
   }
 
-  const { data: game, error: insertError } = await supabase
+  // Pre-generate the row UUID server-side so we don't need an
+  // `.insert(...).select("id").single()` read-back. Even though
+  // `games`' SELECT policy permits team members today (so the
+  // read-back currently works), the pattern is fragile — any
+  // future tightening would silently break game creation by
+  // returning "no rows" → `single()` reports an error even
+  // though the INSERT succeeded. Same defensive pattern as
+  // `createTeam` (dashboard/actions.ts) and `submitFeedback`
+  // (feedback/actions.ts). See 0002_games_availability.sql for
+  // the historical comment that flagged this.
+  const gameId = crypto.randomUUID();
+  const { error: insertError } = await supabase
     .from("games")
     .insert({
+      id: gameId,
       team_id: teamId,
       opponent: input.opponent.trim(),
       scheduled_at: input.scheduled_at,
@@ -60,12 +72,10 @@ export async function createGame(
       notes: input.notes?.trim() || null,
       on_field_size: input.on_field_size ?? 12,
       created_by: user.id,
-    })
-    .select("id")
-    .single();
+    });
 
-  if (insertError || !game) {
-    return { success: false, error: insertError?.message ?? "Failed to create game." };
+  if (insertError) {
+    return { success: false, error: insertError.message };
   }
 
   // Default: all active players are "available". Coach un-selects
@@ -74,13 +84,13 @@ export async function createGame(
   // game-creation path enforces the same convention.
   await seedDefaultAvailability({
     supabase,
-    gameId: game.id,
+    gameId,
     teamId,
     createdBy: user.id,
   });
 
   revalidatePath(`/teams/${teamId}/games`);
-  redirect(`/teams/${teamId}/games/${game.id}`);
+  redirect(`/teams/${teamId}/games/${gameId}`);
 }
 
 export async function setTrackScoring(

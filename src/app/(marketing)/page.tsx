@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Hero } from "@/components/marketing/Hero";
+import { MultiSportSection } from "@/components/marketing/MultiSportSection";
 import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
@@ -51,6 +52,15 @@ export default async function Home() {
           dead code once Build 2+ replaces every Build 1 install. */}
       <NativeMarketingBounce />
       <Hero />
+      {/* Multi-sport section — interactive pill picker + dark "See
+          Siren in X mode" card with field SVG. Steve 2026-05-25:
+          turns the AFL-only homepage into a cross-sport showcase so
+          netball / league prospects don't bounce off thinking
+          Siren's only for footy. State is purely client-side; the
+          hero above still anchors on the brand resolved from host
+          (sirenfooty.com.au → AFL hero, sirennetball.com.au →
+          netball hero). */}
+      <MultiSportSection />
       <TrustBand />
       <ScrollingFeatures
         features={copy.features}

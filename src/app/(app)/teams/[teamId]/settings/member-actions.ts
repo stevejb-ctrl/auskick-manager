@@ -80,21 +80,29 @@ export async function createInvite(
     return { success: false, error: "Please use a valid email address." };
   }
 
-  const { data, error: insertError } = await supabase
+  // Pre-gen both id and token so we don't need a read-back. Both
+  // columns default to `gen_random_uuid()` server-side; the client
+  // is free to generate any UUID and the server accepts it. Avoids
+  // the `.insert().select().single()` trap where a future RLS
+  // tightening on `team_invites` would silently fail the read-back.
+  // Same defensive pattern as createTeam / submitFeedback.
+  const inviteId = crypto.randomUUID();
+  const token = crypto.randomUUID();
+  const { error: insertError } = await supabase
     .from("team_invites")
     .insert({
+      id: inviteId,
+      token,
       team_id: teamId,
       role,
       invited_email: trimmedEmail,
       created_by: user.id,
-    })
-    .select("id, token")
-    .single();
+    });
 
   if (insertError) return { success: false, error: insertError.message };
 
   revalidatePath(`/teams/${teamId}/settings`);
-  return { success: true, token: data?.token, inviteId: data?.id };
+  return { success: true, token, inviteId };
 }
 
 /**

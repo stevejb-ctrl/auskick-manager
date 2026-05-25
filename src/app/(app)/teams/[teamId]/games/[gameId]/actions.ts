@@ -155,17 +155,22 @@ export async function addFillIn(
   const check = await authorizeManager(auth, gameId);
   if (!check.ok) return { success: false, error: check.error };
 
+  // Pre-gen the UUID so we don't need `.select().single()` after
+  // the insert. Token-auth path uses the admin client (RLS-bypass)
+  // so it would never hit the read-back trap, but team-auth path
+  // goes through RLS — same defensive pattern as createTeam keeps
+  // both branches uniform and future-proof against policy changes.
+  const fillInId = crypto.randomUUID();
   const db = check.kind === "token" ? createAdminClient() : createClient();
-  const { data, error } = await db
+  const { error } = await db
     .from("game_fill_ins")
     .insert({
+      id: fillInId,
       game_id: gameId,
       full_name: name,
       jersey_number: jersey,
       created_by: check.kind === "team" ? check.userId : null,
-    })
-    .select("id")
-    .single();
+    });
   if (error) return { success: false, error: error.message };
 
   // Fill-ins are implicitly available for the day — they only exist
@@ -186,7 +191,7 @@ export async function addFillIn(
     revalidatePath(`/teams/${check.teamId}/games/${gameId}/availability`);
     revalidatePath(`/teams/${check.teamId}/games/${gameId}/live`);
   }
-  return { success: true, data: { id: data.id } };
+  return { success: true, data: { id: fillInId } };
 }
 
 export async function removeFillIn(

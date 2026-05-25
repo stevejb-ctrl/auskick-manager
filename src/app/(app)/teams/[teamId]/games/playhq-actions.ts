@@ -162,9 +162,15 @@ export async function importPlayhqFixtures(
       if (updateErr) continue;
       updated++;
     } else {
-      const { data: newGame, error: insertErr } = await supabase
+      // Pre-gen UUID instead of `.insert().select().single()` so a
+      // future RLS tightening on `games` can't silently break the
+      // PlayHQ importer. Same defensive pattern as createTeam /
+      // submitFeedback / createGame.
+      const newGameId = crypto.randomUUID();
+      const { error: insertErr } = await supabase
         .from("games")
         .insert({
+          id: newGameId,
           team_id: teamId,
           opponent: f.opponent,
           scheduled_at: f.scheduledAt,
@@ -176,13 +182,11 @@ export async function importPlayhqFixtures(
           external_source: "playhq",
           external_id: f.externalId,
           created_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (insertErr || !newGame) continue;
+        });
+      if (insertErr) continue;
       await seedDefaultAvailability({
         supabase,
-        gameId: newGame.id,
+        gameId: newGameId,
         teamId,
         createdBy: user.id,
       });

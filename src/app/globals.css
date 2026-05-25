@@ -283,3 +283,32 @@ html[data-motion="reduce"] *::after {
     font-size: 16px;
   }
 }
+
+/* ─── Multi-sport homepage: field cross-fade keyframes ─────────────
+   Used by SeeSirenInModeCard to swap field SVGs when the user picks
+   a different sport in the SportPicker. Defined here (not in
+   tailwind.config) because the keyframes are scoped to one
+   component pair and keeping the Tailwind theme lean matters more
+   than the marginal benefit of a `animate-siren-field-*` utility.
+
+   Cross-fade choreography (per multi-sport handoff):
+     - Previous field: opacity 1 → 0 over 240ms ease-out
+     - New field: opacity 0 → 1 over 240ms ease-out, starting 100ms
+       after the previous begins to fade
+     - Total switch time: ~380ms
+     - The discontinuity (oval ↔ rectangle ↔ court) IS the point —
+       no path-morphing.
+
+   Reduced-motion users get the final state instantly via the
+   `motion-safe:` modifier the consumers apply, plus the
+   `motion-reduce:opacity-100` fallback on the active layer.
+   ───────────────────────────────────────────────────────────────── */
+@keyframes sirenFieldFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes sirenFieldFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
