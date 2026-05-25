@@ -27,18 +27,18 @@ interface FeedbackFabProps {
 const COPY = {
   feedback: {
     heading: "How are we doing?",
-    subhead: "Bug, request, or just a thought — Steve reads everything.",
+    subhead: "Bug, request, or just a thought. We read everything.",
     messagePlaceholder:
       "What's working? What's not? Anything that surprised you?",
     submitLabel: "Send feedback",
-    thanksHeading: "Thanks, Steve has it.",
+    thanksHeading: "Thanks, we have it.",
     fabAriaLabel: "Send feedback",
   },
   presales: {
     heading: "Got a question?",
     subhead: "We'll get back to you ASAP.",
     messagePlaceholder:
-      "Ask anything — pricing, supported sports, how the live game flow works…",
+      "Ask anything: pricing, supported sports, how the live game flow works…",
     submitLabel: "Send question",
     thanksHeading: "Thanks, we'll be in touch.",
     fabAriaLabel: "Ask a question",

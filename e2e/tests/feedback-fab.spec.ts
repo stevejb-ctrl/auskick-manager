@@ -72,7 +72,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
     await page.getByLabel(/^message$/i).fill(message);
     await page.getByRole("button", { name: /send feedback/i }).click();
 
-    await expect(page.getByText(/thanks, steve has it/i)).toBeVisible({
+    await expect(page.getByText(/thanks, we have it/i)).toBeVisible({
       timeout: 5_000,
     });
 
@@ -247,7 +247,7 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
     await page.getByLabel(/^message$/i).fill(message);
     await page.getByRole("button", { name: /send feedback/i }).click();
 
-    await expect(page.getByText(/thanks, steve has it/i)).toBeVisible({
+    await expect(page.getByText(/thanks, we have it/i)).toBeVisible({
       timeout: 5_000,
     });
 
