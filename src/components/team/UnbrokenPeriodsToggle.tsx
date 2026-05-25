@@ -60,7 +60,7 @@ export function UnbrokenPeriodsToggle({
           (U6–U9) or{" "}
           <strong className="text-ink">one full unbroken half</strong>{" "}
           (U10–U12) each game — without being subbed out during that period.
-          When on, the sub-rotation planner avoids breaking a player's
+          When on, the sub-rotation planner avoids breaking a player&apos;s
           unbroken run. Off by default.
         </p>
         {error && (
