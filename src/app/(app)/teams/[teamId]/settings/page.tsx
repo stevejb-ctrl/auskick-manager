@@ -5,6 +5,7 @@ import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
+import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import {
@@ -30,7 +31,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     user
@@ -137,6 +138,20 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           as the source of truth — no override needed — and uses
           its own interchange flow that doesn't read these
           columns. */}
+      {/* Rugby-league-only: unbroken-period enforcement toggle.
+          §6 Junior Laws — each player must play two full unbroken
+          quarters (U6–U9) or one full half (U10–U12). Off by default
+          for casual comps; coaches whose league enforces it flip once
+          and all games for the team plan with the rule respected. */}
+      {sport === "rugby_league" && (
+        <UnbrokenPeriodsToggle
+          teamId={params.teamId}
+          initialEnabled={
+            (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+          }
+          isAdmin={isAdmin}
+        />
+      )}
       {sport === "netball" && (() => {
         const ageGroup = getAgeGroupConfig(
           sport,

@@ -198,6 +198,33 @@ export async function setGameAllowMidQuarterSubs(
   return { success: true };
 }
 
+/**
+ * Team-level default for the Junior Rugby League §6 unbroken-period
+ * enforcement rule. Off by default — many casual competitions don't
+ * enforce it strictly. When on, this becomes the standing preference
+ * for new games created for this team, and coaches can still override
+ * per-game via the in-game Game Settings sheet.
+ *
+ * Mirror of `setAllowMidQuarterSubs` — same shape, same admin guard.
+ */
+export async function setEnforceUnbrokenPeriods(
+  teamId: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ enforce_unbroken_periods: enabled })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
 export async function updateGame(
   teamId: string,
   gameId: string,
