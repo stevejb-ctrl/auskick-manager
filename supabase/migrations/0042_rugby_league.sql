@@ -99,6 +99,10 @@ alter table public.game_events
     'player_loan',
     -- Netball period-break rotation
     'period_break_swap',
+    -- Mid-quarter roster shrink (added in 0040, included here so a
+    -- DB with existing roster_shrink rows doesn't fail the constraint
+    -- re-add. See 0044 for the hotfix that landed in prod.)
+    'roster_shrink',
     -- Rugby league scoring
     'try',
     'opponent_try',
