@@ -75,7 +75,7 @@ export function formatFeedbackMessage(input: {
   // ping (already-paying coach) vs a presales question (prospect on
   // the marketing site). Both share the same body shape — message
   // first because that's what Steve reads, metadata lines below.
-  // Backed by the feedback table (migration 0042) so the message is
+  // Backed by the feedback table (migration 0045) so the message is
   // safe even if the Telegram delivery later fails.
   const { kind, message, email, pageUrl, userLabel, time } = input;
   const header =

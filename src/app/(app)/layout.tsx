@@ -56,7 +56,7 @@ export default async function AppLayout({
           (the prop's own default) so the floating button doesn't
           steal screen real estate during a game — same path-hide
           convention as AppHeaderShell. Submissions land in the
-          `feedback` table (migration 0042) AND Telegram-ping
+          `feedback` table (migration 0045) AND Telegram-ping
           Steve. */}
       <FeedbackFab kind="feedback" />
       {/* App-bar header.

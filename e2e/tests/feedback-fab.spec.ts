@@ -20,7 +20,7 @@
 //         + src/components/feedback/FeedbackFab.tsx
 //         + mount in src/app/(app)/layout.tsx
 //         + mount in src/app/(marketing)/layout.tsx
-//         + migration 0042_feedback.sql
+//         + migration 0045_feedback.sql
 
 import { test, expect } from "@playwright/test";
 import {
