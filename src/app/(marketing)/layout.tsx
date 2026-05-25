@@ -1,6 +1,7 @@
 import { MarketingBanner } from "@/components/marketing/MarketingBanner";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 
 // Dedicated marketing shell. Pages under (marketing)/ share the
 // banner + header + footer chrome here so the authenticated app
@@ -25,6 +26,12 @@ export default function MarketingLayout({
       <MarketingHeader />
       {children}
       <MarketingFooter />
+      {/* Always-visible presales FAB. Marketing has no /live screens,
+          so explicit empty array — self-documenting that the FAB
+          should show on every marketing route (homepage, contact,
+          help index, policy pages). Submissions are anonymous;
+          server action requires a typed email so Steve can reply. */}
+      <FeedbackFab kind="presales" hiddenOnPathSuffixes={[]} />
     </div>
   );
 }

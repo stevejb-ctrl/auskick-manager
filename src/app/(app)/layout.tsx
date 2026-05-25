@@ -8,6 +8,7 @@ import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
+import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 
 export default async function AppLayout({
   children,
@@ -51,6 +52,13 @@ export default async function AppLayout({
           root so it applies to every authenticated surface. P2-10
           in .planning/MICRO-INTERACTIONS-PLAN.md. */}
       <MotionPreferenceBridge />
+      {/* Always-visible feedback FAB. Hidden on /live by default
+          (the prop's own default) so the floating button doesn't
+          steal screen real estate during a game — same path-hide
+          convention as AppHeaderShell. Submissions land in the
+          `feedback` table (migration 0042) AND Telegram-ping
+          Steve. */}
+      <FeedbackFab kind="feedback" />
       {/* App-bar header.
 
           z-20: the netball court's PositionToken wrappers use z-10
