@@ -177,8 +177,8 @@ export function chipPalette(key: ChipKey, mode?: ChipMode): ChipPalette {
  * custom configurator. The Forward-Centre-Back ordering is
  * fixed (matches the field render: top of screen → bottom).
  *
- * Rugby League uses its OWN preset (Forward / Back, chip-C unused)
- * — see CohortChipsSettings for the RL-specific render path.
+ * Rugby League uses its OWN preset (Forward / Back, chip-C
+ * cleared) — see `RUGBY_LEAGUE_POSITION_LINKED_PRESET` below.
  */
 export const POSITION_LINKED_PRESET: {
   labels: Record<ChipKey, string>;
@@ -205,5 +205,41 @@ export function isPositionLinkedChipConfig(
     modes.a === POSITION_LINKED_PRESET.modes.a &&
     modes.b === POSITION_LINKED_PRESET.modes.b &&
     modes.c === POSITION_LINKED_PRESET.modes.c
+  );
+}
+
+/**
+ * Rugby-league-specific position-linked preset. RL plays two
+ * zones (Forwards + Backs), not three — so the preset uses
+ * chip A→Forward, chip B→Back, and CLEARS chip C (null label
+ * + split mode). The settings UI for RL hides the chip-C row
+ * entirely; this preset matches what the DB column should look
+ * like after a save in that mode. Steve 2026-05-23.
+ */
+export const RUGBY_LEAGUE_POSITION_LINKED_PRESET: {
+  labels: Record<ChipKey, string | null>;
+  modes: Record<ChipKey, ChipMode>;
+} = {
+  labels: { a: "Forward", b: "Back", c: null },
+  modes: { a: "forward", b: "back", c: "split" },
+};
+
+/**
+ * True iff the team's chip configuration matches the rugby-
+ * league position-linked preset (Forward / Back labels with
+ * matching forward / back modes; chip C must be cleared).
+ * Mirrors `isPositionLinkedChipConfig` for the 2-zone sport.
+ */
+export function isRugbyLeaguePositionLinkedChipConfig(
+  labels: { a: string | null; b: string | null; c: string | null },
+  modes: { a: ChipMode; b: ChipMode; c: ChipMode },
+): boolean {
+  return (
+    labels.a === RUGBY_LEAGUE_POSITION_LINKED_PRESET.labels.a
+    && labels.b === RUGBY_LEAGUE_POSITION_LINKED_PRESET.labels.b
+    && (labels.c === null || labels.c === "")
+    && modes.a === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.a
+    && modes.b === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.b
+    && modes.c === RUGBY_LEAGUE_POSITION_LINKED_PRESET.modes.c
   );
 }

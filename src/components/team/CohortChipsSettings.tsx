@@ -10,8 +10,10 @@ import {
   CHIP_MODE_LABEL,
   CUSTOM_CHIP_MODES,
   POSITION_LINKED_PRESET,
+  RUGBY_LEAGUE_POSITION_LINKED_PRESET,
   isChipZoneMode,
   isPositionLinkedChipConfig,
+  isRugbyLeaguePositionLinkedChipConfig,
   type ChipKey,
   type ChipMode,
 } from "@/lib/chips";
@@ -25,10 +27,13 @@ interface CohortChipsSettingsProps {
   /**
    * Sport — drives the AFL-specific recommendation note. Netball
    * doesn't have an equivalent mandatory-rotation rule so the
-   * U10-/U11+ guidance isn't shown for netball teams. Optional —
+   * U10-/U11+ guidance isn't shown for netball teams. Rugby
+   * league has 2 zones (Forwards + Backs) — chip-C is dead UI for
+   * RL and the position-linked recommendation note is AFL-only,
+   * so the recommendation paragraph hides for RL too. Optional —
    * defaults to "afl" so legacy callers keep the existing copy.
    */
-  sport?: "afl" | "netball";
+  sport?: "afl" | "netball" | "rugby_league";
   /**
    * The team's age_group id. Used to surface an age-appropriate
    * recommendation only when Linked-to-positions is selected: AFL
@@ -95,9 +100,28 @@ export function CohortChipsSettings({
   ageGroup = null,
   hideSaveButton = false,
 }: CohortChipsSettingsProps) {
+  // Rugby League uses its OWN 2-zone preset (Forward / Back; chip
+  // C cleared). Pick the right detector + preset for the sport so
+  // first-paint mode detection AND the payload-build path both
+  // round-trip the team's existing config cleanly.
+  const isRl = sport === "rugby_league";
   const initialIsLinked = useMemo(
-    () => isPositionLinkedChipConfig(initialLabels, initialModes),
-    [initialLabels, initialModes],
+    () =>
+      isRl
+        ? isRugbyLeaguePositionLinkedChipConfig(initialLabels, initialModes)
+        : isPositionLinkedChipConfig(initialLabels, initialModes),
+    [isRl, initialLabels, initialModes],
+  );
+  // Which chip keys this sport actually surfaces. RL has 2 (A=Fwd,
+  // B=Back); AFL + netball have all 3 (A/B/C). Drives the Custom
+  // grid + the Position-linked summary so chip-C doesn't render as
+  // dead UI on a 2-zone sport.
+  const visibleChipKeys = useMemo<readonly ChipKey[]>(
+    () =>
+      isRl
+        ? (CHIP_KEYS.filter((k) => k !== "c") as readonly ChipKey[])
+        : CHIP_KEYS,
+    [isRl],
   );
 
   // Top toggle state. Initialized from the existing chip data so a
@@ -150,24 +174,35 @@ export function CohortChipsSettings({
       };
     }
     if (mode === "positions") {
+      // RL writes the 2-zone preset (Forward / Back, chip C
+      // cleared); AFL + netball write the canonical 3-zone preset
+      // (Forward / Centre / Back).
+      const preset = isRl
+        ? RUGBY_LEAGUE_POSITION_LINKED_PRESET
+        : POSITION_LINKED_PRESET;
       return {
-        chip_a_label: POSITION_LINKED_PRESET.labels.a,
-        chip_b_label: POSITION_LINKED_PRESET.labels.b,
-        chip_c_label: POSITION_LINKED_PRESET.labels.c,
-        chip_a_mode: POSITION_LINKED_PRESET.modes.a,
-        chip_b_mode: POSITION_LINKED_PRESET.modes.b,
-        chip_c_mode: POSITION_LINKED_PRESET.modes.c,
+        chip_a_label: preset.labels.a,
+        chip_b_label: preset.labels.b,
+        chip_c_label: preset.labels.c,
+        chip_a_mode: preset.modes.a,
+        chip_b_mode: preset.modes.b,
+        chip_c_mode: preset.modes.c,
       };
     }
+    // Custom mode. For RL, chip C is hidden in the UI but its row
+    // on the team table still gets written — clear it (label null,
+    // mode "split") so saving from Custom doesn't leave stale chip
+    // C data from a previous Linked-to-positions visit. AFL +
+    // netball write whatever's in local state.
     return {
       chip_a_label: labels.a?.trim() || null,
       chip_b_label: labels.b?.trim() || null,
-      chip_c_label: labels.c?.trim() || null,
+      chip_c_label: isRl ? null : labels.c?.trim() || null,
       chip_a_mode: modes.a,
       chip_b_mode: modes.b,
-      chip_c_mode: modes.c,
+      chip_c_mode: isRl ? "split" : modes.c,
     };
-  }, [mode, labels, modes]);
+  }, [mode, labels, modes, isRl]);
 
   const dirty = useMemo(() => {
     const saved = lastSavedPayloadRef.current;
@@ -276,7 +311,7 @@ export function CohortChipsSettings({
       {mode === "off" ? (
         <OffModeSummary />
       ) : mode === "positions" ? (
-        <PositionLinkedSummary />
+        <PositionLinkedSummary visibleKeys={visibleChipKeys} isRl={isRl} />
       ) : (
         <CustomChipGrid
           labels={labels}
@@ -285,6 +320,7 @@ export function CohortChipsSettings({
           setModes={setModes}
           isPending={isPending}
           isAdmin={isAdmin}
+          visibleKeys={visibleChipKeys}
         />
       )}
 
@@ -349,14 +385,30 @@ function OffModeSummary() {
 }
 
 // ─── Position-linked summary ─────────────────────────────────
-// Read-only preview of the canonical Forward / Centre / Back
-// preset. Saving from this state writes the preset to the team.
-function PositionLinkedSummary() {
+// Read-only preview of the canonical position-linked preset.
+// Saving from this state writes the preset to the team.
+//   * AFL + netball: Forward / Centre / Back (3 chips)
+//   * Rugby league: Forward / Back (chip C cleared, hidden)
+function PositionLinkedSummary({
+  visibleKeys,
+  isRl,
+}: {
+  visibleKeys: readonly ChipKey[];
+  isRl: boolean;
+}) {
+  const preset = isRl
+    ? RUGBY_LEAGUE_POSITION_LINKED_PRESET
+    : POSITION_LINKED_PRESET;
+  // 2-col when chip-C is hidden (RL), 3-col otherwise. Keeps the
+  // visible chips visually balanced rather than orphaning chip-B
+  // in a 3-col grid with one missing cell.
+  const gridCols = visibleKeys.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
   return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-      {(CHIP_KEYS as readonly ChipKey[]).map((k) => {
-        const label = POSITION_LINKED_PRESET.labels[k];
-        const chipMode = POSITION_LINKED_PRESET.modes[k];
+    <div className={`mt-3 grid gap-2 ${gridCols}`}>
+      {visibleKeys.map((k) => {
+        const label = preset.labels[k];
+        const chipMode = preset.modes[k];
+        if (!label) return null;
         return (
           <div
             key={k}
@@ -387,6 +439,12 @@ interface CustomChipGridProps {
   ) => void;
   isPending: boolean;
   isAdmin: boolean;
+  /**
+   * Which chip keys to render. AFL + netball pass all three (A/B/C);
+   * rugby league passes [A, B] only because chip-C is dead UI on a
+   * 2-zone sport. Steve 2026-05-23.
+   */
+  visibleKeys: readonly ChipKey[];
 }
 
 function CustomChipGrid({
@@ -396,10 +454,16 @@ function CustomChipGrid({
   setModes,
   isPending,
   isAdmin,
+  visibleKeys,
 }: CustomChipGridProps) {
+  // 2-col grid when chip-C is hidden — keeps visible chips
+  // balanced rather than orphaning chip-B in a 3-col grid with
+  // one missing cell.
+  const gridCols
+    = visibleKeys.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
   return (
-    <div className="mt-3 grid gap-4 sm:grid-cols-3">
-      {CHIP_KEYS.map((k) => (
+    <div className={`mt-3 grid gap-4 ${gridCols}`}>
+      {visibleKeys.map((k) => (
         <div
           key={k}
           className="space-y-2 rounded-md border border-hairline bg-surface-alt p-3"
