@@ -17,6 +17,13 @@ interface StartQuarterModalProps {
    * with zero server state changed.
    */
   onCancel?: () => void;
+  /**
+   * Period word — "quarter" (default, AFL/netball) or "half"
+   * (RL U10–U12). First letter uppercased becomes the abbreviation
+   * used in the heading + button ("Q" or "H"). Matches the same
+   * prop on `ManualEndQuarterConfirm` so both modals stay in sync.
+   */
+  periodLabel?: "quarter" | "half" | "period";
 }
 
 export function StartQuarterModal({
@@ -24,18 +31,20 @@ export function StartQuarterModal({
   loading,
   onStart,
   onCancel,
+  periodLabel = "quarter",
 }: StartQuarterModalProps) {
+  const abbr = periodLabel.charAt(0).toUpperCase();
   return (
     <Modal>
       <h2 className="text-center text-lg font-bold text-ink">
-        Ready for Q{quarter}
+        Ready for {abbr}{quarter}
       </h2>
       <p className="mt-1 text-center text-sm text-ink-dim">
         Tap when the hooter goes.
       </p>
       <div className="mt-4 space-y-2">
         <Button className="w-full" size="lg" onClick={onStart} loading={loading}>
-          Start Q{quarter}
+          Start {abbr}{quarter}
         </Button>
         {onCancel && (
           <Button

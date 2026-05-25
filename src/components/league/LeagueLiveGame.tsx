@@ -14,6 +14,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -103,6 +104,14 @@ export function LeagueLiveGame({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [endQConfirmOpen, setEndQConfirmOpen] = useState(false);
+  /**
+   * "Ready for H/Q{n}" confirmation step — shown when the coach taps
+   * the quarter-break "Ready for {period}" button. Mirrors AFL's
+   * `StartQuarterModal` pattern: the coach confirms by tapping "Start
+   * {H|Q}{n}" when the hooter goes. Closing without confirming returns
+   * to the quarter-break view with zero server state changed.
+   */
+  const [startPeriodConfirmOpen, setStartPeriodConfirmOpen] = useState(false);
   const [subAckedAtBaseMs, setSubAckedAtBaseMs] = useState<number | null>(
     null,
   );
@@ -1283,7 +1292,7 @@ export function LeagueLiveGame({
             <strong>{state.opponentScore.points}</strong>.
           </p>
           <SFButton
-            onClick={handleStartNextPeriod}
+            onClick={() => setStartPeriodConfirmOpen(true)}
             disabled={pending}
             variant="accent"
             size="lg"
@@ -1501,6 +1510,23 @@ export function LeagueLiveGame({
               )
               : undefined
           }
+        />
+      )}
+
+      {/* "Ready for H/Q{n}" confirmation — mirrors AFL's StartQuarterModal.
+          Opens when the coach taps the quarter-break CTA. The coach
+          confirms by tapping "Start {H|Q}{n}" when the hooter goes.
+          Cancelling returns to the break view with no server writes. */}
+      {startPeriodConfirmOpen && (
+        <StartQuarterModal
+          quarter={state.currentQuarter + 1}
+          periodLabel={periodLabel as "quarter" | "half" | "period"}
+          loading={pending}
+          onStart={() => {
+            setStartPeriodConfirmOpen(false);
+            void handleStartNextPeriod();
+          }}
+          onCancel={() => setStartPeriodConfirmOpen(false)}
         />
       )}
 
