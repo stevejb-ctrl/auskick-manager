@@ -225,6 +225,33 @@ export async function setEnforceUnbrokenPeriods(
   return { success: true };
 }
 
+/**
+ * Team-level default for the rugby-league zone-time tracking bar (AFL
+ * F/C/B equivalent, with FR / DH vest time mapped to "centre"). Off by
+ * default — only useful for teams that actually rotate the vests. When
+ * on, this becomes the standing preference for new games and coaches
+ * can still flip it per-game via the in-game Game Settings sheet.
+ *
+ * Mirror of `setEnforceUnbrokenPeriods` — same shape, same admin guard.
+ */
+export async function setTrackZoneTime(
+  teamId: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ track_zone_time: enabled })
+    .eq("id", teamId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
 export async function updateGame(
   teamId: string,
   gameId: string,

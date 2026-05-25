@@ -228,6 +228,16 @@ export interface Game {
    */
   enforce_unbroken_periods?: boolean;
   /**
+   * Rugby-league only. When true, every LeaguePlayerTile renders the
+   * AFL-style F/C/B stacked time bar showing the share of game time
+   * each player spent in forwards / centre / backs. "Centre" maps to
+   * time wearing the FR or DH vest (no native centre zone in junior
+   * RL). Editable per-game via Game Settings; team-level default
+   * lives on `teams.track_zone_time`.
+   * Optional: column added in migration 0047; defaults to false.
+   */
+  track_zone_time?: boolean;
+  /**
    * Per-game override for quarter duration in seconds. NULL =
    * inherit the team default (which itself may fall back to the
    * age-group default). Set at game start so a single week's

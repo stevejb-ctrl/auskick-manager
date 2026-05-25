@@ -6,6 +6,7 @@ import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
+import { TrackZoneTimeToggle } from "@/components/team/TrackZoneTimeToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import {
@@ -31,7 +32,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     user
@@ -148,6 +149,18 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           teamId={params.teamId}
           initialEnabled={
             (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+          }
+          isAdmin={isAdmin}
+        />
+      )}
+      {/* Rugby-league-only: zone-time tracking bar (AFL F/C/B
+          equivalent, with FR / DH vest time mapped to "centre").
+          Off by default. */}
+      {sport === "rugby_league" && (
+        <TrackZoneTimeToggle
+          teamId={params.teamId}
+          initialEnabled={
+            (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
           }
           isAdmin={isAdmin}
         />
