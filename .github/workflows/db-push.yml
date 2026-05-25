@@ -57,7 +57,18 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        # --include-all surfaces any migrations the CLI would otherwise
-        # treat as "out of order" (we don't squash, so older numbers can
-        # appear after newer ones during merges).
-        run: supabase db push --include-all
+        # Plain `db push` only applies migrations that aren't yet in
+        # supabase_migrations.schema_migrations on the remote. We
+        # deliberately do NOT pass --include-all: that flag re-applies
+        # everything, which blows up the first time you run the workflow
+        # on a project whose earlier history was applied manually via
+        # the SQL editor (the schema exists but schema_migrations
+        # doesn't know about it, so re-applying ALTER TABLE fails with
+        # "column already exists").
+        #
+        # Prod's schema_migrations was rebuilt on 2026-05-25 via the
+        # Supabase MCP server — 0035–0044 backfilled, 0042 + 0043 + 0045
+        # freshly applied so all three were registered too. The drift
+        # that caused PR #146's first push to bomb out is gone; this
+        # workflow now operates on a clean history.
+        run: supabase db push
