@@ -2,6 +2,7 @@
 
 import { CONTACT_FROM, CONTACT_TO, getResend } from "@/lib/resend";
 import { EMAIL_RE } from "@/lib/email/validate";
+import { trimTo } from "@/lib/strings";
 import type { ActionResult } from "@/lib/types";
 
 const NAME_MAX = 100;
@@ -18,11 +19,6 @@ export interface ContactFormInput {
   // Honeypot — real humans leave this blank. Bots fill every field.
   // We silently succeed without sending when it's non-empty.
   website?: string;
-}
-
-function trimTo(value: unknown, max: number): string {
-  if (typeof value !== "string") return "";
-  return value.trim().slice(0, max);
 }
 
 // Escape HTML so user content can't smuggle markup into the email body.

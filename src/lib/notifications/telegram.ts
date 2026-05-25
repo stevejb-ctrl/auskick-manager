@@ -62,8 +62,53 @@ export function formatGameStartedMessage(input: {
   ].join("\n");
 }
 
-export async function sendTelegramNotification(text: string): Promise<void> {
-  if (!TOKEN || !CHAT_ID) return;
+export function formatFeedbackMessage(input: {
+  kind: "feedback" | "presales";
+  message: string;
+  email: string | null;
+  pageUrl: string | null;
+  userLabel: string;
+  time: string;
+}): string {
+  // Two prompts feed one Telegram surface, distinguished by header so
+  // Steve's eye knows immediately whether a tap is a product-feedback
+  // ping (already-paying coach) vs a presales question (prospect on
+  // the marketing site). Both share the same body shape — message
+  // first because that's what Steve reads, metadata lines below.
+  // Backed by the feedback table (migration 0042) so the message is
+  // safe even if the Telegram delivery later fails.
+  const { kind, message, email, pageUrl, userLabel, time } = input;
+  const header =
+    kind === "feedback"
+      ? "💬 <b>New product feedback</b>"
+      : "❓ <b>New presales question</b>";
+  const lines = [
+    header,
+    "",
+    escapeHtml(message),
+    "",
+    `From: ${escapeHtml(userLabel)}`,
+  ];
+  if (email) lines.push(`Email: ${escapeHtml(email)}`);
+  if (pageUrl) lines.push(`Page: ${escapeHtml(pageUrl)}`);
+  lines.push(`Time: ${time}`);
+  return lines.join("\n");
+}
+
+/**
+ * Sends `text` to the admin Telegram chat. Returns `true` if Telegram
+ * responded 2xx, `false` if delivery failed, missing env vars, or the
+ * fetch threw. Never rejects — callers that don't care about the
+ * outcome can keep the existing `sendTelegramNotification(text).catch(
+ * () => {})` shape; widening `void` to `boolean` is backwards-
+ * compatible because the discarded value just becomes `undefined`
+ * from the caller's perspective.
+ *
+ * Used by feedback/actions.ts to backfill `feedback.telegram_ok` so
+ * a future inbox view can flag deliveries Steve never received.
+ */
+export async function sendTelegramNotification(text: string): Promise<boolean> {
+  if (!TOKEN || !CHAT_ID) return false;
 
   try {
     const res = await fetch(
@@ -76,8 +121,11 @@ export async function sendTelegramNotification(text: string): Promise<void> {
     );
     if (!res.ok) {
       console.error("[telegram] sendMessage failed", res.status, await res.text());
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("[telegram] sendMessage threw", err);
+    return false;
   }
 }
