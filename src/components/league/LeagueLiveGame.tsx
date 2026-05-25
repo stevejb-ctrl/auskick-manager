@@ -61,6 +61,12 @@ interface LeagueLiveGameProps {
   subIntervalSeconds: number | null;
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */
   trackScoring: boolean;
+  /**
+   * Whether the §6 unbroken-period rule is enforced for this game.
+   * Stored on games.enforce_unbroken_periods; the team default lives
+   * on teams.enforce_unbroken_periods. Both start false (off).
+   */
+  enforceUnbrokenPeriods: boolean;
   state: LeagueGameState;
   thisGameEvents: GameEvent[];
   /**
@@ -93,6 +99,7 @@ export function LeagueLiveGame({
   periodSeconds,
   subIntervalSeconds,
   trackScoring,
+  enforceUnbrokenPeriods,
   state,
   thisGameEvents,
   seasonEvents,
@@ -1378,16 +1385,21 @@ export function LeagueLiveGame({
         auth={auth}
         gameId={game.id}
         extra={
-          // Mid-game sub-interval override. Hidden when the team
-          // never configured a sub interval (null) — the team
-          // default would be the surface to change in that case.
-          // Restricted to admins so a parent / shared-link viewer
-          // can't change the rotation cadence mid-game.
-          subIntervalSeconds != null && isAdmin ? (
+          // Game settings sheet: sub interval, players on field,
+          // unbroken-period rule. Always shown for admins — mirrors
+          // AFL which always shows LiveGameSettingsButton.
+          isAdmin ? (
             <LeagueGameSettingsButton
               auth={auth}
               gameId={game.id}
-              subIntervalSeconds={subIntervalSeconds}
+              subIntervalSeconds={subIntervalSeconds ?? 300}
+              currentOnFieldSize={game.on_field_size}
+              minOnFieldSize={ageGroup.minOnFieldSize}
+              maxOnFieldSize={ageGroup.maxOnFieldSize}
+              onFieldPlayers={fieldPlayers}
+              enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+              currentQuarter={state.currentQuarter}
+              elapsedMs={elapsedMs}
             />
           ) : null
         }

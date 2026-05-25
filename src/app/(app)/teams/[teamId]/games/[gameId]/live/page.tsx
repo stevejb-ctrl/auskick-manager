@@ -319,6 +319,9 @@ export default async function LivePage({ params }: LivePageProps) {
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
           trackScoring={trackScoring}
+          enforceUnbrokenPeriods={
+            (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+          }
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
