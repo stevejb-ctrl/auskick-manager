@@ -40,14 +40,15 @@ export function ScoringStep({
   initialChipLabels = { a: null, b: null, c: null },
   initialChipModes = { a: "split", b: "split", c: "split" },
 }: ScoringStepProps) {
-  // Rugby league has zero coach discretion on the scoring rule:
-  // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
-  // with tries + conversions tracked. createTeam pre-flips
-  // track_scoring to match, so this step has nothing to toggle —
-  // we just explain what's happening and move on. AFL and netball
-  // keep the explicit toggle below.
+  // Rugby league turns scoring on by default at every age group —
+  // even tag (U6/U7) where there's no official scoreboard but
+  // coaches still want to log tries for end-of-season stats.
+  // Conversions are only surfaced when kicking is allowed (U8+);
+  // U6/U7 tag has tries only. createTeam pre-flips track_scoring
+  // to match, so this step has nothing to toggle — we just explain
+  // what's happening. AFL and netball keep the explicit toggle.
   const isRugbyLeague = sportId === "rugby_league";
-  const rlScoringOn = isRugbyLeague && ageGroup.tracksScoreDefault === true;
+  const rlKickingAllowed = isRugbyLeague && ageGroup.kickingAllowed === true;
 
   const blurb =
     sportId === "netball" ? (
@@ -61,7 +62,7 @@ export function ScoringStep({
         .
       </>
     ) : isRugbyLeague ? (
-      rlScoringOn ? (
+      rlKickingAllowed ? (
         <>
           {ageGroup.label} plays modified tackle, so tries (4 points) and
           conversions (2 points) are tracked automatically. The live screen
@@ -70,10 +71,10 @@ export function ScoringStep({
         </>
       ) : (
         <>
-          {ageGroup.label} is tag rugby — the laws ban scoring at this age.
-          No scoreboard, no conversions. The live screen will hide the
-          scoring buttons. Move up an age group from Settings if you
-          switch to modified tackle.
+          {ageGroup.label} is tag rugby — no kicking, so conversions are
+          off. Tries are still tracked so you can celebrate the scorers
+          and pull season stats later. Toggle scoring off in Settings if
+          you&apos;d rather not record them.
         </>
       )
     ) : (

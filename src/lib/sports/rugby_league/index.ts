@@ -93,8 +93,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     periodCount: 4,
     periodSeconds: QUARTER_PERIOD_SECONDS,
     subIntervalSeconds: QUARTER_SUB_INTERVAL,
-    tracksScoreDefault: false,
-    notes: "League Tag — no tackling, no kicking, no scoring tracked. 4 × 8-min quarters.",
+    // Junior Law says no official scoreboard at U6/U7 (tag), but
+    // coaches universally still track tries informally for kid
+    // morale / end-of-season stats. Default ON; the toggle stays
+    // available in Settings if a coach really wants it off. No
+    // conversions because tag has no kicking (kickingAllowed:
+    // false hides the conversion UI).
+    tracksScoreDefault: true,
+    notes: "League Tag — no tackling, no kicking. Tries tracked for stats; conversions disabled (no kicking).",
     periodLabel: "quarter",
     periodLabelPlural: "quarters",
     kickingAllowed: false,
@@ -116,8 +122,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     periodCount: 4,
     periodSeconds: QUARTER_PERIOD_SECONDS,
     subIntervalSeconds: QUARTER_SUB_INTERVAL,
-    tracksScoreDefault: false,
-    notes: "Tag rugby, transitioning to tackle via TackleReady program. No kicking, no scoring tracked.",
+    // Same rationale as U6 — tag rugby has no official scoreboard,
+    // but coaches still want to log who scored.
+    tracksScoreDefault: true,
+    notes: "Tag rugby, transitioning to tackle via TackleReady. Tries tracked for stats; conversions disabled (no kicking).",
     periodLabel: "quarter",
     periodLabelPlural: "quarters",
     kickingAllowed: false,
