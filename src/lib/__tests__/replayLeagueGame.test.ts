@@ -262,7 +262,13 @@ describe("replayLeagueGame — auxiliary events", () => {
     expect(state.lineup?.bench).toEqual(["p2"]);
   });
 
-  it("injury removes the player from field or bench", () => {
+  it("injury is a flag only — keeps the player in their slot (replacement comes via a following swap)", () => {
+    // Steve 2026-05-24: behaviour changed to match AFL —
+    // `markInjury` no longer mutates the lineup; the orchestrator
+    // enqueues a `swap` alongside the injury event when a
+    // replacement is picked. Test pins the new contract: with no
+    // following swap, p1 stays in their forwards slot (and renders
+    // with an INJ badge via the orchestrator-derived injuredIds).
     reset();
     const state = replayLeagueGame([
       ev("lineup_set", {
@@ -270,7 +276,7 @@ describe("replayLeagueGame — auxiliary events", () => {
       }),
       ev("injury", {}, "p1"),
     ]);
-    expect(onField(state)).toEqual(["p2"]);
+    expect(onField(state)).toEqual(["p1", "p2"]);
     expect(state.lineup?.bench).toEqual(["p3"]);
   });
 
