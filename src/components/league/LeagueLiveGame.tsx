@@ -45,6 +45,7 @@ import {
 } from "@/lib/sports/rugby_league/kicks";
 import {
   playerMsOnField,
+  playerZoneMsOnField,
   suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -67,6 +68,13 @@ interface LeagueLiveGameProps {
    * on teams.enforce_unbroken_periods. Both start false (off).
    */
   enforceUnbrokenPeriods: boolean;
+  /**
+   * Whether the AFL-style F/C/B time bar renders on every player
+   * tile (centre = time wearing FR or DH vest). Stored on
+   * games.track_zone_time; team default on teams.track_zone_time.
+   * Both start false (off).
+   */
+  trackZoneTime: boolean;
   state: LeagueGameState;
   thisGameEvents: GameEvent[];
   /**
@@ -100,6 +108,7 @@ export function LeagueLiveGame({
   subIntervalSeconds,
   trackScoring,
   enforceUnbrokenPeriods,
+  trackZoneTime,
   state,
   thisGameEvents,
   seasonEvents,
@@ -334,6 +343,16 @@ export function LeagueLiveGame({
   const totalMsByPlayer = useMemo(
     () => playerMsOnField(thisGameEvents, state.currentQuarter, elapsedMs),
     [thisGameEvents, state.currentQuarter, elapsedMs],
+  );
+  // F/C/B time split — only computed when the game has track_zone_time
+  // on, so teams that don't use the bar pay zero cost per clock tick.
+  // Passing undefined to the tiles when off hides the bar entirely.
+  const zoneMsByPlayer = useMemo(
+    () =>
+      trackZoneTime
+        ? playerZoneMsOnField(thisGameEvents, state.currentQuarter, elapsedMs)
+        : undefined,
+    [trackZoneTime, thisGameEvents, state.currentQuarter, elapsedMs],
   );
   const kickingAllowed = ageGroup.kickingAllowed === true;
   const kickoffNeededForPeriod
@@ -1215,6 +1234,7 @@ export function LeagueLiveGame({
             vestRequirements={ageGroup.vestRequirements}
             triesByPlayer={state.playerTries}
             totalMsByPlayer={totalMsByPlayer}
+            zoneMsByPlayer={zoneMsByPlayer}
             vestByPlayer={vestByPlayer}
             conversionByPlayer={conversionByPlayer}
             kickoffTakerIds={kickoffTakerIds}
@@ -1242,6 +1262,7 @@ export function LeagueLiveGame({
             players={benchPlayers}
             triesByPlayer={state.playerTries}
             totalMsByPlayer={totalMsByPlayer}
+            zoneMsByPlayer={zoneMsByPlayer}
             vestByPlayer={vestByPlayer}
             conversionByPlayer={conversionByPlayer}
             kickoffTakerIds={kickoffTakerIds}
@@ -1398,6 +1419,7 @@ export function LeagueLiveGame({
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
               enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+              trackZoneTime={trackZoneTime}
               currentQuarter={state.currentQuarter}
               elapsedMs={elapsedMs}
             />

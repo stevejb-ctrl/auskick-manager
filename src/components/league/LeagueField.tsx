@@ -183,6 +183,10 @@ interface LeagueFieldProps {
   vestRequirements?: { fr: boolean; dh: boolean };
   triesByPlayer?: Record<string, number>;
   totalMsByPlayer?: Record<string, number>;
+  /** Opt-in: per-player F/C/B time split — drives the stacked time
+   *  bar at the bottom of each tile. Pass undefined to hide the bar
+   *  entirely (default). */
+  zoneMsByPlayer?: Record<string, import("@/lib/sports/rugby_league/fairness").LeagueZoneMs>;
   vestByPlayer?: Record<string, VestType>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
@@ -248,6 +252,7 @@ export function LeagueField({
   vestRequirements,
   triesByPlayer,
   totalMsByPlayer,
+  zoneMsByPlayer,
   vestByPlayer,
   conversionByPlayer,
   kickoffTakerIds,
@@ -411,6 +416,7 @@ export function LeagueField({
                       variant="field"
                       tries={triesByPlayer?.[player.id] ?? 0}
                       totalMs={totalMsByPlayer?.[player.id]}
+                      zoneMs={zoneMsByPlayer?.[player.id]}
                       vest={vestByPlayer?.[player.id] ?? null}
                       conversion={conversionByPlayer?.[player.id] ?? null}
                       kickedOff={kickoffTakerIds?.has(player.id) ?? false}

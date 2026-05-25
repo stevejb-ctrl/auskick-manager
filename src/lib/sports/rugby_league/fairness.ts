@@ -1682,6 +1682,319 @@ export function playerMsOnField(
   return total;
 }
 
+// ─── Per-player zone-time accounting (forwards / centre / backs) ──
+// Optional F/C/B time accumulator for the AFL-style stacked bar that
+// renders on every LeaguePlayerTile when the team / game has
+// track_zone_time on.
+//
+// RL has no native "centre" zone — the field splits into forwards
+// and backs only — so the bar maps:
+//   * Time in `forwards` zone (not wearing a vest)  → forwards
+//   * Time in `backs` zone (not wearing a vest)     → backs
+//   * Time wearing the FR or DH vest (any zone)     → centre
+//
+// Vest semantics:
+//   * Each `vest_assigned` event names the period the vest applies to
+//     (metadata.period) and whether it's a normal assignment or a
+//     mid-period replacement (metadata.replacement). Vests do NOT
+//     survive across periods — every quarter_start resets to that
+//     period's plan.
+//   * Replacement events are rare (only fired on injury). For v1 the
+//     latest-by-created_at vest_assigned per (period, vest) defines
+//     the wearer for the whole period — slight under-credit for the
+//     original wearer of a replacement is acceptable noise.
+//   * Vests are accounted strictly while the player is on field.
+//
+// Output shape mirrors AFL's `ZoneMinutes` so the tile bar code can be
+// near-identical. Values are in milliseconds despite the legacy name.
+
+export interface LeagueZoneMs {
+  forwards: number;
+  centre: number;
+  backs: number;
+}
+
+export function playerZoneMsOnField(
+  events: GameEvent[],
+  currentQuarter: number,
+  currentElapsedMs: number,
+): Record<string, LeagueZoneMs> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const total: Record<string, LeagueZoneMs> = {};
+  const addMs = (pid: string, bucket: keyof LeagueZoneMs, ms: number) => {
+    if (ms <= 0) return;
+    const row = total[pid] ?? { forwards: 0, centre: 0, backs: 0 };
+    row[bucket] += ms;
+    total[pid] = row;
+  };
+
+  // Pre-walk to resolve the INITIAL wearer for each (period, vest) —
+  // last non-replacement event wins (matches how the planning UI lets
+  // a coach revise the plan up until kickoff). Replacement events are
+  // ignored here and handled inline during the main walk so the
+  // hand-off happens at the replacement's elapsed_ms.
+  const vestPlanByPeriod = new Map<
+    number,
+    { fr: string | null; dh: string | null }
+  >();
+  for (const ev of sorted) {
+    if (ev.type !== "vest_assigned") continue;
+    const meta = (ev.metadata ?? {}) as {
+      vest?: "fr" | "dh";
+      period?: number;
+      replacement?: boolean;
+    };
+    if (meta.replacement === true) continue;
+    if (typeof meta.period !== "number") continue;
+    if (meta.vest !== "fr" && meta.vest !== "dh") continue;
+    const row = vestPlanByPeriod.get(meta.period) ?? { fr: null, dh: null };
+    if (meta.vest === "fr") row.fr = ev.player_id ?? null;
+    else row.dh = ev.player_id ?? null;
+    vestPlanByPeriod.set(meta.period, row);
+  }
+
+  // Open-stint state. `zone` is "forward" | "back"; `vest` true when
+  // the player is currently wearing FR or DH. Players not in the map
+  // are currently off-field.
+  type Stint = {
+    startMs: number;
+    zone: "forward" | "back";
+    vest: boolean;
+  };
+  const openStint: Record<string, Stint> = {};
+  let activeQuarter: number | null = null;
+  let vestWearer: { fr: string | null; dh: string | null } = {
+    fr: null,
+    dh: null,
+  };
+  // Snapshot of the current lineup so we can compute zones for both
+  // quarter_start (seed all on-field players' stints) and swap (give
+  // the on-player the off-player's vacated zone).
+  let snapshot: LeagueLineup | null = null;
+
+  const closeStint = (pid: string, endMs: number) => {
+    const s = openStint[pid];
+    if (!s) return;
+    const dur = Math.max(0, endMs - s.startMs);
+    if (s.vest) addMs(pid, "centre", dur);
+    else if (s.zone === "forward") addMs(pid, "forwards", dur);
+    else addMs(pid, "backs", dur);
+    delete openStint[pid];
+  };
+
+  const zoneOfPid = (pid: string): "forward" | "back" => {
+    if (snapshot) {
+      if (snapshot.backs.includes(pid)) return "back";
+      if (snapshot.forwards.includes(pid)) return "forward";
+    }
+    return "forward";
+  };
+
+  for (const ev of sorted) {
+    const meta = (ev.metadata ?? {}) as {
+      lineup?: Partial<LeagueLineup>;
+      quarter?: number;
+      period?: number;
+      elapsed_ms?: number;
+      off_player_id?: string;
+      on_player_id?: string;
+      to_zone?: LeagueZone;
+      vest?: "fr" | "dh";
+      replacement?: boolean;
+    };
+    switch (ev.type) {
+      case "lineup_set": {
+        if (meta.lineup) snapshot = normalizeLeagueLineup(meta.lineup);
+        break;
+      }
+      case "quarter_start": {
+        // Defensive: close any open stints (should be empty after a
+        // clean quarter_end).
+        for (const pid of Object.keys(openStint)) closeStint(pid, 0);
+        activeQuarter
+          = typeof meta.quarter === "number"
+            ? meta.quarter
+            : (activeQuarter ?? 0) + 1;
+        vestWearer = vestPlanByPeriod.get(activeQuarter ?? 0) ?? {
+          fr: null,
+          dh: null,
+        };
+        if (snapshot) {
+          for (const pid of leagueOnField(snapshot)) {
+            const zone = zoneOfPid(pid);
+            const vest = pid === vestWearer.fr || pid === vestWearer.dh;
+            openStint[pid] = { startMs: 0, zone, vest };
+          }
+        }
+        break;
+      }
+      case "quarter_end": {
+        const endMs
+          = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        for (const pid of Object.keys(openStint)) closeStint(pid, endMs);
+        activeQuarter = null;
+        break;
+      }
+      case "swap": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        const off = meta.off_player_id;
+        const on = meta.on_player_id;
+        // Determine the off-player's zone BEFORE mutating the snapshot
+        // so the on-player inherits the vacated slot.
+        let offZone: "forward" | "back" = "forward";
+        if (off) {
+          offZone = zoneOfPid(off);
+          closeStint(off, at);
+        }
+        // Mirror the swap into snapshot (same rules as playerMsOnField).
+        if (snapshot && off && on) {
+          let forwards: string[] = snapshot.forwards.slice();
+          let backs: string[] = snapshot.backs.slice();
+          let bench: string[] = snapshot.bench.slice();
+          const fIdx = forwards.indexOf(off);
+          const bIdx = backs.indexOf(off);
+          if (bIdx >= 0) backs.splice(bIdx, 1);
+          else if (fIdx >= 0) forwards.splice(fIdx, 1);
+          if (!bench.includes(off)) bench.push(off);
+          const benchIdx = bench.indexOf(on);
+          if (benchIdx >= 0) bench.splice(benchIdx, 1);
+          forwards = forwards.filter((id) => id !== on);
+          backs = backs.filter((id) => id !== on);
+          if (offZone === "back") backs.push(on);
+          else forwards.push(on);
+          snapshot = { forwards, backs, bench };
+        }
+        if (on && openStint[on] === undefined) {
+          const vest = on === vestWearer.fr || on === vestWearer.dh;
+          openStint[on] = { startMs: at, zone: offZone, vest };
+        }
+        break;
+      }
+      case "league_position_change": {
+        // In-zone move (forward ↔ back) without leaving the field.
+        // Split the stint: close at this elapsed_ms in the OLD zone,
+        // reopen at the same instant in the NEW zone. Vest carries
+        // through.
+        const pid = ev.player_id;
+        const toZone = meta.to_zone;
+        if (!pid || (toZone !== "forward" && toZone !== "back")) break;
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        const prior = openStint[pid];
+        if (prior) {
+          closeStint(pid, at);
+          openStint[pid] = { startMs: at, zone: toZone, vest: prior.vest };
+        }
+        // Mirror into snapshot.
+        if (snapshot) {
+          const wasOnField
+            = snapshot.forwards.includes(pid) || snapshot.backs.includes(pid);
+          if (wasOnField) {
+            const nextForwards: string[] = snapshot.forwards.filter(
+              (p) => p !== pid,
+            );
+            const nextBacks: string[] = snapshot.backs.filter(
+              (p) => p !== pid,
+            );
+            if (toZone === "forward") nextForwards.push(pid);
+            else nextBacks.push(pid);
+            snapshot = {
+              forwards: nextForwards,
+              backs: nextBacks,
+              bench: snapshot.bench,
+            };
+          }
+        }
+        break;
+      }
+      case "vest_assigned": {
+        // Replacements take effect mid-period. Non-replacements are
+        // already applied at the quarter_start for their period and
+        // are no-ops here. The pre-walk built vestPlanByPeriod with
+        // latest-wins so replacements still claim the rest of the
+        // period.
+        //
+        // Without an elapsed_ms in the metadata we use 0 as a
+        // last-resort start (negligible since the period would not
+        // yet have ticked far). When we have a current-period swap
+        // / quarter_start before this event the simpler approach is
+        // to switch wearers now and let the next event close the
+        // stint at its own elapsed_ms.
+        if (meta.replacement !== true) break;
+        if (typeof meta.period !== "number" || meta.period !== activeQuarter) {
+          break;
+        }
+        const newWearer = ev.player_id;
+        const vestKind = meta.vest;
+        if (!newWearer || (vestKind !== "fr" && vestKind !== "dh")) break;
+        const oldWearer = vestWearer[vestKind];
+        // Determine "now" — best signal is the elapsed_ms of the
+        // event itself if present (replacement modal records it),
+        // otherwise fall back to the live elapsed.
+        const at
+          = typeof meta.elapsed_ms === "number"
+            ? meta.elapsed_ms
+            : activeQuarter === currentQuarter
+              ? currentElapsedMs
+              : 0;
+        // Hand-off: close the old wearer's vest stint (if any),
+        // reopen as non-vest in their zone. They might also be the
+        // one going off (injury) — in that case there's no open
+        // stint to reopen.
+        if (oldWearer && openStint[oldWearer]) {
+          closeStint(oldWearer, at);
+          // Re-open in their current zone, no vest, IF they're
+          // still on field (a non-replacement injury would close
+          // the stint separately via an `injury` event).
+          if (snapshot && leagueOnField(snapshot).includes(oldWearer)) {
+            openStint[oldWearer] = {
+              startMs: at,
+              zone: zoneOfPid(oldWearer),
+              vest: false,
+            };
+          }
+        }
+        // Open the new wearer's vest stint.
+        if (openStint[newWearer]) {
+          closeStint(newWearer, at);
+        }
+        if (snapshot && leagueOnField(snapshot).includes(newWearer)) {
+          openStint[newWearer] = {
+            startMs: at,
+            zone: zoneOfPid(newWearer),
+            vest: true,
+          };
+        }
+        vestWearer = { ...vestWearer, [vestKind]: newWearer };
+        break;
+      }
+      case "injury":
+      case "player_loan": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        if (ev.player_id) closeStint(ev.player_id, at);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  // Live: extend any open stints in the active period to currentElapsedMs.
+  if (activeQuarter === currentQuarter) {
+    for (const pid of Object.keys(openStint)) {
+      const s = openStint[pid];
+      const dur = Math.max(0, currentElapsedMs - s.startMs);
+      if (dur <= 0) continue;
+      if (s.vest) addMs(pid, "centre", dur);
+      else if (s.zone === "forward") addMs(pid, "forwards", dur);
+      else addMs(pid, "backs", dur);
+    }
+  }
+
+  return total;
+}
+
 // ─── Whole-bench rotation suggestion ──────────────────────────
 // Surfaces the next-due rotation set during live play — one swap
 // per bench player so the coach can rotate the WHOLE bench in

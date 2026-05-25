@@ -19,6 +19,9 @@ interface LeagueBenchStripProps {
   players: Player[];
   triesByPlayer?: Record<string, number>;
   totalMsByPlayer?: Record<string, number>;
+  /** Opt-in per-player F/C/B time split — drives the stacked bar
+   *  at the bottom of each tile. Pass undefined to hide. */
+  zoneMsByPlayer?: Record<string, import("@/lib/sports/rugby_league/fairness").LeagueZoneMs>;
   vestByPlayer?: Record<string, VestType>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
@@ -49,6 +52,7 @@ export function LeagueBenchStrip({
   players,
   triesByPlayer,
   totalMsByPlayer,
+  zoneMsByPlayer,
   vestByPlayer,
   conversionByPlayer,
   kickoffTakerIds,
@@ -78,6 +82,7 @@ export function LeagueBenchStrip({
               variant="bench"
               tries={triesByPlayer?.[p.id] ?? 0}
               totalMs={totalMsByPlayer?.[p.id]}
+              zoneMs={zoneMsByPlayer?.[p.id]}
               vest={vestByPlayer?.[p.id] ?? null}
               conversion={conversionByPlayer?.[p.id] ?? null}
               kickedOff={kickoffTakerIds?.has(p.id) ?? false}

@@ -28,6 +28,7 @@ import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
+import type { LeagueZoneMs } from "@/lib/sports/rugby_league/fairness";
 import { PlayerVestBadge } from "./PlayerVestBadge";
 import { PlayerKickBadge } from "./PlayerKickBadge";
 
@@ -77,6 +78,14 @@ interface LeaguePlayerTileProps {
    * plain coloured dot via chipPalette's fallback.
    */
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
+  /**
+   * Per-player F/C/B time distribution this game (ms). When provided
+   * the tile renders a thin stacked bar at the bottom — mirrors the
+   * AFL PlayerTile pattern. "Centre" maps to time wearing FR/DH vest.
+   * Only the game-settings opt-in (`track_zone_time`) supplies this;
+   * undefined = no bar (default).
+   */
+  zoneMs?: LeagueZoneMs;
   onClick?: () => void;
   /** Long-press handler — opens per-player action sheet. */
   onLongPress?: () => void;
@@ -105,6 +114,7 @@ function LeaguePlayerTileImpl({
   loaned = false,
   swap = null,
   chipModes,
+  zoneMs,
   onClick,
   onLongPress,
   disabled = false,
@@ -309,6 +319,26 @@ function LeaguePlayerTileImpl({
             </span>
           ) : null}
         </span>
+
+        {/* F/C/B stacked time bar — mirrors AFL PlayerTile. Opt-in
+            via the game's `track_zone_time` flag; the parent only
+            supplies zoneMs when the flag is on. "Centre" is time
+            wearing the FR or DH vest. */}
+        {zoneMs && (() => {
+          const total = zoneMs.forwards + zoneMs.centre + zoneMs.backs;
+          if (total <= 0) return null;
+          const pct = (v: number) => `${(v / total) * 100}%`;
+          return (
+            <span
+              className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
+              aria-label={`Forwards ${formatMinSec(zoneMs.forwards)}, Centre ${formatMinSec(zoneMs.centre)}, Backs ${formatMinSec(zoneMs.backs)}`}
+            >
+              <span style={{ width: pct(zoneMs.forwards) }} className="bg-zone-f" />
+              <span style={{ width: pct(zoneMs.centre) }} className="bg-zone-c" />
+              <span style={{ width: pct(zoneMs.backs) }} className="bg-zone-b" />
+            </span>
+          );
+        })()}
       </div>
     </button>
   );
@@ -364,6 +394,19 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
     }
   }
   if (quantize(a.totalMs) !== quantize(b.totalMs)) return false;
+  // zoneMs drives the F/C/B bar — compare each bucket at whole-second
+  // resolution so clock-tick re-renders within the same second hit
+  // the cache. Mirrors AFL PlayerTile's zoneMs handling.
+  if (a.zoneMs !== b.zoneMs) {
+    if (!a.zoneMs || !b.zoneMs) return false;
+    if (
+      quantize(a.zoneMs.forwards) !== quantize(b.zoneMs.forwards)
+      || quantize(a.zoneMs.centre) !== quantize(b.zoneMs.centre)
+      || quantize(a.zoneMs.backs) !== quantize(b.zoneMs.backs)
+    ) {
+      return false;
+    }
+  }
   // conversion is an object — shallow compare its fields.
   if (a.conversion !== b.conversion) {
     if (!a.conversion || !b.conversion) return false;
