@@ -1,4 +1,7 @@
-import { type ReactNode } from "react";
+"use client";
+
+import { type ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type ModalSize = "sm" | "md" | "lg";
 
@@ -14,7 +17,31 @@ const sizeClasses: Record<ModalSize, string> = {
 };
 
 export function Modal({ children, size = "sm" }: ModalProps) {
-  return (
+  // Portal-mount at document.body so `position: fixed` is always
+  // anchored to the viewport regardless of ancestor stacking contexts.
+  //
+  // Why: any ancestor with `transform`, `filter`, `perspective`,
+  // `will-change: transform`, or `contain: paint` re-anchors `fixed`
+  // children to that ancestor instead of the viewport (per CSS spec).
+  // `DeviceFrame` applies `transform: translateZ(0)` on md+ to
+  // create the iPhone-mock containing block, and the /run/[token]
+  // layout wraps the live game tree in DeviceFrame. The result:
+  // every modal opened from inside a live game (FeedbackModal,
+  // QuarterEndModal, SubDueModal, etc.) was being centred relative
+  // to the phone-mock rather than the viewport — Steve 2026-05-25
+  // reported the in-game FeedbackHeaderButton opening "too high"
+  // because the DeviceFrame's bounding box extended above the
+  // visible viewport.
+  //
+  // The SSR guard (mounted state) avoids touching document.body
+  // during server render — `createPortal` would throw because
+  // document doesn't exist. Modals are always opened via user
+  // action so the one-frame delay before mount is invisible.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop: fades in over 350ms (existing `fade-in` keyframe).
           The card slides up over 220ms below — they start at the same
@@ -26,9 +53,9 @@ export function Modal({ children, size = "sm" }: ModalProps) {
           2026-05-15 added the modal slide-up sweep. Every modal in
           the app (StartQuarterModal, QuarterEndModal, SubDueModal,
           LockModal, WalkthroughModal, SwapConfirmDialog,
-          InjuryReplacementModal, QuarterScoreModal) inherits this
-          behaviour from the Modal primitive — no per-modal change
-          needed. */}
+          InjuryReplacementModal, QuarterScoreModal, FeedbackModal)
+          inherits this behaviour from the Modal primitive — no
+          per-modal change needed. */}
       <div className="absolute inset-0 z-0 bg-ink/40 motion-safe:animate-fade-in" />
       {/* Inner card: capped to viewport height (minus the p-4
           breathing room above) and rendered as a flex column so
@@ -63,6 +90,7 @@ export function Modal({ children, size = "sm" }: ModalProps) {
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
