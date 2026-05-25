@@ -940,6 +940,30 @@ export async function setLeagueEnforceUnbrokenPeriods(
   return { success: true };
 }
 
+// ─── Mid-game track_zone_time toggle ─────────────────────────
+// Per-game override for the AFL-style F/C/B time bar on every
+// LeaguePlayerTile (centre = time wearing FR or DH vest). Updates
+// games.track_zone_time for THIS game only. The team-level default
+// lives on teams.track_zone_time and is updated via setTrackZoneTime
+// in games/actions.ts.
+export async function setLeagueTrackZoneTime(
+  auth: LiveAuth,
+  gameId: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  const writer = await resolveWriter(auth, gameId);
+  if (writer.error) return { success: false, error: writer.error };
+  const { error: updateError } = await writer.supabase
+    .from("games")
+    .update({ track_zone_time: enabled })
+    .eq("id", gameId);
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+  revalidatePath(`/teams/${writer.teamId}/games/${gameId}/live`);
+  return { success: true };
+}
+
 // ─── Mid-game on-field size change ───────────────────────────
 // Mirrors AFL's `setOnFieldSizeMidGame`. Two paths:
 //

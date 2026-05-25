@@ -4,10 +4,9 @@
 // Mid-game settings affordance for Rugby League — sits in the
 // `LiveAdminUtilityRow` alongside "+ Add late arrival" and
 // "Restart game". Matches AFL's `LiveGameSettingsButton` in both
-// visual style (SFButton ghost) and modal shape (same three-knob
-// layout: sub interval + players on field + enforce unbroken rule).
+// visual style (SFButton ghost) and modal shape.
 //
-// Three knobs in the modal:
+// Four knobs in the modal:
 //
 //   1. Sub interval — drives the LeagueNextSubCard cadence.
 //
@@ -20,6 +19,11 @@
 //      Junior League §6 rule. Writes games.enforce_unbroken_periods.
 //      Greyed out with a help chip for age groups that don't apply
 //      the rule (U6/U7 no-score games where §6 isn't relevant).
+//
+//   4. Track forward / back time — toggles the AFL-style F/C/B
+//      stacked time bar on every LeaguePlayerTile. "Centre" maps
+//      to time wearing the FR or DH vest. Writes
+//      games.track_zone_time. Off by default for casual teams.
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -33,6 +37,7 @@ import {
   setLeagueSubInterval,
   setLeagueOnFieldSizeMidGame,
   setLeagueEnforceUnbrokenPeriods,
+  setLeagueTrackZoneTime,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import type { LiveAuth, Player } from "@/lib/types";
 
@@ -50,6 +55,8 @@ interface LeagueGameSettingsButtonProps {
   onFieldPlayers: Player[];
   /** Whether §6 unbroken-period enforcement is currently on. */
   enforceUnbrokenPeriods: boolean;
+  /** Whether the F/C/B zone-time bar renders on every player tile. */
+  trackZoneTime: boolean;
   /** Current period — needed for the roster_shrink event metadata. */
   currentQuarter: number;
   /** Live elapsed ms — written into the roster_shrink event. */
@@ -65,6 +72,7 @@ export function LeagueGameSettingsButton({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
+  trackZoneTime,
   currentQuarter,
   elapsedMs,
 }: LeagueGameSettingsButtonProps) {
@@ -93,6 +101,7 @@ export function LeagueGameSettingsButton({
           maxOnFieldSize={maxOnFieldSize}
           onFieldPlayers={onFieldPlayers}
           enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+          trackZoneTime={trackZoneTime}
           currentQuarter={currentQuarter}
           elapsedMs={elapsedMs}
           onClose={() => setOpen(false)}
@@ -120,6 +129,7 @@ function LeagueGameSettingsModal({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
+  trackZoneTime,
   currentQuarter,
   elapsedMs,
   onClose,
@@ -128,6 +138,7 @@ function LeagueGameSettingsModal({
   const [draftSeconds, setDraftSeconds] = useState(subIntervalSeconds);
   const [sizeInput, setSizeInput] = useState<string>(String(currentOnFieldSize));
   const [draftEnforce, setDraftEnforce] = useState(enforceUnbrokenPeriods);
+  const [draftTrackZone, setDraftTrackZone] = useState(trackZoneTime);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   // Non-null = shrink picker open; value = how many to remove.
@@ -165,6 +176,7 @@ function LeagueGameSettingsModal({
         try {
           await maybeUpdateSubInterval();
           await maybeUpdateEnforce();
+          await maybeUpdateTrackZone();
           setShrinkPickerSize(currentOnFieldSize - newSize);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Save failed.");
@@ -173,11 +185,12 @@ function LeagueGameSettingsModal({
       return;
     }
 
-    // Grow / no-op + sub interval + enforce toggle — bundle all three.
+    // Grow / no-op + sub interval + toggles — bundle all four.
     startTransition(async () => {
       try {
         await maybeUpdateSubInterval();
         await maybeUpdateEnforce();
+        await maybeUpdateTrackZone();
         if (newSize !== currentOnFieldSize) {
           const res = await setLeagueOnFieldSizeMidGame(auth, gameId, {
             newSize,
@@ -204,6 +217,12 @@ function LeagueGameSettingsModal({
   async function maybeUpdateEnforce(): Promise<void> {
     if (draftEnforce === enforceUnbrokenPeriods) return;
     const res = await setLeagueEnforceUnbrokenPeriods(auth, gameId, draftEnforce);
+    if (!res.success) throw new Error(res.error);
+  }
+
+  async function maybeUpdateTrackZone(): Promise<void> {
+    if (draftTrackZone === trackZoneTime) return;
+    const res = await setLeagueTrackZoneTime(auth, gameId, draftTrackZone);
     if (!res.success) throw new Error(res.error);
   }
 
@@ -320,6 +339,25 @@ function LeagueGameSettingsModal({
             onChange={setDraftEnforce}
             disabled={pending}
             label="Enforce unbroken periods"
+          />
+        </div>
+
+        {/* Track forward and back time */}
+        <div className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-ink">
+              Track forward and back time
+            </p>
+            <p className="text-[11px] text-ink-mute">
+              Adds an F/C/B time bar to every player tile. Centre =
+              time wearing the FR or DH vest.
+            </p>
+          </div>
+          <Toggle
+            checked={draftTrackZone}
+            onChange={setDraftTrackZone}
+            disabled={pending}
+            label="Track forward and back time"
           />
         </div>
       </div>

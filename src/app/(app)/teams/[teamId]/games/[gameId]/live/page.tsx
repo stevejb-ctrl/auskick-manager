@@ -322,6 +322,9 @@ export default async function LivePage({ params }: LivePageProps) {
           enforceUnbrokenPeriods={
             (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
           }
+          trackZoneTime={
+            (g as { track_zone_time?: boolean | null }).track_zone_time ?? false
+          }
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
