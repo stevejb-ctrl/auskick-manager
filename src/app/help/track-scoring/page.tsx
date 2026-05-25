@@ -84,7 +84,7 @@ export default function TrackScoringPage() {
             The scoreboard in the header updates in real time. Football
             displays the standard goals·behinds with total points; netball
             shows a single goals tally; rugby league shows the points total
-            with a "tries · conversions" breakdown underneath.
+            with a &ldquo;tries · conversions&rdquo; breakdown underneath.
           </li>
           <li>
             An <strong className="text-ink">Undo</strong> toast appears for
