@@ -1,0 +1,63 @@
+# Push Supabase migrations to production on merge to main.
+#
+# Why: PR #145 was a hotfix for a migration that had been merged days
+# earlier but never applied to prod. The merge → prod gap meant the
+# app started writing rows the live DB couldn't validate. This
+# workflow closes that gap by running `supabase db push` against the
+# linked prod project every time `main` advances.
+#
+# Setup (one-time, done in the GitHub repo settings → Secrets):
+#   SUPABASE_ACCESS_TOKEN  — personal access token from
+#                            https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD   — the database password for the prod project
+#                            (Settings → Database → Connection string)
+#   SUPABASE_PROJECT_REF   — the project ref (the subdomain piece of the
+#                            project URL, e.g. abcdefghijklmnop)
+#
+# Only runs on `push` to main — PRs and feature branches never touch
+# prod. Manual reruns are available via the "Run workflow" button
+# (workflow_dispatch).
+
+name: DB push (prod)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/db-push.yml"
+  workflow_dispatch:
+
+# Only one prod push in flight at a time. If two merges land in quick
+# succession, the second waits for the first instead of racing.
+concurrency:
+  group: db-push-prod
+  cancel-in-progress: false
+
+jobs:
+  push:
+    name: supabase db push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to prod project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Push migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        # --include-all surfaces any migrations the CLI would otherwise
+        # treat as "out of order" (we don't squash, so older numbers can
+        # appear after newer ones during merges).
+        run: supabase db push --include-all
