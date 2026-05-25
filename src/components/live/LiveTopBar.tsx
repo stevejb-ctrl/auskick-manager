@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
 
 interface LiveTopBarProps {
@@ -79,6 +80,14 @@ export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
             <span className="truncate">· {game.location}</span>
           )}
         </div>
+        {/* Feedback trigger sits IMMEDIATELY before the "?" so the
+            two utility affordances form a small cluster on the right
+            edge. Same 44/28pt rhythm as the help pill so the eye
+            reads them as a pair. Steve 2026-05-25: moved here from
+            the floating FAB position which was overlapping the
+            opposition +G/+B scoring chip mid-game. */}
+        <FeedbackHeaderButton />
+
         {/* The visible "?" pill is 28pt, but the surrounding button
             keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve
             2026-05-15: previously the whole 44pt area got the

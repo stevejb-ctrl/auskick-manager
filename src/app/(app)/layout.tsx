@@ -53,13 +53,14 @@ export default async function AppLayout({
           in .planning/MICRO-INTERACTIONS-PLAN.md. */}
       <MotionPreferenceBridge />
       {/* Always-visible feedback FAB. Visible on every authenticated
-          route INCLUDING /live — Steve 2026-05-25: parents reporting
-          bugs in real time during a game is the highest-signal
-          feedback we can get, so the FAB stays mounted there too
-          (earlier path-hide on /live was reverted). Submissions land
-          in the `feedback` table (migration 0045) AND Telegram-ping
-          Steve with team/sport/age/game context when the submitter
-          is inside a team route. */}
+          route EXCEPT /live — Steve 2026-05-25 reported the floating
+          position overlapping the opposition +G/+B scoring chip
+          during games. Mid-game feedback is now collected via the
+          `FeedbackHeaderButton` mounted inside `LiveTopBar` next to
+          the help "?" icon. Submissions from either trigger land in
+          the `feedback` table (migration 0045) AND Telegram-ping us
+          with team/sport/age/game context when the submitter is
+          inside a team route. */}
       <FeedbackFab kind="feedback" />
       {/* App-bar header.
 

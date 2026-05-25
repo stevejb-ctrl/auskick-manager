@@ -152,16 +152,15 @@ test("presales: anonymous visitor FAB submit persists kind='presales' with NULL 
   }
 });
 
-test("FAB stays visible on /live routes (Steve 2026-05-25: parents need to flag bugs in real time)", async ({
+test("on /live the floating FAB is hidden and the LiveTopBar header button takes its place", async ({
   browser,
 }) => {
-  // Earlier behaviour hid the FAB on /live to keep the in-game UI
-  // chrome-free. Steve flipped that — the highest-signal feedback
-  // window is "parent watching their kid, notices a score didn't
-  // save, taps the FAB right then". So the FAB now follows the
-  // user onto /live and the action enriches the Telegram message
-  // with team + game context (covered by the team-context test
-  // below).
+  // Steve 2026-05-25 (round 2): the floating FAB at bottom-right was
+  // overlapping the opposition +G/+B scoring chip mid-game and
+  // blocking real taps. Moved into LiveTopBar next to the "?" help
+  // icon. The path-hide on FeedbackFab restored to ["/live"]; the
+  // FeedbackHeaderButton mounted inside LiveTopBar covers the in-
+  // game submission path.
   const admin = createAdminClient();
   const sessionStamp = stamp();
   const user = await createTestUser(admin, {
@@ -186,12 +185,21 @@ test("FAB stays visible on /live routes (Steve 2026-05-25: parents need to flag 
       timeout: 15_000,
     });
 
-    // Navigate to the live page. Even before lineup_set fires the
-    // page renders SOMETHING (the LineupPicker); we only care that
-    // the FAB is in the DOM.
+    // Confirm the floating FAB IS visible on /dashboard first — guards
+    // against a false-negative on the /live absence assertion (e.g. a
+    // component-name typo would silently pass).
+    await page.goto("/dashboard");
+    await expect(page.getByTestId("feedback-fab-feedback")).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // Navigate to the live page. We need:
+    //   1. the floating FAB NOT in the DOM (path-hide active)
+    //   2. the header button IN the DOM (LiveTopBar mounted it)
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("feedback-fab-feedback")).toBeVisible({
+    await expect(page.getByTestId("feedback-fab-feedback")).toHaveCount(0);
+    await expect(page.getByTestId("feedback-header-button")).toBeVisible({
       timeout: 5_000,
     });
 
@@ -241,7 +249,9 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
     });
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    await page.getByTestId("feedback-fab-feedback").click();
+    // In-game uses the header button (the floating FAB is hidden on
+    // /live since the round-2 placement change).
+    await page.getByTestId("feedback-header-button").click();
 
     const message = `Score didn't save on the kickoff ${sessionStamp}`;
     await page.getByLabel(/^message$/i).fill(message);
