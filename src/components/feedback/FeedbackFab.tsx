@@ -11,12 +11,15 @@ import { submitFeedback } from "@/lib/feedback/actions";
 interface FeedbackFabProps {
   kind: "feedback" | "presales";
   /**
-   * Path suffixes on which the FAB should NOT render. Default
-   * `["/live"]` matches the AppHeaderShell convention — every pixel
-   * counts during a live game, so the floating button stays out of
-   * the way there. Pass `[]` (empty array) to show on every route
-   * (used by the marketing layout, where there are no /live screens
-   * anyway but the explicit empty array is self-documenting).
+   * Path suffixes on which the FAB should NOT render. Default `[]`
+   * (visible everywhere) — Steve 2026-05-25: parents reporting bugs
+   * in real time during a live game is the highest-signal feedback
+   * window, so the FAB stays mounted on /live too. Earlier versions
+   * defaulted to `["/live"]` to keep the in-game UI free of chrome;
+   * that trade-off flipped once real users were on the app.
+   *
+   * Callers that genuinely need to hide on specific suffixes can
+   * still pass them explicitly.
    */
   hiddenOnPathSuffixes?: string[];
 }
@@ -53,7 +56,7 @@ const COPY = {
  */
 export function FeedbackFab({
   kind,
-  hiddenOnPathSuffixes = ["/live"],
+  hiddenOnPathSuffixes = [],
 }: FeedbackFabProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);

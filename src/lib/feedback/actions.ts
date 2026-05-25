@@ -48,13 +48,19 @@ export interface SubmitFeedbackInput {
  *   3. Auth branch — `feedback` requires an authed user; `presales`
  *      runs anonymous with the typed email.
  *   4. INSERT into `feedback` (RLS allows anon + authenticated).
- *   5. AWAIT `sendTelegramNotification` — see telegram.ts; widened
+ *   5. Best-effort team + game context: parse pageUrl for
+ *      /teams/<uuid>/ and /teams/<uuid>/games/<uuid>/, fetch metadata
+ *      so the Telegram message names the team / sport / age / game
+ *      directly. RLS-guarded SELECT — silently drops the context if
+ *      the user can't read the team (won't happen in normal flow but
+ *      defensive against stale tabs).
+ *   6. AWAIT `sendTelegramNotification` — see telegram.ts; widened
  *      to `Promise<boolean>` so we know whether delivery succeeded.
  *      Awaiting (rather than fire-and-forget) ensures the boolean
  *      lands in the DB before the serverless runtime can tear down
  *      the function — Vercel/Cloudflare aren't reliable hosts for
  *      post-response background work.
- *   6. UPDATE telegram_ok via admin client. Best-effort: if the
+ *   7. UPDATE telegram_ok via admin client. Best-effort: if the
  *      service-role key isn't set (some preview deploys), the column
  *      stays NULL but the row + Telegram both already landed.
  */
@@ -143,7 +149,51 @@ export async function submitFeedback(
     };
   }
 
-  // ─── 5. Telegram (awaited so the boolean is reliable) ──────────
+  // ─── 5. Resolve team / game context from the pageUrl ──────────
+  // Steve 2026-05-25: a real-time bug ping is hard to reproduce
+  // without knowing "which team, which sport, which game". Parse the
+  // URL we already capture and best-effort fetch the metadata.
+  // Failures (RLS denied, FK missing, malformed UUID) silently drop
+  // the context — the feedback row + Telegram message still go out
+  // with whatever we have.
+  let team: { name: string; sport: string; ageGroup: string } | null = null;
+  let game: { opponent: string; roundNumber: number | null } | null = null;
+  if (pageUrl) {
+    const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+    const teamMatch = pageUrl.match(new RegExp(`^/teams/(${UUID_RE})`));
+    const gameMatch = pageUrl.match(
+      new RegExp(`^/teams/${UUID_RE}/games/(${UUID_RE})`),
+    );
+    if (teamMatch) {
+      const { data: teamRow } = await supabase
+        .from("teams")
+        .select("name, sport, age_group")
+        .eq("id", teamMatch[1])
+        .maybeSingle<{ name: string; sport: string; age_group: string }>();
+      if (teamRow) {
+        team = {
+          name: teamRow.name,
+          sport: teamRow.sport,
+          ageGroup: teamRow.age_group,
+        };
+      }
+    }
+    if (gameMatch) {
+      const { data: gameRow } = await supabase
+        .from("games")
+        .select("opponent, round_number")
+        .eq("id", gameMatch[1])
+        .maybeSingle<{ opponent: string; round_number: number | null }>();
+      if (gameRow) {
+        game = {
+          opponent: gameRow.opponent,
+          roundNumber: gameRow.round_number,
+        };
+      }
+    }
+  }
+
+  // ─── 6. Telegram (awaited so the boolean is reliable) ─────────
   const text = formatFeedbackMessage({
     kind: input.kind,
     message,
@@ -151,10 +201,12 @@ export async function submitFeedback(
     pageUrl,
     userLabel,
     time: new Date().toISOString(),
+    team,
+    game,
   });
   const telegramOk = await sendTelegramNotification(text);
 
-  // ─── 6. Backfill telegram_ok ───────────────────────────────────
+  // ─── 7. Backfill telegram_ok ───────────────────────────────────
   // Admin client bypasses RLS (the UPDATE policy is super-admin only).
   // Best-effort: if SUPABASE_SERVICE_ROLE_KEY isn't set in this env,
   // we leave telegram_ok null. Row + delivery both already happened;

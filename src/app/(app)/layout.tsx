@@ -52,12 +52,14 @@ export default async function AppLayout({
           root so it applies to every authenticated surface. P2-10
           in .planning/MICRO-INTERACTIONS-PLAN.md. */}
       <MotionPreferenceBridge />
-      {/* Always-visible feedback FAB. Hidden on /live by default
-          (the prop's own default) so the floating button doesn't
-          steal screen real estate during a game — same path-hide
-          convention as AppHeaderShell. Submissions land in the
-          `feedback` table (migration 0045) AND Telegram-ping
-          Steve. */}
+      {/* Always-visible feedback FAB. Visible on every authenticated
+          route INCLUDING /live — Steve 2026-05-25: parents reporting
+          bugs in real time during a game is the highest-signal
+          feedback we can get, so the FAB stays mounted there too
+          (earlier path-hide on /live was reverted). Submissions land
+          in the `feedback` table (migration 0045) AND Telegram-ping
+          Steve with team/sport/age/game context when the submitter
+          is inside a team route. */}
       <FeedbackFab kind="feedback" />
       {/* App-bar header.
 

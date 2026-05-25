@@ -152,9 +152,16 @@ test("presales: anonymous visitor FAB submit persists kind='presales' with NULL 
   }
 });
 
-test("FAB is hidden on /live routes (every pixel matters mid-game)", async ({
+test("FAB stays visible on /live routes (Steve 2026-05-25: parents need to flag bugs in real time)", async ({
   browser,
 }) => {
+  // Earlier behaviour hid the FAB on /live to keep the in-game UI
+  // chrome-free. Steve flipped that — the highest-signal feedback
+  // window is "parent watching their kid, notices a score didn't
+  // save, taps the FAB right then". So the FAB now follows the
+  // user onto /live and the action enriches the Telegram message
+  // with team + game context (covered by the team-context test
+  // below).
   const admin = createAdminClient();
   const sessionStamp = stamp();
   const user = await createTestUser(admin, {
@@ -179,26 +186,93 @@ test("FAB is hidden on /live routes (every pixel matters mid-game)", async ({
       timeout: 15_000,
     });
 
-    // Confirm the FAB IS visible on /dashboard first — guards against
-    // a false-negative on the /live assertion (e.g. component name
-    // typo would silently make this test pass).
-    await page.goto("/dashboard");
+    // Navigate to the live page. Even before lineup_set fires the
+    // page renders SOMETHING (the LineupPicker); we only care that
+    // the FAB is in the DOM.
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("feedback-fab-feedback")).toBeVisible({
       timeout: 5_000,
     });
 
-    // Navigate to the live page. Even before lineup_set fires the page
-    // renders SOMETHING (the LineupPicker); the FAB's path-hide runs
-    // off pathname only, so we don't need a fully-set-up game.
-    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    // Wait for hydration so the client-side `usePathname` check has
-    // had a chance to run and remove the FAB from the DOM.
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("feedback-fab-feedback")).toHaveCount(0);
-
     await context.close();
   } finally {
     // Game cascade-deletes game_events; explicit team cleanup is fine.
+    await admin.from("feedback").delete().eq("user_id", user.id);
+    await deleteTestUser(admin, user.id);
+  }
+});
+
+test("feedback submitted from /live writes a DB row whose page_url carries the team + game IDs (so the action can resolve team context for Telegram)", async ({
+  browser,
+}) => {
+  // Steve 2026-05-25: when a parent fires the FAB during a game,
+  // Telegram should name the team + sport + age + opponent so a
+  // "score didn't save" ping is actionable. The lookup runs server-
+  // side in submitFeedback, parsing /teams/<uuid>/games/<uuid> out
+  // of pageUrl. Telegram itself is stubbed in CI (TELEGRAM_BOT_TOKEN
+  // unset), but we can pin the input the formatter receives by
+  // asserting the page_url that lands in the DB. Failure mode this
+  // catches: a future refactor that strips or rewrites the
+  // page_url before insert, silently breaking the team-context
+  // lookup for every in-game submission.
+  const admin = createAdminClient();
+  const sessionStamp = stamp();
+  const user = await createTestUser(admin, {
+    email: `fb-ingame-${sessionStamp}@siren.test`,
+    password: "fb-ingame-test-pw-1234",
+    fullName: "FB In-Game Tester",
+  });
+
+  try {
+    const team = await makeTeam(admin, { ownerId: user.id });
+    await makePlayers(admin, { teamId: team.id, ownerId: user.id });
+    const game = await makeGame(admin, { teamId: team.id, ownerId: user.id });
+
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    await page.goto("/login");
+    await page.getByTestId("login-mode-toggle").click();
+    await page.getByTestId("login-email").fill(user.email);
+    await page.getByTestId("login-password").fill(user.password);
+    await page.getByTestId("login-submit").click();
+    await page.waitForURL(/\/(dashboard|teams\/new|welcome)/, {
+      timeout: 15_000,
+    });
+
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await page.getByTestId("feedback-fab-feedback").click();
+
+    const message = `Score didn't save on the kickoff ${sessionStamp}`;
+    await page.getByLabel(/^message$/i).fill(message);
+    await page.getByRole("button", { name: /send feedback/i }).click();
+
+    await expect(page.getByText(/thanks, steve has it/i)).toBeVisible({
+      timeout: 5_000,
+    });
+
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin
+            .from("feedback")
+            .select("kind, user_id, page_url")
+            .eq("message", message)
+            .maybeSingle();
+          return data;
+        },
+        { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+      )
+      .toMatchObject({
+        kind: "feedback",
+        user_id: user.id,
+        // /teams/<team.id>/games/<game.id>/live — the exact shape
+        // submitFeedback's regex parses for team + game lookup.
+        page_url: `/teams/${team.id}/games/${game.id}/live`,
+      });
+
+    await context.close();
+  } finally {
     await admin.from("feedback").delete().eq("user_id", user.id);
     await deleteTestUser(admin, user.id);
   }

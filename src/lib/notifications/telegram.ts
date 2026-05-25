@@ -62,6 +62,18 @@ export function formatGameStartedMessage(input: {
   ].join("\n");
 }
 
+export interface FeedbackTeamContext {
+  name: string;
+  sport: string;     // "afl" | "netball" | "rugby_league" — kept loose so a
+                     // future sport doesn't need a formatter change
+  ageGroup: string;  // "U10" / "GO" / etc.
+}
+
+export interface FeedbackGameContext {
+  opponent: string;
+  roundNumber: number | null;
+}
+
 export function formatFeedbackMessage(input: {
   kind: "feedback" | "presales";
   message: string;
@@ -69,6 +81,14 @@ export function formatFeedbackMessage(input: {
   pageUrl: string | null;
   userLabel: string;
   time: string;
+  // Resolved server-side from the pageUrl when the submitter is inside
+  // a team / game route. `null` for marketing pages, settings index,
+  // any non-team surface. Steve 2026-05-25: the most useful context
+  // for a real-time bug report is "which team, which sport, which
+  // game" — without it a "score didn't save" ping is hard to
+  // reproduce.
+  team?: FeedbackTeamContext | null;
+  game?: FeedbackGameContext | null;
 }): string {
   // Two prompts feed one Telegram surface, distinguished by header so
   // Steve's eye knows immediately whether a tap is a product-feedback
@@ -77,7 +97,7 @@ export function formatFeedbackMessage(input: {
   // first because that's what Steve reads, metadata lines below.
   // Backed by the feedback table (migration 0045) so the message is
   // safe even if the Telegram delivery later fails.
-  const { kind, message, email, pageUrl, userLabel, time } = input;
+  const { kind, message, email, pageUrl, userLabel, time, team, game } = input;
   const header =
     kind === "feedback"
       ? "💬 <b>New product feedback</b>"
@@ -90,6 +110,22 @@ export function formatFeedbackMessage(input: {
     `From: ${escapeHtml(userLabel)}`,
   ];
   if (email) lines.push(`Email: ${escapeHtml(email)}`);
+  if (team) {
+    // Team line reads as "Goners (AFL, U10)" — sport + age in parens
+    // is compact and scans left-to-right with the team name leading.
+    const sportLabel = team.sport.toUpperCase();
+    lines.push(
+      `Team: ${escapeHtml(team.name)} (${escapeHtml(sportLabel)}, ${escapeHtml(team.ageGroup)})`,
+    );
+  }
+  if (game) {
+    // Game line only appears when the submitter is inside a specific
+    // game route — round number is optional (some teams don't track
+    // rounds).
+    const roundSuffix =
+      game.roundNumber !== null ? ` (R${game.roundNumber})` : "";
+    lines.push(`Game: vs ${escapeHtml(game.opponent)}${roundSuffix}`);
+  }
   if (pageUrl) lines.push(`Page: ${escapeHtml(pageUrl)}`);
   lines.push(`Time: ${time}`);
   return lines.join("\n");
