@@ -171,15 +171,19 @@ export function HeroCarousel() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Decorative motif behind the hero (desktop only) — swaps to
-          the active sport's field at very low opacity so it feels
-          like a watermark, not a competing visual. */}
+      {/* Decorative field illustration behind the hero (desktop
+          only). Swaps to the active sport's field illustration so
+          a visitor sees AFL oval / RL rect / netball court /
+          rugby pitch lines behind the phone mock — the Claude
+          Design watermark pattern. Opacity 0.18 is the visibility
+          sweet spot: clearly readable as a field shape without
+          competing with the foreground copy. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
         style={{ transform: "translate(15%, 0)" }}
       >
-        <div className="h-[900px] w-[900px] opacity-[0.07]">
+        <div className="h-[900px] w-[900px] opacity-[0.18]">
           <SportFieldPlaceholder sport={active} tintOpacity={0} />
         </div>
       </div>
@@ -187,12 +191,17 @@ export function HeroCarousel() {
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
         <div>
           <RevealOnScroll>
-            {/* Eyebrow swaps per active sport. Smooth colour
-                transition matches the sport-accent cascade pattern
-                used by MultiSportSection's headline word. */}
+            {/* Eyebrow swaps per active sport AND adopts the
+                sport's accent colour — same cascade as the picker
+                card fill, so the eyebrow visually echoes "this
+                sport is selected." Inline style (not a Tailwind
+                colour) because the accent is a runtime data value
+                from MarketingSportConfig, not a token in the
+                theme palette. */}
             <p
               key={`eyebrow-${active.id}`}
-              className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+              className="font-mono text-[11px] font-semibold uppercase tracking-micro motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+              style={{ color: active.accent }}
             >
               {getHeroEyebrow(active.id)}
             </p>

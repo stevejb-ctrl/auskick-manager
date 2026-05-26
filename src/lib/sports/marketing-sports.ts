@@ -80,8 +80,14 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     label: "Rugby League",
     modeWord: "league",
     periods: "2 halves",
-    accent: "#B23A3A",
-    accentSoft: "#F4E0E0",
+    // Junior rugby league leafy green — distinct from AFL alarm
+    // orange and netball purple. Note Union below is also green
+    // (darker forest); the two read similarly side-by-side but
+    // Union is coming-soon (disabled card) so they don't actively
+    // compete for the eye. If Union launches with a similar
+    // palette, retint one of the two.
+    accent: "#2F8C45",
+    accentSoft: "#DEEFE3",
     fieldTintOpacity: 0.10,
     // No RL screenshot yet — HeroCarousel renders a placeholder.
     heroScreenshot: null,
