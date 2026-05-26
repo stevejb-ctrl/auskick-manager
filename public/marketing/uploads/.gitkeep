@@ -1,0 +1,10 @@
+# Decap CMS uploads land here.
+#
+# Decap's `media_folder: public/marketing/uploads` in
+# public/cms/config.yml needs this directory to exist in the repo
+# before Decap probes it on startup (otherwise the GitHub Contents
+# API returns 404 and clutters the console).
+#
+# Files uploaded via the CMS will be committed alongside this
+# .gitkeep. Safe to delete this file once there's at least one
+# real upload here.

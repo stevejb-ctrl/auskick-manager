@@ -36,16 +36,14 @@ backend:
 # step is the safety net (TypeScript validates the JSON shape).
 publish_mode: simple
 
-# No media_folder declared — we don't expose image uploads from
-# the CMS UI yet. Decap probes the folder on startup; declaring a
-# folder that doesn't exist in the repo throws a noisy
-# (but recoverable) 404 in the console. When we want to add
-# image uploads later, do this together:
-#   1. Create `public/marketing/uploads/.gitkeep` (so the folder
-#      exists in the repo)
-#   2. Add back:
-#        media_folder: public/marketing/uploads
-#        public_folder: /marketing/uploads
+# Where uploaded media files land. Decap REQUIRES one of
+# media_folder / media_library at the top level; omitting both
+# fails config validation with "config must have required
+# property 'media_folder'". The folder needs to exist in the
+# repo before Decap probes it — public/marketing/uploads/.gitkeep
+# is committed for exactly this reason.
+media_folder: public/marketing/uploads
+public_folder: /marketing/uploads
 
 # Hide the "preview" link that points at an external preview URL —
 # we don't have one and the link 404s.
