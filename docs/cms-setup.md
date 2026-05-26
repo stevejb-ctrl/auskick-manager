@@ -6,7 +6,7 @@ touching code. Built on [Decap CMS](https://decapcms.org/)
 
 ## TL;DR
 
-1. Go to https://sirenfooty.com.au/admin
+1. Go to https://www.sirenfooty.com.au/cms
 2. Click **Login with GitHub** → approve.
 3. Click **Homepage** → **Homepage content**.
 4. Edit fields → **Publish** (top right).
@@ -33,10 +33,10 @@ CMS is a follow-up when the per-sport content stabilises.
 
 ## How it works under the hood
 
-- **Admin page**: `public/admin/index.html` loads Decap from unpkg
+- **Admin page**: `public/cms/index.html` loads Decap from unpkg
   (pinned to an exact version for security — see the comment in
   that file).
-- **Schema**: `public/admin/config.yml` tells Decap which file to
+- **Schema**: `public/cms/config.yml` tells Decap which file to
   edit and what fields it has.
 - **Content**: lives in `content/marketing/home.json`.
 - **Auth**: a small OAuth proxy at `src/app/api/decap/auth` +
@@ -93,7 +93,7 @@ https://docs.github.com/en/organizations/restricting-access-to-your-organization
 
 ### 4. Try it
 
-Visit https://sirenfooty.com.au/admin → click **Login with GitHub**.
+Visit https://www.sirenfooty.com.au/cms → click **Login with GitHub**.
 You should see the Homepage collection and be able to edit fields.
 
 ## Editing tips
@@ -117,7 +117,7 @@ You should see the Homepage collection and be able to edit fields.
 1. Add the field to `content/marketing/home.json` with a default value.
 2. Add the matching field to the `HomeContent` interface in
    `src/lib/marketing/homeContent.ts`.
-3. Add the field to `public/admin/config.yml` under the appropriate
+3. Add the field to `public/cms/config.yml` under the appropriate
    `fields:` block so the CMS surfaces it in the editor.
 4. Use the field from the relevant component (HeroCarousel,
    TrustBand, etc.).
@@ -132,7 +132,7 @@ When a new sport launches:
    `src/lib/sports/marketing-sports.ts`.
 2. Add the eyebrow string to `content/marketing/home.json` under
    `sportEyebrows`.
-3. Add the field to `public/admin/config.yml` under the
+3. Add the field to `public/cms/config.yml` under the
    `sportEyebrows` object block.
 
 The `getHeroEyebrow()` helper falls back to AFL if a sport id ever
@@ -142,14 +142,14 @@ editor UI.
 
 ## Upgrading Decap CMS
 
-The CMS script in `public/admin/index.html` is pinned to an exact
+The CMS script in `public/cms/index.html` is pinned to an exact
 version (e.g. `decap-cms@3.12.2`). To upgrade:
 
 1. Check the [Decap CMS releases](
    https://github.com/decaporg/decap-cms/releases) for the latest
    version and read the changelog.
-2. Bump the version number in `public/admin/index.html`.
-3. Test locally (`npm run dev` → visit `/admin`) before committing.
+2. Bump the version number in `public/cms/index.html`.
+3. Test locally (`npm run dev` → visit `/cms`) before committing.
 
 **Don't switch to a floating range like `^3.0.0`** — that means any
 future Decap release runs in your logged-in browser without review,
@@ -180,7 +180,7 @@ all small focused files.
   that you've redeployed since adding them.
 
 **"State mismatch" error**
-- Stale cookie. Close the popup, refresh `/admin`, try again.
+- Stale cookie. Close the popup, refresh `/cms`, try again.
 
 **Publish succeeds but the site doesn't update**
 - Wait 2 minutes — Vercel's build takes ~90s.
@@ -189,7 +189,7 @@ all small focused files.
   TypeScript validator. Edit it in Decap and republish.
 
 **Login works but I can't see any collections**
-- Make sure `public/admin/config.yml` is being served — visit
-  `https://sirenfooty.com.au/admin/config.yml` directly; you should
-  see the YAML. If you get a 404, the file isn't in `public/admin/`
+- Make sure `public/cms/config.yml` is being served — visit
+  `https://www.sirenfooty.com.au/cms/config.yml` directly; you should
+  see the YAML. If you get a 404, the file isn't in `public/cms/`
   or hasn't been deployed.
