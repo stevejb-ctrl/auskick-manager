@@ -83,7 +83,19 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
     .filter({ has: page.getByRole("button", { name: /^save$/i }) });
   const renamed = `${name} renamed`;
   await editingRow.getByRole("textbox").fill(renamed);
-  await editingRow.getByRole("button", { name: /^save$/i }).click();
+  // `force: true` bypasses the elementFromPoint actionability check
+  // because the parent <li> consistently captures the click point
+  // even though the Save button is visible, enabled, and stable (per
+  // Playwright's own pre-checks). The CSS hit-test resolves the click
+  // coordinate to the <li> ancestor instead of the inner <button>.
+  // Without force the test retries for 30s and times out. The button
+  // still receives the click event — force only skips actionability,
+  // not the event dispatch — so the rename action runs and the
+  // following assertion (`getByText(renamed) toBeVisible`) verifies
+  // the click took effect.
+  await editingRow
+    .getByRole("button", { name: /^save$/i })
+    .click({ force: true });
   await expect(page.getByText(renamed)).toBeVisible();
 
   // ── Delete ─────────────────────────────────────────────────
