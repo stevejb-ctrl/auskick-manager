@@ -206,12 +206,17 @@ export function HeroCarousel() {
           scale); they'd be too busy as a full-screen watermark.
           Other sports continue using their detailed components at
           low opacity until we ship "old-style" equivalents for
-          them too. Cropped via translate-x-40% so only the upper-
-          left quadrant peeks in from the right. */}
+          them too.
+
+          Positioned to sit BEHIND the phone mock (right column of
+          the hero grid) rather than off-screen. translate(-10%, 0)
+          centres the 900×900 field roughly on the phone, with a
+          slight leftward pull so the centre cross-hair lands
+          behind the phone screen rather than past it. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
-        style={{ transform: "translate(40%, 0)" }}
+        style={{ transform: "translate(-10%, 0)" }}
       >
         <div className="opacity-[0.14]">
           {active.id === "afl" ? (
