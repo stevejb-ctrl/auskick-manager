@@ -1569,7 +1569,19 @@ export function LeagueLiveGame({
           quarter={state.currentQuarter}
           onConfirm={() => {
             setEndQConfirmOpen(false);
-            void endQuarterAtClient(elapsedMs);
+            // Credit the FULL half / quarter to on-field players on
+            // a manual end-early, NOT the live elapsed time. Mirrors
+            // AFL's `handleEndQuarter({ creditFullQuarter: true })`:
+            // if the coach hits "End H2" after only 5 minutes of a
+            // 10-minute half (paused clock, real game ran on, etc.)
+            // the players actually played the whole half — the
+            // event log should reflect that, not the under-counted
+            // scaled-clock reading. The auto-hooter path above
+            // already passes periodMs; the manual path used to pass
+            // `elapsedMs` (live elapsed), under-crediting time-on
+            // and breaking the F/C/B zone-time bar + unbroken-period
+            // compliance check.
+            void endQuarterAtClient(periodSeconds * 1000);
           }}
           onCancel={() => setEndQConfirmOpen(false)}
           playersLabel="on-field"
