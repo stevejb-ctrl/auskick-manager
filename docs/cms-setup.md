@@ -45,12 +45,30 @@ update `src/lib/sports/marketing-copy.ts` to route Union to its own
 
 ### Editing images
 
-Image paths (e.g. feature screenshots) are plain text fields
-pointing under `/public`. The actual file upload still happens via
-git — drop the image into `public/marketing/screenshots/*` and
-commit it. The CMS only edits the path string. (Wiring up
-file-uploads from the CMS UI is a follow-up — needs the
-`media_folder` config + a `public/marketing/uploads/` directory.)
+Feature screenshots are full image-upload widgets. When you click
+the image field in a feature block:
+
+- **Drag-and-drop** an image from your desktop, or click to
+  browse your computer. The file uploads to
+  `public/marketing/screenshots/` and the JSON path updates
+  automatically.
+- **Pick an existing** screenshot from the media library — every
+  file already in `public/marketing/screenshots/` (including the
+  per-sport subfolders) is browsable.
+- **Replace** an existing image by clicking the field and choosing
+  a new file. The old file stays in the repo (you can delete it
+  later via git) but the JSON points at the new one.
+
+Filename tips:
+
+- Use kebab-case (`live-game.png`, not `Live Game.png`) — spaces
+  in URLs are ugly and break some tooling.
+- The CMS doesn't auto-resize. Export at the size you want
+  rendered. The phone-mock screenshots are typically ~600×1300px
+  PNG.
+- Keep the file under ~500KB. Larger PNGs slow the marketing
+  page. Run through https://tinypng.com/ before uploading if
+  needed.
 
 ## How it works under the hood
 

@@ -36,14 +36,19 @@ backend:
 # step is the safety net (TypeScript validates the JSON shape).
 publish_mode: simple
 
-# Where uploaded media files land. Decap REQUIRES one of
-# media_folder / media_library at the top level; omitting both
-# fails config validation with "config must have required
-# property 'media_folder'". The folder needs to exist in the
-# repo before Decap probes it — public/marketing/uploads/.gitkeep
-# is committed for exactly this reason.
-media_folder: public/marketing/uploads
-public_folder: /marketing/uploads
+# Where uploaded media files land. Pointed at the existing
+# /marketing/screenshots/ folder so:
+#   - The CMS image picker shows all existing screenshots, not
+#     an empty list.
+#   - New uploads land alongside the existing ones (same path
+#     convention, e.g. /marketing/screenshots/foo.png).
+#   - Per-sport subfolders (netball/, league/, etc.) are
+#     browsable too — drag a file into the picker to upload to
+#     the root, or type a subfolder path in the alt path field.
+# Decap REQUIRES one of media_folder / media_library at the top
+# level; omitting both fails config validation.
+media_folder: public/marketing/screenshots
+public_folder: /marketing/screenshots
 
 # Hide the "preview" link that points at an external preview URL —
 # we don't have one and the link 404s.
@@ -73,8 +78,18 @@ feature_block_fields: &featureBlockFields
   - { name: title, label: Title, widget: object, fields: *titlePartsFields }
   - { name: body, label: Body, widget: text }
   - { name: bullets, label: Bullets, widget: list, field: { name: bullet, label: Bullet, widget: string } }
-  - { name: image, label: Image path, widget: string, hint: "Absolute path under /public, e.g. /marketing/screenshots/rotations.png. Upload the file to that path via git for now." }
-  - { name: imageAlt, label: Image alt text, widget: string }
+  - {
+      name: image,
+      label: Screenshot,
+      widget: image,
+      hint: "Drag-drop an image, click to upload, or pick an existing screenshot from /marketing/screenshots/. The path saved into the JSON is what the marketing page renders.",
+    }
+  - {
+      name: imageAlt,
+      label: Image alt text,
+      widget: string,
+      hint: "Short description shown to screen readers and used as the alt attribute. Describe what the screenshot shows.",
+    }
 
 # Field group for one full BrandCopy file. Anchored so AFL, League,
 # and Netball share an identical editor — change one place, all
