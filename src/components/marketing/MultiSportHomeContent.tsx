@@ -96,10 +96,19 @@ export function MultiSportHomeContent() {
           stale refs (one set of refs per feature index) from the
           previous sport's features array, and activeIndex can point
           past the end if the new sport has fewer features. */}
+      {/* `accent` flows the active sport's hex into every "brand
+          colour" surface inside the features section — centerpiece
+          accent word, per-feature eyebrow number, accent word in
+          each feature title, bullet dots, the dot-stepper active
+          pill, mobile overlay card. Without this, all of those
+          surfaces fall back to text-brand-500 (a fixed green
+          theme token) and the sport-cascade visual story breaks
+          at the fold. */}
       <ScrollingFeatures
         key={sportId}
         features={copy.features}
         centerpiece={copy.centerpiece}
+        accent={getMarketingSport(sportId).accent}
       />
       {/* AppStoreBadge stays on for every sport — Steve 2026-05-26:
           "Keep the Show in App store on all variants." iOS app is

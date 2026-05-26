@@ -8,8 +8,19 @@ interface TitleAccentProps {
    * `text-warm/90` on the dark overlay card so the accent reads on
    * the ink background; use `text-ink-dim` on the centerpiece's
    * "Nothing you don't." half so the accent reads softer.
+   *
+   * Ignored if `accentColor` is set (inline style wins).
    */
   italicClassName?: string;
+  /**
+   * Optional hex colour for the accent word. The multi-sport
+   * homepage passes the active sport's accent here so the
+   * "breeze" / "fair" / etc. word matches the picker tile and hero
+   * eyebrow. When unset, falls back to the className path
+   * (typically brand-500). Inline style because the colour is a
+   * runtime data value, not a Tailwind token.
+   */
+  accentColor?: string;
 }
 
 /**
@@ -25,10 +36,26 @@ interface TitleAccentProps {
  * If `italic` is empty (some headings stay plain), the parts just
  * concatenate with no markup.
  */
-export function TitleAccent({ parts, italicClassName }: TitleAccentProps) {
+export function TitleAccent({
+  parts,
+  italicClassName,
+  accentColor,
+}: TitleAccentProps) {
   const { before, italic, after } = parts;
   if (!italic) {
     return <>{`${before}${after}`}</>;
+  }
+  // accentColor wins over className — inline style takes precedence
+  // and is the path the multi-sport homepage uses to thread the
+  // active sport's hex through.
+  if (accentColor) {
+    return (
+      <>
+        {before}
+        <span style={{ color: accentColor }}>{italic}</span>
+        {after}
+      </>
+    );
   }
   return (
     <>

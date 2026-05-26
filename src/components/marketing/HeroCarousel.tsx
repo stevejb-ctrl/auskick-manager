@@ -197,20 +197,24 @@ export function HeroCarousel() {
       onMouseLeave={() => setPaused(false)}
     >
       {/* Decorative field illustration behind the hero (desktop
-          only). Swaps to the active sport's field illustration so
-          a visitor sees AFL oval / RL rect / netball court /
-          rugby pitch lines behind the phone mock — the Claude
-          Design watermark pattern.
-          strokeTheme="on-light" so the SVG draws DARK ink lines
-          on the cream hero background (cream-on-cream was
-          invisible). The inner div opacity tunes the watermark
-          intensity from there. */}
+          only). Per Claude Design's reference: a subtle watermark
+          cropped so only the upper-left quadrant of the field
+          peeks out from behind the right edge of the screen.
+          - opacity 0.15 (was 0.55 — way too prominent, was
+            competing with the foreground copy).
+          - transform translate-x-40%: pushes the field much
+            further off-screen right so only ~40% bleeds back
+            into the hero, giving the cropped-watermark feel
+            rather than a full background.
+          - strokeTheme="on-light" so the SVG draws DARK ink
+            lines on the cream hero background (cream-on-cream
+            was invisible at any opacity). */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
-        style={{ transform: "translate(15%, 0)" }}
+        style={{ transform: "translate(40%, 0)" }}
       >
-        <div className="h-[900px] w-[900px] opacity-[0.55]">
+        <div className="h-[900px] w-[900px] opacity-[0.15]">
           <SportFieldPlaceholder
             sport={active}
             tintOpacity={0}

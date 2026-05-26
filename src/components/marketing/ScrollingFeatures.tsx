@@ -9,8 +9,18 @@ import type { FeatureCopy, TitleParts } from "@/lib/sports/brand-copy";
 interface ScrollingFeaturesProps {
   features: FeatureCopy[];
   /** Editorial centrepiece heading. Single headline with an accent
-   *  word pulled into the brand-500 colour. */
+   *  word pulled into the active sport's accent colour. */
   centerpiece: TitleParts;
+  /**
+   * Active sport's accent hex. Threaded down to every "the brand
+   * colour" surface inside this section: centerpiece dots + accent
+   * word, per-feature eyebrow numeral, accent word in each
+   * feature title, bullet dots, dot-stepper active pill, mobile
+   * overlay card label. Optional — when absent, components fall
+   * back to the static `brand-500` token so dedicated brand sites
+   * (sirenfooty.com.au etc.) still render correctly.
+   */
+  accent?: string;
 }
 
 const PADDED = (n: number) => n.toString().padStart(2, "0");
@@ -39,7 +49,11 @@ const PADDED = (n: number) => n.toString().padStart(2, "0");
  * `display: none` on mobile) overwrite the mobile articles' refs, leaving
  * the observer with invisible elements that never intersect.
  */
-export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesProps) {
+export function ScrollingFeatures({
+  features,
+  centerpiece,
+  accent,
+}: ScrollingFeaturesProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const desktopRefs = useRef<Array<HTMLDivElement | null>>([]);
   const mobileRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -107,7 +121,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
       className="relative border-b border-hairline py-16 sm:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <Centerpiece parts={centerpiece} />
+        <Centerpiece parts={centerpiece} accent={accent} />
 
         {/* MOBILE LAYOUT — single-column page scroll, sticky phone below
             the page header with overlay card + progress pill. */}
@@ -138,6 +152,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                 feature={features[activeIndex]}
                 index={activeIndex}
                 total={features.length}
+                accent={accent}
               />
             </PhoneFrame>
 
@@ -148,6 +163,7 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
               activeIndex={activeIndex}
               total={features.length}
               features={features}
+              accent={accent}
               onJump={(i) => {
                 mobileRefs.current[i]?.scrollIntoView({
                   block: "center",
@@ -210,12 +226,17 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                   i === activeIndex ? "opacity-100" : "opacity-40"
                 }`}
               >
-                <p className="font-mono text-[12px] font-bold uppercase tracking-micro text-brand-500">
-                  <span className="mr-3">{PADDED(i + 1)}</span>
+                <p
+                  className="font-mono text-[12px] font-bold uppercase tracking-micro"
+                  style={accent ? { color: accent } : undefined}
+                >
+                  <span className={accent ? "mr-3" : "mr-3 text-brand-500"}>
+                    {PADDED(i + 1)}
+                  </span>
                   <span className="text-ink-mute">{f.eyebrow}</span>
                 </p>
                 <h3 className="mt-3 max-w-xl text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] md:text-4xl lg:text-5xl">
-                  <TitleAccent parts={f.title} />
+                  <TitleAccent parts={f.title} accentColor={accent} />
                 </h3>
                 <p className="mt-4 max-w-xl text-lg text-ink-dim">{f.body}</p>
                 <ul className="mt-6 space-y-3">
@@ -223,7 +244,8 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
                     <li key={bullet} className="flex gap-3 text-base text-ink">
                       <span
                         aria-hidden="true"
-                        className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500"
+                        className={`mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent ? "" : "bg-brand-500"}`}
+                        style={accent ? { backgroundColor: accent } : undefined}
                       />
                       <span>{bullet}</span>
                     </li>
@@ -281,19 +303,38 @@ export function ScrollingFeatures({ features, centerpiece }: ScrollingFeaturesPr
 // grew ("To make game day a breeze") each word ended up on its own
 // line in the narrow grid column. One flowing headline with text-wrap
 // balance + an accent word handles any length cleanly.
-function Centerpiece({ parts }: { parts: TitleParts }) {
+function Centerpiece({
+  parts,
+  accent,
+}: {
+  parts: TitleParts;
+  accent?: string;
+}) {
+  // Dot colour: inline-style with sport accent when present, else
+  // fall back to the bg-brand-500 token so dedicated brand sites
+  // keep rendering unchanged.
+  const dotStyle = accent ? { backgroundColor: accent } : undefined;
+  const dotClass = accent ? "" : "bg-brand-500";
   return (
     <div className="mx-auto mb-4 max-w-4xl text-center">
       <div className="flex items-center justify-center gap-3">
-        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
+        <span
+          aria-hidden="true"
+          className={`block h-1.5 w-1.5 rounded-full ${dotClass}`}
+          style={dotStyle}
+        />
         <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-mute">
           What Siren does
         </span>
-        <span aria-hidden="true" className="block h-1.5 w-1.5 rounded-full bg-brand-500" />
+        <span
+          aria-hidden="true"
+          className={`block h-1.5 w-1.5 rounded-full ${dotClass}`}
+          style={dotStyle}
+        />
       </div>
 
       <h2 className="mt-5 text-[clamp(2rem,5vw,4.5rem)] font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]">
-        <TitleAccent parts={parts} />
+        <TitleAccent parts={parts} accentColor={accent} />
       </h2>
     </div>
   );
@@ -314,10 +355,12 @@ function MobileOverlayCard({
   feature,
   index,
   total,
+  accent,
 }: {
   feature: FeatureCopy;
   index: number;
   total: number;
+  accent?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -330,7 +373,10 @@ function MobileOverlayCard({
         className="block w-full rounded-md bg-ink/[0.92] px-3 py-2.5 text-left text-warm shadow-modal backdrop-blur-sm transition-colors duration-fast ease-out-quart hover:bg-ink/[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-brand-500">
+          <span
+            className={`font-mono text-[9px] font-bold uppercase tracking-[0.18em] ${accent ? "" : "text-brand-500"}`}
+            style={accent ? { color: accent } : undefined}
+          >
             {PADDED(index + 1)}/{PADDED(total)}
           </span>
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-warm/55">
@@ -345,6 +391,10 @@ function MobileOverlayCard({
           </span>
         </div>
         <h3 className="mt-1 text-[13px] font-semibold leading-tight tracking-tightest text-warm [text-wrap:balance]">
+          {/* Accent stays text-warm/90 on the dark card — sport
+              accents (orange, green, purple) don't read on near-
+              black backgrounds at this small size; cream is the
+              legible choice. */}
           <TitleAccent parts={feature.title} italicClassName="text-warm/90" />
         </h3>
 
@@ -369,7 +419,8 @@ function MobileOverlayCard({
                 >
                   <span
                     aria-hidden="true"
-                    className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-brand-500"
+                    className={`mt-1.5 h-1 w-1 flex-shrink-0 rounded-full ${accent ? "" : "bg-brand-500"}`}
+                    style={accent ? { backgroundColor: accent } : undefined}
                   />
                   <span>{b}</span>
                 </li>
@@ -391,34 +442,44 @@ function DotStepper({
   activeIndex,
   total,
   features,
+  accent,
   onJump,
 }: {
   activeIndex: number;
   total: number;
   features: FeatureCopy[];
+  accent?: string;
   onJump: (index: number) => void;
 }) {
   return (
     <div className="mt-5 flex items-center justify-center gap-2">
-      {Array.from({ length: total }).map((_, i) => (
-        <button
-          key={i}
-          type="button"
-          aria-label={`Feature ${i + 1} of ${total}: ${features[i]?.eyebrow ?? ""}`}
-          aria-current={i === activeIndex ? "true" : undefined}
-          onClick={() => onJump(i)}
-          className="flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart"
-        >
-          <span
-            aria-hidden="true"
-            className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
-              i === activeIndex
-                ? "h-1.5 w-[22px] bg-brand-500"
-                : "h-1.5 w-1.5 bg-hairline"
-            }`}
-          />
-        </button>
-      ))}
+      {Array.from({ length: total }).map((_, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <button
+            key={i}
+            type="button"
+            aria-label={`Feature ${i + 1} of ${total}: ${features[i]?.eyebrow ?? ""}`}
+            aria-current={isActive ? "true" : undefined}
+            onClick={() => onJump(i)}
+            className="flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart"
+          >
+            <span
+              aria-hidden="true"
+              className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
+                isActive
+                  ? `h-1.5 w-[22px] ${accent ? "" : "bg-brand-500"}`
+                  : "h-1.5 w-1.5 bg-hairline"
+              }`}
+              style={
+                isActive && accent
+                  ? { backgroundColor: accent }
+                  : undefined
+              }
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
