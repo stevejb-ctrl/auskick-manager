@@ -86,39 +86,66 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Post the token back to the Decap popup opener. Message format
-  // is Decap's documented protocol:
-  //   "authorization:github:success:{\"token\":\"...\",\"provider\":\"github\"}"
-  // The string-prefix marker is how Decap distinguishes its OAuth
-  // messages from other postMessage chatter.
+  // Post the token back to the Decap popup opener using Decap's
+  // documented OAuth handshake:
   //
-  // We use `'*'` as the target origin because Decap is served from
-  // the same host (/admin) and we just redirected the popup
-  // through GitHub and back — at this point the popup is on our
-  // origin, and `'*'` lets the message reach Decap regardless of
-  // whether Decap is on / or /admin. Safe: opener is locked to
-  // sirenfooty.com.au by browser SOP.
+  //   1. Popup announces it's done by posting "authorizing:github"
+  //      to the parent.
+  //   2. Parent (Decap) replies with any message — this is the
+  //      "I'm listening" acknowledgement.
+  //   3. Popup responds by posting
+  //      "authorization:github:success:{token,provider}"
+  //   4. Parent receives the token, stores it in localStorage,
+  //      and closes the popup.
+  //
+  // The original simpler "post once and close" pattern races:
+  // Decap registers its message listener after the popup has
+  // already fired and closed, so the message is lost and the
+  // login loops. The handshake guarantees the parent is ready.
+  //
+  // Reference: the netlify-cms-github-oauth-provider community
+  // implementation (https://github.com/vencax/netlify-cms-github-
+  // oauth-provider) uses this exact protocol; Decap inherits it
+  // unchanged from Netlify CMS.
   const payload = JSON.stringify({
     token: tokenBody.access_token,
     provider: "github",
   });
-  const message = `authorization:github:success:${payload}`;
+  const successMessage = `authorization:github:success:${payload}`;
   // JSON.stringify the message string itself before inlining so it
   // round-trips through HTML safely (escapes quotes, slashes).
-  const safeMessage = JSON.stringify(message);
+  const safeSuccessMessage = JSON.stringify(successMessage);
 
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Authorising…</title></head>
 <body>
 <script>
 (function () {
-  var msg = ${safeMessage};
-  if (window.opener) {
-    window.opener.postMessage(msg, "*");
+  var successMsg = ${safeSuccessMessage};
+  function receiveMessage(e) {
+    // Any message from the parent (Decap's "authorizing:github"
+    // ack, or even just an origin string) is our signal that the
+    // parent has its listener registered and is ready to receive
+    // the token. Respond with the success payload and we're done.
+    if (!window.opener) return;
+    window.opener.postMessage(successMsg, e.origin);
+    // Defer close so the parent processes the message before the
+    // popup goes away — some browsers tear down message ports
+    // synchronously on close().
+    setTimeout(function () { window.close(); }, 0);
   }
-  // Decap also accepts the message via a second postMessage after
-  // a handshake — sending it once on load is enough in practice.
-  window.close();
+  window.addEventListener("message", receiveMessage, false);
+  // Start the handshake. "*" is intentional here — we don't know
+  // the parent's origin a priori (could be apex or www after
+  // redirects), and the parent answers with its real origin in
+  // e.origin which we then echo back via targeted postMessage.
+  if (window.opener) {
+    window.opener.postMessage("authorizing:github", "*");
+  } else {
+    // No opener (e.g. popup blocker tore the link) — show a hint.
+    document.body.innerText =
+      "No parent window. Close this tab and try again from /cms.";
+  }
 })();
 </script>
 <p>Authorising… You can close this window.</p>
