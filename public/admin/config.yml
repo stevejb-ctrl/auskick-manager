@@ -1,0 +1,112 @@
+# Decap CMS schema for Siren's marketing homepage.
+# https://decapcms.org/docs/configuration-options/
+#
+# What this file does:
+#   When you open /admin on the deployed site, Decap reads this
+#   schema and renders an admin UI. Edits commit back to the
+#   GitHub repo on the branch listed below; Vercel sees the commit
+#   and redeploys — content is live in ~2 min.
+#
+# Auth:
+#   Uses the in-repo OAuth proxy at /api/decap/auth + /api/decap/callback
+#   (src/app/api/decap/). Requires GITHUB_OAUTH_CLIENT_ID +
+#   GITHUB_OAUTH_CLIENT_SECRET env vars on Vercel. See
+#   docs/cms-setup.md for the first-time setup.
+
+backend:
+  name: github
+  repo: stevejb-ctrl/auskick-manager
+  branch: main
+  # Point Decap at our own OAuth proxy (Vercel route handlers)
+  # instead of Netlify Identity, which we can't use since we host
+  # on Vercel.
+  base_url: https://sirenfooty.com.au
+  auth_endpoint: /api/decap/auth
+
+# Disable Decap's "editorial workflow" (PR-per-edit). For one
+# editor and ~8 strings, direct-to-main is fine — Vercel's build
+# step is the safety net (TypeScript validates the JSON shape).
+publish_mode: simple
+
+# Where uploaded media files land. Decap requires this set even if
+# we don't upload anything from the CMS UI yet — defining it now
+# means future image fields just work.
+media_folder: public/marketing/uploads
+public_folder: /marketing/uploads
+
+# Disable Git Gateway-style file editor (we don't expose raw file
+# editing — schema-driven only).
+show_preview_links: false
+
+collections:
+  - name: home
+    label: Homepage
+    description: >
+      Shared homepage strings — hero headline, trust band, per-sport
+      eyebrows. Edits commit to main and deploy in ~2 min.
+    # `files` (not `folder`) — single JSON file, not a directory.
+    files:
+      - name: home
+        label: Homepage content
+        file: content/marketing/home.json
+        format: json
+        fields:
+          - name: hero
+            label: Hero section
+            widget: object
+            fields:
+              - name: headline
+                label: Headline
+                widget: string
+                hint: Big sport-agnostic h1 at the top of the page.
+              - name: subtitle
+                label: Subtitle
+                widget: text
+                hint: Sentence under the headline.
+              - name: trustLine
+                label: Trust line
+                widget: string
+                hint: >
+                  Tiny uppercase line under the CTA buttons. Use
+                  UPPERCASE with ' · ' between items, e.g.
+                  "FREE 2026 SEASON · WORKS ON ANY PHONE".
+
+          - name: sportEyebrows
+            label: Per-sport eyebrows
+            widget: object
+            hint: >
+              The "Built for junior X" line above the hero
+              headline. Swaps as the hero carousel rotates through
+              sports.
+            fields:
+              - name: afl
+                label: AFL
+                widget: string
+              - name: league
+                label: Rugby League
+                widget: string
+              - name: netball
+                label: Netball
+                widget: string
+              - name: union
+                label: Rugby Union
+                widget: string
+
+          - name: trustBand
+            label: Trust band
+            widget: list
+            hint: >
+              Four-entry stats strip rendered between the hero and
+              the feature scroll. Platform-wide stats (don't vary
+              per sport).
+            min: 4
+            max: 4
+            fields:
+              - name: stat
+                label: Stat
+                widget: string
+                hint: e.g. "1,200+", "38k", "4.9★"
+              - name: label
+                label: Label
+                widget: string
+                hint: e.g. "Coaches", "Games tracked"
