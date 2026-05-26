@@ -7,6 +7,7 @@
 // shared `LiveTopBar` / `LiveStickyScoreBar` / `LiveAdminUtilityRow`
 // chrome wrapped around RL-specific surfaces.
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
@@ -15,6 +16,14 @@ import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
+import { buildLeagueWalkthroughSteps } from "./leagueWalkthroughSteps";
+// Walkthrough modal is heavy (animations, slide tracking) and only
+// mounts on first visit or "?" tap. Dynamic-import keeps it out of
+// the main live-page bundle, matching the AFL + netball pattern.
+const WalkthroughModal = dynamic(
+  () => import("@/components/live/WalkthroughModal").then((m) => m.WalkthroughModal),
+  { ssr: false },
+);
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -128,6 +137,23 @@ export function LeagueLiveGame({
    * to the quarter-break view with zero server state changed.
    */
   const [startPeriodConfirmOpen, setStartPeriodConfirmOpen] = useState(false);
+  // ── Auto-open the StartQuarterModal at every quarter-break ──
+  // AFL's `QuarterBreak` requires the coach to tap "Ready for Q{n}"
+  // in a sticky-bottom bar before the modal pops. RL has an inline
+  // q-break card and Steve flagged that the "Tap when the siren
+  // goes" modal felt missing in practice. Solution: auto-pop the
+  // modal the first time we enter q-break for each period. If the
+  // coach taps "Back to lineup" they fall back to the inline card
+  // (Ready button there manually re-opens the modal). Tracked per-
+  // period via a ref so dismissing once doesn't keep auto-reopening.
+  const autoOpenedForQbreakRef = useRef<number | null>(null);
+  // ── Walkthrough state (mirrors AFL + netball) ──
+  // First-visit auto-open uses `league-walkthrough-seen` in
+  // localStorage so a coach doesn't see the welcome again on
+  // subsequent live-game opens. The "?" button in LiveTopBar
+  // re-opens the steps (skipWelcome) on demand.
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
   const [subAckedAtBaseMs, setSubAckedAtBaseMs] = useState<number | null>(
     null,
   );
@@ -569,6 +595,80 @@ export function LeagueLiveGame({
     running,
     endQuarterAtClient,
   ]);
+
+  // Auto-open the "Tap when the siren goes" modal as soon as we
+  // land at a quarter-break, once per period transition. See the
+  // `autoOpenedForQbreakRef` declaration for the full rationale.
+  // Gated on isAtQbreak (i.e. period ended AND not the final
+  // period AND not finalised) so it never fires at game-end where
+  // the FullTimeReview owns the space.
+  useEffect(() => {
+    if (!state.quarterEnded) {
+      // Period went live again — reset the ref so the NEXT break
+      // gets its own auto-open.
+      autoOpenedForQbreakRef.current = null;
+      return;
+    }
+    if (state.finalised) return;
+    if (state.currentQuarter >= ageGroup.periodCount) return;
+    if (autoOpenedForQbreakRef.current === state.currentQuarter) return;
+    autoOpenedForQbreakRef.current = state.currentQuarter;
+    setStartPeriodConfirmOpen(true);
+  }, [
+    state.quarterEnded,
+    state.finalised,
+    state.currentQuarter,
+    ageGroup.periodCount,
+  ]);
+
+  // First-visit walkthrough auto-open. Mirrors netball's pattern —
+  // dedicated `league-walkthrough-seen` localStorage key (sibling to
+  // `nb-walkthrough-seen`) so each sport's walkthrough acks
+  // independently. The "?" button in LiveTopBar re-opens manually.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem("league-walkthrough-seen")) return;
+    setWalkthroughOpen(true);
+  }, []);
+  function handleWalkthroughClose() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("league-walkthrough-seen", "1");
+    }
+    setWalkthroughOpen(false);
+    setWalkthroughSkipWelcome(false);
+  }
+  function handleOpenWalkthrough() {
+    setWalkthroughSkipWelcome(true);
+    setWalkthroughOpen(true);
+  }
+  // Build the steps once per dependency change. Vests / kicking /
+  // zone-time / unbroken-periods are all sport-config or per-game
+  // toggles, so the step list updates if any change between
+  // sessions for the same team.
+  const walkthroughSteps = useMemo(
+    () =>
+      buildLeagueWalkthroughSteps({
+        trackScoring,
+        periodLabel: (ageGroup.periodLabel ?? "quarter") as
+          | "quarter"
+          | "half"
+          | "period",
+        vestsEnabled:
+          (ageGroup.vestRequirements?.fr ?? false)
+          || (ageGroup.vestRequirements?.dh ?? false),
+        kickingAllowed: ageGroup.kickingAllowed === true,
+        trackZoneTime,
+        enforceUnbrokenPeriods,
+      }),
+    [
+      trackScoring,
+      ageGroup.periodLabel,
+      ageGroup.vestRequirements,
+      ageGroup.kickingAllowed,
+      trackZoneTime,
+      enforceUnbrokenPeriods,
+    ],
+  );
 
   async function handleStartNextPeriod() {
     setPending(true);
@@ -1191,7 +1291,18 @@ export function LeagueLiveGame({
 
   return (
     <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
-      <LiveTopBar exitHref={exitHref} game={game} />
+      <LiveTopBar
+        exitHref={exitHref}
+        game={game}
+        onHelp={handleOpenWalkthrough}
+      />
+      {walkthroughOpen && (
+        <WalkthroughModal
+          steps={walkthroughSteps}
+          skipWelcome={walkthroughSkipWelcome}
+          onClose={handleWalkthroughClose}
+        />
+      )}
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
 
