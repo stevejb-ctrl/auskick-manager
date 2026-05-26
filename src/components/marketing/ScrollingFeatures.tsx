@@ -241,7 +241,10 @@ export function ScrollingFeatures({
                 <p className="mt-4 max-w-xl text-lg text-ink-dim">{f.body}</p>
                 <ul className="mt-6 space-y-3">
                   {f.bullets.map((bullet) => (
-                    <li key={bullet} className="flex gap-3 text-base text-ink">
+                    <li
+                      key={bullet}
+                      className="flex gap-3 text-base text-ink-dim"
+                    >
                       <span
                         aria-hidden="true"
                         className={`mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent ? "" : "bg-brand-500"}`}
