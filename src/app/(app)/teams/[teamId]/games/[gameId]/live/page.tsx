@@ -76,7 +76,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -320,10 +320,32 @@ export default async function LivePage({ params }: LivePageProps) {
           subIntervalSeconds={g.sub_interval_seconds}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={
-            (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+            // Game → team → false fallback. Same shape as
+            // trackZoneTime above — newly-created games have a null
+            // override so they should inherit the team's standing
+            // preference. Mid-game toggle writes the per-game value
+            // as a true override (Steve 2026-05-26 — paired with
+            // the trackZoneTime fix in this commit).
+            (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
+            (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+              ?.enforce_unbroken_periods ??
+            false
           }
           trackZoneTime={
-            (g as { track_zone_time?: boolean | null }).track_zone_time ?? false
+            // Fall back game → team → false so a coach who turns on
+            // "Track forward/back time" at the team level sees the
+            // in-game bar without having to re-flip it per game.
+            // The mid-game Game-Settings toggle writes
+            // games.track_zone_time directly (true/false) — once
+            // set, the per-game value overrides the team default
+            // (Steve 2026-05-26 — prior behaviour read only
+            // game.track_zone_time and ignored the team setting,
+            // so newly-created games never inherited the team's
+            // standing preference).
+            (g as { track_zone_time?: boolean | null }).track_zone_time ??
+            (teamRow as { track_zone_time?: boolean | null } | null)
+              ?.track_zone_time ??
+            false
           }
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
