@@ -1130,6 +1130,13 @@ export function LeagueLiveGame({
     = state.quarterEnded
     && state.currentQuarter >= ageGroup.periodCount
     && !state.finalised;
+  // Mirrors AFL's `isFinished` — covers both the post-final-period
+  // review phase (LeagueFullTimeReview is up, coach is reconciling
+  // scores) and the post-finalise phase (LeagueGameSummaryCard with
+  // "Copy for group chat"). Used to hide the field + bench layout
+  // once the game is over — the on-pitch view doesn't carry any
+  // signal once the coach is reading the share card.
+  const isFinished = state.finalised || isAtFinalQ;
   // Countdown clock — mirrors AFL + netball. The shared coach mental
   // model is "how much period is left", not "how much has elapsed".
   // Hooter fires when remainingMs hits 0 (see the periodMs check
@@ -1206,8 +1213,14 @@ export function LeagueLiveGame({
         />
       )}
 
-      {/* Field + bench */}
-      {state.lineup && (() => {
+      {/* Field + bench — hidden at full time (mirrors AFL's
+          `!isFinished` gate around its Field + Bench fragment). Once
+          the period count is reached, LeagueFullTimeReview takes the
+          space below for score reconcile and after finalise the
+          LeagueGameSummaryCard carries the share text. The on-pitch
+          layout doesn't carry any signal at that point and just
+          pads the screen with stale state. */}
+      {!isFinished && state.lineup && (() => {
         // Build the swap maps from the suggester output so each tile
         // can render its own visual indicator (amber for going-off,
         // brand-blue for coming-on, +pair number when there's more
