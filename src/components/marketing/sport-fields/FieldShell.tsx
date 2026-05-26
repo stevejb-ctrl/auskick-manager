@@ -69,12 +69,20 @@ export function FieldShell({
   // marking element inside `children` references the CSS variable
   // names, so swapping the values here re-themes the entire field
   // with no per-marking changes.
+  //
+  // on-light values are intentionally MUCH lower opacity than on-
+  // dark: a 0.55 dark stroke at hero scale (900px wide) reads as
+  // a thick black line rather than a watermark. 0.22 / 0.12 lands
+  // closer to FieldOval's original hairline aesthetic (the AFL
+  // hero swaps to FieldOval directly; this softer palette keeps
+  // the still-detailed RL/netball/union hero watermarks visually
+  // consistent with FieldOval's weight).
   const strokeVars: React.CSSProperties =
     strokeTheme === "on-light"
       ? ({
-          "--field-stroke": "rgba(15,18,17,0.55)",
-          "--field-stroke-faint": "rgba(15,18,17,0.3)",
-          "--field-fill-soft": "rgba(15,18,17,0.04)",
+          "--field-stroke": "rgba(15,18,17,0.22)",
+          "--field-stroke-faint": "rgba(15,18,17,0.12)",
+          "--field-fill-soft": "rgba(15,18,17,0.03)",
         } as React.CSSProperties)
       : ({
           "--field-stroke": "rgba(242,238,228,0.7)",

@@ -6,6 +6,7 @@ import { PhoneFrame } from "@/components/marketing/PhoneFrame";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
+import { FieldOval } from "@/components/marketing/FieldOval";
 import {
   MARKETING_SPORTS,
   type MarketingSportConfig,
@@ -196,30 +197,34 @@ export function HeroCarousel() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Decorative field illustration behind the hero (desktop
-          only). Per Claude Design's reference: a subtle watermark
-          cropped so only the upper-left quadrant of the field
-          peeks out from behind the right edge of the screen.
-          - opacity 0.15 (was 0.55 — way too prominent, was
-            competing with the foreground copy).
-          - transform translate-x-40%: pushes the field much
-            further off-screen right so only ~40% bleeds back
-            into the hero, giving the cropped-watermark feel
-            rather than a full background.
-          - strokeTheme="on-light" so the SVG draws DARK ink
-            lines on the cream hero background (cream-on-cream
-            was invisible at any opacity). */}
+      {/* Decorative field watermark behind the hero (desktop only).
+          AFL renders the OLD FieldOval (3 thin concentric ellipses
+          + crosshair, 0.45–0.7 stroke widths) — Steve's reference
+          and the original marketing aesthetic. The new sport-fields
+          components stay for the picker cards (their thicker
+          strokes + detailed markings read at the smaller card
+          scale); they'd be too busy as a full-screen watermark.
+          Other sports continue using their detailed components at
+          low opacity until we ship "old-style" equivalents for
+          them too. Cropped via translate-x-40% so only the upper-
+          left quadrant peeks in from the right. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
         style={{ transform: "translate(40%, 0)" }}
       >
-        <div className="h-[900px] w-[900px] opacity-[0.15]">
-          <SportFieldPlaceholder
-            sport={active}
-            tintOpacity={0}
-            strokeTheme="on-light"
-          />
+        <div className="opacity-[0.18]">
+          {active.id === "afl" ? (
+            <FieldOval size={900} />
+          ) : (
+            <div className="h-[900px] w-[900px]">
+              <SportFieldPlaceholder
+                sport={active}
+                tintOpacity={0}
+                strokeTheme="on-light"
+              />
+            </div>
+          )}
         </div>
       </div>
 
