@@ -7,12 +7,10 @@ import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
 import {
-  HERO_SHARED_HEADLINE,
-  HERO_SHARED_SUBTITLE,
-  HERO_SHARED_TRUST,
   MARKETING_SPORTS,
   type MarketingSportConfig,
 } from "@/lib/sports/marketing-sports";
+import { HOME_CONTENT, getHeroEyebrow } from "@/lib/marketing/homeContent";
 import {
   AflOvalField,
   LeagueRectField,
@@ -196,13 +194,13 @@ export function HeroCarousel() {
               key={`eyebrow-${active.id}`}
               className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
             >
-              {active.heroEyebrow}
+              {getHeroEyebrow(active.id)}
             </p>
             <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
-              {HERO_SHARED_HEADLINE}
+              {HOME_CONTENT.hero.headline}
             </h1>
             <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
-              {HERO_SHARED_SUBTITLE}
+              {HOME_CONTENT.hero.subtitle}
             </p>
 
             {/* Binary CTA row: iOS app OR web app. AppStoreBadge
@@ -220,7 +218,7 @@ export function HeroCarousel() {
             </div>
 
             <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
-              {HERO_SHARED_TRUST}
+              {HOME_CONTENT.hero.trustLine}
             </p>
 
             {/* Pagination dots — one per sport. Active dot fills with

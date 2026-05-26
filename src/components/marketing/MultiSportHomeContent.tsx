@@ -7,10 +7,8 @@ import {
   isMarketingSportId,
   type MarketingSportId,
 } from "@/lib/sports/marketing-sports";
-import {
-  getMarketingCopy,
-  SHARED_TRUST_BAND,
-} from "@/lib/sports/marketing-copy";
+import { getMarketingCopy } from "@/lib/sports/marketing-copy";
+import { HOME_CONTENT } from "@/lib/marketing/homeContent";
 import { MultiSportSection } from "@/components/marketing/MultiSportSection";
 import { TrustBand } from "@/components/marketing/TrustBand";
 import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
@@ -88,10 +86,11 @@ export function MultiSportHomeContent() {
   return (
     <>
       <MultiSportSection sportId={sportId} onSportChange={handleSportChange} />
-      {/* TrustBand uses SHARED_TRUST_BAND (platform-wide stats) not
-          per-sport copy.trustBand — Steve 2026-05-26: "1,200+
-          coaches, 38k games etc are the same across all sports". */}
-      <TrustBand entries={SHARED_TRUST_BAND} />
+      {/* TrustBand uses the shared HOME_CONTENT.trustBand (platform-
+          wide stats) not per-sport copy.trustBand — Steve 2026-05-26:
+          "1,200+ coaches, 38k games etc are the same across all
+          sports". CMS-editable via .pages.yml → home.json. */}
+      <TrustBand entries={HOME_CONTENT.trustBand} />
       {/* Key forces a clean remount when the sport changes. Without
           it, ScrollingFeatures's IntersectionObserver hangs on to
           stale refs (one set of refs per feature index) from the

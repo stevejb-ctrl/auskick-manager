@@ -12,22 +12,10 @@
 import type { MarketingSportId } from "@/lib/sports/marketing-sports";
 import { type BrandCopy, getBrandCopy } from "@/lib/sports/brand-copy";
 
-/**
- * Platform-wide social proof — used by the multi-sport homepage's
- * TrustBand. Steve 2026-05-26: these are total platform numbers, not
- * per-sport, so they don't swap when the picker selection changes.
- *
- * Dedicated brand sites (sirenfooty.com.au, sirennetball.com.au)
- * still use their own per-brand `trustBand` entries from
- * brand-copy.ts — only the unified multi-sport homepage uses these
- * shared numbers.
- */
-export const SHARED_TRUST_BAND: BrandCopy["trustBand"] = [
-  { stat: "1,200+", label: "Coaches" },
-  { stat: "38k", label: "Games tracked" },
-  { stat: "4.9★", label: "Parent rating" },
-  { stat: "0", label: "Clipboards" },
-] as const;
+// Platform-wide social-proof numbers (1,200+ coaches, 38k games, …)
+// moved to content/marketing/home.json (CMS-editable via Pages CMS).
+// Consumers should read HOME_CONTENT.trustBand from
+// @/lib/marketing/homeContent instead.
 
 /**
  * Resolve the BrandCopy entry for an active marketing-picker sport.

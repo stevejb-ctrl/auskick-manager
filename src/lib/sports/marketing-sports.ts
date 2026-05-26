@@ -35,10 +35,6 @@ export interface MarketingSportConfig {
    *  — quiet enough that the field reads as decoration, loud enough
    *  to telegraph "this is a different sport". */
   fieldTintOpacity: number;
-  /** Hero-carousel eyebrow ("BUILT FOR JUNIOR AFL" / "BUILT FOR
-   *  JUNIOR RUGBY LEAGUE" / etc.) — replaces the static eyebrow
-   *  when the multi-sport hero carousel is rendering this sport. */
-  heroEyebrow: string;
   /** Phone-mock screenshot path for the hero carousel. `null` when
    *  a sport-specific screenshot doesn't exist yet — HeroCarousel
    *  falls back to a placeholder card matching Claude Design's
@@ -57,24 +53,9 @@ export interface MarketingSportConfig {
   comingSoon?: boolean;
 }
 
-/**
- * Shared sport-agnostic copy that anchors the multi-sport hero
- * carousel. Per Claude Design v3: the headline + subtitle don't swap
- * between sports (they pitch the platform), only the eyebrow and the
- * phone mock change. Pulling these into named constants keeps the
- * carousel free of hardcoded strings and gives a single place to
- * iterate on the pitch.
- */
-export const HERO_SHARED_HEADLINE = "Run game day. Keep your head up.";
-
-export const HERO_SHARED_SUBTITLE =
-  "One app, four sports. Junior AFL, rugby league, rugby union and netball. Siren knows the intricacies each code throws at a coach — so you can stop juggling a clipboard and watch your kid play.";
-
-/** Mini trust line under the hero CTAs. Stays sport-agnostic on the
- *  multi-sport homepage; dedicated brand sites still use their own
- *  per-brand heroTrust from brand-copy.ts. */
-export const HERO_SHARED_TRUST =
-  "FREE 2026 SEASON · WORKS ON ANY PHONE · NOW ON THE APP STORE";
+// Hero headline / subtitle / trust line + per-sport eyebrows live in
+// content/marketing/home.json (CMS-editable via Pages CMS). See
+// @/lib/marketing/homeContent for the typed loader.
 
 export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   {
@@ -89,7 +70,6 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#D9442D",
     accentSoft: "#FBE7DF",
     fieldTintOpacity: 0.10,
-    heroEyebrow: "Built for junior AFL",
     heroScreenshot: "/marketing/screenshots/live-game.png",
     heroScreenshotAlt: "AFL live game view — Fitzroy Falcons rotation",
   },
@@ -103,7 +83,6 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#B23A3A",
     accentSoft: "#F4E0E0",
     fieldTintOpacity: 0.10,
-    heroEyebrow: "Built for junior rugby league",
     // No RL screenshot yet — HeroCarousel renders a placeholder.
     heroScreenshot: null,
     heroScreenshotAlt: "Rugby league live game view",
@@ -123,7 +102,6 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#7C3F8C",
     accentSoft: "#EFE2F2",
     fieldTintOpacity: 0.10,
-    heroEyebrow: "Built for junior netball",
     heroScreenshot: "/marketing/screenshots/netball/live-game.png",
     heroScreenshotAlt: "Netball live court view — Bondi Bandits Q4",
   },
@@ -137,7 +115,6 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#2F6B3E",
     accentSoft: "#DFEAE0",
     fieldTintOpacity: 0.12,
-    heroEyebrow: "Built for junior rugby union",
     heroScreenshot: null,
     heroScreenshotAlt: "Rugby union live game view",
     comingSoon: true,

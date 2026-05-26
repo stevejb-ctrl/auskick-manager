@@ -1,0 +1,19 @@
+{
+  "hero": {
+    "headline": "Run game day. Keep your head up.",
+    "subtitle": "One app, four sports. Junior AFL, rugby league, rugby union and netball. Siren knows the intricacies each code throws at a coach — so you can stop juggling a clipboard and watch your kid play.",
+    "trustLine": "FREE 2026 SEASON · WORKS ON ANY PHONE · NOW ON THE APP STORE"
+  },
+  "sportEyebrows": {
+    "afl": "Built for junior AFL",
+    "league": "Built for junior rugby league",
+    "netball": "Built for junior netball",
+    "union": "Built for junior rugby union"
+  },
+  "trustBand": [
+    { "stat": "1,200+", "label": "Coaches" },
+    { "stat": "38k", "label": "Games tracked" },
+    { "stat": "4.9★", "label": "Parent rating" },
+    { "stat": "0", "label": "Clipboards" }
+  ]
+}
