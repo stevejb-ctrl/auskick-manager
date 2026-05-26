@@ -1,0 +1,167 @@
+{
+  "productName": "Siren League",
+  "tagline": "Made for volunteer coaches.",
+  "banner": {
+    "prefix": "Free for the entire 2026 season.",
+    "linkText": "Sign up in under a minute →"
+  },
+  "heroEyebrow": "Built for junior rugby league",
+  "heroTitle": {
+    "before": "Run the half. Keep your head up.",
+    "italic": "",
+    "after": ""
+  },
+  "heroSubtitle": "Rolling subs, FR and DH vests, kickoff rotation, conversion equity, the §7 unbroken-period carve-out. Siren knows the Junior Laws that generic sub-timers miss. So you can stop juggling a clipboard and watch your kid play.",
+  "heroTrust": "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL",
+  "metaDescription": "Junior rugby league game manager. Forward/Back rotations, vest tracking, kickoff equity, Junior Laws enforced, live tries + conversions.",
+  "trustBand": [
+    { "stat": "300+", "label": "Coaches" },
+    { "stat": "9k", "label": "Games tracked" },
+    { "stat": "4.9★", "label": "Parent rating" },
+    { "stat": "0", "label": "Clipboards" }
+  ],
+  "centerpiece": {
+    "before": "Everything you need to make game day a ",
+    "italic": "breeze",
+    "after": "."
+  },
+  "finalCtaEyebrow": "Saturday morning is coming",
+  "finalCtaTitle": {
+    "before": "Set up your team in about ",
+    "italic": "five",
+    "after": " minutes."
+  },
+  "finalCtaBody": "Free for the entire 2026 season. Works on the phone you already have. No app download, no credit card.",
+  "features": [
+    {
+      "id": "rotations",
+      "eyebrow": "Fair rotations",
+      "title": { "before": "Forwards and backs, ", "italic": "balanced", "after": " every half." },
+      "body": "Siren tracks field time across the two halves, splits it between Forward and Back positions, and respects the Junior Laws' unbroken-period rule (with the §7 injury carve-out so a hurt player doesn't blow up your rotation plan).",
+      "bullets": [
+        "Forward / Back field-time bars at a glance",
+        "Unbroken-period rule enforced (with §7 injury carve-out)",
+        "Season totals carry across all games"
+      ],
+      "image": "/marketing/screenshots/rotations.png",
+      "imageAlt": "Rugby league rotation view showing forward and back field-time bars"
+    },
+    {
+      "id": "scoring",
+      "eyebrow": "Score tracking",
+      "title": { "before": "Tries logged, conversions ", "italic": "rostered", "after": "." },
+      "body": "Log a try with one tap; the conversion kicker comes from the rotation — every player kicks before any kicks twice (with a one-tap override for the rare double). Tag-rugby ages track tries only; conversions stay gated to U8+.",
+      "bullets": [
+        "Tries + conversions for both teams in one tap",
+        "Conversion kicker rotation enforced automatically",
+        "Tag rugby (U6/U7): tries tracked, conversions disabled"
+      ],
+      "image": "/marketing/screenshots/scoring.png",
+      "imageAlt": "Rugby league score view with tries and a conversion-kicker picker"
+    },
+    {
+      "id": "vests",
+      "eyebrow": "Vest rotation",
+      "title": { "before": "FR and DH, ", "italic": "rotated", "after": " for you." },
+      "body": "At U9 and up, the FR and DH vests rotate every period. Siren tracks who's worn what across the match so no player wears a vest twice — and handles the injury-replacement carve-out without breaking the count.",
+      "bullets": [
+        "FR + DH assignment suggested at every period break",
+        "No-double-wear rule enforced across the match",
+        "Injury replacement inherits the vest for the period"
+      ],
+      "image": "/marketing/screenshots/flexibility.png",
+      "imageAlt": "Vest assignment sheet showing FR and DH pickers for the next period"
+    },
+    {
+      "id": "availability",
+      "eyebrow": "Availability",
+      "title": { "before": "Set your squad before you ", "italic": "leave", "after": " home." },
+      "body": "Mark each player available or unavailable the night before. Short of numbers? Drop the on-field count to match and Siren rebalances rotations + vest assignments automatically.",
+      "bullets": [
+        "One tap to mark a player available or unavailable",
+        "Run a smaller squad to match the opposition",
+        "Last-minute changes and fill-ins handled on the day"
+      ],
+      "image": "/marketing/screenshots/availability.png",
+      "imageAlt": "Pre-game availability list with available/unavailable chips"
+    },
+    {
+      "id": "flexibility",
+      "eyebrow": "Full control",
+      "title": { "before": "Handle anything the game ", "italic": "throws", "after": " at you." },
+      "body": "Long-press any player to lock them to forward or back, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation or the vest plan.",
+      "bullets": [
+        "Lock a player to Forward or Back, or always-on",
+        "Injured players skip the rotation (and the §7 unbroken-period count)",
+        "Lend a player to the opposition and track their time separately"
+      ],
+      "image": "/marketing/screenshots/flexibility.png",
+      "imageAlt": "Player actions sheet with lock-to-forward, injury, and lend options"
+    },
+    {
+      "id": "chips",
+      "eyebrow": "Position chips",
+      "title": { "before": "Forwards forward, backs ", "italic": "back", "after": "." },
+      "body": "New RL teams come pre-seeded with Forward and Back chips. The lineup suggester routes chipped players to their position first, then balances the rest. Rename, repurpose, or add a third chip if the labels don't fit your squad.",
+      "bullets": [
+        "Forward + Back chips seeded automatically on new RL teams",
+        "Suggester pools chip-mates by position",
+        "Coach-defined: rename, repurpose, or add a third bucket"
+      ],
+      "image": "/marketing/screenshots/chips.png",
+      "imageAlt": "Player chips with Forward and Back labels and matching position-coloured dots"
+    },
+    {
+      "id": "halftime",
+      "eyebrow": "Half-time breaks",
+      "title": { "before": "Walk into the second half with a ", "italic": "plan", "after": "." },
+      "body": "At half-time, Siren suggests a reshuffle that balances forward/back time, settles the unbroken-period count, and rotates the FR/DH vests. One tap to accept, or rearrange manually.",
+      "bullets": [
+        "Suggested H2 lineup based on time equity + vest rotation",
+        "One tap to accept or drag to customise",
+        "Unbroken-period counter updates as you swap players"
+      ],
+      "image": "/marketing/screenshots/quarterly.png",
+      "imageAlt": "Half-time break screen with suggested reshuffle and field-time bars"
+    },
+    {
+      "id": "share",
+      "eyebrow": "Share with parents",
+      "title": { "before": "Hand scoring to any parent in ", "italic": "one", "after": " tap." },
+      "body": "Send the run-link to a parent on the sideline and they become the scorer for the day. No app download, no account, no setup. A magic link gets them straight in.",
+      "bullets": [
+        "Full scoring access via a single shareable link",
+        "No app download or account needed",
+        "Coach stays focused on the field"
+      ],
+      "image": "/marketing/screenshots/share.png",
+      "imageAlt": "Public run-link scoring view for parents"
+    },
+    {
+      "id": "kickoffs",
+      "eyebrow": "Kickoff equity",
+      "title": { "before": "Every player gets a ", "italic": "kick", "after": "." },
+      "body": "Junior Law §16 says every player on the squad has to kick off before any player kicks off twice. Siren tracks the cycle across the entire season and tells you who's up next — no clipboard, no awkward Sunday-night spreadsheet.",
+      "bullets": [
+        "Per-player kickoff counter, season-long",
+        "Next-up suggestion at every period start",
+        "Cycle resets automatically when everyone's had one"
+      ],
+      "image": "/marketing/screenshots/stats.png",
+      "imageAlt": "Kickoff rotation panel showing per-player count and the next kicker"
+    },
+    {
+      "id": "stats",
+      "eyebrow": "Season stats",
+      "title": { "before": "See how the ", "italic": "season", "after": " is going." },
+      "body": "After every game, field-time and vest-wear stats update automatically. Spot who's been stuck in the forwards every week and fix it before next round.",
+      "bullets": [
+        "Forward / Back equity across the whole squad",
+        "Per-player vest-wear count (FR + DH)",
+        "Top try-scorer leaderboard"
+      ],
+      "image": "/marketing/screenshots/stats.png",
+      "imageAlt": "Season stats dashboard with forward/back equity and try-scorer leaderboard"
+    }
+  ]
+}

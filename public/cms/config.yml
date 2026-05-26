@@ -51,6 +51,78 @@ publish_mode: simple
 # we don't have one and the link 404s.
 show_preview_links: false
 
+# Reusable field group for the "title split into three parts"
+# pattern (TitleParts). Anchored once and referenced everywhere
+# the pattern appears (centerpiece, finalCtaTitle, per-feature
+# title) so the editor sees identical fields/hints in every spot.
+title_parts_fields: &titlePartsFields
+  - { name: before, label: Before, widget: string, required: false }
+  - {
+      name: italic,
+      label: Accent word,
+      widget: string,
+      required: false,
+      hint: "The word rendered in the brand accent colour. Leave blank for a plain heading.",
+    }
+  - { name: after, label: After, widget: string, required: false }
+
+# Field group for one feature block (used by all 3 brand
+# collections). Anchored so all three sports get the same editing
+# UX — change here, change everywhere.
+feature_block_fields: &featureBlockFields
+  - { name: id, label: Block ID, widget: string, hint: "Stable identifier — don't rename once shipped (used in URLs / analytics)." }
+  - { name: eyebrow, label: Eyebrow, widget: string, hint: "Small uppercase label above the title." }
+  - { name: title, label: Title, widget: object, fields: *titlePartsFields }
+  - { name: body, label: Body, widget: text }
+  - { name: bullets, label: Bullets, widget: list, field: { name: bullet, label: Bullet, widget: string } }
+  - { name: image, label: Image path, widget: string, hint: "Absolute path under /public, e.g. /marketing/screenshots/rotations.png. Upload the file to that path via git for now." }
+  - { name: imageAlt, label: Image alt text, widget: string }
+
+# Field group for one full BrandCopy file. Anchored so AFL, League,
+# and Netball share an identical editor — change one place, all
+# three collections update.
+brand_copy_fields: &brandCopyFields
+  - { name: productName, label: Product name, widget: string, hint: "Header product name, e.g. 'Siren Footy'." }
+  - { name: tagline, label: Tagline, widget: string }
+  - name: banner
+    label: Banner
+    widget: object
+    fields:
+      - { name: prefix, label: Prefix, widget: string }
+      - { name: linkText, label: Link text, widget: string }
+  - { name: heroEyebrow, label: Hero eyebrow, widget: string }
+  - name: heroTitle
+    label: Hero title
+    widget: object
+    fields: *titlePartsFields
+  - { name: heroSubtitle, label: Hero subtitle, widget: text }
+  - { name: heroTrust, label: Hero trust line, widget: string, hint: "Tiny uppercase line under the CTA buttons." }
+  - { name: metaDescription, label: Meta description, widget: text, hint: "Used for SEO + social card descriptions." }
+  - name: trustBand
+    label: Trust band
+    widget: list
+    min: 4
+    max: 4
+    fields:
+      - { name: stat, label: Stat, widget: string, hint: 'e.g. "1,200+", "38k", "4.9★"' }
+      - { name: label, label: Label, widget: string, hint: 'e.g. "Coaches", "Games tracked"' }
+  - name: centerpiece
+    label: Centrepiece headline
+    widget: object
+    hint: "Editorial headline shown above the feature blocks."
+    fields: *titlePartsFields
+  - name: features
+    label: Features
+    widget: list
+    hint: "Ordered list of feature blocks. Drag to reorder, click to expand."
+    fields: *featureBlockFields
+  - { name: finalCtaEyebrow, label: Final CTA eyebrow, widget: string }
+  - name: finalCtaTitle
+    label: Final CTA title
+    widget: object
+    fields: *titlePartsFields
+  - { name: finalCtaBody, label: Final CTA body, widget: text }
+
 collections:
   - name: home
     label: Homepage
@@ -123,3 +195,55 @@ collections:
                 label: Label
                 widget: string
                 hint: e.g. "Coaches", "Games tracked"
+
+  # ─── Per-sport brand copy ──────────────────────────────────────
+  # One collection per sport, each editing a single JSON file under
+  # content/marketing/brands/. The shape is identical across sports
+  # (the BrandCopy interface in src/lib/sports/brand-copy.ts), so
+  # we share the field definitions via the &brandCopyFields anchor
+  # above.
+  #
+  # Rugby Union: no JSON file yet — the marketing-copy module falls
+  # back to AFL until Union actually launches. To enable Union
+  # editing in the CMS, copy content/marketing/brands/afl.json to
+  # union.json, add a `brand-union` collection block below, and
+  # update marketing-copy.ts to map "union" → getBrandCopy("rugby_union").
+
+  - name: brand-afl
+    label: AFL content
+    description: >
+      Deep AFL marketing copy — the scrolling feature blocks,
+      centrepiece headline, final CTA, hero, trust band. Shows
+      when AFL is the active sport on the homepage picker, and on
+      any future sirenfooty.com.au dedicated brand site.
+    files:
+      - name: afl
+        label: AFL content
+        file: content/marketing/brands/afl.json
+        format: json
+        fields: *brandCopyFields
+
+  - name: brand-league
+    label: Rugby League content
+    description: >
+      Deep junior rugby league marketing copy. Shows when Rugby
+      League is the active sport on the homepage picker.
+    files:
+      - name: league
+        label: Rugby League content
+        file: content/marketing/brands/league.json
+        format: json
+        fields: *brandCopyFields
+
+  - name: brand-netball
+    label: Netball content
+    description: >
+      Deep junior netball marketing copy. Shows when Netball is the
+      active sport on the homepage picker, and on the
+      sirennetball.com.au dedicated brand site.
+    files:
+      - name: netball
+        label: Netball content
+        file: content/marketing/brands/netball.json
+        format: json
+        fields: *brandCopyFields

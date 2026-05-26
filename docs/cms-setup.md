@@ -16,20 +16,41 @@ That's it. No build step, no deploy button, no terminal.
 
 ## What's editable
 
-Today, only the **shared cross-sport homepage content**:
+Four collections in the CMS:
 
-- **Hero section** — the big headline, the subtitle paragraph
-  underneath it, and the tiny uppercase trust line under the CTA
-  buttons.
-- **Per-sport eyebrows** — the small "Built for junior X" line that
-  swaps as the hero carousel rotates through AFL / League / Netball /
-  Union.
-- **Trust band** — the four "1,200+ Coaches / 38k Games tracked / 4.9★
-  Parent rating / 0 Clipboards" stats.
+**Homepage** — shared cross-sport strings:
+- Hero headline + subtitle + trust line
+- Per-sport eyebrows ("Built for junior X")
+- Trust band (the four stat / label pairs)
 
-Deep per-sport prose (the long scrolling features section) is still
-in code at `src/lib/sports/brand-copy.ts` — promoting that to the
-CMS is a follow-up when the per-sport content stabilises.
+**AFL content / Rugby League content / Netball content** — deep
+per-sport prose used by the scrolling features section:
+- Product name, tagline, banner
+- Hero title (3-part), subtitle, trust line, meta description
+- Trust band overrides (used only by dedicated brand sites like
+  sirennetball.com.au — the multi-sport homepage uses Homepage's
+  shared trust band)
+- Centrepiece headline (3-part)
+- **Features** — ordered list of feature blocks. Each has:
+  eyebrow, 3-part title, body paragraph, bullets, image path,
+  image alt text. Drag to reorder; click to expand.
+- Final CTA — eyebrow, 3-part title, body.
+
+**Rugby Union** is not yet in the CMS — it falls back to AFL until
+the sport launches. To add Union editing, copy
+`content/marketing/brands/afl.json` to `union.json`, add a
+`brand-union` collection block to `public/cms/config.yml`, and
+update `src/lib/sports/marketing-copy.ts` to route Union to its own
+`getBrandCopy("rugby_union")` call.
+
+### Editing images
+
+Image paths (e.g. feature screenshots) are plain text fields
+pointing under `/public`. The actual file upload still happens via
+git — drop the image into `public/marketing/screenshots/*` and
+commit it. The CMS only edits the path string. (Wiring up
+file-uploads from the CMS UI is a follow-up — needs the
+`media_folder` config + a `public/marketing/uploads/` directory.)
 
 ## How it works under the hood
 
