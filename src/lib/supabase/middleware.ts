@@ -117,6 +117,20 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms") ||
     pathname.startsWith("/why-siren") ||
+    // /admin/* — Decap CMS static assets (index.html, config.yml).
+    // The page LOADS unauthenticated; actual editing is gated by
+    // GitHub OAuth via /api/decap/* (Decap can't write to the repo
+    // without a valid GitHub access token). Without this exemption
+    // middleware redirects /admin/config.yml → /login and the CMS
+    // boots with "Failed to load config.yml (404)".
+    // Note: /api/admin/* (e.g. /api/admin/seed-demo) is a different
+    // prefix and still goes through the auth gate.
+    pathname.startsWith("/admin") ||
+    // /api/decap/* — Decap CMS OAuth proxy. These endpoints run the
+    // GitHub OAuth dance on behalf of an unauthenticated visitor;
+    // they can't require a Siren session because the visitor isn't
+    // signed into Siren — they're signing into GitHub.
+    pathname.startsWith("/api/decap/") ||
     // /dev/* — local-only auth bypass shortcuts. The route handlers
     // themselves 404 in production (NODE_ENV check + host check),
     // but the middleware needs to LET them run for the auth

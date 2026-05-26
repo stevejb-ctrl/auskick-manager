@@ -63,7 +63,7 @@ CMS is a follow-up when the per-sport content stabilises.
    - **Application name**: `Siren CMS` (or anything — only you see it)
    - **Homepage URL**: `https://sirenfooty.com.au`
    - **Authorization callback URL**:
-     `https://sirenfooty.com.au/api/decap/callback`
+     `https://www.sirenfooty.com.au/api/decap/callback`
 3. Click **Register application**.
 4. On the next page, note the **Client ID** (shown immediately).
 5. Click **Generate a new client secret**, copy the secret value
@@ -173,7 +173,7 @@ all small focused files.
 **"Login with GitHub" opens a popup that immediately closes / fails**
 - Most likely cause: env vars not set on Vercel or callback URL
   mismatch. Check the **Authorization callback URL** in the GitHub
-  OAuth App matches `https://sirenfooty.com.au/api/decap/callback`
+  OAuth App matches `https://www.sirenfooty.com.au/api/decap/callback`
   exactly (no trailing slash, https not http).
 - Check `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`
   are set in Vercel's env vars for the Production environment, and

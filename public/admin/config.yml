@@ -20,7 +20,15 @@ backend:
   # Point Decap at our own OAuth proxy (Vercel route handlers)
   # instead of Netlify Identity, which we can't use since we host
   # on Vercel.
-  base_url: https://sirenfooty.com.au
+  #
+  # base_url uses `www.` (the canonical host) because the apex
+  # sirenfooty.com.au 308-redirects to www. If we pointed at the
+  # apex, the popup would round-trip apex → www mid-OAuth and
+  # GitHub would reject the callback (the redirect_uri sent to
+  # GitHub must exactly match the registered Authorization
+  # callback URL on the OAuth App). Keep these in sync: GitHub
+  # OAuth App callback URL = https://www.sirenfooty.com.au/api/decap/callback.
+  base_url: https://www.sirenfooty.com.au
   auth_endpoint: /api/decap/auth
 
 # Disable Decap's "editorial workflow" (PR-per-edit). For one
