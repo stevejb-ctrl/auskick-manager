@@ -6,6 +6,23 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Siren Content Manager</title>
     <link rel="icon" href="/favicon.svg" />
+    <!--
+      Pin the config.yml path to an absolute URL.
+
+      Decap's default config-loader does a *relative* fetch for
+      `config.yml`. If the page URL is /cms (no trailing slash —
+      Next.js's trailingSlash=false default strips it), that
+      relative fetch resolves to /config.yml at the site root and
+      404s. With the cms-config-url link tag below, Decap uses an
+      absolute path and the trailing-slash dependency goes away.
+
+      Reference: https://decapcms.org/docs/configure-decap-cms/
+    -->
+    <link
+      href="/cms/config.yml"
+      type="text/yaml"
+      rel="cms-config-url"
+    />
     <style>
       /* Match the loading state to the brand a bit so it doesn't
          feel like a totally foreign tool. Decap CMS itself
