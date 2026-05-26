@@ -3,6 +3,8 @@ import { FieldShell } from "./FieldShell";
 interface LeagueRectFieldProps {
   accent: string;
   tintOpacity?: number;
+  /** Pass through to FieldShell — see its strokeTheme doc. */
+  strokeTheme?: "on-dark" | "on-light";
 }
 
 /**
@@ -21,11 +23,16 @@ interface LeagueRectFieldProps {
  * The 10m and 20m lines are the visual giveaway that this is League,
  * not Union (which uses 22m + 10m offside lines instead).
  */
-export function LeagueRectField({ accent, tintOpacity }: LeagueRectFieldProps) {
+export function LeagueRectField({
+  accent,
+  tintOpacity,
+  strokeTheme,
+}: LeagueRectFieldProps) {
   return (
     <FieldShell
       accent={accent}
       tintOpacity={tintOpacity}
+      strokeTheme={strokeTheme}
       ariaLabel="Rugby league pitch — try lines, 10m + 20m markings, halfway"
     >
       {/* Outer pitch. */}

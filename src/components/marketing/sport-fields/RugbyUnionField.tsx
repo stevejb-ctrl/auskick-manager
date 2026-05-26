@@ -3,6 +3,8 @@ import { FieldShell } from "./FieldShell";
 interface RugbyUnionFieldProps {
   accent: string;
   tintOpacity?: number;
+  /** Pass through to FieldShell — see its strokeTheme doc. */
+  strokeTheme?: "on-dark" | "on-light";
 }
 
 /**
@@ -22,11 +24,16 @@ interface RugbyUnionFieldProps {
  *     aren't spatially divided the way AFL/netball zones are, so
  *     only two labels (not three).
  */
-export function RugbyUnionField({ accent, tintOpacity }: RugbyUnionFieldProps) {
+export function RugbyUnionField({
+  accent,
+  tintOpacity,
+  strokeTheme,
+}: RugbyUnionFieldProps) {
   return (
     <FieldShell
       accent={accent}
       tintOpacity={tintOpacity}
+      strokeTheme={strokeTheme}
       ariaLabel="Rugby union pitch — try lines, 22m + 10m markings, H-posts"
     >
       {/* Outer pitch — identical outline to League. */}

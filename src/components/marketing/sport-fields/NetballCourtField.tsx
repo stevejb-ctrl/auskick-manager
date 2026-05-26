@@ -3,6 +3,8 @@ import { FieldShell } from "./FieldShell";
 interface NetballCourtFieldProps {
   accent: string;
   tintOpacity?: number;
+  /** Pass through to FieldShell — see its strokeTheme doc. */
+  strokeTheme?: "on-dark" | "on-light";
 }
 
 /**
@@ -24,11 +26,13 @@ interface NetballCourtFieldProps {
 export function NetballCourtField({
   accent,
   tintOpacity,
+  strokeTheme,
 }: NetballCourtFieldProps) {
   return (
     <FieldShell
       accent={accent}
       tintOpacity={tintOpacity}
+      strokeTheme={strokeTheme}
       ariaLabel="Netball court — three thirds, two shooting semi-circles, two hoops"
     >
       {/* Outer court — narrower than the rugby pitches. */}

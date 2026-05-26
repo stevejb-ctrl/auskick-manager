@@ -24,6 +24,14 @@ interface FieldShellProps {
    *  card" pattern). The visible portion is the field's top-left
    *  region, positioned in the card's bottom-right quadrant. */
   preserveAspectRatio?: string;
+  /**
+   * Which surface the field is being rendered on.
+   *   - "on-dark" (default): cream strokes — picker cards have a
+   *     dark accent fill, cream reads well against it.
+   *   - "on-light": dark ink strokes — for use on light/cream
+   *     backgrounds (the hero section). Cream-on-cream is invisible.
+   */
+  strokeTheme?: "on-dark" | "on-light";
   /** Accessible label for the diagram. */
   ariaLabel: string;
   children: ReactNode;
@@ -52,9 +60,28 @@ export function FieldShell({
   tintOpacity = 0,
   viewBox = "0 0 200 220",
   preserveAspectRatio = "xMinYMin meet",
+  strokeTheme = "on-dark",
   ariaLabel,
   children,
 }: FieldShellProps) {
+  // Stroke palette per surface. Cream for dark backgrounds (picker
+  // cards), dark ink for light backgrounds (hero watermark). Each
+  // marking element inside `children` references the CSS variable
+  // names, so swapping the values here re-themes the entire field
+  // with no per-marking changes.
+  const strokeVars: React.CSSProperties =
+    strokeTheme === "on-light"
+      ? ({
+          "--field-stroke": "rgba(15,18,17,0.55)",
+          "--field-stroke-faint": "rgba(15,18,17,0.3)",
+          "--field-fill-soft": "rgba(15,18,17,0.04)",
+        } as React.CSSProperties)
+      : ({
+          "--field-stroke": "rgba(242,238,228,0.7)",
+          "--field-stroke-faint": "rgba(242,238,228,0.45)",
+          "--field-fill-soft": "rgba(242,238,228,0.06)",
+        } as React.CSSProperties);
+
   return (
     <svg
       viewBox={viewBox}
@@ -65,13 +92,7 @@ export function FieldShell({
       // Stroke variables flow down to children via CSS custom
       // properties on the root SVG element so each marking can just
       // reference `var(--field-stroke)` etc.
-      style={
-        {
-          "--field-stroke": "rgba(242,238,228,0.7)",
-          "--field-stroke-faint": "rgba(242,238,228,0.45)",
-          "--field-fill-soft": "rgba(242,238,228,0.06)",
-        } as React.CSSProperties
-      }
+      style={strokeVars}
       className="block h-full w-full"
     >
       {/* Optional accent-tinted overlay — most callers pass

@@ -3,6 +3,8 @@ import { FieldShell } from "./FieldShell";
 interface AflOvalFieldProps {
   accent: string;
   tintOpacity?: number;
+  /** Pass through to FieldShell — see its strokeTheme doc. */
+  strokeTheme?: "on-dark" | "on-light";
 }
 
 /**
@@ -19,11 +21,16 @@ interface AflOvalFieldProps {
  * Markings stroke `var(--field-stroke)` so the shell controls the
  * cream colour centrally.
  */
-export function AflOvalField({ accent, tintOpacity }: AflOvalFieldProps) {
+export function AflOvalField({
+  accent,
+  tintOpacity,
+  strokeTheme,
+}: AflOvalFieldProps) {
   return (
     <FieldShell
       accent={accent}
       tintOpacity={tintOpacity}
+      strokeTheme={strokeTheme}
       ariaLabel="AFL oval — three zones, centre square, 50m arc"
     >
       {/* Outer boundary oval. */}

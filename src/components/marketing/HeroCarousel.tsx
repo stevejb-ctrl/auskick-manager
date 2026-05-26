@@ -74,28 +74,53 @@ function ScreenshotPlaceholder({ sport }: { sport: MarketingSportConfig }) {
 
 /** Same switch shape as the picker cards' FieldForSport — kept local
  *  rather than imported so the placeholder can use a different tint
- *  policy without coupling to the picker's render. */
+ *  policy without coupling to the picker's render.
+ *
+ *  `strokeTheme` controls whether the field strokes are cream
+ *  (default — looks right on the dark picker cards) or dark ink
+ *  (looks right on the cream hero background). Cream strokes on
+ *  cream background = invisible. */
 function SportFieldPlaceholder({
   sport,
   tintOpacity,
+  strokeTheme,
 }: {
   sport: MarketingSportConfig;
   tintOpacity: number;
+  strokeTheme?: "on-dark" | "on-light";
 }) {
   switch (sport.id) {
     case "afl":
-      return <AflOvalField accent={sport.accent} tintOpacity={tintOpacity} />;
+      return (
+        <AflOvalField
+          accent={sport.accent}
+          tintOpacity={tintOpacity}
+          strokeTheme={strokeTheme}
+        />
+      );
     case "league":
       return (
-        <LeagueRectField accent={sport.accent} tintOpacity={tintOpacity} />
+        <LeagueRectField
+          accent={sport.accent}
+          tintOpacity={tintOpacity}
+          strokeTheme={strokeTheme}
+        />
       );
     case "union":
       return (
-        <RugbyUnionField accent={sport.accent} tintOpacity={tintOpacity} />
+        <RugbyUnionField
+          accent={sport.accent}
+          tintOpacity={tintOpacity}
+          strokeTheme={strokeTheme}
+        />
       );
     case "netball":
       return (
-        <NetballCourtField accent={sport.accent} tintOpacity={tintOpacity} />
+        <NetballCourtField
+          accent={sport.accent}
+          tintOpacity={tintOpacity}
+          strokeTheme={strokeTheme}
+        />
       );
   }
 }
@@ -175,16 +200,22 @@ export function HeroCarousel() {
           only). Swaps to the active sport's field illustration so
           a visitor sees AFL oval / RL rect / netball court /
           rugby pitch lines behind the phone mock — the Claude
-          Design watermark pattern. Opacity 0.18 is the visibility
-          sweet spot: clearly readable as a field shape without
-          competing with the foreground copy. */}
+          Design watermark pattern.
+          strokeTheme="on-light" so the SVG draws DARK ink lines
+          on the cream hero background (cream-on-cream was
+          invisible). The inner div opacity tunes the watermark
+          intensity from there. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
         style={{ transform: "translate(15%, 0)" }}
       >
-        <div className="h-[900px] w-[900px] opacity-[0.18]">
-          <SportFieldPlaceholder sport={active} tintOpacity={0} />
+        <div className="h-[900px] w-[900px] opacity-[0.55]">
+          <SportFieldPlaceholder
+            sport={active}
+            tintOpacity={0}
+            strokeTheme="on-light"
+          />
         </div>
       </div>
 
@@ -226,7 +257,17 @@ export function HeroCarousel() {
               <MarketingAuthCTAs variant="hero" />
             </div>
 
-            <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
+            {/* Trust line. Same accent-colour cascade as the
+                eyebrow — both lines visually echo "you're looking
+                at the X sport variant" without needing a label.
+                Uses the same key+animate pattern as the eyebrow
+                so the colour transition fades smoothly when the
+                carousel rotates. */}
+            <p
+              key={`trust-${active.id}`}
+              className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+              style={{ color: active.accent }}
+            >
               {HOME_CONTENT.hero.trustLine}
             </p>
 
