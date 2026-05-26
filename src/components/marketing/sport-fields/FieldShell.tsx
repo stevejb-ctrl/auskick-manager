@@ -13,14 +13,16 @@ interface FieldShellProps {
   tintOpacity?: number;
   /** SVG viewBox aspect — defaults to AFL/League/Netball common 200x220. */
   viewBox?: string;
-  /** preserveAspectRatio — defaults to anchoring bottom-middle
-   *  (`xMidYMax meet`) so when the SVG is placed in a container that
-   *  's wider or shorter than the SVG aspect, the field markings
-   *  keep their lower half pinned to the bottom of the container and
-   *  any letterboxing happens at the top. Pre-2026-05-26 the default
-   *  was `xMidYMid meet` (centre-anchored) which didn't match this
-   *  comment; updated to match the documented intent now that the
-   *  picker cards rely on the bottom-anchored crop. */
+  /** preserveAspectRatio — defaults to `xMinYMin meet` so the
+   *  field's TOP-LEFT corner anchors to the container's top-left
+   *  and the content fits inside (no internal cropping). Picker
+   *  cards pair this with a container that's bigger than the card
+   *  and positioned with positive top/left offsets so the field's
+   *  BOTTOM-RIGHT extends past the card edges — the card's own
+   *  `overflow-hidden` then crops the field's bottom-right corner
+   *  (matches Claude Design v4's "field overflows bottom-right of
+   *  card" pattern). The visible portion is the field's top-left
+   *  region, positioned in the card's bottom-right quadrant. */
   preserveAspectRatio?: string;
   /** Accessible label for the diagram. */
   ariaLabel: string;
@@ -49,7 +51,7 @@ export function FieldShell({
   accent,
   tintOpacity = 0,
   viewBox = "0 0 200 220",
-  preserveAspectRatio = "xMidYMax meet",
+  preserveAspectRatio = "xMinYMin meet",
   ariaLabel,
   children,
 }: FieldShellProps) {

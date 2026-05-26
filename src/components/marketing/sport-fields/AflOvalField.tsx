@@ -114,43 +114,12 @@ export function AflOvalField({ accent, tintOpacity }: AflOvalFieldProps) {
         strokeWidth="1.5"
       />
 
-      {/* Zone labels — left gutter, rotated -90°. */}
-      <text
-        x="10"
-        y="35"
-        transform="rotate(-90 10 35)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        FWD
-      </text>
-      <text
-        x="10"
-        y="115"
-        transform="rotate(-90 10 115)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        CEN
-      </text>
-      <text
-        x="10"
-        y="195"
-        transform="rotate(-90 10 195)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        BCK
-      </text>
+      {/* Zone labels removed Steve 2026-05-26 — at the picker-card
+          scale the text was reading as noise rather than helping.
+          The oval/centre square/zone-line shapes are recognisable
+          enough on their own. Add back behind a prop if a future
+          larger surface (e.g. a sport-specific marketing page hero)
+          benefits from the labels. */}
     </FieldShell>
   );
 }

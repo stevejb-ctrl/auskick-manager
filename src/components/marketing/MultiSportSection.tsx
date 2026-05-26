@@ -1,10 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import {
-  DEFAULT_MARKETING_SPORT,
   getMarketingSport,
-  isMarketingSportId,
   MARKETING_SPORTS,
   type MarketingSportConfig,
   type MarketingSportId,
@@ -16,7 +13,14 @@ import {
   RugbyUnionField,
 } from "@/components/marketing/sport-fields";
 
-const LS_KEY = "siren.sport";
+interface MultiSportSectionProps {
+  /** Controlled active sport. Owned by the parent so other homepage
+   *  sections (TrustBand / ScrollingFeatures / FinalCTA) can read
+   *  the same state and swap their copy when the picker changes. */
+  sportId: MarketingSportId;
+  /** Picker selection handler. Parent persists to localStorage. */
+  onSportChange: (id: MarketingSportId) => void;
+}
 
 /** Pick the right field SVG for a sport. Switch reads as exhaustive
  *  — adding a new sport here is the one place TypeScript will yell
@@ -72,38 +76,10 @@ function FieldForSport({
  * State + localStorage persistence live here (one client island for
  * the whole section). Default sport = AFL on first load.
  */
-export function MultiSportSection() {
-  const [sportId, setSportId] = useState<MarketingSportId>(
-    DEFAULT_MARKETING_SPORT,
-  );
-
-  // Hydrate from localStorage after mount. Wrapped in try/catch
-  // because Safari Private Browsing throws on localStorage access
-  // when quota is zero.
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(LS_KEY);
-      if (stored && isMarketingSportId(stored) && stored !== sportId) {
-        setSportId(stored);
-      }
-    } catch {
-      // Silently fall back to the default — picker still works,
-      // just doesn't survive page reloads for this user.
-    }
-    // Intentionally run once on mount; we don't want changes during
-    // the session to trigger a re-read of localStorage.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleSelect = useCallback((next: MarketingSportId) => {
-    setSportId(next);
-    try {
-      window.localStorage.setItem(LS_KEY, next);
-    } catch {
-      // No-op — see the read site above.
-    }
-  }, []);
-
+export function MultiSportSection({
+  sportId,
+  onSportChange,
+}: MultiSportSectionProps) {
   const active = getMarketingSport(sportId);
 
   return (
@@ -168,51 +144,81 @@ export function MultiSportSection() {
         {/* Picker grid — 2 cols on phone, 4 cols on lg+. */}
         <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-4 lg:grid-cols-4">
           {MARKETING_SPORTS.map((sport) => {
-            const isActive = sport.id === active.id;
+            const isActive = sport.id === active.id && !sport.comingSoon;
+            const isDisabled = Boolean(sport.comingSoon);
             return (
               <button
                 key={sport.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                aria-label={`Show Siren in ${sport.label} mode`}
+                aria-disabled={isDisabled}
+                disabled={isDisabled}
+                aria-label={
+                  isDisabled
+                    ? `${sport.label} — coming soon`
+                    : `Show Siren in ${sport.label} mode`
+                }
                 data-testid={`sport-card-${sport.id}`}
-                onClick={() => handleSelect(sport.id)}
+                onClick={
+                  isDisabled ? undefined : () => onSportChange(sport.id)
+                }
                 style={{
                   // Inactive cards use a single dark surface; active
-                  // cards fill with the sport accent. The cropped
-                  // field illustration in the bottom-right gives the
-                  // sport-specific "feel" once the colour swap lands.
+                  // cards fill with the sport accent. Disabled
+                  // (coming-soon) cards stay on the inactive surface
+                  // even when "selected" — they're teasers, never
+                  // the active state. The cropped field illustration
+                  // in the bottom-right gives the sport-specific
+                  // "feel" once the colour swap lands.
                   backgroundColor: isActive ? sport.accent : "#1A1C1F",
                 }}
-                className="
+                className={`
                   group relative h-[110px] overflow-hidden rounded-lg
                   text-left
                   transition-colors duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E0F11]
                   sm:h-[130px]
-                "
+                  ${
+                    isDisabled
+                      ? "cursor-not-allowed opacity-55"
+                      : ""
+                  }
+                `}
               >
-                {/* Field decoration — anchored bottom-right and
-                    deliberately overflowing the top of the card so
-                    only the lower portion of the field is visible.
-                    The card's overflow-hidden crops the rest.
-                    Container is ~50% of card width so the markings
-                    cluster on the right; the left half stays clear
-                    for the text.
+                {/* Field decoration — Claude Design v4 pattern:
+                    container is sized roughly card-width and given
+                    the SVG's natural aspect ratio (200:220, slightly
+                    taller than wide), then positioned with positive
+                    `top` + `left` offsets so its origin sits in the
+                    card's mid-region and its bottom-right corner
+                    extends PAST the card edges. Combined with the
+                    card's `overflow-hidden`, the visible portion is
+                    the TOP-LEFT of the field illustration, sitting
+                    in the card's bottom-right quadrant — the field's
+                    bottom-right corner is the part that gets cropped
+                    away (matches Steve's "move it down and to the
+                    right so the bottom right corner of the images
+                    crop" direction).
+
+                    `xMinYMin meet` (FieldShell default) means the
+                    SVG content anchors to the container's top-left,
+                    so the visible card region maps to the field's
+                    top-left region cleanly.
 
                     pointer-events-none so the SVG never intercepts
-                    the click. Low opacity so the decoration reads as
-                    a watermark behind the text. */}
+                    the click. Mid opacity so the markings read as
+                    prominent decoration without competing with the
+                    text on the left. */}
                 <div
                   aria-hidden="true"
                   className={`
-                    pointer-events-none absolute bottom-0 right-0 h-[200%] w-[55%]
+                    pointer-events-none absolute left-2/3 top-[20%] w-[60%] aspect-[200/220]
                     transition-opacity duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
                     ${
                       isActive
-                        ? "opacity-30"
-                        : "opacity-40 group-hover:opacity-60"
+                        ? "opacity-40"
+                        : "opacity-50 group-hover:opacity-65"
                     }
                   `}
                 >
@@ -254,7 +260,7 @@ export function MultiSportSection() {
                           : "rgba(242,238,228,0.55)",
                       }}
                     >
-                      Junior
+                      {isDisabled ? "Coming soon" : "Junior"}
                     </p>
                   </div>
                 </div>

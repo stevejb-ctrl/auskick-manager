@@ -164,33 +164,9 @@ export function RugbyUnionField({ accent, tintOpacity }: RugbyUnionFieldProps) {
         strokeWidth="2"
       />
 
-      {/* Zone labels — only two (FWD + BK) because Union forwards
-          and backs aren't spatially divided the way AFL/netball
-          zones are. Positioned in the top + bottom thirds. */}
-      <text
-        x="10"
-        y="55"
-        transform="rotate(-90 10 55)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        FWD
-      </text>
-      <text
-        x="10"
-        y="175"
-        transform="rotate(-90 10 175)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        BK
-      </text>
+      {/* Zone labels removed Steve 2026-05-26 — at the picker-card
+          scale the text was reading as noise. See AflOvalField for
+          the full rationale. */}
     </FieldShell>
   );
 }

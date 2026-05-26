@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Hero } from "@/components/marketing/Hero";
-import { MultiSportSection } from "@/components/marketing/MultiSportSection";
-import { TrustBand } from "@/components/marketing/TrustBand";
-import { ScrollingFeatures } from "@/components/marketing/ScrollingFeatures";
-import { FinalCTA } from "@/components/marketing/FinalCTA";
+import { HeroCarousel } from "@/components/marketing/HeroCarousel";
+import { MultiSportHomeContent } from "@/components/marketing/MultiSportHomeContent";
 import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBounce";
-import { getBrand } from "@/lib/brand";
-import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { getUser } from "@/lib/supabase/server";
 
 // Explicit canonical so Search Console doesn't flag the apex
@@ -38,9 +33,6 @@ export default async function Home() {
     redirect(lastTeam ? `/teams/${lastTeam}` : "/dashboard");
   }
 
-  const brand = getBrand();
-  const copy = getBrandCopy(brand.id);
-
   return (
     <main>
       {/* Belt-and-braces redirect off marketing for native Capacitor
@@ -51,22 +43,30 @@ export default async function Home() {
           component bounces them to /login client-side. Becomes
           dead code once Build 2+ replaces every Build 1 install. */}
       <NativeMarketingBounce />
-      <Hero />
-      {/* Multi-sport section — interactive pill picker + dark "See
-          Siren in X mode" card with field SVG. Steve 2026-05-25:
-          turns the AFL-only homepage into a cross-sport showcase so
-          netball / league prospects don't bounce off thinking
-          Siren's only for footy. State is purely client-side; the
-          hero above still anchors on the brand resolved from host
-          (sirenfooty.com.au → AFL hero, sirennetball.com.au →
-          netball hero). */}
-      <MultiSportSection />
-      <TrustBand />
-      <ScrollingFeatures
-        features={copy.features}
-        centerpiece={copy.centerpiece}
-      />
-      <FinalCTA />
+      {/* HeroCarousel replaces the previous host-resolved <Hero />
+          on the unified homepage — auto-rotates AFL → League →
+          Union → Netball every ~4.5s with shared headline / sub /
+          CTAs and a per-sport eyebrow + phone-mock screenshot.
+          Pauses on hover, hides auto-rotate for prefers-reduced-
+          motion. Dedicated brand sites (sirenfooty.com.au etc.)
+          could swap this back to the host-resolved <Hero /> via a
+          branch on getBrand() if a per-host hero ever needs to
+          return. */}
+      <HeroCarousel />
+      {/* All sport-aware content below the hero lives inside
+          MultiSportHomeContent — a single client island that owns the
+          active-sport state (with localStorage persistence) and
+          threads it through:
+            • MultiSportSection (the picker itself)
+            • TrustBand          (per-sport stats)
+            • ScrollingFeatures  (per-sport feature scroll)
+            • FinalCTA           (per-sport closing CTA + AppStoreBadge)
+          The hero above stays server-rendered + host-resolved —
+          sirenfooty.com.au lands on the AFL hero, sirennetball.com.au
+          on the netball hero. The picker is for visitors exploring
+          "what does Siren look like in OTHER sports", not for
+          swapping their landed-on context. */}
+      <MultiSportHomeContent />
     </main>
   );
 }

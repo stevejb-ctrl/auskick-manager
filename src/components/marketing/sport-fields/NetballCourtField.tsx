@@ -105,43 +105,9 @@ export function NetballCourtField({
         strokeWidth="1.5"
       />
 
-      {/* Zone labels — left gutter, rotated -90°. */}
-      <text
-        x="14"
-        y="55"
-        transform="rotate(-90 14 55)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        ATT
-      </text>
-      <text
-        x="14"
-        y="115"
-        transform="rotate(-90 14 115)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        CEN
-      </text>
-      <text
-        x="14"
-        y="175"
-        transform="rotate(-90 14 175)"
-        fill="var(--field-stroke-faint)"
-        fontSize="9"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
-        letterSpacing="2"
-      >
-        DEF
-      </text>
+      {/* Zone labels removed Steve 2026-05-26 — at the picker-card
+          scale the text was reading as noise. See AflOvalField for
+          the full rationale. */}
     </FieldShell>
   );
 }
