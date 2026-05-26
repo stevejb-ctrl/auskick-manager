@@ -26,18 +26,20 @@
     <style>
       /* Brand-tinted body background so the white-flash between
          page load and Decap's React mount feels like Siren rather
-         than a stark blank. Decap renders its own UI on top via
-         #nc-root once the bundle finishes parsing. */
+         than a stark blank. Decap renders its own UI on top once
+         the bundle finishes parsing. */
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #f2eee4;
         color: #0f1211;
       }
-      /* Pre-mount loader. We hide it as soon as Decap's
-         #nc-root child exists (i.e. React has mounted). Without
-         this, the loader stays behind Decap's UI and shows
-         through in the empty regions of the editor. */
+      /* Pre-mount loader.
+         - pointer-events: none so it never eats clicks, even if
+           it lingers visually for a frame after Decap mounts.
+         - JS removes it on window 'load' (below) — that's the
+           reliable signal across browsers. CSS `:has()` selectors
+           we tried earlier didn't fire on all engines / mid-update. */
       .siren-loading {
         position: fixed;
         inset: 0;
@@ -48,15 +50,14 @@
         letter-spacing: 0.04em;
         text-transform: uppercase;
         pointer-events: none;
-      }
-      #nc-root:not(:empty) ~ .siren-loading,
-      body:has(#nc-root:not(:empty)) .siren-loading {
-        display: none;
+        z-index: 0;
       }
     </style>
   </head>
   <body>
-    <div class="siren-loading">Loading Siren Content Manager…</div>
+    <div id="siren-loading" class="siren-loading">
+      Loading Siren Content Manager…
+    </div>
     <!--
       Decap CMS bundle. Loaded from unpkg per the official docs
       (https://decapcms.org/docs/install-decap-cms/).
@@ -73,5 +74,19 @@
       pin is the next-best guarantee.
     -->
     <script src="https://unpkg.com/decap-cms@3.12.2/dist/decap-cms.js"></script>
+    <script>
+      // Remove the pre-mount loader once everything has loaded.
+      // Belt-and-braces: also remove on a 5s timer in case `load`
+      // doesn't fire (e.g. cached SW serving stale page).
+      function removeSirenLoader() {
+        var el = document.getElementById("siren-loading");
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }
+      window.addEventListener("load", function () {
+        // Give Decap one tick to start painting, then drop the loader.
+        setTimeout(removeSirenLoader, 50);
+      });
+      setTimeout(removeSirenLoader, 5000);
+    </script>
   </body>
 </html>
