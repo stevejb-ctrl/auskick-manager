@@ -77,14 +77,16 @@ setup("authenticate as super-admin", async ({ page }) => {
   await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
   await expect(page).toHaveURL(/\/dashboard/);
 
-  // Pre-dismiss the live-game walkthrough modal. LiveGame.tsx opens
-  // it whenever localStorage["gm-walkthrough-seen"] is missing, and
-  // it sits on top of the field intercepting pointer events — every
-  // live-* spec was timing out trying to click through it. Setting
-  // the flag here means every downstream spec inherits it via
-  // storageState and the walkthrough never shows.
+  // Pre-dismiss the live-game walkthrough modals. Each sport has its
+  // own first-visit auto-open keyed off a separate localStorage flag
+  // — set all three here so every downstream spec inherits the
+  // "already seen" state via storageState and the walkthrough never
+  // intercepts pointer events. Without this every RL spec times out
+  // clicking the field tiles behind the modal.
   await page.evaluate(() => {
-    localStorage.setItem("gm-walkthrough-seen", "1");
+    localStorage.setItem("gm-walkthrough-seen", "1"); // AFL
+    localStorage.setItem("nb-walkthrough-seen", "1"); // netball
+    localStorage.setItem("league-walkthrough-seen", "1"); // rugby league
   });
 
   // Persist the cookie jar AND localStorage for every downstream spec.

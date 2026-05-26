@@ -70,7 +70,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
 
     const message = `Loving the short-squad fix ${sessionStamp}`;
     await page.getByLabel(/^message$/i).fill(message);
-    await page.getByRole("button", { name: /send feedback/i }).click();
+    await page.getByTestId("feedback-submit").click();
 
     await expect(page.getByText(/thanks, we have it/i)).toBeVisible({
       timeout: 5_000,
@@ -123,7 +123,7 @@ test("presales: anonymous visitor FAB submit persists kind='presales' with NULL 
 
     await page.getByLabel(/your email/i).fill(replyEmail);
     await page.getByLabel(/^message$/i).fill(message);
-    await page.getByRole("button", { name: /send question/i }).click();
+    await page.getByTestId("feedback-submit").click();
 
     await expect(page.getByText(/thanks, we'?ll be in touch/i)).toBeVisible({
       timeout: 5_000,
@@ -255,7 +255,7 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
 
     const message = `Score didn't save on the kickoff ${sessionStamp}`;
     await page.getByLabel(/^message$/i).fill(message);
-    await page.getByRole("button", { name: /send feedback/i }).click();
+    await page.getByTestId("feedback-submit").click();
 
     await expect(page.getByText(/thanks, we have it/i)).toBeVisible({
       timeout: 5_000,
@@ -317,7 +317,7 @@ test("presales: invalid email surfaces inline error, no DB row", async ({
     await page.getByLabel(/your email/i).evaluate((el) => {
       (el as HTMLInputElement).setAttribute("type", "text");
     });
-    await page.getByRole("button", { name: /send question/i }).click();
+    await page.getByTestId("feedback-submit").click();
 
     await expect(
       page.getByRole("alert").filter({ hasText: /valid email/i }),
@@ -358,7 +358,7 @@ test("honeypot: filled `website` field silently succeeds with NO DB row", async 
     await page.locator("#feedback-website").evaluate((el) => {
       (el as HTMLInputElement).value = "http://spammy.example";
     });
-    await page.getByRole("button", { name: /send question/i }).click();
+    await page.getByTestId("feedback-submit").click();
 
     // Bot sees "success" — we want the bot to think the post worked.
     await expect(page.getByText(/thanks, we'?ll be in touch/i)).toBeVisible({

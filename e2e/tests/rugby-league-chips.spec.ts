@@ -131,11 +131,15 @@ test("RL team: chip labels save from settings + chip assignment persists from sq
       )
       .toBe("a");
 
-    // ── Step 3: clear the chip via Unset ─────────────────────
+    // ── Step 3: clear the chip via "Any" ─────────────────────
     // Round-trips the "remove a tag" path, which writes chip=null.
+    // ChipPicker renames the clear button from "Unset" → "Any"
+    // (src/components/squad/ChipPicker.tsx line 44) so the user-
+    // facing copy reads as "no specific chip" rather than the more
+    // technical "unset". Test follows the rename.
     await expect(editBtn).toBeEnabled({ timeout: 5_000 });
     await editBtn.click();
-    await row.getByRole("button", { name: /^unset$/i }).click();
+    await row.getByRole("button", { name: /^any$/i }).click();
     await row.getByRole("button", { name: /^save$/i }).click();
 
     await expect

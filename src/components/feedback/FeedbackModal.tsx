@@ -191,10 +191,21 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
               variant="ghost"
               onClick={handleCancel}
               disabled={isPending}
+              data-testid="feedback-cancel"
             >
               Cancel
             </Button>
-            <Button type="submit" loading={isPending}>
+            {/* Testid avoids strict-mode collisions with the FAB's
+                `aria-label="Send feedback"` — both share the same
+                accessible name once the modal opens, so an
+                unscoped `getByRole("button", { name: /send.../ })`
+                resolves to two elements. Specs target this testid
+                instead. */}
+            <Button
+              type="submit"
+              loading={isPending}
+              data-testid="feedback-submit"
+            >
               {copy.submitLabel}
             </Button>
           </div>

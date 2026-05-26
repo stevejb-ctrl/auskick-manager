@@ -315,10 +315,15 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
-    // Assert sport persisted as 'rugby_league'. track_scoring stays
-    // false per L4 (wizard doesn't auto-flip; coach toggles in
-    // ScoringStep). The CHECK constraint added in 0035_rugby_league.sql
-    // is what makes the insert succeed — pre-migration this would 23514.
+    // Assert sport persisted as 'rugby_league'. `track_scoring`
+    // defaults to true for RL (commit f7e60c4: "RL: track scoring on
+    // by default at every age (U6/U7 tries-only)") — `createTeam`
+    // in dashboard/actions.ts pre-flips it from the age-group's
+    // `tracksScoreDefault: true` for U8+. U6/U7 still ship the
+    // tries-only suppressed-score variant via the AgeGroupConfig
+    // even when the column is true. The CHECK constraint added in
+    // 0042_rugby_league.sql is what makes the insert succeed —
+    // pre-migration this would 23514.
     await expect.poll(
       async () => {
         const { data } = await admin
@@ -329,7 +334,7 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
         return data;
       },
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
-    ).toMatchObject({ sport: "rugby_league", track_scoring: false });
+    ).toMatchObject({ sport: "rugby_league", track_scoring: true });
 
     // Negative-presence — QuarterLengthInput renders only for netball
     // teams. Confirms the sport === 'netball' conditional-render gate

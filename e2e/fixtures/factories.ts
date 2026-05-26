@@ -74,7 +74,20 @@ export async function makePlayers(
   opts: MakePlayersOpts
 ): Promise<Array<{ id: string; full_name: string; jersey_number: number }>> {
   const ageGroup = opts.ageGroup ?? "U10";
-  const count = opts.count ?? AGE_GROUPS[ageGroup].defaultOnFieldSize + 4;
+  // Default = defaultOnFieldSize + 4 (covers a bench rotation) but
+  // clamp to the 15-name pool / 15-active-player squad trigger from
+  // migration 0001. Without the clamp every U10 (defaultOnFieldSize
+  // = 12 → 16) and U13+ test that omits `count` throws "exceeds the
+  // 15-name pool" before any assertion runs. Specs that actually
+  // need 16+ players (full-game playthroughs at large age groups)
+  // must still pass an explicit count and either resize the pool or
+  // accept the trigger rejection.
+  const count =
+    opts.count
+    ?? Math.min(
+      PLAYER_FIRST_NAMES.length,
+      AGE_GROUPS[ageGroup].defaultOnFieldSize + 4,
+    );
   if (count > PLAYER_FIRST_NAMES.length) {
     throw new Error(
       `makePlayers: count=${count} exceeds the ${PLAYER_FIRST_NAMES.length}-name pool ` +
