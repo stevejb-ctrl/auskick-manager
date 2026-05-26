@@ -209,14 +209,15 @@ export function HeroCarousel() {
           them too.
 
           Positioned to sit BEHIND the phone mock (right column of
-          the hero grid) rather than off-screen. translate(-10%, 0)
-          centres the 900×900 field roughly on the phone, with a
-          slight leftward pull so the centre cross-hair lands
-          behind the phone screen rather than past it. */}
+          the hero grid) rather than off-screen. translate(5%, 0)
+          centres the 900×900 field roughly on the phone with a
+          slight rightward bias so the field's right edge tucks
+          past the screen edge while the centre crosshair lands
+          just to the right of the phone screen. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
-        style={{ transform: "translate(-10%, 0)" }}
+        style={{ transform: "translate(5%, 0)" }}
       >
         <div className="opacity-[0.14]">
           {active.id === "afl" ? (
