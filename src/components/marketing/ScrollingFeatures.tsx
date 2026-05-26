@@ -464,16 +464,21 @@ function DotStepper({
             onClick={() => onJump(i)}
             className="flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart"
           >
+            {/* Inactive dots tint with the active sport's accent at
+                ~35% alpha (hex `59`) instead of bg-hairline (a near-
+                invisible grey). Same colour family as the active pill
+                so the stepper reads as one unified component, and
+                visible enough to actually click on. */}
             <span
               aria-hidden="true"
               className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
                 isActive
                   ? `h-1.5 w-[22px] ${accent ? "" : "bg-brand-500"}`
-                  : "h-1.5 w-1.5 bg-hairline"
+                  : `h-1.5 w-1.5 ${accent ? "" : "bg-hairline"}`
               }`}
               style={
-                isActive && accent
-                  ? { backgroundColor: accent }
+                accent
+                  ? { backgroundColor: isActive ? accent : `${accent}59` }
                   : undefined
               }
             />

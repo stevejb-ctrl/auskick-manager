@@ -304,6 +304,13 @@ export function HeroCarousel() {
                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2
                     "
                   >
+                    {/* Each pill is tinted with ITS OWN sport's accent
+                        (not the active sport's) — so the row reads as
+                        a colour-coded sport picker rather than 3 grey
+                        pills + 1 coloured one. Active = full accent;
+                        inactive = same accent at ~35% alpha (hex `59`)
+                        so it's still visibly that sport's colour but
+                        clearly subordinate. */}
                     <span
                       className="
                         block h-1 w-full rounded-full
@@ -313,7 +320,7 @@ export function HeroCarousel() {
                       style={{
                         backgroundColor: isActive
                           ? sport.accent
-                          : "rgba(15,18,17,0.18)",
+                          : `${sport.accent}59`,
                       }}
                     />
                   </button>
