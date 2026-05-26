@@ -2,17 +2,33 @@ import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { TitleAccent } from "@/components/marketing/TitleAccent";
 import { MarketingAuthCTAs } from "@/components/marketing/MarketingAuthCTAs";
 import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
-import { getBrand } from "@/lib/brand";
-import { getBrandCopy } from "@/lib/sports/brand-copy";
+import { type BrandCopy } from "@/lib/sports/brand-copy";
+
+interface FinalCTAProps {
+  /** Brand copy to render — server pages pass the host-resolved
+   *  brand's copy; the multi-sport homepage's client wrapper passes
+   *  per-active-sport copy. */
+  copy: BrandCopy;
+  /** Whether the AppStoreBadge should render. iOS app is footy-only
+   *  in v1 (see mobile/capacitor.config.ts) so callers pass `true`
+   *  only when this copy refers to AFL. */
+  showAppStoreBadge: boolean;
+}
 
 // Closing CTA. Dark ink block per the design handoff so it reads as a
 // decision point — not another feature section. The italic accent in
 // the headline (Instrument Serif 400) is the brand's signature type
 // move; auth-aware buttons live in MarketingAuthCTAs (client island)
 // so this tree stays static.
-export function FinalCTA() {
-  const brand = getBrand();
-  const copy = getBrandCopy(brand.id);
+//
+// Component is now props-only — the host-based brand resolution
+// (previously via `getBrand()` inside this component) was moved out
+// so the multi-sport homepage's client wrapper can import this file
+// without pulling `next/headers` (server-only) across the client
+// boundary. Static marketing pages resolve `copy` themselves and
+// pass it down; the multi-sport homepage's MultiSportHomeContent
+// wrapper resolves it per active picker selection.
+export function FinalCTA({ copy, showAppStoreBadge }: FinalCTAProps) {
   return (
     <section
       id="signup"
@@ -34,7 +50,7 @@ export function FinalCTA() {
             <MarketingAuthCTAs variant="final" />
             {/* iOS app is footy-only in v1 (see mobile/capacitor.config.ts).
                 White-badge variant for contrast on the ink background. */}
-            {brand.id === "afl" && <AppStoreBadge theme="dark" />}
+            {showAppStoreBadge && <AppStoreBadge theme="dark" />}
           </div>
         </RevealOnScroll>
       </div>

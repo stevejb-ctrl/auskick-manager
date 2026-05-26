@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
+import { getBrand } from "@/lib/brand";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 export const metadata: Metadata = {
   title: "Why Siren · Built for junior coaches",
@@ -16,6 +18,12 @@ export const metadata: Metadata = {
 };
 
 export default function WhySirenPage() {
+  // Resolve copy server-side from the host-based brand. FinalCTA is
+  // props-only (moved out of `getBrand` server context so it can be
+  // safely imported into client trees) — pass the same brand copy
+  // here that previously resolved inline inside the component.
+  const brand = getBrand();
+  const copy = getBrandCopy(brand.id);
   return (
     <main>
       {/* Page hero — short, no CTA. The whole page is the setup. */}
@@ -188,7 +196,7 @@ export default function WhySirenPage() {
         </div>
       </section>
 
-      <FinalCTA />
+      <FinalCTA copy={copy} showAppStoreBadge={brand.id === "afl"} />
     </main>
   );
 }
