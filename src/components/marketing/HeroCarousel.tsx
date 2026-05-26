@@ -213,7 +213,7 @@ export function HeroCarousel() {
         className="pointer-events-none absolute inset-y-0 right-0 hidden items-center lg:flex"
         style={{ transform: "translate(40%, 0)" }}
       >
-        <div className="opacity-[0.18]">
+        <div className="opacity-[0.14]">
           {active.id === "afl" ? (
             <FieldOval size={900} />
           ) : (

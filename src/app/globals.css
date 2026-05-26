@@ -312,3 +312,32 @@ html[data-motion="reduce"] *::after {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ────────────────────────────────────────────────────────────────
+   Hero-watermark field strokes.
+
+   The per-sport field components (League, Netball, Union) use
+   thick inline stroke widths (1.5–1.8) that look right at picker-
+   card scale on a dark background. At hero scale (900×900) on a
+   cream background, those same widths read as heavy fuzzy lines
+   rather than a hairline watermark — and don't match the AFL
+   FieldOval (0.45–0.7 widths) we use for the AFL hero.
+
+   FieldShell.tsx adds this class to its SVG when strokeTheme is
+   "on-light", which is the hero-watermark code path. The CSS
+   below overrides the inline stroke-width via attribute
+   selectors — CSS rules win against SVG presentation attributes,
+   so no per-element React changes are needed.
+
+   Picker cards (strokeTheme defaults to "on-dark") render
+   without this class, so their stroke widths stay as authored.
+   ───────────────────────────────────────────────────────────────── */
+.field-on-light * {
+  /* Cap any "main" stroke at the FieldOval main weight. */
+  stroke-width: 0.7;
+}
+.field-on-light [stroke-width="0.8"],
+.field-on-light [stroke-width="1"] {
+  /* Faint / hairline elements stay proportionally lighter. */
+  stroke-width: 0.45;
+}

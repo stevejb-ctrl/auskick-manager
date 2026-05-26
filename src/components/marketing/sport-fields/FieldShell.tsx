@@ -70,19 +70,19 @@ export function FieldShell({
   // names, so swapping the values here re-themes the entire field
   // with no per-marking changes.
   //
-  // on-light values are intentionally MUCH lower opacity than on-
-  // dark: a 0.55 dark stroke at hero scale (900px wide) reads as
-  // a thick black line rather than a watermark. 0.22 / 0.12 lands
-  // closer to FieldOval's original hairline aesthetic (the AFL
-  // hero swaps to FieldOval directly; this softer palette keeps
-  // the still-detailed RL/netball/union hero watermarks visually
-  // consistent with FieldOval's weight).
+  // on-light colours are near-solid (rgba 0.85 / 0.55) so the
+  // strokes read crisply — the THINNESS is controlled separately
+  // by the .field-on-light CSS rule in globals.css, which also
+  // re-targets the inline strokeWidth attributes down to
+  // FieldOval-equivalent hairlines (0.7 / 0.45). Combined effect
+  // matches FieldOval's crisp-hairline aesthetic. Final
+  // visibility is then tuned by the wrapper div's opacity.
   const strokeVars: React.CSSProperties =
     strokeTheme === "on-light"
       ? ({
-          "--field-stroke": "rgba(15,18,17,0.22)",
-          "--field-stroke-faint": "rgba(15,18,17,0.12)",
-          "--field-fill-soft": "rgba(15,18,17,0.03)",
+          "--field-stroke": "rgba(15,18,17,0.85)",
+          "--field-stroke-faint": "rgba(15,18,17,0.55)",
+          "--field-fill-soft": "rgba(15,18,17,0.04)",
         } as React.CSSProperties)
       : ({
           "--field-stroke": "rgba(242,238,228,0.7)",
@@ -101,7 +101,13 @@ export function FieldShell({
       // properties on the root SVG element so each marking can just
       // reference `var(--field-stroke)` etc.
       style={strokeVars}
-      className="block h-full w-full"
+      // .field-on-light is a globals.css rule that re-targets
+      // child stroke widths down to FieldOval-equivalent hairlines
+      // (0.7 / 0.45) when the hero uses the watermark. Picker
+      // cards (default on-dark) keep the authored thicker widths.
+      className={`block h-full w-full ${
+        strokeTheme === "on-light" ? "field-on-light" : ""
+      }`}
     >
       {/* Optional accent-tinted overlay — most callers pass
           tintOpacity=0 (transparent SVG, card background shows
