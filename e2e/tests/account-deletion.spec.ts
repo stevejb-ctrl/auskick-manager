@@ -140,9 +140,19 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     ).toBeVisible();
 
     // ── Restore → schedule columns clear, banner gone ───────────────
-    // Use domcontentloaded to avoid waiting on long-tail RSC prefetch
-    // chatter under CI load, which was tripping net::ERR_ABORTED.
+    // Two-phase wait. `domcontentloaded` lets goto return as soon as
+    // the HTML lands (fast, doesn't race long-tail RSC prefetch
+    // chatter that was tripping `net::ERR_ABORTED` under CI load).
+    // `waitForLoadState("load")` then gives React time to hydrate —
+    // SFButton renders as a plain `<button>` in server HTML with NO
+    // onClick handler attached until hydration completes. Without
+    // this gate Playwright sees a "visible, enabled, stable" button
+    // and clicks it, but the click is a no-op because the React
+    // island hasn't wired up `handleRestore` yet — the assertion
+    // below then polls forever for `deletion_scheduled_for=null`
+    // and fails.
     await page.goto("/account", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("load");
     await page.getByRole("button", { name: /restore account/i }).click();
     await expect
       .poll(async () => {
