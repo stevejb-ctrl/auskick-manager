@@ -468,10 +468,12 @@ function DotStepper({
             className="flex h-8 w-8 items-center justify-center transition-colors duration-fast ease-out-quart"
           >
             {/* Inactive dots tint with the active sport's accent at
-                ~35% alpha (hex `59`) instead of bg-hairline (a near-
-                invisible grey). Same colour family as the active pill
-                so the stepper reads as one unified component, and
-                visible enough to actually click on. */}
+                ~55% alpha (hex `8C`) instead of bg-hairline. Same
+                colour family as the active pill so the stepper
+                reads as one unified component. 55% (was 35%) so
+                inactives stay visible against the section's soft
+                sport-tinted background — at 35% they were
+                disappearing into it. */}
             <span
               aria-hidden="true"
               className={`block rounded-full transition-all duration-base ease-out-quart motion-reduce:transition-none ${
@@ -481,7 +483,7 @@ function DotStepper({
               }`}
               style={
                 accent
-                  ? { backgroundColor: isActive ? accent : `${accent}59` }
+                  ? { backgroundColor: isActive ? accent : `${accent}8C` }
                   : undefined
               }
             />

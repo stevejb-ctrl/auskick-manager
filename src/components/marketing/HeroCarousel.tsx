@@ -314,9 +314,11 @@ export function HeroCarousel() {
                         (not the active sport's) — so the row reads as
                         a colour-coded sport picker rather than 3 grey
                         pills + 1 coloured one. Active = full accent;
-                        inactive = same accent at ~35% alpha (hex `59`)
+                        inactive = same accent at ~55% alpha (hex `8C`)
                         so it's still visibly that sport's colour but
-                        clearly subordinate. */}
+                        clearly subordinate. Previous 35% alpha read
+                        as nearly-invisible against the cream hero
+                        background. */}
                     <span
                       className="
                         block h-1 w-full rounded-full
@@ -326,7 +328,7 @@ export function HeroCarousel() {
                       style={{
                         backgroundColor: isActive
                           ? sport.accent
-                          : `${sport.accent}59`,
+                          : `${sport.accent}8C`,
                       }}
                     />
                   </button>
