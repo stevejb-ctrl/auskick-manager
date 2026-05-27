@@ -282,6 +282,7 @@ export function ScrollingFeatures({
                   activeIndex={activeIndex}
                   total={features.length}
                   features={features}
+                  accent={accent}
                   onJump={(i) => {
                     desktopRefs.current[i]?.scrollIntoView({
                       block: "center",
