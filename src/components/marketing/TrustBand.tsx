@@ -27,7 +27,14 @@ export function TrustBand({ entries }: TrustBandProps) {
     >
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 py-6 sm:grid-cols-4 sm:gap-8 sm:px-6 sm:py-8">
         {entries.map((item) => (
-          <div key={item.label} className="text-center sm:text-left">
+          // text-center across both breakpoints — previously
+          // `sm:text-left` left-aligned content within each cell,
+          // which pushed the four stats to the left edges of their
+          // columns and made the whole bar feel weighted to the
+          // left side (especially against the centred picker cards
+          // directly above on the multi-sport homepage). Centring
+          // each cell aligns with the cards' rhythm.
+          <div key={item.label} className="text-center">
             <div className="text-2xl font-bold tracking-tightest text-ink sm:text-3xl">
               {item.stat}
             </div>
