@@ -89,9 +89,9 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#2F8C45",
     accentSoft: "#DEEFE3",
     fieldTintOpacity: 0.10,
-    // No RL screenshot yet — HeroCarousel renders a placeholder.
-    heroScreenshot: null,
-    heroScreenshotAlt: "Rugby league live game view",
+    heroScreenshot: "/marketing/screenshots/league/live-game.png",
+    heroScreenshotAlt:
+      "Rugby League live game — Bangles JRL U10 vs Stockton Seahawks, half 1",
   },
   // Netball sits in slot 3 so the three shipped sports (AFL,
   // League, Netball) cluster in positions 1-3 and the coming-soon
