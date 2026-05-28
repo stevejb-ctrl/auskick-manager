@@ -396,6 +396,17 @@ export default async function RunPage({ params }: RunPageProps) {
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
     const isPreKickoff = state.lineup === null;
+    // Gate the availability section on "not enough available to
+    // start yet". For demo games (and any flow where availability
+    // was seeded at game-creation time), this is already
+    // satisfied so we skip straight to the lineup picker — the
+    // visitor doesn't need to re-mark everyone as available.
+    // For real runner links where the coach hasn't set
+    // availability yet, the section still shows so the parent-
+    // runner can mark a squad before the lineup picker has any
+    // bench to work with.
+    const needsAvailabilityStep =
+      isPreKickoff && availableIds.length < ageCfgN.positions.length;
     void hasStarted;
     return (
       <div className="space-y-3 p-3">
@@ -403,18 +414,7 @@ export default async function RunPage({ params }: RunPageProps) {
             sticky top bar (Steve 2026-05-13) — the (app) header is
             hidden on /live routes so this info lives in the
             in-game chrome itself. */}
-        {/* Pre-kickoff availability section — landing here from a runner
-            link, the parent expects to mark who's playing FIRST, then
-            set the lineup. Stagehand 2026-05-09 found that without this
-            section the runner-token URL dropped them straight onto an
-            empty lineup picker (no availability rows yet → empty bench
-            → "Start game" failed validation). Once a player is marked
-            available, setAvailability's revalidatePath kicks in and
-            this server component rerenders so the picker below picks
-            up the new availability. Hidden once the lineup is set
-            (game underway). showJerseyNumber=false because netball
-            squads don't carry jersey numbers (NETBALL-06). */}
-        {isPreKickoff && (
+        {needsAvailabilityStep && (
           <>
             {/* Orientation banner — first thing a parent-runner sees.
                 Steve 2026-05-13 usability test: without it Lisa
@@ -435,10 +435,6 @@ export default async function RunPage({ params }: RunPageProps) {
                 canMarkAvailability
                 canManageMatch
                 showJerseyNumber={false}
-                // Netball court positions for this age group (7 for "go").
-                // Drives the "X of 7 available" pill + the helper text
-                // that prompts the runner to mark MORE players Available
-                // before "Start game" can succeed.
                 requiredAvailable={ageCfgN.positions.length}
               />
             </section>
