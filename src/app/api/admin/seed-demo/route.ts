@@ -227,12 +227,14 @@ async function seedDemoTeam(
     );
   }
 
-  // Make the super admin an admin of the team.
-  await admin.from("team_memberships").insert({
-    team_id: team.id,
-    user_id: ownerId,
-    role: "admin",
-  });
+  // Admin membership is auto-created by the handle_new_team()
+  // trigger on the teams table — it inserts a (team_id, created_by,
+  // 'admin') row at INSERT time. Explicitly inserting again here
+  // would trip the team_memberships_team_id_user_id_key unique
+  // constraint. The previous seed code did this and silently
+  // worked because team_memberships INSERTs returning errors used
+  // to be swallowed; the new code path catches it. No-op now —
+  // membership is in place by the time we get here.
 
   const { error: playersErr } = await admin.from("players").insert(
     cfg.players.map((p) => ({
