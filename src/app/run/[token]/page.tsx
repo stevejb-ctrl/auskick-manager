@@ -4,13 +4,18 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
+import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
+import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
+import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/lib/sports";
+import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +57,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
@@ -113,6 +118,220 @@ export default async function RunPage({ params }: RunPageProps) {
   const songUrlTop = songEnabledTop ? (teamRow?.song_url ?? null) : null;
   const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
   const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
+
+  // ─── Rugby League branch ─────────────────────────────────────
+  // Junior RL uses rolling subs (like AFL) but on a rectangular
+  // pitch with Forward/Back position chips and a §7 unbroken-
+  // period rule. The runner-token landing page mirrors the team-
+  // coach RL flow at (app)/teams/[teamId]/games/[gameId]/live —
+  // pre-kickoff = LeagueLineupPicker, in-progress = LeagueLiveGame.
+  // Without this branch RL games fall through to the AFL LiveGame
+  // (the demo-picker symptom Steve caught: clicking the RL card
+  // started a game on the RL team but rendered AFL chrome).
+  if (sport === "rugby_league") {
+    const ageCfgL =
+      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
+      rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+    const periodSeconds = getEffectiveQuarterSeconds(
+      {
+        quarter_length_seconds:
+          (teamRow as { quarter_length_seconds?: number | null } | null)
+            ?.quarter_length_seconds ?? null,
+      },
+      ageCfgL,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+
+    // Same fan-out the team-coach RL branch uses for the data the
+    // picker / live game need.
+    const [
+      { data: avail },
+      { data: players },
+      { data: teamGames },
+      { data: fillInRows },
+    ] = await Promise.all([
+      admin
+        .from("game_availability")
+        .select("player_id, status")
+        .eq("game_id", g.id)
+        .eq("status", "available"),
+      admin
+        .from("players")
+        .select("*")
+        .eq("team_id", g.team_id)
+        .eq("is_active", true)
+        .order("jersey_number"),
+      admin.from("games").select("id").eq("team_id", g.team_id),
+      admin
+        .from("game_fill_ins")
+        .select("*")
+        .eq("game_id", g.id)
+        .order("created_at"),
+    ]);
+
+    const fillInsForLive = ((fillInRows ?? []) as FillIn[]).map((f) =>
+      fillInToPlayer(f, g.team_id),
+    );
+    const squad = [...((players ?? []) as Player[]), ...fillInsForLive];
+
+    // Availability union — explicit available rows + fill-ins +
+    // late-arrival events. Same pattern as the netball branch.
+    const lateArrivedFromEvents = ((thisGameEvents ?? []) as GameEvent[])
+      .filter((e) => e.type === "player_arrived" && e.player_id)
+      .map((e) => e.player_id as string);
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillInsForLive.map((f) => f.id),
+      ...lateArrivedFromEvents,
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+
+    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const hasStartedL = replay.lineup !== null;
+
+    // Season events for the suggester + kickoff badges. Fetched the
+    // same way the team-coach branch does it but inlined here
+    // since /run has no access to the (app)-only getSeasonEvents
+    // helper (which assumes a writer-auth context).
+    const otherGameIds = (teamGames ?? [])
+      .map((t) => t.id)
+      .filter((id) => id !== g.id);
+    const { data: leagueSeasonEventsRaw } = otherGameIds.length
+      ? await admin
+          .from("game_events")
+          .select("*")
+          .in("game_id", otherGameIds)
+      : { data: [] as GameEvent[] };
+    const leagueSeasonEvents = (leagueSeasonEventsRaw ?? []) as GameEvent[];
+
+    // Chip labels for RL — Forward/Back are auto-seeded by the
+    // 0043 trigger on team INSERT, but the picker accepts arbitrary
+    // labels so we read whatever's in the team row.
+    const chipLabelA =
+      (teamRow as { chip_a_label?: string | null } | null)?.chip_a_label ??
+      "Forward";
+    const chipLabelB =
+      (teamRow as { chip_b_label?: string | null } | null)?.chip_b_label ??
+      "Back";
+
+    // Loan state from this game's events (latest-per-player).
+    // Matches the team-coach pre-game pattern so a coach who
+    // flagged a loan before kickoff and reloads sees the same
+    // chips.
+    const leagueLoanedIds: string[] = (() => {
+      const latest = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of (thisGameEvents ?? []) as GameEvent[]) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const meta = (ev.metadata ?? {}) as { loaned?: boolean };
+        const loaned = meta.loaned ?? true;
+        const cur = latest.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) {
+          latest.set(ev.player_id, { ts: ev.created_at, loaned });
+        }
+      }
+      const out: string[] = [];
+      latest.forEach((v, id) => {
+        if (v.loaned) out.push(id);
+      });
+      return out;
+    })();
+
+    if (!hasStartedL) {
+      const { data: draftRow } = await admin
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", g.id)
+        .maybeSingle();
+      const initialDraft = draftRow
+        ? {
+            lineup: (draftRow as { lineup: unknown }).lineup as LeagueLineup,
+            updated_at: (draftRow as { updated_at: string }).updated_at,
+          }
+        : null;
+
+      return (
+        <div className="space-y-3 p-3">
+          <RunnerWelcomeBanner
+            teamName={teamName}
+            trackScoring={trackScoring}
+          />
+          {availablePlayers.length === 0 ? (
+            // Empty-state — same shape as the netball runner branch.
+            // Demo games seed availability at create time so this
+            // path is mostly for hand-crafted runner-token URLs
+            // landing pre-availability.
+            <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                Who&apos;s here today?
+              </h3>
+              <AvailabilityList
+                auth={auth}
+                teamId={g.team_id}
+                gameId={g.id}
+                canMarkAvailability
+                canManageMatch
+                showJerseyNumber
+                requiredAvailable={ageCfgL.defaultOnFieldSize}
+              />
+            </section>
+          ) : (
+            <LeagueLineupPicker
+              auth={auth}
+              gameId={g.id}
+              players={availablePlayers}
+              ageGroup={ageCfgL}
+              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              minOnFieldSize={ageCfgL.minOnFieldSize}
+              maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              seasonEvents={leagueSeasonEvents}
+              initialLoanedIds={leagueLoanedIds}
+              initialDraft={initialDraft}
+              backHref={`/run/${params.token}`}
+              chipLabels={{ a: chipLabelA, b: chipLabelB }}
+              chipModes={teamChipModes}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <LeagueLiveGame
+          auth={auth}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgL}
+          periodSeconds={periodSeconds}
+          subIntervalSeconds={g.sub_interval_seconds}
+          trackScoring={trackScoring}
+          enforceUnbrokenPeriods={
+            (g as { enforce_unbroken_periods?: boolean | null })
+              .enforce_unbroken_periods ??
+            (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+              ?.enforce_unbroken_periods ??
+            false
+          }
+          trackZoneTime={
+            (g as { track_zone_time?: boolean | null }).track_zone_time ??
+            (teamRow as { track_zone_time?: boolean | null } | null)
+              ?.track_zone_time ??
+            false
+          }
+          state={replay}
+          thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
+          seasonEvents={leagueSeasonEvents}
+          chipModes={teamChipModes}
+          // Runner-token grants restart access (same convention as
+          // the netball branch — folded into LeagueLiveGame's
+          // admin-utility row).
+          isAdmin
+          exitHref={`/run/${params.token}`}
+        />
+      </div>
+    );
+  }
 
   if (sport === "netball") {
     const ageCfgN =

@@ -1,15 +1,7 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
-import {
-  MARKETING_SPORTS,
-  type MarketingSportConfig,
-} from "@/lib/sports/marketing-sports";
-import {
-  AflOvalField,
-  LeagueRectField,
-  NetballCourtField,
-  RugbyUnionField,
-} from "@/components/marketing/sport-fields";
+import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
+import { DemoSportCard, DemoSportCardDisabled } from "./DemoSportCard";
 import { runDemoGame } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +23,12 @@ export const metadata: Metadata = {
  * visitors should explicitly pick.
  *
  * Architecture:
- *   - Server component; no client JS needed.
- *   - Each sport card is a `<form>` posting to `runDemoGame` with
- *     the marketing sport id. Server action creates the game +
- *     redirects to /run/{token}.
- *   - Rugby Union renders as a disabled "Coming soon" card.
+ *   - Server component; defers active-card rendering to a client
+ *     component (DemoSportCard) so each card can use
+ *     `useFormStatus` to show a Siren-pulse-mark loader during
+ *     the action's ~1-2s round-trip.
+ *   - Disabled (Rugby Union) card stays server-rendered — no form,
+ *     no client JS needed.
  *
  * Visual styling intentionally mirrors the homepage
  * MultiSportSection card grid (same field illustrations cropped
@@ -62,18 +55,24 @@ export default function DemoPage() {
         </p>
       </div>
 
-      {/* Picker grid — mirrors the homepage MultiSportSection
-          layout (2 cols on phone, 4 on lg+). Each card is its own
-          form so a click submits to runDemoGame with that card's
-          sport id. */}
+      {/* Picker grid — 2 cols on phone, 4 on lg+. Active sports
+          render through DemoSportCard (form + useFormStatus loader);
+          coming-soon sports use the lightweight server-only
+          disabled variant. */}
       <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {MARKETING_SPORTS.map((sport) => (
-          <DemoSportCard key={sport.id} sport={sport} />
-        ))}
+        {MARKETING_SPORTS.map((sport) =>
+          sport.comingSoon ? (
+            <DemoSportCardDisabled key={sport.id} sport={sport} />
+          ) : (
+            <DemoSportCard
+              key={sport.id}
+              sport={sport}
+              action={runDemoGame}
+            />
+          ),
+        )}
       </div>
 
-      {/* Quiet footer note — clarifies the demo is read-only-ish
-          (no signup) without making it the headline pitch. */}
       <p className="mx-auto mt-10 max-w-xl text-center text-sm text-ink-mute">
         Demos run in a public scoring view. No signup, no install.
         Already convinced?{" "}
@@ -86,130 +85,4 @@ export default function DemoPage() {
       </p>
     </main>
   );
-}
-
-// ── One picker card ───────────────────────────────────────────────
-function DemoSportCard({ sport }: { sport: MarketingSportConfig }) {
-  const isDisabled = Boolean(sport.comingSoon);
-
-  // Coming-soon (Union) renders a non-button card so visitors see
-  // it in the line-up but can't click. Cursor-not-allowed + reduced
-  // opacity mirrors the homepage MultiSportSection treatment.
-  if (isDisabled) {
-    return (
-      <div
-        aria-disabled="true"
-        aria-label={`${sport.label} — coming soon`}
-        data-testid={`demo-card-${sport.id}`}
-        className="group relative h-[130px] cursor-not-allowed overflow-hidden rounded-lg opacity-55 sm:h-[150px]"
-        style={{ backgroundColor: sport.accent }}
-      >
-        <CardFieldDecoration sport={sport} dimmed />
-        <CardTextOverlay sport={sport} label="Coming soon" />
-      </div>
-    );
-  }
-
-  // Active card — wraps the visual in a form posting to
-  // runDemoGame. The hidden `sport` input feeds the action; the
-  // whole card surface is the submit button so the click target
-  // is the visible card edge.
-  return (
-    <form action={runDemoGame}>
-      <input type="hidden" name="sport" value={sport.id} />
-      <button
-        type="submit"
-        aria-label={`Start ${sport.label} demo game`}
-        data-testid={`demo-card-${sport.id}`}
-        className="
-          group relative block h-[130px] w-full overflow-hidden rounded-lg
-          text-left transition-transform duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
-          hover:-translate-y-0.5
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-          motion-reduce:transition-none
-          sm:h-[150px]
-        "
-        style={{
-          backgroundColor: sport.accent,
-        }}
-      >
-        <CardFieldDecoration sport={sport} />
-        <CardTextOverlay sport={sport} label="Run demo →" />
-      </button>
-    </form>
-  );
-}
-
-// ── Field-illustration decoration, cropped bottom-right ──
-// Same positional logic as the homepage card — container offset so
-// the SVG's top-left lands in the card's mid-region, with the rest
-// extending past the card edges. overflow-hidden on the card crops.
-function CardFieldDecoration({
-  sport,
-  dimmed = false,
-}: {
-  sport: MarketingSportConfig;
-  dimmed?: boolean;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className={`
-        pointer-events-none absolute left-2/3 top-[20%] w-[60%] aspect-[200/220]
-        transition-opacity duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
-        ${dimmed ? "opacity-40" : "opacity-45 group-hover:opacity-60"}
-      `}
-    >
-      <FieldForSport sport={sport} />
-    </div>
-  );
-}
-
-// ── Card text overlay — code top-left, sport name + action bottom-left
-function CardTextOverlay({
-  sport,
-  label,
-}: {
-  sport: MarketingSportConfig;
-  label: string;
-}) {
-  return (
-    <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5">
-      <p
-        className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]"
-        style={{ color: "rgba(255,255,255,0.75)" }}
-      >
-        {sport.code}
-      </p>
-      <div>
-        <p
-          className="text-xl font-bold leading-tight tracking-tightest sm:text-2xl"
-          style={{ color: "#FFFFFF" }}
-        >
-          {sport.label}
-        </p>
-        <p
-          className="mt-0.5 text-xs"
-          style={{ color: "rgba(255,255,255,0.85)" }}
-        >
-          {label}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Exhaustive switch — adding a sport here trips a TypeScript
-// error if you forget to wire the SVG.
-function FieldForSport({ sport }: { sport: MarketingSportConfig }) {
-  switch (sport.id) {
-    case "afl":
-      return <AflOvalField accent={sport.accent} tintOpacity={0} />;
-    case "league":
-      return <LeagueRectField accent={sport.accent} tintOpacity={0} />;
-    case "netball":
-      return <NetballCourtField accent={sport.accent} tintOpacity={0} />;
-    case "union":
-      return <RugbyUnionField accent={sport.accent} tintOpacity={0} />;
-  }
 }
