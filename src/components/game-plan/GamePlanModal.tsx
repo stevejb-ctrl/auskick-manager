@@ -32,14 +32,28 @@ import {
 } from "@/lib/game-plan";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig, SportId } from "@/lib/sports/types";
-import type { GameEvent, Player, PlayerChip } from "@/lib/types";
+import type { GameEvent, PlayerChip } from "@/lib/types";
+
+/**
+ * The minimal player shape the planner needs — id for projection,
+ * name + jersey for the rows and copy text, optional chip for the
+ * chip-aware indicator. Deliberately narrower than `Player` so every
+ * caller (the game-detail page only selects these columns; the live
+ * pickers pass full rows) can hand over what it already has.
+ */
+export interface GamePlanPlayer {
+  id: string;
+  full_name: string;
+  jersey_number: number | null;
+  chip?: PlayerChip | null;
+}
 
 export interface GamePlanModalProps {
   sport: SportId;
   /** Resolved age-group config — drives positions, period count, minutes. */
   ageGroup: AgeGroupConfig;
   /** Available squad for this game, in display order. */
-  players: Player[];
+  players: GamePlanPlayer[];
   /** Players on field for this game (clamped to the age-group bounds). */
   onFieldSize: number;
   /** Coach's team name for the header + copy text. */

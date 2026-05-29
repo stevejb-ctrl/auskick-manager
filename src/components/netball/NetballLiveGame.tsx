@@ -214,6 +214,13 @@ interface NetballLiveGameProps {
   songUrl?: string | null;
   songStartSeconds?: number;
   songDurationSeconds?: number;
+  /**
+   * Optional pre-game "Game plan" opener. Forwarded to the pre-kickoff
+   * NetballLineupPicker's shared breadcrumb so the planner sits in the
+   * same spot it does for AFL / RL. Built by the server page (which
+   * has team name / opponent / season events). Only shown pre-kickoff.
+   */
+  gamePlanButton?: import("react").ReactNode;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -248,6 +255,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     songUrl = null,
     songStartSeconds = 0,
     songDurationSeconds = 15,
+    gamePlanButton,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -1520,6 +1528,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               ? `/teams/${auth.teamId}/games/${game.id}`
               : undefined
           }
+          gamePlanButton={gamePlanButton}
           currentOnFieldSize={game.on_field_size}
           onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {

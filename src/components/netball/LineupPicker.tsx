@@ -89,6 +89,13 @@ interface LineupPickerProps {
    */
   backHref?: string;
   /**
+   * Optional pre-game "Game plan" opener, rendered in the shared
+   * breadcrumb row above the picker. Built by the server page (via
+   * NetballLiveGame) so the planner sits in the same spot across all
+   * three sports. Omit on surfaces without a planner.
+   */
+  gamePlanButton?: import("react").ReactNode;
+  /**
    * Optional draft-save callback — when provided, the sticky footer
    * grows to a two-row layout with a "Save plan & exit" ghost button
    * on top and the primary "Confirm lineup" CTA below. Mirrors the
@@ -186,6 +193,7 @@ export function NetballLineupPicker({
   confirmLabel = "Confirm lineup",
   disabled,
   backHref,
+  gamePlanButton,
   onSavePlan,
   initialSavedAt = null,
   auth,
@@ -744,7 +752,7 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <LineupPickerBreadcrumb backHref={backHref} />
+      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
 
       {/* ── Game settings (collapsible) ──────────────────────────
           Steve 2026-05-16: parity with the AFL pre-game picker —

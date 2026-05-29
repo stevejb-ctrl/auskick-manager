@@ -6,6 +6,7 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
+import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import {
   replayGame,
@@ -293,6 +294,18 @@ export default async function LivePage({ params }: LivePageProps) {
               defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              gamePlanButton={
+                <GamePlanButton
+                  sport={sport}
+                  ageGroup={ageCfgL}
+                  players={availablePlayers}
+                  onFieldSize={g.on_field_size}
+                  teamName={teamName}
+                  opponentName={g.opponent}
+                  seasonEvents={leagueSeasonEvents as GameEvent[]}
+                  chipModeByKey={teamChipModes}
+                />
+              }
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
@@ -540,6 +553,20 @@ export default async function LivePage({ params }: LivePageProps) {
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
+          gamePlanButton={
+            isPreKickoff ? (
+              <GamePlanButton
+                sport={sport}
+                ageGroup={ageCfgN}
+                players={squad.filter((p) => availableIds.includes(p.id))}
+                onFieldSize={g.on_field_size}
+                teamName={teamName}
+                opponentName={g.opponent}
+                seasonEvents={seasonEvents as GameEvent[]}
+                chipModeByKey={teamChipModes}
+              />
+            ) : undefined
+          }
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
             admin-utility row alongside "+ Add late arrival" so the
@@ -812,6 +839,18 @@ export default async function LivePage({ params }: LivePageProps) {
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          gamePlanButton={
+            <GamePlanButton
+              sport={sport}
+              ageGroup={ageCfgSport}
+              players={availablePlayers}
+              onFieldSize={g.on_field_size}
+              teamName={teamName}
+              opponentName={g.opponent}
+              seasonEvents={(seasonEvents ?? []) as GameEvent[]}
+              chipModeByKey={teamChipModes}
+            />
+          }
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           initialLoanedIds={initialLoanedIds}

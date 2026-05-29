@@ -99,6 +99,13 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   backHref?: string | null;
+  /**
+   * Optional pre-game "Game plan" opener, rendered in the shared
+   * breadcrumb row above the picker. Built by the server page (which
+   * has team name / opponent / season events) and threaded down so
+   * the planner sits in the same spot across all three sports.
+   */
+  gamePlanButton?: import("react").ReactNode;
   seasonEvents: GameEvent[];
   initialLoanedIds?: string[];
   chipLabels?: {
@@ -122,6 +129,7 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   backHref,
+  gamePlanButton,
   seasonEvents,
   initialLoanedIds = [],
   chipLabels,
@@ -924,7 +932,10 @@ export function LeagueLineupPicker({
 
   return (
     <div ref={pickerRootRef} className="space-y-4 pb-32">
-      <LineupPickerBreadcrumb backHref={backHref ?? undefined} />
+      <LineupPickerBreadcrumb
+        backHref={backHref ?? undefined}
+        action={gamePlanButton}
+      />
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">

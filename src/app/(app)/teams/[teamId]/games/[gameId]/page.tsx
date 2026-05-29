@@ -14,6 +14,7 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
+import { getAgeGroupConfig } from "@/lib/sports";
 import { replayGame } from "@/lib/fairness";
 import {
   playerThirdMs,
@@ -22,6 +23,7 @@ import {
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { GameSummaryView } from "@/components/live/GameSummaryCard";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
+import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 
 interface GameDetailPageProps {
@@ -68,7 +70,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .in("type", ["goal", "behind"]),
     supabase
       .from("players")
-      .select("id, full_name, jersey_number")
+      .select("id, full_name, jersey_number, chip")
       .eq("team_id", params.teamId),
   ]);
 
@@ -97,6 +99,14 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const ageCfg = AGE_GROUPS[ageGroup];
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
   const sport: Sport = ((team as { sport?: Sport } | null)?.sport) ?? "afl";
+  const teamName = (team as { name?: string } | null)?.name ?? "Us";
+  // Sport-config age-group shape (positions / zones / period count)
+  // for the pre-game planner — distinct from the legacy AFL-only
+  // `ageCfg` above, which the rest of this AFL-centric page uses.
+  const planAgeCfg = getAgeGroupConfig(
+    sport,
+    (team as { age_group?: string } | null)?.age_group,
+  );
 
   const tallies = new Map<string, { goals: number; behinds: number }>();
   for (const ev of (scoringEvents ?? []) as { type: string; player_id: string | null }[]) {
@@ -279,6 +289,21 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     >
                       {planSavedAt ? "Edit lineup plan" : "Set lineup"}
                     </SFButton>
+                    {/* Pre-game rotation planner — auto-suggests a fair
+                        full-game rotation the coach can tweak and copy
+                        into the team chat. Pure client compute; no DB
+                        write, doesn't touch how the live game runs. */}
+                    <GamePlanButton
+                      sport={sport}
+                      ageGroup={planAgeCfg}
+                      players={players ?? []}
+                      onFieldSize={planAgeCfg.defaultOnFieldSize}
+                      teamName={teamName}
+                      opponentName={g.opponent}
+                      variant="ghost"
+                      size="md"
+                      className="w-full sm:w-auto"
+                    />
                   </>
                 ) : (
                   <SFButton

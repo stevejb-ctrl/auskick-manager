@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   markLoan,
   saveLineupDraft,
@@ -64,6 +64,13 @@ interface LineupPickerProps {
   gameMinutes: number;
   /** Optional href for the Back button shown above the picker. */
   backHref?: string;
+  /**
+   * Optional pre-game "Game plan" opener, rendered in the shared
+   * breadcrumb row above the picker. The server page builds it (it
+   * has the team name / opponent / season events) and passes it down
+   * so the planner sits in the same spot across all three sports.
+   */
+  gamePlanButton?: ReactNode;
   /**
    * Pre-game saved lineup. When present, the picker pre-populates
    * with the saved lineup + size + sub-interval instead of running
@@ -127,6 +134,7 @@ export function LineupPicker({
   positionModel,
   gameMinutes,
   backHref,
+  gamePlanButton,
   initialDraft,
   chipModeByKey = {},
   initialLoanedIds = [],
@@ -576,7 +584,7 @@ export function LineupPicker({
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
     <div ref={lineupPickerRootRef} className="space-y-4">
-      <LineupPickerBreadcrumb backHref={backHref} />
+      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
           Steve 2026-05-13: the three pre-game controls (rotation
