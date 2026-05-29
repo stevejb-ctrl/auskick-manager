@@ -17,6 +17,7 @@
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
+import { gotoStable } from "../helpers/navigation";
 import { purgeUserAccount } from "../../src/lib/account/purge";
 import { GRACE_DAYS } from "../../src/lib/account/constants";
 
@@ -151,7 +152,9 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     // island hasn't wired up `handleRestore` yet — the assertion
     // below then polls forever for `deletion_scheduled_for=null`
     // and fails.
-    await page.goto("/account", { waitUntil: "domcontentloaded" });
+    // gotoStable retries the ERR_ABORTED that the dashboard's in-flight
+    // RSC prefetch was triggering here (see helpers/navigation.ts).
+    await gotoStable(page, "/account", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("load");
     await page.getByRole("button", { name: /restore account/i }).click();
     await expect

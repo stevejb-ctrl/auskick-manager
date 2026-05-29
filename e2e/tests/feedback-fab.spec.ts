@@ -29,6 +29,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { gotoStable } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -51,6 +52,14 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
   });
 
   try {
+    // Give the user a team so /dashboard is a stable surface. A
+    // teamless user is redirected to /welcome, which both raced the
+    // submit (30s navigation timeout) and broke the `page_url ===
+    // /dashboard` assertion below. Mirrors the in-game cases: makeTeam
+    // + deleteTestUser cleanup, no explicit team delete (the auth-user
+    // delete cascades).
+    await makeTeam(admin, { ownerId: user.id });
+
     // Fresh context so we don't inherit the chromium project's
     // super-admin session — this case is specifically about a regular
     // authenticated user's feedback submission.
@@ -65,7 +74,13 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
       timeout: 15_000,
     });
 
-    await page.goto("/dashboard");
+    // ?list=1 escape hatch: a single-team user is auto-redirected off
+    // bare /dashboard to /teams/{id} (see dashboard/page.tsx). The
+    // query param keeps the dashboard list mounted so the FAB lives on
+    // a /dashboard surface. pageUrl reads window.location.pathname
+    // (query excluded), so the page_url assertion below still sees
+    // "/dashboard".
+    await gotoStable(page, "/dashboard?list=1");
     await page.getByTestId("feedback-fab-feedback").click();
 
     const message = `Loving the short-squad fix ${sessionStamp}`;
@@ -196,7 +211,9 @@ test("on /live the floating FAB is hidden and the LiveTopBar header button takes
     // Navigate to the live page. We need:
     //   1. the floating FAB NOT in the DOM (path-hide active)
     //   2. the header button IN the DOM (LiveTopBar mounted it)
-    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    // gotoStable retries the ERR_ABORTED the /dashboard prefetch above
+    // was triggering on this navigation (see helpers/navigation.ts).
+    await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("feedback-fab-feedback")).toHaveCount(0);
     await expect(page.getByTestId("feedback-header-button")).toBeVisible({
@@ -248,7 +265,7 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
       timeout: 15_000,
     });
 
-    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
     // In-game uses the header button (the floating FAB is hidden on
     // /live since the round-2 placement change).
     await page.getByTestId("feedback-header-button").click();
@@ -304,19 +321,22 @@ test("presales: invalid email surfaces inline error, no DB row", async ({
     const badEmail = "not-an-email";
     const message = `Should never persist ${sessionStamp}`;
 
-    // Bypass the browser's built-in HTML5 email validator so the click
-    // actually reaches the server action — that's the layer we want to
-    // assert the error message from. `required` attribute is still
-    // there for real users; this is just to drive the path we care
-    // about under test.
-    await page.getByLabel(/your email/i).evaluate(
-      (el, value) => ((el as HTMLInputElement).value = value),
-      badEmail,
-    );
+    // `.fill` dispatches the input event React's controlled <Input>
+    // needs. A raw `.value =` (the old approach) never reaches the
+    // component's state, so the submit posted an EMPTY email and
+    // exercised the wrong server branch — the assertion below then
+    // never saw the "valid email" error.
+    await page.getByLabel(/your email/i).fill(badEmail);
     await page.getByLabel(/^message$/i).fill(message);
-    await page.getByLabel(/your email/i).evaluate((el) => {
-      (el as HTMLInputElement).setAttribute("type", "text");
-    });
+
+    // Bypass the browser's built-in HTML5 email validator so the submit
+    // reaches the server action — that's the layer whose "valid email"
+    // error we assert. `formNoValidate` on the submit button survives
+    // React re-renders (it isn't a JSX-controlled prop), unlike the
+    // input's `type`, which React reconciles back to "email".
+    await page
+      .getByTestId("feedback-submit")
+      .evaluate((btn) => ((btn as HTMLButtonElement).formNoValidate = true));
     await page.getByTestId("feedback-submit").click();
 
     await expect(
@@ -353,10 +373,19 @@ test("honeypot: filled `website` field silently succeeds with NO DB row", async 
     await page.getByLabel(/your email/i).fill(replyEmail);
     await page.getByLabel(/^message$/i).fill(message);
     // Honeypot: bots auto-fill every field including the hidden one.
-    // Simulate that by setting the input's value directly (it's not
-    // visible to users, but it IS in the DOM).
+    // It's visually hidden (off-screen, opacity-0) so `.fill` won't
+    // touch it — and a raw `.value =` is invisible to React's controlled
+    // input. Drive it through the native value setter + a bubbling
+    // `input` event so the `website` state actually updates; otherwise
+    // the honeypot stays empty and the bot-trap branch never fires.
     await page.locator("#feedback-website").evaluate((el) => {
-      (el as HTMLInputElement).value = "http://spammy.example";
+      const input = el as HTMLInputElement;
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      nativeSetter?.call(input, "http://spammy.example");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await page.getByTestId("feedback-submit").click();
 

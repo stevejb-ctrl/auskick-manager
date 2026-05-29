@@ -156,13 +156,20 @@ test.describe("Demo picker", () => {
 
       expect(page.url()).toMatch(/\/run\/[a-zA-Z0-9_-]+/);
 
-      // Smoke-check that the live-game page actually rendered —
-      // "Demo Opponent" is the opponent name our server action
-      // INSERTs, so it appears on the live chrome regardless of
-      // sport.
-      await expect(page.getByText(/demo opponent/i).first()).toBeVisible({
-        timeout: 10_000,
-      });
+      // Smoke-check that the public run page actually rendered. The
+      // demo game lands PRE-KICKOFF (runDemoGame seeds no lineup_set
+      // event), and the test rosters are only 4 players — fewer than
+      // any sport's required positions — so all three sports render
+      // the availability/welcome path, not the live game. The opponent
+      // name ("Demo Opponent") is only surfaced on AFL's pre-kickoff
+      // header (GameInfoHeader); netball/league don't show it until
+      // kickoff, so it's a poor cross-sport marker.
+      // RunnerWelcomeBanner ("You're running today's game for …") is
+      // the universal smoke check — it renders on the pre-kickoff
+      // screen for every sport.
+      await expect(
+        page.getByText(/you're running today's game for/i),
+      ).toBeVisible({ timeout: 10_000 });
     });
   }
 

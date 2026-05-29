@@ -159,21 +159,18 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   });
 
   // ─── Phase 2: Record a try ───────────────────────────────
-  // Dismiss the vest + kickoff prompts first so their player-name
-  // buttons don't compete with the field tiles in the accessible
-  // tree. Vest assignment uses the "1 Alicia" pattern (jersey
-  // visible in the name); the kickoff picker has its own "Skip".
-  // Assigning vests to bench players keeps the on-field 11 free of
-  // vest-twice constraints later in the flow.
-  const onFieldRegion = page.getByRole("region", { name: /^on field$/i });
-  const tryScorer = players[0]; // "Alicia"
+  const tryScorer = players[0]; // "Alicia" — an on-field forward
 
-  // Click the field tile — opens the shared ScoreRecordingDock at
-  // the bottom of the screen with a "+ Try" button. Scoping to
-  // the "On field" region keeps the regex from matching same-named
-  // buttons in the vest card / kickoff picker.
-  await onFieldRegion
-    .getByRole("button", { name: new RegExp(`^${tryScorer.full_name}$`, "i") })
+  // Click the field tile by its stable per-player testid — this opens
+  // the shared ScoreRecordingDock with a "+ Try" button. We target the
+  // testid rather than an exact `^Alicia$` name regex because the
+  // tile's accessible name aggregates jersey + field-time + tries (so
+  // the exact-name match never resolved), and because same-named
+  // buttons in the vest card / kickoff picker would otherwise collide.
+  // The testid is unique to the on-field tile, mirroring the AFL
+  // playthrough's `getByTestId("player-tile-<id>")` pattern.
+  await page
+    .getByTestId(`league-player-tile-${tryScorer.id}`)
     .click({ timeout: 10_000 });
 
   // Wait for the dock's "+ Try" button to appear. The button only
@@ -235,13 +232,18 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .toBeGreaterThanOrEqual(1);
 
   // ─── Phase 4: End H1 via manual hooter ────────────────────
-  // The auto-hooter in LeagueLiveGame uses real wall-clock time
-  // (clock_multiplier is wired into AFL/netball clocks but not
-  // RL's yet — Phase 7 polish item). Use the manual "End half N
-  // early" button + ManualEndQuarterConfirm to advance
-  // deterministically.
+  // The auto-hooter in LeagueLiveGame uses real wall-clock time, so
+  // we end the period deterministically via the manual affordance.
+  // That affordance lives on the scorebug clock pill and is a
+  // *paused-only* rescue control: "End half early" only renders
+  // when the clock is paused (`!running`) — see LeagueScoreBug. So
+  // the sequence is: tap the clock pill to pause → the "End half
+  // early" chip drops in → click it → confirm in
+  // ManualEndQuarterConfirm. The chip text has no period number
+  // ("End half early", not "End half 1 early").
+  await page.getByRole("button", { name: /pause clock/i }).click();
   await page
-    .getByRole("button", { name: /end half\s*1\s*early/i })
+    .getByRole("button", { name: /end half early/i })
     .click();
   // ManualEndQuarterConfirm modal — confirm with the destructive
   // "End H{n}" button (U10 plays halves; the shared modal now
@@ -250,19 +252,30 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*1$/i })
     .click();
+  // Ending H1 fires LeagueLiveGame's qbreak auto-open effect, which
+  // pops StartQuarterModal ("Ready for H2" → confirm with "Start H2")
+  // on top of the inline "Ready for half 2" break card. That modal
+  // (z-50) covers the inline button, so we drive H2 straight from the
+  // modal's "Start H2" CTA. Wait for it so Phase 5 doesn't race the
+  // auto-open.
   await expect(
-    page.getByRole("button", { name: /ready for half\s*2/i }),
+    page.getByRole("button", { name: /^start\s*[qh]\s*2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await page
-    .getByRole("button", { name: /ready for half\s*2/i })
+    .getByRole("button", { name: /^start\s*[qh]\s*2$/i })
     .click();
+  // H2 now active. Same paused-only flow as Phase 4: pause the clock
+  // to surface the end-early chip, then end + confirm. An inline
+  // KickoffPicker may render for H2, but it's a non-blocking
+  // <section> (not an overlay), so it never covers the clock pill.
+  await page.getByRole("button", { name: /pause clock/i }).click();
   await expect(
-    page.getByRole("button", { name: /end half\s*2\s*early/i }),
+    page.getByRole("button", { name: /end half early/i }),
   ).toBeVisible({ timeout: 10_000 });
   await page
-    .getByRole("button", { name: /end half\s*2\s*early/i })
+    .getByRole("button", { name: /end half early/i })
     .click();
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*2$/i })
