@@ -15,10 +15,10 @@
 //   • No "subs" line — netball substitutions are period-break-
 //     only and the count is implicit in the four quarters.
 
-import { useState } from "react";
 import type { Player } from "@/lib/types";
 import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 
 // Permissive subset — buildPlayerTimes only reads id + full_name.
 // Lets the game-detail page pass the slim projection it loads
@@ -179,8 +179,6 @@ export function NetballGameSummaryCard({
   squad,
   trackScoring = false,
 }: Props) {
-  const [copied, setCopied] = useState(false);
-
   const summary = buildSummary(
     teamName,
     opponentName,
@@ -192,24 +190,6 @@ export function NetballGameSummaryCard({
     trackScoring,
   );
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(summary);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      // Fallback for environments without the Clipboard API — select
-      // the rendered text so the coach can long-press and copy.
-      const el = document.getElementById("netball-game-summary-text");
-      if (el) {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        window.getSelection()?.removeAllRanges();
-        window.getSelection()?.addRange(range);
-      }
-    }
-  }
-
   // The card only mounts at FT — wrapping it in SirenPulseHalo
   // with a constant triggerKey makes the brand halo fire once on
   // appear (the "final siren" beat). The slide-up animation +
@@ -217,25 +197,11 @@ export function NetballGameSummaryCard({
   return (
     <SirenPulseHalo triggerKey="ft" size="lg" display="block" className="rounded-md">
       <div className="animate-slide-up rounded-md border border-hairline bg-surface p-4 shadow-card">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ink">Game summary</h3>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 active:bg-brand-800"
-        >
-          {copied ? "✓ Copied!" : "Copy for group chat"}
-        </button>
-      </div>
-      <pre
-        id="netball-game-summary-text"
-        className="select-all whitespace-pre-wrap rounded-md bg-surface-alt px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
-      >
-        {summary}
-      </pre>
-      <p className="mt-2 text-xs text-ink-mute">
-        Tap the text to select it, or use the button above.
-      </p>
+        <CopyableTextBlock
+          title="Game summary"
+          text={summary}
+          textId="netball-game-summary-text"
+        />
       </div>
     </SirenPulseHalo>
   );
