@@ -74,7 +74,11 @@ function resolvePeriodLabels(
 // Per-player planned game time across the projected periods. Every
 // input player appears — including those who never get on — so the
 // coach can see imbalance at a glance before kickoff.
-function computeTotals(
+//
+// Exported so the manual-tweak helper (./edit) can recompute totals
+// after a coach swaps two players, without duplicating the sort/round
+// logic.
+export function computeTotals(
   periods: GamePlanPeriod[],
   allPlayerIds: string[],
   periodMinutes: number,
