@@ -34,7 +34,11 @@ export interface GamePlanPeriod {
   label: string;
   /** On-field groups in canonical render order. */
   groups: GamePlanGroup[];
-  /** Player ids resting this period. */
+  /**
+   * Player ids starting this period off the field. When the plan
+   * `rotatesWithinPeriod` (AFL rolling subs), this is an ordered
+   * interchange queue — index 0 comes on first — not a static bench.
+   */
   bench: string[];
 }
 
@@ -59,6 +63,16 @@ export interface GamePlan {
   periodLabelPlural: "quarters" | "halves" | "periods";
   /** Minutes per period (for footer copy and the modal subhead). */
   periodMinutes: number;
+  /**
+   * True when the plan rotates players within each period via rolling
+   * subs (AFL). Then each period's `bench` is an ordered interchange
+   * queue (next-on first) and `totals.minutes` assume even within-period
+   * rotation rather than whole-period blocks. Netball (period-break-only
+   * subs) and rugby league (Law-6 unbroken blocks) leave this false.
+   */
+  rotatesWithinPeriod: boolean;
+  /** Rolling-sub cadence in seconds — set only when rotatesWithinPeriod. */
+  subIntervalSeconds?: number;
 }
 
 /**

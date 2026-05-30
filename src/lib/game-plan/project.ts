@@ -101,6 +101,65 @@ export function computeTotals(
     .sort((a, b) => b.minutes - a.minutes);
 }
 
+// Per-player planned time when the game ROTATES within each period
+// (AFL rolling subs). Because rolling subs spread on-field time evenly
+// across everyone present, nobody actually sits a whole period — so a
+// player's planned minutes is their even share of the available
+// field-minutes, NOT their whole-period block. `periodsOnField` still
+// reports how many periods the player STARTS on field (read off the
+// grid), so the UI can still show who begins each period where; only
+// the minutes reflect the within-period rotation.
+//
+// Shared by the AFL projector and the manual-tweak helper (./edit) so a
+// coach swap keeps the rotation-corrected totals instead of snapping
+// back to whole-period blocks.
+export function computeRotationTotals(
+  periods: GamePlanPeriod[],
+  allPlayerIds: string[],
+  periodMinutes: number,
+): GamePlanPlayerTotal[] {
+  const present = allPlayerIds.length;
+  const periodCount = periods.length;
+  // On-field seats per period — constant across the game: the field is
+  // filled to the on-field size, or to the squad size for a short squad.
+  const onFieldSeats = periods[0]
+    ? periods[0].groups.reduce((n, g) => n + g.playerIds.length, 0)
+    : 0;
+  const evenMinutes =
+    present === 0
+      ? 0
+      : Math.round((onFieldSeats * periodMinutes * periodCount) / present);
+
+  const startCount: Record<string, number> = {};
+  for (const id of allPlayerIds) startCount[id] = 0;
+  for (const p of periods) {
+    for (const g of p.groups) {
+      for (const pid of g.playerIds) {
+        startCount[pid] = (startCount[pid] ?? 0) + 1;
+      }
+    }
+  }
+
+  return allPlayerIds
+    .map((playerId) => ({
+      playerId,
+      periodsOnField: startCount[playerId] ?? 0,
+      // Everyone present rotates on, so all share the even minutes —
+      // including a deep-squad kid the grid never "starts".
+      minutes: evenMinutes,
+    }))
+    .sort((a, b) => b.minutes - a.minutes || b.periodsOnField - a.periodsOnField);
+}
+
+// Sum a player's banked on-field ms across all zones — drives the
+// interchange queue order (fewest minutes banked → comes on first).
+function totalBankedMs(zoneMs: Record<string, number> | undefined): number {
+  if (!zoneMs) return 0;
+  let sum = 0;
+  for (const z of ALL_ZONES) sum += zoneMs[z] ?? 0;
+  return sum;
+}
+
 function resolveChips(input: ProjectGamePlanInput): {
   chipByPlayerId: Record<string, PlayerChip | null | undefined>;
   chipModeByKey: NonNullable<ProjectGamePlanInput["chipModeByKey"]>;
@@ -120,6 +179,11 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   const onFieldSize = clampOnField(ag, input.onFieldSize);
   const { label, plural } = resolvePeriodLabels(cfg, ag);
   const short = periodShortLabel(label);
+
+  // Rolling subs only bite when there's a bench to rotate. A short
+  // squad (everyone on every period) plays whole periods — no queue, no
+  // minute correction — so it keeps the plain whole-period totals.
+  const rotates = input.players.length > onFieldSize;
 
   const model: PositionModel = ag.zones.length >= 5 ? "positions5" : "zones3";
   const zoneCaps: ZoneCaps = zoneCapsFor(onFieldSize, model);
@@ -179,26 +243,38 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
       playerIds: [...lineup[z]],
     }));
 
+    // Interchange queue: order the bench fewest-minutes-banked first so
+    // the kid most owed game time comes on first when a sub falls due.
+    // (currentGame already holds this quarter for on-field players; bench
+    // players reflect their prior-quarter minutes only.) Q1 ties keep the
+    // suggester's order via the stable sort.
+    const bench = rotates
+      ? [...lineup.bench].sort(
+          (a, b) => totalBankedMs(currentGame[a]) - totalBankedMs(currentGame[b]),
+        )
+      : [...lineup.bench];
+
     periods.push({
       period: q,
       label: `${short}${q}`,
       groups,
-      bench: [...lineup.bench],
+      bench,
     });
     prevLineup = lineup;
   }
 
+  const playerIds = input.players.map((p) => p.id);
   return {
     sport: "afl",
     periods,
-    totals: computeTotals(
-      periods,
-      input.players.map((p) => p.id),
-      periodMinutes,
-    ),
+    totals: rotates
+      ? computeRotationTotals(periods, playerIds, periodMinutes)
+      : computeTotals(periods, playerIds, periodMinutes),
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,
+    rotatesWithinPeriod: rotates,
+    subIntervalSeconds: rotates ? ag.subIntervalSeconds : undefined,
   };
 }
 
@@ -324,6 +400,8 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,
+    // Netball subs only at period breaks — whole-period blocks are real.
+    rotatesWithinPeriod: false,
   };
 }
 
@@ -407,6 +485,10 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,
+    // Law-6 unbroken blocks: the on-field set holds for a whole block,
+    // so whole-period blocks are the real planning unit (no within-block
+    // interchange to model).
+    rotatesWithinPeriod: false,
   };
 }
 

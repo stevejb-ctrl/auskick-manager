@@ -61,18 +61,23 @@ describe("swapPlayersInPeriod — field ↔ bench (a substitution)", () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it("recomputes totals: the subbed-on gains a period, the other loses one", () => {
+  it("recomputes starts: the subbed-on gains a period, the other loses one", () => {
     expect(periodsOnFieldOf(swapped, benched)).toBe(
       periodsOnFieldOf(plan, benched) + 1,
     );
     expect(periodsOnFieldOf(swapped, onField)).toBe(
       periodsOnFieldOf(plan, onField) - 1,
     );
-    // Minutes track the period count.
-    const subbedOn = swapped.totals.find((t) => t.playerId === benched)!;
-    expect(subbedOn.minutes).toBe(
-      Math.round(subbedOn.periodsOnField * swapped.periodMinutes),
-    );
+  });
+
+  it("keeps minutes even across the squad (rolling subs are swap-invariant)", () => {
+    // This is a rotating AFL plan (15 in a 12-spot squad), so rolling
+    // subs spread time evenly — a starter↔interchange swap changes who
+    // *starts*, not anyone's planned minutes.
+    expect(plan.rotatesWithinPeriod).toBe(true);
+    const minutes = new Set(swapped.totals.map((t) => t.minutes));
+    expect(minutes.size).toBe(1);
+    expect(swapped.totals[0].minutes).toBe(plan.totals[0].minutes);
   });
 
   it("leaves the other periods untouched", () => {

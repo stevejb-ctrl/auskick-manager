@@ -5,7 +5,7 @@
 // GamePlanModal drives, kept out of the component so they're unit-
 // testable and the modal stays a thin shell.
 
-import { computeTotals } from "./project";
+import { computeRotationTotals, computeTotals } from "./project";
 import type { GamePlan, GamePlanPeriod } from "./types";
 
 function clonePeriod(p: GamePlanPeriod): GamePlanPeriod {
@@ -57,14 +57,17 @@ export function swapPlayersInPeriod(
   edited.bench = edited.bench.map(swapId);
 
   const periods = plan.periods.map((p, i) => (i === periodIndex ? edited : p));
+  const playerIds = plan.totals.map((t) => t.playerId);
 
   return {
     ...plan,
     periods,
-    totals: computeTotals(
-      periods,
-      plan.totals.map((t) => t.playerId),
-      plan.periodMinutes,
-    ),
+    // A rotating plan (AFL rolling subs) spreads minutes evenly across
+    // everyone present, so a starter↔interchange swap doesn't change the
+    // totals — but recompute through the same path so the contract holds
+    // and we never snap back to whole-period blocks.
+    totals: plan.rotatesWithinPeriod
+      ? computeRotationTotals(periods, playerIds, plan.periodMinutes)
+      : computeTotals(periods, playerIds, plan.periodMinutes),
   };
 }
