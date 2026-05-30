@@ -71,17 +71,17 @@ function resolvePeriodLabels(
   };
 }
 
-// Per-player planned game time across the projected periods. Every
-// input player appears — including those who never get on — so the
-// coach can see imbalance at a glance before kickoff.
+// Per-player start tally across the projected periods: how many periods
+// each player begins on the field. Every input player appears —
+// including those who never get on — so the coach can see imbalance at
+// a glance before kickoff. The plan is about who is where each period,
+// not minutes-per-kid, so we don't project game time.
 //
-// Exported so the manual-tweak helper (./edit) can recompute totals
-// after a coach swaps two players, without duplicating the sort/round
-// logic.
+// Exported so the manual-tweak helper (./edit) can recompute the tally
+// after a coach swaps two players, without duplicating the sort logic.
 export function computeTotals(
   periods: GamePlanPeriod[],
   allPlayerIds: string[],
-  periodMinutes: number,
 ): GamePlanPlayerTotal[] {
   const onFieldCount: Record<string, number> = {};
   for (const id of allPlayerIds) onFieldCount[id] = 0;
@@ -96,59 +96,8 @@ export function computeTotals(
     .map((playerId) => ({
       playerId,
       periodsOnField: onFieldCount[playerId] ?? 0,
-      minutes: Math.round((onFieldCount[playerId] ?? 0) * periodMinutes),
     }))
-    .sort((a, b) => b.minutes - a.minutes);
-}
-
-// Per-player planned time when the game ROTATES within each period
-// (AFL rolling subs). Because rolling subs spread on-field time evenly
-// across everyone present, nobody actually sits a whole period — so a
-// player's planned minutes is their even share of the available
-// field-minutes, NOT their whole-period block. `periodsOnField` still
-// reports how many periods the player STARTS on field (read off the
-// grid), so the UI can still show who begins each period where; only
-// the minutes reflect the within-period rotation.
-//
-// Shared by the AFL projector and the manual-tweak helper (./edit) so a
-// coach swap keeps the rotation-corrected totals instead of snapping
-// back to whole-period blocks.
-export function computeRotationTotals(
-  periods: GamePlanPeriod[],
-  allPlayerIds: string[],
-  periodMinutes: number,
-): GamePlanPlayerTotal[] {
-  const present = allPlayerIds.length;
-  const periodCount = periods.length;
-  // On-field seats per period — constant across the game: the field is
-  // filled to the on-field size, or to the squad size for a short squad.
-  const onFieldSeats = periods[0]
-    ? periods[0].groups.reduce((n, g) => n + g.playerIds.length, 0)
-    : 0;
-  const evenMinutes =
-    present === 0
-      ? 0
-      : Math.round((onFieldSeats * periodMinutes * periodCount) / present);
-
-  const startCount: Record<string, number> = {};
-  for (const id of allPlayerIds) startCount[id] = 0;
-  for (const p of periods) {
-    for (const g of p.groups) {
-      for (const pid of g.playerIds) {
-        startCount[pid] = (startCount[pid] ?? 0) + 1;
-      }
-    }
-  }
-
-  return allPlayerIds
-    .map((playerId) => ({
-      playerId,
-      periodsOnField: startCount[playerId] ?? 0,
-      // Everyone present rotates on, so all share the even minutes —
-      // including a deep-squad kid the grid never "starts".
-      minutes: evenMinutes,
-    }))
-    .sort((a, b) => b.minutes - a.minutes || b.periodsOnField - a.periodsOnField);
+    .sort((a, b) => b.periodsOnField - a.periodsOnField);
 }
 
 // Sum a player's banked on-field ms across all zones — drives the
@@ -267,9 +216,7 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   return {
     sport: "afl",
     periods,
-    totals: rotates
-      ? computeRotationTotals(periods, playerIds, periodMinutes)
-      : computeTotals(periods, playerIds, periodMinutes),
+    totals: computeTotals(periods, playerIds),
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,
@@ -396,7 +343,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
   return {
     sport: "netball",
     periods,
-    totals: computeTotals(periods, playerIds, periodMinutes),
+    totals: computeTotals(periods, playerIds),
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,
@@ -481,7 +428,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   return {
     sport: "rugby_league",
     periods,
-    totals: computeTotals(periods, ids, periodMinutes),
+    totals: computeTotals(periods, ids),
     periodLabel: label,
     periodLabelPlural: plural,
     periodMinutes,

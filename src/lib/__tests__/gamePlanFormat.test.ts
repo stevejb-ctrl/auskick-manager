@@ -9,7 +9,7 @@
 //   • Every period is a block with its on-field groups + bench.
 //   • Player ids are resolved through the caller's name lookup —
 //     never leaked raw into the text.
-//   • A planned-game-time footer lists everyone who plays, most→least.
+//   • The plan is who-is-where only — NO per-player game-time footer.
 
 import { describe, it, expect } from "vitest";
 import { projectGamePlan, formatGamePlan } from "@/lib/game-plan";
@@ -126,7 +126,7 @@ describe("formatGamePlan — names, never raw ids", () => {
   });
 });
 
-describe("formatGamePlan — game-time footer", () => {
+describe("formatGamePlan — no per-player game-time footer", () => {
   const plan = aflPlan();
   const text = formatGamePlan(plan, {
     teamName: "Hawks",
@@ -134,22 +134,23 @@ describe("formatGamePlan — game-time footer", () => {
     playerName: nameOf,
   });
 
-  it("has a planned-game-time section (with rotation)", () => {
-    expect(text).toContain("⏱ Planned game time (with rotation)");
+  it("does not append a planned-game-time section", () => {
+    // The plan is who-is-where each quarter, not a minutes ledger —
+    // the per-period blocks are the whole message.
+    expect(text).not.toContain("Planned game time");
+    expect(text).not.toContain("⏱");
   });
 
-  it("lists every player who is projected to play", () => {
-    const playing = plan.totals.filter((t) => t.minutes > 0);
-    for (const t of playing) {
-      expect(text).toContain(nameOf(t.playerId));
-    }
-  });
-
-  it("prints each player's rotation-adjusted minutes (≈ X min)", () => {
-    // Rolling subs spread minutes evenly, so the footer drops the
-    // whole-quarter count in favour of an approximate minute total.
-    const top = plan.totals.find((t) => t.minutes > 0)!;
-    expect(text).toContain(`${nameOf(top.playerId)} — ≈ ${top.minutes} min`);
+  it("ends on the final period's block, with no per-player minute lines", () => {
+    // The final quarter's interchange line is the last thing in the
+    // message — no footer trails it. (aflPlan has a 3-deep bench.)
+    const lines = text.split("\n");
+    expect(lines[lines.length - 1]).toMatch(
+      /^ {2}Interchange \(on first → last\): /,
+    );
+    // The "≈" marker only ever appeared in the rotation game-time footer,
+    // so its absence proves no per-player minute line survives.
+    expect(text).not.toContain("≈");
   });
 });
 

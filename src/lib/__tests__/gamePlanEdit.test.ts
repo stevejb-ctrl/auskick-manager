@@ -70,16 +70,6 @@ describe("swapPlayersInPeriod — field ↔ bench (a substitution)", () => {
     );
   });
 
-  it("keeps minutes even across the squad (rolling subs are swap-invariant)", () => {
-    // This is a rotating AFL plan (15 in a 12-spot squad), so rolling
-    // subs spread time evenly — a starter↔interchange swap changes who
-    // *starts*, not anyone's planned minutes.
-    expect(plan.rotatesWithinPeriod).toBe(true);
-    const minutes = new Set(swapped.totals.map((t) => t.minutes));
-    expect(minutes.size).toBe(1);
-    expect(swapped.totals[0].minutes).toBe(plan.totals[0].minutes);
-  });
-
   it("leaves the other periods untouched", () => {
     for (let i = 1; i < plan.periods.length; i++) {
       expect(swapped.periods[i]).toEqual(plan.periods[i]);

@@ -42,13 +42,16 @@ export interface GamePlanPeriod {
   bench: string[];
 }
 
-/** Per-player planned game time, used by the copy footer. */
+/**
+ * Per-player rotation tally. The plan is about WHO IS WHERE each
+ * period, not minutes-per-kid, so this carries only the start count —
+ * how many periods a player begins on the field. (Used by the edit op
+ * to enumerate the squad and by the projector's fairness tests.)
+ */
 export interface GamePlanPlayerTotal {
   playerId: string;
-  /** Number of periods this player is on the field. */
+  /** Number of periods this player starts on the field. */
   periodsOnField: number;
-  /** Approx planned on-field minutes (periodsOnField × period minutes). */
-  minutes: number;
 }
 
 /** The full projected plan for one game. */
@@ -56,19 +59,19 @@ export interface GamePlan {
   sport: SportId;
   /** Periods in order (length = projected period count). */
   periods: GamePlanPeriod[];
-  /** Per-player planned game time, sorted most → least minutes. */
+  /** Per-player start tally, sorted most → fewest periods on field. */
   totals: GamePlanPlayerTotal[];
   /** Resolved period noun for this plan ("quarter"/"half"/"period"). */
   periodLabel: "quarter" | "half" | "period";
   periodLabelPlural: "quarters" | "halves" | "periods";
-  /** Minutes per period (for footer copy and the modal subhead). */
+  /** Minutes per period (for the period-length subhead). */
   periodMinutes: number;
   /**
    * True when the plan rotates players within each period via rolling
    * subs (AFL). Then each period's `bench` is an ordered interchange
-   * queue (next-on first) and `totals.minutes` assume even within-period
-   * rotation rather than whole-period blocks. Netball (period-break-only
-   * subs) and rugby league (Law-6 unbroken blocks) leave this false.
+   * queue (next-on first) rather than a static bench. Netball
+   * (period-break-only subs) and rugby league (Law-6 unbroken blocks)
+   * leave this false.
    */
   rotatesWithinPeriod: boolean;
   /** Rolling-sub cadence in seconds — set only when rotatesWithinPeriod. */

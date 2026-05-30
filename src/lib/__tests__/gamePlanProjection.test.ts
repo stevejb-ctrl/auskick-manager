@@ -106,18 +106,6 @@ describe("projectGamePlan — AFL (zone-minutes, looped suggester)", () => {
     expect(plan.subIntervalSeconds).toBe(ageGroup.subIntervalSeconds);
   });
 
-  it("spreads planned minutes evenly — rolling subs, so no one sits a whole quarter", () => {
-    // Field-minutes pool ÷ squad → the even share every present kid is
-    // planned to get once the bench rotates through within each quarter.
-    const perQuarter = ageGroup.periodSeconds / 60;
-    const expected = Math.round(
-      (onField * perQuarter * ageGroup.periodCount) / squad.length,
-    );
-    for (const total of plan.totals) {
-      expect(total.minutes).toBe(expected);
-    }
-  });
-
   it("orders each quarter's interchange queue fewest-minutes-first", () => {
     // Banked minutes ∝ prior on-field quarters, so the queue must be
     // non-decreasing in each benched kid's prior-quarter start count —
@@ -296,13 +284,11 @@ describe("projectGamePlan — short squad (fewer players than the field)", () =>
       expect(period.bench).toHaveLength(0);
     }
     // No bench → nothing to rotate, so the plan stays whole-quarter:
-    // everyone plays every quarter, minutes are whole-quarter blocks.
+    // everyone plays every quarter (no rolling-sub interchange).
     expect(plan.rotatesWithinPeriod).toBe(false);
     expect(plan.subIntervalSeconds).toBeUndefined();
-    const perQuarter = ageGroup.periodSeconds / 60;
     for (const total of plan.totals) {
       expect(total.periodsOnField).toBe(ageGroup.periodCount);
-      expect(total.minutes).toBe(Math.round(ageGroup.periodCount * perQuarter));
     }
   });
 });

@@ -83,13 +83,13 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
   await expect(planText).toContainText("Game plan —");
   await expect(planText).toContainText(team.name);
   await expect(planText).toContainText("Eagles");
-  await expect(planText).toContainText(/planned game time/i);
 
   // AFL rolls subs, so the plan reads as an interchange queue with a sub
-  // cadence and rotation-adjusted (even) minutes — not whole quarters.
+  // cadence — who is where each quarter, not whole-quarter blocks.
   await expect(planText).toContainText("Interchange (on first → last):");
   await expect(planText).toContainText(/subs ~every \d+ min/);
-  await expect(planText).toContainText("Planned game time (with rotation)");
+  // The plan is who-is-where only — no per-player game-time footer.
+  await expect(planText).not.toContainText(/planned game time/i);
   // The editor's bench card is relabelled to the interchange queue.
   await expect(
     page.getByRole("heading", { name: /^interchange$/i }),

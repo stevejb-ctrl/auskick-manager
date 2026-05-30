@@ -1,10 +1,11 @@
 // ─── Pre-game rotation plan — plain-text formatter ───────────
 // The planning-time mirror of the post-game summary's `buildSummary`
 // (see src/components/live/GameSummaryCard.tsx). Same shape language —
-// an emoji header line, blank-line-separated sections, and a per-player
-// game-time footer sorted most → least — so a coach who copy/pastes the
-// post-game summary into the team chat reads the pre-game plan the same
-// way.
+// an emoji header line and blank-line-separated per-period blocks — so a
+// coach who copy/pastes the post-game summary into the team chat reads
+// the pre-game plan the same way. Unlike the summary it carries no
+// per-player game-time footer: the plan is about who is where each
+// period, not minutes banked.
 //
 // Pure: takes a `GamePlan` (from ./project) plus a player-name lookup,
 // returns the text. No React, no clipboard — the copy affordance lives
@@ -32,6 +33,8 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
 
 /**
  * Render a full-game rotation plan as copy/paste text for the team chat.
+ * Focuses on WHO IS WHERE each period — there's no per-player game-time
+ * footer; the per-period blocks are the whole message.
  *
  * Layout:
  *
@@ -47,12 +50,8 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
  *   Q2
  *     …
  *
- *   ⏱ Planned game time (with rotation)
- *   #7 Jack — ≈ 36 min
- *   Tom — ≈ 36 min
- *
  * (Netball / rugby league don't rotate within a period, so they keep the
- *  "Bench:" label and the whole-period footer "N quarters · ~M min".)
+ *  "Bench:" label instead of the interchange queue.)
  */
 export function formatGamePlan(
   plan: GamePlan,
@@ -85,7 +84,9 @@ export function formatGamePlan(
   // then the bench / interchange queue. When the plan rotates, the queue
   // is ordered next-on-first, so label it as a rotation order rather than
   // a static bench. Empty groups render "—" so a short-squad gap is
-  // visible rather than silently dropped.
+  // visible rather than silently dropped. The plan is deliberately just
+  // "who is where each period" — no per-player game-time footer, so the
+  // chat reads as a lineup, not a minutes ledger.
   const benchLabel = plan.rotatesWithinPeriod
     ? "Interchange (on first → last)"
     : "Bench";
@@ -96,29 +97,6 @@ export function formatGamePlan(
     }
     if (period.bench.length > 0) {
       lines.push(`  ${benchLabel}: ${names(period.bench)}`);
-    }
-  }
-
-  // Footer — planned game time per player. A rotating plan spreads time
-  // evenly (no one sits a whole period), so it prints "≈ X min" without
-  // a whole-period count; a period-break plan prints the whole-period
-  // block ("N quarters · ~M min"), most → least. Either way, skip players
-  // who never get on so the list reads as "who's playing, and how much".
-  const played = plan.totals.filter((t) =>
-    plan.rotatesWithinPeriod ? t.minutes > 0 : t.periodsOnField > 0,
-  );
-  if (played.length > 0) {
-    lines.push(
-      plan.rotatesWithinPeriod
-        ? `\n⏱ Planned game time (with rotation)`
-        : `\n⏱ Planned game time (most → least)`,
-    );
-    for (const t of played) {
-      lines.push(
-        plan.rotatesWithinPeriod
-          ? `${playerName(t.playerId)} — ≈ ${t.minutes} min`
-          : `${playerName(t.playerId)} — ${periodCountPhrase(plan, t.periodsOnField)} · ~${t.minutes} min`,
-      );
     }
   }
 
