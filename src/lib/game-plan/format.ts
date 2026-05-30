@@ -36,20 +36,23 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
  * Layout:
  *
  *   🗓 Game plan — Hawks v Eagles
- *   4 quarters · ~12 min each
+ *   4 quarters · ~12 min each · subs ~every 3 min
  *
  *   Q1
  *     Back: Jack, Tom, Will
  *     Centre: Sam, Alex, Ben
  *     Forward: Max, Leo, Ned
- *     Bench: Charlie, Ollie, Finn
+ *     Interchange (on first → last): Charlie, Ollie, Finn
  *
  *   Q2
  *     …
  *
- *   ⏱ Planned game time (most → least)
- *   #7 Jack — 4 quarters · ~48 min
- *   Tom — 3 quarters · ~36 min
+ *   ⏱ Planned game time (with rotation)
+ *   #7 Jack — ≈ 36 min
+ *   Tom — ≈ 36 min
+ *
+ * (Netball / rugby league don't rotate within a period, so they keep the
+ *  "Bench:" label and the whole-period footer "N quarters · ~M min".)
  */
 export function formatGamePlan(
   plan: GamePlan,
@@ -66,34 +69,55 @@ export function formatGamePlan(
   lines.push(`🗓 Game plan — ${teamName}${opp ? ` v ${opp}` : ""}`);
 
   // Subhead — period count + minutes-per-period (matches the modal
-  // subhead and gives the chat reader the cadence at a glance).
+  // subhead and gives the chat reader the cadence at a glance). For a
+  // rolling-sub plan, append the interchange cadence so parents know the
+  // bench rotates through rather than sitting whole periods.
   const mins = Math.round(plan.periodMinutes);
+  const cadence =
+    plan.rotatesWithinPeriod && plan.subIntervalSeconds
+      ? ` · subs ~every ${Math.round(plan.subIntervalSeconds / 60)} min`
+      : "";
   lines.push(
-    `${periodCountPhrase(plan, plan.periods.length)} · ~${mins} min each`,
+    `${periodCountPhrase(plan, plan.periods.length)} · ~${mins} min each${cadence}`,
   );
 
-  // One block per period: each on-field group on its own indented
-  // line, then the bench. Empty groups render "—" so a short-squad
-  // gap is visible rather than silently dropped.
+  // One block per period: each on-field group on its own indented line,
+  // then the bench / interchange queue. When the plan rotates, the queue
+  // is ordered next-on-first, so label it as a rotation order rather than
+  // a static bench. Empty groups render "—" so a short-squad gap is
+  // visible rather than silently dropped.
+  const benchLabel = plan.rotatesWithinPeriod
+    ? "Interchange (on first → last)"
+    : "Bench";
   for (const period of plan.periods) {
     lines.push(`\n${period.label}`);
     for (const g of period.groups) {
       lines.push(`  ${g.groupLabel}: ${names(g.playerIds)}`);
     }
     if (period.bench.length > 0) {
-      lines.push(`  Bench: ${names(period.bench)}`);
+      lines.push(`  ${benchLabel}: ${names(period.bench)}`);
     }
   }
 
-  // Footer — planned game time per player, most → least (totals are
-  // already sorted that way by the projector). Skips players projected
-  // to never get on so the list reads as "who's playing, and how much".
-  const played = plan.totals.filter((t) => t.periodsOnField > 0);
+  // Footer — planned game time per player. A rotating plan spreads time
+  // evenly (no one sits a whole period), so it prints "≈ X min" without
+  // a whole-period count; a period-break plan prints the whole-period
+  // block ("N quarters · ~M min"), most → least. Either way, skip players
+  // who never get on so the list reads as "who's playing, and how much".
+  const played = plan.totals.filter((t) =>
+    plan.rotatesWithinPeriod ? t.minutes > 0 : t.periodsOnField > 0,
+  );
   if (played.length > 0) {
-    lines.push(`\n⏱ Planned game time (most → least)`);
+    lines.push(
+      plan.rotatesWithinPeriod
+        ? `\n⏱ Planned game time (with rotation)`
+        : `\n⏱ Planned game time (most → least)`,
+    );
     for (const t of played) {
       lines.push(
-        `${playerName(t.playerId)} — ${periodCountPhrase(plan, t.periodsOnField)} · ~${t.minutes} min`,
+        plan.rotatesWithinPeriod
+          ? `${playerName(t.playerId)} — ≈ ${t.minutes} min`
+          : `${playerName(t.playerId)} — ${periodCountPhrase(plan, t.periodsOnField)} · ~${t.minutes} min`,
       );
     }
   }

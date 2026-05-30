@@ -78,20 +78,24 @@ describe("formatGamePlan — structure & header", () => {
     expect(blankOpp.split("\n")[0]).toBe("🗓 Game plan — Hawks");
   });
 
-  it("states the period cadence in the subhead", () => {
+  it("states the period cadence + sub interval in the subhead", () => {
     const text = formatGamePlan(plan, { teamName: "Hawks", playerName: nameOf });
-    // U10 AFL: 4 quarters, periodSeconds → minutes each.
+    // U10 AFL rolls subs, so the subhead also carries the interchange cadence.
     const mins = Math.round(plan.periodMinutes);
-    expect(text.split("\n")[1]).toBe(`4 quarters · ~${mins} min each`);
+    const subMin = Math.round((plan.subIntervalSeconds ?? 0) / 60);
+    expect(text.split("\n")[1]).toBe(
+      `4 quarters · ~${mins} min each · subs ~every ${subMin} min`,
+    );
   });
 
-  it("renders one labelled block per period with a bench line", () => {
+  it("renders one labelled block per period with an interchange line", () => {
     const text = formatGamePlan(plan, { teamName: "Hawks", playerName: nameOf });
     for (const period of plan.periods) {
       expect(text).toContain(`\n${period.label}\n`);
     }
-    // The squad has 3 flex players, so every quarter benches someone.
-    expect(text).toContain("  Bench: ");
+    // The squad has 3 flex players and AFL rolls subs, so each quarter's
+    // bench renders as an ordered interchange queue, not a static bench.
+    expect(text).toContain("  Interchange (on first → last): ");
   });
 });
 
@@ -130,24 +134,22 @@ describe("formatGamePlan — game-time footer", () => {
     playerName: nameOf,
   });
 
-  it("has a planned-game-time section", () => {
-    expect(text).toContain("⏱ Planned game time (most → least)");
+  it("has a planned-game-time section (with rotation)", () => {
+    expect(text).toContain("⏱ Planned game time (with rotation)");
   });
 
   it("lists every player who is projected to play", () => {
-    const playing = plan.totals.filter((t) => t.periodsOnField > 0);
+    const playing = plan.totals.filter((t) => t.minutes > 0);
     for (const t of playing) {
       expect(text).toContain(nameOf(t.playerId));
     }
   });
 
-  it("uses singular/plural period nouns and the planned minutes", () => {
-    // Spot-check the top scorer line: "Name — N quarters · ~M min".
-    const top = plan.totals.find((t) => t.periodsOnField > 0)!;
-    const noun = top.periodsOnField === 1 ? "quarter" : "quarters";
-    expect(text).toContain(
-      `${nameOf(top.playerId)} — ${top.periodsOnField} ${noun} · ~${top.minutes} min`,
-    );
+  it("prints each player's rotation-adjusted minutes (≈ X min)", () => {
+    // Rolling subs spread minutes evenly, so the footer drops the
+    // whole-quarter count in favour of an approximate minute total.
+    const top = plan.totals.find((t) => t.minutes > 0)!;
+    expect(text).toContain(`${nameOf(top.playerId)} — ≈ ${top.minutes} min`);
   });
 });
 

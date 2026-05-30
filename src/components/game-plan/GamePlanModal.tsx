@@ -185,6 +185,10 @@ export function GamePlanModal({
   const mins = Math.round(plan.periodMinutes);
   const periodNoun =
     plan.periods.length === 1 ? plan.periodLabel : plan.periodLabelPlural;
+  const cadence =
+    plan.rotatesWithinPeriod && plan.subIntervalSeconds
+      ? ` · subs ~every ${Math.round(plan.subIntervalSeconds / 60)} min`
+      : "";
   const tabs = plan.periods.map((p, i) => ({ id: String(i), label: p.label }));
 
   // One tappable player row — shared by the group cards and the bench
@@ -239,7 +243,7 @@ export function GamePlanModal({
             Game plan
           </h2>
           <p className="mt-0.5 text-xs text-ink-mute">
-            {plan.periods.length} {periodNoun} · ~{mins} min each ·
+            {plan.periods.length} {periodNoun} · ~{mins} min each{cadence} ·
             auto-suggested, tap to tweak
           </p>
         </div>
@@ -306,12 +310,19 @@ export function GamePlanModal({
               </SFCard>
             ))}
 
-            {/* Bench */}
+            {/* Bench / interchange queue */}
             <SFCard pad={0} className="overflow-hidden">
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
-                <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
-                  Bench
-                </h3>
+                <div className="min-w-0">
+                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                    {plan.rotatesWithinPeriod ? "Interchange" : "Bench"}
+                  </h3>
+                  {plan.rotatesWithinPeriod && period.bench.length > 0 && (
+                    <p className="mt-0.5 text-[10px] text-ink-mute">
+                      Rotates on in this order — first on top
+                    </p>
+                  )}
+                </div>
                 <span className="font-mono text-xs font-semibold tabular-nums text-ink-mute">
                   {period.bench.length}
                 </span>
@@ -322,7 +333,7 @@ export function GamePlanModal({
                 </p>
               ) : (
                 <ul className="divide-y divide-hairline">
-                  {period.bench.map(renderRow)}
+                  {period.bench.map((pid) => renderRow(pid))}
                 </ul>
               )}
             </SFCard>

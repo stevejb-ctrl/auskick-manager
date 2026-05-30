@@ -84,6 +84,17 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
   await expect(planText).toContainText(team.name);
   await expect(planText).toContainText("Eagles");
   await expect(planText).toContainText(/planned game time/i);
+
+  // AFL rolls subs, so the plan reads as an interchange queue with a sub
+  // cadence and rotation-adjusted (even) minutes — not whole quarters.
+  await expect(planText).toContainText("Interchange (on first → last):");
+  await expect(planText).toContainText(/subs ~every \d+ min/);
+  await expect(planText).toContainText("Planned game time (with rotation)");
+  // The editor's bench card is relabelled to the interchange queue.
+  await expect(
+    page.getByRole("heading", { name: /^interchange$/i }),
+  ).toBeVisible();
+
   const before = (await planText.textContent()) ?? "";
 
   // Tap-to-swap: tap the first on-field row to arm it ("Swapping…"),
@@ -190,6 +201,12 @@ test("Netball game-detail: the shared planner is driven by the netball projectio
   await expect(page.getByTestId("game-plan-player").first()).toBeVisible();
   await expect(page.locator("#game-plan-text")).toContainText("Game plan —");
   await expect(page.locator("#game-plan-text")).toContainText(team.name);
+  // Netball subs only at the break → whole-quarter bench, so no rolling-sub
+  // interchange queue (the AFL-only treatment must not leak across sports).
+  await expect(page.locator("#game-plan-text")).toContainText("Bench:");
+  await expect(page.locator("#game-plan-text")).not.toContainText(
+    "Interchange",
+  );
 });
 
 test("Rugby league game-detail: the shared planner is driven by the RL projection", async ({
