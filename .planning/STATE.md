@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Match Day Changes
 status: planning
-stopped_at: Roadmap created (2026-06-01) — v1.1 mapped to Phases 8–13 (11/11 requirements). Phase 8 (sport-agnostic period foundation) ready to plan. v1.0 preserved (phases 1–7, paused at Phase 6).
+stopped_at: Phase 8 discussion complete (2026-06-01) — 08-CONTEXT.md + 08-DISCUSSION-LOG.md written. 3 gray areas decided (fairness uses per-game effective length; subIntervalFloorSeconds required=240 on every age group; verify via pure-helper unit test at periodCount 4 AND 2 + a 2-period rugby-league e2e). Next: /gsd-plan-phase 8 (recommend /clear first).
 last_updated: "2026-06-01T00:00:00Z"
 last_activity: 2026-06-01
 progress:
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Phase 8 — Sport-agnostic period foundation (ready to plan)
+Phase: Phase 8 — Sport-agnostic period foundation (discussed; ready to plan)
 Plan: —
-Status: Roadmap complete; ready to plan Phase 8
-Last activity: 2026-06-01 — v1.1 roadmap created (Phases 8–13)
+Status: Phase 8 CONTEXT gathered; ready for /gsd-plan-phase 8
+Last activity: 2026-06-01 — Phase 8 discussion complete (08-CONTEXT.md written)
 
 Progress: [░░░░░░░░░░] 0% (0/6 v1.1 phases)
 
@@ -64,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-01
-Stopped at: v1.1 roadmap created — 11/11 requirements mapped to Phases 8–13; ROADMAP.md appended (v1.0 preserved), REQUIREMENTS.md v1.1 traceability filled. Next: `/gsd-plan-phase 8`.
-Resume file: .planning/MATCH-DAY-CHANGES-SPEC.md
+Stopped at: Phase 8 discussion complete — `08-CONTEXT.md` + `08-DISCUSSION-LOG.md` written under `.planning/phases/08-sport-agnostic-period-foundation/`. Decisions: D-01 thread full `ageGroup` object into LiveGame.tsx; D-02..D-04 fairness `FULL_QUARTER_MS` → per-game effective quarter ms via trailing optional param; D-05..D-06 `subIntervalFloorSeconds: number` REQUIRED=240 on every age group (afl/netball/rugby_league); D-07..D-11 extract pure period-phase helper + unit-test periodCount 4 AND 2 + 2-period rugby-league e2e + sports.test.ts floor assertion. Next: `/gsd-plan-phase 8` (recommend `/clear` first).
+Resume file: .planning/phases/08-sport-agnostic-period-foundation/08-CONTEXT.md
