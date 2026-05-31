@@ -8,6 +8,26 @@ Siren is a mobile-first PWA that helps junior-sport coaches run a fair live game
 
 Live-game time-on-ground fairness must be effortless and trustworthy: coaches who use Siren must end every match confident every kid got their fair share, and exit with a polished group-chat summary they can paste in seconds.
 
+## Current Milestone: v1.1 Match Day Changes
+
+**Goal:** Make live match-day management trustworthy and flexible across all three sports — fix the day-of bugs and add the in-game planning controls coaches keep reaching for.
+
+**Target features:**
+- Pre-game lineup availability that actually persists to kickoff (B1)
+- Add / mark-out / mark-injured at any period break (B2)
+- Team hype song that survives iOS backgrounding past Q1 (B3)
+- Sub suggester that respects time-since-last-sub recency (B4)
+- Override the upcoming sub rotation before it falls due (F1)
+- Build the next period's plan during the dying minutes of the current one (F2)
+- Long-press player summary — in-game per-zone time + last-sub + per-period breakdown; season per-zone percentages only (F3)
+- Sub interval derived from period length, not a fixed constant (F4)
+
+**Foundation:** A prerequisite phase centralizes the remaining AFL-hardcoded live-game period literals (`currentQuarter >= 4`, `FULL_QUARTER_MS`) onto the sport's `periodCount` / `periodSeconds`, and adds a per-age-group `subIntervalFloorSeconds` (~240s default). Everything in this milestone is sport-agnostic by rule — never hardcode "quarter"; zones/positions come from age-group config.
+
+**Spec + recon:** `.planning/MATCH-DAY-CHANGES-SPEC.md` (8 items mapped to root-cause file:line; suggested build order; answered decisions).
+
+**Note on v1.0:** The previous milestone (v1.0 Multi-sport merge to production) is **paused at Phase 6** — its engineering work (phases 1–5) is complete and the deploy runbook is written, but Phases 6–7 (preview deploy + production cutover) are blocked on user-provided prod Supabase/Vercel credentials. Its phase directories are preserved untouched; resume with `/gsd-execute-phase 6 --wave 4` once creds are in place. v1.1 phase numbering continues from Phase 8.
+
 ## Requirements
 
 ### Validated
@@ -107,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after initialization (milestone: Multi-sport merge to production)*
+*Last updated: 2026-06-01 — started milestone v1.1 (Match Day Changes); v1.0 (Multi-sport merge) paused at Phase 6 pending prod creds*
