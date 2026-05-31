@@ -193,22 +193,22 @@ Deferred to future milestones. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONFIG-01 | TBD | Pending |
-| CONFIG-02 | TBD | Pending |
-| AVAIL-01 | TBD | Pending |
-| AVAIL-02 | TBD | Pending |
-| SUB-01 | TBD | Pending |
-| SUB-02 | TBD | Pending |
-| ROTPLAN-01 | TBD | Pending |
-| ROTPLAN-02 | TBD | Pending |
-| PLAYERVIEW-01 | TBD | Pending |
-| PLAYERVIEW-02 | TBD | Pending |
-| AUDIO-01 | TBD | Pending |
+| CONFIG-01 | Phase 8 | Pending |
+| CONFIG-02 | Phase 8 | Pending |
+| AVAIL-01 | Phase 9 | Pending |
+| AVAIL-02 | Phase 9 | Pending |
+| SUB-01 | Phase 10 | Pending |
+| SUB-02 | Phase 10 | Pending |
+| ROTPLAN-01 | Phase 11 | Pending |
+| ROTPLAN-02 | Phase 11 | Pending |
+| PLAYERVIEW-01 | Phase 12 | Pending |
+| PLAYERVIEW-02 | Phase 12 | Pending |
+| AUDIO-01 | Phase 13 | Pending |
 
 **Coverage (v1.1):**
 - Requirements: 11 total
-- Mapped to phases: 0 (roadmapper fills this in)
+- Mapped to phases: 11
 
 ---
 *Requirements defined: 2026-04-29 (v1.0); 2026-06-01 (v1.1 Match Day Changes appended)*
-*Last updated: 2026-06-01 — v1.1 requirements defined (traceability filled by roadmapper)*
+*Last updated: 2026-06-01 — v1.1 requirements defined; traceability filled by roadmapper (phases 8–13)*

@@ -247,3 +247,113 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 5. Test + type green | 5/5 | ✓ Complete | 2026-05-01 |
 | 6. Preview deploy + manual validation | 0/5 | In progress (planning complete; Plans 06-01..03 ready; Plans 06-04 + 06-05 BLOCKED on user creds) | - |
 | 7. Production cutover + smoke test | 0/TBD | Not started | - |
+
+---
+
+## Milestone v1.1: Match Day Changes
+
+**Defined:** 2026-06-01
+**Spec + recon:** `.planning/MATCH-DAY-CHANGES-SPEC.md`
+**Granularity:** standard (5-8 phases)
+
+### Overview (v1.1)
+
+v1.0 (multi-sport merge) is **paused at Phase 6**, not abandoned — its phases 1-7 above are preserved untouched. v1.1 makes live match-day management trustworthy and flexible across all three sports (AFL, netball, rugby league) by fixing four day-of bugs and adding four in-game planning controls. Phase numbering **continues from v1.0 — v1.1 starts at Phase 8.**
+
+The order mirrors dependency, not blast-radius: a foundation phase removes the last AFL-hardcoded period literals and adds the `subIntervalFloorSeconds` knob (everything downstream is sport-agnostic by rule), then availability, then substitution timing, then the rotation-planning surfaces, then the player-insight summary. The iOS audio fix is independent and can land any time.
+
+**Sport-agnostic rule (applies to every v1.1 phase):** never hardcode "quarter" — period structure (`periodCount` / `periodSeconds` / `periodLabel`) and zones/positions come from `getAgeGroupConfig(sport, ageGroup)`. Where a requirement says "across all sports", success is verifiable for AFL, netball, AND rugby league. Per CLAUDE.md, "done" includes a regression test (written red-first for bugs) and an e2e spec exercising the change through the UI; reuse-before-fork across the shared `live`/`quarter-break`/`sf` components.
+
+### Phases (v1.1)
+
+- [ ] **Phase 8: Sport-agnostic period foundation** - Remove the last AFL-hardcoded live-game period literals onto `periodCount`/`periodSeconds` and add per-age-group `subIntervalFloorSeconds` (~240s default)
+- [ ] **Phase 9: Availability that holds — pre-game & at breaks** - Picker availability edits persist to kickoff (B1); coaches can add/mark-out/mark-injured at any period break (B2)
+- [ ] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4)
+- [ ] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2)
+- [ ] **Phase 12: Long-press player insight** - Long-press shows in-game per-zone time, last-sub, per-period breakdown, plus season per-zone percentages (F3)
+- [ ] **Phase 13: Hype song survives iOS backgrounding** - Re-arm the audio element/context after iOS suspension so goals in later periods still trigger the song (B3)
+
+### Phase Details (v1.1)
+
+### Phase 8: Sport-agnostic period foundation
+**Goal**: Live-game period logic and the sub-interval floor are driven entirely from age-group config — no AFL-hardcoded period literals remain, and a per-age-group `subIntervalFloorSeconds` exists for downstream sub-timing work
+**Depends on**: Nothing (first v1.1 phase; prerequisite for the rest of the milestone)
+**Requirements**: CONFIG-01, CONFIG-02
+**Success Criteria** (what must be TRUE):
+  1. No hardcoded period-count literal survives in the shared live surfaces — `currentQuarter >= 4` / `< 4` in `LiveGame.tsx`/`NetballLiveGame.tsx` and `FULL_QUARTER_MS` in `fairness.ts` all read `periodCount`/`periodSeconds` (`LeagueLiveGame.tsx` remains the reference)
+  2. "Is this the last period / is the game over" and full-period time accounting resolve correctly for AFL and netball (4 quarters) AND rugby league (quarters or halves by age group) without a code change per sport
+  3. Every age-group config exposes a `subIntervalFloorSeconds` (default 240s, per-age-group overridable) that a sub-interval derivation can read as its floor
+  4. A regression test (written red-first) pins that a non-4-period or half-based sport drives last-period/game-over logic correctly, and existing AFL/netball e2e specs stay green
+**Plans**: TBD
+
+### Phase 9: Availability that holds — pre-game & at breaks
+**Goal**: A coach's availability decisions are trustworthy across the whole match-day lifecycle — what they set pre-game survives to kickoff, and they can adjust the squad at any period break
+**Depends on**: Phase 8
+**Requirements**: AVAIL-01, AVAIL-02
+**Success Criteria** (what must be TRUE):
+  1. A player marked unavailable in the pre-game lineup picker is still unavailable when the game starts — the edit persists to `game_availability` and is honoured at kickoff, verified across all sports
+  2. The B1 availability-control discrepancy is reconciled (recon found no availability toggle on `LineupPicker.tsx`) — the surface the coach thinks of as "the picker" actually writes availability, with the resolution documented
+  3. At any period break a coach can add a newly-arrived player into the game, mark a present player out, and mark a player injured, on the shared quarter-break surface, across all sports
+  4. Regression tests (written red-first) cover picker-availability persistence and each break-time availability action through the UI; reuse-before-fork — `addLateArrival` is wired into the break surface rather than a new writer
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 10: Substitution timing that's fair
+**Goal**: Substitution cadence is driven by the actual period length and individual sub recency — the suggester stops pulling a kid who just came on and the interval adapts to the sport's period
+**Depends on**: Phase 8 (reads `subIntervalFloorSeconds`)
+**Requirements**: SUB-01, SUB-02
+**Success Criteria** (what must be TRUE):
+  1. The sub interval is derived from period length — a pure function returns the smallest even divisor of the period length that is >= the age-group `subIntervalFloorSeconds`, with a near-even fallback when no clean divisor exists — replacing the fixed constant, across all sports
+  2. A player subbed on late in one period is not suggested off again early in the next period — the suggester accounts for time-since-last-sub, derived from existing stint/swap events (no schema migration), across all sports
+  3. The recency signal is derived at replay time from existing events and shared with the F3 last-sub derivation (no per-player last-sub timestamp added to the DB)
+  4. Regression tests (written red-first) cover the interval derivation pure function (clean-divisor and near-even-fallback cases) and the recency guard preventing the early-re-sub case
+**Plans**: TBD
+
+### Phase 11: Plan the rotation ahead of the break
+**Goal**: A coach can get ahead of the rotation instead of only reacting — review/override the upcoming sub before it falls due, and build the next period's lineup during the dying minutes of the current one
+**Depends on**: Phase 8, Phase 10 (the upcoming rotation reflects the derived interval + recency-aware suggestions)
+**Requirements**: ROTPLAN-01, ROTPLAN-02
+**Success Criteria** (what must be TRUE):
+  1. A coach can review the upcoming suggested sub rotation before it falls due, edit it, and the live game honours the override when the sub comes due
+  2. During the final minutes of a period a coach can build/preview the next period's lineup, so they arrive at the break with a plan already in place, across all sports
+  3. F1 and F2 share one "edit an upcoming rotation" surface (reuse-before-fork) seeded from current game state via the existing sport-agnostic Game Plan projector — no forked per-sport modal
+  4. The plan-ahead controls are reachable and tappable one-handed on the live-game surface, and an e2e spec exercises override-then-honour and build-next-period through the UI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 12: Long-press player insight
+**Goal**: Long-pressing any player gives the coach a complete, trustworthy read on that kid's time — where they've played this game and across the season — without leaving the live surface
+**Depends on**: Phase 8, Phase 10 (reuses the derived last-sub/recency signal)
+**Requirements**: PLAYERVIEW-01, PLAYERVIEW-02
+**Success Criteria** (what must be TRUE):
+  1. Long-pressing a player shows their in-game breakdown — per-zone time, time since last sub, and a per-period minutes-per-zone breakdown (derived from the event replay), across all sports
+  2. The same summary shows the player's season per-zone split as percentages only — no raw season minutes — across all sports
+  3. Zones in the summary are enumerated from `getAgeGroupConfig(sport, ageGroup).zones`, not a hardcoded list, so AFL/netball/rugby-league zone labels render correctly
+  4. The summary opens from the existing long-press → `LockModal` gesture (reuse-before-fork), and an e2e spec verifies the in-game and season sections render through the UI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 13: Hype song survives iOS backgrounding
+**Goal**: The team hype song keeps firing on goals through the whole game on iOS — it no longer goes silent after Q1 when the OS suspends the audio context
+**Depends on**: Nothing (independent of every other v1.1 phase — can run any time / in parallel)
+**Requirements**: AUDIO-01
+**Success Criteria** (what must be TRUE):
+  1. After iOS suspends the audio element/context (backgrounding / period transitions), it is re-armed — a goal scored in a later period still triggers the hype song, not just Q1
+  2. The fix lives in `useHypeSong.ts` and re-arms via a visibility/app-state handler; the song effect survives period breaks rather than only tearing down on gameId change/unmount
+  3. The fix re-arms the existing audio mechanism (YouTube-iframe / `new Audio()`) without reworking the audio path, and silent failure swallowing no longer hides a suspended-context error
+  4. A regression test (written red-first) reproduces the post-Q1 silence and confirms the song fires after a simulated suspend/re-arm cycle
+**Plans**: TBD
+
+### Progress (v1.1)
+
+**Execution Order:**
+Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (AUDIO-01) is independent and may run any time / in parallel.
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 8. Sport-agnostic period foundation | 0/TBD | Not started | - |
+| 9. Availability that holds — pre-game & at breaks | 0/TBD | Not started | - |
+| 10. Substitution timing that's fair | 0/TBD | Not started | - |
+| 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |
+| 12. Long-press player insight | 0/TBD | Not started | - |
+| 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |

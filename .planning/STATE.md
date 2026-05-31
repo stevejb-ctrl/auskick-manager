@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Match Day Changes
 status: planning
-stopped_at: Milestone v1.1 started (2026-06-01) — defining requirements + roadmap. Phase numbering continues from v1.0 (last phase 7) → v1.1 starts at Phase 8.
+stopped_at: Roadmap created (2026-06-01) — v1.1 mapped to Phases 8–13 (11/11 requirements). Phase 8 (sport-agnostic period foundation) ready to plan. v1.0 preserved (phases 1–7, paused at Phase 6).
 last_updated: "2026-06-01T00:00:00Z"
 last_activity: 2026-06-01
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 8 — Sport-agnostic period foundation (ready to plan)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-01 — Milestone v1.1 started
+Status: Roadmap complete; ready to plan Phase 8
+Last activity: 2026-06-01 — v1.1 roadmap created (Phases 8–13)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [░░░░░░░░░░] 0% (0/6 v1.1 phases)
 
 ## Accumulated Context
 
@@ -44,6 +44,7 @@ Recent decisions affecting current work:
 - v1.1 init: F4 sub-interval floor lives PER AGE GROUP as `subIntervalFloorSeconds` with a ~240s (4-min) default.
 - v1.1 init: B1 repro per user is "in the picker screen" — recon found no availability toggle on LineupPicker.tsx; reconcile during the B1 phase discussion (recon may have missed a control, or the user's mental model maps a different control to "the picker").
 - v1.1 init: Research skipped (config default) — brownfield work on own codebase; read-only recon already mapped each item to its root cause.
+- v1.1 roadmap: 11 v1.1 requirements mapped to 6 phases (8–13). CONFIG-01/02 = foundation (Phase 8); AVAIL-01/02 together (Phase 9); SUB-02/SUB-01 together as substitution timing (Phase 10); ROTPLAN-01/02 share one upcoming-rotation surface (Phase 11); PLAYERVIEW-01/02 one long-press summary (Phase 12); AUDIO-01 independent (Phase 13, can run any time). B4 recency signal is shared between Phase 10 and Phase 12's F3 last-sub derivation.
 
 ### Pending Todos
 
@@ -52,7 +53,7 @@ None.
 ### Blockers/Concerns
 
 - **v1.0 PAUSED (not a v1.1 blocker):** Multi-sport merge is blocked at Phase 6 — Phases 6–7 (preview deploy + production cutover) need user-provided prod Supabase clone + Vercel preview env. Engineering (phases 1–5) is complete; DEPLOY-RUNBOOK.md is written. Resume: `/gsd-execute-phase 6 --wave 4`. Resume file: `.planning/phases/06-preview-deploy-and-manual-validation/06-DEPLOY-RUNBOOK.md`.
-- v1.1 B1: availability-control discrepancy to reconcile during the B1 phase (see Decisions).
+- v1.1 B1: availability-control discrepancy to reconcile during the B1 phase (Phase 9) (see Decisions).
 
 ## Deferred Items
 
@@ -63,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-01
-Stopped at: Milestone v1.1 (Match Day Changes) initialized — PROJECT.md updated, STATE.md reset. Next: define REQUIREMENTS.md, then roadmap (phases start at 8).
+Stopped at: v1.1 roadmap created — 11/11 requirements mapped to Phases 8–13; ROADMAP.md appended (v1.0 preserved), REQUIREMENTS.md v1.1 traceability filled. Next: `/gsd-plan-phase 8`.
 Resume file: .planning/MATCH-DAY-CHANGES-SPEC.md
