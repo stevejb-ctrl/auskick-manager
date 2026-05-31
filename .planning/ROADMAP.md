@@ -284,7 +284,26 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. "Is this the last period / is the game over" and full-period time accounting resolve correctly for AFL and netball (4 quarters) AND rugby league (quarters or halves by age group) without a code change per sport
   3. Every age-group config exposes a `subIntervalFloorSeconds` (default 240s, per-age-group overridable) that a sub-interval derivation can read as its floor
   4. A regression test (written red-first) pins that a non-4-period or half-based sport drives last-period/game-over logic correctly, and existing AFL/netball e2e specs stay green
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1** *(parallel — independent foundation pieces, no file overlap)*:
+- [ ] 08-01-PLAN.md — Extract the pure `periodPhase()` helper (`src/lib/live/periodPhase.ts`) + unit-test it at periodCount=4 AND periodCount=2 (D-07, D-08)
+- [ ] 08-02-PLAN.md — Add required `subIntervalFloorSeconds: number` to the sports-config `AgeGroupConfig` + set explicit 240 on every AFL/netball/rugby_league entry + sports.test.ts assertion (D-05, D-06, D-09)
+
+**Wave 2** *(blocked on 08-01 — consumes the helper)*:
+- [ ] 08-03-PLAN.md — Thread `ageGroup` into `LiveGame.tsx` + drive LiveGame/NetballLiveGame booleans and both live/page.tsx sticky bars off `periodCount` via `periodPhase()`; no hardcoded 4 survives (D-01, D-07)
+
+**Wave 3** *(blocked on 08-03 — shares live/page.tsx)*:
+- [ ] 08-04-PLAN.md — Replace `FULL_QUARTER_MS` with a trailing optional `fullPeriodMs` param feeding per-game effective ms from the 3 production callers + the 2-period rugby-league boundary e2e (D-02, D-03, D-04, D-10)
+
+**Cross-cutting constraints** *(must hold across all plans)*:
+- All four DoD gates (`npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run e2e`) green before each commit (D-11)
+- The ~20 existing fairness unit-test callers stay green UNCHANGED via the `fullPeriodMs` back-compat default (D-04)
+- Legacy `src/lib/ageGroups.ts` is NOT modified — the sports-config type is the sole source of truth for `subIntervalFloorSeconds` (D-06a)
+- `suggestSwaps` (fairness.ts:839) is NOT touched — that ranking is Phase 10 / B4 (D-04a)
+- LiveGame's existing scalar props are KEPT — collapsing the redundancy is deferred (D-01b)
+
+**UI hint**: no (mechanical refactor; verified by unit tests + the existing/extended e2e suites)
 
 ### Phase 9: Availability that holds — pre-game & at breaks
 **Goal**: A coach's availability decisions are trustworthy across the whole match-day lifecycle — what they set pre-game survives to kickoff, and they can adjust the squad at any period break
@@ -351,7 +370,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Sport-agnostic period foundation | 0/TBD | Not started | - |
+| 8. Sport-agnostic period foundation | 0/4 | Planned (4 plans, 3 waves) | - |
 | 9. Availability that holds — pre-game & at breaks | 0/TBD | Not started | - |
 | 10. Substitution timing that's fair | 0/TBD | Not started | - |
 | 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |
