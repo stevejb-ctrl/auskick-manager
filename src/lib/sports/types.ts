@@ -84,6 +84,13 @@ export interface AgeGroupConfig {
   periodCount: number;
   periodSeconds: number;
   subIntervalSeconds: number;
+  /**
+   * Floor (in seconds) for the auto-derived sub interval. Phase 10 (SUB-02)
+   * reads this to compute the smallest even divisor of periodSeconds >= floor.
+   * Phase 8 only DEFINES it. Every age group sets its own explicit value
+   * (no central default). Currently 240 (4 min) for all sports.
+   */
+  subIntervalFloorSeconds: number;
   tracksScoreDefault: boolean;
   notes: string;
   /**

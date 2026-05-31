@@ -527,6 +527,14 @@ describe("rugby league sport config", () => {
     expect(u12.minUnbrokenPeriods).toBe(1);
   });
 
+  it("every age group exposes subIntervalFloorSeconds === 240", () => {
+    for (const sport of [aflSport, netballSport, rugbyLeagueSport]) {
+      for (const ag of sport.ageGroups) {
+        expect(ag.subIntervalFloorSeconds).toBe(240);
+      }
+    }
+  });
+
   it("on-field bounds: 6 at U6/U7, 8 at U8/U9, 11 at U10/U11, 13 at U12", () => {
     expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")?.defaultOnFieldSize).toBe(6);
     expect(rugbyLeagueSport.ageGroups.find((a) => a.id === "U7")?.defaultOnFieldSize).toBe(6);
