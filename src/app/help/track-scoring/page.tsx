@@ -25,9 +25,10 @@ export default function TrackScoringPage() {
         goals only; rugby league games record tries (4 points) and
         conversions (2 points). The toggle behaves the same way across all
         three — flip it on per game, and the live screen reveals the right
-        scoring controls for your sport. Junior rugby league at U6 and U7 is
-        tag-only with no scoreboard, so the toggle is off by default at
-        those age groups.
+        scoring controls for your sport. Rugby league teams have scoring on
+        by default at every age (U6 and U7 tag have tries only — no kicking,
+        so no conversions); flip it off in Settings if you&rsquo;d rather
+        not record points.
       </p>
 
       <section className="mt-8">

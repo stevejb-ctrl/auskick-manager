@@ -476,13 +476,17 @@ describe("rugby league sport config", () => {
     expect(rugbyLeagueSport.allPositions[0].id).toBe("player");
   });
 
-  it("U6 + U7 disable scoring and kicking; U8+ enable both", () => {
+  it("every age group tracks score by default; U6/U7 still disable kicking", () => {
+    // Scoring is informally tracked at every age — coaches at U6/U7
+    // log tries for kid morale even though the laws don't run a
+    // scoreboard. Kicking stays gated by age: U6/U7 tag has no
+    // conversions, U8+ unlocks the place-kick game.
     const u6 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U6")!;
     const u7 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U7")!;
     const u8 = rugbyLeagueSport.ageGroups.find((a) => a.id === "U8")!;
-    expect(u6.tracksScoreDefault).toBe(false);
+    expect(u6.tracksScoreDefault).toBe(true);
     expect(u6.kickingAllowed).toBe(false);
-    expect(u7.tracksScoreDefault).toBe(false);
+    expect(u7.tracksScoreDefault).toBe(true);
     expect(u7.kickingAllowed).toBe(false);
     expect(u8.tracksScoreDefault).toBe(true);
     expect(u8.kickingAllowed).toBe(true);
