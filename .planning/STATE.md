@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Match Day Changes
-status: planning
-stopped_at: Phase 8 discussion complete (2026-06-01) — 08-CONTEXT.md + 08-DISCUSSION-LOG.md written. 3 gray areas decided (fairness uses per-game effective length; subIntervalFloorSeconds required=240 on every age group; verify via pure-helper unit test at periodCount 4 AND 2 + a 2-period rugby-league e2e). Next: /gsd-plan-phase 8 (recommend /clear first).
+status: planned
+stopped_at: Phase 8 planned (2026-06-01) — 4 plans (08-01..08-04) across 3 waves written, plan-checked, and revised. PATTERNS.md mapped. Plan-checker found 0 blockers + 3 warnings; all 3 closed in revision (QuarterEndModal.tsx:55 `quarter >= 4` de-hardcode folded into 08-03; legacy share-token wiring + gameMinutes `* 4` decision documented in 08-04). Requirements (CONFIG-01/02) and decisions (D-01..D-11) fully covered. Next: /gsd-execute-phase 8 (recommend /clear first). Wave 1 = 08-01 + 08-02 (parallel); Wave 2 = 08-03; Wave 3 = 08-04.
 last_updated: "2026-06-01T00:00:00Z"
 last_activity: 2026-06-01
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Phase 8 — Sport-agnostic period foundation (discussed; ready to plan)
-Plan: —
-Status: Phase 8 CONTEXT gathered; ready for /gsd-plan-phase 8
-Last activity: 2026-06-01 — Phase 8 discussion complete (08-CONTEXT.md written)
+Phase: Phase 8 — Sport-agnostic period foundation (planned; ready to execute)
+Plan: 4 plans (08-01..08-04) across 3 waves
+Status: Phase 8 planned & plan-checked (0 blockers; 3 warnings resolved); ready for /gsd-execute-phase 8
+Last activity: 2026-06-01 — Phase 8 planning complete (08-01..08-04 PLAN.md + 08-PATTERNS.md written, checked, revised)
 
 Progress: [░░░░░░░░░░] 0% (0/6 v1.1 phases)
 
@@ -64,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-01
-Stopped at: Phase 8 discussion complete — `08-CONTEXT.md` + `08-DISCUSSION-LOG.md` written under `.planning/phases/08-sport-agnostic-period-foundation/`. Decisions: D-01 thread full `ageGroup` object into LiveGame.tsx; D-02..D-04 fairness `FULL_QUARTER_MS` → per-game effective quarter ms via trailing optional param; D-05..D-06 `subIntervalFloorSeconds: number` REQUIRED=240 on every age group (afl/netball/rugby_league); D-07..D-11 extract pure period-phase helper + unit-test periodCount 4 AND 2 + 2-period rugby-league e2e + sports.test.ts floor assertion. Next: `/gsd-plan-phase 8` (recommend `/clear` first).
-Resume file: .planning/phases/08-sport-agnostic-period-foundation/08-CONTEXT.md
+Stopped at: Phase 8 planning complete — 4 plans written, plan-checked, revised, and committed under `.planning/phases/08-sport-agnostic-period-foundation/`. Plans: **08-01** extract pure `periodPhase()` helper (`src/lib/live/periodPhase.ts`) + unit-test periodCount 4 AND 2 [D-07/D-08]; **08-02** required `subIntervalFloorSeconds: number = 240` on every age group across all 3 sports + sports.test assertion [D-05/D-06/D-09]; **08-03** thread `ageGroup` into LiveGame.tsx + drive LiveGame/NetballLiveGame/page.tsx sticky-bar/QuarterEndModal booleans off `periodCount` via the helper [D-01/D-07] (QuarterEndModal `quarter >= 4` de-hardcode added in revision); **08-04** replace `FULL_QUARTER_MS` with trailing optional `fullPeriodMs` fed per-game effective ms from 3 production callers + 2-period rugby-league boundary e2e [D-02/D-03/D-04/D-10]. Waves: 1 = 08-01+08-02 (parallel), 2 = 08-03, 3 = 08-04. Plan-checker: 0 blockers, 3 warnings (all resolved in revision). Next: `/gsd-execute-phase 8` (recommend `/clear` first).
+Resume file: .planning/phases/08-sport-agnostic-period-foundation/08-01-PLAN.md
