@@ -140,5 +140,75 @@ Deferred to future milestones. Tracked but not in current roadmap.
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after roadmap creation — traceability table populated*
+
+# Milestone v1.1: Match Day Changes
+
+**Defined:** 2026-06-01
+**Spec + recon:** `.planning/MATCH-DAY-CHANGES-SPEC.md`
+**Scope:** 4 bugs (B1–B4) + 4 features (F1–F4) for live match-day management, plus a foundation phase. Everything sport-agnostic across AFL / netball / rugby league — never hardcode "quarter"; period structure and zones/positions come from age-group config.
+
+> The v1.0 requirements above remain in place (that milestone is paused at Phase 6, not abandoned). The requirements below are the **only** ones in scope for v1.1 and map to phases **8+**.
+
+## v1.1 Requirements
+
+### Sport-agnostic foundations (CONFIG) — prerequisite
+
+- [ ] **CONFIG-01**: Live-game period logic reads the sport's period structure from age-group config — no hardcoded period-count literals (`currentQuarter >= 4` / `< 4` in `LiveGame.tsx`/`NetballLiveGame.tsx`, `FULL_QUARTER_MS` in `fairness.ts`) survive; AFL, netball, and rugby league all drive "is this the last period / is the game over" and full-period accounting off `periodCount` / `periodSeconds`. (`LeagueLiveGame.tsx` is the reference.)
+- [ ] **CONFIG-02**: Every age-group config exposes a `subIntervalFloorSeconds` (default 240s ≈ 4 min, per-age-group overridable) that the sub-interval derivation reads as its floor.
+
+### Pre-game & break availability (AVAIL)
+
+- [ ] **AVAIL-01** (B1): A player marked unavailable in the pre-game lineup picker stays unavailable at kickoff — the picker's availability edits persist to `game_availability` and are honoured when the game starts, across all sports.
+- [ ] **AVAIL-02** (B2): At any period break a coach can add a newly-arrived player to the game, mark a present player out, or mark a player injured — across all sports.
+
+### Substitution timing (SUB)
+
+- [ ] **SUB-01** (B4): The sub suggester accounts for time-since-last-sub — a player subbed on late in one period is not suggested off again early in the next, across all sports.
+- [ ] **SUB-02** (F4): The sub interval is derived from period length (smallest even divisor of the period length that is ≥ the age-group `subIntervalFloorSeconds`; near-even fallback when no clean divisor exists) instead of a fixed constant, across all sports.
+
+### Rotation planning controls (ROTPLAN)
+
+- [ ] **ROTPLAN-01** (F1): A coach can review and override the upcoming suggested sub rotation before it falls due, and the live game honours the override.
+- [ ] **ROTPLAN-02** (F2): During the final minutes of a period a coach can build/preview the next period's lineup so they walk into the break with a plan ready.
+
+### Player insight (PLAYERVIEW)
+
+- [ ] **PLAYERVIEW-01** (F3): Long-pressing a player shows their in-game breakdown — per-zone time, time since last sub, and a per-period breakdown — across all sports.
+- [ ] **PLAYERVIEW-02** (F3): The same long-press summary shows the player's season per-zone split as percentages only (no raw minutes), across all sports.
+
+### Match-day audio (AUDIO)
+
+- [ ] **AUDIO-01** (B3): The team hype song keeps playing after Q1 on iOS — the audio element/context is re-armed after the OS suspends it (backgrounding / period transitions) so goals scored in later periods still trigger it.
+
+## v1.1 Out of Scope
+
+| Item | Reason |
+|------|--------|
+| New per-player game-time *minutes* surfacing in F3 season view | Decision: season view shows per-zone **percentages only**, no raw minutes |
+| Persisting a per-player last-sub timestamp to the DB schema | B4's recency signal is derived from existing stint/swap events at replay time — no migration |
+| Real-time multi-coach co-editing of the overridden rotation (F1) | Single-coach assumption preserved (carried over from v1.0 Out of Scope) |
+| Reworking the YouTube-iframe song path beyond re-arming it (B3) | Fix scope is re-arming after suspension, not replacing the audio mechanism |
+
+## v1.1 Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CONFIG-01 | TBD | Pending |
+| CONFIG-02 | TBD | Pending |
+| AVAIL-01 | TBD | Pending |
+| AVAIL-02 | TBD | Pending |
+| SUB-01 | TBD | Pending |
+| SUB-02 | TBD | Pending |
+| ROTPLAN-01 | TBD | Pending |
+| ROTPLAN-02 | TBD | Pending |
+| PLAYERVIEW-01 | TBD | Pending |
+| PLAYERVIEW-02 | TBD | Pending |
+| AUDIO-01 | TBD | Pending |
+
+**Coverage (v1.1):**
+- Requirements: 11 total
+- Mapped to phases: 0 (roadmapper fills this in)
+
+---
+*Requirements defined: 2026-04-29 (v1.0); 2026-06-01 (v1.1 Match Day Changes appended)*
+*Last updated: 2026-06-01 — v1.1 requirements defined (traceability filled by roadmapper)*
