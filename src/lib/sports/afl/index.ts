@@ -49,6 +49,7 @@ function aflAgeGroups(): AgeGroupConfig[] {
       periodCount: 4,
       periodSeconds: cfg.quarterSeconds,
       subIntervalSeconds: cfg.subIntervalSeconds,
+      subIntervalFloorSeconds: 240,
       tracksScoreDefault: cfg.tracksScoreDefault,
       notes: cfg.notes,
     };
