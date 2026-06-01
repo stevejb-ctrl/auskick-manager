@@ -39,6 +39,14 @@ interface GameHeaderProps {
    * the store; every game read 12 min no matter what age group.
    */
   quarterMs: number;
+  /**
+   * Number of periods this age group plays (`ageGroup.periodCount`).
+   * Drives the "FT" label fallback (`quarter > periodCount`) instead
+   * of a hardcoded 4 (CONFIG-01). Threaded from the LiveGame mount
+   * exactly like `quarterMs` — a period-COUNT scalar to match the
+   * period-LENGTH scalar already passed here.
+   */
+  periodCount: number;
   /** True while a server action from this header (e.g. opponent score) is in flight. */
   isPending?: boolean;
   /**
@@ -115,6 +123,7 @@ export function GameHeader({
   isFinished,
   clockMultiplier = 1,
   quarterMs,
+  periodCount,
   isPending = false,
   clockPulseKey = null,
   onShowQuarterScores,
@@ -141,7 +150,7 @@ export function GameHeader({
 
   const quarterLabel = isPreGame
     ? "Pre"
-    : isFinished || quarter > 4
+    : isFinished || quarter > periodCount
       ? "FT"
       : `Q${quarter}`;
   const stateIcon = isPreGame || isFinished ? null : running ? "⏸" : "▶";

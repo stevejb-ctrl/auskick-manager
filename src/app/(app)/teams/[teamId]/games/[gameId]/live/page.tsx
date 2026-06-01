@@ -493,7 +493,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const isAtQbreak =
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
-      state.currentQuarter < 4;
+      state.currentQuarter < ageCfgN.periodCount;
     const isLivePlay =
       state.currentQuarter >= 1 &&
       !state.quarterEnded &&
@@ -656,7 +656,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const isAtQbreak =
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
-      state.currentQuarter < 4;
+      state.currentQuarter < ageCfgSport.periodCount;
     const isLivePlay =
       state.currentQuarter >= 1 &&
       !state.quarterEnded &&
@@ -716,6 +716,7 @@ export default async function LivePage({ params }: LivePageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
+          ageGroup={ageCfgSport}
           clockMultiplier={g.clock_multiplier ?? 1}
         />
         {/* ResetGameButton is now rendered INSIDE LiveGame's

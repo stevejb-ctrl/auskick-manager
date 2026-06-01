@@ -5,6 +5,11 @@ import { Modal } from "@/components/ui/Modal";
 
 interface QuarterEndModalProps {
   quarter: number;
+  /** Number of periods this age group plays (ageGroup.periodCount). Drives the
+   * "final whistle" copy instead of a hardcoded 4 (CONFIG-01). The AFL "Q"/
+   * "Quarter" label wording below is a conscious exclusion — only the count
+   * literal is de-hardcoded; this modal renders the AFL flow only. */
+  periodCount: number;
   loading?: boolean;
   /**
    * Home team name + score for the embedded scorebug. Steve
@@ -42,6 +47,7 @@ function points(s: { goals: number; behinds: number }) {
 
 export function QuarterEndModal({
   quarter,
+  periodCount,
   loading,
   teamName,
   opponentName,
@@ -52,7 +58,7 @@ export function QuarterEndModal({
   onOpponentLateScore,
   onConfirm,
 }: QuarterEndModalProps) {
-  const isLastQuarter = quarter >= 4;
+  const isLastQuarter = quarter >= periodCount;
   return (
     <Modal>
       <h2 className="text-center text-lg font-bold text-ink">

@@ -1656,7 +1656,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // reconcile / fix scores before locking the result. Ends with a
   // "Finalise game" button that fires game_finalised → flips us
   // into the finalised branch above on next render.
-  if (quarterEnded && currentQuarter >= 4) {
+  if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
@@ -1693,7 +1693,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // per-third sections, two-tap to swap, time bars per player. The
   // component handles its own period_break_swap + startNetballQuarter
   // writes; we just clear the local overlay/lock state on success.
-  if (quarterEnded && currentQuarter < 4) {
+  if (quarterEnded && currentQuarter < ageGroup.periodCount) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
@@ -1777,7 +1777,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // quarter_start event — matches AFL's flow exactly.
 
   // ─── Between Q4 and finalise: show finalise button ──────────
-  if (quarterEnded && currentQuarter >= 4) {
+  if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}

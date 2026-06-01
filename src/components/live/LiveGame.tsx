@@ -32,6 +32,8 @@ import { SubDueModal } from "@/components/live/SubDueModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { periodPhase } from "@/lib/live/periodPhase";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 
 // Perf phase 8: dynamic-import the modals that are only rendered
 // in transient / rare states. Their code lives in its own chunk
@@ -212,6 +214,11 @@ interface LiveGameProps {
    * Computed by parent via getEffectiveQuarterSeconds(team, ageGroup, game) * 1000.
    * D-26 / D-27: replaces hardcoded QUARTER_MS at the countdown cap and hooter trigger. */
   quarterMs: number;
+  /** Full age-group config for this game (matches NetballLiveGame / LeagueLiveGame).
+   * D-01: LiveGame reads ageGroup.periodCount via periodPhase() instead of hardcoding 4.
+   * Existing scalar props (quarterMs, subIntervalSeconds, positionModel, defaultOnFieldSize)
+   * are intentionally KEPT alongside this — collapsing the redundancy is deferred (D-01b). */
+  ageGroup: AgeGroupConfig;
   /**
    * Suppress the first-visit walkthrough auto-open. Used by the
    * runner-token page when it ALSO renders an availability section
@@ -259,6 +266,7 @@ export function LiveGame({
   songDurationSeconds = 15,
   clockMultiplier = 1,
   quarterMs,
+  ageGroup,
   suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
@@ -1016,9 +1024,9 @@ export function LiveGame({
   // UI-suppression purposes (no more SwapCard / scoring buttons /
   // start-quarter modal once Q4 is over). The summary itself
   // renders only when `finalised` is true.
-  const isAtFullTime = !finalised && currentQuarter >= 4 && quarterEnded;
+  const { isAtFullTime, isBetweenPeriods: isBetweenQuarters }
+    = periodPhase(currentQuarter, ageGroup.periodCount, quarterEnded, finalised);
   const isFinished = finalised || isAtFullTime;
-  const isBetweenQuarters = quarterEnded && currentQuarter >= 1 && currentQuarter < 4;
 
   // Kickoff modal state used to live here (startModalDismissed +
   // kickoffAckQuarter + the per-quarter reset effect). Removed
@@ -1330,6 +1338,7 @@ export function LiveGame({
       isFinished={isFinished}
       clockMultiplier={clockMultiplier}
       quarterMs={quarterMs}
+      periodCount={ageGroup.periodCount}
       isPending={isPending}
       clockPulseKey={clockPulseKey}
       // Q-by-Q chip surfaces only when there's something to show
@@ -1678,6 +1687,7 @@ export function LiveGame({
       {showQuarterEndModal && (
         <QuarterEndModal
           quarter={currentQuarter}
+          periodCount={ageGroup.periodCount}
           loading={isPending}
           onConfirm={handleQuarterEndConfirm}
           teamName={teamName}

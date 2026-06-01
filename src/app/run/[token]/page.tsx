@@ -570,6 +570,7 @@ export default async function RunPage({ params }: RunPageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
+          ageGroup={ageCfgSport}
           // Steve 2026-05-15 (Stagehand finding): the walkthrough
           // used to auto-open on first visit to the AFL live view,
           // which on the runner-token path meant it opened RIGHT
