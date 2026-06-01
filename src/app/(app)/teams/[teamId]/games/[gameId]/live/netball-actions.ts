@@ -14,6 +14,7 @@ import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
+import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
@@ -142,10 +143,20 @@ export async function startNetballGame(
     onFieldSize,
   );
 
+  // B1 / AVAIL-01: strip any now-unavailable player a stale draft
+  // seeded onto the court before committing the lineup_set. Same
+  // shared union as AFL/league; the GenericLineup's nested `positions`
+  // map is filtered structurally by the helper (D-04, silent).
+  const reconciledLineup = await reconcileLineupToAvailability(
+    w.supabase,
+    gameId,
+    lineup,
+  );
+
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup, sport: "netball" },
+    metadata: { lineup: reconciledLineup, sport: "netball" },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };

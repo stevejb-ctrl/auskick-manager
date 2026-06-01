@@ -9,6 +9,7 @@ import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
+import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -159,10 +160,21 @@ export async function startGame(
     onFieldSize,
   );
 
+  // B1 / AVAIL-01: availability is the source of truth at kickoff.
+  // A stale draft may seed a now-unavailable player onto the field;
+  // strip anyone not in the server-computed availableIds union before
+  // committing the lineup_set. The vacated spot is left empty — the
+  // normal rotation fills it (D-04, silent auto-remove, no prompt).
+  const reconciledLineup = await reconcileLineupToAvailability(
+    w.supabase,
+    gameId,
+    lineup,
+  );
+
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup },
+    metadata: { lineup: reconciledLineup },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };

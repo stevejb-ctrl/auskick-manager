@@ -28,6 +28,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
+import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, GameEvent, LeagueLineup, LeagueZone, LiveAuth } from "@/lib/types";
 import { vestHistory } from "@/lib/sports/rugby_league/vests";
 import {
@@ -180,6 +181,15 @@ export async function startLeagueGame(
     w.teamId,
     onFieldSize,
   );
+
+  // B1 / AVAIL-01: reconcile against availability BEFORE the vest
+  // pre-flight below. The pre-flight builds `fieldSet` from
+  // lineup.forwards/backs and rejects a vest wearer who isn't on the
+  // field — so it must validate the POST-reconcile field set,
+  // otherwise a stripped vest-wearer would pass pre-flight on the
+  // stale lineup yet be missing from the committed lineup_set. Strips
+  // any now-unavailable player a stale draft seeded (D-04, silent).
+  lineup = await reconcileLineupToAvailability(w.supabase, gameId, lineup);
 
   // Promote single-period legacy shape to arrays. After this both
   // `frPlan` and `dhPlan` are arrays the rest of the function can
