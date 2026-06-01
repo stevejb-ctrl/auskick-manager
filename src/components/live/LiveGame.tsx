@@ -1285,7 +1285,19 @@ export function LiveGame({
           activeZones,
           lockedIds,
           zoneMsByPlayer,
-          zoneLockedPlayers
+          zoneLockedPlayers,
+          // SUB-01/B4 recency guard. lastSubbedOnMs is the replay-derived
+          // ABSOLUTE game-elapsed stamp of each player's most recent
+          // bench->field transition (refreshed on every router.refresh
+          // after a sub). Compare it against the absolute current game
+          // elapsed = completedQuarterMs (finished quarters) + this
+          // quarter's game-ms. nowMs is WALL-CLOCK, so scale by
+          // clockMultiplier to land in the game-ms frame that
+          // lastSubbedOnMs lives in. minStintMs is the real rotation
+          // window (subIntervalMs, NOT the wall-clock effective value).
+          initialState.lastSubbedOnMs,
+          initialState.completedQuarterMs + nowMs * clockMultiplier,
+          subIntervalMs
         );
 
   // Hide the SwapCard when the next sub-due moment would fall AFTER

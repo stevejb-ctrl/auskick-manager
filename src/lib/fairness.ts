@@ -879,10 +879,6 @@ export function suggestSwaps(
   /** One rotation window in ms (subIntervalSeconds*1000). <=0 disables the guard. */
   minStintMs: number = 0
 ): SwapSuggestion[] {
-  // TODO(10-02 Task 2): consume these to partition off-candidates by recency.
-  void lastSubbedOnMs;
-  void elapsedMs;
-  void minStintMs;
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
   const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));
@@ -891,6 +887,11 @@ export function suggestSwaps(
   const gameMin = (pid: string) => (currentGameMs[pid] ?? 0) / 60000;
   const hasPlayedZone = (pid: string, z: Zone) =>
     (currentGameZoneMs[pid]?.[z] ?? 0) > 0;
+  // SUB-01/B4: a field player is "recent" if they went bench->field
+  // within the last rotation window. Inert when minStintMs<=0 (legacy
+  // callers) so existing ordering is byte-for-byte unchanged.
+  const isRecent = (pid: string) =>
+    minStintMs > 0 && elapsedMs - (lastSubbedOnMs[pid] ?? 0) < minStintMs;
 
   const fieldByZone = {} as Record<Zone, string[]>;
   for (const z of ALL_ZONES) fieldByZone[z] = [];
@@ -900,6 +901,13 @@ export function suggestSwaps(
       tieBreak + 131 * (ALL_ZONES.indexOf(z) + 1)
     );
     fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a));
+    // Soft recency partition: pull non-recent players first; players
+    // who just came on fall to the back of the zone queue but stay
+    // eligible (no deadlock if a zone has only recent players). Stable
+    // within each partition, so the most-played-first order is kept.
+    const nonRecent = fieldByZone[z].filter((p) => !isRecent(p));
+    const recent = fieldByZone[z].filter((p) => isRecent(p));
+    fieldByZone[z] = [...nonRecent, ...recent];
   }
   const benchSorted = seededShuffle(fitBench, tieBreak).sort(
     (a, b) => gameMin(a) - gameMin(b)
@@ -981,6 +989,25 @@ export interface GameState {
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
   /**
+   * SUB-01/B4 (plan 10-02): per-player ABSOLUTE game-elapsed ms at which
+   * they MOST RECENTLY went bench->field — via a mid-quarter `swap`
+   * on_player_id, or a break `lineup_set` that brought an off player on.
+   * Unlike `stintStartMs` (which resets to 0 at every quarter_start), this
+   * PERSISTS across period boundaries: a player subbed on late in Q3 is
+   * still "recent" at the start of Q4. Drives the sub suggester's recency
+   * guard and is reused by F3 (Phase 12 long-press "time since last sub").
+   * The frame is `completedQuarterMs + elapsed_ms` so it is comparable to
+   * an absolute current-game-elapsed value.
+   */
+  lastSubbedOnMs: Record<string, number>;
+  /**
+   * SUB-01/B4 (plan 10-02): total ms of all COMPLETED quarters (sum of
+   * each finished quarter's duration). The current in-progress quarter is
+   * NOT included. Live callers add their within-quarter elapsed to this to
+   * get an absolute game-elapsed value comparable to `lastSubbedOnMs`.
+   */
+  completedQuarterMs: number;
+  /**
    * Per-player zone they ENDED the most-recent finished quarter in.
    * Drives the suggester's `previousQuarterZones` (-800 SAME_AS_LAST_Q
    * penalty so a kid doesn't get parked in the same line two quarters
@@ -1042,6 +1069,8 @@ export function replayGame(events: GameEvent[]): GameState {
     pastQuarterZones: {},
     stintStartMs: {},
     stintZone: {},
+    lastSubbedOnMs: {},
+    completedQuarterMs: 0,
     injuredIds: [],
     loanedIds: [],
     loanStartMs: {},
@@ -1059,6 +1088,15 @@ export function replayGame(events: GameEvent[]): GameState {
     return state.scoreByQuarter[q];
   };
   let quarterStartedAt: string | null = null;
+  // Absolute game-elapsed ms accumulated from COMPLETED quarters (written
+  // through to state.completedQuarterMs). Added to a quarter-local
+  // elapsed_ms to place swaps / break lineup changes on an absolute
+  // timeline for `lastSubbedOnMs` (B4 recency guard).
+  const onFieldSet = (lu: Lineup): Set<string> => {
+    const s = new Set<string>();
+    for (const z of ALL_ZONES) for (const p of lu[z]) s.add(p);
+    return s;
+  };
   const addPlayed = (pid: string, zone: Zone, ms: number) => {
     if (ms <= 0) return;
     state.basePlayedZoneMs[pid] ??= emptyZM();
@@ -1081,7 +1119,22 @@ export function replayGame(events: GameEvent[]): GameState {
     const elapsed = meta.elapsed_ms ?? 0;
 
     if (ev.type === "lineup_set" && meta.lineup) {
-      state.lineup = normalizeLineup(meta.lineup);
+      const prevOnField = state.lineup ? onFieldSet(state.lineup) : new Set<string>();
+      const next = normalizeLineup(meta.lineup);
+      // B4 recency: any player ON in the new lineup who was NOT on field
+      // before is a bench->field transition (initial kickoff, or a break
+      // reshuffle that brings a benched player on). Stamp them at the
+      // current absolute elapsed (a break lineup_set fires after the prior
+      // quarter_end, so completedQuarterMs is already the start of the new
+      // period). Players merely continuing on field are untouched.
+      for (const z of ALL_ZONES) {
+        for (const p of next[z]) {
+          if (!prevOnField.has(p)) {
+            state.lastSubbedOnMs[p] = state.completedQuarterMs + elapsed;
+          }
+        }
+      }
+      state.lineup = next;
     } else if (ev.type === "quarter_start" && meta.quarter) {
       state.currentQuarter = meta.quarter;
       state.quarterEnded = false;
@@ -1133,6 +1186,10 @@ export function replayGame(events: GameEvent[]): GameState {
         addLoan(pid, elapsed - start);
       }
       state.loanStartMs = {};
+      // Roll this quarter's duration into the absolute timeline so the
+      // next quarter's swaps / break lineup changes get an absolute
+      // lastSubbedOnMs (B4 recency persists across the boundary).
+      state.completedQuarterMs += elapsed;
     } else if (
       ev.type === "swap" &&
       state.lineup &&
@@ -1158,6 +1215,10 @@ export function replayGame(events: GameEvent[]): GameState {
       }
       state.stintStartMs[on] = elapsed;
       state.stintZone[on] = z;
+      // B4 recency: a mid-quarter sub-on is a bench->field transition.
+      // Stamp the absolute frame so it survives the next quarter_start
+      // reset (which only zeroes the per-quarter stintStartMs).
+      state.lastSubbedOnMs[on] = state.completedQuarterMs + elapsed;
     } else if (ev.type === "field_zone_swap" && state.lineup) {
       // Two on-field players swap zones (e.g. mid ↔ fwd). Mirrors the
       // store's applyFieldZoneSwap action: close each player's open
