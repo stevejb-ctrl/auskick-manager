@@ -314,7 +314,9 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. The B1 availability-control discrepancy is reconciled (recon found no availability toggle on `LineupPicker.tsx`) — the surface the coach thinks of as "the picker" actually writes availability, with the resolution documented
   3. At any period break a coach can add a newly-arrived player into the game, mark a present player out, and mark a player injured, on the shared quarter-break surface, across all sports
   4. Regression tests (written red-first) cover picker-availability persistence and each break-time availability action through the UI; reuse-before-fork — `addLateArrival` is wired into the break surface rather than a new writer
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 09-01-PLAN.md — B1/AVAIL-01: auto-remove unavailable players at kickoff via a shared server-side reconcile helper in all three start actions + client picker filter + red-first cross-sport regression
+  - [ ] 09-02-PLAN.md — B2/AVAIL-02: break-time "Manage availability" entry (add-arrived via addLateArrival, mark-out via forced replacement, mark-injured) across all three sports + red-first e2e specs
 **UI hint**: yes
 
 ### Phase 10: Substitution timing that's fair
