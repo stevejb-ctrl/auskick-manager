@@ -41,6 +41,92 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
   };
 }
 
+/**
+ * B1 / AVAIL-01 (UX half): strip every player id not in `availableIds`
+ * out of a saved draft lineup so a now-unavailable player visibly drops
+ * off the field when the picker hydrates. Structural + recursive so it
+ * covers AFL/league flat zone arrays AND netball's nested `positions`
+ * map with one impl — mirroring the server-side
+ * reconcileLineupToAvailability filter. Correctness is enforced
+ * server-side at kickoff; this is purely the visible echo for the coach.
+ */
+function filterLineupToAvailable<T>(
+  lineup: T,
+  availableIds: Set<string> | string[],
+): T {
+  const has = (id: string): boolean =>
+    Array.isArray(availableIds)
+      ? availableIds.includes(id)
+      : availableIds.has(id);
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) {
+      return node.filter((id) => typeof id === "string" && has(id));
+    }
+    if (node && typeof node === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        out[k] = walk(v);
+      }
+      return out;
+    }
+    return node;
+  };
+  return walk(lineup) as T;
+}
+
+/**
+ * B1 / AVAIL-01 (netball UX half): after `filterLineupToAvailable`
+ * strips a now-unavailable player out of a netball draft, the court
+ * is left with a NAMED empty position. Unlike AFL/league flat zone
+ * arrays (where a removed player just shortens the array), netball's
+ * `validateNetballLineup` blocks kickoff while any targeted court
+ * position is empty — so the coach would be stranded at "Need 7 on
+ * court". This backfills each empty court position, in canonical
+ * order, from the available bench (any available id not already on
+ * court). Mirrors D-04's "the normal rotation fills the vacated spot"
+ * rule for netball's named-position model, keeping the silent
+ * auto-remove startable. Server-side `reconcileLineupToAvailability`
+ * remains the authoritative correctness backstop at kickoff.
+ */
+function backfillNetballCourt(
+  lineup: import("@/lib/sports/netball/fairness").GenericLineup,
+  courtPositions: readonly string[],
+  availableIds: Set<string> | string[],
+): import("@/lib/sports/netball/fairness").GenericLineup {
+  const availArr = Array.isArray(availableIds)
+    ? availableIds
+    : Array.from(availableIds);
+  const positions = { ...lineup.positions };
+  // Everyone currently placed on court (post-filter) — never double-place.
+  const onCourt = new Set<string>();
+  for (const pid of courtPositions) {
+    const occ = positions[pid]?.[0];
+    if (occ) onCourt.add(occ);
+  }
+  const bench = (lineup.bench ?? []).filter((id) => availArr.includes(id));
+  // Candidate pool to draw from: available bench players first, then
+  // any other available id not yet on court (defensive — covers a
+  // draft whose bench list was itself stale).
+  const pool = [
+    ...bench,
+    ...availArr.filter((id) => !onCourt.has(id) && !bench.includes(id)),
+  ].filter((id) => !onCourt.has(id));
+  const filledBench = new Set<string>();
+  for (const pid of courtPositions) {
+    const occupied = (positions[pid]?.length ?? 0) > 0;
+    if (occupied) continue;
+    const next = pool.find((id) => !onCourt.has(id));
+    if (!next) break; // not enough available players — leave it empty
+    positions[pid] = [next];
+    onCourt.add(next);
+    filledBench.add(next);
+  }
+  return {
+    positions,
+    bench: bench.filter((id) => !filledBench.has(id)),
+  };
+}
+
 interface LivePageProps {
   params: { teamId: string; gameId: string };
 }
@@ -242,9 +328,15 @@ export default async function LivePage({ params }: LivePageProps) {
         .select("lineup, updated_at")
         .eq("game_id", params.gameId)
         .maybeSingle();
+      // B1 / AVAIL-01 (UX half): strip now-unavailable players from the
+      // saved draft so they visibly drop off the picker. Server-side
+      // reconciliation in startLeagueGame is the authoritative backstop.
       const initialDraft = draftRow
         ? {
-            lineup: (draftRow as { lineup: unknown }).lineup as LeagueLineup,
+            lineup: filterLineupToAvailable(
+              (draftRow as { lineup: unknown }).lineup as LeagueLineup,
+              availableIds,
+            ),
             updated_at: (draftRow as { updated_at: string }).updated_at,
           }
         : null;
@@ -469,9 +561,31 @@ export default async function LivePage({ params }: LivePageProps) {
       .select("lineup, updated_at")
       .eq("game_id", params.gameId)
       .maybeSingle();
+    // B1 / AVAIL-01 (UX half): strip now-unavailable players from the
+    // saved netball draft (recursing through the nested `positions`
+    // map) so they visibly drop off the court when the picker loads.
+    // startNetballGame's reconciliation is the authoritative backstop.
+    //
+    // Netball needs one extra step the flat-zone sports (AFL/league)
+    // don't: a vacated court position is a *named empty slot*, and
+    // `validateNetballLineup` blocks kickoff while a targeted position
+    // is empty. So after stripping the unavailable player we backfill
+    // the now-open targeted court slots from the available bench (the
+    // "normal rotation fills the vacated spot" rule from D-04, applied
+    // to netball's named-position model). Without this the coach is
+    // stuck at "Need 7 on court — 1 position is empty" with no way to
+    // start. Filling here keeps the auto-remove SILENT (no prompt) and
+    // the lineup startable; the coach can still rearrange before kickoff.
     const netballDraft = netballDraftRow
       ? {
-          lineup: (netballDraftRow as { lineup: unknown }).lineup as import("@/lib/sports/netball/fairness").GenericLineup,
+          lineup: backfillNetballCourt(
+            filterLineupToAvailable(
+              (netballDraftRow as { lineup: unknown }).lineup as import("@/lib/sports/netball/fairness").GenericLineup,
+              availableIds,
+            ),
+            ageCfgN.positions,
+            availableIds,
+          ),
           updated_at: (netballDraftRow as { updated_at: string }).updated_at,
         }
       : null;
@@ -789,7 +903,21 @@ export default async function LivePage({ params }: LivePageProps) {
     .select("*")
     .eq("game_id", params.gameId)
     .maybeSingle();
-  const initialDraft = draftRow as import("@/lib/types").LineupDraft | null;
+  // B1 / AVAIL-01 (UX half): drop any now-unavailable player the saved
+  // draft placed on the field so the coach SEES them fall off when the
+  // picker loads. Correctness lives server-side in startGame's
+  // reconcileLineupToAvailability; this is purely the visible echo.
+  const initialDraft = (
+    draftRow
+      ? {
+          ...(draftRow as import("@/lib/types").LineupDraft),
+          lineup: filterLineupToAvailable(
+            (draftRow as import("@/lib/types").LineupDraft).lineup,
+            availableIds,
+          ),
+        }
+      : null
+  ) as import("@/lib/types").LineupDraft | null;
 
   // Pre-game lent-player set. Walk this game's player_loan events
   // (latest per player wins) so the picker chips survive a reload
