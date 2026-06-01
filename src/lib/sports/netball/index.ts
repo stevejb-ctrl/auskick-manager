@@ -21,6 +21,7 @@ import type {
   ValidationResult,
   ValidationIssue,
 } from "@/lib/sports/types";
+import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 
 // ─── Court zones ─────────────────────────────────────────────
 // The court is split into thirds lengthwise. The attack-third and
@@ -118,7 +119,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 14,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept. 10-min quarters by default — adjust in team settings if your league plays shorter.",
@@ -134,7 +138,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 16,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "NetSetGO Go: 7-a-side, introduction to all 7 positions. 10-min quarters by default — adjust in team settings if your league plays shorter.",
@@ -150,7 +157,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 16,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "Modified netball: 7-a-side, 10-min quarters by default.",
@@ -166,7 +176,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 16,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "Modified netball: 7-a-side, 10-min quarters by default.",
@@ -182,7 +195,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 16,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "Modified netball: 7-a-side, 10-min quarters by default. Bump to 12 in team settings if your league plays the longer format.",
@@ -198,7 +214,10 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     maxSquadSize: 16,
     periodCount: 4,
     periodSeconds: 10 * 60,
-    subIntervalSeconds: 10 * 60,
+    // F4/SUB-02: derive cadence from period length (smallest clean divisor
+    // >= floor). 240 ∤ 600, so this lands at 300 rather than the old
+    // hand-set 600.
+    subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
     tracksScoreDefault: true,
     notes: "Standard netball: 7-a-side, 10-min quarters by default. Bump to 15 in team settings for full-rule competition.",

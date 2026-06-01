@@ -6,6 +6,7 @@
 
 import { AGE_GROUPS, AGE_GROUP_ORDER, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import type { SportConfig, ZoneDef, PositionDef, ScoreTypeDef, AgeGroupConfig } from "@/lib/sports/types";
+import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 
 const AFL_ZONES_FULL: ZoneDef[] = [
   { id: "back", label: ZONE_LABELS.back, shortLabel: ZONE_SHORT_LABELS.back },
@@ -48,7 +49,9 @@ function aflAgeGroups(): AgeGroupConfig[] {
       maxSquadSize: cfg.maxSquadSize,
       periodCount: 4,
       periodSeconds: cfg.quarterSeconds,
-      subIntervalSeconds: cfg.subIntervalSeconds,
+      // F4/SUB-02: derive the sub cadence from the period length rather than
+      // the hand-set cfg.subIntervalSeconds. Smallest clean divisor >= floor.
+      subIntervalSeconds: deriveSubIntervalSeconds(cfg.quarterSeconds, 240),
       subIntervalFloorSeconds: 240,
       tracksScoreDefault: cfg.tracksScoreDefault,
       notes: cfg.notes,

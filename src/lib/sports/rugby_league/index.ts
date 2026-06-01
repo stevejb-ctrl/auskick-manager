@@ -37,6 +37,7 @@ import type {
   ValidationResult,
   ValidationIssue,
 } from "@/lib/sports/types";
+import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 
 // ─── Field zones ─────────────────────────────────────────────
 // Junior RL is positionless and the field is treated as a single
@@ -77,8 +78,12 @@ const RL_SCORE_TYPES: ScoreTypeDef[] = [
 // suggestion interval to 4 min = half a quarter.
 const QUARTER_PERIOD_SECONDS = 8 * 60;
 const HALF_PERIOD_SECONDS = 20 * 60;
-const QUARTER_SUB_INTERVAL = 4 * 60;
-const HALF_SUB_INTERVAL = 10 * 60;
+// F4/SUB-02: derive the rotation cadence from the period length (smallest
+// clean divisor >= the 240s floor) instead of hand-setting it. The quarter
+// derives to 240 (unchanged: 480/240 = 2); the half derives to 240 too
+// (1200/240 = 5) rather than the old hand-set 600.
+const QUARTER_SUB_INTERVAL = deriveSubIntervalSeconds(QUARTER_PERIOD_SECONDS, 240);
+const HALF_SUB_INTERVAL = deriveSubIntervalSeconds(HALF_PERIOD_SECONDS, 240);
 
 const RL_AGE_GROUPS: AgeGroupConfig[] = [
   {
