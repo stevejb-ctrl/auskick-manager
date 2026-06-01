@@ -120,6 +120,13 @@ export default async function LineupPage({ params }: LineupPageProps) {
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
+          // Legacy share-token page runs on the @/lib/ageGroups shape
+          // (quarterSeconds only — no periodSeconds/periodCount, no
+          // getEffectiveQuarterSeconds). Feed the age-group DEFAULT for the
+          // season-diversity threshold; the per-game/per-team override is
+          // unavailable here (accepted D-03 divergence, see 08-04 SUMMARY).
+          // gameMinutes keeps `* 4` for the same reason (no periodCount).
+          fullPeriodMs={ageCfg.quarterSeconds * 1000}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
         />

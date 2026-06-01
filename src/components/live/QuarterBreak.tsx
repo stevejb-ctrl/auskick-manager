@@ -84,6 +84,12 @@ interface QuarterBreakProps {
   maxOnFieldSize: number;
   /** Default on-field size for the team's age group (shown as a hint). */
   defaultOnFieldSize: number;
+  /**
+   * Per-game effective full-period length in ms — fed to the suggester's
+   * season-diversity threshold so it tracks THIS game's clock rather than a
+   * fixed 12 min (CONFIG-01 / D-03). LiveGame supplies its `quarterMs`.
+   */
+  fullPeriodMs: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
   /**
@@ -134,6 +140,7 @@ export function QuarterBreak({
   minOnFieldSize,
   maxOnFieldSize,
   defaultOnFieldSize,
+  fullPeriodMs,
   chipModeByKey = {},
   clockMultiplier = 1,
   onStarted,
@@ -417,6 +424,7 @@ export function QuarterBreak({
       seasonAvailability,
       chipByPlayerId,
       chipModeByKey,
+      fullPeriodMs,
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.

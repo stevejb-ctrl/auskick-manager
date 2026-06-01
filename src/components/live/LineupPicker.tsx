@@ -60,8 +60,15 @@ interface LineupPickerProps {
   minOnFieldSize: number;
   maxOnFieldSize: number;
   positionModel: PositionModel;
-  /** Full-game length in minutes (4 × quarter length). */
+  /** Full-game length in minutes (periodCount × quarter length). */
   gameMinutes: number;
+  /**
+   * Per-game effective full-period length in ms — fed to the suggester's
+   * season-diversity threshold so it tracks THIS game's clock rather than a
+   * fixed 12 min (CONFIG-01 / D-03). The AFL sports-config mount supplies the
+   * EFFECTIVE ms; the legacy share-token mount supplies the age-group default.
+   */
+  fullPeriodMs: number;
   /** Optional href for the Back button shown above the picker. */
   backHref?: string;
   /**
@@ -133,6 +140,7 @@ export function LineupPicker({
   maxOnFieldSize,
   positionModel,
   gameMinutes,
+  fullPeriodMs,
   backHref,
   gamePlanButton,
   initialDraft,
@@ -287,6 +295,7 @@ export function LineupPicker({
       {},
       chipByPlayerId,
       chipModeByKey,
+      fullPeriodMs,
     );
   };
 

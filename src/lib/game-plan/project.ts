@@ -174,6 +174,11 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
       {},
       chipByPlayerId,
       chipModeByKey,
+      // Effective full-period ms for the season-diversity threshold (D-03).
+      // `periodMinutes` already honours input.periodMinutes → age default,
+      // so this tracks the planned game's clock. (Plan named a non-existent
+      // `input.periodSeconds`; the input field is `periodMinutes`.)
+      periodMinutes * 60_000,
     );
 
     // Accumulate this quarter's whole-period minutes so the next

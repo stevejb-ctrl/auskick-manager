@@ -1259,6 +1259,7 @@ export function LiveGame({
           minOnFieldSize={minOnFieldSize}
           maxOnFieldSize={maxOnFieldSize}
           defaultOnFieldSize={defaultOnFieldSize}
+          fullPeriodMs={quarterMs}
           chipModeByKey={chipModeByKey}
           clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
