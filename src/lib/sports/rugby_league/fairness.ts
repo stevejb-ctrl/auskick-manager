@@ -51,6 +51,15 @@ export interface LeagueGameState {
   finalised: boolean;
   /** ISO timestamp of the current quarter_start event; null when quarter ended. */
   quarterStartedAt: string | null;
+  /**
+   * SUB-01/B4 (plan 10-02): per-player ABSOLUTE game-elapsed ms at which
+   * they MOST RECENTLY went bench->field (a `swap` on_player_id, or a
+   * `lineup_set` that brought an off player on). PERSISTS across period
+   * boundaries — unlike the per-quarter stint the suggester rebuilds. The
+   * frame is `completedQuarterMs + elapsed_ms`. Mirrors AFL `GameState`
+   * and is reused by F3 (Phase 12 long-press "time since last sub").
+   */
+  lastSubbedOnMs: Record<string, number>;
 }
 
 /** Empty state factory — kept in sync with the interface for callers. */
@@ -66,6 +75,7 @@ export function emptyLeagueGameState(): LeagueGameState {
     playerConversions: {},
     finalised: false,
     quarterStartedAt: null,
+    lastSubbedOnMs: {},
   };
 }
 
@@ -92,6 +102,14 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
     | { kind: "conversion"; player: string; made: boolean }
     | { kind: "opp_conversion" };
   const undoStack: UndoOp[] = [];
+
+  // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
+  // `elapsed_ms` is per-quarter, so accumulate each completed quarter's
+  // duration and add it to the quarter-local value. Mirrors AFL replay:
+  // a break lineup_set re-listing the same on-field players leaves their
+  // stamp untouched (prevOnField is recomputed fresh from state.lineup
+  // at each lineup_set), only a genuine bench->field transition restamps.
+  let completedQuarterMs = 0;
 
   /**
    * Drop a player from all three buckets. Used by `injury` and
@@ -120,7 +138,17 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
     switch (ev.type) {
       case "lineup_set": {
         if (meta.lineup) {
+          // prevOnField from the CURRENT lineup (reflects prior swaps);
+          // any player on field in the new lineup who was not on before
+          // is a bench->field transition.
+          const prevOnField = new Set<string>(
+            state.lineup ? leagueOnField(state.lineup) : [],
+          );
           state.lineup = normalizeLeagueLineup(meta.lineup);
+          const at = completedQuarterMs + (meta.elapsed_ms ?? 0);
+          for (const id of leagueOnField(state.lineup)) {
+            if (!prevOnField.has(id)) state.lastSubbedOnMs[id] = at;
+          }
         }
         break;
       }
@@ -166,6 +194,9 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         if (offZone === "back") backs.push(on);
         else forwards.push(on);
         state.lineup = { forwards, backs, bench };
+        // B4 recency: a mid-quarter sub-on is a bench->field transition;
+        // stamp the absolute frame so it survives the period boundary.
+        state.lastSubbedOnMs[on] = completedQuarterMs + (meta.elapsed_ms ?? 0);
         break;
       }
 
@@ -209,6 +240,9 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         state.quarterEnded = true;
         state.quarterStartedAt = null;
         state.quarterElapsedMs = meta.elapsed_ms ?? state.quarterElapsedMs;
+        // B4 recency: roll this quarter's duration into the absolute
+        // timeline so next-quarter transitions stamp an absolute value.
+        completedQuarterMs += meta.elapsed_ms ?? 0;
         break;
       }
 
@@ -2051,6 +2085,18 @@ export function suggestLeagueSubs(
   const excludeSet = new Set(excludeOffPlayers);
   type Stint = { startedAt: number; location: "field" | "bench" };
   const stint = new Map<string, Stint>();
+  // SUB-01/B4: track stints on an ABSOLUTE game-elapsed timeline that
+  // persists across period boundaries. `elapsed_ms` on each event is
+  // PER-QUARTER (resets at every quarter_start), so we accumulate each
+  // completed quarter's duration and add it to the quarter-local value.
+  // Without this, a player subbed on late in Q3 looked identical at the
+  // Q4 start to one on since Q1 (both startedAt=0) and got pulled first
+  // early in Q4 — the churn this guard fixes.
+  let completedQuarterMs = 0;
+  // Players on field as of the most recent lineup/swap state, so a break
+  // `lineup_set` that re-lists the SAME on-field players does not reset
+  // their stint — only genuinely new (bench->field) players restart.
+  let prevOnField = new Set<string>();
   for (const ev of events) {
     const meta = (ev.metadata ?? {}) as {
       quarter?: number;
@@ -2061,38 +2107,55 @@ export function suggestLeagueSubs(
     };
     if (ev.type === "lineup_set" && meta.lineup) {
       const lineup = normalizeLeagueLineup(meta.lineup);
-      for (const id of leagueOnField(lineup)) {
-        stint.set(id, { startedAt: 0, location: "field" });
+      const at =
+        completedQuarterMs +
+        (typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
+      const onFieldArr = leagueOnField(lineup);
+      const nowOnField = new Set(onFieldArr);
+      for (const id of onFieldArr) {
+        // A player continuing on field across the boundary keeps their
+        // earlier stint; only a genuinely new field player starts now.
+        if (!prevOnField.has(id)) {
+          stint.set(id, { startedAt: at, location: "field" });
+        }
       }
       for (const id of lineup.bench) {
-        stint.set(id, { startedAt: 0, location: "bench" });
+        stint.set(id, { startedAt: at, location: "bench" });
       }
+      prevOnField = nowOnField;
       continue;
     }
-    if (meta.quarter !== currentQuarter) continue;
-    if (ev.type === "quarter_start") {
-      for (const id of onFieldIds) {
-        stint.set(id, { startedAt: 0, location: "field" });
-      }
-      for (const id of currentLineup.bench) {
-        stint.set(id, { startedAt: 0, location: "bench" });
-      }
+    if (ev.type === "quarter_end") {
+      // Roll the finished quarter's duration into the absolute timeline.
+      completedQuarterMs +=
+        typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+      continue;
     }
+    // quarter_start no longer resets stints — startedAt is absolute and
+    // must survive the period boundary for the recency guard to work.
     if (ev.type === "swap") {
-      const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+      const at =
+        completedQuarterMs +
+        (typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
       if (meta.off_player_id) {
         stint.set(meta.off_player_id, { startedAt: at, location: "bench" });
+        prevOnField.delete(meta.off_player_id);
       }
       if (meta.on_player_id) {
         stint.set(meta.on_player_id, { startedAt: at, location: "field" });
+        prevOnField.add(meta.on_player_id);
       }
     }
   }
 
+  // Absolute current game-elapsed = finished quarters + this quarter's
+  // (per-quarter) elapsed. msAt is the continuous on-field stint, so the
+  // longest-serving player sorts first and the just-arrived one last.
+  const absElapsed = completedQuarterMs + elapsedMs;
   const msAt = (id: string) => {
     const s = stint.get(id);
     const startedAt = s?.startedAt ?? 0;
-    return Math.max(0, elapsedMs - startedAt);
+    return Math.max(0, absElapsed - startedAt);
   };
   const zoneOf = (id: string): LeagueZone =>
     currentLineup.forwards.includes(id) ? "forward" : "back";

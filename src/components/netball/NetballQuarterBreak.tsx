@@ -51,6 +51,7 @@ import {
   lastQuarterThirds,
   lastQuarterTeammatesInThird,
   playerThirdMs,
+  replayNetballGame,
   seasonAvailability,
   seasonPositionCounts,
   suggestNetballLineup,
@@ -301,6 +302,12 @@ export function NetballQuarterBreak({
       thisGameEvents,
       thirdLookup,
     );
+    // SUB-01/B4 recency guard. Absolute game-elapsed ms of each
+    // player's most recent bench->court transition, persisting across
+    // period breaks. Used as a pure tiebreak so a player who only just
+    // came on at the previous break isn't churned straight back off when
+    // tied on game time — the longer-serving teammate benches instead.
+    const lastSubbedOnMs = replayNetballGame(thisGameEvents).lastSubbedOnMs;
     // Per-player total minutes (in ms). Drives the suggester's
     // who-plays sort directly — least-time-played first. Sourced
     // from the parent's playerStats (already computed for the live
@@ -346,6 +353,7 @@ export function NetballQuarterBreak({
       seasonAvailability: seasonAvail,
       chipByPlayerId,
       chipModeByKey,
+      lastSubbedOnMs,
     });
     // Pre-apply locks: locked player goes to locked position. If the
     // locked player was already placed elsewhere by the suggester, we

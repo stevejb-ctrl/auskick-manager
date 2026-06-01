@@ -412,15 +412,22 @@ export interface NetballSuggestInput {
   /**
    * SUB-01/B4 recency guard (plan 10-02). Per-player absolute game-elapsed ms
    * at which they MOST RECENTLY went bench->field (i.e. came on at a break).
-   * Combined with `elapsedMs` + `minStintMs` to soft-deprioritise benching a
-   * player who only just came on — among players otherwise TIED on game time,
-   * prefer to bench the longer-serving (non-recent) one. Optional; when omitted
-   * (legacy callers) recency contributes nothing. Wired up in Task 3.
+   * Used as a PURE tiebreak — among players otherwise TIED on game time, the
+   * more-recently-arrived one (larger value) stays on court and the longer-
+   * serving teammate benches. Netball subs only at the period break, so recency
+   * is period-granular and needs no sub-interval window (unlike AFL/league).
+   * Optional; when omitted (legacy callers) recency contributes nothing.
    */
   lastSubbedOnMs?: Record<string, number>;
-  /** Current absolute game-elapsed ms (for the recency comparison). */
+  /**
+   * Accepted for cross-sport input-shape parity with AFL/league but NOT used by
+   * netball — the tiebreak is windowless (see `lastSubbedOnMs`).
+   */
   elapsedMs?: number;
-  /** One rotation window in ms (subIntervalSeconds*1000). <=0 disables the guard. */
+  /**
+   * Accepted for cross-sport input-shape parity with AFL/league but NOT used by
+   * netball — the tiebreak is windowless (see `lastSubbedOnMs`).
+   */
   minStintMs?: number;
 }
 
@@ -506,6 +513,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     seasonAvailability: _seasonAvail,
     chipByPlayerId,
     chipModeByKey,
+    lastSubbedOnMs,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
@@ -702,8 +710,31 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
   // stays available for stats display, but the suggester's sort
   // is purely in-game ms ascending, with the seeded shuffle as
   // the only fallback.
+  // SUB-01/B4 recency TIEBREAK. Netball subs only at the period break, so
+  // recency is PERIOD-GRANULAR here — unlike AFL/league there is no
+  // sub-interval window to compare against (a "just arrived" netballer came
+  // on at the *previous* break, a whole period ago, which already exceeds
+  // any derived sub-interval). So this is a PURE tiebreak with no window:
+  // among players otherwise TIED on game time, the one who came on more
+  // recently (larger lastSubbedOnMs) stays on court and the longer-serving
+  // (earlier-on) teammate benches instead — the just-arrived player should
+  // not be churned straight back off. Only fires when lastSubbedOnMs is
+  // supplied, so legacy callers are byte-for-byte unaffected.
+  const recencyTiebreak = (a: string, b: string): number => {
+    if (!lastSubbedOnMs) return 0;
+    const la = lastSubbedOnMs[a] ?? 0;
+    const lb = lastSubbedOnMs[b] ?? 0;
+    if (la === lb) return 0;
+    // More-recent (larger lastSubbedOnMs) sorts FIRST so it plays; the
+    // longer-serving teammate sorts later and benches.
+    return la > lb ? -1 : 1;
+  };
   const shuffled = seededShuffle(playerIds, seed + 41);
-  shuffled.sort((a, b) => sortKey(a) - sortKey(b));
+  shuffled.sort((a, b) => {
+    const byGameTime = sortKey(a) - sortKey(b);
+    if (byGameTime !== 0) return byGameTime;
+    return recencyTiebreak(a, b);
+  });
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);
@@ -786,6 +817,15 @@ export interface NetballGameState {
   finalised: boolean;
   /** ISO timestamp of the current quarter_start event; null when quarter ended. */
   quarterStartedAt: string | null;
+  /**
+   * SUB-01/B4 (plan 10-02): per-player ABSOLUTE game-elapsed ms at which
+   * they MOST RECENTLY came on court — i.e. were placed on court at a
+   * break (`lineup_set` / `period_break_swap`) having been off the prior
+   * period. PERSISTS across period boundaries. Frame is
+   * `completedQuarterMs + elapsed_ms`. Mirrors AFL/league and is reused
+   * by F3 (Phase 12 long-press "time since last sub").
+   */
+  lastSubbedOnMs: Record<string, number>;
 }
 
 export function replayNetballGame(events: GameEvent[]): NetballGameState {
@@ -800,10 +840,32 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
     playerGoals: {},
     finalised: false,
     quarterStartedAt: null,
+    lastSubbedOnMs: {},
   };
 
   // score_undo: stack the last-N score events to revert.
   const undoStack: Array<"team" | "opp" | { player: string }> = [];
+
+  // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
+  // Netball subs only at breaks, so a bench->court transition is a
+  // player on court in the new break lineup who was off before. The
+  // window is per-quarter, so accumulate completed quarters and add to
+  // the event's quarter-local elapsed_ms.
+  let completedQuarterMs = 0;
+  const onCourt = (lu: GenericLineup): string[] => {
+    const out: string[] = [];
+    for (const ids of Object.values(lu.positions)) {
+      for (const id of ids) out.push(id);
+    }
+    return out;
+  };
+  const stampNewlyOn = (next: GenericLineup, elapsed: number) => {
+    const prev = new Set<string>(state.lineup ? onCourt(state.lineup) : []);
+    const at = completedQuarterMs + elapsed;
+    for (const id of onCourt(next)) {
+      if (!prev.has(id)) state.lastSubbedOnMs[id] = at;
+    }
+  };
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -814,9 +876,13 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
     };
 
     if (ev.type === "lineup_set" && meta.lineup) {
-      state.lineup = normaliseGenericLineup(meta.lineup);
+      const next = normaliseGenericLineup(meta.lineup);
+      stampNewlyOn(next, meta.elapsed_ms ?? 0);
+      state.lineup = next;
     } else if (ev.type === "period_break_swap" && meta.lineup) {
-      state.lineup = normaliseGenericLineup(meta.lineup);
+      const next = normaliseGenericLineup(meta.lineup);
+      stampNewlyOn(next, meta.elapsed_ms ?? 0);
+      state.lineup = next;
     } else if (ev.type === "quarter_start" && meta.quarter) {
       state.currentQuarter = meta.quarter;
       state.quarterEnded = false;
@@ -826,6 +892,8 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
       state.quarterEnded = true;
       state.quarterStartedAt = null;
       state.quarterElapsedMs = meta.elapsed_ms ?? state.quarterElapsedMs;
+      // Roll the finished quarter into the absolute timeline.
+      completedQuarterMs += meta.elapsed_ms ?? 0;
     } else if (ev.type === "game_finalised") {
       state.finalised = true;
     } else if (ev.type === "goal") {
