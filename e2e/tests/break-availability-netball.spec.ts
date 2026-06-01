@@ -156,11 +156,20 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   // "Game settings" / Match-adjustments section.
   await expandGameSettings(page);
 
+  // Freeze the lineup to "Keep last quarter" so the fairness suggester
+  // doesn't rotate the seeded court/bench — the mark-out flow needs
+  // `outPlayer` to still be on court and `replacement` on the bench.
+  await page.getByRole("button", { name: /keep last quarter/i }).click();
+
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page
     .getByRole("button", { name: /add (an )?arrived player|add arrived/i })
     .click();
-  await page
+  // Scope the pick to the sheet dialog — the arrival's name can also
+  // appear in the background lineup grid.
+  const addArrivedSheet = page.getByRole("dialog", { name: /add arrived/i });
+  await expect(addArrivedSheet).toBeVisible({ timeout: 5_000 });
+  await addArrivedSheet
     .getByRole("button", { name: new RegExp(arrival.full_name, "i") })
     .click();
 
@@ -198,7 +207,11 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   await page
     .getByRole("button", { name: /mark (a player|player) out|mark out/i })
     .click();
-  await page
+  // Scope to the sheet dialog so the same name in the background lineup
+  // grid doesn't collide.
+  const markOutSheet = page.getByRole("dialog", { name: /mark out/i });
+  await expect(markOutSheet).toBeVisible({ timeout: 5_000 });
+  await markOutSheet
     .getByRole("button", { name: new RegExp(outPlayer.full_name, "i") })
     .click();
   const replacementDialog = page.getByRole("dialog", {
@@ -233,10 +246,14 @@ test("netball: at the break a coach can add an arrived player, mark a player out
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
   await page
-    .getByRole("button", { name: /mark (a player|player)? ?injured|injure/i })
+    .getByRole("button", { name: /^mark injured$/i })
     .first()
     .click();
-  await page
+  // Scope the pick to the Mark-injured sheet dialog (the same name can
+  // appear in the background lineup grid).
+  const injuredSheet = page.getByRole("dialog", { name: /mark injured/i });
+  await expect(injuredSheet).toBeVisible({ timeout: 5_000 });
+  await injuredSheet
     .getByRole("button", { name: new RegExp(injurePlayer.full_name, "i") })
     .click();
 

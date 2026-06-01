@@ -131,6 +131,17 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  // League auto-pops the StartQuarterModal on entering the break
+  // (unlike AFL/netball, which require tapping "Ready for Q2"). It
+  // overlays the break surface, so dismiss it via "Back to lineup"
+  // before reaching for the Manage-availability buttons underneath.
+  // The modal auto-opens once per period (ref-gated), so a single
+  // dismissal holds for the rest of this break.
+  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
+  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
+  await backToLineup.click();
+  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
+
   // The break surface shows a "Ready for H2"/"Ready for half 2" CTA.
   await expect(
     page.getByRole("button", { name: /^ready for (h2|half 2|q2)$/i }),
@@ -150,7 +161,11 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   await page
     .getByRole("button", { name: /add (an )?arrived player|add arrived/i })
     .click();
-  await page
+  // Scope the pick to the sheet dialog — the arrival's name can also
+  // appear in the background field/bench grid.
+  const addArrivedSheet = page.getByRole("dialog", { name: /add arrived/i });
+  await expect(addArrivedSheet).toBeVisible({ timeout: 5_000 });
+  await addArrivedSheet
     .getByRole("button", { name: new RegExp(arrival.full_name, "i") })
     .click();
 
@@ -188,7 +203,11 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   await page
     .getByRole("button", { name: /mark (a player|player) out|mark out/i })
     .click();
-  await page
+  // Scope to the sheet dialog so the same name in the background
+  // field/bench grid doesn't collide.
+  const markOutSheet = page.getByRole("dialog", { name: /mark out/i });
+  await expect(markOutSheet).toBeVisible({ timeout: 5_000 });
+  await markOutSheet
     .getByRole("button", { name: new RegExp(outPlayer.full_name, "i") })
     .click();
   const replacementDialog = page.getByRole("dialog", {
@@ -231,10 +250,14 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
   await page
-    .getByRole("button", { name: /mark (a player|player)? ?injured|injure/i })
+    .getByRole("button", { name: /^mark injured$/i })
     .first()
     .click();
-  await page
+  // Scope the pick to the Mark-injured sheet dialog (the same name can
+  // appear in the background field/bench grid).
+  const injuredSheet = page.getByRole("dialog", { name: /mark injured/i });
+  await expect(injuredSheet).toBeVisible({ timeout: 5_000 });
+  await injuredSheet
     .getByRole("button", { name: new RegExp(injurePlayer.full_name, "i") })
     .click();
 

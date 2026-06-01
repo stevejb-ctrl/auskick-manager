@@ -32,6 +32,10 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
 import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import {
+  InjuryReplacementModal,
+  type InjuryReplacementCandidate,
+} from "@/components/live/InjuryReplacementModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import {
@@ -950,6 +954,176 @@ export function NetballQuarterBreak({
     ]);
   }
 
+  // ─── Manage-availability (AVAIL-02 / B2) ───────────────────────
+  // Mirrors the AFL QuarterBreak entry (src/components/live/
+  // QuarterBreak.tsx). Two new affordances beside Lend / Mark-injured:
+  //   • Add arrived player — a squad member who wasn't available
+  //     pre-game turns up at the break. Reuses the canonical
+  //     addLateArrival writer (same as the in-game late-arrival flow).
+  //   • Mark a player out — an on-court player has to leave. Mirrors
+  //     the injury flow (D-09): forces a bench-replacement pick via the
+  //     shared InjuryReplacementModal so the vacated position doesn't go
+  //     short. Netball has NO swap event at the break — the out is
+  //     recorded as a markInjury with reason:"out" and the replacement
+  //     takes the position in the staged next-quarter lineup (committed
+  //     by period_break_swap on Start Q{n+1}).
+  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
+  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
+  // When set, the InjuryReplacementModal is shown for the mark-out
+  // forced-replacement pick. position = the court position the out
+  // player is vacating (so the replacement lands in the same spot).
+  const [outReplacement, setOutReplacement] = useState<{
+    outId: string;
+    positionId: string;
+  } | null>(null);
+
+  // Add-arrived candidates: squad members not available pre-game and
+  // not already in the staged lineup (neither on court nor bench).
+  const arrivalCandidates = useMemo(() => {
+    const inLineup = new Set<string>(draft.bench);
+    for (const ids of Object.values(draft.positions)) {
+      for (const id of ids) inLineup.add(id);
+    }
+    const availSet = new Set(availableIds);
+    return squad
+      .filter((p) => !inLineup.has(p.id) && !availSet.has(p.id))
+      .map((p) => ({ id: p.id, name: p.full_name }));
+  }, [squad, draft, availableIds]);
+
+  // Mark-out candidates: players currently on a court position in the
+  // staged draft (excludes the bench + anyone sidelined).
+  const markOutCandidates = useMemo(() => {
+    const out: { id: string; name: string }[] = [];
+    for (const ids of Object.values(draft.positions)) {
+      for (const id of ids) {
+        if (sidelinedSet.has(id)) continue;
+        const p = playersById.get(id);
+        if (p) out.push({ id: p.id, name: p.full_name });
+      }
+    }
+    return out;
+  }, [draft, sidelinedSet, playersById]);
+
+  // Bench replacements eligible to fill the vacated position, sorted
+  // ascending by court time (least played = suggested) — same feed
+  // shape as the AFL/league InjuryReplacementModal.
+  const outReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(() => {
+    return draft.bench
+      .filter((id) => !sidelinedSet.has(id))
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p)
+      .map((p) => {
+        const stats = thirdMs.get(p.id);
+        const totalMs = stats
+          ? stats.attack + stats.centre + stats.defence
+          : 0;
+        return { player: p, totalMs };
+      })
+      .sort((a, b) => a.totalMs - b.totalMs);
+  }, [draft.bench, sidelinedSet, playersById, thirdMs]);
+
+  function handleAddArrived(playerId: string) {
+    setAdjustError(null);
+    setAddArrivedPickerOpen(false);
+    // Stage them onto the bench immediately so the coach sees them
+    // before the player_arrived event round-trips.
+    setDraft((prev) =>
+      prev.bench.includes(playerId)
+        ? prev
+        : { ...prev, bench: [...prev.bench, playerId] },
+    );
+    const { flushed } = enqueueLiveAction("addLateArrival", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter: nextQuarter, elapsed_ms: 0 },
+    ]);
+    flushed.then(() => router.refresh());
+  }
+
+  // Coach tapped "Mark a player out" then picked an on-court player.
+  // If a bench replacement is available, open the replacement picker;
+  // otherwise fall through to the direct out write.
+  function handleMarkOutPick(playerId: string) {
+    setMarkOutPickerOpen(false);
+    const positionId = positionOfPlayer(playerId, draft);
+    if (positionId && outReplacementCandidates.length > 0) {
+      setOutReplacement({ outId: playerId, positionId });
+      return;
+    }
+    handleOutDirect(playerId);
+  }
+
+  // Mark a player out WITHOUT a replacement. Records the out reason;
+  // the vacated position is left for the coach to fill manually.
+  function handleOutDirect(playerId: string) {
+    setOutReplacement(null);
+    setAdjustError(null);
+    // Stage the player off court → bench so the draft reflects the out.
+    setDraft((prev) => {
+      const next: GenericLineup = {
+        positions: Object.fromEntries(
+          Object.entries(prev.positions).map(([k, v]) => [
+            k,
+            v.filter((p) => p !== playerId),
+          ]),
+        ),
+        bench: prev.bench.filter((p) => p !== playerId),
+      };
+      return next;
+    });
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: playerId,
+        injured: true,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+        reason: "out",
+      },
+    ]);
+  }
+
+  // Coach picked the bench replacement in the InjuryReplacementModal.
+  // Netball has no recordSwap at the break, so we (1) record the out as
+  // a markInjury reason:"out" and (2) place the replacement into the
+  // vacated court position in the staged draft — that lands durably via
+  // period_break_swap when the coach starts Q{n+1}.
+  function handleOutReplacement(
+    outId: string,
+    replacementId: string,
+    positionId: string,
+  ) {
+    setOutReplacement(null);
+    setAdjustError(null);
+    setDraft((prev) => {
+      const next: GenericLineup = {
+        positions: Object.fromEntries(
+          Object.entries(prev.positions).map(([k, v]) => [
+            k,
+            v.filter((p) => p !== outId && p !== replacementId),
+          ]),
+        ),
+        bench: prev.bench.filter((p) => p !== outId && p !== replacementId),
+      };
+      // Replacement takes the vacated position; the out player drops off
+      // (they keep the court time they already earned via replay).
+      next.positions[positionId] = [replacementId];
+      return next;
+    });
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: outId,
+        injured: true,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+        reason: "out",
+      },
+    ]);
+  }
+
   // ─── Render ────────────────────────────────────────────────
   const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
@@ -1191,6 +1365,39 @@ export function NetballQuarterBreak({
               </div>
             </div>
 
+            {/* Manage availability (AVAIL-02 / B2) — mirrors the AFL
+                QuarterBreak entry. Add a squad member who turned up at
+                the break (addLateArrival), or take an on-court player
+                out (forced bench-replacement pick, recorded with
+                reason:"out"). */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Manage availability
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Add a player who turned up at the break, or take one out of
+                the game (a replacement comes on so the court stays full).
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAddArrivedPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <span aria-hidden>+</span>
+                  Add arrived player
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMarkOutPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                >
+                  <span aria-hidden>+</span>
+                  Mark a player out
+                </button>
+              </div>
+            </div>
+
             {adjustError && (
               <p className="text-xs text-danger" role="alert">
                 {adjustError}
@@ -1238,6 +1445,64 @@ export function NetballQuarterBreak({
           onCancel={() => setInjuredPickerOpen(false)}
         />
       )}
+
+      {/* Add-arrived picker — squad members who weren't available
+          pre-game. Tapping one fires addLateArrival and lands them on
+          the staged bench. */}
+      {addArrivedPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Add arrived"
+          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next quarter can work them in."
+          emptyMessage="Everyone in the squad is already in the game."
+          candidates={arrivalCandidates}
+          onPick={handleAddArrived}
+          onCancel={() => setAddArrivedPickerOpen(false)}
+        />
+      )}
+
+      {/* Mark-out picker — on-court players in the staged draft. Picking
+          one forces a bench-replacement pick (InjuryReplacementModal)
+          so the vacated position doesn't go short; recorded with
+          reason:"out". */}
+      {markOutPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark out"
+          subtitle="Pick the on-court player who has to leave. A bench player comes on so the position stays filled."
+          emptyMessage="No on-court players to take out."
+          candidates={markOutCandidates}
+          onPick={handleMarkOutPick}
+          onCancel={() => setMarkOutPickerOpen(false)}
+        />
+      )}
+
+      {/* Mark-out forced-replacement — reuses the shared
+          InjuryReplacementModal (DO NOT fork). Pick the bench player who
+          comes on at the vacated position. Both paths record the out
+          player with reason:"out"; the replacement takes the position
+          in the staged next-quarter lineup. */}
+      {outReplacement &&
+        (() => {
+          const outPlayer = playersById.get(outReplacement.outId);
+          if (!outPlayer) return null;
+          return (
+            <InjuryReplacementModal
+              injuredPlayer={outPlayer}
+              zone={outReplacement.positionId}
+              candidates={outReplacementCandidates}
+              onPickReplacement={(replacementId) =>
+                handleOutReplacement(
+                  outReplacement.outId,
+                  replacementId,
+                  outReplacement.positionId,
+                )
+              }
+              onSkipReplacement={() => handleOutDirect(outReplacement.outId)}
+              onCancel={() => setOutReplacement(null)}
+            />
+          );
+        })()}
 
       {/* Score panel — collapsed by default. Single-line score
           summary so the coach can reconcile with the opposition

@@ -33,6 +33,7 @@ import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
 } from "@/components/live/InjuryReplacementModal";
+import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
@@ -197,6 +198,26 @@ export function LeagueLiveGame({
    */
   const [injuryReplacementModal, setInjuryReplacementModal] = useState<{
     injuredId: string;
+    zone: "forward" | "back";
+  } | null>(null);
+
+  // ── Break-time Manage-availability (AVAIL-02 / B2) ────────────
+  // Mirrors AFL `QuarterBreak.tsx` + netball `NetballQuarterBreak.tsx`.
+  // At a period break the coach can ADD an arrived player (reuses the
+  // canonical addLateArrival writer) or MARK a player OUT — the latter
+  // forces a bench-replacement pick via the shared InjuryReplacementModal
+  // and records the out player with reason:"out" PLUS a recordLeagueSwap
+  // so the replacement physically takes the vacated field slot.
+  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
+  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
+  const [breakInjuredPickerOpen, setBreakInjuredPickerOpen] = useState(false);
+  /**
+   * When set, the InjuryReplacementModal is shown for the mark-OUT flow
+   * (distinct from the in-game injury flow above). `zone` infers from the
+   * live lineup so the swap lands the replacement in the right bucket.
+   */
+  const [markOutReplacement, setMarkOutReplacement] = useState<{
+    outId: string;
     zone: "forward" | "back";
   } | null>(null);
 
@@ -415,6 +436,42 @@ export function LeagueLiveGame({
     [benchPlayers, injuredSet, loanedSet],
   );
   const hasSwappableBench = swappableBench.length > 0;
+
+  // ── Break-time Manage-availability candidate lists ────────────
+  // Arrival candidates = squad members not placed anywhere in the
+  // lineup (same set the in-game LateArrivalMenu uses). Mark-out
+  // candidates = on-field players the coach can take out (excludes
+  // anyone already injured / loaned so we never double-sideline).
+  const arrivalCandidates = useMemo(
+    () =>
+      lateArrivalCandidates.map((p) => ({
+        id: p.id,
+        name: p.full_name,
+        jerseyNumber: p.jersey_number,
+      })),
+    [lateArrivalCandidates],
+  );
+  const markOutCandidates = useMemo(
+    () =>
+      fieldPlayers
+        .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
+        .map((p) => ({
+          id: p.id,
+          name: p.full_name,
+          jerseyNumber: p.jersey_number,
+        })),
+    [fieldPlayers, injuredSet, loanedSet],
+  );
+  // Replacement candidates for the mark-out flow — swappable bench
+  // sorted least-played first (same shape + sort as the injury flow).
+  const markOutReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(
+    () =>
+      swappableBench
+        .map((p) => ({ player: p, totalMs: totalMsByPlayer[p.id] ?? 0 }))
+        .sort((a, b) => a.totalMs - b.totalMs),
+    [swappableBench, totalMsByPlayer],
+  );
+
   const subIsDue
     = subIntervalMs != null
     && lastSwapOrPeriodElapsed != null
@@ -1146,6 +1203,134 @@ export function LeagueLiveGame({
     router.refresh();
   }
 
+  // ── Break-time Manage-availability handlers (AVAIL-02 / B2) ───
+  // ADD ARRIVED: a squad member who wasn't available pre-game turns
+  // up at the break. Reuses the canonical addLateArrival writer (same
+  // path as the in-game LateArrivalMenu) — the arrival lands on the
+  // bench and the next period's rotation works them in.
+  async function handleAddArrivedAtBreak(playerId: string) {
+    setAddArrivedPickerOpen(false);
+    setPending(true);
+    const { flushed } = enqueueLiveAction("addLateArrival", [
+      auth,
+      game.id,
+      {
+        player_id: playerId,
+        quarter: Math.max(1, state.currentQuarter + 1),
+        elapsed_ms: 0,
+      },
+    ]);
+    await flushed;
+    setPending(false);
+    router.refresh();
+  }
+
+  // MARK OUT: coach picked an on-field player who has to leave. If
+  // they're in a known zone and there's a swappable bench player,
+  // force a replacement pick (so the field doesn't go short);
+  // otherwise mark them out directly.
+  function handleMarkOutPick(playerId: string) {
+    setMarkOutPickerOpen(false);
+    const zone: "forward" | "back" | null = state.lineup
+      ? state.lineup.forwards.includes(playerId)
+        ? "forward"
+        : state.lineup.backs.includes(playerId)
+          ? "back"
+          : null
+      : null;
+    if (zone !== null && markOutReplacementCandidates.length > 0) {
+      setMarkOutReplacement({ outId: playerId, zone });
+      return;
+    }
+    void handleMarkOutDirect(playerId);
+  }
+
+  // Mark a player out WITHOUT a replacement (skip / no bench). Records
+  // an injury event flagged reason:"out" so display can tell an "out"
+  // from a genuine injury; leaves the field slot vacant.
+  async function handleMarkOutDirect(playerId: string) {
+    setMarkOutReplacement(null);
+    setPending(true);
+    const { flushed } = enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
+        player_id: playerId,
+        injured: true,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+        reason: "out",
+      },
+    ]);
+    await flushed;
+    setPending(false);
+    router.refresh();
+  }
+
+  // Mark a player out WITH a replacement. Fires markInjury(reason:"out")
+  // then recordLeagueSwap (off=out, on=replacement) so the replacement
+  // physically takes the vacated field slot — mirrors the injury
+  // replacement flow but tagged reason:"out".
+  async function handleMarkOutReplacement(
+    outId: string,
+    replacementId: string,
+    zone: "forward" | "back",
+  ) {
+    void zone; // parity with the injury signature; RL swap infers zone
+    setMarkOutReplacement(null);
+    setPending(true);
+    const { flushed: injFlushed } = enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
+        player_id: outId,
+        injured: true,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+        reason: "out",
+      },
+    ]);
+    const { flushed: swapFlushed } = enqueueLiveAction("recordLeagueSwap", [
+      auth,
+      game.id,
+      {
+        off_player_id: outId,
+        on_player_id: replacementId,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+      },
+    ]);
+    await Promise.all([injFlushed, swapFlushed]).catch(() => {
+      // individual failures already handled by queue retry cap
+    });
+    setPending(false);
+    router.refresh();
+  }
+
+  // MARK INJURED at the break — plain injury flag (no forced
+  // replacement; the next-period rotation reshuffles around the
+  // sidelined player). Mirrors AFL/netball break "Mark injured" which
+  // fire markInjury directly rather than routing through the in-game
+  // replacement modal. Recorded WITHOUT reason:"out" so it reads as a
+  // genuine injury, not a take-out.
+  async function handleBreakInjured(playerId: string) {
+    setBreakInjuredPickerOpen(false);
+    setPending(true);
+    const { flushed } = enqueueLiveAction("markInjury", [
+      auth,
+      game.id,
+      {
+        player_id: playerId,
+        injured: true,
+        quarter: state.currentQuarter,
+        elapsed_ms: elapsedMs,
+      },
+    ]);
+    await flushed;
+    setPending(false);
+    router.refresh();
+  }
+
   async function handleToggleLoan(playerId: string, loaned: boolean) {
     setPending(true);
     const { flushed } = enqueueLiveAction("markLoan", [
@@ -1452,6 +1637,57 @@ export function LeagueLiveGame({
           >
             Ready for {periodLabel} {state.currentQuarter + 1}
           </SFButton>
+
+          {/* Manage availability (AVAIL-02 / B2) — mirrors AFL
+              QuarterBreak + netball NetballQuarterBreak:
+                • Add arrived player: a squad member who wasn't
+                  available pre-game turns up at the break. Reuses the
+                  canonical addLateArrival writer.
+                • Mark a player out: an on-field player has to leave.
+                  Forces a bench-replacement pick so the field doesn't
+                  go short; recorded with reason:"out" so display can
+                  tell an "out" from a genuine injury. */}
+          {isAdmin && (
+            <div className="mt-3 border-t border-brand-500/20 pt-3">
+              <p className="text-xs font-semibold text-ink">
+                Manage availability
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Add a player who turned up at the break, or take one out
+                of the game (a replacement comes on so the field stays
+                full).
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAddArrivedPickerOpen(true)}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Add arrived player
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMarkOutPickerOpen(true)}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Mark a player out
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBreakInjuredPickerOpen(true)}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Mark injured
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1841,6 +2077,89 @@ export function LeagueLiveGame({
           onClose={() => setActionSheetPlayerId(null)}
         />
       )}
+
+      {/* Break-time Add-arrived picker — opens from the
+          "+ Add arrived player" button on the break surface. Lists
+          squad members who weren't available pre-game (not placed in
+          the lineup). Tapping one fires addLateArrival. */}
+      {addArrivedPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Add arrived"
+          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next period can work them in."
+          emptyMessage="Everyone in the squad is already in the game."
+          candidates={arrivalCandidates}
+          onPick={(pid) => void handleAddArrivedAtBreak(pid)}
+          onCancel={() => setAddArrivedPickerOpen(false)}
+        />
+      )}
+
+      {/* Break-time Mark-out picker — opens from "+ Mark a player out".
+          Lists on-field players. Picking one forces a bench-replacement
+          pick (InjuryReplacementModal) so the field doesn't go short;
+          recorded with reason:"out". */}
+      {markOutPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark out"
+          subtitle="Pick the on-field player who has to leave. A bench player comes on so the field stays full."
+          emptyMessage="No on-field players to take out."
+          candidates={markOutCandidates}
+          onPick={handleMarkOutPick}
+          onCancel={() => setMarkOutPickerOpen(false)}
+        />
+      )}
+
+      {/* Break-time Mark-injured picker — opens from "+ Mark injured".
+          Lists healthy squad players (on field or bench). Fires a plain
+          markInjury flag (no forced replacement at the break; the
+          next-period rotation reshuffles around them). */}
+      {breakInjuredPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark injured"
+          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
+          emptyMessage="Everyone is already injured or lent."
+          candidates={squad
+            .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
+            .map((p) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+            }))}
+          onPick={(pid) => void handleBreakInjured(pid)}
+          onCancel={() => setBreakInjuredPickerOpen(false)}
+        />
+      )}
+
+      {/* Break-time Mark-out forced-replacement — reuses the shared
+          InjuryReplacementModal (DO NOT fork). Pick the bench player who
+          comes on; "without replacement" leaves the field short. Both
+          paths record the out player with reason:"out". */}
+      {markOutReplacement && (() => {
+        const outPlayer = squad.find(
+          (p) => p.id === markOutReplacement.outId,
+        );
+        if (!outPlayer) return null;
+        return (
+          <InjuryReplacementModal
+            injuredPlayer={outPlayer}
+            zone={markOutReplacement.zone}
+            candidates={markOutReplacementCandidates}
+            onPickReplacement={(rid) =>
+              void handleMarkOutReplacement(
+                markOutReplacement.outId,
+                rid,
+                markOutReplacement.zone,
+              )
+            }
+            onSkipReplacement={() =>
+              void handleMarkOutDirect(markOutReplacement.outId)
+            }
+            onCancel={() => setMarkOutReplacement(null)}
+          />
+        );
+      })()}
 
       {/* Injury replacement picker — shown when a field player is marked
           injured and there are swappable bench players. Mirrors AFL's
