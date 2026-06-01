@@ -552,6 +552,15 @@ export function suggestStartingLineup(
    * Missing keys default to "split".
    */
   chipModeByKey: Partial<Record<"a" | "b" | "c", ChipMode>> = {},
+  /**
+   * Effective full-period length in ms used by the season diversity
+   * threshold ("has this player logged >= one full period in this zone all
+   * season?"). Trailing optional param: the back-compat default (12 min)
+   * keeps the ~20 unit-test callers green; production callers pass the
+   * PER-GAME effective quarter ms (getEffectiveQuarterSeconds * 1000) so
+   * the threshold tracks this game's actual clock (D-03).
+   */
+  fullPeriodMs: number = 12 * 60 * 1000,
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
@@ -595,16 +604,16 @@ export function suggestStartingLineup(
   // (-800). A fresh zone with NO mates still wins clearly (+1000 vs -800).
   // Two mates (-4000) make the target essentially unreachable.
   const PARTNERSHIP_PENALTY = 2000;
-  // "Played this zone for ≥ a full quarter all season" threshold (in ms).
-  // 12 * 60 * 1000 matches QUARTER_MS in liveGameStore — kept local here so
-  // fairness.ts stays a leaf module with no store imports.
-  const FULL_QUARTER_MS = 12 * 60 * 1000;
 
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
     const inGameBonus = gameMins === 0 ? IN_GAME_DIVERSITY : 0;
-    const seasonBonus = seasonMins < FULL_QUARTER_MS ? SEASON_DIVERSITY : 0;
+    // "Played this zone for >= a full period all season" threshold. The
+    // effective per-game period length (fullPeriodMs) is passed by production
+    // callers so the season-diversity nudge tracks THIS game's clock; the
+    // back-compat default (12 min) keeps unit callers unchanged (D-02/D-03).
+    const seasonBonus = seasonMins < fullPeriodMs ? SEASON_DIVERSITY : 0;
     const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
     const fairnessTerm = Math.max(0, avgPerZone - seasonMins);
     return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
