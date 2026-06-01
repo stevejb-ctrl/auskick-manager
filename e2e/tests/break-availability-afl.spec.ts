@@ -150,12 +150,24 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
     await adjustments.click();
   }
 
+  // Freeze the lineup to "Keep last quarter" so the fairness suggester
+  // doesn't rotate the seeded field/bench out from under us — the
+  // mark-out flow needs `outPlayer` to still be on the field and
+  // `replacement` to still be on the bench when we pick them.
+  await page
+    .getByRole("button", { name: /keep last quarter/i })
+    .click();
+
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page
     .getByRole("button", { name: /add (an )?arrived player|add arrived/i })
     .click();
-  // A SlotFillSheet of not-yet-available squad members opens.
-  await page
+  // A SlotFillSheet of not-yet-available squad members opens. Scope the
+  // pick to the sheet dialog — the arrival's name can also appear in the
+  // background lineup grid otherwise.
+  const addArrivedSheet = page.getByRole("dialog", { name: /add arrived/i });
+  await expect(addArrivedSheet).toBeVisible({ timeout: 5_000 });
+  await addArrivedSheet
     .getByRole("button", { name: new RegExp(arrival.full_name, "i") })
     .click();
 
@@ -195,8 +207,11 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
   await page
     .getByRole("button", { name: /mark (a player|player) out|mark out/i })
     .click();
-  // Pick the on-field player to take out.
-  await page
+  // Pick the on-field player to take out — scope to the sheet dialog so
+  // the same name in the background lineup grid doesn't collide.
+  const markOutSheet = page.getByRole("dialog", { name: /mark out/i });
+  await expect(markOutSheet).toBeVisible({ timeout: 5_000 });
+  await markOutSheet
     .getByRole("button", { name: new RegExp(outPlayer.full_name, "i") })
     .click();
   // The InjuryReplacementModal opens — pick the bench replacement.
@@ -241,12 +256,21 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
   // The existing mark-injured affordance must still work at the break.
+  // The mark-out flow's router.refresh() re-collapses Game settings, so
+  // re-expand it before reaching for the Mark-injured trigger.
+  if ((await adjustments.getAttribute("aria-expanded")) !== "true") {
+    await adjustments.click();
+  }
   const injurePlayer = backIds[0]; // a back-zone on-field player
   await page
-    .getByRole("button", { name: /mark (a player|player)? ?injured|injure/i })
+    .getByRole("button", { name: /^mark injured$/i })
     .first()
     .click();
-  await page
+  // Scope the pick to the Mark-injured sheet dialog (the same name can
+  // appear in the background lineup grid).
+  const injuredSheet = page.getByRole("dialog", { name: /mark injured/i });
+  await expect(injuredSheet).toBeVisible({ timeout: 5_000 });
+  await injuredSheet
     .getByRole("button", {
       name: new RegExp(
         players.find((p) => p.id === injurePlayer)!.full_name,

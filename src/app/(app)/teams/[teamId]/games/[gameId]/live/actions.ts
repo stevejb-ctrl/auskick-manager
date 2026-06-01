@@ -718,6 +718,17 @@ export async function markInjury(
     injured: boolean;
     quarter: number;
     elapsed_ms: number;
+    /**
+     * Optional reason flag distinguishing WHY the player is sidelined.
+     * "out" = the coach marked them out for the rest of the game at a
+     * break (left early, parent pulled them, etc.) via the
+     * Manage-availability entry. Absent = a genuine injury. The flag is
+     * display-recoverable (jsonb metadata, no migration, fully
+     * backward-compatible) so the UI can show "Out" vs "Injured". The
+     * underlying mechanic — sideline + force a replacement pick — is
+     * identical (D-09).
+     */
+    reason?: string;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -731,6 +742,7 @@ export async function markInjury(
         injured: input.injured,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(input.reason ? { reason: input.reason } : {}),
       },
     },
     idempotencyKey,

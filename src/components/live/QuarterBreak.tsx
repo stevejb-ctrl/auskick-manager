@@ -8,6 +8,11 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
+import {
+  InjuryReplacementModal,
+  type InjuryReplacementCandidate,
+} from "@/components/live/InjuryReplacementModal";
+import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
   addRetroScore,
@@ -580,6 +585,114 @@ export function QuarterBreak({
     });
   }
 
+  // ─── Manage-availability handlers (AVAIL-02) ──────────────────
+  // Add a newly-arrived player into the game at the break. Reuses the
+  // canonical addLateArrival writer (same as LiveGame.handleLateArrival
+  // / LeagueLiveGame.handleAddLateArrival — DO NOT fork). The arrival
+  // joins the bench and the next-quarter rotation can work them in.
+  function handleAddArrived(playerId: string) {
+    setLoanError(null);
+    setAddArrivedPickerOpen(false);
+    // Land them on the staged bench immediately so the coach sees them
+    // before the refresh round-trips the player_arrived event.
+    setDraft((prev) =>
+      prev.bench.includes(playerId)
+        ? prev
+        : { ...prev, bench: [...prev.bench, playerId] },
+    );
+    startLoanTransition(async () => {
+      const { flushed } = enqueueLiveAction("addLateArrival", [
+        auth,
+        gameId,
+        { player_id: playerId, quarter: nextQuarter, elapsed_ms: 0 },
+      ]);
+      await flushed;
+      router.refresh();
+    });
+  }
+
+  // Coach tapped "Mark a player out" then picked an on-field player.
+  // Mark-out mirrors the injury flow (D-09): if the player is on the
+  // field and there's a bench player to swap in, open the replacement
+  // picker; otherwise fall straight through to the direct out write.
+  function handleMarkOutPick(playerId: string) {
+    setMarkOutPickerOpen(false);
+    const zone = slotOf(playerId, draft);
+    const hasReplacement = outReplacementCandidates.length > 0;
+    if (zone && zone !== "bench" && hasReplacement) {
+      setOutReplacement({ outId: playerId, zone: zone as Zone });
+      return;
+    }
+    // Direct path: no bench replacement available, or the player isn't
+    // in a field zone — just flag them out (still keeps earned time).
+    handleOutDirect(playerId);
+  }
+
+  // Mark a player out WITHOUT a replacement (skip / no bench). Records
+  // the out reason; the vacated zone is simply left a player short for
+  // the coach to fill manually.
+  function handleOutDirect(playerId: string) {
+    setOutReplacement(null);
+    setLoanError(null);
+    setInjured(playerId, true);
+    startLoanTransition(async () => {
+      const result = await markInjury(auth, gameId, {
+        player_id: playerId,
+        injured: true,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+        reason: "out",
+      });
+      if (!result.success) {
+        setInjured(playerId, false);
+        setLoanError(result.error);
+      }
+    });
+  }
+
+  // Coach picked the bench replacement in the InjuryReplacementModal.
+  // Fires the same two-step as the injury flow (mark out THEN swap) so
+  // the replacement lands at the vacated zone; the out player keeps the
+  // field time they already earned (D-09 — same mechanic as injury).
+  function handleOutReplacement(
+    outId: string,
+    replacementId: string,
+    zone: Zone,
+  ) {
+    setOutReplacement(null);
+    setLoanError(null);
+    setInjured(outId, true);
+    // Reflect the swap in the staged next-quarter draft so the coach
+    // sees the replacement take the spot before the refresh.
+    placeInZone(replacementId, zone);
+    enqueueLiveAction("markInjury", [
+      auth,
+      gameId,
+      {
+        player_id: outId,
+        injured: true,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+        reason: "out",
+      },
+    ]);
+    const { flushed } = enqueueLiveAction("recordSwap", [
+      auth,
+      gameId,
+      {
+        off_player_id: outId,
+        on_player_id: replacementId,
+        zone,
+        quarter: nextQuarter,
+        elapsed_ms: 0,
+      },
+    ]);
+    startLoanTransition(async () => {
+      await flushed;
+      router.refresh();
+    });
+  }
+
   // ─── Match-adjustments collapse state ─────────────────────────
   // Collapsed by default — most coaches won't change size or lend a
   // player in any given quarter, so we keep the screen quiet. When
@@ -606,6 +719,23 @@ export function QuarterBreak({
   // same SlotFillSheet shape. State is split so the two pickers
   // don't fight if a coach somehow opens both.
   const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
+  // ─── Manage-availability (AVAIL-02) break-surface state ───────
+  // Two NEW affordances next to Lend / Mark-injured (D-07/D-08):
+  //   • "Add arrived player" — a squad member who wasn't available
+  //     pre-game turns up at the break; addLateArrival writer.
+  //   • "Mark a player out" — an on-field player has to leave; mirrors
+  //     the injury flow (D-09): force a replacement pick from the bench
+  //     so the vacated zone doesn't go short. Recorded with a distinct
+  //     reason:"out" so display can tell "out" from a genuine injury.
+  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
+  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
+  // When set, the InjuryReplacementModal is shown for the mark-out
+  // forced-replacement pick. zone = the on-field zone the out player
+  // is vacating (so the replacement lands in the same spot).
+  const [outReplacement, setOutReplacement] = useState<{
+    outId: string;
+    zone: Zone;
+  } | null>(null);
   const lentPlayers = useMemo(
     () =>
       players
@@ -616,6 +746,58 @@ export function QuarterBreak({
     () => players.filter((p) => injuredSet.has(p.id)),
     [players, injuredSet],
   );
+
+  // ─── Manage-availability candidate lists (AVAIL-02) ───────────
+  // Add-arrived: squad members who are NOT already in the lineup
+  // (neither on a field zone nor on the bench) — i.e. they weren't
+  // marked available pre-game. Tapping one fires addLateArrival and
+  // lands them on the staged bench.
+  const arrivalCandidates = useMemo(() => {
+    const inLineup = new Set(availableForLineup.map((p) => p.id));
+    return players
+      .filter((p) => !inLineup.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        name: p.full_name,
+        jerseyNumber: p.jersey_number,
+      }));
+  }, [players, availableForLineup]);
+
+  // Mark-out: on-field players in the staged draft (every field zone,
+  // excluding the bench and anyone already sidelined). Picking one
+  // forces a bench-replacement pick so the vacated zone doesn't go
+  // short (mirrors the in-game injury flow, D-09).
+  const markOutCandidates = useMemo(() => {
+    const ids: string[] = [];
+    for (const z of ALL_ZONES) ids.push(...draft[z]);
+    return ids
+      .filter((id) => !sidelinedSet.has(id))
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p)
+      .map((p) => ({
+        id: p.id,
+        name: p.full_name,
+        jerseyNumber: p.jersey_number,
+      }));
+  }, [draft, sidelinedSet, playersById]);
+
+  // Bench replacements eligible to take the vacated spot, pre-sorted
+  // ascending by field time so the least-played kid is the suggested
+  // pick (mirrors LeagueLiveGame's InjuryReplacementModal feed).
+  const outReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(() => {
+    return draft.bench
+      .filter((id) => !sidelinedSet.has(id))
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p)
+      .map((p) => {
+        const zm = basePlayedZoneMs[p.id];
+        const totalMs = zm
+          ? ALL_ZONES.reduce((a, z) => a + (zm[z] ?? 0), 0)
+          : 0;
+        return { player: p, totalMs };
+      })
+      .sort((a, b) => a.totalMs - b.totalMs);
+  }, [draft.bench, sidelinedSet, playersById, basePlayedZoneMs]);
 
   // ─── Period recap (read from store) ───────────────────────────
   const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
@@ -1099,6 +1281,48 @@ export function QuarterBreak({
                 </button>
               </div>
             </div>
+
+            {/* Manage availability (AVAIL-02 / B2) — two new break-time
+                affordances mirroring Lend / Mark-injured:
+                  • Add arrived player: a squad member who wasn't
+                    available pre-game turns up at the break. Reuses the
+                    canonical addLateArrival writer (same as the in-game
+                    LateArrivalMenu) — the arrival lands on the bench and
+                    the next-quarter rotation works them in.
+                  • Mark a player out: an on-field player has to leave.
+                    Mirrors the injury flow — forces a bench-replacement
+                    pick so the vacated zone doesn't go short. Recorded
+                    with a distinct reason:"out" so display can tell an
+                    "out" from a genuine injury. */}
+            <div>
+              <p className="text-xs font-semibold text-ink">
+                Manage availability
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Add a player who turned up at the break, or take one out of
+                the game (a replacement comes on so the zone stays full).
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAddArrivedPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Add arrived player
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMarkOutPickerOpen(true)}
+                  disabled={loanPending}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                >
+                  <span aria-hidden>+</span>
+                  Mark a player out
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1155,6 +1379,64 @@ export function QuarterBreak({
           onCancel={() => setInjuredPickerOpen(false)}
         />
       )}
+
+      {/* Add-arrived picker — opens from "+ Add arrived player". Lists
+          squad members who weren't available pre-game (not in the
+          lineup). Tapping one fires addLateArrival and lands them on
+          the staged bench. */}
+      {addArrivedPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Add arrived"
+          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next quarter can work them in."
+          emptyMessage="Everyone in the squad is already in the game."
+          candidates={arrivalCandidates}
+          onPick={handleAddArrived}
+          onCancel={() => setAddArrivedPickerOpen(false)}
+        />
+      )}
+
+      {/* Mark-out picker — opens from "+ Mark a player out". Lists the
+          on-field players in the staged draft. Picking one forces a
+          bench-replacement pick (InjuryReplacementModal) so the vacated
+          zone doesn't go short; recorded with reason:"out". */}
+      {markOutPickerOpen && (
+        <SlotFillSheet
+          slotLabel="player"
+          titleVerb="Mark out"
+          subtitle="Pick the on-field player who has to leave. A bench player comes on so the zone stays full."
+          emptyMessage="No on-field players to take out."
+          candidates={markOutCandidates}
+          onPick={handleMarkOutPick}
+          onCancel={() => setMarkOutPickerOpen(false)}
+        />
+      )}
+
+      {/* Mark-out forced-replacement — reuses the shared
+          InjuryReplacementModal (DO NOT fork). Pick the bench player who
+          comes on at the vacated zone; "without replacement" leaves the
+          zone short. Both paths record the out player with reason:"out". */}
+      {outReplacement &&
+        (() => {
+          const outPlayer = playersById.get(outReplacement.outId);
+          if (!outPlayer) return null;
+          return (
+            <InjuryReplacementModal
+              injuredPlayer={outPlayer}
+              zone={outReplacement.zone}
+              candidates={outReplacementCandidates}
+              onPickReplacement={(replacementId) =>
+                handleOutReplacement(
+                  outReplacement.outId,
+                  replacementId,
+                  outReplacement.zone,
+                )
+              }
+              onSkipReplacement={() => handleOutDirect(outReplacement.outId)}
+              onCancel={() => setOutReplacement(null)}
+            />
+          );
+        })()}
 
       {/* Score panel — collapsed by default. Single-line score
           summary so the coach can reconcile with the opposition
