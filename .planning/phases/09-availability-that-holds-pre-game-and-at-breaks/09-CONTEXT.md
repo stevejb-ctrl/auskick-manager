@@ -67,17 +67,29 @@ Phase 10 carry-forward — not touched here.
   prompt, no warning** — silent auto-removal; the normal rotation
   fills the vacated spot. (User explicitly chose auto-remove over
   block-and-warn or rotation-only.)
-- **D-05:** **Fix chokepoint = reconcile `lineup ∩ availableIds`.**
-  Server-side inside `startGame` is the **single chokepoint covering
-  all three sports** (AFL / netball / league all call `startGame`):
-  strip lineup entries whose `player_id` is not currently available
-  (mirror the `availableIds` union logic already in `live/page.tsx`:
-  explicit `game_availability` rows + fill-ins + `player_arrived`
-  events) **before** writing the `lineup_set` event. The server
-  backstop is authoritative. **Plus** a client-side picker-hydration
+- **D-05:** **Fix = reconcile `lineup ∩ availableIds` server-side
+  before the `lineup_set` insert.** Strip lineup entries whose
+  `player_id` is not currently available — mirror the `availableIds`
+  union logic already in `live/page.tsx` (explicit `game_availability`
+  'available' rows + fill-ins + `player_arrived` events). The server
+  write is authoritative. **Plus** a client-side picker-hydration
   filter so the coach visibly sees the player drop off the field when
   the picker loads against current availability (UX), but correctness
   does not depend on the client.
+  **Pattern-mapping refinement (2026-06-01):** there is NOT a single
+  `startGame` chokepoint — there are **three per-sport start actions**,
+  each with its own `lineup_set` insert: `startGame`
+  (`live/actions.ts:131`, AFL), `startNetballGame`
+  (`live/netball-actions.ts:114`), `startLeagueGame`
+  (`live/league-actions.ts:150`). The reconciliation MUST land in all
+  three, immediately before each `lineup_set` insert. Extract a shared
+  `reconcileLineupToAvailability(lineup, availableIds)` helper so the
+  union semantics cannot drift between sports (reuse-before-fork). For
+  league, run reconciliation **before** the vest pre-flight in
+  `startLeagueGame` (~`:208-252`) so vest validation sees the
+  post-reconcile field. The client-side filter likewise applies to all
+  three sport picker branches in `live/page.tsx` (AFL ~`:768-770`,
+  netball ~`:442-451`, league ~`:211-221`).
 - **D-06:** **Primary test/repro path = in-app signed-in Availability
   page.** The run-token mount (`run/[token]/page.tsx`) uses the same
   `setAvailability` writer and the same `startGame`, so the
@@ -91,11 +103,25 @@ Phase 10 carry-forward — not touched here.
   out** (unavailable), and **mark a player injured** (the existing
   `markInjury` affordance stays).
 - **D-08:** **Placement = a single "Manage availability" entry** on
-  the break surface that opens the **same availability list/sheet used
-  pre-game** (reuse `AvailabilityList` → `setAvailability` /
-  `addLateArrival`). One consistent surface, minimal new UI, trivially
-  identical across sports. NOT inline per-player controls; NOT the
-  in-game `LateArrivalMenu`.
+  the break surface that opens the **same availability control used
+  pre-game** (`setAvailability` / `addLateArrival`). One consistent
+  surface, minimal new UI, trivially identical across sports. NOT
+  inline per-player controls; NOT the in-game `LateArrivalMenu`.
+  **Pattern-mapping refinement (2026-06-01):** `AvailabilityList`
+  (`src/components/games/AvailabilityList.tsx`) is an **async Server
+  Component** (imports `@/lib/supabase/server` + `createAdminClient`) —
+  it **cannot be mounted inline** inside the `"use client"` break
+  surfaces. The planner must pick a concrete mechanism and document it.
+  **Preferred direction:** keep the coach on the break surface — render
+  the availability control **in place** (e.g. extract a client-friendly
+  availability sheet that reuses the existing `AvailabilityRow` client
+  component + the same `setAvailability`/`addLateArrival` actions, or
+  reuse an existing client-side player-picker sheet). **Fallback:**
+  navigate to the `/availability` screen (requires relaxing the
+  mid-game redirect guard at `availability/page.tsx:74-76`), accepted
+  only if in-place reuse is impractical. Either way the writers
+  (`setAvailability` / `addLateArrival`) and `AvailabilityRow` are
+  reused — do not fork a new availability writer or row UI.
 - **D-09:** **Mark-out semantics = "out + force a replacement now."**
   Marking a present player out **mirrors the injury flow** — reuse
   `InjuryReplacementModal` to prompt the coach to pick who takes the
