@@ -865,8 +865,24 @@ export function suggestSwaps(
    *  to zones they haven't played yet, promoting position diversity mid-game. */
   currentGameZoneMs: Record<string, ZoneMinutes> = {},
   /** Zone-locked players: can sub on/off but must always return to this zone. */
-  zoneLockedPlayers: Record<string, Zone> = {}
+  zoneLockedPlayers: Record<string, Zone> = {},
+  /**
+   * SUB-01/B4 recency guard (plan 10-02). Per-player absolute game-elapsed ms
+   * at which they MOST RECENTLY went bench->field (persists across periods).
+   * Used with `elapsedMs` + `minStintMs` to deprioritise pulling a player who
+   * just came on. Trailing-optional with inert defaults so legacy callers are
+   * unchanged. Wired up in Task 2 — currently inert.
+   */
+  lastSubbedOnMs: Record<string, number> = {},
+  /** Current absolute game-elapsed ms (for the recency comparison). */
+  elapsedMs: number = 0,
+  /** One rotation window in ms (subIntervalSeconds*1000). <=0 disables the guard. */
+  minStintMs: number = 0
 ): SwapSuggestion[] {
+  // TODO(10-02 Task 2): consume these to partition off-candidates by recency.
+  void lastSubbedOnMs;
+  void elapsedMs;
+  void minStintMs;
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
   const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));

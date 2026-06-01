@@ -409,6 +409,19 @@ export interface NetballSuggestInput {
    */
   chipByPlayerId?: Record<string, "a" | "b" | "c" | null | undefined>;
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /**
+   * SUB-01/B4 recency guard (plan 10-02). Per-player absolute game-elapsed ms
+   * at which they MOST RECENTLY went bench->field (i.e. came on at a break).
+   * Combined with `elapsedMs` + `minStintMs` to soft-deprioritise benching a
+   * player who only just came on — among players otherwise TIED on game time,
+   * prefer to bench the longer-serving (non-recent) one. Optional; when omitted
+   * (legacy callers) recency contributes nothing. Wired up in Task 3.
+   */
+  lastSubbedOnMs?: Record<string, number>;
+  /** Current absolute game-elapsed ms (for the recency comparison). */
+  elapsedMs?: number;
+  /** One rotation window in ms (subIntervalSeconds*1000). <=0 disables the guard. */
+  minStintMs?: number;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per
