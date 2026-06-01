@@ -328,7 +328,10 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. A player subbed on late in one period is not suggested off again early in the next period — the suggester accounts for time-since-last-sub, derived from existing stint/swap events (no schema migration), across all sports
   3. The recency signal is derived at replay time from existing events and shared with the F3 last-sub derivation (no per-player last-sub timestamp added to the DB)
   4. Regression tests (written red-first) cover the interval derivation pure function (clean-divisor and near-even-fallback cases) and the recency guard preventing the early-re-sub case
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 10-01-PLAN.md — SUB-02/F4: pure `deriveSubIntervalSeconds(period, floor)` (smallest clean divisor ≥ floor + near-even fallback) wired into all three sport configs, replacing the fixed constant + WR-01 season-diversity unit fix (carry-forward), red-first
+  - [ ] 10-02-PLAN.md — SUB-01/B4: replay-derived cross-period `lastSubbedOnMs` (shared with F3) + soft recency guard in all three suggesters (AFL `suggestSwaps` reference, league `suggestLeagueSubs`, netball `suggestNetballLineup`), red-first
+**UI hint**: no (suggester ranking + config refactor; verified by unit tests + existing live/game-plan specs)
 
 ### Phase 11: Plan the rotation ahead of the break
 **Goal**: A coach can get ahead of the rotation instead of only reacting — review/override the upcoming sub before it falls due, and build the next period's lineup during the dying minutes of the current one
@@ -374,7 +377,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 |-------|----------------|--------|-----------|
 | 8. Sport-agnostic period foundation | 4/4 | ✓ Complete | 2026-06-01 |
 | 9. Availability that holds — pre-game & at breaks | 2/2 | ✓ Complete | 2026-06-01 |
-| 10. Substitution timing that's fair | 0/TBD | Not started | - |
+| 10. Substitution timing that's fair | 0/2 | Planned (2 plans, ready to execute) | - |
 | 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |
 | 12. Long-press player insight | 0/TBD | Not started | - |
 | 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
