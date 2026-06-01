@@ -266,7 +266,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
 
 ### Phases (v1.1)
 
-- [ ] **Phase 8: Sport-agnostic period foundation** - Remove the last AFL-hardcoded live-game period literals onto `periodCount`/`periodSeconds` and add per-age-group `subIntervalFloorSeconds` (~240s default)
+- [x] **Phase 8: Sport-agnostic period foundation** - Remove the last AFL-hardcoded live-game period literals onto `periodCount`/`periodSeconds` and add per-age-group `subIntervalFloorSeconds` (~240s default) — COMPLETE 2026-06-01
 - [ ] **Phase 9: Availability that holds — pre-game & at breaks** - Picker availability edits persist to kickoff (B1); coaches can add/mark-out/mark-injured at any period break (B2)
 - [ ] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4)
 - [ ] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2)
@@ -287,14 +287,14 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
 **Plans**: 4 plans
 
 **Wave 1** *(parallel — independent foundation pieces, no file overlap)*:
-- [ ] 08-01-PLAN.md — Extract the pure `periodPhase()` helper (`src/lib/live/periodPhase.ts`) + unit-test it at periodCount=4 AND periodCount=2 (D-07, D-08)
-- [ ] 08-02-PLAN.md — Add required `subIntervalFloorSeconds: number` to the sports-config `AgeGroupConfig` + set explicit 240 on every AFL/netball/rugby_league entry + sports.test.ts assertion (D-05, D-06, D-09)
+- [x] 08-01-PLAN.md — Extract the pure `periodPhase()` helper (`src/lib/live/periodPhase.ts`) + unit-test it at periodCount=4 AND periodCount=2 (D-07, D-08) ✓ 2026-06-01
+- [x] 08-02-PLAN.md — Add required `subIntervalFloorSeconds: number` to the sports-config `AgeGroupConfig` + set explicit 240 on every AFL/netball/rugby_league entry + sports.test.ts assertion (D-05, D-06, D-09) ✓ 2026-06-01
 
 **Wave 2** *(blocked on 08-01 — consumes the helper)*:
-- [ ] 08-03-PLAN.md — Thread `ageGroup` into `LiveGame.tsx` + drive LiveGame/NetballLiveGame booleans and both live/page.tsx sticky bars off `periodCount` via `periodPhase()`; no hardcoded 4 survives (D-01, D-07)
+- [x] 08-03-PLAN.md — Thread `ageGroup` into `LiveGame.tsx` + drive LiveGame/NetballLiveGame booleans and both live/page.tsx sticky bars off `periodCount` via `periodPhase()`; no hardcoded 4 survives (D-01, D-07) ✓ 2026-06-01
 
 **Wave 3** *(blocked on 08-03 — shares live/page.tsx)*:
-- [ ] 08-04-PLAN.md — Replace `FULL_QUARTER_MS` with a trailing optional `fullPeriodMs` param feeding per-game effective ms from the 3 production callers + the 2-period rugby-league boundary e2e (D-02, D-03, D-04, D-10)
+- [x] 08-04-PLAN.md — Replace `FULL_QUARTER_MS` with a trailing optional `fullPeriodMs` param feeding per-game effective ms from the 3 production callers + the 2-period rugby-league boundary e2e (D-02, D-03, D-04, D-10) ✓ 2026-06-01
 
 **Cross-cutting constraints** *(must hold across all plans)*:
 - All four DoD gates (`npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run e2e`) green before each commit (D-11)
@@ -370,7 +370,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Sport-agnostic period foundation | 0/4 | Planned (4 plans, 3 waves) | - |
+| 8. Sport-agnostic period foundation | 4/4 | ✓ Complete | 2026-06-01 |
 | 9. Availability that holds — pre-game & at breaks | 0/TBD | Not started | - |
 | 10. Substitution timing that's fair | 0/TBD | Not started | - |
 | 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |

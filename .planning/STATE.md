@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Match Day Changes
-status: planned
-stopped_at: Phase 8 planned (2026-06-01) — 4 plans (08-01..08-04) across 3 waves written, plan-checked, and revised. PATTERNS.md mapped. Plan-checker found 0 blockers + 3 warnings; all 3 closed in revision (QuarterEndModal.tsx:55 `quarter >= 4` de-hardcode folded into 08-03; legacy share-token wiring + gameMinutes `* 4` decision documented in 08-04). Requirements (CONFIG-01/02) and decisions (D-01..D-11) fully covered. Next: /gsd-execute-phase 8 (recommend /clear first). Wave 1 = 08-01 + 08-02 (parallel); Wave 2 = 08-03; Wave 3 = 08-04.
+status: in_progress
+stopped_at: Phase 8 complete (2026-06-01) — all 4 plans (08-01..08-04) executed across 3 waves and committed to main. periodPhase() helper extracted + unit-tested at periodCount 4 AND 2; subIntervalFloorSeconds=240 on all 14 age groups; AFL/netball live surfaces + QuarterEndModal drive last-period/full-time off periodCount via the helper; fairness FULL_QUARTER_MS replaced by trailing optional fullPeriodMs fed per-game effective ms; RL periodCount=2 boundary e2e added. Gates: tsc=0, lint=0, Vitest 781 passed, period-boundary e2e 9/9. Verifier PASSED 4/4 must-haves; code-review 0 Critical / 1 Warning (WR-01, pre-existing) / 3 Info; security gate N/A (no threat model — pure refactor, no new attack surface). Next: /gsd-plan-phase 9 (Availability that holds).
 last_updated: "2026-06-01T00:00:00Z"
 last_activity: 2026-06-01
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 4
+  percent: 17
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Phase 8 — Sport-agnostic period foundation (planned; ready to execute)
-Plan: 4 plans (08-01..08-04) across 3 waves
-Status: Phase 8 planned & plan-checked (0 blockers; 3 warnings resolved); ready for /gsd-execute-phase 8
-Last activity: 2026-06-01 — Phase 8 planning complete (08-01..08-04 PLAN.md + 08-PATTERNS.md written, checked, revised)
+Phase: Phase 8 — Sport-agnostic period foundation (✓ complete 2026-06-01)
+Plan: 4/4 plans (08-01..08-04) executed across 3 waves, committed to main
+Status: Phase 8 complete — verifier PASSED 4/4, code-review clean (1 pre-existing Warning logged forward), all DoD gates green. Ready for /gsd-plan-phase 9.
+Last activity: 2026-06-01 — Phase 8 execution complete (periodPhase helper, subIntervalFloorSeconds, sport-agnostic live surfaces, fullPeriodMs, RL boundary e2e)
 
-Progress: [░░░░░░░░░░] 0% (0/6 v1.1 phases)
+Progress: [██░░░░░░░░] 17% (1/6 v1.1 phases)
 
 ## Accumulated Context
 
@@ -48,7 +48,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None.
+- **WR-01 (carry to Phase 10 / SUB-02):** `fairness.ts:616` compares `fullPeriodMs` (milliseconds) against a season total produced in MINUTES by `gameZoneMinutes` (ms/60000) → the season-diversity nudge is effectively always-on in production and D-03's per-game threshold is a no-op there. This is a PRE-EXISTING unit mismatch (the deleted `FULL_QUARTER_MS` had the same bug), NOT a Phase 8 regression. Reconcile in the SUB-02 fairness follow-up (Phase 10) with a failing-first regression test. Also rename the misleading `seasonMins` local. (Source: 08 REVIEW.md WR-01 + Info findings.)
 
 ### Blockers/Concerns
 
@@ -64,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-01
-Stopped at: Phase 8 planning complete — 4 plans written, plan-checked, revised, and committed under `.planning/phases/08-sport-agnostic-period-foundation/`. Plans: **08-01** extract pure `periodPhase()` helper (`src/lib/live/periodPhase.ts`) + unit-test periodCount 4 AND 2 [D-07/D-08]; **08-02** required `subIntervalFloorSeconds: number = 240` on every age group across all 3 sports + sports.test assertion [D-05/D-06/D-09]; **08-03** thread `ageGroup` into LiveGame.tsx + drive LiveGame/NetballLiveGame/page.tsx sticky-bar/QuarterEndModal booleans off `periodCount` via the helper [D-01/D-07] (QuarterEndModal `quarter >= 4` de-hardcode added in revision); **08-04** replace `FULL_QUARTER_MS` with trailing optional `fullPeriodMs` fed per-game effective ms from 3 production callers + 2-period rugby-league boundary e2e [D-02/D-03/D-04/D-10]. Waves: 1 = 08-01+08-02 (parallel), 2 = 08-03, 3 = 08-04. Plan-checker: 0 blockers, 3 warnings (all resolved in revision). Next: `/gsd-execute-phase 8` (recommend `/clear` first).
-Resume file: .planning/phases/08-sport-agnostic-period-foundation/08-01-PLAN.md
+Stopped at: Phase 8 EXECUTED & CLOSED — all 4 plans complete and committed to main. **08-01** (periodPhase helper + unit tests at periodCount 4/2); **08-02** (`subIntervalFloorSeconds: number = 240` on all 14 age groups + sports.test assertion); **08-03** (AFL `LiveGame.tsx` + `NetballLiveGame.tsx` + `live/page.tsx` sticky bars + `QuarterEndModal.tsx` drive last-period/full-time off `periodCount` via the helper — 1d6acd2); **08-04** (`FULL_QUARTER_MS` → trailing optional `fullPeriodMs` fed per-game effective ms from 3 production callers + RL periodCount=2 boundary e2e — c22da08/196c295/2e0c574). Closure gates: `npx tsc --noEmit`=0, `npm run lint`=0, Vitest 43 files/781 tests passed, period-boundary e2e 9/9 (a broad full-suite flake run was investigated and proven cold-start/parallel-load environmental, NOT a Phase 8 regression — PositionToken untouched, only 3 quarterEnded-gated netball lines changed, warm-stack HEAD 13/14, :745 4/4 isolated). gsd-verifier PASSED 4/4 must-haves (VERIFICATION.md); gsd-code-reviewer 0 Critical / 1 Warning / 3 Info (REVIEW.md) — WR-01 is pre-existing, logged forward to Phase 10. Security gate N/A (no threat model in any PLAN.md; pure refactor, no new attack surface). Next: `/gsd-plan-phase 9` (Availability that holds — pre-game & at breaks).
+Resume file: .planning/ROADMAP.md (Phase 9 details)
