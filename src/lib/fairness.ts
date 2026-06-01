@@ -605,15 +605,24 @@ export function suggestStartingLineup(
   // Two mates (-4000) make the target essentially unreachable.
   const PARTNERSHIP_PENALTY = 2000;
 
+  // WR-01: the season map is in MINUTES (gameZoneMinutes divides ms by
+  // 60000), but `fullPeriodMs` is in MILLISECONDS. Comparing the two
+  // directly meant the threshold was ~720000, so EVERY realistic season
+  // total fell below it and the season-diversity bonus fired for every
+  // zone unconditionally — never distinguishing an over-played zone from
+  // an under-played one. Convert the period to minutes so the comparison
+  // is minutes-to-minutes ("played this zone for >= a full period all
+  // season").
+  const fullPeriodMins = fullPeriodMs / 60000;
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
     const inGameBonus = gameMins === 0 ? IN_GAME_DIVERSITY : 0;
-    // "Played this zone for >= a full period all season" threshold. The
-    // effective per-game period length (fullPeriodMs) is passed by production
-    // callers so the season-diversity nudge tracks THIS game's clock; the
-    // back-compat default (12 min) keeps unit callers unchanged (D-02/D-03).
-    const seasonBonus = seasonMins < fullPeriodMs ? SEASON_DIVERSITY : 0;
+    // The effective per-game period length (fullPeriodMs) is passed by
+    // production callers so the season-diversity nudge tracks THIS game's
+    // clock; the back-compat default (12 min) keeps unit callers unchanged
+    // (D-02/D-03).
+    const seasonBonus = seasonMins < fullPeriodMins ? SEASON_DIVERSITY : 0;
     const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
     const fairnessTerm = Math.max(0, avgPerZone - seasonMins);
     return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
