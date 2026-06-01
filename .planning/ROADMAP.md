@@ -268,7 +268,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
 
 - [x] **Phase 8: Sport-agnostic period foundation** - Remove the last AFL-hardcoded live-game period literals onto `periodCount`/`periodSeconds` and add per-age-group `subIntervalFloorSeconds` (~240s default) — COMPLETE 2026-06-01
 - [x] **Phase 9: Availability that holds — pre-game & at breaks** - Picker availability edits persist to kickoff (B1); coaches can add/mark-out/mark-injured at any period break (B2) — COMPLETE 2026-06-01
-- [ ] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4)
+- [x] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4) — COMPLETE 2026-06-02
 - [ ] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2)
 - [ ] **Phase 12: Long-press player insight** - Long-press shows in-game per-zone time, last-sub, per-period breakdown, plus season per-zone percentages (F3)
 - [ ] **Phase 13: Hype song survives iOS backgrounding** - Re-arm the audio element/context after iOS suspension so goals in later periods still trigger the song (B3)
@@ -329,8 +329,8 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   3. The recency signal is derived at replay time from existing events and shared with the F3 last-sub derivation (no per-player last-sub timestamp added to the DB)
   4. Regression tests (written red-first) cover the interval derivation pure function (clean-divisor and near-even-fallback cases) and the recency guard preventing the early-re-sub case
 **Plans**: 2 plans
-  - [ ] 10-01-PLAN.md — SUB-02/F4: pure `deriveSubIntervalSeconds(period, floor)` (smallest clean divisor ≥ floor + near-even fallback) wired into all three sport configs, replacing the fixed constant + WR-01 season-diversity unit fix (carry-forward), red-first
-  - [ ] 10-02-PLAN.md — SUB-01/B4: replay-derived cross-period `lastSubbedOnMs` (shared with F3) + soft recency guard in all three suggesters (AFL `suggestSwaps` reference, league `suggestLeagueSubs`, netball `suggestNetballLineup`), red-first
+  - [x] 10-01-PLAN.md — SUB-02/F4: pure `deriveSubIntervalSeconds(period, floor)` (smallest clean divisor ≥ floor + near-even fallback) wired into all three sport configs, replacing the fixed constant + WR-01 season-diversity unit fix (carry-forward), red-first ✓ 2026-06-02
+  - [x] 10-02-PLAN.md — SUB-01/B4: replay-derived cross-period `lastSubbedOnMs` (shared with F3) + soft recency guard in all three suggesters (AFL `suggestSwaps` reference, league `suggestLeagueSubs`, netball `suggestNetballLineup`), red-first ✓ 2026-06-02
 **UI hint**: no (suggester ranking + config refactor; verified by unit tests + existing live/game-plan specs)
 
 ### Phase 11: Plan the rotation ahead of the break
@@ -377,7 +377,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 |-------|----------------|--------|-----------|
 | 8. Sport-agnostic period foundation | 4/4 | ✓ Complete | 2026-06-01 |
 | 9. Availability that holds — pre-game & at breaks | 2/2 | ✓ Complete | 2026-06-01 |
-| 10. Substitution timing that's fair | 0/2 | Planned (2 plans, ready to execute) | - |
+| 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
 | 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |
 | 12. Long-press player insight | 0/TBD | Not started | - |
 | 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
