@@ -262,6 +262,18 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     page.getByRole("button", { name: /^start\s*[qh]\s*2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
+  // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
+  // 1 < 2, so the shared period-boundary booleans (made sport-agnostic
+  // in plan 08-03 — `isBetweenPeriods` keys off ageGroup.periodCount, not
+  // a hardcoded 4) must put us BETWEEN PERIODS, i.e. the "Ready for half
+  // 2" break surface above — and must NOT show the FULL-TIME review. This
+  // is the assertion that proves a halves sport doesn't fall into the
+  // full-time branch one period early: the "Finalise game" CTA (the
+  // full-time/review surface) must be absent at the H1 boundary.
+  await expect(
+    page.getByRole("button", { name: /finalise game/i }),
+  ).toBeHidden();
+
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await page
     .getByRole("button", { name: /^start\s*[qh]\s*2$/i })
