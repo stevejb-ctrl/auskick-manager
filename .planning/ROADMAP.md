@@ -343,7 +343,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   3. F1 and F2 share one "edit an upcoming rotation" surface (reuse-before-fork) seeded from current game state via the existing sport-agnostic Game Plan projector — no forked per-sport modal
   4. The plan-ahead controls are reachable and tappable one-handed on the live-game surface, and an e2e spec exercises override-then-honour and build-next-period through the UI
 **Plans**: 2 plans (Wave 1 → Wave 2)
-  - [ ] 11-01-PLAN.md — ROTPLAN-01/F1 + shared foundation: pure `projectUpcomingRotation` adapter (seeds the Game Plan projector from live state) + extend `GamePlanModal` (seed + `onPin`, not a fork) + `plannedRotation` live-store slice (partialize, gameId-keyed, no migration/event) + AFL imminent-sub override-then-honour (advisory, stale-pin guard), red-first unit + e2e override-then-honour [wave 1]
+  - [x] 11-01-PLAN.md — ROTPLAN-01/F1 + shared foundation: pure `projectUpcomingRotation` adapter (seeds the Game Plan projector from live state) + extend `GamePlanModal` (seed + `onPin`, not a fork) + `plannedRotation` live-store slice (partialize, gameId-keyed, no migration/event) + AFL imminent-sub override-then-honour (advisory, stale-pin guard `resolveHonouredSwaps`/`diffPlanToSwaps`), red-first unit + e2e override-then-honour ✓ 2026-06-02 [wave 1]
   - [ ] 11-02-PLAN.md — ROTPLAN-02/F2: final-minutes "plan next period" entry reusing the Wave-1 surface + each sport's break opens PRE-SEEDED from the pinned next-period lineup (AFL `QuarterBreak`, netball `NetballQuarterBreak`, league `LeagueLiveGame`), stale-plan reconcile, red-first cross-sport unit + e2e build-next-period [wave 2, depends 11-01]
 **UI hint**: yes (plan-ahead entry points on the live surface + the shared GamePlanModal extension; verified by e2e override-then-honour + build-next-period)
 
@@ -380,6 +380,6 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 | 8. Sport-agnostic period foundation | 4/4 | ✓ Complete | 2026-06-01 |
 | 9. Availability that holds — pre-game & at breaks | 2/2 | ✓ Complete | 2026-06-01 |
 | 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
-| 11. Plan the rotation ahead of the break | 0/TBD | Not started | - |
+| 11. Plan the rotation ahead of the break | 1/2 | In progress (11-01 ✓; 11-02 next) | - |
 | 12. Long-press player insight | 0/TBD | Not started | - |
 | 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
