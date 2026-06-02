@@ -30,6 +30,11 @@
 
 import { useEffect, useRef } from "react";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
+import {
+  reduceSongArm,
+  type SongArmEvent,
+  type SongArmState,
+} from "@/lib/live/hypeSongController";
 
 interface YTPlayer {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
@@ -67,6 +72,17 @@ export function useHypeSong({
   const ytReadyRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // AUDIO-01 / B3: track whether the audio session is armed. iOS suspends the
+  // session on backgrounding / period transitions; without re-arming, the song
+  // plays in Q1 then goes silent. The pure `reduceSongArm` controller decides
+  // what to do; this ref holds the state across renders.
+  const armStateRef = useRef<SongArmState>("idle");
+  function dispatchArm(event: SongArmEvent) {
+    const result = reduceSongArm(armStateRef.current, event);
+    armStateRef.current = result.state;
+    return result.action;
+  }
+
   useEffect(() => {
     if (!hydrated || !songUrl || !isYouTubeUrl(songUrl)) return;
     const videoId = youtubeVideoId(songUrl);
@@ -87,6 +103,7 @@ export function useHypeSong({
         events: {
           onReady: () => {
             ytReadyRef.current = true;
+            dispatchArm("ready");
           },
         },
       });
@@ -114,8 +131,37 @@ export function useHypeSong({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songUrl, gameId, hydrated]);
 
+  // AUDIO-01 / B3: the missing re-arm trigger. iOS suspends the audio session
+  // when the page is backgrounded (and around period transitions); the song
+  // effect above only tears down on gameId/songUrl/hydrated change, so nothing
+  // re-arms the suspended element/context. Mirror the sub-due beep, which
+  // already re-attempts `ctx.resume()` when the context drifts back to
+  // suspended (LiveGame.tsx). On the way back to the foreground we re-arm
+  // eagerly — but never auto-play. For the direct-audio fallback, re-arming =
+  // dropping the suspended element so the next play builds a fresh one inside
+  // the gesture. The YT iframe can't be silently re-armed, so it's woken at
+  // the next goal (rearm-then-play in playSong) rather than here.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    function onVisibility() {
+      const event: SongArmEvent = document.hidden ? "hidden" : "visible";
+      const action = dispatchArm(event);
+      if (action === "rearm" && songUrl && !isYouTubeUrl(songUrl)) {
+        songAudioRef.current = null;
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songUrl]);
+
   function playSong() {
     if (!songUrl) return;
+    // Decide whether to play as-is or re-arm first (the session may have been
+    // suspended since the last goal). A `play` while suspended returns
+    // `rearm-then-play` rather than no-op'ing — this is the post-Q1-on-iOS fix.
+    const action = dispatchArm("play");
+    const needsRearm = action === "rearm-then-play";
     try {
       if (songTimerRef.current !== null) {
         clearTimeout(songTimerRef.current);
@@ -123,24 +169,50 @@ export function useHypeSong({
       }
       if (isYouTubeUrl(songUrl)) {
         if (!ytReadyRef.current || !ytPlayerRef.current) return;
+        // seekTo + playVideo also wakes a suspended iframe, so the re-arm for
+        // YT is the play itself. There is no play() promise here, so treat a
+        // successful call as success and rely on `visibilitychange` to flag a
+        // later suspension.
         ytPlayerRef.current.seekTo(songStartSeconds, true);
         ytPlayerRef.current.playVideo();
+        dispatchArm("playSucceeded");
         songTimerRef.current = setTimeout(() => {
           ytPlayerRef.current?.pauseVideo();
           songTimerRef.current = null;
         }, songDurationSeconds * 1000);
       } else {
+        // Direct-audio fallback. On re-arm, drop the (suspended) element so the
+        // next line builds a fresh one inside this gesture.
+        if (needsRearm) songAudioRef.current = null;
         const audio = songAudioRef.current ?? new Audio(songUrl);
         songAudioRef.current = audio;
         audio.currentTime = songStartSeconds;
-        audio.play().catch(() => {});
+        audio
+          .play()
+          .then(() => dispatchArm("playSucceeded"))
+          .catch((err) => {
+            // Surface (no longer swallow): a rejected play means the audio
+            // session is suspended — flag it so the next goal re-arms.
+            dispatchArm("playFailed");
+            if (process.env.NODE_ENV !== "production") {
+              console.warn(
+                "[useHypeSong] play rejected (audio session likely suspended) — will re-arm on the next goal",
+                err,
+              );
+            }
+          });
         songTimerRef.current = setTimeout(() => {
           audio.pause();
           songTimerRef.current = null;
         }, songDurationSeconds * 1000);
       }
-    } catch {
-      // ignore any audio API errors
+    } catch (err) {
+      // Surface synchronous audio-API errors instead of swallowing them, and
+      // flag the session for re-arming on the next goal.
+      dispatchArm("playFailed");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[useHypeSong] playSong threw — flagging for re-arm", err);
+      }
     }
   }
 
