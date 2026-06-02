@@ -11,7 +11,7 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
-import { SFButton } from "@/components/sf";
+import { SFButton, SFIcon } from "@/components/sf";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
@@ -58,6 +58,13 @@ const ManualEndQuarterConfirm = dynamic(
     ),
   { ssr: false },
 );
+// F2 plan-ahead planner (ROTPLAN-02): the SAME shared GamePlanModal AFL
+// uses, opened on the NEXT period's tab during the final rotation
+// window so the coach can build the upcoming lineup before the break.
+const GamePlanModal = dynamic(
+  () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
+  { ssr: false },
+);
 import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -78,6 +85,8 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { projectUpcomingRotation } from "@/lib/game-plan";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -386,6 +395,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the auto-end-at-hooter trigger below.
   const quarterLengthMs = quarterLengthSeconds * 1000;
   const remainingMs = Math.max(0, quarterLengthMs - clockMs);
+
+  // ─── F2 plan-ahead (ROTPLAN-02) ──────────────────────────────
+  // The coach can build the NEXT period's lineup during the final
+  // rotation window of the current one, pinning it into the SAME shared
+  // `plannedRotation` slice AFL uses; the upcoming break opens
+  // pre-seeded from it (NetballQuarterBreak reads the pin directly).
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
+  const [planNextOpen, setPlanNextOpen] = useState(false);
+  // Available squad for the planner — same filter the pre-game
+  // GamePlanButton uses (squad ∩ availableIds), in display order.
+  const gamePlanPlayers = useMemo(
+    () => squad.filter((p) => availableIds.includes(p.id)),
+    [squad, availableIds],
+  );
+  // Final-rotation window, in GAME time. Netball's clockMs already has
+  // the demo multiplier applied, so we compare against a game-time sub
+  // interval (NOT divided by the multiplier like AFL's wall-clock
+  // frame). Once less than one sub interval remains the coach can plan
+  // ahead; hidden on the last period (no next period to plan).
+  const planSubIntervalMs = (ageGroup.subIntervalSeconds ?? 240) * 1000;
+  const inFinalWindow =
+    quarterLengthMs > 0 && clockMs >= quarterLengthMs - planSubIntervalMs;
+  const isLastPeriod = currentQuarter >= ageGroup.periodCount;
+  const pinForThisGame =
+    plannedRotation && plannedRotation.gameId === game.id
+      ? plannedRotation
+      : null;
+  const hasPinnedNextPeriod =
+    pinForThisGame != null &&
+    pinForThisGame.nextPeriodIndex === currentQuarter &&
+    pinForThisGame.nextPeriodGroups != null;
 
   // ─── Pulse triggers ─────────────────────────────────────────
   // The Siren brand pulse fires at moments that ARE a siren going
@@ -1945,6 +1987,119 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         playerGoals={effectivePlayerGoals}
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
       />
+
+      {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
+          rotation window of the period (inFinalWindow, derived from the
+          live game clock) and not on the last period, the coach can
+          open the SAME shared planner on the NEXT period's tab and
+          build its lineup so the break opens pre-seeded. A "Next period
+          ready" badge + Clear appears once pinned. Mirrors AFL. */}
+      {inFinalWindow && !isLastPeriod && (
+        <div className="flex items-center justify-between gap-2 px-1">
+          <SFButton
+            variant="ghost"
+            size="sm"
+            data-testid="plan-next-period-entry"
+            onClick={() => setPlanNextOpen(true)}
+            icon={<SFIcon.whistle />}
+          >
+            {hasPinnedNextPeriod
+              ? `Edit Q${currentQuarter + 1} plan`
+              : `Plan Q${currentQuarter + 1}`}
+          </SFButton>
+          {hasPinnedNextPeriod && (
+            <div className="flex items-center gap-2">
+              <span
+                data-testid="planned-next-period-badge"
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+              >
+                Next period ready
+              </span>
+              <button
+                type="button"
+                data-testid="plan-next-clear"
+                onClick={() => clearPlannedRotation()}
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Plan-NEXT-period planner (F2). Same shared GamePlanModal,
+          opened on the NEXT period's tab (initialPeriodIndex=1 —
+          period[0] mirrors the current court, period[1] is the
+          projected next period). On pin we store the edited next-period
+          positions/bench in the SAME plannedRotation slice; the
+          upcoming break opens pre-seeded from it. */}
+      {planNextOpen && (() => {
+        const currentGroups: Record<string, string[]> = {};
+        for (const pos of ageGroup.positions) {
+          currentGroups[pos] = onCourt.positions[pos] ?? [];
+        }
+        const currentBench = onCourt.bench;
+
+        const initialPlan = projectUpcomingRotation({
+          sport: "netball",
+          ageGroup,
+          players: gamePlanPlayers,
+          onFieldSize: game.on_field_size,
+          seed: 7,
+          chipModeByKey,
+          fromPeriodIndex: Math.max(0, currentQuarter - 1),
+          currentGroups,
+          currentBench,
+        });
+
+        return (
+          <GamePlanModal
+            sport="netball"
+            ageGroup={ageGroup}
+            players={gamePlanPlayers}
+            onFieldSize={game.on_field_size}
+            teamName={teamName}
+            opponentName={game.opponent}
+            seasonEvents={seasonEvents}
+            chipModeByKey={chipModeByKey}
+            initialPlan={initialPlan}
+            initialPeriodIndex={1}
+            pinLabel={`Pin Q${currentQuarter + 1} plan`}
+            onPin={(plan) => {
+              // The coach edited the NEXT period. Find it by absolute
+              // period number (robust to a Reshuffle that rerolls the
+              // whole-game projection), then pin its groups + bench.
+              const targetPeriodNum = currentQuarter + 1;
+              const next =
+                plan.periods.find((p) => p.period === targetPeriodNum) ??
+                plan.periods[1];
+              if (!next) {
+                setPlanNextOpen(false);
+                return;
+              }
+              const nextPeriodGroups: Record<string, string[]> = {};
+              for (const g of next.groups) {
+                nextPeriodGroups[g.groupId] = g.playerIds;
+              }
+              // Preserve any existing F1 fields on the same game's pin
+              // (the two features share one slice).
+              const prior =
+                plannedRotation && plannedRotation.gameId === game.id
+                  ? plannedRotation
+                  : null;
+              setPlannedRotation({
+                ...(prior ?? {}),
+                gameId: game.id,
+                nextPeriodIndex: currentQuarter,
+                nextPeriodGroups,
+                nextPeriodBench: next.bench,
+              });
+            }}
+            onClose={() => setPlanNextOpen(false)}
+          />
+        );
+      })()}
 
       {/* Admin / utility action row — chrome owned by the shared
           LiveAdminUtilityRow (Phase 5b). lateArrivalCandidates is

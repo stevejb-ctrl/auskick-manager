@@ -10,7 +10,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SFButton } from "@/components/sf";
+import { SFButton, SFIcon } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
@@ -22,6 +22,14 @@ import { buildLeagueWalkthroughSteps } from "./leagueWalkthroughSteps";
 // the main live-page bundle, matching the AFL + netball pattern.
 const WalkthroughModal = dynamic(
   () => import("@/components/live/WalkthroughModal").then((m) => m.WalkthroughModal),
+  { ssr: false },
+);
+// F2 plan-ahead planner (ROTPLAN-02): the SAME shared GamePlanModal the
+// AFL + netball live surfaces open. Heavy (period tabs, copy block), so
+// dynamic-import keeps it out of the main live bundle — mirrors the
+// netball NetballLiveGame pattern.
+const GamePlanModal = dynamic(
+  () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
   { ssr: false },
 );
 import { SubDueModal } from "@/components/live/SubDueModal";
@@ -58,6 +66,11 @@ import {
   playerZoneMsOnField,
   suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import {
+  projectUpcomingRotation,
+  seedNextPeriodLineup,
+} from "@/lib/game-plan";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
@@ -537,6 +550,48 @@ export function LeagueLiveGame({
     chipByPlayerId,
   ]);
 
+  // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
+  // RL has no separate break component — the q-break is an inline
+  // card in this same orchestrator. So both halves of F2 live here:
+  //   1. a live-surface entry that opens the SAME shared GamePlanModal
+  //      on the upcoming period, pinning forwards/backs into the ONE
+  //      shared `plannedRotation` slice (the nextPeriod* fields), and
+  //   2. a seed-on-start that applies the reconciled pin via the
+  //      existing `recordLeagueLineupSet` action at the explicit
+  //      "Start period" tap (see handleStartNextPeriod) — never an
+  //      auto-commit (threat model T-11-02-B).
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
+  const [planNextOpen, setPlanNextOpen] = useState(false);
+  // Available squad for the planner = everyone not injured / loaned.
+  const gamePlanPlayers = useMemo(
+    () => squad.filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id)),
+    [squad, injuredSet, loanedSet],
+  );
+  // Final-rotation window (D-11), league clock frame: `elapsedMs` is
+  // wall-clock game-time (no multiplier), `periodSeconds * 1000` the
+  // full period, `subIntervalMs` the rotation cadence. The coach can
+  // plan the next period once less than one sub interval remains. Gated
+  // on a configured interval (U6/U7 tag rugby has none).
+  const periodMsForPlan = periodSeconds * 1000;
+  const inFinalWindow =
+    subIntervalMs != null
+    && periodMsForPlan > 0
+    && elapsedMs >= periodMsForPlan - subIntervalMs;
+  const isLastPeriod = state.currentQuarter >= ageGroup.periodCount;
+  // The upcoming period's 0-based index equals state.currentQuarter
+  // (planning during period P pins P+1, whose 0-based index is P) — and
+  // stays equal at the break (currentQuarter holds P until Start fires).
+  const pinForThisGame =
+    plannedRotation && plannedRotation.gameId === game.id
+      ? plannedRotation
+      : null;
+  const hasPinnedNextPeriod =
+    pinForThisGame != null
+    && pinForThisGame.nextPeriodIndex === state.currentQuarter
+    && pinForThisGame.nextPeriodGroups != null;
+
   // ── Force-vest-replacement detection ─────────────────────────
   // Triggered when an FR/DH wearer is no longer on the field.
   // Possible causes: sub off (swap), injury, loan.
@@ -753,6 +808,56 @@ export function LeagueLiveGame({
       window.scrollTo({ top: 0, behavior: "auto" });
     }
     const next = state.currentQuarter + 1;
+    // F2 pre-seed (ROTPLAN-02 / D-13/D-14): if the coach pinned this
+    // upcoming period's lineup during the final window, apply it now —
+    // reconciled so any player who became unavailable since pinning
+    // (injured / loaned) is dropped from BOTH field and bench, never
+    // fielded. The seed is committed through the SAME auth/RLS-guarded
+    // `recordLeagueLineupSet` action used by every manual lineup edit,
+    // and only here, on the coach's explicit Start tap (threat model
+    // T-11-02-B). The pin is then consumed so it can't re-apply.
+    // `state.currentQuarter` is the upcoming period's 0-based index
+    // (the period that just ended is P; its next, P+1, has index P).
+    if (
+      pinForThisGame != null
+      && pinForThisGame.nextPeriodIndex === state.currentQuarter
+      && pinForThisGame.nextPeriodGroups != null
+      && state.lineup
+    ) {
+      const availableIds = gamePlanPlayers.map((p) => p.id);
+      const seed = seedNextPeriodLineup({
+        pin: pinForThisGame,
+        periodIndex: state.currentQuarter,
+        availableIds,
+        groupIds: ["forwards", "backs"],
+      });
+      if (seed) {
+        const seededForwards = seed.groups.forwards ?? [];
+        const seededBacks = seed.groups.backs ?? [];
+        const placed = new Set([...seededForwards, ...seededBacks]);
+        // Bench = the pinned bench plus any available player the pin
+        // never placed (e.g. a late arrival), de-duped against the
+        // field so no one is double-listed.
+        const benchSet = new Set(seed.bench.filter((id) => !placed.has(id)));
+        for (const id of availableIds) {
+          if (!placed.has(id)) benchSet.add(id);
+        }
+        const { flushed: lineupFlushed } = enqueueLiveAction(
+          "recordLeagueLineupSet",
+          [
+            auth,
+            game.id,
+            {
+              forwards: seededForwards,
+              backs: seededBacks,
+              bench: Array.from(benchSet),
+            },
+          ],
+        );
+        await lineupFlushed;
+        clearPlannedRotation();
+      }
+    }
     const { flushed } = enqueueLiveAction("startLeagueQuarter", [
       auth,
       game.id,
@@ -1589,6 +1694,47 @@ export function LeagueLiveGame({
         );
       })()}
 
+      {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
+          rotation window of the period (inFinalWindow, derived from the
+          live clock) and not on the last period, the coach can open the
+          SAME shared planner on the NEXT period's tab and build its
+          forwards/backs lineup so the break starts pre-seeded. A "Next
+          period ready" badge + Clear appears once pinned. Mirrors AFL +
+          netball. */}
+      {isPeriodActive && inFinalWindow && !isLastPeriod && (
+        <div className="flex items-center justify-between gap-2 px-1">
+          <SFButton
+            variant="ghost"
+            size="sm"
+            data-testid="plan-next-period-entry"
+            onClick={() => setPlanNextOpen(true)}
+            icon={<SFIcon.whistle />}
+          >
+            {hasPinnedNextPeriod
+              ? `Edit ${periodLabel} ${state.currentQuarter + 1} plan`
+              : `Plan ${periodLabel} ${state.currentQuarter + 1}`}
+          </SFButton>
+          {hasPinnedNextPeriod && (
+            <div className="flex items-center gap-2">
+              <span
+                data-testid="planned-next-period-badge"
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+              >
+                Next period ready
+              </span>
+              <button
+                type="button"
+                data-testid="plan-next-clear"
+                onClick={() => clearPlannedRotation()}
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {kickoffNeededForPeriod
         && !kickoffSkippedRef.current.has(state.currentQuarter)
         && kickoffSkippedTick >= 0 && (
@@ -1628,6 +1774,19 @@ export function LeagueLiveGame({
             <strong>{state.teamScore.points}</strong> –{" "}
             <strong>{state.opponentScore.points}</strong>.
           </p>
+          {/* Planned-seed banner (F2 / D-15): the coach pinned this
+              upcoming period's lineup during the final window — surface
+              that so they know Start will open pre-seeded (the seed is
+              applied, reconciled, in handleStartNextPeriod). */}
+          {hasPinnedNextPeriod && (
+            <p
+              data-testid="planned-seed-banner"
+              className="mb-2 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            >
+              Pre-filled from your planned {periodLabel}{" "}
+              {state.currentQuarter + 1} lineup
+            </p>
+          )}
           <SFButton
             onClick={() => setStartPeriodConfirmOpen(true)}
             disabled={pending}
@@ -1906,6 +2065,79 @@ export function LeagueLiveGame({
           }
         />
       )}
+
+      {/* Plan-NEXT-period planner (F2). Same shared GamePlanModal, opened
+          on the NEXT period's tab (initialPeriodIndex=1 — period[0] mirrors
+          the current field, period[1] is the projected next period). On pin
+          we store the edited next-period forwards/backs/bench in the SAME
+          plannedRotation slice (nextPeriod* fields); handleStartNextPeriod
+          seeds the lineup from it (reconciled) at the explicit Start tap. */}
+      {planNextOpen && state.lineup && (() => {
+        const currentGroups: Record<string, string[]> = {
+          forwards: state.lineup.forwards,
+          backs: state.lineup.backs,
+        };
+        const currentBench = state.lineup.bench;
+
+        const initialPlan = projectUpcomingRotation({
+          sport: "rugby_league",
+          ageGroup,
+          players: gamePlanPlayers,
+          onFieldSize: game.on_field_size,
+          seed: 7,
+          chipModeByKey: chipModes,
+          fromPeriodIndex: Math.max(0, state.currentQuarter - 1),
+          currentGroups,
+          currentBench,
+        });
+
+        return (
+          <GamePlanModal
+            sport="rugby_league"
+            ageGroup={ageGroup}
+            players={gamePlanPlayers}
+            onFieldSize={game.on_field_size}
+            teamName={teamName}
+            opponentName={game.opponent}
+            seasonEvents={seasonEvents}
+            chipModeByKey={chipModes}
+            initialPlan={initialPlan}
+            initialPeriodIndex={1}
+            pinLabel={`Pin ${periodLabel} ${state.currentQuarter + 1} plan`}
+            onPin={(plan) => {
+              // The coach edited the NEXT period. Find it by absolute
+              // period number (robust to a Reshuffle that rerolls the
+              // whole-game projection), then pin its groups + bench.
+              const targetPeriodNum = state.currentQuarter + 1;
+              const next =
+                plan.periods.find((p) => p.period === targetPeriodNum) ??
+                plan.periods[1];
+              if (!next) {
+                setPlanNextOpen(false);
+                return;
+              }
+              const nextPeriodGroups: Record<string, string[]> = {};
+              for (const g of next.groups) {
+                nextPeriodGroups[g.groupId] = g.playerIds;
+              }
+              // Preserve any existing F1 fields on the same game's pin
+              // (the two features share one slice).
+              const prior =
+                plannedRotation && plannedRotation.gameId === game.id
+                  ? plannedRotation
+                  : null;
+              setPlannedRotation({
+                ...(prior ?? {}),
+                gameId: game.id,
+                nextPeriodIndex: state.currentQuarter,
+                nextPeriodGroups,
+                nextPeriodBench: next.bench,
+              });
+            }}
+            onClose={() => setPlanNextOpen(false)}
+          />
+        );
+      })()}
 
       {/* "Ready for H/Q{n}" confirmation — mirrors AFL's StartQuarterModal.
           Opens when the coach taps the quarter-break CTA. The coach

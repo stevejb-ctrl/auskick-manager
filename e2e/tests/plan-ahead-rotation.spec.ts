@@ -215,3 +215,162 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
     )
     .toBe(true);
 });
+
+// ─── Plan-ahead rotation: build-next-period → pre-seed (F2) ───────
+// The headline F2 promise: in the final minutes of a period the coach
+// can build the NEXT period's lineup, and when the break arrives it
+// opens PRE-SEEDED from that pin instead of recomputing its own cold
+// suggestion.
+//
+// This spec drives that contract end-to-end through the real AFL live
+// UI — the SAME shared GamePlanModal F1 uses, no store pokes:
+//
+//   1. Seed an AFL game already INSIDE Q1's final rotation window by
+//      backdating the quarter_start event so the live clock derives a
+//      mid-window elapsed on load (quarterStartedAt = the event's
+//      created_at, see fairness replay). A short quarter keeps the
+//      hooter close enough to reach the break inside the test budget
+//      but far enough that pinning happens comfortably first.
+//   2. Assert the "Plan Q2" entry is visible — proving the final-window
+//      gate (inFinalWindow && !isLastPeriod) engaged from the real
+//      clock, not a hardcoded period count.
+//   3. Open the shared planner on the NEXT period's tab and pin it.
+//      The "Next period ready" badge confirms the pin registered into
+//      the ONE shared plannedRotation slice (the nextPeriod* fields).
+//   4. Let the hooter fire and confirm the QuarterEndModal. The break
+//      (QuarterBreak) renders.
+//   5. Assert the "Pre-filled from your planned Q2 lineup" banner is up
+//      — proving the break opened SEEDED from the pin (the banner only
+//      renders when seedNextPeriodLineup returns a non-null lineup for
+//      the upcoming period). The reconcile specifics (stale-drop, per-
+//      group shape) are pinned by the cross-sport unit spec.
+//
+// Sport-neutral by construction: AFL is the reference here, but the
+// seed helper + GamePlanModal + break pre-seed are shared verbatim by
+// netball + league, so this one UI proof covers the shared contract.
+test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 15,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  // Real-time clock, a SHORT 50s quarter, and a 45s sub interval.
+  // inFinalWindow = nowMs >= quarterMs - effectiveSubIntervalMs
+  //              = nowMs >= 50s - 45s = nowMs >= 5s.
+  // Backdating quarter_start ~12s puts us in the window on load with a
+  // ~38s margin to the hooter (50s) — long enough to pin first — and
+  // the auto-sub falls due at ~57s (12 + 45), AFTER the hooter, so the
+  // SubDueModal never pops to block the planner.
+  await admin
+    .from("games")
+    .update({
+      clock_multiplier: 1,
+      sub_interval_seconds: 45,
+      quarter_length_seconds: 50,
+    })
+    .eq("id", game.id);
+
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+
+  // Backdate the clock: lineup_set just before quarter_start, and
+  // quarter_start ~12s ago so the replay's quarterStartedAt lands us
+  // mid-final-window on load.
+  const quarterStartedAt = new Date(Date.now() - 12_000).toISOString();
+  const lineupSetAt = new Date(Date.now() - 13_000).toISOString();
+  await admin.from("game_events").insert([
+    {
+      game_id: game.id,
+      type: "lineup_set",
+      metadata: { lineup },
+      created_by: ownerId,
+      created_at: lineupSetAt,
+    },
+    {
+      game_id: game.id,
+      type: "quarter_start",
+      metadata: { quarter: 1 },
+      created_by: ownerId,
+      created_at: quarterStartedAt,
+    },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // The live field is up.
+  await expect(page.getByTestId(`player-tile-${players[0].id}`)).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // ─── Final-window gate: the "Plan Q2" entry is offered ──────────
+  const planNextEntry = page.getByTestId("plan-next-period-entry");
+  await expect(planNextEntry).toBeVisible({ timeout: 10_000 });
+
+  // ─── Build the next period + pin it ─────────────────────────────
+  await planNextEntry.click();
+  await expect(
+    page.getByRole("heading", { name: /^game plan$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+
+  // Pin the projected Q2 lineup straight back to the live game (the
+  // "build next period" action). Closes the planner.
+  await page.getByTestId("game-plan-pin").click();
+
+  // Pin registered: the "Next period ready" badge surfaces (D-15).
+  await expect(page.getByTestId("planned-next-period-badge")).toBeVisible({
+    timeout: 5_000,
+  });
+
+  // ─── Reach the break: hooter → confirm → QuarterBreak ───────────
+  // The auto-hooter fires at ~38s and opens the QuarterEndModal; its
+  // primary CTA ends Q1 and transitions to the break.
+  await page
+    .getByRole("button", { name: /select team for q2/i })
+    .click({ timeout: 60_000 });
+
+  // ─── Assert: the break opened PRE-SEEDED from the pin ───────────
+  // The banner only renders when the seed helper returns a non-null
+  // lineup for the upcoming period — i.e. the pin was honoured.
+  await expect(page.getByTestId("planned-seed-banner")).toBeVisible({
+    timeout: 15_000,
+  });
+});

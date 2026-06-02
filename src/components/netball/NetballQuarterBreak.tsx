@@ -57,6 +57,7 @@ import {
   suggestNetballLineup,
 } from "@/lib/sports/netball/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { seedNextPeriodLineup } from "@/lib/game-plan";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -195,6 +196,14 @@ export function NetballQuarterBreak({
     [squad],
   );
   const positions = ageGroup.positions;
+
+  // F2 plan-ahead pin (ROTPLAN-02): when the coach built this upcoming
+  // period's lineup during the dying minutes of the last one, the break
+  // opens PRE-SEEDED from it instead of the cold suggestion. Read from
+  // the SAME shared `plannedRotation` slice AFL uses — netball positions
+  // are the opaque `groupIds`, so the seed contract is identical.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
 
   // Short-squad target for this break — clamped to the age group's
   // min/max so a stale on_field_size column doesn't corrupt the
@@ -410,6 +419,40 @@ export function NetballQuarterBreak({
     thirdMs,
   ]);
 
+  // ─── F2 next-period pre-seed (ROTPLAN-02 / D-13) ─────────────
+  // The upcoming period's 0-based index. At a break, currentQuarter is
+  // the quarter that just ended, so the upcoming period's index is
+  // exactly `nextQuarter - 1` (== currentQuarter). Mirrors AFL QB.
+  const upcomingPeriodIndex = nextQuarter - 1;
+  const seededDraft = useMemo<GenericLineup | null>(() => {
+    const seed = seedNextPeriodLineup({
+      pin:
+        plannedRotation && plannedRotation.gameId === gameId
+          ? plannedRotation
+          : null,
+      periodIndex: upcomingPeriodIndex,
+      // Only currently-available players may be fielded — a pinned
+      // player now injured/loaned/out is reconciled OUT (D-13). The
+      // candidatePool already excludes sidelined ids.
+      availableIds: candidatePool,
+      groupIds: positions,
+    });
+    if (!seed) return null;
+    // Convert the sport-neutral seed into a netball GenericLineup. Every
+    // expected position gets an entry (empty if the pin placed none);
+    // any available player the pin didn't place (e.g. a late arrival
+    // added after the pin) lands on the bench so nobody is lost.
+    const positionsObj: Record<string, string[]> = {};
+    for (const id of positions) positionsObj[id] = seed.groups[id] ?? [];
+    const placed = new Set(Object.values(seed.groups).flat());
+    const onBench = new Set(seed.bench);
+    const extraBench = candidatePool.filter(
+      (id) => !placed.has(id) && !onBench.has(id),
+    );
+    return { positions: positionsObj, bench: [...seed.bench, ...extraBench] };
+  }, [plannedRotation, gameId, upcomingPeriodIndex, candidatePool, positions]);
+  const hasPlannedSeed = seededDraft !== null;
+
   // ─── Draft state + lineup-build mode ─────────────────────────
   // 3-mode toggle:
   //   - "suggested": run the fairness rebalancer for the next quarter
@@ -495,6 +538,22 @@ export function NetballQuarterBreak({
   // mounts" bug Steve reported 2026-05-09.
   const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
   const lastForcedBenchSizeRef = useRef(0);
+  // F2 pre-seed: when the coach pinned this upcoming period's lineup,
+  // open the break ON that plan instead of the fresh suggestion. Runs
+  // BEFORE the mode effect below (declaration order = mount run order)
+  // and primes `lastAppliedModeRef` to the current mode so the
+  // suggested/manual effect treats the seed as the applied initial
+  // state and does NOT stomp it (D-12). Applied once; a late-hydrating
+  // pin still seeds via the guard. Mirrors AFL QuarterBreak.
+  const didSeedRef = useRef(false);
+  useEffect(() => {
+    if (didSeedRef.current) return;
+    if (!seededDraft) return;
+    didSeedRef.current = true;
+    setDraft(seededDraft);
+    setSelected(null);
+    lastAppliedModeRef.current = lineupMode;
+  }, [seededDraft, lineupMode]);
   useEffect(() => {
     const modeChanged = lastAppliedModeRef.current !== lineupMode;
     const forcedChanged = lastForcedBenchSizeRef.current !== forcedBenchIds.size;
@@ -815,6 +874,17 @@ export function NetballQuarterBreak({
     ]);
     setPendingStartQuarter(null);
     onStarted();
+    // D-14: the next-period pin has now been consumed (it seeded this
+    // break's draft, which we've just committed). Clear it so it can't
+    // leak into a later period. Only clear a pin that targeted THIS
+    // upcoming period — an unrelated/F1 pin is left alone.
+    if (
+      plannedRotation &&
+      plannedRotation.gameId === gameId &&
+      plannedRotation.nextPeriodIndex === upcomingPeriodIndex
+    ) {
+      clearPlannedRotation();
+    }
     // Medium haptic — the "go!" tap that kicks off the quarter,
     // aligned to the umpire's whistle. Distinct from the light
     // taps used for score / swap registration. Mirrors AFL
@@ -1152,6 +1222,14 @@ export function NetballQuarterBreak({
         <p className="mt-0.5 text-lg font-bold text-ink">
           Set positions for Q{nextQuarter}
         </p>
+        {hasPlannedSeed && (
+          <p
+            data-testid="planned-seed-banner"
+            className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+          >
+            Pre-filled from your planned Q{nextQuarter} lineup
+          </p>
+        )}
         {/* Mode-hint paragraph removed — the active rotation mode
             now reads off the Game settings collapsed summary
             below ("Auto-rebalanced" / "Keeping last Q" / "Manual
