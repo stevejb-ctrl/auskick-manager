@@ -356,7 +356,9 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. The same summary shows the player's season per-zone split as percentages only — no raw season minutes — across all sports
   3. Zones in the summary are enumerated from `getAgeGroupConfig(sport, ageGroup).zones`, not a hardcoded list, so AFL/netball/rugby-league zone labels render correctly
   4. The summary opens from the existing long-press → `LockModal` gesture (reuse-before-fork), and an e2e spec verifies the in-game and season sections render through the UI
-**Plans**: TBD
+**Plans**: 2 plans (Wave 1 → Wave 2)
+  - [ ] 12-01-PLAN.md — PLAYERVIEW-01/02 / F3 shared core + AFL reference: pure sport-agnostic `buildPlayerInsight` VM builder (season percentages-only, zones from config) + shared `PlayerInsightSummary` block + AFL replay `playedZoneMsByPeriod` (the missing per-period datum) + AFL long-press wiring inside the EXISTING `LockModal` via an optional `insight?` slot, red-first unit (VM + per-period replay) + AFL e2e [wave 1]
+  - [ ] 12-02-PLAN.md — netball + rugby-league mirror: per-period replay extension in `replayNetballGame` (per-third) + `replayLeagueGame` (per-field) + `insight?` slot on `NetballPlayerActions` + wire both hosts reusing the shared `buildPlayerInsight`/`PlayerInsightSummary` verbatim, red-first per-period unit (netball + league) + e2e cases [wave 2, depends 12-01]
 **UI hint**: yes
 
 ### Phase 13: Hype song survives iOS backgrounding
@@ -381,5 +383,5 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 | 9. Availability that holds — pre-game & at breaks | 2/2 | ✓ Complete | 2026-06-01 |
 | 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
 | 11. Plan the rotation ahead of the break | 2/2 | ✓ Complete | 2026-06-02 |
-| 12. Long-press player insight | 0/TBD | Not started | - |
+| 12. Long-press player insight | 0/2 | Planned (2 plans; Wave 1 → Wave 2 serial) | - |
 | 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
