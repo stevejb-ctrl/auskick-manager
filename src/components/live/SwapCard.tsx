@@ -148,6 +148,7 @@ export function SwapCard({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        data-testid="swapcard-toggle"
         className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart hover:bg-white/[0.03]"
         aria-expanded={open}
       >
@@ -247,6 +248,7 @@ export function SwapCard({
               type="button"
               onClick={onApply}
               disabled={pending}
+              data-testid="swapcard-apply-all"
               className="flex w-full items-center justify-center gap-2 rounded-sm bg-brand-600 py-2.5 text-sm font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
             >
               {pending ? (
