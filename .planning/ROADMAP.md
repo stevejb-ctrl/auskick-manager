@@ -271,7 +271,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
 - [x] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4) — COMPLETE 2026-06-02
 - [x] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2) — COMPLETE 2026-06-02
 - [x] **Phase 12: Long-press player insight** - Long-press shows in-game per-zone time, last-sub, per-period breakdown, plus season per-zone percentages (F3) — COMPLETE 2026-06-02
-- [ ] **Phase 13: Hype song survives iOS backgrounding** - Re-arm the audio element/context after iOS suspension so goals in later periods still trigger the song (B3)
+- [x] **Phase 13: Hype song survives iOS backgrounding** - Re-arm the audio element/context after iOS suspension so goals in later periods still trigger the song (B3) — COMPLETE 2026-06-02
 
 ### Phase Details (v1.1)
 
@@ -371,7 +371,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   3. The fix re-arms the existing audio mechanism (YouTube-iframe / `new Audio()`) without reworking the audio path, and silent failure swallowing no longer hides a suspended-context error
   4. A regression test (written red-first) reproduces the post-Q1 silence and confirms the song fires after a simulated suspend/re-arm cycle
 **Plans**: 1 plan (single wave)
-  - [ ] 13-01-PLAN.md — AUDIO-01/B3: extract a pure `reduceSongArm(state,event)` re-arm controller (`src/lib/live/hypeSongController.ts`) unit-tested in node + rewire the SHARED `useHypeSong.ts` to re-arm both audio backends (YT wake + fresh `new Audio()`) via a `document` visibilitychange listener (mirroring the beep `_audioCtx` resume) and surface the suspended-context error instead of swallowing it — re-arm, not rework; AFL + netball benefit for free (RL has no song); red-first `hypeSongController.test.ts`, no new e2e (iOS suspension not simulable) — PLANNED 2026-06-02
+  - [x] 13-01-PLAN.md — AUDIO-01/B3: extract a pure `reduceSongArm(state,event)` re-arm controller (`src/lib/live/hypeSongController.ts`) unit-tested in node + rewire the SHARED `useHypeSong.ts` to re-arm both audio backends (YT wake + fresh `new Audio()`) via a `document` visibilitychange listener (mirroring the beep `_audioCtx` resume) and surface the suspended-context error instead of swallowing it — re-arm, not rework; AFL + netball benefit for free (RL has no song); red-first `hypeSongController.test.ts`, no new e2e (iOS suspension not simulable) — COMPLETE 2026-06-02
 **UI hint**: no (audio-only fix in an existing hook; no visible UI — verified by a red-first pure-controller unit test + existing live e2e as the no-regression guard)
 
 ### Progress (v1.1)
@@ -386,4 +386,4 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 | 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
 | 11. Plan the rotation ahead of the break | 2/2 | ✓ Complete | 2026-06-02 |
 | 12. Long-press player insight | 2/2 | ✓ Complete | 2026-06-02 |
-| 13. Hype song survives iOS backgrounding | 0/1 | Planned | - |
+| 13. Hype song survives iOS backgrounding | 1/1 | ✓ Complete | 2026-06-02 |
