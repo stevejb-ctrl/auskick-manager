@@ -342,8 +342,10 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. During the final minutes of a period a coach can build/preview the next period's lineup, so they arrive at the break with a plan already in place, across all sports
   3. F1 and F2 share one "edit an upcoming rotation" surface (reuse-before-fork) seeded from current game state via the existing sport-agnostic Game Plan projector — no forked per-sport modal
   4. The plan-ahead controls are reachable and tappable one-handed on the live-game surface, and an e2e spec exercises override-then-honour and build-next-period through the UI
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 2 plans (Wave 1 → Wave 2)
+  - [ ] 11-01-PLAN.md — ROTPLAN-01/F1 + shared foundation: pure `projectUpcomingRotation` adapter (seeds the Game Plan projector from live state) + extend `GamePlanModal` (seed + `onPin`, not a fork) + `plannedRotation` live-store slice (partialize, gameId-keyed, no migration/event) + AFL imminent-sub override-then-honour (advisory, stale-pin guard), red-first unit + e2e override-then-honour [wave 1]
+  - [ ] 11-02-PLAN.md — ROTPLAN-02/F2: final-minutes "plan next period" entry reusing the Wave-1 surface + each sport's break opens PRE-SEEDED from the pinned next-period lineup (AFL `QuarterBreak`, netball `NetballQuarterBreak`, league `LeagueLiveGame`), stale-plan reconcile, red-first cross-sport unit + e2e build-next-period [wave 2, depends 11-01]
+**UI hint**: yes (plan-ahead entry points on the live surface + the shared GamePlanModal extension; verified by e2e override-then-honour + build-next-period)
 
 ### Phase 12: Long-press player insight
 **Goal**: Long-pressing any player gives the coach a complete, trustworthy read on that kid's time — where they've played this game and across the season — without leaving the live surface
