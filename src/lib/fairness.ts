@@ -986,6 +986,18 @@ export interface GameState {
   playerScores: Record<string, { goals: number; behinds: number }>;
   finalised: boolean;
   basePlayedZoneMs: Record<string, ZoneMinutes>;
+  /**
+   * PLAYERVIEW-01 / D-05 (Phase 12): a per-PERIOD split of basePlayedZoneMs.
+   * playedZoneMsByPeriod[playerId][period] is a full ZoneMinutes holding the
+   * COMPLETED-stint ms credited within that period. Summing a player's
+   * per-period ZoneMinutes over every period equals basePlayedZoneMs[pid].
+   * Credited at the single `addPlayed` funnel using `state.currentQuarter`,
+   * which always points at the period the credited ms belong to (set at
+   * quarter_start, unchanged through quarter_end). Drives the long-press
+   * per-period zone breakdown. Like basePlayedZoneMs it EXCLUDES the open
+   * live stint — the host overlays that client-side.
+   */
+  playedZoneMsByPeriod: Record<string, Record<number, ZoneMinutes>>;
   stintStartMs: Record<string, number>;
   stintZone: Record<string, Zone>;
   /**
@@ -1065,6 +1077,7 @@ export function replayGame(events: GameEvent[]): GameState {
     playerScores: {},
     finalised: false,
     basePlayedZoneMs: {},
+    playedZoneMsByPeriod: {},
     lastStintZone: {},
     pastQuarterZones: {},
     stintStartMs: {},
@@ -1101,6 +1114,11 @@ export function replayGame(events: GameEvent[]): GameState {
     if (ms <= 0) return;
     state.basePlayedZoneMs[pid] ??= emptyZM();
     state.basePlayedZoneMs[pid][zone] += ms;
+    // D-05: same ms, split per period. currentQuarter is the period the
+    // credited stint belongs to at every addPlayed call site.
+    state.playedZoneMsByPeriod[pid] ??= {};
+    state.playedZoneMsByPeriod[pid][state.currentQuarter] ??= emptyZM();
+    state.playedZoneMsByPeriod[pid][state.currentQuarter][zone] += ms;
   };
   const addLoan = (pid: string, ms: number) => {
     if (ms <= 0) return;

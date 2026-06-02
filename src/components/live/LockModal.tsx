@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
@@ -82,6 +83,14 @@ interface LockModalProps {
    * to bench players.
    */
   isOnField?: boolean;
+  /**
+   * F3 (Phase 12) long-press player summary. Optional presentational slot
+   * rendered between the player name and the action buttons. The host
+   * builds it from the shared `buildPlayerInsight` view-model via
+   * `PlayerInsightSummary`, so this component stays sport-agnostic — it
+   * just reserves the space. Omit to show no summary (pre-game pickers).
+   */
+  insight?: ReactNode;
   onClose: () => void;
 }
 
@@ -109,6 +118,7 @@ export function LockModal({
   isDh,
   onToggleBench,
   isOnField,
+  insight,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -133,6 +143,8 @@ export function LockModal({
         >
           {firstName}{player.jersey_number != null ? ` #${player.jersey_number}` : ""}
         </h2>
+
+        {insight}
 
         {isInjured ? (
           /* Currently injured — offer to mark recovered */
