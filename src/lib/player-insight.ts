@@ -130,3 +130,38 @@ export function buildPlayerInsight(input: PlayerInsightInput): PlayerInsight {
     seasonZonePct,
   };
 }
+
+export interface BreakInsightInput {
+  /** Labelled zones for this player's age group, in display order. */
+  zones: ZoneDef[];
+  /**
+   * Zone id -> cumulative ms played THIS game. MUST be milliseconds (the
+   * unit `buildPlayerInsight` formats) — at the quarter break this is the
+   * store's `basePlayedZoneMs`, NOT the minutes-scaled `currentGameZoneMins`.
+   */
+  inGameZoneMs: Record<string, number>;
+  /** Zone id -> season total (any consistent unit — output is % only). */
+  seasonZoneMs: Record<string, number>;
+}
+
+/**
+ * Build the PlayerInsightInput for the QUARTER-BREAK long-press sheet
+ * (issues 8/9). The break clock is stopped, so there's no live stint and
+ * "time since last sub" doesn't apply — `lastSubbedOnMs` is null and
+ * per-period is omitted (the summary hides both sections). The in-game
+ * breakdown + season mix come straight through.
+ *
+ * Pure; centralises the ms-not-minutes contract so the break sheet can't
+ * silently regress to feeding minutes (which would render times 60× too
+ * small).
+ */
+export function breakInsightInput(input: BreakInsightInput): PlayerInsightInput {
+  return {
+    zones: input.zones,
+    inGameZoneMs: input.inGameZoneMs ?? {},
+    perPeriod: [],
+    seasonZoneMs: input.seasonZoneMs ?? {},
+    lastSubbedOnMs: null,
+    nowAbsMs: 0,
+  };
+}

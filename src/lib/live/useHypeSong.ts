@@ -40,6 +40,8 @@ interface YTPlayer {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   playVideo(): void;
   pauseVideo(): void;
+  mute(): void;
+  unMute(): void;
   destroy(): void;
 }
 declare global {
@@ -155,6 +157,54 @@ export function useHypeSong({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songUrl]);
 
+  // AUTOPLAY UNLOCK (issue 1, Steve 2026-06-02). Browsers — iOS Safari /
+  // the Capacitor WebView especially — only allow programmatic audio that
+  // descends from a user gesture. The first goal-tap IS a gesture, but a
+  // YouTube IFrame won't play from a tap on the surrounding app chrome
+  // until the player itself has been gesture-activated at least once. So
+  // we prime on the Start-Q1 tap: a SILENT (muted) play+pause that wakes
+  // the backend inside that gesture, so the first goal's playSong() is
+  // allowed. Idempotent and safe to call when no song is configured.
+  function primeSong() {
+    if (!songUrl) return;
+    dispatchArm("prime");
+    try {
+      if (isYouTubeUrl(songUrl)) {
+        if (!ytReadyRef.current || !ytPlayerRef.current) return;
+        const yt = ytPlayerRef.current;
+        // Muted play+pause inside the gesture — silent, but it flips the
+        // iframe into the "user has interacted" state so later playVideo()
+        // calls (on a goal) are honoured. Unmute + reset for the real play.
+        yt.mute();
+        yt.playVideo();
+        yt.pauseVideo();
+        yt.seekTo(songStartSeconds, true);
+        yt.unMute();
+      } else {
+        // Direct audio: a muted play()→pause() unlocks the element so the
+        // first goal can play it even if that goal handler races outside a
+        // gesture (e.g. fired from the scorer picker callback).
+        const audio = songAudioRef.current ?? new Audio(songUrl);
+        songAudioRef.current = audio;
+        audio.muted = true;
+        audio
+          .play()
+          .then(() => {
+            audio.pause();
+            audio.currentTime = songStartSeconds;
+            audio.muted = false;
+          })
+          .catch(() => {
+            audio.muted = false;
+          });
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[useHypeSong] primeSong threw (non-fatal)", err);
+      }
+    }
+  }
+
   function playSong() {
     if (!songUrl) return;
     // Decide whether to play as-is or re-arm first (the session may have been
@@ -216,5 +266,5 @@ export function useHypeSong({
     }
   }
 
-  return { containerRef, playSong };
+  return { containerRef, playSong, primeSong };
 }

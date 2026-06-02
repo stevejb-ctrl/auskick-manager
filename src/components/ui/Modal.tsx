@@ -42,7 +42,22 @@ export function Modal({ children, size = "sm" }: ModalProps) {
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Padding is safe-area aware so a tall modal never tucks under the
+    // iOS status bar / Dynamic Island (or the home indicator at the
+    // bottom). `max(1rem, env(...))` keeps the old 1rem breathing room
+    // on desktop (insets resolve to 0) and grows to clear the notch on
+    // device. The inner card is capped to `max-h-full` so it fits inside
+    // this padded box — Steve 2026-06-02: the Plan-Ahead planner was
+    // extending above the top bar on iPhone.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+      }}
+    >
       {/* Backdrop: fades in over 350ms (existing `fade-in` keyframe).
           The card slides up over 220ms below — they start at the same
           time, so the card lands ~130ms ahead of the backdrop. Reads
@@ -86,7 +101,7 @@ export function Modal({ children, size = "sm" }: ModalProps) {
           line 205). z-indexes don't change visual appearance —
           purely a hit-test fix. */}
       <div
-        className={`relative z-10 flex w-full ${sizeClasses[size]} max-h-[calc(100dvh-2rem)] flex-col rounded-lg border border-hairline bg-surface p-5 shadow-modal motion-safe:animate-sheet-up`}
+        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col rounded-lg border border-hairline bg-surface p-5 shadow-modal motion-safe:animate-sheet-up`}
       >
         {children}
       </div>

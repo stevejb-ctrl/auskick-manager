@@ -1,14 +1,13 @@
 "use client";
 
-import { memo, useRef, useState } from "react";
+import { memo } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { ChipIndicator } from "@/components/squad/ChipIndicator";
-import { hapticTap } from "@/lib/haptics";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
-import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
+import { useLongPress } from "@/lib/live/useLongPress";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -73,61 +72,19 @@ function PlayerTileImpl({
   score,
   chipModes,
 }: PlayerTileProps) {
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // P1-9 in MICRO-INTERACTIONS-PLAN.md: at 300ms into a long-press
-  // (60% of the way to the 500ms fire), the tile starts a soft
-  // brand ring so the user knows the press is registering. Without
-  // this, the 500ms total feels unresponsive — Stagehand testers
-  // released too early and never discovered the long-press flow.
-  const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [longPressArming, setLongPressArming] = useState(false);
-  const didLongPressRef = useRef(false);
-
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!onLongPress) return;
-    didLongPressRef.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    // 300ms pre-cue: shows the user "I'm registering this press".
-    armingTimerRef.current = setTimeout(() => {
-      armingTimerRef.current = null;
-      setLongPressArming(true);
-    }, 300);
-    longPressTimerRef.current = setTimeout(() => {
-      didLongPressRef.current = true;
-      longPressTimerRef.current = null;
-      setLongPressArming(false);
-      // Light haptic tap so the user gets a tactile "picked up"
-      // confirmation when the long-press fires. P1-10 in
-      // MICRO-INTERACTIONS-PLAN.md. Fires before the onLongPress
-      // callback so the buzz lands BEFORE any UI change (modal
-      // open, sheet rise) that the callback might trigger.
-      void hapticTap("light");
-      // Tells LongPressHint (P1.5-3) the user discovered the
-      // gesture, so the hint chip self-dismisses + sets its
-      // localStorage flag. Window CustomEvent so the hint
-      // doesn't need any prop wiring.
-      dispatchLongPressEvent();
-      onLongPress();
-    }, 500);
-  }
-
-  function cancelLongPress() {
-    if (longPressTimerRef.current !== null) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    if (armingTimerRef.current !== null) {
-      clearTimeout(armingTimerRef.current);
-      armingTimerRef.current = null;
-    }
-    setLongPressArming(false);
-  }
+  // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
+  // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
+  // shared useLongPress hook now (reused verbatim by the quarter-break
+  // tiles). `longPressArming` drives the soft brand ring below.
+  const {
+    handlers: longPressHandlers,
+    arming: longPressArming,
+    consumedLongPress,
+  } = useLongPress({ onLongPress });
 
   function handleClick() {
-    if (didLongPressRef.current) {
-      didLongPressRef.current = false;
-      return;
-    }
+    // Suppress the click that trails a fired long-press.
+    if (consumedLongPress()) return;
     onClick?.();
   }
 
@@ -195,9 +152,7 @@ function PlayerTileImpl({
       type="button"
       data-testid={`player-tile-${player.id}`}
       onClick={handleClick}
-      onPointerDown={onLongPress ? handlePointerDown : undefined}
-      onPointerUp={onLongPress ? cancelLongPress : undefined}
-      onPointerCancel={onLongPress ? cancelLongPress : undefined}
+      {...longPressHandlers}
       disabled={!onClick && !onLongPress}
       className={[
         "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",

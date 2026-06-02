@@ -50,6 +50,11 @@ import {
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import { seedNextPeriodLineup } from "@/lib/game-plan";
+import { Modal } from "@/components/ui/Modal";
+import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
+import { breakInsightInput } from "@/lib/player-insight";
+import { getSportConfig } from "@/lib/sports/registry";
+import { useLongPress } from "@/lib/live/useLongPress";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
@@ -106,6 +111,14 @@ interface QuarterBreakProps {
    */
   clockMultiplier?: number;
   onStarted: () => void;
+  /**
+   * Fired SYNCHRONOUSLY when the coach taps Start (issue 1) — before the
+   * async lineup/quarter writes — so the host can unlock audio inside the
+   * user gesture (browsers only honour programmatic playback that
+   * descends from a real gesture). AFL passes `primeSong`; optional so
+   * other sports can omit it.
+   */
+  onPrimeAudio?: () => void;
 }
 
 type Slot = Zone | "bench";
@@ -150,6 +163,7 @@ export function QuarterBreak({
   chipModeByKey = {},
   clockMultiplier = 1,
   onStarted,
+  onPrimeAudio,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
   // Display caps for the zone-card headers + "+ Add player"
@@ -223,6 +237,28 @@ export function QuarterBreak({
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // Labelled zones (config-derived, age-group filtered) for the shared
+  // PlayerInsightSummary — same derivation the in-game LockModal uses.
+  const insightZones = useMemo(
+    () =>
+      getSportConfig("afl").zones.filter((z) =>
+        (zones as readonly string[]).includes(z.id),
+      ),
+    [zones],
+  );
+  // ─── Long-press → player insight + injury toggle (issues 8 & 9) ──
+  // Mirror the in-game long-press: hold a tile to open the SAME stats
+  // sheet (PlayerInsightSummary) plus mark-injured / mark-available.
+  // One press is active at a time, so a single shared useLongPress
+  // controller + a "which pid" ref is enough — no per-tile hook (which
+  // would break the rules-of-hooks inside the tile .map).
+  const [insightPlayerId, setInsightPlayerId] = useState<string | null>(null);
+  const pressPidRef = useRef<string | null>(null);
+  const longPress = useLongPress({
+    onLongPress: () => {
+      if (pressPidRef.current) setInsightPlayerId(pressPidRef.current);
+    },
+  });
   // Display FWD → CENTRE → BACK (top → bottom) to match the coach's field mental model.
   const slots = useMemo<Slot[]>(() => [[...zones].reverse(), "bench"].flat() as Slot[], [zones]);
   const slotLabel = (s: Slot) => {
@@ -1058,6 +1094,10 @@ export function QuarterBreak({
 
   function handleConfirmStart() {
     setError(null);
+    // Unlock audio INSIDE this tap, before any await — the goal song's
+    // autoplay otherwise gets blocked once the start writes go async
+    // (issue 1).
+    onPrimeAudio?.();
     // Normalise draft shape before sending (defensive — always full-zones).
     const full: Lineup = { ...emptyLineup(), ...draft };
     startTransition(async () => {
@@ -1891,15 +1931,35 @@ export function QuarterBreak({
                     <li key={pid} className="relative">
                       <button
                         type="button"
-                        onClick={() => handleTap(pid)}
-                        disabled={isSidelined}
+                        // NOT `disabled` — a disabled button swallows all
+                        // pointer events, but a sidelined (injured/lent)
+                        // player must still be long-pressable to bring
+                        // them back (issue 9). Tap is no-op'd below
+                        // instead; the styling still reads disabled.
                         aria-disabled={isSidelined}
+                        onClick={() => {
+                          if (longPress.consumedLongPress()) return;
+                          if (isSidelined) return;
+                          handleTap(pid);
+                        }}
+                        onPointerDown={(e) => {
+                          pressPidRef.current = pid;
+                          longPress.handlers.onPointerDown?.(e);
+                        }}
+                        onPointerUp={longPress.handlers.onPointerUp}
+                        onPointerCancel={longPress.handlers.onPointerCancel}
                         className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
                           isSelected
                             ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
                             : isSidelined
                               ? "cursor-not-allowed border-hairline bg-surface-alt opacity-60"
                               : "border-hairline hover:bg-surface-alt"
+                        } ${
+                          longPress.arming &&
+                          pressPidRef.current === pid &&
+                          !isSelected
+                            ? "ring-2 ring-brand-300 ring-offset-1"
+                            : ""
                         }`}
                       >
                         {/* Goal/behind badge — top-right corner, ink
@@ -2151,6 +2211,81 @@ export function QuarterBreak({
             </div>
           );
         })()}
+
+      {/* Long-press player sheet (issues 8 & 9): the same stats
+          breakdown the in-game LockModal shows (shared
+          PlayerInsightSummary), plus mark-injured / mark-available so a
+          coach can sideline or restore a player straight from the
+          break lineup — no separate picker. */}
+      {insightPlayerId && (() => {
+        const ip = playersById.get(insightPlayerId);
+        if (!ip) return null;
+        const isInjured = injuredSet.has(insightPlayerId);
+        const isLoaned = loanedSet.has(insightPlayerId);
+        const status = isInjured ? "Injured" : isLoaned ? "Lent" : "Available";
+        return (
+          <Modal>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Guernsey num={ip.jersey_number ?? ""} size={32} />
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-bold text-ink">
+                    {ip.full_name}
+                  </h2>
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                    {status}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInsightPlayerId(null)}
+                aria-label="Close"
+                className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-ink-mute transition-colors hover:bg-surface-alt hover:text-ink"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+              {/* `basePlayedZoneMs` is already ms — the unit
+                  PlayerInsightSummary expects. Per-period + "time since
+                  last sub" don't apply at a stopped break, so perPeriod
+                  is empty and lastSubbedOnMs null (the component hides
+                  those sections); the season mix is percentage-only. */}
+              <PlayerInsightSummary
+                input={breakInsightInput({
+                  zones: insightZones,
+                  inGameZoneMs: basePlayedZoneMs[insightPlayerId] ?? {},
+                  seasonZoneMs: season[insightPlayerId] ?? {},
+                })}
+              />
+            </div>
+
+            <div className="mt-1 flex flex-col gap-2">
+              <SFButton
+                variant={isInjured ? "primary" : "danger"}
+                data-testid="break-insight-injury-toggle"
+                onClick={() => {
+                  handleInjuryToggle(insightPlayerId, !isInjured);
+                  setInsightPlayerId(null);
+                }}
+              >
+                {isInjured ? "Mark available" : "Mark as injured"}
+              </SFButton>
+              <SFButton
+                variant="ghost"
+                size="sm"
+                onClick={() => setInsightPlayerId(null)}
+              >
+                Close
+              </SFButton>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
