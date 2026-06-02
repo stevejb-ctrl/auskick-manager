@@ -1649,7 +1649,15 @@ export function LiveGame({
           {/* Plan-ahead entry (F1): open the shared rotation planner
               seeded from the live field so the coach can decide the
               upcoming sub BEFORE it falls due. Live play only, and only
-              when there's a healthy bench player to rotate on. A
+              when there's a healthy bench player to rotate on.
+
+              Gated to the FINAL rotation window of the period (issue 6,
+              Steve 2026-06-02): planning earlier, while several subs are
+              still queued, is "guessing as to who to swap" — the bench
+              order will have churned by the time the final sub lands.
+              The button stays visible-but-disabled before then (with a
+              tooltip) so it's discoverable, and is always enabled once a
+              pin already exists so the coach can edit / clear it. A
               "Planned" badge + Clear affordance appears once a sub is
               pinned for this period (D-15 — the pin is visible). */}
           {isLivePlay && hasSwappableBench && (
@@ -1658,6 +1666,12 @@ export function LiveGame({
                 variant="ghost"
                 size="sm"
                 data-testid="plan-ahead-entry"
+                disabled={!(inFinalWindow || hasPinnedSubThisPeriod)}
+                title={
+                  inFinalWindow || hasPinnedSubThisPeriod
+                    ? undefined
+                    : "Available for the final sub of this quarter"
+                }
                 onClick={() => setPlanAheadOpen(true)}
                 icon={<SFIcon.whistle />}
               >
