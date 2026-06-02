@@ -69,9 +69,12 @@ function record(id, label, status, detail) {
 
 console.log(`Verifying Supabase clone at ${SUPABASE_URL}\n`);
 
-// --- Q1: Migration-list count = 27 (defensive — schema_migrations may not
+// --- Q1: Migration-list count = 47 (defensive — schema_migrations may not
 //          be exposed via PostgREST; runbook Phase B step 4 documents the
-//          manual `supabase migration list` fallback) ----------------------
+//          manual `supabase migration list` fallback). Refreshed 2026-06-02
+//          for Phase 6 deploy of main@f0a1481: the repo now carries 47
+//          migrations (0001..0047), up from the 27 frozen at the original
+//          Phase-5 baseline. ---------------------------------------------
 
 try {
   const { count, error } = await supabase
@@ -82,19 +85,19 @@ try {
   if (error) {
     record(
       "Q1",
-      "Migration-list count = 27",
+      "Migration-list count = 47",
       "WARN",
       `schema_migrations not queryable via PostgREST (${error.message}); operator MUST verify manually via 'supabase migration list --linked'`,
     );
-  } else if (count === 27) {
-    record("Q1", "Migration-list count = 27", "PASS", `count=${count}`);
+  } else if (count === 47) {
+    record("Q1", "Migration-list count = 47", "PASS", `count=${count}`);
   } else {
-    record("Q1", "Migration-list count = 27", "FAIL", `count=${count} (expected 27)`);
+    record("Q1", "Migration-list count = 47", "FAIL", `count=${count} (expected 47)`);
   }
 } catch (e) {
   record(
     "Q1",
-    "Migration-list count = 27",
+    "Migration-list count = 47",
     "WARN",
     `unexpected exception (${e.message}); operator MUST verify manually via 'supabase migration list --linked'`,
   );
