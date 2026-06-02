@@ -498,6 +498,39 @@ export async function setSubInterval(
   return { success: true };
 }
 
+/**
+ * Issue 2: set how many within-period subs to spread evenly across the
+ * period (the live timer places them at k/(N+1) of the period length).
+ */
+export async function setSubsPerQuarter(
+  auth: LiveAuth,
+  gameId: string,
+  subsPerQuarter: number,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  if (!Number.isInteger(subsPerQuarter)) {
+    return { success: false, error: "Subs per quarter must be a whole number." };
+  }
+  if (subsPerQuarter < 1 || subsPerQuarter > 10) {
+    return { success: false, error: "Subs per quarter must be between 1 and 10." };
+  }
+
+  const { error } = await w.supabase
+    .from("games")
+    .update({ subs_per_quarter: subsPerQuarter })
+    .eq("id", gameId);
+  if (error) return { success: false, error: error.message };
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
 export async function startQuarter(
   auth: LiveAuth,
   gameId: string,

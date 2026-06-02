@@ -216,6 +216,12 @@ export interface Game {
   notes: string | null;
   status: GameStatus;
   sub_interval_seconds: number;
+  /**
+   * Within-period subs spread evenly across the period (issue 2). The
+   * live timer places N reminders at k/(N+1) of the period length.
+   * Migration 0048; default 3.
+   */
+  subs_per_quarter: number;
   share_token: string;
   on_field_size: number;
   /**

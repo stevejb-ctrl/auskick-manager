@@ -381,6 +381,7 @@ function makeGame(id: string): Game {
     notes: null,
     status: "completed",
     sub_interval_seconds: 300,
+    subs_per_quarter: 3,
     share_token: id,
     on_field_size: 12,
     quarter_length_seconds: null,

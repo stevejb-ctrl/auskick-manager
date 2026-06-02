@@ -812,6 +812,7 @@ export default async function LivePage({ params }: LivePageProps) {
           opponentName={g.opponent}
           trackScoring={trackScoring}
           subIntervalSeconds={g.sub_interval_seconds}
+          subsPerQuarter={g.subs_per_quarter ?? 3}
           squadPlayers={allSquad}
           initialState={state}
           season={season}
