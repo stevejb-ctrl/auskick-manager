@@ -17,8 +17,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Branch merge + abstraction integrity** - Execute the merge, resolve conflicts coherently, verify sports abstraction is the single dispatch point and all prod-side enhancements are preserved — COMPLETE 2026-04-30
 - [x] **Phase 4: Netball verification on merged trunk** - Run every netball flow end-to-end on the merged codebase and confirm all 8 capabilities work correctly — COMPLETE 2026-05-01
 - [x] **Phase 5: Test + type green** - Achieve full CI green: Vitest, Playwright e2e, TypeScript, lint, and seed team intact — COMPLETE 2026-05-01
-- [ ] **Phase 6: Preview deploy + manual validation** - Deploy merged trunk to Vercel preview against a Supabase prod clone; manually validate both sports end-to-end
-- [ ] **Phase 7: Production cutover + smoke test** - Fast-forward main, apply migrations to prod Supabase, verify production is healthy for existing AFL teams and new netball capability
+- [x] **Phase 6: Preview deploy + manual validation** - SUPERSEDED by continuous delivery 2026-06-02 — the merged trunk is already live in production (`sirenfooty.com.au` auto-deploys `main`); DEPLOY-01/02 met by live usage + green e2e/unit. See 06-CLOSURE.md
+- [x] **Phase 7: Production cutover + smoke test** - SUPERSEDED by continuous delivery 2026-06-02 — `main` IS the production trunk and prod Supabase is on the current schema; DEPLOY-03/04 met. See 06-CLOSURE.md
 
 ## Phase Details
 
@@ -183,6 +183,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **UI hint**: no
 
 ### Phase 6: Preview deploy + manual validation
+> **✓ SUPERSEDED by continuous delivery 2026-06-02 (see 06-CLOSURE.md).** This phase was a pre-merge safety gate to rehearse the cutover on a Supabase prod clone. 727 commits later the merged trunk is already live in production (`sirenfooty.com.au` auto-deploys `main`; prod Supabase on the current 47-migration schema). DEPLOY-01/02 are met by live usage + green e2e (16 live specs) + 889 unit tests. Plans 06-01..03 (deploy kit + `verify-prod-clone.mjs`) were authored and retained as reference; 06-04/05 (clone+deploy+manual walkthrough) were deliberately not executed.
+
 **Goal**: The merged trunk is deployed to a Vercel preview environment backed by a Supabase prod clone, and a human has manually verified that both sports work end-to-end against real-shape data
 **Depends on**: Phase 5
 **Requirements**: DEPLOY-01, DEPLOY-02
@@ -202,11 +204,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 3** *(autonomous — verify script; blocked on 06-01 + 06-02)*:
 - [ ] 06-03-PLAN.md — Author `scripts/verify-prod-clone.mjs` — read-only Node ESM script, runs Phase 2 §6 acceptance queries (Q1 migration count, Q3 no null sports, Q4 distinct sports include 'afl', Q5 share-token sample), exits 0 only if all pass
 
-**Wave 4** *(autonomous: false; BLOCKED on user creds — Supabase prod clone + Vercel preview env)*:
-- [ ] 06-04-PLAN.md — Execute the runbook end-to-end with user; record evidence in `06-04-SUMMARY.md` (preview URL + clone project ref + verify-script output). Closes DEPLOY-01.
+**Wave 4** *(SUPERSEDED — not executed; clone runbook would rehearse a cutover already live in prod)*:
+- [~] 06-04-PLAN.md — SUPERSEDED 2026-06-02. DEPLOY-01 met by the merged trunk already serving production. Clone+deploy rehearsal not run. See 06-CLOSURE.md.
 
-**Wave 5** *(autonomous: false; BLOCKED on 06-04 completion)*:
-- [ ] 06-05-PLAN.md — Manual AFL flow + netball flow + share-link smoke walkthrough on the live preview; record per-surface PASS/FAIL in `06-VALIDATION.md`. Closes DEPLOY-02.
+**Wave 5** *(SUPERSEDED — not executed)*:
+- [~] 06-05-PLAN.md — SUPERSEDED 2026-06-02. DEPLOY-02 met by green e2e (16 live specs) + 889 unit tests + live production usage. Manual prod-clone walkthrough not run. See 06-CLOSURE.md.
 
 **Cross-cutting constraints** *(must hold across all plans)*:
 - `pre-merge/main` (`e9073dd…`) and `pre-merge/multi-sport` (`e13e787c…`) tags MUST stay frozen (D-21 carried forward)
@@ -223,6 +225,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **UI hint**: yes (manual validation on the live preview at Plan 06-05)
 
 ### Phase 7: Production cutover + smoke test
+> **✓ SUPERSEDED by continuous delivery 2026-06-02 (see 06-CLOSURE.md).** `main` IS the merged production trunk and prod Supabase is already on the current schema (the multi-sport migrations incl. the `teams.sport='afl'` backfill shipped via continuous delivery). DEPLOY-03/04 are met — production is live and in daily use by real AFL teams on the merged code, guarded by the green e2e/unit suites. No separate cutover action remains.
+
 **Goal**: `main` is fast-forwarded to the merged trunk, production Supabase has executed the new migrations, and the production environment is confirmed healthy for both existing AFL teams and new netball capability
 **Depends on**: Phase 6
 **Requirements**: DEPLOY-03, DEPLOY-04
@@ -245,8 +249,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Branch merge + abstraction integrity | 6/6 | ✓ Complete | 2026-04-30 |
 | 4. Netball verification on merged trunk | 7/7 | ✓ Complete | 2026-05-01 |
 | 5. Test + type green | 5/5 | ✓ Complete | 2026-05-01 |
-| 6. Preview deploy + manual validation | 0/5 | In progress (planning complete; Plans 06-01..03 ready; Plans 06-04 + 06-05 BLOCKED on user creds) | - |
-| 7. Production cutover + smoke test | 0/TBD | Not started | - |
+| 6. Preview deploy + manual validation | 3/5 (06-04/05 superseded) | ✓ Superseded by continuous delivery (live in prod) | 2026-06-02 |
+| 7. Production cutover + smoke test | n/a | ✓ Superseded by continuous delivery (main IS prod) | 2026-06-02 |
 
 ---
 
