@@ -269,7 +269,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
 - [x] **Phase 8: Sport-agnostic period foundation** - Remove the last AFL-hardcoded live-game period literals onto `periodCount`/`periodSeconds` and add per-age-group `subIntervalFloorSeconds` (~240s default) — COMPLETE 2026-06-01
 - [x] **Phase 9: Availability that holds — pre-game & at breaks** - Picker availability edits persist to kickoff (B1); coaches can add/mark-out/mark-injured at any period break (B2) — COMPLETE 2026-06-01
 - [x] **Phase 10: Substitution timing that's fair** - Sub interval derived from period length (F4) and the suggester respects time-since-last-sub recency (B4) — COMPLETE 2026-06-02
-- [ ] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2)
+- [x] **Phase 11: Plan the rotation ahead of the break** - Override the upcoming sub rotation before it falls due (F1) and build the next period's lineup in the dying minutes (F2) — COMPLETE 2026-06-02
 - [ ] **Phase 12: Long-press player insight** - Long-press shows in-game per-zone time, last-sub, per-period breakdown, plus season per-zone percentages (F3)
 - [ ] **Phase 13: Hype song survives iOS backgrounding** - Re-arm the audio element/context after iOS suspension so goals in later periods still trigger the song (B3)
 
@@ -344,7 +344,7 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   4. The plan-ahead controls are reachable and tappable one-handed on the live-game surface, and an e2e spec exercises override-then-honour and build-next-period through the UI
 **Plans**: 2 plans (Wave 1 → Wave 2)
   - [x] 11-01-PLAN.md — ROTPLAN-01/F1 + shared foundation: pure `projectUpcomingRotation` adapter (seeds the Game Plan projector from live state) + extend `GamePlanModal` (seed + `onPin`, not a fork) + `plannedRotation` live-store slice (partialize, gameId-keyed, no migration/event) + AFL imminent-sub override-then-honour (advisory, stale-pin guard `resolveHonouredSwaps`/`diffPlanToSwaps`), red-first unit + e2e override-then-honour ✓ 2026-06-02 [wave 1]
-  - [ ] 11-02-PLAN.md — ROTPLAN-02/F2: final-minutes "plan next period" entry reusing the Wave-1 surface + each sport's break opens PRE-SEEDED from the pinned next-period lineup (AFL `QuarterBreak`, netball `NetballQuarterBreak`, league `LeagueLiveGame`), stale-plan reconcile, red-first cross-sport unit + e2e build-next-period [wave 2, depends 11-01]
+  - [x] 11-02-PLAN.md — ROTPLAN-02/F2: final-minutes "plan next period" entry reusing the Wave-1 surface + each sport's break opens PRE-SEEDED from the pinned next-period lineup (AFL `QuarterBreak`, netball `NetballQuarterBreak`, league `LeagueLiveGame`), stale-plan reconcile via pure `seedNextPeriodLineup`, red-first cross-sport unit (13/13) + e2e build-next-period ✓ 2026-06-02 [wave 2, depends 11-01]
 **UI hint**: yes (plan-ahead entry points on the live surface + the shared GamePlanModal extension; verified by e2e override-then-honour + build-next-period)
 
 ### Phase 12: Long-press player insight
@@ -380,6 +380,6 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 | 8. Sport-agnostic period foundation | 4/4 | ✓ Complete | 2026-06-01 |
 | 9. Availability that holds — pre-game & at breaks | 2/2 | ✓ Complete | 2026-06-01 |
 | 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
-| 11. Plan the rotation ahead of the break | 1/2 | In progress (11-01 ✓; 11-02 next) | - |
+| 11. Plan the rotation ahead of the break | 2/2 | ✓ Complete | 2026-06-02 |
 | 12. Long-press player insight | 0/TBD | Not started | - |
 | 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
