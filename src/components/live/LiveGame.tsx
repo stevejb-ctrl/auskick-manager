@@ -99,6 +99,8 @@ import {
   diffPlanToSwaps,
 } from "@/lib/game-plan";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
+import { getSportConfig } from "@/lib/sports/registry";
+import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -282,6 +284,14 @@ export function LiveGame({
   suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // F3 (Phase 12): labelled zones for the long-press player summary, derived
+  // from the AFL sport config in display order and filtered to this age
+  // group's zones (D-03 — never a hardcoded ALL_ZONES). Shared,
+  // sport-agnostic PlayerInsightSummary renders them.
+  const insightZones = useMemo(
+    () => getSportConfig("afl").zones.filter((z) => ageGroup.zones.includes(z.id)),
+    [ageGroup.zones],
+  );
   // Display caps for the on-field grid — based on the age-group
   // DEFAULT, not the current persisted on-field size. When the coach
   // has reduced count below the default (e.g. 15→13 via Q-break
@@ -2068,6 +2078,48 @@ export function LiveGame({
           squadValues.length > 0
             ? squadValues.reduce((a, b) => a + b, 0) / squadValues.length
             : 0;
+        // F3 (Phase 12) long-press summary. Per-period split comes from the
+        // replay-derived initialState.playedZoneMsByPeriod (completed stints,
+        // same source as the recency guard's lastSubbedOnMs/completedQuarterMs),
+        // with the open live stint overlaid onto the in-progress period.
+        const periodWord = ageGroup.periodLabel ?? getSportConfig("afl").periodLabel;
+        const periodAbbrev = periodWord.charAt(0).toUpperCase();
+        const byPeriod = initialState.playedZoneMsByPeriod[pid] ?? {};
+        const insightPerPeriod: {
+          period: number;
+          periodLabel: string;
+          zoneMs: Record<string, number>;
+        }[] = [];
+        for (let q = 1; q <= currentQuarter; q++) {
+          const zoneMs: Record<string, number> = { ...(byPeriod[q] ?? {}) };
+          if (q === currentQuarter && !quarterEnded) {
+            const z = stintZone[pid];
+            const start = stintStartMs[pid];
+            if (z && start !== undefined) {
+              zoneMs[z] = (zoneMs[z] ?? 0) + Math.max(0, displayNowMs - start);
+            }
+          }
+          const total = Object.values(zoneMs).reduce((a, b) => a + b, 0);
+          if (total > 0) {
+            insightPerPeriod.push({
+              period: q,
+              periodLabel: `${periodAbbrev}${q}`,
+              zoneMs,
+            });
+          }
+        }
+        const insight = (
+          <PlayerInsightSummary
+            input={{
+              zones: insightZones,
+              inGameZoneMs: zoneMsByPlayer[pid] ?? {},
+              perPeriod: insightPerPeriod,
+              seasonZoneMs: season[pid] ?? {},
+              lastSubbedOnMs: initialState.lastSubbedOnMs[pid] ?? null,
+              nowAbsMs: initialState.completedQuarterMs + nowMs * clockMultiplier,
+            }}
+          />
+        );
         return (
           <LockModal
             player={p}
@@ -2077,6 +2129,7 @@ export function LiveGame({
             isLoaned={isLoaned}
             seasonLoanMins={seasonLoanMins}
             squadLoanMins={squadLoanMins}
+            insight={insight}
             onLockField={() => {
               setLocked(lockModal.playerId, true);
               setLockModal(null);
