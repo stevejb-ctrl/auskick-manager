@@ -370,7 +370,9 @@ The order mirrors dependency, not blast-radius: a foundation phase removes the l
   2. The fix lives in `useHypeSong.ts` and re-arms via a visibility/app-state handler; the song effect survives period breaks rather than only tearing down on gameId change/unmount
   3. The fix re-arms the existing audio mechanism (YouTube-iframe / `new Audio()`) without reworking the audio path, and silent failure swallowing no longer hides a suspended-context error
   4. A regression test (written red-first) reproduces the post-Q1 silence and confirms the song fires after a simulated suspend/re-arm cycle
-**Plans**: TBD
+**Plans**: 1 plan (single wave)
+  - [ ] 13-01-PLAN.md — AUDIO-01/B3: extract a pure `reduceSongArm(state,event)` re-arm controller (`src/lib/live/hypeSongController.ts`) unit-tested in node + rewire the SHARED `useHypeSong.ts` to re-arm both audio backends (YT wake + fresh `new Audio()`) via a `document` visibilitychange listener (mirroring the beep `_audioCtx` resume) and surface the suspended-context error instead of swallowing it — re-arm, not rework; AFL + netball benefit for free (RL has no song); red-first `hypeSongController.test.ts`, no new e2e (iOS suspension not simulable) — PLANNED 2026-06-02
+**UI hint**: no (audio-only fix in an existing hook; no visible UI — verified by a red-first pure-controller unit test + existing live e2e as the no-regression guard)
 
 ### Progress (v1.1)
 
@@ -384,4 +386,4 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13. Phase 13 (
 | 10. Substitution timing that's fair | 2/2 | ✓ Complete | 2026-06-02 |
 | 11. Plan the rotation ahead of the break | 2/2 | ✓ Complete | 2026-06-02 |
 | 12. Long-press player insight | 2/2 | ✓ Complete | 2026-06-02 |
-| 13. Hype song survives iOS backgrounding | 0/TBD | Not started | - |
+| 13. Hype song survives iOS backgrounding | 0/1 | Planned | - |
