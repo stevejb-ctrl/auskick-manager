@@ -294,3 +294,233 @@ export function diffPlanToSwaps(input: DiffPlanToSwapsInput): SwapSuggestion[] {
   }
   return swaps;
 }
+
+// ─── Inline SwapCard override (F1 inline) ─────────────────────────
+// The coach can override the upcoming sub WITHOUT leaving the live
+// field: tap the incoming chip on the SwapCard to pick a different
+// bench player, or the outgoing chip to pick a different same-zone
+// field player. These pure helpers compute the eligible options and
+// apply the edit. The edited swap array is pinned via the SAME
+// `plannedRotation` slice the Plan-Ahead planner writes (so the live
+// game honours it through `resolveHonouredSwaps` when the sub falls
+// due) — there is one pin wire, not two.
+
+function onFieldIdsByZone(lineup: Lineup, zone: Zone): string[] {
+  return [...(lineup[zone] ?? [])];
+}
+
+export interface SwapOverrideEligibilityInput {
+  /** Current effective swap pairs shown on the card (post-honour). */
+  swaps: SwapSuggestion[];
+  /** Index of the pair being edited. */
+  pairIndex: number;
+  /** Live lineup (on-field zones + bench). */
+  lineup: Lineup;
+  /** Players currently injured (cannot rotate). */
+  injuredIds: readonly string[];
+  /** Players currently loaned to the opposition (cannot rotate). */
+  loanedIds: readonly string[];
+  /** Players locked to their spot (cannot rotate). */
+  lockedIds: readonly string[];
+}
+
+/**
+ * Bench players the coach may pick to come ON in place of the current
+ * incoming player for `pairIndex`. Fit bench only (not injured /
+ * loaned / locked) and never a player already incoming in ANOTHER pair
+ * — so two overrides compose without bringing the same kid on twice
+ * (spec item 5). The pair's CURRENT incoming player is included (it's
+ * on the bench and used only by this pair), so the picker can show it
+ * highlighted as the live selection.
+ */
+export function eligibleOnReplacements(
+  input: SwapOverrideEligibilityInput,
+): string[] {
+  const { swaps, pairIndex, lineup, injuredIds, loanedIds, lockedIds } = input;
+  const injured = new Set(injuredIds);
+  const loaned = new Set(loanedIds);
+  const locked = new Set(lockedIds);
+  const usedByOthers = new Set(
+    swaps.filter((_, i) => i !== pairIndex).map((s) => s.on_player_id),
+  );
+  return lineup.bench.filter(
+    (id) =>
+      !injured.has(id) &&
+      !loaned.has(id) &&
+      !locked.has(id) &&
+      !usedByOthers.has(id),
+  );
+}
+
+/**
+ * On-field players the coach may pick to come OFF in place of the
+ * current outgoing player for `pairIndex`. Same zone only (the
+ * honoured swap lands the incoming player exactly where the outgoing
+ * one was — `applySwap` maps within the zone), fit only, and never a
+ * player already outgoing in ANOTHER pair. The pair's CURRENT outgoing
+ * player is included so the picker can highlight the live selection.
+ */
+export function eligibleOffReplacements(
+  input: SwapOverrideEligibilityInput,
+): string[] {
+  const { swaps, pairIndex, lineup, injuredIds, loanedIds, lockedIds } = input;
+  const pair = swaps[pairIndex];
+  if (!pair) return [];
+  const injured = new Set(injuredIds);
+  const loaned = new Set(loanedIds);
+  const locked = new Set(lockedIds);
+  const usedByOthers = new Set(
+    swaps.filter((_, i) => i !== pairIndex).map((s) => s.off_player_id),
+  );
+  return onFieldIdsByZone(lineup, pair.zone).filter(
+    (id) =>
+      !injured.has(id) &&
+      !loaned.has(id) &&
+      !locked.has(id) &&
+      !usedByOthers.has(id),
+  );
+}
+
+/**
+ * Apply an inline override to one pair and return a NEW swap array
+ * (input never mutated). `change.off` / `change.on` replace the
+ * outgoing / incoming player respectively; `gap` is reset to 0 (it's
+ * advisory display only — the engine recomputes it next projection).
+ * An out-of-range index returns the array unchanged.
+ */
+export function applyInlineSwapOverride(
+  swaps: SwapSuggestion[],
+  pairIndex: number,
+  change: { off?: string; on?: string },
+): SwapSuggestion[] {
+  if (pairIndex < 0 || pairIndex >= swaps.length) return swaps.map((s) => ({ ...s }));
+  return swaps.map((s, i) =>
+    i === pairIndex
+      ? {
+          ...s,
+          off_player_id: change.off ?? s.off_player_id,
+          on_player_id: change.on ?? s.on_player_id,
+          gap: 0,
+        }
+      : { ...s },
+  );
+}
+
+/** Off/on/zone equality of two swap arrays, order-sensitive. */
+export function swapsEqual(
+  a: readonly SwapSuggestion[],
+  b: readonly SwapSuggestion[],
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (s, i) =>
+      s.off_player_id === b[i].off_player_id &&
+      s.on_player_id === b[i].on_player_id &&
+      s.zone === b[i].zone,
+  );
+}
+
+/**
+ * Has this pair been overridden away from the engine's auto pick? A
+ * pair counts as edited when no auto suggestion matches its exact
+ * off/on/zone triple — membership-based so it's robust to the engine
+ * re-ordering its picks between renders. Drives the "Edited" badge.
+ */
+export function isPairEdited(
+  pair: SwapSuggestion,
+  autoSuggestions: readonly SwapSuggestion[],
+): boolean {
+  return !autoSuggestions.some(
+    (a) =>
+      a.off_player_id === pair.off_player_id &&
+      a.on_player_id === pair.on_player_id &&
+      a.zone === pair.zone,
+  );
+}
+
+export interface ResolveDisplaySuggestionsInput {
+  /** Engine's auto pick for the next sub-due moment (ignores any pin). */
+  rawSuggestions: SwapSuggestion[];
+  /** True when the next sub-due moment would fall after the hooter. */
+  subPastHooter: boolean;
+  /** The coach's pinned plan, or null/undefined. */
+  pin: PlannedRotation | null | undefined;
+  /** 1-indexed current period. */
+  currentPeriod: number;
+  /** Live lineup (on-field zones + bench). */
+  lineup: Lineup;
+  /** Players currently injured. */
+  injuredIds: readonly string[];
+  /** Players currently loaned to the opposition. */
+  loanedIds: readonly string[];
+}
+
+export interface DisplaySuggestionsResult {
+  /** Swaps the SwapCard should render (honoured pin, else engine pick). */
+  suggestions: SwapSuggestion[];
+  /** A valid pin for THIS period is being honoured. */
+  pinnedActive: boolean;
+  /**
+   * The next sub falls past the hooter AND a pin is active — the card
+   * stays visible (it would otherwise be suppressed) so the coach can
+   * still apply the pinned sub or let it carry to the break (spec
+   * item 6).
+   */
+  pastHooterCarry: boolean;
+}
+
+/**
+ * Decide what the SwapCard displays, unifying two concerns the live
+ * game previously interleaved inline:
+ *
+ *   1. Honour a valid pin for this period over the engine pick
+ *      (`resolveHonouredSwaps`).
+ *   2. Suppress the card when the next sub would fall past the hooter
+ *      — UNLESS a pin is active, in which case the pinned sub stays
+ *      visible so it isn't silently swallowed (the dead-end found
+ *      during investigation; spec item 6).
+ *
+ * Pure + deterministic. `pinnedActive` is true only when the pin is
+ * actually honoured (valid for this period), detected via the
+ * reference `resolveHonouredSwaps` returns when every pair is valid.
+ */
+export function resolveDisplaySuggestions(
+  input: ResolveDisplaySuggestionsInput,
+): DisplaySuggestionsResult {
+  const {
+    rawSuggestions,
+    subPastHooter,
+    pin,
+    currentPeriod,
+    lineup,
+    injuredIds,
+    loanedIds,
+  } = input;
+
+  const honoured = resolveHonouredSwaps({
+    pin,
+    currentPeriod,
+    lineup,
+    injuredIds,
+    loanedIds,
+    fallback: rawSuggestions,
+  });
+  // resolveHonouredSwaps returns the pin's own array (by reference)
+  // only when the pin is valid for this period — a clean honour check.
+  const pinnedActive = !!pin && honoured === pin.pinnedSwaps;
+
+  let suggestions: SwapSuggestion[];
+  if (pinnedActive) {
+    suggestions = honoured;
+  } else if (subPastHooter) {
+    suggestions = [];
+  } else {
+    suggestions = honoured;
+  }
+
+  return {
+    suggestions,
+    pinnedActive,
+    pastHooterCarry: pinnedActive && subPastHooter,
+  };
+}

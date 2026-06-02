@@ -95,8 +95,9 @@ import {
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
-  resolveHonouredSwaps,
+  resolveDisplaySuggestions,
   diffPlanToSwaps,
+  swapsEqual,
 } from "@/lib/game-plan";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
@@ -1357,28 +1358,32 @@ export function LiveGame({
     msUntilDue !== null &&
     quarterMs > 0 &&
     nowMs + msUntilDue >= quarterMs;
-  const baseSuggestions = subPastHooter ? [] : rawSuggestions;
   // Plan-ahead honour (F1): when the coach has pinned an upcoming sub
-  // for THIS game + period, and the live suggester would otherwise fire,
-  // honour the pin instead — but only if every pinned pair is still
-  // valid (off on-field, on a swappable bench). A stale/wrong-period/
-  // absent pin falls back to the live suggestion (D-09). The pin never
-  // *creates* a sub: we only swap it in when a sub is already due.
+  // for THIS game + period, honour the pin over the engine pick — but
+  // only if every pinned pair is still valid (off on-field, on a
+  // swappable bench). A stale/wrong-period/absent pin falls back to the
+  // live suggestion (D-09).
   const pinForThisGame =
     plannedRotation && plannedRotation.gameId === activeGameId
       ? plannedRotation
       : null;
-  const suggestions =
-    baseSuggestions.length > 0
-      ? resolveHonouredSwaps({
-          pin: pinForThisGame,
-          currentPeriod: currentQuarter,
-          lineup,
-          injuredIds,
-          loanedIds,
-          fallback: baseSuggestions,
-        })
-      : baseSuggestions;
+  // resolveDisplaySuggestions folds the past-hooter suppression and the
+  // pin honour into one pure decision. A pinned sub stays visible past
+  // the hooter (so it isn't silently swallowed — it can be applied now
+  // or carried to the break); an unpinned suggestion is suppressed once
+  // it would fall after the hooter, as before.
+  const {
+    suggestions,
+    pastHooterCarry,
+  } = resolveDisplaySuggestions({
+    rawSuggestions,
+    subPastHooter,
+    pin: pinForThisGame,
+    currentPeriod: currentQuarter,
+    lineup,
+    injuredIds,
+    loanedIds,
+  });
   // A pin is set for THIS period (regardless of whether a sub is due
   // yet) — drives the "planned" badge + the entry button's label so the
   // coach can see a plan is locked in (D-15).
@@ -1568,12 +1573,36 @@ export function LiveGame({
             {!isPreGame && !isFinished && (
               <SwapCard
                 suggestions={suggestions}
+                autoSuggestions={rawSuggestions}
                 playersById={playersById}
+                lineup={lineup}
+                injuredIds={injuredIds}
+                loanedIds={loanedIds}
+                lockedIds={lockedIds}
                 pending={isPending}
                 subState={subState}
                 forceOpen={subModalOpen}
                 msUntilDue={msUntilDue}
                 subIntervalMs={subIntervalMs}
+                pastHooterCarry={pastHooterCarry}
+                onOverride={(nextSwaps) => {
+                  // Inline override → SAME pin wire as the Plan-Ahead
+                  // planner. When the edit matches the engine pick again
+                  // (e.g. the coach reverted every chip), drop the pin so
+                  // the live suggester takes back over. Otherwise pin the
+                  // edited array, preserving any F2 next-period plan on
+                  // the shared slice.
+                  if (swapsEqual(nextSwaps, rawSuggestions)) {
+                    clearPlannedRotation();
+                    return;
+                  }
+                  setPlannedRotation({
+                    ...(pinForThisGame ?? {}),
+                    gameId,
+                    pinnedForPeriod: currentQuarter,
+                    pinnedSwaps: nextSwaps,
+                  });
+                }}
                 onApply={() => {
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);

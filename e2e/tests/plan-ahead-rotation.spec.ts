@@ -216,6 +216,149 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
     .toBe(true);
 });
 
+// ─── Inline SwapCard override (F1 inline) ─────────────────────────
+// The same override the planner does, but WITHOUT leaving the field:
+// the coach taps the incoming chip on the SwapCard, picks a different
+// bench player from the inline picker, and that choice is pinned via
+// the SAME plannedRotation slice — the SwapCard shows it "Edited" and
+// "Do all" applies the coach's pick, not the engine's.
+//
+//   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
+//   2. Reach the sub-due moment, dismiss the SubDueModal once.
+//   3. Expand the SwapCard, tap pair 0's incoming chip, and pick a
+//      bench option the engine did NOT already have coming on there.
+//   4. Assert: the pair shows the "Edited" badge + the "Planned sub
+//      ready" badge surfaces (the inline edit pinned, same as the
+//      planner's "Pin this sub").
+//   5. "Do all", then assert a `swap` event landed bringing the
+//      coach-picked player on — proving the inline override was
+//      honoured end-to-end.
+test("F1-inline: overriding the incoming player on the SwapCard pins it and is honoured", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 15,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await admin
+    .from("games")
+    .update({ clock_multiplier: 1, sub_interval_seconds: 40 })
+    .eq("id", game.id);
+
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  const positionModel = positionsFor(team.ageGroup);
+  const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
+  const lineup: Lineup = {
+    back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
+  };
+  let cursor = 0;
+  for (const z of ALL_ZONES) {
+    for (let i = 0; i < zoneCaps[z]; i++) {
+      lineup[z].push(players[cursor++].id);
+    }
+  }
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+
+  await admin.from("game_events").insert([
+    {
+      game_id: game.id,
+      type: "lineup_set",
+      metadata: { lineup },
+      created_by: ownerId,
+    },
+    {
+      game_id: game.id,
+      type: "quarter_start",
+      metadata: { quarter: 1 },
+      created_by: ownerId,
+    },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByTestId(`player-tile-${players[0].id}`)).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // Reach sub-due and clear the modal so the inline SwapCard is editable.
+  await expect(
+    page.getByRole("button", { name: /^got it$/i }),
+  ).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("button", { name: /^got it$/i }).click();
+
+  // Expand the SwapCard and open pair 0's incoming picker.
+  const toggle = page.getByTestId("swapcard-toggle");
+  await expect(toggle).toBeVisible({ timeout: 5_000 });
+  await toggle.click();
+  await page.getByTestId("swap-pair-0-on").click();
+
+  // Pick a bench option the engine did NOT already have coming on here
+  // (the picker marks the current pick with bg-brand-600, so a
+  // :not(.bg-brand-600) option is guaranteed to be a real change).
+  const freshOption = page
+    .locator('[data-testid^="swap-option-"]:not(.bg-brand-600)')
+    .first();
+  await expect(freshOption).toBeVisible({ timeout: 5_000 });
+  const optionTestId = await freshOption.getAttribute("data-testid");
+  const chosenOnId = optionTestId!.replace("swap-option-", "");
+  await freshOption.click();
+
+  // The edit pinned: the pair now wears the "Edited" badge and the
+  // plan-ahead row shows "Planned sub ready" (same pin the planner sets).
+  await expect(page.getByTestId("swap-pair-0-edited")).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.getByTestId("planned-sub-badge")).toBeVisible({
+    timeout: 5_000,
+  });
+
+  // Apply everything and confirm the coach-picked player came on.
+  await page.getByTestId("swapcard-apply-all").click();
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("metadata")
+          .eq("game_id", game.id)
+          .eq("type", "swap");
+        return (data ?? []).some(
+          (e) =>
+            ((e.metadata ?? {}) as { on_player_id?: string }).on_player_id ===
+            chosenOnId,
+        );
+      },
+      { timeout: 7_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe(true);
+});
+
 // ─── Plan-ahead rotation: build-next-period → pre-seed (F2) ───────
 // The headline F2 promise: in the final minutes of a period the coach
 // can build the NEXT period's lineup, and when the break arrives it
