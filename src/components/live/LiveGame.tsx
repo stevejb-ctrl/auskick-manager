@@ -103,6 +103,7 @@ import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
+import { isFinalSubWindow } from "@/lib/live/subCadence";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
@@ -1135,8 +1136,11 @@ export function LiveGame({
   // clock (nowMs / quarterMs / the sub cadence), never a hardcoded period
   // count; periodPhase.isLastPeriod hides it on the final period (no next
   // period to plan). Same clock frame as msUntilDue/subPastHooter below.
-  const inFinalWindow =
-    quarterMs > 0 && nowMs >= quarterMs - effectiveSubIntervalMs;
+  const inFinalWindow = isFinalSubWindow({
+    nowMs,
+    quarterMs,
+    effectiveSubIntervalMs,
+  });
   const msUntilDue =
     subBaseMs !== null && !isPreGame && !isFinished
       ? subBaseMs + effectiveSubIntervalMs - nowMs
@@ -1600,84 +1604,6 @@ export function LiveGame({
               />
             )}
 
-            {/* Plan-ahead entry (F1): open the shared rotation planner
-                seeded from the live field so the coach can decide the
-                upcoming sub BEFORE it falls due. Live play only, and only
-                when there's a healthy bench player to rotate on. A
-                "Planned" badge + Clear affordance appears once a sub is
-                pinned for this period (D-15 — the pin is visible). */}
-            {isLivePlay && hasSwappableBench && (
-              <div className="flex items-center justify-between gap-2 px-1">
-                <SFButton
-                  variant="ghost"
-                  size="sm"
-                  data-testid="plan-ahead-entry"
-                  onClick={() => setPlanAheadOpen(true)}
-                  icon={<SFIcon.whistle />}
-                >
-                  {hasPinnedSubThisPeriod ? "Edit planned sub" : "Plan ahead"}
-                </SFButton>
-                {hasPinnedSubThisPeriod && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      data-testid="planned-sub-badge"
-                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-                    >
-                      Planned sub ready
-                    </span>
-                    <button
-                      type="button"
-                      data-testid="plan-ahead-clear"
-                      onClick={() => clearPlannedRotation()}
-                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
-                rotation window of the period (inFinalWindow, derived from
-                the live clock) and not on the last period, the coach can
-                open the SAME shared planner on the NEXT period's tab and
-                build its lineup so the break opens with a plan in place.
-                A "Next period ready" badge + Clear appears once pinned. */}
-            {isLivePlay && inFinalWindow && !isLastPeriod && (
-              <div className="flex items-center justify-between gap-2 px-1">
-                <SFButton
-                  variant="ghost"
-                  size="sm"
-                  data-testid="plan-next-period-entry"
-                  onClick={() => setPlanNextOpen(true)}
-                  icon={<SFIcon.whistle />}
-                >
-                  {hasPinnedNextPeriod
-                    ? `Edit Q${currentQuarter + 1} plan`
-                    : `Plan Q${currentQuarter + 1}`}
-                </SFButton>
-                {hasPinnedNextPeriod && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      data-testid="planned-next-period-badge"
-                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-                    >
-                      Next period ready
-                    </span>
-                    <button
-                      type="button"
-                      data-testid="plan-next-clear"
-                      onClick={() => clearPlannedRotation()}
-                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             <Field
               playersById={playersById}
               onTapField={handleTapField}
@@ -1713,6 +1639,92 @@ export function LiveGame({
           </>
         );
       })()}
+
+      {/* Rotation-planning row — sits down here next to Game Settings
+          (the gear icon below), keeping the on-field area uncluttered
+          (Steve 2026-06-02). Holds the Plan-ahead (F1) + Plan-next-
+          period (F2) entries that used to live above the Field. */}
+      {!isPreGame && !isFinished && (isLivePlay && hasSwappableBench || (isLivePlay && inFinalWindow && !isLastPeriod)) && (
+        <div className="space-y-2">
+          {/* Plan-ahead entry (F1): open the shared rotation planner
+              seeded from the live field so the coach can decide the
+              upcoming sub BEFORE it falls due. Live play only, and only
+              when there's a healthy bench player to rotate on. A
+              "Planned" badge + Clear affordance appears once a sub is
+              pinned for this period (D-15 — the pin is visible). */}
+          {isLivePlay && hasSwappableBench && (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <SFButton
+                variant="ghost"
+                size="sm"
+                data-testid="plan-ahead-entry"
+                onClick={() => setPlanAheadOpen(true)}
+                icon={<SFIcon.whistle />}
+              >
+                {hasPinnedSubThisPeriod ? "Edit planned sub" : "Plan ahead"}
+              </SFButton>
+              {hasPinnedSubThisPeriod && (
+                <div className="flex items-center gap-2">
+                  <span
+                    data-testid="planned-sub-badge"
+                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                  >
+                    Planned sub ready
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="plan-ahead-clear"
+                    onClick={() => clearPlannedRotation()}
+                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
+              rotation window of the period (inFinalWindow, derived from
+              the live clock) and not on the last period, the coach can
+              open the SAME shared planner on the NEXT period's tab and
+              build its lineup so the break opens with a plan in place.
+              A "Next period ready" badge + Clear appears once pinned. */}
+          {isLivePlay && inFinalWindow && !isLastPeriod && (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <SFButton
+                variant="ghost"
+                size="sm"
+                data-testid="plan-next-period-entry"
+                onClick={() => setPlanNextOpen(true)}
+                icon={<SFIcon.whistle />}
+              >
+                {hasPinnedNextPeriod
+                  ? `Edit Q${currentQuarter + 1} plan`
+                  : `Plan Q${currentQuarter + 1}`}
+              </SFButton>
+              {hasPinnedNextPeriod && (
+                <div className="flex items-center gap-2">
+                  <span
+                    data-testid="planned-next-period-badge"
+                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                  >
+                    Next period ready
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="plan-next-clear"
+                    onClick={() => clearPlannedRotation()}
+                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Admin / utility action row — chrome owned by the shared
           LiveAdminUtilityRow (Phase 5b). Candidates filtering stays
