@@ -55,6 +55,13 @@ interface Props {
    */
   emptyPositions?: string[];
   onMoveToEmpty?: (targetPositionId: string) => void;
+  /**
+   * F3 (Phase 12) — optional shared player-insight summary, rendered
+   * under the header (mirrors the LockModal `insight` slot AFL/league
+   * use). Host passes <PlayerInsightSummary/>; additive, so existing
+   * callers that omit it are unaffected.
+   */
+  insight?: React.ReactNode;
   onClose: () => void;
 }
 
@@ -73,6 +80,7 @@ export function NetballPlayerActions({
   onSwitch,
   emptyPositions = [],
   onMoveToEmpty,
+  insight,
   onClose,
 }: Props) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -115,6 +123,10 @@ export function NetballPlayerActions({
         >
           {firstName} <span className="text-ink-mute">· {positionLabel}</span>
         </h2>
+
+        {/* F3 shared player-insight summary (in-game per-third + last-sub,
+            per-period, season %). Additive slot above the action set. */}
+        {insight}
 
         <div className="flex flex-col gap-2">
           {/* Move-to-empty picker sub-mode — when the coach taps the

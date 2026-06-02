@@ -62,10 +62,13 @@ import {
   kickoffRecordedForPeriod,
 } from "@/lib/sports/rugby_league/kicks";
 import {
+  playedZoneMsByPeriod,
   playerMsOnField,
   playerZoneMsOnField,
   suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
+import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
@@ -414,6 +417,113 @@ export function LeagueLiveGame({
         : undefined,
     [trackZoneTime, thisGameEvents, state.currentQuarter, elapsedMs],
   );
+
+  // ─── F3 (Phase 12) long-press player insight ────────────────
+  // Shared, sport-agnostic summary surfaced inside the SAME LockModal
+  // AFL uses, via its `insight` slot. Reuses PlayerInsightSummary +
+  // buildPlayerInsight verbatim so a coach running both sports sees
+  // identical chrome (reuse-before-fork). RL has a single config zone
+  // ("field"), so the per-zone split collapses to one row.
+
+  // Labelled zones for the summary — RL sport config, filtered to this
+  // age group's zones (D-03; never a hardcoded list). Resolves to the
+  // single "field" zone.
+  const insightZones = useMemo(
+    () => rugbyLeagueSport.zones.filter((z) => ageGroup.zones.includes(z.id)),
+    [ageGroup.zones],
+  );
+
+  // Per-player, per-period CLOSED on-field ms under the single "field"
+  // zone (F3 / D-05). The live trailing-period stint isn't in here —
+  // we overlay it onto the current period in buildInsightInput using
+  // totalMsByPlayer (which DOES include the open stint).
+  const playedByPeriod = useMemo(
+    () => playedZoneMsByPeriod(thisGameEvents),
+    [thisGameEvents],
+  );
+
+  // Season on-field ms per player under the single "field" zone. Summed
+  // per completed game (currentQuarter=0/elapsed=0 → closed stints
+  // only, no live overlay). Feeds the season-mix percentages (D-04);
+  // with one zone this reads "Field 100%" for anyone who's played.
+  const seasonFieldMs = useMemo(() => {
+    const byGame = new Map<string, GameEvent[]>();
+    for (const ev of seasonEvents) {
+      const arr = byGame.get(ev.game_id) ?? [];
+      arr.push(ev);
+      byGame.set(ev.game_id, arr);
+    }
+    const out: Record<string, number> = {};
+    byGame.forEach((evts) => {
+      const ms = playerMsOnField(evts, 0, 0);
+      for (const [pid, v] of Object.entries(ms)) {
+        out[pid] = (out[pid] ?? 0) + v;
+      }
+    });
+    return out;
+  }, [seasonEvents]);
+
+  // Absolute game-elapsed "now" in the same frame state.lastSubbedOnMs
+  // uses (completedQuarterMs + within-quarter elapsed). While a period
+  // runs we add elapsedMs; at a break or finalised the period is
+  // already rolled into completedQuarterMs so add 0.
+  const completedQuarterMs = useMemo(
+    () =>
+      thisGameEvents
+        .filter((e) => e.type === "quarter_end")
+        .reduce(
+          (acc, e) =>
+            acc + ((e.metadata as { elapsed_ms?: number }).elapsed_ms ?? 0),
+          0,
+        ),
+    [thisGameEvents],
+  );
+  const liveOverlayMs =
+    state.currentQuarter > 0 && !state.quarterEnded && !state.finalised
+      ? elapsedMs
+      : 0;
+  const nowAbsMs = completedQuarterMs + liveOverlayMs;
+  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
+    .charAt(0)
+    .toUpperCase();
+
+  // Build the PlayerInsightSummary input for one player. Overlays the
+  // live open stint onto the current period (closed buckets + the
+  // difference between whole-game on-field ms and the closed total).
+  const buildInsightInput = (pid: string) => {
+    const inGameZoneMs: Record<string, number> = {
+      field: totalMsByPlayer[pid] ?? 0,
+    };
+    const byPeriod = playedByPeriod[pid] ?? {};
+    let closedTotal = 0;
+    for (const q of Object.keys(byPeriod).map(Number)) {
+      closedTotal += byPeriod[q]?.field ?? 0;
+    }
+    const liveOpenMs = Math.max(0, (totalMsByPlayer[pid] ?? 0) - closedTotal);
+    const cur = state.currentQuarter;
+    const periods = new Set<number>(Object.keys(byPeriod).map(Number));
+    if (liveOpenMs > 0 && cur >= 1) periods.add(cur);
+    const perPeriod = Array.from(periods)
+      .sort((a, b) => a - b)
+      .map((q) => {
+        const fieldMs =
+          (byPeriod[q]?.field ?? 0) + (q === cur ? liveOpenMs : 0);
+        return {
+          period: q,
+          periodLabel: `${periodAbbrev}${q}`,
+          zoneMs: { field: fieldMs },
+        };
+      })
+      .filter((p) => p.zoneMs.field > 0);
+    return {
+      zones: insightZones,
+      inGameZoneMs,
+      perPeriod,
+      seasonZoneMs: { field: seasonFieldMs[pid] ?? 0 },
+      lastSubbedOnMs: state.lastSubbedOnMs[pid] ?? null,
+      nowAbsMs,
+    };
+  };
   const kickingAllowed = ageGroup.kickingAllowed === true;
   const kickoffNeededForPeriod
     = kickingAllowed
@@ -2276,6 +2386,9 @@ export function LeagueLiveGame({
           isLoaned={actionSheetLoaned}
           seasonLoanMins={0}
           squadLoanMins={0}
+          insight={
+            <PlayerInsightSummary input={buildInsightInput(actionSheetPlayer.id)} />
+          }
           onUnlock={() => setActionSheetPlayerId(null)}
           onToggleInjury={() =>
             void handleToggleInjury(

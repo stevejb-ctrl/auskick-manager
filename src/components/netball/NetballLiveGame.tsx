@@ -70,11 +70,15 @@ import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
   type GenericLineup,
+  type InProgressContribution,
   type InProgressSegment,
   type PlayerThirdMs,
+  type ThirdLookup,
   emptyGenericLineup,
   gamePositionCounts,
+  playedZoneMsByPeriod,
   playerThirdMs,
+  replayNetballGame,
   seasonPositionCounts,
 } from "@/lib/sports/netball/fairness";
 import { computeNetballClockMs } from "@/lib/sports/netball/clock";
@@ -85,6 +89,7 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { projectUpcomingRotation } from "@/lib/game-plan";
 
@@ -1012,23 +1017,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // The sub-out player's bar stops at the sub moment; the sub-in
   // player's bar starts at zero contribution from this quarter and
   // accrues from there. No more inheritance.
-  const playerStats = useMemo(() => {
-    // Use segments any time the trailing quarter is "still open" from
-    // a client-state POV — that's LIVE play AND the Q-break window
-    // BEFORE period_break_swap is confirmed. Once confirmed, the
-    // post-sub lineup is durable in events and we can fall back to
-    // the event-only path. This catches the Q-break case where the
-    // injured player would otherwise get credited the full quarter
-    // and their substitute would show 0:00.
+  // In-progress contribution for the trailing (still-open) quarter,
+  // built ONCE and reused by both `playerStats` (whole-game per-third)
+  // and `playedZoneByPeriod` (F3 per-period per-zone) so the two are a
+  // single split of the SAME credited ms.
+  //
+  // "Open" means the trailing quarter is still live from a client-state
+  // POV — that's LIVE play AND the Q-break window BEFORE
+  // period_break_swap is confirmed. Once confirmed, the post-sub lineup
+  // is durable in events and both accessors fall back to the event-only
+  // path (undefined here). This catches the Q-break case where the
+  // injured player would otherwise get credited the full quarter and
+  // their substitute would show 0:00.
+  const inProgressContribution = useMemo<InProgressContribution | undefined>(() => {
     const isQuarterOpen = !finalised && currentQuarter > 0;
-    if (!isQuarterOpen) {
-      return playerThirdMs(
-        thisGameEvents,
-        null,
-        quarterLengthSeconds,
-        primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
-      );
-    }
+    if (!isQuarterOpen) return undefined;
     // Build segments from the start-of-quarter lineup + each sub in
     // chronological order. The start-of-quarter lineup is whatever the
     // replay engine handed us (the most recent lineup_set or
@@ -1073,24 +1076,154 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     const finalDur = Math.max(0, totalElapsed - prevMs);
     if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
-    return playerThirdMs(
-      thisGameEvents,
-      null,
-      quarterLengthSeconds,
-      primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
-      { segments },
-    );
+    return { segments };
   }, [
-    thisGameEvents,
     clockMs,
     quarterEnded,
     finalised,
     currentQuarter,
-    quarterLengthSeconds,
     quarterLengthMs,
     initialLineup,
     midQuarterSubs,
+    ageGroup.positions,
   ]);
+
+  // Per-player time-by-third stats. When the trailing quarter is open
+  // we hand `playerThirdMs` the in-progress segments so EACH PLAYER
+  // gets their own timer (sub-out stops at the sub moment, sub-in
+  // starts from zero); otherwise the event-only path covers finalised
+  // + pre-game.
+  const playerStats = useMemo(() => {
+    return playerThirdMs(
+      thisGameEvents,
+      null,
+      quarterLengthSeconds,
+      primaryThirdFor as ThirdLookup,
+      inProgressContribution,
+    );
+  }, [thisGameEvents, quarterLengthSeconds, inProgressContribution]);
+
+  // ─── F3 (Phase 12) long-press player insight ────────────────
+  // Shared, sport-agnostic summary surfaced inside NetballPlayerActions
+  // via its `insight` slot. Mirrors the AFL LockModal wiring verbatim
+  // — same PlayerInsightSummary, same buildPlayerInsight contract — so
+  // a coach who runs a footy team AND a netball team sees identical
+  // chrome (reuse-before-fork).
+
+  // Labelled zones for the summary, derived from the netball sport
+  // config in display order and filtered to (a) this age group's zones
+  // (D-03 — never a hardcoded list) AND (b) the thirds that actually
+  // accrue time. Netball positions credit time into the three THIRDS
+  // (via primaryThirdFor); the two goal CIRCLES never get time, so
+  // including them would show a permanent "0%" season slice. Deriving
+  // the credited set from primaryThirdFor keeps this config-driven.
+  const insightZones = useMemo(() => {
+    const credited = new Set<string>();
+    for (const posId of ageGroup.positions) {
+      const third = primaryThirdFor(posId);
+      if (third) credited.add(third);
+    }
+    return netballSport.zones.filter(
+      (z) => ageGroup.zones.includes(z.id) && credited.has(z.id),
+    );
+  }, [ageGroup.positions, ageGroup.zones]);
+
+  // Season per-zone "minutes" — netball measures season usage in
+  // QUARTERS-per-position, so we feed the builder per-third quarter
+  // counts. buildPlayerInsight is unit-agnostic for the season slice
+  // (D-04: percentages only), so counts produce the right per-third
+  // season percentage with no minutes ever surfaced.
+  const seasonZoneCounts = useMemo(() => {
+    const byPlayer = seasonPositionCounts(seasonEvents);
+    const out: Record<string, Record<string, number>> = {};
+    for (const [pid, posCounts] of Object.entries(byPlayer)) {
+      const z: Record<string, number> = {};
+      for (const [posId, n] of Object.entries(posCounts)) {
+        const third = primaryThirdFor(posId);
+        if (third) z[third] = (z[third] ?? 0) + n;
+      }
+      out[pid] = z;
+    }
+    return out;
+  }, [seasonEvents]);
+
+  // Per-player, per-period, per-zone played ms (F3 / D-05). Same
+  // credited ms as playerStats, split by period — reuses the SAME
+  // inProgressContribution so the trailing live quarter lands in the
+  // current period and the buckets provably sum to playerStats.
+  const playedZoneByPeriod = useMemo(
+    () =>
+      playedZoneMsByPeriod(
+        thisGameEvents,
+        quarterLengthSeconds,
+        primaryThirdFor as ThirdLookup,
+        inProgressContribution,
+      ),
+    [thisGameEvents, quarterLengthSeconds, inProgressContribution],
+  );
+
+  // Replay-derived per-player "most recently came on" timeline for the
+  // "time since last sub" line (D-06). Netball subs only at breaks, so
+  // this is period-granular; frame is completedQuarterMs + elapsed.
+  const replayState = useMemo(
+    () => replayNetballGame(thisGameEvents),
+    [thisGameEvents],
+  );
+
+  // Absolute game-elapsed "now" in the same frame replayState uses:
+  // completed (quarter_end'd) quarters + the live within-quarter
+  // elapsed. While a quarter runs, completedQuarterMs excludes it and
+  // we add clockMs; once quarter_end fires (Q-break) or the game is
+  // finalised the quarter is already in completedQuarterMs, so add 0.
+  const completedQuarterMs = useMemo(
+    () =>
+      thisGameEvents
+        .filter((e) => e.type === "quarter_end")
+        .reduce(
+          (acc, e) => acc + ((e.metadata as { elapsed_ms?: number }).elapsed_ms ?? 0),
+          0,
+        ),
+    [thisGameEvents],
+  );
+  const liveOverlayMs =
+    !finalised && currentQuarter > 0 && !quarterEnded ? clockMs : 0;
+  const nowAbsMs = completedQuarterMs + liveOverlayMs;
+
+  // Period label initial for the per-period rows (e.g. "Q" → "Q1").
+  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
+    .charAt(0)
+    .toUpperCase();
+
+  // Build the PlayerInsightSummary input for one player. Reused by the
+  // long-press action modal's `insight` slot. Maps PlayerThirdMs
+  // (attack/centre/defence) onto the config third zone ids the rest of
+  // the summary is keyed by.
+  const buildInsightInput = (pid: string) => {
+    const s = playerStats.get(pid);
+    const inGameZoneMs: Record<string, number> = {
+      "attack-third": s?.attack ?? 0,
+      "centre-third": s?.centre ?? 0,
+      "defence-third": s?.defence ?? 0,
+    };
+    const byPeriod = playedZoneByPeriod[pid] ?? {};
+    const perPeriod = Object.keys(byPeriod)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((q) => ({
+        period: q,
+        periodLabel: `${periodAbbrev}${q}`,
+        zoneMs: byPeriod[q],
+      }))
+      .filter((p) => Object.values(p.zoneMs).some((v) => v > 0));
+    return {
+      zones: insightZones,
+      inGameZoneMs,
+      perPeriod,
+      seasonZoneMs: seasonZoneCounts[pid] ?? {},
+      lastSubbedOnMs: replayState.lastSubbedOnMs[pid] ?? null,
+      nowAbsMs,
+    };
+  };
 
   // ─── Action handlers ───────────────────────────────────────
   // tap on a GS/GA token → open the confirm sheet (mirrors AFL's
@@ -2125,6 +2258,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <NetballPlayerActions
           player={actionsPlayer}
           positionId={actionsTarget.positionId}
+          insight={
+            <PlayerInsightSummary input={buildInsightInput(actionsTarget.playerId)} />
+          }
           isInjured={injuredIds.has(actionsTarget.playerId)}
           isLoaned={loanedIds.has(actionsTarget.playerId)}
           isLockedForNextBreak={

@@ -117,7 +117,7 @@ describe("netball playedZoneMsByPeriod (PLAYERVIEW-01 / D-05)", () => {
     const byPeriod = playedZoneMsByPeriod(stream, periodSeconds, thirdLookup);
     const whole = playerThirdMs(stream, null, periodSeconds, thirdLookup);
 
-    for (const [pid, thirds] of whole.entries()) {
+    for (const [pid, thirds] of Array.from(whole.entries())) {
       for (const [thirdKey, zoneId] of Object.entries(ZONE_FOR_THIRD)) {
         const total = thirds[thirdKey as keyof typeof thirds];
         const summed = Object.values(byPeriod[pid] ?? {}).reduce(
@@ -178,7 +178,7 @@ describe("netball playedZoneMsByPeriod (PLAYERVIEW-01 / D-05)", () => {
     expect(byPeriod["D"][2]["centre-third"]).toBe(600_000);
 
     // Cross-check still holds with the mid-quarter split.
-    for (const [pid, thirds] of whole.entries()) {
+    for (const [pid, thirds] of Array.from(whole.entries())) {
       for (const [thirdKey, zoneId] of Object.entries(ZONE_FOR_THIRD)) {
         const total = thirds[thirdKey as keyof typeof thirds];
         const summed = Object.values(byPeriod[pid] ?? {}).reduce(

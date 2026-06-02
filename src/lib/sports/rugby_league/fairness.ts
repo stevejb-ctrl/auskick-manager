@@ -1716,6 +1716,148 @@ export function playerMsOnField(
   return total;
 }
 
+// ─── Per-period on-field ms (F3 / D-05, plan 12-02) ───────────
+// The long-press player insight needs on-field ms split BY PERIOD. RL
+// has a single config zone ("field"), so this buckets the SAME stint
+// ms `playerMsOnField` sums whole-game by the quarter the stint closed
+// in, under the single "field" key. Only CLOSED stints (completed
+// periods) are credited — the live trailing period is overlaid by the
+// caller, mirroring AFL's replay snapshot. Summing a player's
+// per-period buckets equals their `playerMsOnField` total for a
+// settled game with no open live stint. Shape mirrors AFL's
+// `GameState.playedZoneMsByPeriod`.
+export function playedZoneMsByPeriod(
+  events: GameEvent[],
+): Record<string, Record<number, Record<string, number>>> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const out: Record<string, Record<number, Record<string, number>>> = {};
+  const stintStart: Record<string, number> = {};
+  let activeQuarter: number | null = null;
+  let snapshot: LeagueLineup | null = null;
+
+  const closeStint = (playerId: string, endElapsed: number) => {
+    const start = stintStart[playerId];
+    if (start === undefined) return;
+    const ms = Math.max(0, endElapsed - start);
+    if (activeQuarter != null && ms > 0) {
+      out[playerId] ??= {};
+      out[playerId][activeQuarter] ??= {};
+      out[playerId][activeQuarter]["field"] =
+        (out[playerId][activeQuarter]["field"] ?? 0) + ms;
+    }
+    delete stintStart[playerId];
+  };
+
+  for (const ev of sorted) {
+    const meta = (ev.metadata ?? {}) as {
+      lineup?: Partial<LeagueLineup>;
+      quarter?: number;
+      elapsed_ms?: number;
+      off_player_id?: string;
+      on_player_id?: string;
+    };
+    switch (ev.type) {
+      case "lineup_set": {
+        if (meta.lineup) snapshot = normalizeLeagueLineup(meta.lineup);
+        break;
+      }
+      case "quarter_start": {
+        // Close any leftover open stints from a missing quarter_end.
+        for (const id of Object.keys(stintStart)) closeStint(id, 0);
+        activeQuarter =
+          typeof meta.quarter === "number"
+            ? meta.quarter
+            : (activeQuarter ?? 0) + 1;
+        if (snapshot) {
+          for (const id of leagueOnField(snapshot)) stintStart[id] = 0;
+        }
+        break;
+      }
+      case "quarter_end": {
+        const endElapsed =
+          typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        for (const id of Object.keys(stintStart)) closeStint(id, endElapsed);
+        activeQuarter = null;
+        break;
+      }
+      case "swap": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        if (meta.off_player_id) closeStint(meta.off_player_id, at);
+        if (meta.on_player_id && stintStart[meta.on_player_id] === undefined) {
+          stintStart[meta.on_player_id] = at;
+        }
+        // Mirror the swap into snapshot so a later quarter_start seeds
+        // the right field set (same rule as playerMsOnField).
+        if (snapshot && meta.off_player_id && meta.on_player_id) {
+          const off = meta.off_player_id;
+          const on = meta.on_player_id;
+          let forwards: string[] = snapshot.forwards.slice();
+          let backs: string[] = snapshot.backs.slice();
+          const bench: string[] = snapshot.bench.slice();
+          let offZone: LeagueZone = "forward";
+          const fIdx = forwards.indexOf(off);
+          const bIdx = backs.indexOf(off);
+          if (bIdx >= 0) {
+            offZone = "back";
+            backs.splice(bIdx, 1);
+          } else if (fIdx >= 0) {
+            offZone = "forward";
+            forwards.splice(fIdx, 1);
+          }
+          if (!bench.includes(off)) bench.push(off);
+          const benchIdx = bench.indexOf(on);
+          if (benchIdx >= 0) bench.splice(benchIdx, 1);
+          forwards = forwards.filter((id) => id !== on);
+          backs = backs.filter((id) => id !== on);
+          if (offZone === "back") backs.push(on);
+          else forwards.push(on);
+          snapshot = { forwards, backs, bench };
+        }
+        break;
+      }
+      case "league_position_change": {
+        // Position changes don't break stints; mirror into snapshot.
+        if (snapshot && ev.player_id) {
+          const pid = ev.player_id;
+          const toZone = (meta as { to_zone?: LeagueZone }).to_zone;
+          if (toZone === "forward" || toZone === "back") {
+            const wasOnField =
+              snapshot.forwards.includes(pid) || snapshot.backs.includes(pid);
+            if (wasOnField) {
+              const nextForwards: string[] = snapshot.forwards.filter(
+                (p) => p !== pid,
+              );
+              const nextBacks: string[] = snapshot.backs.filter(
+                (p) => p !== pid,
+              );
+              if (toZone === "forward") nextForwards.push(pid);
+              else nextBacks.push(pid);
+              snapshot = {
+                forwards: nextForwards,
+                backs: nextBacks,
+                bench: snapshot.bench,
+              };
+            }
+          }
+        }
+        break;
+      }
+      case "injury":
+      case "player_loan": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        if (ev.player_id) closeStint(ev.player_id, at);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return out;
+}
+
 // ─── Per-player zone-time accounting (forwards / centre / backs) ──
 // Optional F/C/B time accumulator for the AFL-style stacked bar that
 // renders on every LeaguePlayerTile when the team / game has

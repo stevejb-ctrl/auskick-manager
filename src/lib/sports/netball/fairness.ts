@@ -978,6 +978,62 @@ export interface InProgressContribution {
   segments: InProgressSegment[];
 }
 
+/** A mid-quarter substitution row carried on a break / finalise event. */
+export interface QuarterSub {
+  positionId: string;
+  // null when the slot was already empty before the sub.
+  outPlayerId: string | null;
+  // null when the sub VACATES the position (short-squad move pair).
+  inPlayerId: string | null;
+  atMs: number;
+}
+
+/**
+ * Split a closed quarter into the time segments its mid-quarter subs
+ * imply: each sub turns the quarter into more segments, each with a
+ * different lineup. Returns `{ lineup, durationMs }` slices whose
+ * durations sum to `periodMs`. Shared by `playerThirdMs` (whole-game
+ * per-third) and `playedZoneMsByPeriod` (per-period per-third) so both
+ * credit IDENTICAL segments — the per-period map is a finer split of
+ * the same ms, never a divergent second accumulator.
+ */
+function splitQuarterSegments(
+  lineup: GenericLineup,
+  periodMs: number,
+  subs: QuarterSub[],
+): InProgressSegment[] {
+  if (subs.length === 0) return [{ lineup, durationMs: periodMs }];
+  const segments: InProgressSegment[] = [];
+  let current = lineup;
+  let prevMs = 0;
+  for (const sub of subs) {
+    const dur = Math.max(0, Math.min(sub.atMs, periodMs) - prevMs);
+    if (dur > 0) segments.push({ lineup: current, durationMs: dur });
+    const next: GenericLineup = {
+      positions: { ...current.positions },
+      bench:
+        sub.inPlayerId != null
+          ? current.bench.filter((id) => id !== sub.inPlayerId)
+          : [...current.bench],
+    };
+    const remainAtPosition = (next.positions[sub.positionId] ?? []).filter(
+      (id) => sub.outPlayerId == null || id !== sub.outPlayerId,
+    );
+    next.positions[sub.positionId] =
+      sub.inPlayerId != null
+        ? remainAtPosition.concat([sub.inPlayerId])
+        : remainAtPosition;
+    if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
+      next.bench = [...next.bench, sub.outPlayerId];
+    }
+    current = next;
+    prevMs = Math.min(sub.atMs, periodMs);
+  }
+  const finalDur = Math.max(0, periodMs - prevMs);
+  if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
+  return segments;
+}
+
 export function playerThirdMs(
   events: GameEvent[],
   inProgressMs: number | null,
@@ -1036,53 +1092,11 @@ export function playerThirdMs(
   const creditClosedQuarter = (
     lineup: GenericLineup,
     periodMs: number,
-    subs: Array<{
-      positionId: string;
-      // null when the slot was already empty before the sub (coach
-      // lent a player and cancelled the picker, then later tapped
-      // the empty token to fill it). Skip the bench-add step for
-      // those — there's no sub-out player to push to bench.
-      outPlayerId: string | null;
-      // null when the sub VACATES the position. Used by short-squad
-      // "Move to empty position" (Steve 2026-05-23) which emits a
-      // pair of subs at the same atMs: one with inPlayerId=null to
-      // vacate the source, one with outPlayerId=null to fill the
-      // target. Skip the position-fill + bench-remove for vacate-
-      // only subs.
-      inPlayerId: string | null;
-      atMs: number;
-    }>,
+    subs: QuarterSub[],
   ) => {
-    if (subs.length === 0) {
-      addLineupTime(lineup, periodMs);
-      return;
+    for (const seg of splitQuarterSegments(lineup, periodMs, subs)) {
+      addLineupTime(seg.lineup, seg.durationMs);
     }
-    let current = lineup;
-    let prevMs = 0;
-    for (const sub of subs) {
-      const dur = Math.max(0, Math.min(sub.atMs, periodMs) - prevMs);
-      if (dur > 0) addLineupTime(current, dur);
-      const next: GenericLineup = {
-        positions: { ...current.positions },
-        bench:
-          sub.inPlayerId != null
-            ? current.bench.filter((id) => id !== sub.inPlayerId)
-            : [...current.bench],
-      };
-      const remainAtPosition = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
-      next.positions[sub.positionId] =
-        sub.inPlayerId != null
-          ? remainAtPosition.concat([sub.inPlayerId])
-          : remainAtPosition;
-      if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
-        next.bench = [...next.bench, sub.outPlayerId];
-      }
-      current = next;
-      prevMs = Math.min(sub.atMs, periodMs);
-    }
-    const finalDur = Math.max(0, periodMs - prevMs);
-    if (finalDur > 0) addLineupTime(current, finalDur);
   };
 
   let currentLineup: GenericLineup | null = null;
@@ -1136,6 +1150,99 @@ export function playerThirdMs(
     } else if (currentLineup) {
       const ms = inProgressMs ?? periodSeconds * 1000;
       addLineupTime(overrideTrailingLineup ?? currentLineup, ms);
+    }
+  }
+
+  return out;
+}
+
+// ─── Per-period × per-third time (F3 / D-05, plan 12-02) ──────
+// The long-press player insight needs the per-third time split BY
+// PERIOD, not just the whole-game total `playerThirdMs` gives. This
+// buckets the SAME credited ms (closed quarters via the shared segment
+// split, the trailing quarter via the in-progress segments) by the
+// quarter number AND by config zone id — the three thirds
+// `attack-third` / `centre-third` / `defence-third` returned by the
+// ThirdLookup. Summing a player's per-period buckets per zone equals
+// their `playerThirdMs` total: the two are the same credit, split two
+// ways. Shape mirrors AFL's `GameState.playedZoneMsByPeriod`.
+export function playedZoneMsByPeriod(
+  events: GameEvent[],
+  periodSeconds: number,
+  thirdLookup: ThirdLookup,
+  inProgress?: InProgressContribution,
+): Record<string, Record<number, Record<string, number>>> {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const out: Record<string, Record<number, Record<string, number>>> = {};
+
+  const addLineupTime = (
+    lineup: GenericLineup,
+    ms: number,
+    period: number,
+  ) => {
+    if (ms <= 0 || period < 1) return;
+    for (const [posId, ids] of Object.entries(lineup.positions)) {
+      const zoneId = thirdLookup(posId);
+      if (!zoneId) continue;
+      for (const pid of ids) {
+        if (!pid) continue;
+        out[pid] ??= {};
+        out[pid][period] ??= {};
+        out[pid][period][zoneId] = (out[pid][period][zoneId] ?? 0) + ms;
+      }
+    }
+  };
+
+  let currentLineup: GenericLineup | null = null;
+  let currentPeriod = 0;
+  let hasFinalised = false;
+
+  for (const ev of sorted) {
+    const meta = ev.metadata as {
+      lineup?: Partial<GenericLineup>;
+      quarter?: number;
+      midQuarterSubs?: QuarterSub[];
+    };
+    if (ev.type === "lineup_set" && meta.lineup) {
+      currentLineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "quarter_start") {
+      currentPeriod =
+        typeof meta.quarter === "number" ? meta.quarter : currentPeriod + 1;
+    } else if (ev.type === "period_break_swap" && meta.lineup) {
+      if (currentLineup) {
+        for (const seg of splitQuarterSegments(
+          currentLineup,
+          periodSeconds * 1000,
+          meta.midQuarterSubs ?? [],
+        )) {
+          addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
+        }
+      }
+      currentLineup = normaliseGenericLineup(meta.lineup);
+    } else if (ev.type === "game_finalised") {
+      if (currentLineup) {
+        for (const seg of splitQuarterSegments(
+          currentLineup,
+          periodSeconds * 1000,
+          meta.midQuarterSubs ?? [],
+        )) {
+          addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
+        }
+      }
+      currentLineup = null;
+      hasFinalised = true;
+    }
+  }
+
+  if (!hasFinalised) {
+    if (inProgress) {
+      for (const seg of inProgress.segments) {
+        addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
+      }
+    } else if (currentLineup) {
+      addLineupTime(currentLineup, periodSeconds * 1000, currentPeriod || 1);
     }
   }
 
