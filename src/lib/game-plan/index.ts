@@ -3,3 +3,10 @@ export * from "./types";
 export { projectGamePlan } from "./project";
 export { formatGamePlan, type FormatGamePlanOptions } from "./format";
 export { swapPlayersInPeriod } from "./edit";
+export {
+  projectUpcomingRotation,
+  resolveHonouredSwaps,
+  type ProjectUpcomingRotationInput,
+  type ResolveHonouredSwapsInput,
+  type PlannedRotation,
+} from "./live";

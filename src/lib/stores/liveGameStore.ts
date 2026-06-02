@@ -37,6 +37,7 @@ import {
   type Zone,
 } from "@/lib/types";
 import { ALL_ZONES } from "@/lib/fairness";
+import type { PlannedRotation } from "@/lib/game-plan";
 
 export type ZoneMs = Record<Zone, number>;
 const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
@@ -116,6 +117,16 @@ export interface LiveGameState {
    * metadata is a follow-up).
    */
   rotationMode: "suggested" | "manual";
+  /**
+   * The coach's pinned plan-ahead rotation for THIS game (F1 pinned
+   * swaps and/or F2 next-period lineup). Persisted via partialize so it
+   * survives router.refresh() + reload; keyed by gameId so a pin from a
+   * previous game can never seed a different one. Null when nothing is
+   * pinned. Cleared on apply (LiveGame) or when the period advances past
+   * `pinnedForPeriod` (beginNextQuarter). No schema migration, no new
+   * game-event type (D-04/D-05).
+   */
+  plannedRotation: PlannedRotation | null;
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -177,6 +188,10 @@ export interface LiveGameState {
   setLocked: (playerId: string, locked: boolean) => void;
   /** Lock player to a specific zone (they can sub on/off but only to this zone). Pass null to clear. */
   setZoneLocked: (playerId: string, zone: Zone | null) => void;
+  /** Pin a plan-ahead rotation for this game (F1 override / F2 next period). */
+  setPlannedRotation: (plan: PlannedRotation) => void;
+  /** Clear the pinned plan (after it's applied, or when it's no longer valid). */
+  clearPlannedRotation: () => void;
 }
 
 function cloneLineup(l: Lineup): Lineup {
@@ -248,6 +263,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   pastQuarterZones: {} as Record<string, Record<number, Zone>>,
   zoneLockedPlayers: {} as Record<string, Zone>,
   rotationMode: "suggested" as "suggested" | "manual",
+  plannedRotation: null as PlannedRotation | null,
 };
 
 export const useLiveGame = create<LiveGameState>()(
@@ -291,6 +307,10 @@ export const useLiveGame = create<LiveGameState>()(
               swapCount: prev.swapCount,
               lastStintMs: prev.lastStintMs,
               lastStintZone: prev.lastStintZone,
+              // Keep a same-game pin that the persist middleware just
+              // rehydrated; a restart / different game wipes it (cross-
+              // game guard, D-04).
+              plannedRotation: prev.plannedRotation,
             }
           : {};
       return { ...prev, ...DEFAULT_LIVE_STATE_DATA, ...carryOver, ...state };
@@ -511,8 +531,18 @@ export const useLiveGame = create<LiveGameState>()(
       // so we just reset each stint start to 0 (the new quarter's elapsed).
       const loanStartMs: Record<string, number> = {};
       for (const pid of prev.loanedIds) loanStartMs[pid] = 0;
+      // D-10: a plan-ahead pin only applies to its own period. Once the
+      // game advances past `pinnedForPeriod`, the F1 pin is stale — drop
+      // it so a later period never honours last period's plan. (A pin
+      // with no `pinnedForPeriod` is an F2-only next-period plan handled
+      // on quarter start in plan 11-02; leave it untouched here.)
+      const newQuarter = prev.currentQuarter + 1;
+      const keepPin =
+        prev.plannedRotation != null &&
+        (prev.plannedRotation.pinnedForPeriod == null ||
+          prev.plannedRotation.pinnedForPeriod >= newQuarter);
       return {
-        currentQuarter: prev.currentQuarter + 1,
+        currentQuarter: newQuarter,
         quarterEnded: false,
         accumulatedMs: 0,
         // Don't auto-start the clock — the GM taps Start when the hooter goes.
@@ -523,6 +553,7 @@ export const useLiveGame = create<LiveGameState>()(
         swapCount: prev.swapCount + 1,
         lastStintMs: {},
         lastStintZone: {},
+        plannedRotation: keepPin ? prev.plannedRotation : null,
       };
     }),
 
@@ -798,6 +829,9 @@ export const useLiveGame = create<LiveGameState>()(
         lockedIds: prev.lockedIds.filter((p) => p !== playerId),
       };
     }),
+
+  setPlannedRotation: (plan) => set({ plannedRotation: plan }),
+  clearPlannedRotation: () => set({ plannedRotation: null }),
 }),
     {
       // ─── persist config ───────────────────────────────────────
@@ -828,6 +862,11 @@ export const useLiveGame = create<LiveGameState>()(
         swapCount: state.swapCount,
         lastStintMs: state.lastStintMs,
         lastStintZone: state.lastStintZone,
+        // Survive router.refresh() + reload so a pinned plan-ahead
+        // rotation isn't lost mid-game. Cross-game safety is enforced on
+        // read (init wipes on restart/different game) and by the gameId
+        // key the consumer checks against activeGameId (D-04).
+        plannedRotation: state.plannedRotation,
       }),
     },
   ),
