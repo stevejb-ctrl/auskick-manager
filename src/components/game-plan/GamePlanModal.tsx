@@ -70,6 +70,27 @@ export interface GamePlanModalProps {
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
+  /**
+   * Plan-ahead seed (F1/F2). When set, the editor opens on THIS plan
+   * instead of a cold from-scratch projection — the live game hands over
+   * a `projectUpcomingRotation` plan anchored to the current on-field
+   * reality. Reshuffle still rerolls a fresh from-scratch projection.
+   */
+  initialPlan?: GamePlan;
+  /**
+   * Period tab to open on. Pre-game callers open on period 0; the live
+   * plan-ahead entry opens on the period the coach is editing.
+   */
+  initialPeriodIndex?: number;
+  /**
+   * When provided, the planner is in "plan ahead" mode: it renders a
+   * primary pin button (label = `pinLabel`) that hands the edited plan
+   * back to the live game and closes. The pre-game caller omits this, so
+   * it keeps its copy-for-chat-only footer.
+   */
+  onPin?: (plan: GamePlan) => void;
+  /** Label for the pin button when `onPin` is set. Defaults to "Use this plan". */
+  pinLabel?: string;
   /** Dismiss the planner. */
   onClose: () => void;
 }
@@ -90,6 +111,10 @@ export function GamePlanModal({
   seasonEvents,
   chipModeByKey = {},
   initialSeed = 7,
+  initialPlan,
+  initialPeriodIndex = 0,
+  onPin,
+  pinLabel = "Use this plan",
   onClose,
 }: GamePlanModalProps) {
   // Project a fresh plan for a given seed. Pure — safe to call on
@@ -109,8 +134,12 @@ export function GamePlanModal({
   );
 
   const [seed, setSeed] = useState(initialSeed);
-  const [plan, setPlan] = useState<GamePlan>(() => project(initialSeed));
-  const [activePeriod, setActivePeriod] = useState(0);
+  // Seed from the handed-over plan-ahead projection when present, else a
+  // fresh from-scratch projection (pre-game).
+  const [plan, setPlan] = useState<GamePlan>(
+    () => initialPlan ?? project(initialSeed),
+  );
+  const [activePeriod, setActivePeriod] = useState(initialPeriodIndex);
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -353,17 +382,44 @@ export function GamePlanModal({
 
       {/* Footer */}
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-hairline pt-4">
-        <SFButton
-          variant="ghost"
-          size="sm"
-          onClick={handleReshuffle}
-          icon={<SFIcon.swap />}
-        >
-          Reshuffle
-        </SFButton>
-        <SFButton variant="subtle" size="sm" onClick={onClose}>
-          Done
-        </SFButton>
+        {onPin ? (
+          // Plan-ahead mode (F1/F2): Reshuffle is suppressed — it rerolls a
+          // full from-scratch projection, which would unanchor period[0]
+          // from the live field and re-introduce the periods we sliced
+          // away. The coach tweaks tap-to-swap instead. Left slot becomes
+          // a plain Cancel so they can back out without pinning.
+          <SFButton variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </SFButton>
+        ) : (
+          <SFButton
+            variant="ghost"
+            size="sm"
+            onClick={handleReshuffle}
+            icon={<SFIcon.swap />}
+          >
+            Reshuffle
+          </SFButton>
+        )}
+        {onPin ? (
+          // Pin the edited plan back to the live game, then close. Primary
+          // so it reads as the commit action.
+          <SFButton
+            variant="primary"
+            size="sm"
+            data-testid="game-plan-pin"
+            onClick={() => {
+              onPin(plan);
+              onClose();
+            }}
+          >
+            {pinLabel}
+          </SFButton>
+        ) : (
+          <SFButton variant="subtle" size="sm" onClick={onClose}>
+            Done
+          </SFButton>
+        )}
       </div>
     </Modal>
   );

@@ -6,7 +6,9 @@ export { swapPlayersInPeriod } from "./edit";
 export {
   projectUpcomingRotation,
   resolveHonouredSwaps,
+  diffPlanToSwaps,
   type ProjectUpcomingRotationInput,
   type ResolveHonouredSwapsInput,
+  type DiffPlanToSwapsInput,
   type PlannedRotation,
 } from "./live";

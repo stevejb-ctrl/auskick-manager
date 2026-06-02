@@ -21,7 +21,7 @@
 
 import { projectGamePlan, computeTotals } from "./project";
 import type { GamePlan, GamePlanPeriod, ProjectGamePlanInput } from "./types";
-import type { Lineup } from "@/lib/types";
+import type { Lineup, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
 
 /**
@@ -173,4 +173,64 @@ export function resolveHonouredSwaps(
   });
 
   return everyPairValid ? swaps : fallback;
+}
+
+export interface DiffPlanToSwapsInput {
+  /** groupId -> player ids in the EDITED current period (post-tweak). */
+  editedGroups: Record<string, string[]>;
+  /** Bench in the EDITED current period. */
+  editedBench: string[];
+  /** groupId -> player ids ON THE FIELD right now (live reality). */
+  liveGroups: Record<string, string[]>;
+  /** Bench right now (live reality). */
+  liveBench: string[];
+}
+
+/**
+ * Derive the pinned swaps from a coach's edited current period (F1).
+ *
+ * The coach tweaks the upcoming rotation tap-to-swap; we translate the
+ * net difference from live reality into AFL rolling-sub pairs. Only
+ * GENUINE bench↔field subs are emitted, matched per-zone:
+ *
+ *   • an INCOMING player came on from the live bench into this zone,
+ *   • an OUTGOING player left this zone to the edited bench.
+ *
+ * The zone is the group id, which is BOTH the outgoing player's live
+ * zone (so `applySwap`'s `lineup[zone].map(off→on)` finds them) and the
+ * incoming player's edited destination — the honoured swap lands the
+ * sub exactly where the coach placed it.
+ *
+ * Field↔field zone reshuffles and bench reorders produce no swaps (they
+ * aren't subs). A cross-zone move (a bench player landing in a different
+ * zone than the one vacated) intentionally doesn't pair here — it falls
+ * through to the live suggester rather than risk an invalid swap (D-09).
+ *
+ * Pure + deterministic: inputs are never mutated; equal inputs yield a
+ * deep-equal result.
+ */
+export function diffPlanToSwaps(input: DiffPlanToSwapsInput): SwapSuggestion[] {
+  const { editedGroups, editedBench, liveGroups, liveBench } = input;
+  const liveBenchSet = new Set(liveBench);
+  const editedBenchSet = new Set(editedBench);
+  const swaps: SwapSuggestion[] = [];
+
+  for (const groupId of Object.keys(liveGroups)) {
+    const liveFieldZ = liveGroups[groupId] ?? [];
+    const editedFieldZ = editedGroups[groupId] ?? [];
+
+    const offs = liveFieldZ.filter((id) => editedBenchSet.has(id));
+    const ons = editedFieldZ.filter((id) => liveBenchSet.has(id));
+
+    const pairs = Math.min(offs.length, ons.length);
+    for (let i = 0; i < pairs; i++) {
+      swaps.push({
+        off_player_id: offs[i],
+        on_player_id: ons[i],
+        zone: groupId as Zone,
+        gap: 0,
+      });
+    }
+  }
+  return swaps;
 }
