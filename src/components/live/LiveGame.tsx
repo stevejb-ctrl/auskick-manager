@@ -1288,7 +1288,7 @@ export function LiveGame({
 
   if (isBetweenQuarters) {
     return (
-      <div className="space-y-3">
+      <div className="ui-nonselect space-y-3">
         {liveTopBar}
         {walkthroughOverlay}
         <QuarterBreak
@@ -1459,7 +1459,7 @@ export function LiveGame({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="ui-nonselect space-y-3">
       {liveTopBar}
 
       {/* Top-anchored scorebug — only when NOT in live play. During

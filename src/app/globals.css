@@ -144,10 +144,42 @@
   input[type="reset"] {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    /* Tapping/long-pressing a control on mobile used to flash the
+       native text-selection highlight + the iOS callout bubble. On
+       interactive chrome that's never wanted — it reads as "this is a
+       web page", not a native control. Disable selection + callout on
+       every tap target. Readable content keeps selection (it isn't a
+       button) and `.ui-select` can force it back on inside a
+       `.ui-nonselect` region. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   html {
     overscroll-behavior-y: contain;
+  }
+
+  /* ─── Non-selectable game chrome ────────────────────────────
+     Buttons are covered above, but the live-game / quarter-break
+     shells also carry plenty of NON-button chrome (player-tile
+     labels, zone headers, the clock pill, badges) that a stray tap
+     or long-press would otherwise select. Wrap those shells in
+     `.ui-nonselect` to suppress selection + the iOS callout across
+     the whole subtree. Genuinely readable content inside such a
+     shell (a stats table, a methodology block) opts back in with
+     `.ui-select`. */
+  .ui-nonselect,
+  .ui-nonselect * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ui-select,
+  .ui-select * {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* Tabular numerals everywhere a number is displayed — times, scores, minutes.
