@@ -383,6 +383,10 @@ export function LiveGame({
   // the live game so the coach can edit the upcoming sub before it falls
   // due. Pinning closes it.
   const [planAheadOpen, setPlanAheadOpen] = useState(false);
+  // F2 (ROTPLAN-02): the "plan NEXT period" planner, opened in the dying
+  // minutes of the current period. Reuses the SAME shared GamePlanModal,
+  // just opened on the next period's tab. Pinning closes it.
+  const [planNextOpen, setPlanNextOpen] = useState(false);
   const [showQuarterEndModal, setShowQuarterEndModal] = useState(false);
   const quarterEndTriggeredRef = useRef<number | null>(null);
   // Bumped from the hooter trigger below so GameHeader's clock pill
@@ -1046,7 +1050,7 @@ export function LiveGame({
   // UI-suppression purposes (no more SwapCard / scoring buttons /
   // start-quarter modal once Q4 is over). The summary itself
   // renders only when `finalised` is true.
-  const { isAtFullTime, isBetweenPeriods: isBetweenQuarters }
+  const { isAtFullTime, isBetweenPeriods: isBetweenQuarters, isLastPeriod }
     = periodPhase(currentQuarter, ageGroup.periodCount, quarterEnded, finalised);
   const isFinished = finalised || isAtFullTime;
 
@@ -1115,6 +1119,14 @@ export function LiveGame({
   const subIntervalMs = subIntervalSeconds * 1000;
   // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
   const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;
+  // F2 "final minutes" gate (D-11): the coach can plan the NEXT period once
+  // the current one enters its final rotation window — i.e. less than one
+  // sub interval remains before the hooter. Derived purely from the live
+  // clock (nowMs / quarterMs / the sub cadence), never a hardcoded period
+  // count; periodPhase.isLastPeriod hides it on the final period (no next
+  // period to plan). Same clock frame as msUntilDue/subPastHooter below.
+  const inFinalWindow =
+    quarterMs > 0 && nowMs >= quarterMs - effectiveSubIntervalMs;
   const msUntilDue =
     subBaseMs !== null && !isPreGame && !isFinished
       ? subBaseMs + effectiveSubIntervalMs - nowMs
@@ -1364,6 +1376,14 @@ export function LiveGame({
     pinForThisGame != null &&
     pinForThisGame.pinnedForPeriod === currentQuarter &&
     (pinForThisGame.pinnedSwaps?.length ?? 0) > 0;
+  // F2: a next-period lineup is pinned for THIS game's upcoming period.
+  // The upcoming period's 0-based index equals currentQuarter (planning
+  // during period P=currentQuarter pins P+1, whose 0-based index is P).
+  // Drives the entry label + "planned" badge (D-15).
+  const hasPinnedNextPeriod =
+    pinForThisGame != null &&
+    pinForThisGame.nextPeriodIndex === currentQuarter &&
+    pinForThisGame.nextPeriodGroups != null;
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
@@ -1598,6 +1618,46 @@ export function LiveGame({
                     <button
                       type="button"
                       data-testid="plan-ahead-clear"
+                      onClick={() => clearPlannedRotation()}
+                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
+                rotation window of the period (inFinalWindow, derived from
+                the live clock) and not on the last period, the coach can
+                open the SAME shared planner on the NEXT period's tab and
+                build its lineup so the break opens with a plan in place.
+                A "Next period ready" badge + Clear appears once pinned. */}
+            {isLivePlay && inFinalWindow && !isLastPeriod && (
+              <div className="flex items-center justify-between gap-2 px-1">
+                <SFButton
+                  variant="ghost"
+                  size="sm"
+                  data-testid="plan-next-period-entry"
+                  onClick={() => setPlanNextOpen(true)}
+                  icon={<SFIcon.whistle />}
+                >
+                  {hasPinnedNextPeriod
+                    ? `Edit Q${currentQuarter + 1} plan`
+                    : `Plan Q${currentQuarter + 1}`}
+                </SFButton>
+                {hasPinnedNextPeriod && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      data-testid="planned-next-period-badge"
+                      className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                    >
+                      Next period ready
+                    </span>
+                    <button
+                      type="button"
+                      data-testid="plan-next-clear"
                       onClick={() => clearPlannedRotation()}
                       className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
                     >
@@ -1906,6 +1966,74 @@ export function LiveGame({
               }
             }}
             onClose={() => setPlanAheadOpen(false)}
+          />
+        );
+      })()}
+
+      {/* Plan-NEXT-period planner (F2). Same shared GamePlanModal, opened
+          on the NEXT period's tab (initialPeriodIndex=1 — period[0] mirrors
+          the current field, period[1] is the projected next period). On pin
+          we store the edited next-period groups/bench in the SAME
+          plannedRotation slice (nextPeriod* fields); the upcoming break
+          opens pre-seeded from it. */}
+      {planNextOpen && (() => {
+        const currentGroups: Record<string, string[]> = {};
+        for (const z of activeZones) currentGroups[z] = lineup[z];
+        const currentBench = lineup.bench;
+
+        const initialPlan = projectUpcomingRotation({
+          sport: "afl",
+          ageGroup,
+          players: squadPlayers,
+          onFieldSize: currentOnFieldSize,
+          seed: 7,
+          chipModeByKey,
+          fromPeriodIndex: Math.max(0, currentQuarter - 1),
+          currentGroups,
+          currentBench,
+        });
+
+        return (
+          <GamePlanModal
+            sport="afl"
+            ageGroup={ageGroup}
+            players={squadPlayers}
+            onFieldSize={currentOnFieldSize}
+            teamName={teamName}
+            opponentName={opponentName}
+            chipModeByKey={chipModeByKey}
+            initialPlan={initialPlan}
+            initialPeriodIndex={1}
+            pinLabel={`Pin Q${currentQuarter + 1} plan`}
+            onPin={(plan) => {
+              // The coach edited the NEXT period. Find it by absolute
+              // period number (robust to a Reshuffle that rerolls the
+              // whole-game projection), then pin its groups + bench.
+              const targetPeriodNum = currentQuarter + 1;
+              const next =
+                plan.periods.find((p) => p.period === targetPeriodNum) ??
+                plan.periods[1];
+              if (!next) {
+                setPlanNextOpen(false);
+                return;
+              }
+              const nextPeriodGroups: Record<string, string[]> = {};
+              for (const g of next.groups) nextPeriodGroups[g.groupId] = g.playerIds;
+              // Preserve any existing F1 fields on the same game's pin
+              // (the two features share one slice).
+              const prior =
+                plannedRotation && plannedRotation.gameId === gameId
+                  ? plannedRotation
+                  : null;
+              setPlannedRotation({
+                ...(prior ?? {}),
+                gameId,
+                nextPeriodIndex: currentQuarter,
+                nextPeriodGroups,
+                nextPeriodBench: next.bench,
+              });
+            }}
+            onClose={() => setPlanNextOpen(false)}
           />
         );
       })()}

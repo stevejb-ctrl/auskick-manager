@@ -7,8 +7,11 @@ export {
   projectUpcomingRotation,
   resolveHonouredSwaps,
   diffPlanToSwaps,
+  seedNextPeriodLineup,
   type ProjectUpcomingRotationInput,
   type ResolveHonouredSwapsInput,
   type DiffPlanToSwapsInput,
+  type SeedNextPeriodLineupInput,
+  type SeededLineup,
   type PlannedRotation,
 } from "./live";

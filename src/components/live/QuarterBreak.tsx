@@ -49,6 +49,7 @@ import {
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
+import { seedNextPeriodLineup } from "@/lib/game-plan";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
@@ -208,6 +209,12 @@ export function QuarterBreak({
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
   const setInjured = useLiveGame((s) => s.setInjured);
+  // F2 plan-ahead (ROTPLAN-02): the coach may have pinned THIS upcoming
+  // period's lineup during the dying minutes of the last one. Read the
+  // pin so the break can open PRE-SEEDED on it (D-12), and the clearer
+  // so we can consume it once the next period starts (D-14).
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -304,6 +311,52 @@ export function QuarterBreak({
   );
 
   const nextQuarter = currentQuarter + 1;
+
+  // ─── F2 plan-ahead pre-seed (ROTPLAN-02 / D-12, D-13) ──────────────
+  // 0-based index of the period THIS break leads into (nextQuarter is
+  // 1-based). The pin's `nextPeriodIndex` must match for the seed to
+  // apply — a wrong-period (or wrong-game) pin yields no seed and the
+  // break falls back to its own suggestion.
+  const upcomingPeriodIndex = nextQuarter - 1;
+  const seededDraft = useMemo<Lineup | null>(() => {
+    const seed = seedNextPeriodLineup({
+      pin:
+        plannedRotation && plannedRotation.gameId === gameId
+          ? plannedRotation
+          : null,
+      periodIndex: upcomingPeriodIndex,
+      // Only currently-available players may be fielded — a pinned player
+      // who is now injured/loaned/out is reconciled OUT (D-13).
+      availableIds: healthyForLineup.map((p) => p.id),
+      groupIds: zones,
+    });
+    if (!seed) return null;
+    // Convert the sport-neutral seed into an AFL Lineup. Any healthy
+    // player the pin didn't place (e.g. a late arrival added after the
+    // pin) lands on the bench so nobody is lost; sidelined players stay
+    // parked on the bench as everywhere else.
+    const placed = new Set(Object.values(seed.groups).flat());
+    const onBench = new Set(seed.bench);
+    const extraBench = healthyForLineup
+      .map((p) => p.id)
+      .filter((id) => !placed.has(id) && !onBench.has(id));
+    return {
+      back: seed.groups.back ?? [],
+      hback: seed.groups.hback ?? [],
+      mid: seed.groups.mid ?? [],
+      hfwd: seed.groups.hfwd ?? [],
+      fwd: seed.groups.fwd ?? [],
+      bench: [...seed.bench, ...extraBench, ...sidelinedIdsInLineup],
+    };
+  }, [
+    plannedRotation,
+    gameId,
+    upcomingPeriodIndex,
+    healthyForLineup,
+    zones,
+    sidelinedIdsInLineup,
+  ]);
+  const hasPlannedSeed = seededDraft !== null;
 
   function slotOf(pid: string, l: Lineup): Slot | null {
     for (const s of slots) if (l[s].includes(pid)) return s;
@@ -482,6 +535,22 @@ export function QuarterBreak({
   // lineup a few seconds later", and on tap-to-start-next-quarter
   // it flickers similarly. Both traced to this useEffect.
   const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
+  // F2 pre-seed: when the coach pinned this upcoming period's lineup, open
+  // the break ON that plan instead of the fresh suggestion. Runs BEFORE the
+  // mode effect below (declaration order = mount run order) and primes
+  // `lastAppliedModeRef` to the current mode so the suggested/manual effect
+  // treats the seed as the applied initial state and does NOT stomp it
+  // (D-12). Applied once; a late-hydrating pin still seeds via the guard.
+  const didSeedRef = useRef(false);
+  useEffect(() => {
+    if (availableForLineup.length === 0) return;
+    if (didSeedRef.current) return;
+    if (!seededDraft) return;
+    didSeedRef.current = true;
+    setDraft(seededDraft);
+    setSelected(null);
+    lastAppliedModeRef.current = lineupMode;
+  }, [seededDraft, lineupMode, availableForLineup.length]);
   useEffect(() => {
     if (availableForLineup.length === 0) return;
     if (lastAppliedModeRef.current === lineupMode) return;
@@ -1008,6 +1077,18 @@ export function QuarterBreak({
         return;
       }
       onStarted();
+      // D-14: the next-period pin has now been consumed (it seeded this
+      // break's draft, which we've just committed). Clear it so it can't
+      // leak into a later period. Only clear a pin that targeted THIS
+      // upcoming period — an unrelated/F1 pin is left to the store's own
+      // quarter-transition logic.
+      if (
+        plannedRotation &&
+        plannedRotation.gameId === gameId &&
+        plannedRotation.nextPeriodIndex === upcomingPeriodIndex
+      ) {
+        clearPlannedRotation();
+      }
       // Start the local clock right away — the modal commit is the
       // umpire's whistle, no further user action needed. Without
       // this the LiveGame mount after refresh would land with
@@ -1045,6 +1126,14 @@ export function QuarterBreak({
         <p className="mt-0.5 text-lg font-bold text-ink">
           Set zones for Q{nextQuarter}
         </p>
+        {hasPlannedSeed && (
+          <p
+            data-testid="planned-seed-banner"
+            className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+          >
+            Pre-filled from your planned Q{nextQuarter} lineup
+          </p>
+        )}
       </div>
 
       {/* Game settings — collapsed by default. Steve 2026-05-13: the

@@ -175,6 +175,66 @@ export function resolveHonouredSwaps(
   return everyPairValid ? swaps : fallback;
 }
 
+export interface SeedNextPeriodLineupInput {
+  /** The coach's pinned plan, or null/undefined when nothing is pinned. */
+  pin: PlannedRotation | null | undefined;
+  /** 0-based index of the upcoming period the break leads INTO. */
+  periodIndex: number;
+  /** Players available for the upcoming period (NOT injured/loaned/out). */
+  availableIds: readonly string[];
+  /** The groupIds this sport expects (AFL zones / netball positions / RL forwards-backs). */
+  groupIds: readonly string[];
+}
+
+/** A reconciled next-period seed: groupId -> on-field ids + the bench. */
+export interface SeededLineup {
+  groups: Record<string, string[]>;
+  bench: string[];
+}
+
+/**
+ * Build the PRE-SEEDED lineup a sport's break should open on when the
+ * coach pinned the next period ahead of time (F2), or `null` when there's
+ * no applicable pin and the break should fall back to its own suggestion.
+ *
+ * Sport-neutral: `groupIds` are opaque strings, so the SAME contract holds
+ * for AFL zones, netball positions, and rugby-league forwards/backs.
+ *
+ * Returns `null` (no seed) when there is no pin, or the pin targets a
+ * DIFFERENT period (`nextPeriodIndex !== periodIndex`), or the pin carries
+ * no next-period groups.
+ *
+ * D-13 stale reconcile: a pinned player who is no longer available for the
+ * upcoming period (injured / loaned / marked out) is dropped from BOTH the
+ * field and the bench — never fielded — so the break's existing
+ * suggester/draft fills the freed slot. The output always has an entry for
+ * every expected `groupId` (empty if the pin placed none there), giving
+ * each consumer a stable shape.
+ *
+ * Pure + deterministic: the pin is never mutated; equal inputs yield a
+ * deep-equal result.
+ */
+export function seedNextPeriodLineup(
+  input: SeedNextPeriodLineupInput,
+): SeededLineup | null {
+  const { pin, periodIndex, availableIds, groupIds } = input;
+  if (!pin) return null;
+  if (pin.nextPeriodIndex !== periodIndex) return null;
+  if (!pin.nextPeriodGroups) return null;
+
+  const available = new Set(availableIds);
+
+  const groups: Record<string, string[]> = {};
+  for (const groupId of groupIds) {
+    const pinned = pin.nextPeriodGroups[groupId] ?? [];
+    groups[groupId] = pinned.filter((id) => available.has(id));
+  }
+
+  const bench = (pin.nextPeriodBench ?? []).filter((id) => available.has(id));
+
+  return { groups, bench };
+}
+
 export interface DiffPlanToSwapsInput {
   /** groupId -> player ids in the EDITED current period (post-tweak). */
   editedGroups: Record<string, string[]>;

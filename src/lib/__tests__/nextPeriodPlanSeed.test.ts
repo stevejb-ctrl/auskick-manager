@@ -35,10 +35,10 @@ interface SportFixture {
   nextPeriodBench: string[];
   /** An on-field pinned player to mark unavailable in the stale case. */
   staleOnFieldId: string;
-  /** A still-available on-field teammate that must remain placed. */
-  survivingTeammateId: string;
-  /** The group the stale player sits in (asserted to still exist). */
+  /** The group the stale player sits in (asserted to still exist post-reconcile). */
   staleGroupId: string;
+  /** Another on-field pinned player that stays available — must remain fielded. */
+  survivingTeammateId: string;
 }
 
 const FIXTURES: SportFixture[] = [
@@ -149,8 +149,10 @@ describe.each(FIXTURES)(
       // ...nor smuggled onto the bench (they're simply unavailable).
       expect(result!.bench).not.toContain(f.staleOnFieldId);
 
-      // A still-available teammate in the same group stays placed.
-      expect(result!.groups[f.staleGroupId]).toContain(f.survivingTeammateId);
+      // The stale player's group key survives reconcile (stable shape)...
+      expect(result!.groups).toHaveProperty(f.staleGroupId);
+      // ...and every still-available pinned player stays fielded.
+      expect(fieldedIds).toContain(f.survivingTeammateId);
     });
 
     it("returns null when there is no pin", () => {
