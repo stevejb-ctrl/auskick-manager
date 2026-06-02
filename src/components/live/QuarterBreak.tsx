@@ -111,6 +111,14 @@ interface QuarterBreakProps {
    */
   clockMultiplier?: number;
   onStarted: () => void;
+  /**
+   * Fired SYNCHRONOUSLY when the coach taps Start (issue 1) — before the
+   * async lineup/quarter writes — so the host can unlock audio inside the
+   * user gesture (browsers only honour programmatic playback that
+   * descends from a real gesture). AFL passes `primeSong`; optional so
+   * other sports can omit it.
+   */
+  onPrimeAudio?: () => void;
 }
 
 type Slot = Zone | "bench";
@@ -155,6 +163,7 @@ export function QuarterBreak({
   chipModeByKey = {},
   clockMultiplier = 1,
   onStarted,
+  onPrimeAudio,
 }: QuarterBreakProps) {
   const lineup = useLiveGame((s) => s.lineup);
   // Display caps for the zone-card headers + "+ Add player"
@@ -1085,6 +1094,10 @@ export function QuarterBreak({
 
   function handleConfirmStart() {
     setError(null);
+    // Unlock audio INSIDE this tap, before any await — the goal song's
+    // autoplay otherwise gets blocked once the start writes go async
+    // (issue 1).
+    onPrimeAudio?.();
     // Normalise draft shape before sending (defensive — always full-zones).
     const full: Lineup = { ...emptyLineup(), ...draft };
     startTransition(async () => {

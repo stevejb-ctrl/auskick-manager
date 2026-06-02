@@ -36,6 +36,24 @@ describe("reduceSongArm — re-arm controller (AUDIO-01)", () => {
     });
   });
 
+  describe("the Start-Q1 autoplay unlock (issue 1)", () => {
+    it("primes to ready + emits the silent prime action from idle", () => {
+      // The Start tap is a user gesture; priming wakes the backend so the
+      // first goal-triggered play is allowed by autoplay policy.
+      expect(reduceSongArm("idle", "prime")).toEqual({
+        state: "ready",
+        action: "prime",
+      });
+    });
+
+    it("re-primes from suspended (e.g. a later quarter start)", () => {
+      expect(reduceSongArm("suspended", "prime")).toEqual({
+        state: "ready",
+        action: "prime",
+      });
+    });
+  });
+
   describe("happy path", () => {
     it("idle + ready -> ready / none (backend finished init)", () => {
       expect(reduceSongArm("idle", "ready")).toEqual({

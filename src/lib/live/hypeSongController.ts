@@ -32,6 +32,12 @@ export type SongArmEvent =
   | "ready"
   /** A goal fired — the caller wants the song to play. */
   | "play"
+  /**
+   * A user gesture (Start-Q1 tap) is available to UNLOCK playback —
+   * wake the backend silently so the first goal-triggered play is
+   * allowed by the browser's autoplay policy. Never makes noise.
+   */
+  | "prime"
   /** The page was backgrounded (document.hidden -> true). */
   | "hidden"
   /** The page returned to the foreground (document.hidden -> false). */
@@ -50,7 +56,9 @@ export type SongArmAction =
   /** Re-arm the backend (wake YT / recreate the Audio element) then play. */
   | "rearm-then-play"
   /** Re-arm the backend eagerly without playing (foreground recovery). */
-  | "rearm";
+  | "rearm"
+  /** Silently unlock the backend inside a user gesture (no audible play). */
+  | "prime";
 
 export interface SongArmResult {
   state: SongArmState;
@@ -84,6 +92,12 @@ export function reduceSongArm(
       return state === "suspended"
         ? { state: "ready", action: "rearm-then-play" }
         : { state, action: "play" };
+
+    case "prime":
+      // A user gesture is unlocking playback. Wake the backend silently
+      // from any state so the first goal-triggered play is allowed; mark
+      // the session ready (a real play later still re-arms if it fails).
+      return { state: "ready", action: "prime" };
 
     case "hidden":
       // The OS may suspend the audio session whenever we lose foreground.

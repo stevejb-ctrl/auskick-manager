@@ -464,7 +464,7 @@ export function LiveGame({
   // owns the YT iframe + audio fallback + auto-stop timer; we
   // just render the hidden container ref below and call playSong()
   // on goal commit.
-  const { containerRef: ytContainerRef, playSong } = useHypeSong({
+  const { containerRef: ytContainerRef, playSong, primeSong } = useHypeSong({
     songUrl,
     songStartSeconds,
     songDurationSeconds,
@@ -1311,6 +1311,7 @@ export function LiveGame({
           chipModeByKey={chipModeByKey}
           clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
+          onPrimeAudio={primeSong}
         />
       </div>
     );
