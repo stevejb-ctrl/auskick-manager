@@ -104,7 +104,7 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow } from "@/lib/live/subCadence";
-import { subSpacingMs } from "@/lib/live/subDistribution";
+import { subSpacingMs, subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
@@ -645,7 +645,17 @@ export function LiveGame({
 
   useEffect(() => {
     if (currentQuarter >= 1 && !quarterEnded && !finalised) {
-      setSubBaseMs(clockElapsedMs({ clockStartedAt, accumulatedMs }));
+      // Issue 4: seed the sub-interval start by FLOORING the current
+      // clock elapsed onto the interval grid, not to "now". The main
+      // clock recomputes correctly on remount (persisted timestamp), so
+      // the floor is identical before/after a remount — the countdown
+      // resumes from where it was instead of resetting to a full
+      // interval. effectiveSubIntervalMs is the grid spacing in the same
+      // (raw, multiplier-adjusted) frame as clockElapsedMs.
+      const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
+      setSubBaseMs(
+        subIntervalStartFloor({ nowMs: elapsed, intervalMs: effectiveSubIntervalMs }),
+      );
     } else {
       setSubBaseMs(null);
     }
@@ -862,7 +872,10 @@ export function LiveGame({
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
-    setSubBaseMs(currentElapsedMs());
+    // Issue 5: a forced injury/lent replacement is off-cadence — it must
+    // NOT reset the sub countdown. Leave subBaseMs alone so the timer
+    // keeps running toward the next scheduled rotation. (Was
+    // setSubBaseMs(currentElapsedMs()) here.)
     applyInjurySwap(injuredId, replacementId);
     // Two queue ops, dispatched in order. The queue's FIFO contract
     // means the injury event lands before the swap on the server,
@@ -960,11 +973,23 @@ export function LiveGame({
     });
   }
 
-  function persistSwap(off: string, on: string, zone: Zone) {
+  // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled
+  // rotation (the suggested-swap apply) resets the countdown to a full
+  // interval (issue 5). A deliberate off-cadence manual swap leaves it
+  // running toward the next scheduled rotation (issue 5 open question,
+  // default "keep running"). Forced injury/lent swaps go through their
+  // own path and never reset.
+  function persistSwap(
+    off: string,
+    on: string,
+    zone: Zone,
+    resetSubTimer = true,
+  ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
-    setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
+    // raw — sub timer compares against raw nowMs
+    if (resetSubTimer) setSubBaseMs(currentElapsedMs());
     applySwap(off, on, zone);
     enqueueLiveAction("recordSwap", [
       auth,
@@ -1862,7 +1887,10 @@ export function LiveGame({
           zone={pendingSwap.zone}
           playersById={playersById}
           onConfirm={() => {
-            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone);
+            // Manual tap-tap swap = off-cadence; don't reset the sub
+            // countdown (issue 5 — keep running toward the next planned
+            // rotation).
+            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone, false);
             if (pendingSwap.off) {
               showSwapToast(
                 `${shortName(pendingSwap.off)} → ${shortName(pendingSwap.on)}`
