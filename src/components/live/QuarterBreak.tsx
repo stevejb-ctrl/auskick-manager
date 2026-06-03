@@ -2265,16 +2265,58 @@ export function QuarterBreak({
             </div>
 
             <div className="mt-1 flex flex-col gap-2">
-              <SFButton
-                variant={isInjured ? "primary" : "danger"}
-                data-testid="break-insight-injury-toggle"
-                onClick={() => {
-                  handleInjuryToggle(insightPlayerId, !isInjured);
-                  setInsightPlayerId(null);
-                }}
-              >
-                {isInjured ? "Mark available" : "Mark as injured"}
-              </SFButton>
+              {/* Availability actions (issues 1 & 2). A sidelined player
+                  (injured OR lent) gets a single "return them" action
+                  that clears the relevant status; an available player can
+                  be marked injured or lent. Reuses the same writers the
+                  break's pickers use (handleInjuryToggle / handleLoanToggle)
+                  — no new out-state path. */}
+              {isInjured ? (
+                <SFButton
+                  variant="primary"
+                  data-testid="break-insight-injury-toggle"
+                  onClick={() => {
+                    handleInjuryToggle(insightPlayerId, false);
+                    setInsightPlayerId(null);
+                  }}
+                >
+                  Mark available
+                </SFButton>
+              ) : isLoaned ? (
+                <SFButton
+                  variant="primary"
+                  data-testid="break-insight-lent-toggle"
+                  onClick={() => {
+                    handleLoanToggle(insightPlayerId, false);
+                    setInsightPlayerId(null);
+                  }}
+                >
+                  Return to game
+                </SFButton>
+              ) : (
+                <>
+                  <SFButton
+                    variant="danger"
+                    data-testid="break-insight-injury-toggle"
+                    onClick={() => {
+                      handleInjuryToggle(insightPlayerId, true);
+                      setInsightPlayerId(null);
+                    }}
+                  >
+                    Mark as injured
+                  </SFButton>
+                  <SFButton
+                    variant="subtle"
+                    data-testid="break-insight-lent-toggle"
+                    onClick={() => {
+                      handleLoanToggle(insightPlayerId, true);
+                      setInsightPlayerId(null);
+                    }}
+                  >
+                    Mark as lent
+                  </SFButton>
+                </>
+              )}
               <SFButton
                 variant="ghost"
                 size="sm"
