@@ -319,7 +319,12 @@ export function GamePlanModal({
 
         {period && (
           <div className="grid grid-cols-1 gap-3">
-            {period.groups.map((g) => (
+            {/* AFL reads top-to-bottom forward → centre → back to match
+                the coach's field mental model (and the QuarterBreak
+                lineup order). The projector emits zones back-first, so
+                reverse for AFL; other sports keep their canonical order
+                (netball positions / RL forwards→backs). Issue 7. */}
+            {(sport === "afl" ? [...period.groups].reverse() : period.groups).map((g) => (
               <SFCard key={g.groupId} pad={0} className="overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
                   <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
