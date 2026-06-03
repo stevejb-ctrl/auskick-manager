@@ -38,7 +38,11 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.local*
 .env.test
+
+# local repo clones / worktrees (never commit)
+.clone/
 
 # vercel
 .vercel
