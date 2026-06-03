@@ -1983,6 +1983,12 @@ export function LiveGame({
           onFieldSize: currentOnFieldSize,
           seed: 7,
           chipModeByKey,
+          // Issue 8: the plan must reflect THIS game's configured period
+          // length + sub cadence, not the age-group defaults. quarterMs
+          // is the effective period length; subIntervalMs is the live
+          // even-distribution spacing (quarterMs/(N+1)).
+          periodMinutes: quarterMs / 60_000,
+          subIntervalSeconds: subIntervalMs / 1000,
           fromPeriodIndex: Math.max(0, currentQuarter - 1),
           currentGroups,
           currentBench,
@@ -2046,6 +2052,12 @@ export function LiveGame({
           onFieldSize: currentOnFieldSize,
           seed: 7,
           chipModeByKey,
+          // Issue 8: the plan must reflect THIS game's configured period
+          // length + sub cadence, not the age-group defaults. quarterMs
+          // is the effective period length; subIntervalMs is the live
+          // even-distribution spacing (quarterMs/(N+1)).
+          periodMinutes: quarterMs / 60_000,
+          subIntervalSeconds: subIntervalMs / 1000,
           fromPeriodIndex: Math.max(0, currentQuarter - 1),
           currentGroups,
           currentBench,
