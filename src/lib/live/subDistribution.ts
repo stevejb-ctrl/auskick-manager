@@ -61,3 +61,31 @@ export function subSpacingMs(input: SubBoundariesInput): number {
   if (quarterMs <= 0 || subsPerQuarter <= 0) return 0;
   return quarterMs / (subsPerQuarter + 1);
 }
+
+/**
+ * The start of the sub interval CURRENTLY in progress, derived purely
+ * from the clock — the largest interval boundary at or before `nowMs`
+ * (i.e. `floor(nowMs / intervalMs) * intervalMs`).
+ *
+ * This is the remount-safe seed for the sub-due countdown (issue 4). The
+ * main clock already recomputes correctly on remount from a persisted
+ * timestamp; flooring that same elapsed onto the fixed interval grid
+ * gives a sub-interval start identical before and after a remount — so
+ * the countdown continues from where it was instead of resetting to a
+ * full interval. Because it depends only on the clock (not on when a sub
+ * happened), a forced/unplanned swap can't move it either (issue 5):
+ * only a planned rotation swap re-anchors the countdown, by setting the
+ * interval start to the swap moment explicitly.
+ *
+ * `intervalMs` is the effective (clock-multiplier-adjusted) interval, in
+ * the same frame as `nowMs`. Returns 0 before the first boundary or for a
+ * non-positive interval.
+ */
+export function subIntervalStartFloor(input: {
+  nowMs: number;
+  intervalMs: number;
+}): number {
+  const { nowMs, intervalMs } = input;
+  if (intervalMs <= 0 || nowMs <= 0) return 0;
+  return Math.floor(nowMs / intervalMs) * intervalMs;
+}

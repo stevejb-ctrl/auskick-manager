@@ -95,8 +95,8 @@ import {
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
-  resolveHonouredSwaps,
-  diffPlanToSwaps,
+  resolveDisplaySuggestions,
+  swapsEqual,
 } from "@/lib/game-plan";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
@@ -104,7 +104,7 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow } from "@/lib/live/subCadence";
-import { subSpacingMs } from "@/lib/live/subDistribution";
+import { subSpacingMs, subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
@@ -403,7 +403,6 @@ export function LiveGame({
   // Plan-ahead rotation (F1): true while the shared planner is open over
   // the live game so the coach can edit the upcoming sub before it falls
   // due. Pinning closes it.
-  const [planAheadOpen, setPlanAheadOpen] = useState(false);
   // F2 (ROTPLAN-02): the "plan NEXT period" planner, opened in the dying
   // minutes of the current period. Reuses the SAME shared GamePlanModal,
   // just opened on the next period's tab. Pinning closes it.
@@ -646,7 +645,17 @@ export function LiveGame({
 
   useEffect(() => {
     if (currentQuarter >= 1 && !quarterEnded && !finalised) {
-      setSubBaseMs(clockElapsedMs({ clockStartedAt, accumulatedMs }));
+      // Issue 4: seed the sub-interval start by FLOORING the current
+      // clock elapsed onto the interval grid, not to "now". The main
+      // clock recomputes correctly on remount (persisted timestamp), so
+      // the floor is identical before/after a remount — the countdown
+      // resumes from where it was instead of resetting to a full
+      // interval. effectiveSubIntervalMs is the grid spacing in the same
+      // (raw, multiplier-adjusted) frame as clockElapsedMs.
+      const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
+      setSubBaseMs(
+        subIntervalStartFloor({ nowMs: elapsed, intervalMs: effectiveSubIntervalMs }),
+      );
     } else {
       setSubBaseMs(null);
     }
@@ -863,7 +872,10 @@ export function LiveGame({
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
-    setSubBaseMs(currentElapsedMs());
+    // Issue 5: a forced injury/lent replacement is off-cadence — it must
+    // NOT reset the sub countdown. Leave subBaseMs alone so the timer
+    // keeps running toward the next scheduled rotation. (Was
+    // setSubBaseMs(currentElapsedMs()) here.)
     applyInjurySwap(injuredId, replacementId);
     // Two queue ops, dispatched in order. The queue's FIFO contract
     // means the injury event lands before the swap on the server,
@@ -961,11 +973,23 @@ export function LiveGame({
     });
   }
 
-  function persistSwap(off: string, on: string, zone: Zone) {
+  // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled
+  // rotation (the suggested-swap apply) resets the countdown to a full
+  // interval (issue 5). A deliberate off-cadence manual swap leaves it
+  // running toward the next scheduled rotation (issue 5 open question,
+  // default "keep running"). Forced injury/lent swaps go through their
+  // own path and never reset.
+  function persistSwap(
+    off: string,
+    on: string,
+    zone: Zone,
+    resetSubTimer = true,
+  ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
-    setSubBaseMs(currentElapsedMs()); // raw — sub timer compares against raw nowMs
+    // raw — sub timer compares against raw nowMs
+    if (resetSubTimer) setSubBaseMs(currentElapsedMs());
     applySwap(off, on, zone);
     enqueueLiveAction("recordSwap", [
       auth,
@@ -1383,35 +1407,32 @@ export function LiveGame({
     msUntilDue !== null &&
     quarterMs > 0 &&
     nowMs + msUntilDue >= quarterMs;
-  const baseSuggestions = subPastHooter ? [] : rawSuggestions;
   // Plan-ahead honour (F1): when the coach has pinned an upcoming sub
-  // for THIS game + period, and the live suggester would otherwise fire,
-  // honour the pin instead — but only if every pinned pair is still
-  // valid (off on-field, on a swappable bench). A stale/wrong-period/
-  // absent pin falls back to the live suggestion (D-09). The pin never
-  // *creates* a sub: we only swap it in when a sub is already due.
+  // for THIS game + period, honour the pin over the engine pick — but
+  // only if every pinned pair is still valid (off on-field, on a
+  // swappable bench). A stale/wrong-period/absent pin falls back to the
+  // live suggestion (D-09).
   const pinForThisGame =
     plannedRotation && plannedRotation.gameId === activeGameId
       ? plannedRotation
       : null;
-  const suggestions =
-    baseSuggestions.length > 0
-      ? resolveHonouredSwaps({
-          pin: pinForThisGame,
-          currentPeriod: currentQuarter,
-          lineup,
-          injuredIds,
-          loanedIds,
-          fallback: baseSuggestions,
-        })
-      : baseSuggestions;
-  // A pin is set for THIS period (regardless of whether a sub is due
-  // yet) — drives the "planned" badge + the entry button's label so the
-  // coach can see a plan is locked in (D-15).
-  const hasPinnedSubThisPeriod =
-    pinForThisGame != null &&
-    pinForThisGame.pinnedForPeriod === currentQuarter &&
-    (pinForThisGame.pinnedSwaps?.length ?? 0) > 0;
+  // resolveDisplaySuggestions folds the past-hooter suppression and the
+  // pin honour into one pure decision. A pinned sub stays visible past
+  // the hooter (so it isn't silently swallowed — it can be applied now
+  // or carried to the break); an unpinned suggestion is suppressed once
+  // it would fall after the hooter, as before.
+  const {
+    suggestions,
+    pastHooterCarry,
+  } = resolveDisplaySuggestions({
+    rawSuggestions,
+    subPastHooter,
+    pin: pinForThisGame,
+    currentPeriod: currentQuarter,
+    lineup,
+    injuredIds,
+    loanedIds,
+  });
   // F2: a next-period lineup is pinned for THIS game's upcoming period.
   // The upcoming period's 0-based index equals currentQuarter (planning
   // during period P=currentQuarter pins P+1, whose 0-based index is P).
@@ -1594,12 +1615,36 @@ export function LiveGame({
             {!isPreGame && !isFinished && (
               <SwapCard
                 suggestions={suggestions}
+                autoSuggestions={rawSuggestions}
                 playersById={playersById}
+                lineup={lineup}
+                injuredIds={injuredIds}
+                loanedIds={loanedIds}
+                lockedIds={lockedIds}
                 pending={isPending}
                 subState={subState}
                 forceOpen={subModalOpen}
                 msUntilDue={msUntilDue}
                 subIntervalMs={subIntervalMs}
+                pastHooterCarry={pastHooterCarry}
+                onOverride={(nextSwaps) => {
+                  // Inline override → SAME pin wire as the Plan-Ahead
+                  // planner. When the edit matches the engine pick again
+                  // (e.g. the coach reverted every chip), drop the pin so
+                  // the live suggester takes back over. Otherwise pin the
+                  // edited array, preserving any F2 next-period plan on
+                  // the shared slice.
+                  if (swapsEqual(nextSwaps, rawSuggestions)) {
+                    clearPlannedRotation();
+                    return;
+                  }
+                  setPlannedRotation({
+                    ...(pinForThisGame ?? {}),
+                    gameId,
+                    pinnedForPeriod: currentQuarter,
+                    pinnedSwaps: nextSwaps,
+                  });
+                }}
                 onApply={() => {
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);
@@ -1662,64 +1707,14 @@ export function LiveGame({
         );
       })()}
 
-      {/* Rotation-planning row — sits down here next to Game Settings
-          (the gear icon below), keeping the on-field area uncluttered
-          (Steve 2026-06-02). Holds the Plan-ahead (F1) + Plan-next-
-          period (F2) entries that used to live above the Field. */}
-      {!isPreGame && !isFinished && (isLivePlay && hasSwappableBench || (isLivePlay && inFinalWindow && !isLastPeriod)) && (
+      {/* Rotation-planning row — sits next to Game Settings (the gear
+          icon below), keeping the on-field area uncluttered. The
+          upcoming-sub override (F1) now happens INLINE on the SwapCard
+          (tap a chip in the suggested-swap section), so the old "Plan
+          ahead" button is gone (issue 6); only "Plan Q/H X" (F2) lives
+          here now. */}
+      {isLivePlay && inFinalWindow && !isLastPeriod && (
         <div className="space-y-2">
-          {/* Plan-ahead entry (F1): open the shared rotation planner
-              seeded from the live field so the coach can decide the
-              upcoming sub BEFORE it falls due. Live play only, and only
-              when there's a healthy bench player to rotate on.
-
-              Gated to the FINAL rotation window of the period (issue 6,
-              Steve 2026-06-02): planning earlier, while several subs are
-              still queued, is "guessing as to who to swap" — the bench
-              order will have churned by the time the final sub lands.
-              The button stays visible-but-disabled before then (with a
-              tooltip) so it's discoverable, and is always enabled once a
-              pin already exists so the coach can edit / clear it. A
-              "Planned" badge + Clear affordance appears once a sub is
-              pinned for this period (D-15 — the pin is visible). */}
-          {isLivePlay && hasSwappableBench && (
-            <div className="flex items-center justify-between gap-2 px-1">
-              <SFButton
-                variant="ghost"
-                size="sm"
-                data-testid="plan-ahead-entry"
-                disabled={!(inFinalWindow || hasPinnedSubThisPeriod)}
-                title={
-                  inFinalWindow || hasPinnedSubThisPeriod
-                    ? undefined
-                    : "Available for the final sub of this quarter"
-                }
-                onClick={() => setPlanAheadOpen(true)}
-                icon={<SFIcon.whistle />}
-              >
-                {hasPinnedSubThisPeriod ? "Edit planned sub" : "Plan ahead"}
-              </SFButton>
-              {hasPinnedSubThisPeriod && (
-                <div className="flex items-center gap-2">
-                  <span
-                    data-testid="planned-sub-badge"
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-                  >
-                    Planned sub ready
-                  </span>
-                  <button
-                    type="button"
-                    data-testid="plan-ahead-clear"
-                    onClick={() => clearPlannedRotation()}
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
               rotation window of the period (inFinalWindow, derived from
               the live clock) and not on the last period, the coach can
@@ -1892,7 +1887,10 @@ export function LiveGame({
           zone={pendingSwap.zone}
           playersById={playersById}
           onConfirm={() => {
-            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone);
+            // Manual tap-tap swap = off-cadence; don't reset the sub
+            // countdown (issue 5 — keep running toward the next planned
+            // rotation).
+            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone, false);
             if (pendingSwap.off) {
               showSwapToast(
                 `${shortName(pendingSwap.off)} → ${shortName(pendingSwap.on)}`
@@ -1964,69 +1962,9 @@ export function LiveGame({
         <SubDueModal onAcknowledge={handleSubModalAcknowledge} />
       )}
 
-      {/* Plan-ahead rotation planner (F1). Seeds the SAME shared
-          GamePlanModal from the live field: period[0] mirrors who's on
-          now, later quarters are projected forward. The coach tweaks the
-          current period tap-to-swap, then "Pin this sub" stores the
-          bench↔field difference as the honoured upcoming sub. */}
-      {planAheadOpen && (() => {
-        // Live reality keyed by zone id — the seed for period[0] AND the
-        // baseline diffPlanToSwaps compares the edited period against.
-        const currentGroups: Record<string, string[]> = {};
-        for (const z of activeZones) currentGroups[z] = lineup[z];
-        const currentBench = lineup.bench;
-
-        const initialPlan = projectUpcomingRotation({
-          sport: "afl",
-          ageGroup,
-          players: squadPlayers,
-          onFieldSize: currentOnFieldSize,
-          seed: 7,
-          chipModeByKey,
-          fromPeriodIndex: Math.max(0, currentQuarter - 1),
-          currentGroups,
-          currentBench,
-        });
-
-        return (
-          <GamePlanModal
-            sport="afl"
-            ageGroup={ageGroup}
-            players={squadPlayers}
-            onFieldSize={currentOnFieldSize}
-            teamName={teamName}
-            opponentName={opponentName}
-            chipModeByKey={chipModeByKey}
-            initialPlan={initialPlan}
-            initialPeriodIndex={0}
-            pinLabel="Pin this sub"
-            onPin={(plan) => {
-              // Translate the coach's edited current period back into the
-              // honoured swap(s). Only genuine bench↔field moves count.
-              const cur = plan.periods[0];
-              const editedGroups: Record<string, string[]> = {};
-              for (const g of cur.groups) editedGroups[g.groupId] = g.playerIds;
-              const pinnedSwaps = diffPlanToSwaps({
-                editedGroups,
-                editedBench: cur.bench,
-                liveGroups: currentGroups,
-                liveBench: currentBench,
-              });
-              if (pinnedSwaps.length > 0) {
-                setPlannedRotation({
-                  gameId,
-                  pinnedForPeriod: currentQuarter,
-                  pinnedSwaps,
-                });
-              } else {
-                // Edited back to live reality — drop any prior pin.
-                clearPlannedRotation();
-              }
-            }}
-            onClose={() => setPlanAheadOpen(false)}
-          />
-        );
-      })()}
+      {/* F1 (override the upcoming sub) is no longer a modal — it's the
+          inline SwapCard override (issue 3 + issue 6). The old
+          planAhead GamePlanModal was removed with its button. */}
 
       {/* Plan-NEXT-period planner (F2). Same shared GamePlanModal, opened
           on the NEXT period's tab (initialPeriodIndex=1 — period[0] mirrors
@@ -2046,6 +1984,12 @@ export function LiveGame({
           onFieldSize: currentOnFieldSize,
           seed: 7,
           chipModeByKey,
+          // Issue 8: the plan must reflect THIS game's configured period
+          // length + sub cadence, not the age-group defaults. quarterMs
+          // is the effective period length; subIntervalMs is the live
+          // even-distribution spacing (quarterMs/(N+1)).
+          periodMinutes: quarterMs / 60_000,
+          subIntervalSeconds: subIntervalMs / 1000,
           fromPeriodIndex: Math.max(0, currentQuarter - 1),
           currentGroups,
           currentBench,

@@ -3,6 +3,7 @@ import {
   subDueBoundariesMs,
   nextSubBoundaryMs,
   subSpacingMs,
+  subIntervalStartFloor,
 } from "@/lib/live/subDistribution";
 
 const MIN = 60_000;
@@ -56,5 +57,34 @@ describe("subSpacingMs", () => {
   it("is one slab = quarterMs/(N+1)", () => {
     expect(subSpacingMs({ quarterMs: Q12, subsPerQuarter: 3 })).toBe(3 * MIN);
     expect(subSpacingMs({ quarterMs: Q12, subsPerQuarter: 2 })).toBe(4 * MIN);
+  });
+});
+
+describe("subIntervalStartFloor (issues 4 & 5)", () => {
+  const INT = 3 * MIN; // 3-min interval grid
+
+  it("floors elapsed onto the interval grid (remount-safe seed)", () => {
+    // At 4:30 the current interval started at the 3:00 boundary.
+    expect(subIntervalStartFloor({ nowMs: 4.5 * MIN, intervalMs: INT })).toBe(3 * MIN);
+    // At 7:00 → the 6:00 boundary.
+    expect(subIntervalStartFloor({ nowMs: 7 * MIN, intervalMs: INT })).toBe(6 * MIN);
+  });
+
+  it("is stable across a remount — same clock elapsed → same start", () => {
+    // The whole point of issue 4: leaving + returning recomputes the
+    // same elapsed (clock is timestamp-derived), so the floor is equal
+    // and the countdown resumes instead of resetting.
+    const before = subIntervalStartFloor({ nowMs: 5 * MIN, intervalMs: INT });
+    const afterRemount = subIntervalStartFloor({ nowMs: 5 * MIN, intervalMs: INT });
+    expect(afterRemount).toBe(before);
+    // And the remaining time it implies is preserved:
+    const remaining = (start: number, now: number) => start + INT - now;
+    expect(remaining(before, 5 * MIN)).toBe(remaining(afterRemount, 5 * MIN));
+  });
+
+  it("is 0 before the first boundary and for a non-positive interval", () => {
+    expect(subIntervalStartFloor({ nowMs: 1.5 * MIN, intervalMs: INT })).toBe(0);
+    expect(subIntervalStartFloor({ nowMs: 0, intervalMs: INT })).toBe(0);
+    expect(subIntervalStartFloor({ nowMs: 5 * MIN, intervalMs: 0 })).toBe(0);
   });
 });

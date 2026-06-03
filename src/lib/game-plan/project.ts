@@ -226,7 +226,9 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
     periodLabelPlural: plural,
     periodMinutes,
     rotatesWithinPeriod: rotates,
-    subIntervalSeconds: rotates ? ag.subIntervalSeconds : undefined,
+    subIntervalSeconds: rotates
+      ? (input.subIntervalSeconds ?? ag.subIntervalSeconds)
+      : undefined,
   };
 }
 

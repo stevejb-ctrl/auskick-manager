@@ -108,6 +108,13 @@ export interface ProjectGamePlanInput {
   periodCount?: number;
   /** Minutes per period override. Defaults to `ageGroup.periodSeconds / 60`. */
   periodMinutes?: number;
+  /**
+   * Rolling-sub cadence override in seconds. Defaults to
+   * `ageGroup.subIntervalSeconds`. The live plan-ahead caller passes the
+   * GAME's actual cadence so the plan screen never shows a stale age
+   * default (issue 8).
+   */
+  subIntervalSeconds?: number;
   /** Deterministic seed so the same squad yields the same plan. */
   seed?: number;
   /** Per-player chip key (a|b|c|null) — drives chip-aware placement. */

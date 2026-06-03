@@ -45,13 +45,26 @@ import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-test("F1: a pinned upcoming sub is honoured over the engine pick when the sub falls due", async ({
+// ─── Inline SwapCard override (F1 inline) ─────────────────────────
+// The same override the planner does, but WITHOUT leaving the field:
+// the coach taps the incoming chip on the SwapCard, picks a different
+// bench player from the inline picker, and that choice is pinned via
+// the SAME plannedRotation slice — the SwapCard shows it "Edited" and
+// "Do all" applies the coach's pick, not the engine's.
+//
+//   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
+//   2. Reach the sub-due moment, dismiss the SubDueModal once.
+//   3. Expand the SwapCard, tap pair 0's incoming chip, and pick a
+//      bench option the engine did NOT already have coming on there.
+//   4. Assert: the pair shows the "Edited" badge + the "Planned sub
+//      ready" badge surfaces (the inline edit pinned, same as the
+//      planner's "Pin this sub").
+//   5. "Do all", then assert a `swap` event landed bringing the
+//      coach-picked player on — proving the inline override was
+//      honoured end-to-end.
+test("F1-inline: overriding the incoming player on the SwapCard pins it and is honoured", async ({
   page,
 }) => {
-  // Real-time clock + a 40s sub interval: the editing window stays
-  // open well before the sub is due, the hooter is ~12 min away, and
-  // the whole spec finishes in under a minute. Generous test timeout
-  // for CI slop on the sub-due wait.
   test.setTimeout(120_000);
 
   const admin = createAdminClient();
@@ -68,14 +81,11 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  // Real-time clock + sub due ~40s in. See header note.
   await admin
     .from("games")
     .update({ clock_multiplier: 1, sub_interval_seconds: 40 })
     .eq("id", game.id);
 
-  // Mark every player available so the live page + projector see the
-  // full squad (the planner seeds from the available roster).
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,
@@ -85,8 +95,6 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
     })),
   );
 
-  // Seed a mid-Q1 live state: lineup_set + quarter_start, status
-  // in_progress. Same shape startGame writes (see live/actions.ts).
   const positionModel = positionsFor(team.ageGroup);
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
@@ -99,21 +107,6 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
     }
   }
   lineup.bench = players.slice(cursor).map((p) => p.id);
-
-  // The two players the test pins on. Alicia (players[0]) is the first
-  // on-field player; Octavia (players[14]) is the LAST bench player —
-  // deliberately the least likely engine pick, so honouring it proves
-  // the pin won over the default suggestion.
-  const fieldPlayer = players[0];
-  const benchPlayer = players[players.length - 1];
-  expect(
-    lineup.bench,
-    "Octavia must start on the bench for this scenario",
-  ).toContain(benchPlayer.id);
-  expect(
-    lineup.bench,
-    "Alicia must start on the field for this scenario",
-  ).not.toContain(fieldPlayer.id);
 
   await admin.from("game_events").insert([
     {
@@ -131,8 +124,6 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
   ]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
-  // Suppress the first-visit walkthrough overlay so it can't intercept
-  // the planner entry. Same trick as the full-game playthrough spec.
   await page.addInitScript(() => {
     try {
       localStorage.setItem("gm-walkthrough-seen", "1");
@@ -140,58 +131,43 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-
-  // The live field is up: the chosen players' tiles are present.
-  await expect(page.getByTestId(`player-tile-${fieldPlayer.id}`)).toBeVisible({
+  await expect(page.getByTestId(`player-tile-${players[0].id}`)).toBeVisible({
     timeout: 10_000,
   });
 
-  // ─── Wait for the sub to fall due, dismiss the SubDueModal ──────
-  // The live suggester only fires (and the honour path only engages)
-  // once a sub is genuinely due. The SubDueModal's backdrop would
-  // block the planner + SwapCard, so dismiss it once up front; with no
-  // sub yet made, subState stays "due" and it won't re-open.
+  // Reach sub-due and clear the modal so the inline SwapCard is editable.
   await expect(
     page.getByRole("button", { name: /^got it$/i }),
   ).toBeVisible({ timeout: 60_000 });
   await page.getByRole("button", { name: /^got it$/i }).click();
 
-  // ─── Plan ahead: override the upcoming sub ──────────────────────
-  await page.getByTestId("plan-ahead-entry").click();
-  await expect(
-    page.getByRole("heading", { name: /^game plan$/i }),
-  ).toBeVisible({ timeout: 5_000 });
+  // Expand the SwapCard and open pair 0's incoming picker.
+  const toggle = page.getByTestId("swapcard-toggle");
+  await expect(toggle).toBeVisible({ timeout: 5_000 });
+  await toggle.click();
+  await page.getByTestId("swap-pair-0-on").click();
 
-  // Tap-to-swap the chosen on-field player OFF for the chosen bench
-  // player. Scope to the planner's player rows (testid) so we don't
-  // collide with the copy-text block, which also mentions the names.
-  const rows = page.getByTestId("game-plan-player");
-  await rows.filter({ hasText: fieldPlayer.full_name }).click();
-  await expect(page.getByText(/swapping…/i)).toBeVisible();
-  await rows.filter({ hasText: benchPlayer.full_name }).click();
+  // Pick a bench option the engine did NOT already have coming on here
+  // (the picker marks the current pick with bg-brand-600, so a
+  // :not(.bg-brand-600) option is guaranteed to be a real change).
+  const freshOption = page
+    .locator('[data-testid^="swap-option-"]:not(.bg-brand-600)')
+    .first();
+  await expect(freshOption).toBeVisible({ timeout: 5_000 });
+  const optionTestId = await freshOption.getAttribute("data-testid");
+  const chosenOnId = optionTestId!.replace("swap-option-", "");
+  await freshOption.click();
 
-  // Pin it back to the live game (closes the planner).
-  await page.getByTestId("game-plan-pin").click();
-
-  // Pin registered: the "Planned sub ready" badge surfaces in the
-  // plan-ahead row (D-15 — the pin is visible to the coach).
-  await expect(page.getByTestId("planned-sub-badge")).toBeVisible({
+  // The edit pinned: the pair now wears the inline "Edited" badge. (The
+  // old "Planned sub ready" row badge went away with the Plan-ahead
+  // button in issue 6 — the SwapCard's own Edited badge is the pin's
+  // visible state now.)
+  await expect(page.getByTestId("swap-pair-0-edited")).toBeVisible({
     timeout: 5_000,
   });
 
-  // The inline SwapCard now reflects the HONOURED pin, not the engine
-  // pick: it names the chosen bench player coming on. Expand and apply.
-  const toggle = page.getByTestId("swapcard-toggle");
-  await expect(toggle).toBeVisible({ timeout: 5_000 });
-  await expect(toggle).toContainText(benchPlayer.full_name.split(" ")[0]);
-  await toggle.click();
+  // Apply everything and confirm the coach-picked player came on.
   await page.getByTestId("swapcard-apply-all").click();
-
-  // ─── Assert: the PINNED pair was applied, not the engine default ─
-  // recordSwap writes a `swap` event with metadata
-  // { off_player_id, on_player_id, zone, ... }. The pinned pair is
-  // Alicia OFF, Octavia ON — Octavia being the last bench player makes
-  // this a pair the engine would not have produced on its own.
   await expect
     .poll(
       async () => {
@@ -200,16 +176,11 @@ test("F1: a pinned upcoming sub is honoured over the engine pick when the sub fa
           .select("metadata")
           .eq("game_id", game.id)
           .eq("type", "swap");
-        return (data ?? []).some((e) => {
-          const m = (e.metadata ?? {}) as {
-            off_player_id?: string;
-            on_player_id?: string;
-          };
-          return (
-            m.off_player_id === fieldPlayer.id &&
-            m.on_player_id === benchPlayer.id
-          );
-        });
+        return (data ?? []).some(
+          (e) =>
+            ((e.metadata ?? {}) as { on_player_id?: string }).on_player_id ===
+            chosenOnId,
+        );
       },
       { timeout: 7_000, intervals: [200, 200, 500, 500, 1000] },
     )
