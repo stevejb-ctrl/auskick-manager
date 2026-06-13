@@ -44,6 +44,7 @@ import {
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
@@ -535,21 +536,13 @@ export function LeagueLiveGame({
   // ── Sub-due derivation ───────────────────────────────────────
   const subIntervalMs
     = subIntervalSeconds != null ? subIntervalSeconds * 1000 : null;
-  const lastSwapOrPeriodElapsed = useMemo<number | null>(() => {
-    if (state.currentQuarter < 1) return null;
-    for (let i = thisGameEvents.length - 1; i >= 0; i--) {
-      const ev = thisGameEvents[i];
-      const meta = ev.metadata as { quarter?: number; elapsed_ms?: number };
-      if (meta.quarter !== state.currentQuarter) continue;
-      if (ev.type === "swap") {
-        return typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : null;
-      }
-      if (ev.type === "quarter_start") {
-        return 0;
-      }
-    }
-    return null;
-  }, [thisGameEvents, state.currentQuarter]);
+  // Forced swaps (injury / mark-out) don't re-anchor the rotation clock —
+  // only a planned swap or the period start does (parity with AFL issue
+  // 5). Logic is the pure, unit-tested resolveLeagueSubAnchorElapsed.
+  const lastSwapOrPeriodElapsed = useMemo<number | null>(
+    () => resolveLeagueSubAnchorElapsed(thisGameEvents, state.currentQuarter),
+    [thisGameEvents, state.currentQuarter],
+  );
   // Filter out injured / loaned bench players — they can't come on.
   const swappableBench = useMemo(
     () =>
