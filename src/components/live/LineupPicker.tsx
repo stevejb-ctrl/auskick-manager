@@ -102,6 +102,15 @@ interface LineupPickerProps {
    * lights up at kickoff.
    */
   initialLoanedIds?: string[];
+  /**
+   * Default sub interval in MINUTES — the game's configured
+   * `sub_interval_seconds` (itself defaulted to the age-group value,
+   * e.g. U10 = 3 min). When provided, this is the pre-game default
+   * shown in the Sub-interval field, so what the coach sees and saves
+   * matches what the live timer fires at. Falls back to the old
+   * squad-size heuristic only when omitted (legacy runner-token mount).
+   */
+  defaultSubMinutes?: number;
 }
 
 type Slot = Zone | "bench";
@@ -146,6 +155,7 @@ export function LineupPicker({
   initialDraft,
   chipModeByKey = {},
   initialLoanedIds = [],
+  defaultSubMinutes,
 }: LineupPickerProps) {
   const router = useRouter();
   // Pre-game loaned-player set. Hydrated from any player_loan events
@@ -481,7 +491,12 @@ export function LineupPicker({
   const onFieldCount = zones.reduce((n, z) => n + lineup[z].length, 0);
   const benchCount = lineup.bench.length;
   const totalCount = onFieldCount + benchCount;
-  const suggestedMin = suggestedSubMinutes(benchCount, totalCount, gameMinutes);
+  // Default the sub interval to the game's configured value (age-group
+  // default unless the coach changed it) so the pre-game number matches
+  // what the live timer fires at. The squad-size heuristic is only a
+  // fallback for callers that don't pass a configured interval.
+  const suggestedMin =
+    defaultSubMinutes ?? suggestedSubMinutes(benchCount, totalCount, gameMinutes);
   const effectiveOnFieldTarget = Math.min(onFieldSize, totalCount);
   const effectiveSubMin =
     subMinInput === null

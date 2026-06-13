@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/Label";
 import { Guernsey } from "@/components/sf";
 import {
   setOnFieldSizeMidGame,
-  setSubsPerQuarter,
+  setSubInterval,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { LiveAuth, Player } from "@/lib/types";
@@ -40,8 +40,8 @@ import type { LiveAuth, Player } from "@/lib/types";
 interface LiveGameSettingsButtonProps {
   auth: LiveAuth;
   gameId: string;
-  /** Current subs-per-quarter (from games.subs_per_quarter). */
-  subsPerQuarter: number;
+  /** Current sub interval in SECONDS (games.sub_interval_seconds). */
+  subIntervalSeconds: number;
   /** Current persisted on-field size. */
   currentOnFieldSize: number;
   /** Inclusive bounds from the team's age-group config. */
@@ -55,7 +55,7 @@ interface LiveGameSettingsButtonProps {
 export function LiveGameSettingsButton({
   auth,
   gameId,
-  subsPerQuarter,
+  subIntervalSeconds,
   currentOnFieldSize,
   minOnFieldSize,
   maxOnFieldSize,
@@ -78,7 +78,7 @@ export function LiveGameSettingsButton({
         <LiveGameSettingsModal
           auth={auth}
           gameId={gameId}
-          subsPerQuarter={subsPerQuarter}
+          subIntervalSeconds={subIntervalSeconds}
           currentOnFieldSize={currentOnFieldSize}
           minOnFieldSize={minOnFieldSize}
           maxOnFieldSize={maxOnFieldSize}
@@ -97,7 +97,7 @@ interface LiveGameSettingsModalProps extends LiveGameSettingsButtonProps {
 function LiveGameSettingsModal({
   auth,
   gameId,
-  subsPerQuarter,
+  subIntervalSeconds,
   currentOnFieldSize,
   minOnFieldSize,
   maxOnFieldSize,
@@ -105,7 +105,8 @@ function LiveGameSettingsModal({
   onClose,
 }: LiveGameSettingsModalProps) {
   const router = useRouter();
-  const [subsInput, setSubsInput] = useState<string>(String(subsPerQuarter));
+  const initialMinutes = subIntervalSeconds / 60;
+  const [minutesInput, setMinutesInput] = useState<string>(String(initialMinutes));
   const [sizeInput, setSizeInput] = useState<string>(String(currentOnFieldSize));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -114,13 +115,14 @@ function LiveGameSettingsModal({
   // with that many slots to fill.
   const [shrinkPickerSize, setShrinkPickerSize] = useState<number | null>(null);
 
-  function commitSubsPerQuarterIfChanged(): Promise<void> {
-    const n = parseInt(subsInput, 10);
-    if (!Number.isInteger(n) || n < 1 || n > 10) {
-      throw new Error("Subs per quarter must be between 1 and 10.");
+  function commitSubIntervalIfChanged(): Promise<void> {
+    const minutes = parseFloat(minutesInput);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10) {
+      throw new Error("Sub interval must be between 1 and 10 minutes.");
     }
-    if (n === subsPerQuarter) return Promise.resolve();
-    return setSubsPerQuarter(auth, gameId, n).then((res) => {
+    const seconds = Math.round(minutes * 60);
+    if (seconds === subIntervalSeconds) return Promise.resolve();
+    return setSubInterval(auth, gameId, seconds).then((res) => {
       if (!res.success) throw new Error(res.error);
     });
   }
@@ -154,7 +156,7 @@ function LiveGameSettingsModal({
       // and updates on_field_size in one server action call.
       startTransition(async () => {
         try {
-          await commitSubsPerQuarterIfChanged();
+          await commitSubIntervalIfChanged();
           setShrinkPickerSize(currentOnFieldSize - newSize);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Save failed.");
@@ -166,7 +168,7 @@ function LiveGameSettingsModal({
     // Grow / no-op size + sub-interval — bundle in one transition.
     startTransition(async () => {
       try {
-        await commitSubsPerQuarterIfChanged();
+        await commitSubIntervalIfChanged();
         await commitGrowOrNoOp(newSize);
         onClose();
         router.refresh();
@@ -204,28 +206,28 @@ function LiveGameSettingsModal({
       <div className="mt-5 space-y-4">
         <div>
           <Label
-            htmlFor="live-subs-per-quarter"
+            htmlFor="live-sub-minutes"
             className="!mb-1 block text-xs font-semibold text-ink"
           >
-            Subs per quarter
+            Sub interval
           </Label>
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <p className="text-xs text-ink-mute">
-                How many sub reminders this quarter — spread evenly across the
-                period (3 lands them at the &#8531;, &#8532; and &#190; marks).
-                More = shorter stints; fewer = longer ones.
+                How often the &quot;sub due&quot; reminder fires. Currently
+                every {initialMinutes} min — bump it up if kids look gassed,
+                down if they barely break a sweat.
               </p>
             </div>
             <div className="w-24">
               <Input
-                id="live-subs-per-quarter"
+                id="live-sub-minutes"
                 type="number"
                 min={1}
                 max={10}
-                step={1}
-                value={subsInput}
-                onChange={(e) => setSubsInput(e.target.value)}
+                step={0.5}
+                value={minutesInput}
+                onChange={(e) => setMinutesInput(e.target.value)}
                 disabled={pending}
                 autoFocus
               />

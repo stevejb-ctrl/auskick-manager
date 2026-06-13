@@ -117,6 +117,14 @@ interface LeagueLineupPickerProps {
   chipModes?: Partial<
     Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
   >;
+  /**
+   * Default sub interval in MINUTES — the game's configured
+   * `sub_interval_seconds` (defaulted to the age-group value at game
+   * creation). When provided it's the pre-game default, so what the
+   * coach sees and saves matches what the live timer fires at. Falls
+   * back to the squad-size heuristic only when omitted.
+   */
+  defaultSubMinutes?: number;
 }
 
 export function LeagueLineupPicker({
@@ -134,6 +142,7 @@ export function LeagueLineupPicker({
   initialLoanedIds = [],
   chipLabels,
   chipModes,
+  defaultSubMinutes,
 }: LeagueLineupPickerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -258,12 +267,18 @@ export function LeagueLineupPicker({
     0,
     players.length - defaultOnFieldSize,
   );
-  const suggestedSubMin = suggestedSubMinutes(
-    benchCountForSuggest,
-    players.length,
-    gameMinutes,
-    unbrokenLockedMinutes,
-  );
+  // Default to the game's CONFIGURED interval (age-group default unless
+  // the coach changed it) so the pre-game number matches what the live
+  // timer fires at. The squad-size heuristic is only a fallback for
+  // callers that don't pass a configured interval.
+  const suggestedSubMin =
+    defaultSubMinutes ??
+    suggestedSubMinutes(
+      benchCountForSuggest,
+      players.length,
+      gameMinutes,
+      unbrokenLockedMinutes,
+    );
   const [subMinInput, setSubMinInput] = useState<string>(
     String(suggestedSubMin),
   );

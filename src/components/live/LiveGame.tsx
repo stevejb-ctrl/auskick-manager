@@ -104,7 +104,7 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow } from "@/lib/live/subCadence";
-import { subSpacingMs, subIntervalStartFloor } from "@/lib/live/subDistribution";
+import { subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
@@ -176,14 +176,6 @@ interface LiveGameProps {
   opponentName: string;
   trackScoring: boolean;
   subIntervalSeconds: number;
-  /**
-   * Number of within-period subs to spread evenly across the period
-   * (issue 2). When >= 1, the sub-due cadence is `quarterMs/(N+1)` so N
-   * reminders land at the k/(N+1) marks (e.g. 3 → 3/6/9 min of a 12-min
-   * quarter) instead of a fixed interval. Falls back to
-   * `subIntervalSeconds` when 0/undefined. Default 3.
-   */
-  subsPerQuarter?: number;
   squadPlayers: Player[];
   initialState: GameState;
   season: PlayerZoneMinutes;
@@ -271,7 +263,6 @@ export function LiveGame({
   opponentName,
   trackScoring,
   subIntervalSeconds,
-  subsPerQuarter = 3,
   squadPlayers,
   initialState,
   season,
@@ -1161,18 +1152,19 @@ export function LiveGame({
     totalMsByPlayer[pid] = t;
   }
 
-  // Issue 2: distribute N subs evenly across the period — the cadence is
-  // one slab = quarterMs/(N+1), so reminders land at the k/(N+1) marks
-  // (3 → 3/6/9 min of a 12-min quarter) and "line up to period lengths".
-  // The first reminder fires exactly on boundary 1 (subBaseMs resets to
-  // the period start); subsequent ones re-anchor off each sub, the same
-  // proven path the fixed interval used. Falls back to the legacy fixed
-  // sub_interval_seconds when subsPerQuarter isn't set or the period
-  // length is unknown.
-  const subIntervalMs =
-    subsPerQuarter > 0 && quarterMs > 0
-      ? subSpacingMs({ quarterMs, subsPerQuarter })
-      : subIntervalSeconds * 1000;
+  // The sub-due cadence is the coach's CONFIGURED interval
+  // (games.sub_interval_seconds, defaulted to the age-group value, e.g.
+  // U10 = 3 min). The reminders sit on a fixed grid anchored to the
+  // period start (subBaseMs is floored onto that grid — see the seed
+  // effect), so they "line up to period lengths" (3-min interval in a
+  // 12-min quarter → 3/6/9) AND honour exactly what the coach set.
+  //
+  // History: this briefly derived the interval from a `subs_per_quarter`
+  // count (quarterMs/(N+1)), but that IGNORED the configured interval and
+  // produced surprising values (U15 4-min setting → 5-min cadence). The
+  // configured interval is the single source of truth again; the
+  // subs_per_quarter column is left unused.
+  const subIntervalMs = subIntervalSeconds * 1000;
   // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
   const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;
   // F2 "final minutes" gate (D-11): the coach can plan the NEXT period once
@@ -1788,7 +1780,7 @@ export function LiveGame({
               <LiveGameSettingsButton
                 auth={auth}
                 gameId={gameId}
-                subsPerQuarter={subsPerQuarter}
+                subIntervalSeconds={subIntervalSeconds}
                 currentOnFieldSize={currentOnFieldSize}
                 minOnFieldSize={minOnFieldSize}
                 maxOnFieldSize={maxOnFieldSize}

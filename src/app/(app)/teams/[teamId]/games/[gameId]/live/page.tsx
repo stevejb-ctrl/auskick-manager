@@ -386,6 +386,7 @@ export default async function LivePage({ params }: LivePageProps) {
               defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
               gamePlanButton={
                 <GamePlanButton
                   sport={sport}
@@ -812,7 +813,6 @@ export default async function LivePage({ params }: LivePageProps) {
           opponentName={g.opponent}
           trackScoring={trackScoring}
           subIntervalSeconds={g.sub_interval_seconds}
-          subsPerQuarter={g.subs_per_quarter ?? 3}
           squadPlayers={allSquad}
           initialState={state}
           season={season}
@@ -968,6 +968,7 @@ export default async function LivePage({ params }: LivePageProps) {
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
           gameMinutes={(ageCfg.quarterSeconds * ageCfgSport.periodCount) / 60}
+          defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           gamePlanButton={
