@@ -386,6 +386,7 @@ export default async function LivePage({ params }: LivePageProps) {
               defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
               gamePlanButton={
                 <GamePlanButton
                   sport={sport}
