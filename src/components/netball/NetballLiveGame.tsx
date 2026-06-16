@@ -28,7 +28,6 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
@@ -285,7 +284,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // NetballLiveGame doesn't use a zustand store the way AFL does —
   // its state derives from events on every render, so it's "ready"
   // as soon as the component mounts.
-  const { containerRef: ytContainerRef, playSong } = useHypeSong({
+  const { playSong } = useHypeSong({
     songUrl,
     songStartSeconds,
     songDurationSeconds,
@@ -2545,24 +2544,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           currentQuarter > 0 && !quarterEnded && !finalised). */}
       <LongPressHint enabled />
 
-      {/* Hidden YouTube iframe container — `useHypeSong` populates
-          it on mount when a YouTube song is configured. 1×1 + opacity
-          0 + pointer-events none so it has zero visual impact.
-          AFL parity (Steve 2026-05-16). */}
-      {songUrl && isYouTubeUrl(songUrl) && (
-        <div
-          ref={ytContainerRef}
-          style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            overflow: "hidden",
-            opacity: 0,
-            pointerEvents: "none",
-          }}
-          aria-hidden
-        />
-      )}
     </div>
   );
 }

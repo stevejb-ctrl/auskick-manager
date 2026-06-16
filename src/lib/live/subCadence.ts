@@ -35,3 +35,38 @@ export function isFinalSubWindow(input: FinalSubWindowInput): boolean {
   if (quarterMs <= 0 || effectiveSubIntervalMs <= 0) return false;
   return nowMs >= quarterMs - effectiveSubIntervalMs;
 }
+
+export interface CanPlanNextPeriodInput {
+  /** True during an in-flight period (not pre-game / break / finished). */
+  isLivePlay: boolean;
+  /** True on the last period — there's no next period to plan. */
+  isLastPeriod: boolean;
+  /** Within one sub interval of the hooter (the last sub window). */
+  inFinalWindow: boolean;
+  /** The next sub-due moment would fall after the hooter — no more subs. */
+  subPastHooter: boolean;
+  /** A healthy bench player exists to rotate on (i.e. subs can happen). */
+  hasSwappableBench: boolean;
+}
+
+/**
+ * Should the "Plan next period" entry be offered right now?
+ *
+ * The planner projects the next period from the CURRENT on-field
+ * reality, so it's only meaningful once the rest of THIS period won't
+ * churn the lineup further. That's true when:
+ *   • we're in the final sub window (the last rotation is imminent), OR
+ *   • the next sub would fall after the hooter (no more subs coming), OR
+ *   • there's no swappable bench at all — a small-squad / no-subs game
+ *     never rotates, so the coach can plan the next period any time
+ *     (Steve 2026-06-13: ran a no-subs AFL game and couldn't set the
+ *     next quarter's lineup mid-quarter).
+ *
+ * Always false on the last period (nothing to plan) or outside live play.
+ */
+export function canPlanNextPeriod(input: CanPlanNextPeriodInput): boolean {
+  const { isLivePlay, isLastPeriod, inFinalWindow, subPastHooter, hasSwappableBench } =
+    input;
+  if (!isLivePlay || isLastPeriod) return false;
+  return inFinalWindow || subPastHooter || !hasSwappableBench;
+}

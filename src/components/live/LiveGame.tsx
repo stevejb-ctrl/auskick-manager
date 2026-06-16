@@ -101,9 +101,8 @@ import {
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
-import { isYouTubeUrl } from "@/lib/songUrl";
 import { useHypeSong } from "@/lib/live/useHypeSong";
-import { isFinalSubWindow } from "@/lib/live/subCadence";
+import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
 import { subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
@@ -464,7 +463,7 @@ export function LiveGame({
   // owns the YT iframe + audio fallback + auto-stop timer; we
   // just render the hidden container ref below and call playSong()
   // on goal commit.
-  const { containerRef: ytContainerRef, playSong, primeSong } = useHypeSong({
+  const { playSong, primeSong } = useHypeSong({
     songUrl,
     songStartSeconds,
     songDurationSeconds,
@@ -1453,6 +1452,17 @@ export function LiveGame({
   // here.
   const isLivePlay =
     currentQuarter >= 1 && !quarterEnded && !finalised;
+  // Whether to offer "Plan Q{n+1}". Available in the final sub window OR
+  // once no more subs will churn the lineup this period — including a
+  // no-subs game, where it's available throughout (Steve 2026-06-13 ran a
+  // no-subs AFL game and couldn't set the next quarter mid-quarter).
+  const showPlanNextPeriod = canPlanNextPeriod({
+    isLivePlay,
+    isLastPeriod,
+    inFinalWindow,
+    subPastHooter,
+    hasSwappableBench,
+  });
   const gameHeader = (
     <GameHeader
       teamName={teamName}
@@ -1705,15 +1715,15 @@ export function LiveGame({
           (tap a chip in the suggested-swap section), so the old "Plan
           ahead" button is gone (issue 6); only "Plan Q/H X" (F2) lives
           here now. */}
-      {isLivePlay && inFinalWindow && !isLastPeriod && (
+      {showPlanNextPeriod && (
         <div className="space-y-2">
-          {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
-              rotation window of the period (inFinalWindow, derived from
-              the live clock) and not on the last period, the coach can
-              open the SAME shared planner on the NEXT period's tab and
-              build its lineup so the break opens with a plan in place.
-              A "Next period ready" badge + Clear appears once pinned. */}
-          {isLivePlay && inFinalWindow && !isLastPeriod && (
+          {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): offered once the
+              rest of this period won't churn the lineup — the final sub
+              window, or any time in a no-subs game (canPlanNextPeriod).
+              Opens the SAME shared planner on the NEXT period's tab so
+              the break opens with a plan in place. A "Next period ready"
+              badge + Clear appears once pinned. */}
+          {showPlanNextPeriod && (
             <div className="flex items-center justify-between gap-2 px-1">
               <SFButton
                 variant="ghost"
@@ -2438,13 +2448,6 @@ export function LiveGame({
         />
       )}
 
-      {songUrl && isYouTubeUrl(songUrl) && (
-        <div
-          ref={ytContainerRef}
-          style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
-          aria-hidden
-        />
-      )}
 
       {/* Sticky-bottom scorebug — only during live play (Steve
           2026-05-13 wants the +G / +B chips thumb-reachable AND
