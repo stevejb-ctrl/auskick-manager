@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFinalSubWindow } from "@/lib/live/subCadence";
+import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
 
 // 12-min quarter, 4-min sub interval → final window opens at 8 min.
 const Q = 12 * 60_000;
@@ -21,5 +21,38 @@ describe("isFinalSubWindow", () => {
   it("guards against a non-running / mis-configured clock", () => {
     expect(isFinalSubWindow({ nowMs: 0, quarterMs: 0, effectiveSubIntervalMs: INT })).toBe(false);
     expect(isFinalSubWindow({ nowMs: 100, quarterMs: Q, effectiveSubIntervalMs: 0 })).toBe(false);
+  });
+});
+
+describe("canPlanNextPeriod", () => {
+  const base = {
+    isLivePlay: true,
+    isLastPeriod: false,
+    inFinalWindow: false,
+    subPastHooter: false,
+    hasSwappableBench: true,
+  };
+
+  it("THE BUG: a no-subs game can plan the next period any time", () => {
+    // Empty/zero swappable bench → no rotations ever → available all
+    // quarter, even early when not in the final window (Steve 2026-06-13).
+    expect(canPlanNextPeriod({ ...base, hasSwappableBench: false })).toBe(true);
+  });
+
+  it("is available in the final sub window (existing behaviour)", () => {
+    expect(canPlanNextPeriod({ ...base, inFinalWindow: true })).toBe(true);
+  });
+
+  it("is available once the next sub falls past the hooter", () => {
+    expect(canPlanNextPeriod({ ...base, subPastHooter: true })).toBe(true);
+  });
+
+  it("is hidden mid-quarter while subs are still queued", () => {
+    expect(canPlanNextPeriod(base)).toBe(false);
+  });
+
+  it("is never offered on the last period or outside live play", () => {
+    expect(canPlanNextPeriod({ ...base, isLastPeriod: true, hasSwappableBench: false })).toBe(false);
+    expect(canPlanNextPeriod({ ...base, isLivePlay: false, inFinalWindow: true })).toBe(false);
   });
 });

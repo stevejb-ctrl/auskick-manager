@@ -10,15 +10,14 @@
 // so both sports can call it identically. Steve.
 //
 // Usage:
-//   const { containerRef, playSong } = useHypeSong({
+//   const { playSong, primeSong } = useHypeSong({
 //     songUrl, songStartSeconds, songDurationSeconds,
 //     hydrated, gameId,
 //   });
-//   // Render the hidden iframe container somewhere in the tree:
-//   {songUrl && isYouTubeUrl(songUrl) && (
-//     <div ref={containerRef} className="…hidden…" aria-hidden />
-//   )}
-//   // Call playSong() on goal commit (or whatever sirenic moment).
+//   // Call primeSong() on the Start-period tap (unlocks autoplay) and
+//   // playSong() on goal commit. The hook hosts its own hidden YT iframe
+//   // on document.body — the consumer renders NO container, so the player
+//   // survives the live game's conditional render branches (quarter break).
 //
 // Notes preserved verbatim from the AFL version:
 //   - YT iframe is forced to 1×1 so it doesn't bleed page width
@@ -72,7 +71,6 @@ export function useHypeSong({
   const songTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
   const ytReadyRef = useRef(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // AUDIO-01 / B3: track whether the audio session is armed. iOS suspends the
   // session on backgrounding / period transitions; without re-arming, the song
@@ -88,10 +86,25 @@ export function useHypeSong({
   useEffect(() => {
     if (!hydrated || !songUrl || !isYouTubeUrl(songUrl)) return;
     const videoId = youtubeVideoId(songUrl);
-    if (!videoId || !containerRef.current) return;
+    if (!videoId) return;
+
+    // Host the hidden YT iframe on document.body so its lifetime is tied
+    // to THIS hook (always mounted), not to a React container that the
+    // live game renders conditionally. LiveGame swaps to a different
+    // render branch at each quarter break (the isBetweenQuarters early
+    // return), which previously unmounted the container mid-game and
+    // detached the player — so goals from Q2 onward (and any goal after
+    // backgrounding the app) went silent. A body-hosted node survives
+    // those branch switches. Off-screen 1×1, NOT display:none, so the
+    // WebView still treats the video as playable.
+    const host = document.createElement("div");
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText =
+      "position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;";
+    document.body.appendChild(host);
 
     const playerDiv = document.createElement("div");
-    containerRef.current.appendChild(playerDiv);
+    host.appendChild(playerDiv);
 
     function createPlayer() {
       ytPlayerRef.current = new window.YT.Player(playerDiv, {
@@ -128,7 +141,7 @@ export function useHypeSong({
       ytPlayerRef.current?.destroy();
       ytPlayerRef.current = null;
       ytReadyRef.current = false;
-      playerDiv.remove();
+      host.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songUrl, gameId, hydrated]);
@@ -266,5 +279,5 @@ export function useHypeSong({
     }
   }
 
-  return { containerRef, playSong, primeSong };
+  return { playSong, primeSong };
 }
