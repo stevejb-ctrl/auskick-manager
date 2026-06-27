@@ -58,6 +58,7 @@ import {
 } from "@/lib/sports/netball/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { seedNextPeriodLineup } from "@/lib/game-plan";
+import { benchPlayerInPositionLineup } from "@/lib/live/lineupOps";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -1020,6 +1021,16 @@ export function NetballQuarterBreak({
   }
   function handleInjuryToggleAtBreak(pid: string, nextInjured: boolean) {
     setAdjustError(null);
+    // An injured player can't stay on court. The staged draft isn't
+    // auto-reconciled to mid-break injury changes, so pull them off into
+    // the bench — the vacated named position is left empty, which blocks
+    // Start until the coach picks a replacement (netball needs all
+    // positions filled). Without this they started the next quarter on
+    // court, still accruing minutes despite the INJ badge (Steve
+    // 2026-06-15, AFL parity).
+    if (nextInjured) {
+      setDraft((prev) => benchPlayerInPositionLineup(prev, pid));
+    }
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
