@@ -3,6 +3,7 @@ export * from "./types";
 export { projectGamePlan } from "./project";
 export { formatGamePlan, type FormatGamePlanOptions } from "./format";
 export { swapPlayersInPeriod } from "./edit";
+export { availablePlayersForPlan } from "./availableForPlan";
 export {
   projectUpcomingRotation,
   resolveHonouredSwaps,

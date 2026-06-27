@@ -74,6 +74,7 @@ import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
   seedNextPeriodLineup,
+  availablePlayersForPlan,
 } from "@/lib/game-plan";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -2182,10 +2183,25 @@ export function LeagueLiveGame({
         };
         const currentBench = state.lineup.bench;
 
+        // Only players present (in the current lineup → excludes squad
+        // members who didn't attend) AND healthy. Shared rule across all
+        // sports (Steve 2026-06-15, short-squad game).
+        const inGameIds = new Set<string>([
+          ...state.lineup.forwards,
+          ...state.lineup.backs,
+          ...state.lineup.bench,
+        ]);
+        const playersForPlan = availablePlayersForPlan(
+          squad,
+          inGameIds,
+          injuredSet,
+          loanedSet,
+        );
+
         const initialPlan = projectUpcomingRotation({
           sport: "rugby_league",
           ageGroup,
-          players: gamePlanPlayers,
+          players: playersForPlan,
           onFieldSize: game.on_field_size,
           seed: 7,
           chipModeByKey: chipModes,
@@ -2198,7 +2214,7 @@ export function LeagueLiveGame({
           <GamePlanModal
             sport="rugby_league"
             ageGroup={ageGroup}
-            players={gamePlanPlayers}
+            players={playersForPlan}
             onFieldSize={game.on_field_size}
             teamName={teamName}
             opponentName={game.opponent}

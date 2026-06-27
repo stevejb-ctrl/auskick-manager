@@ -90,7 +90,7 @@ import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import { projectUpcomingRotation } from "@/lib/game-plan";
+import { projectUpcomingRotation, availablePlayersForPlan } from "@/lib/game-plan";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -409,12 +409,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
   const [planNextOpen, setPlanNextOpen] = useState(false);
-  // Available squad for the planner — same filter the pre-game
-  // GamePlanButton uses (squad ∩ availableIds), in display order.
-  const gamePlanPlayers = useMemo(
-    () => squad.filter((p) => availableIds.includes(p.id)),
-    [squad, availableIds],
-  );
   // Final-rotation window, in GAME time. Netball's clockMs already has
   // the demo multiplier applied, so we compare against a game-time sub
   // interval (NOT divided by the multiplier like AFL's wall-clock
@@ -2173,10 +2167,24 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         }
         const currentBench = onCourt.bench;
 
+        // Only players present (on court / bench) AND healthy. Shared
+        // rule across all sports — drops away players AND anyone injured /
+        // loaned out mid-game (Steve 2026-06-15, short-squad game).
+        const inGameIds = new Set<string>([
+          ...ageGroup.positions.flatMap((pos) => onCourt.positions[pos] ?? []),
+          ...onCourt.bench,
+        ]);
+        const playersForPlan = availablePlayersForPlan(
+          squad,
+          inGameIds,
+          injuredIds,
+          loanedIds,
+        );
+
         const initialPlan = projectUpcomingRotation({
           sport: "netball",
           ageGroup,
-          players: gamePlanPlayers,
+          players: playersForPlan,
           onFieldSize: game.on_field_size,
           seed: 7,
           chipModeByKey,
@@ -2189,7 +2197,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           <GamePlanModal
             sport="netball"
             ageGroup={ageGroup}
-            players={gamePlanPlayers}
+            players={playersForPlan}
             onFieldSize={game.on_field_size}
             teamName={teamName}
             opponentName={game.opponent}

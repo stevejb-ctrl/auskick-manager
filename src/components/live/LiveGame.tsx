@@ -97,6 +97,7 @@ import {
   projectUpcomingRotation,
   resolveDisplaySuggestions,
   swapsEqual,
+  availablePlayersForPlan,
 } from "@/lib/game-plan";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
@@ -1979,10 +1980,25 @@ export function LiveGame({
         for (const z of activeZones) currentGroups[z] = lineup[z];
         const currentBench = lineup.bench;
 
+        // Only players available for the rest of the game — present (in
+        // the current lineup) AND healthy (see availablePlayersForPlan).
+        // Without this the planner projected the FULL season squad,
+        // including injured + away players (Steve 2026-06-15).
+        const inGameIds = new Set<string>([
+          ...activeZones.flatMap((z) => lineup[z]),
+          ...lineup.bench,
+        ]);
+        const playersForPlan = availablePlayersForPlan(
+          squadPlayers,
+          inGameIds,
+          new Set(injuredIds),
+          new Set(loanedIds),
+        );
+
         const initialPlan = projectUpcomingRotation({
           sport: "afl",
           ageGroup,
-          players: squadPlayers,
+          players: playersForPlan,
           onFieldSize: currentOnFieldSize,
           seed: 7,
           chipModeByKey,
@@ -2001,7 +2017,7 @@ export function LiveGame({
           <GamePlanModal
             sport="afl"
             ageGroup={ageGroup}
-            players={squadPlayers}
+            players={playersForPlan}
             onFieldSize={currentOnFieldSize}
             teamName={teamName}
             opponentName={opponentName}
