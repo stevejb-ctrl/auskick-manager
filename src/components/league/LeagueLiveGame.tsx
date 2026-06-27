@@ -76,6 +76,7 @@ import {
   seedNextPeriodLineup,
   availablePlayersForPlan,
 } from "@/lib/game-plan";
+import { benchSidelinedInLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
@@ -922,6 +923,7 @@ export function LeagueLiveGame({
     // T-11-02-B). The pin is then consumed so it can't re-apply.
     // `state.currentQuarter` is the upcoming period's 0-based index
     // (the period that just ended is P; its next, P+1, has index P).
+    let lineupRecorded = false;
     if (
       pinForThisGame != null
       && pinForThisGame.nextPeriodIndex === state.currentQuarter
@@ -960,6 +962,34 @@ export function LeagueLiveGame({
         );
         await lineupFlushed;
         clearPlannedRotation();
+        lineupRecorded = true;
+      }
+    }
+    // No pin applied: the previous period's lineup carries forward as-is.
+    // League has no editable break draft, so reconcile here — drop any
+    // injured / loaned player off the field onto the bench so they don't
+    // start the next period still on the pitch accruing minutes (Steve
+    // 2026-06-15, AFL parity). The field may end up a player short; the
+    // coach fills it via a normal rolling sub.
+    if (!lineupRecorded && state.lineup) {
+      const sidelined = new Set<string>();
+      injuredSet.forEach((id) => sidelined.add(id));
+      loanedSet.forEach((id) => sidelined.add(id));
+      const reconciled = benchSidelinedInLeagueLineup(state.lineup, sidelined);
+      if (reconciled !== state.lineup) {
+        const { flushed: reconcileFlushed } = enqueueLiveAction(
+          "recordLeagueLineupSet",
+          [
+            auth,
+            game.id,
+            {
+              forwards: reconciled.forwards,
+              backs: reconciled.backs,
+              bench: reconciled.bench,
+            },
+          ],
+        );
+        await reconcileFlushed;
       }
     }
     const { flushed } = enqueueLiveAction("startLeagueQuarter", [

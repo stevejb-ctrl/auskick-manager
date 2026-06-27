@@ -50,6 +50,7 @@ import {
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import { seedNextPeriodLineup } from "@/lib/game-plan";
+import { benchPlayerInLineup } from "@/lib/live/lineupOps";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
@@ -676,6 +677,16 @@ export function QuarterBreak({
   function handleInjuryToggle(pid: string, nextInjured: boolean) {
     setLoanError(null);
     setInjured(pid, nextInjured);
+    // An injured player can't stay on the field. The staged draft is NOT
+    // auto-reconciled to mid-break injury changes (by design — see the
+    // suggested/manual mode effect, which guards against stomping coach
+    // edits), so pull them to the bench here. Without this they started
+    // the next quarter still on-field and kept accruing minutes despite
+    // the INJ badge (Steve 2026-06-15). The vacated zone shows its
+    // "+ Add" affordance so the coach can bring a healthy player on.
+    if (nextInjured) {
+      setDraft((prev) => benchPlayerInLineup(prev, pid));
+    }
     startLoanTransition(async () => {
       const result = await markInjury(auth, gameId, {
         player_id: pid,
