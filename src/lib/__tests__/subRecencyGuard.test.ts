@@ -248,6 +248,65 @@ describe("subRecencyGuard — Rugby League (suggestLeagueSubs)", () => {
   });
 });
 
+// ─── Rugby League ON side (just-benched yo-yo) ─────────────────
+// CHARACTERIZATION TEST (Steve 2026-06-29 deep-dive): unlike AFL —
+// whose bench sort was cumulative-minutes (orthogonal to recency, so
+// the on-side guard had to be added explicitly) — suggestLeagueSubs
+// already sorts the bench by TIME-ON-BENCH (longest-waiting first). A
+// just-benched player has the SMALLEST bench time, so they fall to the
+// back of the come-on queue for free. This test LOCKS that property so
+// a future refactor to a minutes-based sort can't silently reintroduce
+// the AFL yo-yo here. It is GREEN against current code (no bug to fix).
+describe("subRecencyGuard — Rugby League ON side (suggestLeagueSubs bench order)", () => {
+  it("brings on the longest-rested bench player, not one just benched", () => {
+    _ts = 0;
+    const events: GameEvent[] = [
+      // B_rested sits on the bench from kickoff; F1/F2/B_recent start.
+      ev("lineup_set", {
+        lineup: {
+          forwards: ["F1", "F2", "B_recent"],
+          backs: [],
+          bench: ["B_rested", "B_other"],
+        },
+      }),
+      ev("quarter_start", { quarter: 1 }),
+      // B_recent is benched late in Q1 (B_other comes on for them), so
+      // at suggestion time B_recent has only just hit the bench while
+      // B_rested has been waiting the whole quarter.
+      ev("swap", {
+        quarter: 1,
+        elapsed_ms: 400_000,
+        off_player_id: "B_recent",
+        on_player_id: "B_other",
+        zone: "forward",
+      }),
+    ];
+
+    // Q1 still live, 460s in. Bench now: B_rested (~460s waited) and
+    // B_recent (~60s waited). Field: F1, F2, B_other.
+    const currentLineup = {
+      forwards: ["F1", "F2", "B_other"],
+      backs: [] as string[],
+      bench: ["B_rested", "B_recent"],
+    };
+
+    const swaps = suggestLeagueSubs(
+      events,
+      1, // currentQuarter
+      currentLineup,
+      [], // excludeOffPlayers
+      460_000, // per-quarter elapsed
+    );
+
+    expect(swaps.length).toBeGreaterThan(0);
+    // The longest-rested player comes on first; the just-benched one
+    // waits (they may still be suggested SECOND — that's fine, it's not
+    // an immediate yo-yo back onto the field).
+    expect(swaps[0].on.playerId).toBe("B_rested");
+    expect(swaps[0].on.playerId).not.toBe("B_recent");
+  });
+});
+
 // ─── Netball ───────────────────────────────────────────────────
 // Netball subs only at the break, and the who-plays sort is least-
 // minutes-first (so the most-played benches). Recency is the TIEBREAK:
