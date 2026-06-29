@@ -306,13 +306,13 @@ function PlayerTileImpl({
         return (
           <span
             className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
-            aria-label={`Back ${formatMinSec(zoneMs.back)}, Mid ${formatMinSec(zoneMs.mid)}, Fwd ${formatMinSec(zoneMs.fwd)}`}
+            aria-label={`Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`}
           >
-            <span style={{ width: pct(zoneMs.back) }} className="bg-zone-b" />
-            <span style={{ width: pct(zoneMs.hback) }} className="bg-zone-b/70" />
-            <span style={{ width: pct(zoneMs.mid) }} className="bg-zone-c" />
-            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-zone-f/70" />
             <span style={{ width: pct(zoneMs.fwd) }} className="bg-zone-f" />
+            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-zone-f/70" />
+            <span style={{ width: pct(zoneMs.mid) }} className="bg-zone-c" />
+            <span style={{ width: pct(zoneMs.hback) }} className="bg-zone-b/70" />
+            <span style={{ width: pct(zoneMs.back) }} className="bg-zone-b" />
           </span>
         );
       })()}

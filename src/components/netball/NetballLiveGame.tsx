@@ -88,6 +88,7 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { projectUpcomingRotation, availablePlayersForPlan } from "@/lib/game-plan";
@@ -2087,6 +2088,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       {/* Undo strip moved into the sticky-bottom bar (Steve
           2026-05-13). Mirrors AFL. NETBALL-04 trackScoring gate
           applies down there. */}
+
+      {/* Colour key for the per-player time-by-third bars on the court
+          tokens + bench tiles — one shared key keeps a mid-game glance
+          legible (Steve 2026-06-29). Same palette as AFL/league. */}
+      <ZoneTimeLegend
+        className="px-1"
+        items={[
+          { label: "Attack", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+          { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+        ]}
+      />
 
       <CourtDisplay
         lineup={onCourt}

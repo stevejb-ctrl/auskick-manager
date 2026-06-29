@@ -17,6 +17,7 @@ import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -1678,6 +1679,17 @@ export function LiveGame({
               />
             )}
 
+            {/* Colour key for the per-tile time-in-zone bars — the
+                bars encode zone by colour alone, so one shared key
+                keeps a mid-game glance legible (Steve 2026-06-29). */}
+            <ZoneTimeLegend
+              className="px-1"
+              items={[
+                { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+                { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+                { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+              ]}
+            />
             <Field
               playersById={playersById}
               onTapField={handleTapField}
