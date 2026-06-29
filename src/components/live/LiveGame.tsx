@@ -17,6 +17,7 @@ import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -1383,7 +1384,11 @@ export function LiveGame({
           // window (subIntervalMs, NOT the wall-clock effective value).
           initialState.lastSubbedOnMs,
           initialState.completedQuarterMs + nowMs * clockMultiplier,
-          subIntervalMs
+          subIntervalMs,
+          // ON-side recency guard: keep a just-subbed-off player on the
+          // bench for a rest before re-suggesting them (was yo-yoing back
+          // on ~1 min later — Steve 2026-06-29).
+          initialState.lastSubbedOffMs
         );
 
   // Hide the SwapCard when the next sub-due moment would fall AFTER
@@ -1674,6 +1679,17 @@ export function LiveGame({
               />
             )}
 
+            {/* Colour key for the per-tile time-in-zone bars — the
+                bars encode zone by colour alone, so one shared key
+                keeps a mid-game glance legible (Steve 2026-06-29). */}
+            <ZoneTimeLegend
+              className="px-1"
+              items={[
+                { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+                { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+                { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+              ]}
+            />
             <Field
               playersById={playersById}
               onTapField={handleTapField}
@@ -1995,6 +2011,25 @@ export function LiveGame({
           new Set(loanedIds),
         );
 
+        // Per-player game context for the planner rows (issue: plan the
+        // next quarter with the same info as the break) — total minutes
+        // played + per-zone breakdown this game, using the labelled
+        // age-group zones.
+        const planPlayerStats: Record<
+          string,
+          { totalMs: number; zones: { label: string; ms: number }[] }
+        > = {};
+        for (const p of playersForPlan) {
+          const zm = zoneMsByPlayer[p.id] ?? {};
+          planPlayerStats[p.id] = {
+            totalMs: totalMsByPlayer[p.id] ?? 0,
+            zones: insightZones.map((z) => ({
+              label: z.shortLabel,
+              ms: zm[z.id as Zone] ?? 0,
+            })),
+          };
+        }
+
         const initialPlan = projectUpcomingRotation({
           sport: "afl",
           ageGroup,
@@ -2024,6 +2059,7 @@ export function LiveGame({
             chipModeByKey={chipModeByKey}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
+            playerStats={planPlayerStats}
             pinLabel={`Pin Q${currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

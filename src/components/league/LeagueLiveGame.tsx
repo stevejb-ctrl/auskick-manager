@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton, SFIcon } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
@@ -1774,6 +1775,19 @@ export function LeagueLiveGame({
         const totalSwapPairs = nextSubSuggestions.length;
         return (
         <>
+          {/* Colour key for the per-tile time-in-zone bars — only when
+              zone-time tracking is on (bars render); same palette and
+              forward-first order as the AFL/netball legend. */}
+          {trackZoneTime && (
+            <ZoneTimeLegend
+              className="px-1"
+              items={[
+                { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+                { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+                { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+              ]}
+            />
+          )}
           <LeagueField
             players={fieldPlayers}
             forwardPlayers={forwardPlayers}
@@ -2228,6 +2242,20 @@ export function LeagueLiveGame({
           loanedSet,
         );
 
+        // Per-player game context for the planner rows (issue: plan with
+        // break-level info). League tracks on-field time positionlessly, so
+        // show total minutes only (no per-position breakdown).
+        const planPlayerStats: Record<
+          string,
+          { totalMs: number; zones: { label: string; ms: number }[] }
+        > = {};
+        for (const p of playersForPlan) {
+          planPlayerStats[p.id] = {
+            totalMs: totalMsByPlayer[p.id] ?? 0,
+            zones: [],
+          };
+        }
+
         const initialPlan = projectUpcomingRotation({
           sport: "rugby_league",
           ageGroup,
@@ -2252,6 +2280,7 @@ export function LeagueLiveGame({
             chipModeByKey={chipModes}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
+            playerStats={planPlayerStats}
             pinLabel={`Pin ${periodLabel} ${state.currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

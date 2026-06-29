@@ -28,6 +28,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Label } from "@/components/ui/Label";
 import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
@@ -1719,6 +1720,18 @@ export function NetballQuarterBreak({
       <p className="px-1 text-xs text-ink-dim">
         Tap any two players to swap them — even across thirds or to the bench.
       </p>
+
+      {/* Colour key for the per-player time-by-third bars below — shown
+          once so a glance at any bar reads instantly (mirrors the AFL
+          QuarterBreak legend; same palette, third labels). */}
+      <ZoneTimeLegend
+        className="px-1"
+        items={[
+          { label: "Attack", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+          { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+        ]}
+      />
 
       {/* Per-slot sections */}
       <div className="grid gap-3 sm:grid-cols-2">

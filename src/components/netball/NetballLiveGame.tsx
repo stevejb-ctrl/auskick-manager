@@ -88,6 +88,7 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { projectUpcomingRotation, availablePlayersForPlan } from "@/lib/game-plan";
@@ -2088,6 +2089,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           2026-05-13). Mirrors AFL. NETBALL-04 trackScoring gate
           applies down there. */}
 
+      {/* Colour key for the per-player time-by-third bars on the court
+          tokens + bench tiles — one shared key keeps a mid-game glance
+          legible (Steve 2026-06-29). Same palette as AFL/league. */}
+      <ZoneTimeLegend
+        className="px-1"
+        items={[
+          { label: "Attack", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+          { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+        ]}
+      />
+
       <CourtDisplay
         lineup={onCourt}
         ageGroup={ageGroup}
@@ -2181,6 +2194,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           loanedIds,
         );
 
+        // Per-player game context for the planner rows (issue: plan with
+        // break-level info) — total minutes + per-third breakdown this
+        // game, from the same playerThirdMs map the tiles use.
+        const planPlayerStats: Record<
+          string,
+          { totalMs: number; zones: { label: string; ms: number }[] }
+        > = {};
+        for (const p of playersForPlan) {
+          const t = playerStats.get(p.id);
+          const byThird = (t ?? {}) as Record<string, number>;
+          const totalMs = t ? t.attack + t.centre + t.defence : 0;
+          planPlayerStats[p.id] = {
+            totalMs,
+            zones: insightZones.map((z) => ({
+              label: z.shortLabel,
+              ms: byThird[z.id] ?? 0,
+            })),
+          };
+        }
+
         const initialPlan = projectUpcomingRotation({
           sport: "netball",
           ageGroup,
@@ -2205,6 +2238,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             chipModeByKey={chipModeByKey}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
+            playerStats={planPlayerStats}
             pinLabel={`Pin Q${currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

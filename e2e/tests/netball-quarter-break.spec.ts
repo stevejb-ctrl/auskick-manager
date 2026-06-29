@@ -330,6 +330,15 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
     page.getByRole("button", { name: /^✓\s*Suggested$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
+  // Time-in-zone colour key (Steve 2026-06-29): the per-player time-
+  // by-third bars encode the third by colour alone, so a shared legend
+  // must render once with the Attack/Centre/Defence labels.
+  const legend = page.locator('[aria-label="Time-in-zone colour key"]');
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText("Attack");
+  await expect(legend).toContainText("Centre");
+  await expect(legend).toContainText("Defence");
+
   // Each unplayed player's tile must include "Bench → ${POSITION}"
   // (the movement hint that PlayerTile renders only when the
   // player's prior-quarter slot differs from the new slot). Players

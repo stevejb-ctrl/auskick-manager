@@ -27,6 +27,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
 import { ChipIndicator } from "@/components/squad/ChipIndicator";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   ALL_ZONES,
   deriveEffectiveZoneCaps,
@@ -238,6 +239,10 @@ export function QuarterBreak({
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
+  // Per-player time-in-zone bar renders FWD → CENTRE → BACK (left →
+  // right) so it matches the forward-first card order above it AND the
+  // FWD/Centre/Back legend — one consistent direction everywhere.
+  const barZones = useMemo(() => [...zones].reverse(), [zones]);
   // Labelled zones (config-derived, age-group filtered) for the shared
   // PlayerInsightSummary — same derivation the in-game LockModal uses.
   const insightZones = useMemo(
@@ -1847,6 +1852,18 @@ export function QuarterBreak({
         </p>
       )}
 
+      {/* Colour key for the per-player time-in-zone bars below — shown
+          once so a glance at any bar reads instantly (Steve 2026-06-29:
+          couldn't remember which colour was Fwd/Centre/Back). */}
+      <ZoneTimeLegend
+        className="px-1"
+        items={[
+          { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+          { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+        ]}
+      />
+
       {/* Single column — user feedback 2026-05-20: the prior
           `sm:grid-cols-2` (1-col phones, 2-col tablet+) still
           rendered 2-col inside the desktop demo phone-frame
@@ -2056,7 +2073,7 @@ export function QuarterBreak({
                             aria-hidden
                           >
                             {realTotal > 0 &&
-                              zones.map((z) => {
+                              barZones.map((z) => {
                                 const pct = (zm[z] / realTotal) * 100;
                                 if (pct <= 0) return null;
                                 return (
