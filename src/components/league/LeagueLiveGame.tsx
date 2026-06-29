@@ -2228,6 +2228,20 @@ export function LeagueLiveGame({
           loanedSet,
         );
 
+        // Per-player game context for the planner rows (issue: plan with
+        // break-level info). League tracks on-field time positionlessly, so
+        // show total minutes only (no per-position breakdown).
+        const planPlayerStats: Record<
+          string,
+          { totalMs: number; zones: { label: string; ms: number }[] }
+        > = {};
+        for (const p of playersForPlan) {
+          planPlayerStats[p.id] = {
+            totalMs: totalMsByPlayer[p.id] ?? 0,
+            zones: [],
+          };
+        }
+
         const initialPlan = projectUpcomingRotation({
           sport: "rugby_league",
           ageGroup,
@@ -2252,6 +2266,7 @@ export function LeagueLiveGame({
             chipModeByKey={chipModes}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
+            playerStats={planPlayerStats}
             pinLabel={`Pin ${periodLabel} ${state.currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

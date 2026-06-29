@@ -91,6 +91,17 @@ export interface GamePlanModalProps {
   onPin?: (plan: GamePlan) => void;
   /** Label for the pin button when `onPin` is set. Defaults to "Use this plan". */
   pinLabel?: string;
+  /**
+   * Per-player game context shown on each row so the coach can plan the
+   * next period with the same info they'd see at the break: total minutes
+   * played this game + a per-zone/position breakdown (Steve 2026-06-29).
+   * Caller-shaped (it owns the zone labels) so the modal stays
+   * sport-agnostic. Omit to render rows without stats (pre-game).
+   */
+  playerStats?: Record<
+    string,
+    { totalMs: number; zones: { label: string; ms: number }[] }
+  >;
   /** Dismiss the planner. */
   onClose: () => void;
 }
@@ -115,6 +126,7 @@ export function GamePlanModal({
   initialPeriodIndex = 0,
   onPin,
   pinLabel = "Use this plan",
+  playerStats,
   onClose,
 }: GamePlanModalProps) {
   // Project a fresh plan for a given seed. Pure — safe to call on
@@ -220,41 +232,70 @@ export function GamePlanModal({
       : "";
   const tabs = plan.periods.map((p, i) => ({ id: String(i), label: p.label }));
 
+  // Compact m:ss for the per-player game-context line.
+  const fmtMs = (ms: number) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  };
+
   // One tappable player row — shared by the group cards and the bench
   // card. Mirrors the LineupPicker row (Guernsey + name + swap glyph)
   // so the swap gesture is the same muscle memory pre-game and here.
   const renderRow = (pid: string) => {
     const p = playerById.get(pid);
     const isSelected = selected === pid;
+    const stats = playerStats?.[pid];
     return (
       <li key={pid}>
         <button
           type="button"
           onClick={() => tapPlayer(pid)}
           data-testid="game-plan-player"
-          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
+          className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
             isSelected
               ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
               : "hover:bg-surface-alt"
           }`}
         >
           <Guernsey num={p?.jersey_number ?? ""} size={32} />
-          <span className="min-w-0 flex-1 truncate font-medium text-ink">
-            {p?.chip && (
-              <ChipIndicator
-                chipKey={p.chip as ChipKey}
-                mode={chipModeByKey[p.chip]}
-                className="mr-1.5 align-middle"
-              />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-medium text-ink">
+              {p?.chip && (
+                <ChipIndicator
+                  chipKey={p.chip as ChipKey}
+                  mode={chipModeByKey[p.chip]}
+                  className="mr-1.5 align-middle"
+                />
+              )}
+              {p?.full_name ?? pid}
+            </span>
+            {/* Game context (issue: plan the next period with break-level
+                info) — total minutes + per-zone breakdown this game. */}
+            {stats && (
+              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-mute">
+                <span className="font-mono font-semibold tabular-nums text-ink-dim">
+                  {fmtMs(stats.totalMs)}
+                </span>
+                {stats.zones
+                  .filter((z) => z.ms > 0)
+                  .map((z) => (
+                    <span key={z.label} className="tabular-nums">
+                      <span className="text-ink-mute">{z.label}</span>{" "}
+                      {fmtMs(z.ms)}
+                    </span>
+                  ))}
+                {stats.totalMs === 0 && (
+                  <span className="italic">no field time yet</span>
+                )}
+              </span>
             )}
-            {p?.full_name ?? pid}
           </span>
           {isSelected ? (
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
+            <span className="self-start font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
               Swapping…
             </span>
           ) : (
-            <span className="text-ink-mute opacity-60">
+            <span className="self-start text-ink-mute opacity-60">
               <SFIcon.swap />
             </span>
           )}

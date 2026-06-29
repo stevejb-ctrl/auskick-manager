@@ -877,7 +877,17 @@ export function suggestSwaps(
   /** Current absolute game-elapsed ms (for the recency comparison). */
   elapsedMs: number = 0,
   /** One rotation window in ms (subIntervalSeconds*1000). <=0 disables the guard. */
-  minStintMs: number = 0
+  minStintMs: number = 0,
+  /**
+   * Per-player absolute game-elapsed ms at which they MOST RECENTLY went
+   * field->bench. Mirror of `lastSubbedOnMs` for the ON side: a player
+   * benched within the last rotation window is pushed to the BACK of the
+   * come-on queue so they get a rest before returning, instead of yo-yoing
+   * straight back on (the "second sub almost immediately after the first"
+   * report). Trailing-optional with an inert default so legacy callers are
+   * unchanged.
+   */
+  lastSubbedOffMs: Record<string, number> = {}
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
@@ -909,9 +919,23 @@ export function suggestSwaps(
     const recent = fieldByZone[z].filter((p) => isRecent(p));
     fieldByZone[z] = [...nonRecent, ...recent];
   }
-  const benchSorted = seededShuffle(fitBench, tieBreak).sort(
+  // A bench player is "recently benched" if they went field->bench within
+  // the last rotation window. Inert when minStintMs<=0.
+  const recentlyBenched = (pid: string) => {
+    const off = lastSubbedOffMs[pid];
+    return minStintMs > 0 && off !== undefined && elapsedMs - off < minStintMs;
+  };
+  const benchByGameMin = seededShuffle(fitBench, tieBreak).sort(
     (a, b) => gameMin(a) - gameMin(b)
   );
+  // Soft recency partition (mirror of the field side): a player just
+  // subbed off rotates back on LAST, so they actually get a rest instead
+  // of being re-picked a minute later because their total is low. Stays
+  // eligible (no deadlock when the whole bench is freshly benched).
+  const benchSorted = [
+    ...benchByGameMin.filter((p) => !recentlyBenched(p)),
+    ...benchByGameMin.filter((p) => recentlyBenched(p)),
+  ];
 
   const zoneOrder = seededShuffle(activeZoneList, tieBreak + 77);
   const zoneCursor = emptyCaps();
@@ -1013,6 +1037,15 @@ export interface GameState {
    */
   lastSubbedOnMs: Record<string, number>;
   /**
+   * Absolute game-elapsed ms (completedQuarterMs + within-quarter
+   * elapsed) at which each player most recently went FIELD->BENCH via a
+   * mid-quarter sub. Mirror of `lastSubbedOnMs`; the suggester uses it to
+   * avoid re-suggesting a just-benched player straight back on before
+   * they've had a rest (the "second sub almost immediately after the
+   * first" report). Absent = never subbed off this game.
+   */
+  lastSubbedOffMs: Record<string, number>;
+  /**
    * SUB-01/B4 (plan 10-02): total ms of all COMPLETED quarters (sum of
    * each finished quarter's duration). The current in-progress quarter is
    * NOT included. Live callers add their within-quarter elapsed to this to
@@ -1083,6 +1116,7 @@ export function replayGame(events: GameEvent[]): GameState {
     stintStartMs: {},
     stintZone: {},
     lastSubbedOnMs: {},
+    lastSubbedOffMs: {},
     completedQuarterMs: 0,
     injuredIds: [],
     loanedIds: [],
@@ -1227,6 +1261,12 @@ export function replayGame(events: GameEvent[]): GameState {
           ...state.lineup.bench.filter((p) => p !== on),
           off,
         ];
+        // Recency (issue: a just-benched player came back on ~1 min
+        // later). Stamp the field->bench transition in the same absolute
+        // frame as lastSubbedOnMs so the suggester can keep a freshly
+        // subbed-off player on the bench for a rest before re-suggesting
+        // them.
+        state.lastSubbedOffMs[off] = state.completedQuarterMs + elapsed;
       } else {
         state.lineup[z] = [...state.lineup[z], on];
         state.lineup.bench = state.lineup.bench.filter((p) => p !== on);

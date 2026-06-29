@@ -113,6 +113,61 @@ describe("subRecencyGuard — AFL (suggestSwaps)", () => {
   });
 });
 
+// ─── AFL ON-side recency (just-benched yo-yo) ──────────────────
+// The off-side guard above stops pulling a just-arrived player. The
+// mirror bug (Steve 2026-06-29): a player subbed OFF is re-suggested
+// straight back ON ~1 min later because their cumulative minutes are
+// low. The ON-side guard pushes a freshly-benched player to the BACK of
+// the come-on queue so they get a rest first.
+describe("subRecencyGuard — AFL ON side (suggestSwaps bench order)", () => {
+  const ELAPSED = 600_000; // 10 min into the quarter (absolute frame)
+  const MIN_STINT = 240_000; // one 4-min rotation window
+
+  function callOn(
+    lastSubbedOffMs: Record<string, number>,
+    currentGameMs: Record<string, number>,
+  ) {
+    const lineup = emptyLineup();
+    lineup.mid = ["F1"]; // exactly one field slot to rotate
+    lineup.bench = ["B_recent", "B_rested"];
+    return suggestSwaps(
+      lineup,
+      currentGameMs,
+      0,
+      [],
+      ["mid"] as Zone[],
+      [],
+      {},
+      {},
+      {}, // lastSubbedOnMs
+      ELAPSED,
+      MIN_STINT,
+      lastSubbedOffMs,
+    );
+  }
+
+  it("does not re-suggest a just-benched player while a longer-rested one is available", () => {
+    // B_recent has FEWER cumulative minutes (legacy least-first picks it
+    // to come on) but was benched 20s ago. B_rested has more minutes but
+    // hasn't been benched this game.
+    const swaps = callOn(
+      { B_recent: 580_000 }, // benched 20s ago → recent
+      { F1: 30 * 60_000, B_recent: 2 * 60_000, B_rested: 5 * 60_000 },
+    );
+    expect(swaps.length).toBeGreaterThan(0);
+    // POST-FIX: the rested player comes on; the just-benched one waits.
+    expect(swaps[0].on_player_id).toBe("B_rested");
+  });
+
+  it("soft guard: still suggests when every bench player was just benched", () => {
+    const swaps = callOn(
+      { B_recent: 580_000, B_rested: 590_000 }, // both recent
+      { F1: 30 * 60_000, B_recent: 2 * 60_000, B_rested: 5 * 60_000 },
+    );
+    expect(swaps.length).toBeGreaterThan(0); // no deadlock
+  });
+});
+
 // ─── Rugby League ──────────────────────────────────────────────
 // suggestLeagueSubs reconstructs per-player stints from events but
 // RESETS startedAt to 0 at every quarter_start, so a player subbed on
