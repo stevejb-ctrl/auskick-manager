@@ -2181,6 +2181,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           loanedIds,
         );
 
+        // Per-player game context for the planner rows (issue: plan with
+        // break-level info) — total minutes + per-third breakdown this
+        // game, from the same playerThirdMs map the tiles use.
+        const planPlayerStats: Record<
+          string,
+          { totalMs: number; zones: { label: string; ms: number }[] }
+        > = {};
+        for (const p of playersForPlan) {
+          const t = playerStats.get(p.id);
+          const byThird = (t ?? {}) as Record<string, number>;
+          const totalMs = t ? t.attack + t.centre + t.defence : 0;
+          planPlayerStats[p.id] = {
+            totalMs,
+            zones: insightZones.map((z) => ({
+              label: z.shortLabel,
+              ms: byThird[z.id] ?? 0,
+            })),
+          };
+        }
+
         const initialPlan = projectUpcomingRotation({
           sport: "netball",
           ageGroup,
@@ -2205,6 +2225,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             chipModeByKey={chipModeByKey}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
+            playerStats={planPlayerStats}
             pinLabel={`Pin Q${currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute
