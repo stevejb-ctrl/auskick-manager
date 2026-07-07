@@ -133,3 +133,61 @@ describe("projectUpcomingRotation — seeds the projector from current live stat
     );
   });
 });
+
+// ──────────────────────────────────────────────────────────────
+// Short-squad zone-shape lock (Steve 2026-07-07 match-day bug)
+// ──────────────────────────────────────────────────────────────
+// A 10-kid U10 squad ran 3 back / 4 mid / 3 fwd, but the game's
+// on_field_size was still the default 12. Every time the coach planned
+// the next quarter (mid-quarter Plan-Ahead OR at the break) the projector
+// re-derived caps from `zoneCapsFor(12)` = 4/4/4 and wiped the coach's
+// 3/4/3 — they had to re-enter it every quarter. The projector must
+// LOCK the coach's current on-field shape across the upcoming periods
+// when the squad is short (fewer players than the configured slots).
+describe("projectUpcomingRotation — locks a short-squad zone shape", () => {
+  const ageGroup = getAgeGroupConfig("afl", "U10"); // 3-zone, default 12
+  const onField = ageGroup.defaultOnFieldSize; // 12
+  const players = makeSquad(10); // only 10 kids turned up
+
+  // Coach's actual Q1 shape: 3 back / 4 mid / 3 fwd, no bench.
+  const currentGroups: Record<string, string[]> = {
+    back: players.slice(0, 3).map((p) => p.id),
+    mid: players.slice(3, 7).map((p) => p.id),
+    fwd: players.slice(7, 10).map((p) => p.id),
+  };
+  const currentBench: string[] = [];
+
+  const args = {
+    sport: "afl" as SportId,
+    ageGroup,
+    players,
+    onFieldSize: onField, // still the 12 default — the bug's trigger
+    seed: 7,
+    fromPeriodIndex: 0, // planning from Q1 forward
+    currentGroups,
+    currentBench,
+  };
+
+  const shapeOf = (period: GamePlan["periods"][number]) => {
+    const s: Record<string, number> = {};
+    for (const g of period.groups) s[g.groupId] = g.playerIds.length;
+    return s;
+  };
+
+  it("keeps 3/4/3 in every projected period, not the default 4/4/4", () => {
+    const plan = projectUpcomingRotation(args);
+    // Period[0] is anchored to the coach's reality by construction.
+    // The REGRESSION is the LATER periods, which the projector fills.
+    for (let i = 1; i < plan.periods.length; i++) {
+      expect(shapeOf(plan.periods[i])).toMatchObject({ back: 3, mid: 4, fwd: 3 });
+    }
+  });
+
+  it("never fields more than the 10 available players", () => {
+    const plan = projectUpcomingRotation(args);
+    for (const period of plan.periods) {
+      const onFieldCount = period.groups.flatMap((g) => g.playerIds).length;
+      expect(onFieldCount).toBe(10);
+    }
+  });
+});

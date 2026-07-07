@@ -121,4 +121,14 @@ export interface ProjectGamePlanInput {
   chipByPlayerId?: Record<string, PlayerChip | null | undefined>;
   /** Per-chip mode (split/group/forward/centre/back). */
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
+  /**
+   * The coach's CURRENT on-field shape (groupId -> player ids), when the
+   * plan is projected mid-game from live reality (see
+   * `projectUpcomingRotation`). When present, the AFL projector LOCKS this
+   * zone distribution into the caps for every projected period instead of
+   * re-deriving the age-group default — so a short squad's manual split
+   * (e.g. a 10-kid 3/4/3 in a 12-slot game) survives from quarter to
+   * quarter. Omitted for cold pre-game plans. Steve 2026-07-07.
+   */
+  currentGroups?: Record<string, string[]>;
 }

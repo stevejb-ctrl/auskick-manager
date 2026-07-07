@@ -223,3 +223,88 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     `FWD lineup mismatch — QuarterBreak: [${sortedBreak.join(", ")}], Live Q2: [${sortedLive.join(", ")}]`,
   ).toEqual(sortedBreak);
 });
+
+// Steve 2026-07-07 match-day bug: a 10-kid U10 squad ran 3 back / 4 mid
+// / 3 fwd, but the game's on_field_size was the default 12 (2 blank
+// slots). Every quarter the Q-break suggester re-derived caps from the
+// default `zoneCapsFor(12)` = 4/4/4 and wiped the coach's 3/4/3 — they
+// had to re-enter it four times. The fix scales the effective on-field
+// size to the AVAILABLE squad, so `deriveEffectiveZoneCaps` preserves
+// the coach's split. This locks that at the break end-to-end.
+test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the break", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  // Only 10 kids turned up — fewer than U10's default 12 on-field size.
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size = 12
+
+  // Coach's manual split: 3 back / 4 mid / 3 fwd, everyone on (no bench).
+  const lineup = {
+    back: players.slice(0, 3).map((p) => p.id),
+    hback: [],
+    mid: players.slice(3, 7).map((p) => p.id),
+    hfwd: [],
+    fwd: players.slice(7, 10).map((p) => p.id),
+    bench: [],
+  };
+
+  const aMomentAgo = new Date(Date.now() - 13 * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    {
+      game_id: game.id,
+      type: "lineup_set",
+      metadata: { lineup },
+      created_by: ownerId,
+      created_at: aMomentAgo,
+    },
+    {
+      game_id: game.id,
+      type: "quarter_start",
+      metadata: { quarter: 1 },
+      created_by: ownerId,
+      created_at: aMomentAgo,
+    },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page
+    .getByRole("button", { name: /select team for q2/i })
+    .click({ timeout: 10_000 });
+  await expect(
+    page.getByRole("button", { name: /^ready for q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+
+  // Count PLAYER tiles per zone card (a zone card is <h3>ZONE</h3> then a
+  // sibling <ul>). Filter to tiles carrying a known squad name so the
+  // "+ Add" spare-capacity rows (present because displayZoneCaps still
+  // shows /4 slots) don't inflate the count.
+  const SQUAD_NAMES = [
+    "Alicia", "Brendan", "Camille", "Damian", "Elena",
+    "Felix", "Gemma", "Harvey", "Ingrid", "Joaquin",
+  ];
+  const countZone = (heading: string) =>
+    page
+      .locator(`h3:has-text("${heading}")`)
+      .first()
+      .locator("xpath=../following-sibling::ul[1]")
+      .locator("li button")
+      .evaluateAll((btns, names) => {
+        const re = new RegExp(`(${(names as string[]).join("|")})`);
+        return btns.filter((b) => re.test(b.textContent ?? "")).length;
+      }, SQUAD_NAMES);
+
+  // POST-FIX: the coach's 3/4/3 is preserved. Pre-fix the default 4/4/4
+  // caps produced a 4/3/3-shaped draft (Back 4, Centre 3), so Centre=4
+  // and Back=3 are the discriminators.
+  expect(await countZone("Forward")).toBe(3);
+  expect(await countZone("Centre")).toBe(4);
+  expect(await countZone("Back")).toBe(3);
+});
