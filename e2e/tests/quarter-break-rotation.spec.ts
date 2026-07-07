@@ -223,3 +223,64 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     `FWD lineup mismatch — QuarterBreak: [${sortedBreak.join(", ")}], Live Q2: [${sortedLive.join(", ")}]`,
   ).toEqual(sortedBreak);
 });
+
+// Steve 2026-07-07: the new "Rotate lines" mode (Idea 2) shifts everyone
+// one line up the ground at the break — Back→Mid→Fwd→Back. For a clean
+// 4/4/4 lineup that's a full rotation: last quarter's FORWARD line lands
+// in BACK. This drives the mode end-to-end through the Q-break toggle.
+test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  // Full 12-a-side squad → clean 4/4/4, so the rotation has no overflow.
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size 12
+
+  const backIds = players.slice(0, 4).map((p) => p.id);
+  const midIds = players.slice(4, 8).map((p) => p.id);
+  const fwdNames = players.slice(8, 12).map((p) => p.full_name);
+  const fwdIds = players.slice(8, 12).map((p) => p.id);
+  const lineup = { back: backIds, hback: [], mid: midIds, hfwd: [], fwd: fwdIds, bench: [] };
+
+  const aMomentAgo = new Date(Date.now() - 13 * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: aMomentAgo },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: aMomentAgo },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /select team for q2/i }).click({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /^ready for q2$/i })).toBeVisible({ timeout: 5_000 });
+
+  // The rotation toggle lives inside the collapsed "Game settings" card.
+  await page.getByRole("button", { name: /game settings/i }).click();
+  // Switch to the rotate mode.
+  await page.getByRole("button", { name: /rotate lines/i }).click();
+
+  // Read the BACK zone's player tiles — after the rotation, last
+  // quarter's FORWARD line should be there (Fwd → Back).
+  const backNames = await page
+    .locator('h3:has-text("Back")')
+    .first()
+    .locator("xpath=../following-sibling::ul[1]")
+    .locator("li button")
+    .evaluateAll((btns, names) => {
+      const re = new RegExp(`(${(names as string[]).join("|")})`);
+      return btns
+        .map((b) => (b.textContent ?? "").trim())
+        .map((t) => t.match(re)?.[1] ?? "")
+        .filter((s) => s.length > 0);
+    }, fwdNames);
+
+  expect(
+    [...backNames].sort(),
+    `expected last-quarter forwards ${JSON.stringify(fwdNames)} to rotate into BACK, got ${JSON.stringify(backNames)}`,
+  ).toEqual([...fwdNames].sort());
+});

@@ -5,7 +5,8 @@ import { startTransition as reactStartTransition, useEffect, useMemo, useRef, us
 import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
+import { RotationModeToggle, type RotationMode } from "@/components/quarter-break/RotationModeToggle";
+import { rotateLines } from "@/lib/live/rotateLines";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import {
@@ -326,8 +327,12 @@ export function QuarterBreak({
   // default).
   const persistedRotationMode = useLiveGame((s) => s.rotationMode);
   const setPersistedRotationMode = useLiveGame((s) => s.setRotationMode);
-  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">(
-    persistedRotationMode === "manual" ? "manual" : "suggested",
+  const [lineupMode, setLineupMode] = useState<RotationMode>(
+    persistedRotationMode === "manual"
+      ? "manual"
+      : persistedRotationMode === "rotate"
+        ? "rotate"
+        : "suggested",
   );
 
   const playersById = useMemo(
@@ -561,6 +566,29 @@ export function QuarterBreak({
     };
   }, [healthyForLineup]);
 
+  // "Rotate lines" draft (Idea 2, Steve 2026-07-07): everyone shifts one
+  // line up the ground, zone sizes fixed, overflow filled by least time
+  // in the destination zone. Uses the SAME time-in-zone + last-zone the
+  // suggester reads, so it's a drop-in alternative to `suggestedLineup`.
+  const rotatedLineup = useMemo<Lineup>(() => {
+    if (availableForLineup.length === 0) return lineup;
+    return rotateLines({
+      players: healthyForLineup.map((p) => p.id),
+      caps: effectiveZoneCaps,
+      zoneMins: currentGameZoneMins,
+      lastZone: lastStintZone,
+      sidelinedIds: sidelinedIdsInLineup,
+    });
+  }, [
+    availableForLineup.length,
+    healthyForLineup,
+    effectiveZoneCaps,
+    currentGameZoneMins,
+    lastStintZone,
+    sidelinedIdsInLineup,
+    lineup,
+  ]);
+
   // Only re-derive `draft` when the user EXPLICITLY changes the
   // lineup mode. Without this guard, the effect re-fires whenever
   // any of suggestedLineup / manualLineup / lineup recomputes
@@ -600,12 +628,14 @@ export function QuarterBreak({
     const next =
       lineupMode === "suggested"
         ? suggestedLineup
-        : lineupMode === "manual"
-          ? manualLineup
-          : lineup;
+        : lineupMode === "rotate"
+          ? rotatedLineup
+          : lineupMode === "manual"
+            ? manualLineup
+            : lineup;
     setDraft(next);
     setSelected(null);
-  }, [lineupMode, suggestedLineup, manualLineup, lineup, availableForLineup.length]);
+  }, [lineupMode, suggestedLineup, rotatedLineup, manualLineup, lineup, availableForLineup.length]);
 
   // ─── Match-adjustment panel state ─────────────────────────────
   // The size dropdown is locally controlled — Q-break is a "stage"
@@ -1227,6 +1257,7 @@ export function QuarterBreak({
                 // doesn't fit.
                 const bits: string[] = [];
                 if (lineupMode === "suggested") bits.push("Auto-rebalanced");
+                else if (lineupMode === "rotate") bits.push("Lines rotated");
                 else if (lineupMode === "keep") bits.push("Keeping last Q");
                 else bits.push("Manual lineup");
                 if (currentOnFieldSize !== defaultOnFieldSize) {
@@ -1281,6 +1312,12 @@ export function QuarterBreak({
               <p className="text-xs font-semibold text-ink">Rotation</p>
               <RotationModeToggle
                 mode={lineupMode}
+                options={[
+                  { value: "suggested", label: "Suggested" },
+                  { value: "rotate", label: "Rotate lines" },
+                  { value: "keep", label: "Keep last quarter" },
+                  { value: "manual", label: "Set manually" },
+                ]}
                 onChange={(next) => {
                   setLineupMode(next);
                   // "keep" is a per-Q decision — DON'T persist it to

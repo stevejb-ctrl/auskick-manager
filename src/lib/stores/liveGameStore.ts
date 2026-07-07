@@ -116,7 +116,7 @@ export interface LiveGameState {
    * session only (resets on reload — persistence via event
    * metadata is a follow-up).
    */
-  rotationMode: "suggested" | "manual";
+  rotationMode: "suggested" | "manual" | "rotate";
   /**
    * The coach's pinned plan-ahead rotation for THIS game (F1 pinned
    * swaps and/or F2 next-period lineup). Persisted via partialize so it
@@ -162,7 +162,7 @@ export interface LiveGameState {
    */
   applyRosterShrink: (removeIds: string[]) => void;
   setLineup: (lineup: Lineup) => void;
-  setRotationMode: (mode: "suggested" | "manual") => void;
+  setRotationMode: (mode: "suggested" | "manual" | "rotate") => void;
   startClock: () => void;
   pauseClock: () => void;
   beginNextQuarter: () => void;
@@ -262,7 +262,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   lastStintZone: {} as Record<string, Zone>,
   pastQuarterZones: {} as Record<string, Record<number, Zone>>,
   zoneLockedPlayers: {} as Record<string, Zone>,
-  rotationMode: "suggested" as "suggested" | "manual",
+  rotationMode: "suggested" as "suggested" | "manual" | "rotate",
   plannedRotation: null as PlannedRotation | null,
 };
 

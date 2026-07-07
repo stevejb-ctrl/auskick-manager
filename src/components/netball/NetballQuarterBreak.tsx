@@ -26,7 +26,7 @@ import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Label } from "@/components/ui/Label";
-import { RotationModeToggle } from "@/components/quarter-break/RotationModeToggle";
+import { RotationModeToggle, type RotationMode } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -768,8 +768,10 @@ export function NetballQuarterBreak({
     setSelected(null);
   }
 
-  function handleModeChange(next: "suggested" | "keep" | "manual") {
-    if (next === lineupMode) return;
+  function handleModeChange(next: RotationMode) {
+    // Netball renders only the default three modes, so "rotate" can't be
+    // emitted here — guard keeps the shared toggle's type sound.
+    if (next === "rotate" || next === lineupMode) return;
     setLineupMode(next);
     // "keep" is a one-off per-Q decision so it doesn't persist —
     // next Q-break falls back to whatever was previously stored
