@@ -128,13 +128,13 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
                 <ZonePill abbr="Back" pct={backPct} tone="b" />
               </div>
 
-              {/* Footer: behinds + subs + loaned, only if non-zero */}
-              {(p.behinds > 0 || p.subsIn > 0 || p.subsOut > 0 || p.loanMs > 0) && (
+              {/* Footer: behinds + loaned, only if non-zero */}
+              {(p.behinds > 0 || p.loanMs > 0) && (
                 <p className="mt-2 text-[11px] text-ink-mute">
-                  {p.behinds > 0 && <>Behinds {p.behinds} · </>}
-                  Subs {p.subsIn}/{p.subsOut}
+                  {p.behinds > 0 && <>Behinds {p.behinds}</>}
+                  {p.behinds > 0 && p.loanMs > 0 && <> · </>}
                   {p.loanMs > 0 && (
-                    <> · <span className="text-warn">Lent {fmt(p.loanMs)}m</span></>
+                    <span className="text-warn">Lent {fmt(p.loanMs)}m</span>
                   )}
                 </p>
               )}

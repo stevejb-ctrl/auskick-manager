@@ -6,9 +6,6 @@ import {
   deriveSeasons,
   filterBySeason,
   computePlayerStats,
-  computeWinningCombinations,
-  topCombosPerZone,
-  computePlayerChemistry,
   computePositionFit,
   computeHeadToHead,
   computeQuarterScoring,
@@ -80,8 +77,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         selectedYear={0}
         playerNames={{}}
         playerStats={[]}
-        combosByZone={{}}
-        chemistryPairs={[]}
         positionFit={[]}
         headToHead={[]}
         quarterScoring={[]}
@@ -288,9 +283,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   // Compute all sections
   const playerStats = computePlayerStats(playersWithFillIn, snapshots, seasonGames);
-  const combos = computeWinningCombinations(snapshots);
-  const combosByZone = topCombosPerZone(combos);
-  const chemistryPairs = computePlayerChemistry(snapshots);
   const positionFit = computePositionFit(snapshots);
   const headToHead = computeHeadToHead(seasonGames, snapshots);
   const quarterScoring = computeQuarterScoring(snapshots);
@@ -307,8 +299,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       selectedYear={selectedYear}
       playerNames={playerNames}
       playerStats={playerStats}
-      combosByZone={combosByZone}
-      chemistryPairs={chemistryPairs}
       positionFit={positionFit}
       headToHead={headToHead}
       quarterScoring={quarterScoring}
