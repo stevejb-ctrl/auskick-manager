@@ -576,3 +576,50 @@ describe("late arrival — counted + fairly credited (Steve 2026-07-07)", () => 
     expect(pct("p2")).toBe(50);
   });
 });
+
+describe("early departure / injury — unavailable time not counted (Steve 2026-07-07)", () => {
+  // 2-quarter game. p1 plays the first half, then is marked injured at the
+  // start of Q2 (hurt / went home) and never returns.
+  function earlyDepartureEvents(): GameEvent[] {
+    _seq = 0;
+    return [
+      makeEvent({
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ["p5", "p6"], hback: [], mid: ["p3", "p4"], hfwd: [], fwd: ["p1", "p2"], bench: [] },
+        },
+      }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 2 } }),
+      // Hurt / gone home at the top of the second half — never un-marked.
+      makeEvent({ type: "injury", player_id: "p1", metadata: { injured: true, quarter: 2, elapsed_ms: 0 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 2, elapsed_ms: 720_000 } }),
+    ];
+  }
+
+  const snap = replayGame("g1", earlyDepartureEvents());
+
+  it("credits available time only up to when the player left", () => {
+    expect(snap.gameLengthMs).toBe(1_440_000);
+    // p1 was available for the first half only (the second-half injury
+    // gap is subtracted); p2 stayed available the whole game.
+    expect(snap.playerAvailableMs["p1"]).toBe(720_000);
+    expect(snap.playerAvailableMs["p2"]).toBe(1_440_000);
+  });
+
+  it("gives the early-leaver 100% of available time, not a penalised fraction", () => {
+    const stats = computePlayerStats(
+      [makePlayer("p1", 1), makePlayer("p2", 2)],
+      [snap],
+      [makeGame("g1")],
+    );
+    const pct = (id: string) =>
+      stats.find((s) => s.playerId === id)?.teamGameTimePct;
+    // p1 played the whole first half then left → 100% of available.
+    // Old whole-game denominator would have read 50%.
+    expect(pct("p1")).toBe(100);
+    // p2 stayed on the whole game → 100% (available all game, played it all).
+    expect(pct("p2")).toBe(100);
+  });
+});

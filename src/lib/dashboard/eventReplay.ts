@@ -80,6 +80,13 @@ export function replayGame(
   // "available time" so a late arrival isn't charged for the minutes
   // before they showed up. Steve 2026-07-07.
   const firstSeenAbsMs: Record<string, number> = {};
+  // Time each player spent UNAVAILABLE — injured off (until they recover
+  // or the game ends) — in the absolute frame. A kid who's hurt or has
+  // gone home (marked injured, never un-marked) shouldn't have that time
+  // count toward their available time. `injuryOpenAbs` holds the open
+  // incident's start; `unavailableMs` accumulates closed ones.
+  const injuryOpenAbs: Record<string, number> = {};
+  const unavailableMs: Record<string, number> = {};
 
   // Goals collected during active quarters — assigned to periods after all
   // events are processed (goals and swaps may interleave in created_at order).
@@ -254,8 +261,12 @@ export function replayGame(
 
       case "injury": {
         const injured = meta.injured !== false;
-        if (injured && ev.player_id) {
-          const pid = ev.player_id;
+        const pid = ev.player_id;
+        if (!pid) break;
+        const nowAbs = gameLengthMs + elapsed;
+        if (injured) {
+          // Open an unavailable incident (whether on field or bench).
+          if (injuryOpenAbs[pid] === undefined) injuryOpenAbs[pid] = nowAbs;
           const z = zoneOf(lineup, pid);
           if (z) {
             // Close period before removing player so the period records current lineup.
@@ -267,6 +278,11 @@ export function replayGame(
             lineup[z] = lineup[z].filter((p) => p !== pid);
             if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
           }
+        } else if (injuryOpenAbs[pid] !== undefined) {
+          // Recovered — close the unavailable incident.
+          unavailableMs[pid] =
+            (unavailableMs[pid] ?? 0) + Math.max(0, nowAbs - injuryOpenAbs[pid]);
+          delete injuryOpenAbs[pid];
         }
         break;
       }
@@ -349,12 +365,23 @@ export function replayGame(
     }
   }
 
-  // Per-player available time = the game length minus however long they
-  // weren't there yet (0 for starters; the pre-arrival gap for a late
-  // arrival). Bounded to [0, gameLengthMs].
+  // Any injury still open at the final hooter never closed — the player
+  // was unavailable (hurt / gone home) through to the end.
+  for (const [pid, startAbs] of Object.entries(injuryOpenAbs)) {
+    unavailableMs[pid] =
+      (unavailableMs[pid] ?? 0) + Math.max(0, gameLengthMs - startAbs);
+  }
+
+  // Per-player available time = the game length, minus the time before
+  // they arrived (0 for a starter; the pre-arrival gap for a late
+  // arrival), minus the time they were UNAVAILABLE — injured off or
+  // loaned to the opposition. So a kid who left early / got hurt isn't
+  // charged for time they couldn't play, mirroring the late-arrival case.
+  // Bounded to [0, gameLengthMs]. Steve 2026-07-07.
   const playerAvailableMs: Record<string, number> = {};
   for (const [pid, seen] of Object.entries(firstSeenAbsMs)) {
-    playerAvailableMs[pid] = Math.max(0, gameLengthMs - seen);
+    const unavailable = (unavailableMs[pid] ?? 0) + (playerLoanMs[pid] ?? 0);
+    playerAvailableMs[pid] = Math.max(0, gameLengthMs - seen - unavailable);
   }
 
   // Assign pending goals to lineup periods by time
