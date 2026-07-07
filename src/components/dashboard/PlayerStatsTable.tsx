@@ -18,7 +18,7 @@ type SortKey =
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "totalMs", label: "Total minutes" },
   { value: "avgMsPerGame", label: "Avg min / game" },
-  { value: "teamGameTimePct", label: "% of team time" },
+  { value: "teamGameTimePct", label: "% of available time" },
   { value: "gamesPlayed", label: "Games played" },
   { value: "goals", label: "Goals" },
   { value: "loanMs", label: "Loaned minutes" },
@@ -67,9 +67,20 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
       <div className="grid gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
-          const backMin = fmt(p.zoneMs.back + p.zoneMs.hback);
-          const midMin = fmt(p.zoneMs.mid);
-          const fwdMin = fmt(p.zoneMs.fwd + p.zoneMs.hfwd);
+          // Zone split as a % of the player's own on-field time (sums to
+          // ~100%) — "where do they play", independent of how much they
+          // bench. Mirrors the netball third breakdown. Steve 2026-07-07.
+          const onFieldMs =
+            p.zoneMs.back +
+            p.zoneMs.hback +
+            p.zoneMs.mid +
+            p.zoneMs.hfwd +
+            p.zoneMs.fwd;
+          const zonePct = (ms: number) =>
+            onFieldMs > 0 ? Math.round((ms / onFieldMs) * 100) : 0;
+          const backPct = zonePct(p.zoneMs.back + p.zoneMs.hback);
+          const midPct = zonePct(p.zoneMs.mid);
+          const fwdPct = zonePct(p.zoneMs.fwd + p.zoneMs.hfwd);
           return (
             <div
               key={p.playerId}
@@ -111,9 +122,9 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
               {/* Zone breakdown */}
               <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
-                <ZonePill abbr="B" min={backMin} tone="b" />
-                <ZonePill abbr="M" min={midMin} tone="c" />
-                <ZonePill abbr="F" min={fwdMin} tone="f" />
+                <ZonePill abbr="B" pct={backPct} tone="b" />
+                <ZonePill abbr="M" pct={midPct} tone="c" />
+                <ZonePill abbr="F" pct={fwdPct} tone="f" />
               </div>
 
               {/* Footer: behinds + subs + loaned, only if non-zero */}
@@ -161,11 +172,11 @@ function Metric({
 
 function ZonePill({
   abbr,
-  min,
+  pct,
   tone,
 }: {
   abbr: string;
-  min: number;
+  pct: number;
   tone: "b" | "c" | "f";
 }) {
   const bg =
@@ -178,7 +189,7 @@ function ZonePill({
     <span
       className={`flex-1 rounded px-1.5 py-0.5 text-center tabular-nums ${bg}`}
     >
-      {abbr} {min}m
+      {abbr} {pct}%
     </span>
   );
 }

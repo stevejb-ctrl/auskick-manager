@@ -61,4 +61,13 @@ test("pre-kickoff lineup renders a full field of players", async ({
       page.getByText(players[i].full_name, { exact: true }),
     ).toHaveCount(1, { timeout: 5_000 });
   }
+
+  // Season time-in-zone breakdown (Steve 2026-07-07): the picker shows a
+  // per-player season zone bar + a Fwd/Centre/Back key so a coach setting
+  // the lineup by hand can start kids in a zone they've had least of.
+  await expect(page.getByText(/season time in zone/i)).toBeVisible();
+  const legend = page.locator('[aria-label="Time-in-zone colour key"]');
+  await expect(legend).toContainText("Fwd");
+  await expect(legend).toContainText("Centre");
+  await expect(legend).toContainText("Back");
 });

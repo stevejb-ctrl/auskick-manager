@@ -43,16 +43,6 @@ export function computePlayerStats(
 ): PlayerSeasonStats[] {
   const playerMap = new Map(players.map((p) => [p.id, p]));
 
-  // Total possible on-field ms = sum of all zone ms across all games
-  const totalTeamMs = snapshots.reduce((sum, snap) => {
-    return (
-      sum +
-      Object.values(snap.playerZoneMs).reduce((s, zm) => {
-        return s + ALL_ZONES.reduce((z2, z) => z2 + zm[z], 0);
-      }, 0)
-    );
-  }, 0);
-
   // Players who actually took part (had non-zero zone time OR were loaned to
   // the opposition in at least one game).
   const allPlayerIds = new Set<string>();
@@ -75,6 +65,13 @@ export function computePlayerStats(
 
     let gamesPlayed = 0;
     let totalMs = 0;
+    // Available time = the full playing time of every game this player was
+    // PRESENT for (in a lineup, field or bench). Dividing on-field time by
+    // this gives "% of available time" — i.e. how much of the time they
+    // COULD have been on, they actually were. A never-benched ever-present
+    // player is 100%; a heavy bencher is lower. This is what surfaces who's
+    // sitting more than their team-mates. Steve 2026-07-07.
+    let availableMs = 0;
     const zoneMs = emptyZoneMs();
     let goals = 0;
     let behinds = 0;
@@ -90,6 +87,11 @@ export function computePlayerStats(
         totalMs += gameMs;
         for (const z of ALL_ZONES) zoneMs[z] += zm?.[z] ?? 0;
       }
+      // Present at this game → their available time counts, whether they
+      // played the whole thing or barely came on. A late arrival is only
+      // charged from when they showed up (playerAvailableMs), so they
+      // aren't penalised for minutes before they were there.
+      availableMs += snap.playerAvailableMs[pid] ?? 0;
       goals += snap.playerGoals[pid] ?? 0;
       behinds += snap.playerBehinds[pid] ?? 0;
       siCount += snap.subsIn[pid] ?? 0;
@@ -98,7 +100,9 @@ export function computePlayerStats(
     }
 
     const teamGameTimePct =
-      totalTeamMs > 0 ? Math.round((totalMs / totalTeamMs) * 100) : 0;
+      availableMs > 0
+        ? Math.min(100, Math.round((totalMs / availableMs) * 100))
+        : 0;
 
     stats.push({
       playerId: pid,
@@ -423,16 +427,37 @@ export function computeQuarterScoring(
 export function computeAttendance(
   players: Player[],
   seasonGames: Game[],
-  availability: GameAvailability[]
+  availability: GameAvailability[],
+  snapshots: GameSnapshot[]
 ): AttendanceRow[] {
-  // "Available" = explicitly marked available
+  const gameIds = new Set(seasonGames.map((g) => g.id));
+
+  // "Available" = explicitly marked available (the coach's pre-game
+  // toggle). Kept as a secondary signal.
   const availableSet = new Set(
     availability
-      .filter((a) => a.status === "available" && seasonGames.some((g) => g.id === a.game_id))
+      .filter((a) => a.status === "available" && gameIds.has(a.game_id))
       .map((a) => `${a.game_id}:${a.player_id}`)
   );
 
-  const gameIds = new Set(seasonGames.map((g) => g.id));
+  // ATTENDANCE = games the player actually took part in (appeared in a
+  // lineup, field or bench). This is the objective record — it doesn't
+  // depend on the coach diligently toggling availability, which is why
+  // the old availability-based % looked wrong. Steve 2026-07-07.
+  const playedByPlayer = new Map<string, Set<string>>();
+  for (const snap of snapshots) {
+    if (!gameIds.has(snap.gameId)) continue;
+    for (const pid of snap.playerIds) {
+      let set = playedByPlayer.get(pid);
+      if (!set) {
+        set = new Set<string>();
+        playedByPlayer.set(pid, set);
+      }
+      set.add(snap.gameId);
+    }
+  }
+
+  const totalGames = seasonGames.length;
 
   return players
     .filter((p) => p.is_active)
@@ -440,16 +465,16 @@ export function computeAttendance(
       const gamesAvailable = Array.from(gameIds).filter((gid) =>
         availableSet.has(`${gid}:${player.id}`)
       ).length;
+      const gamesPlayed = playedByPlayer.get(player.id)?.size ?? 0;
 
       return {
         playerId: player.id,
         playerName: player.full_name,
         jerseyNumber: player.jersey_number,
         gamesAvailable,
-        gamesPlayed: gamesAvailable,
-        attendancePct: seasonGames.length > 0
-          ? Math.round((gamesAvailable / seasonGames.length) * 100)
-          : 0,
+        gamesPlayed,
+        attendancePct:
+          totalGames > 0 ? Math.round((gamesPlayed / totalGames) * 100) : 0,
       };
     })
     .sort((a, b) => b.attendancePct - a.attendancePct);

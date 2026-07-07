@@ -30,6 +30,7 @@ import { describe, expect, it } from "vitest";
 import { AGE_GROUPS } from "@/lib/ageGroups";
 import {
   deriveEffectiveZoneCaps,
+  effectiveDisplayZoneCaps,
   zoneCapsFor,
   type ZoneCaps,
 } from "@/lib/fairness";
@@ -304,6 +305,35 @@ describe("AFL deriveEffectiveZoneCaps — Q-break shape preservation", () => {
         back: caps.back, mid: caps.mid, fwd: caps.fwd,
       })}`).toBe(`${size}:${JSON.stringify(shape)}`);
     }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// SECTION 2b: effectiveDisplayZoneCaps — live-field slot count
+// Steve 2026-07-07: a short squad shouldn't render phantom empty
+// slots for kids who aren't there, but a coach who reduced on-field
+// size (with a full squad on the bench) still should.
+// ──────────────────────────────────────────────────────────────
+
+describe("effectiveDisplayZoneCaps — short squad vs reduced size (U10, default 12)", () => {
+  it("collapses to the coach's shape when fewer players are available than the default", () => {
+    // 10 kids, running 3/4/3, nobody on the bench → show 3/4/3, no phantom.
+    const lineup = lineupWithCounts({ back: 3, mid: 4, fwd: 3 });
+    const caps = effectiveDisplayZoneCaps(lineup, 10, 12, "zones3");
+    expect({ back: caps.back, mid: caps.mid, fwd: caps.fwd }).toEqual({
+      back: 3,
+      mid: 4,
+      fwd: 3,
+    });
+  });
+
+  it("keeps the default slot count when the squad is big enough (reduced-size affordance)", () => {
+    // Coach reduced on-field to 10 but has 14 available (4 on the bench):
+    // still show the default 12 slots so the 2 trimmed positions render
+    // as empty placeholders.
+    const lineup = lineupWithCounts({ back: 3, mid: 4, fwd: 3 });
+    const caps = effectiveDisplayZoneCaps(lineup, 14, 12, "zones3");
+    expect(Object.values(caps).reduce((a, b) => a + b, 0)).toBe(12);
   });
 });
 

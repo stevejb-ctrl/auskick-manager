@@ -26,7 +26,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { netballSport, getEffectiveQuarterSeconds } from "@/lib/sports";
+import { netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 
 interface StatsPageProps {
@@ -89,7 +89,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         totalGames={0}
         hasZoneData={false}
         hasScoringData={false}
-        hasAvailabilityData={false}
       />
     );
   }
@@ -237,9 +236,20 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       .in("game_id", gameIds);
     for (const f of fillInRaw ?? []) fillInIds.add(f.id);
 
-    snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) =>
-      bucketFillIns(replayGame(gid, evs), fillInIds)
-    );
+    // Nominal quarter length per game — clamps a runaway clock so a
+    // quarter left running past the hooter can't inflate minutes /
+    // AVG/G. Resolves game override → team default → age default.
+    const aflAgeCfg = getAgeGroupConfig("afl", team.age_group);
+    const gameById = new Map(seasonGames.map((g) => [g.id, g]));
+    snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) => {
+      const g = gameById.get(gid);
+      const quarterSec = getEffectiveQuarterSeconds(
+        { quarter_length_seconds: team.quarter_length_seconds ?? null },
+        aflAgeCfg,
+        { quarter_length_seconds: g?.quarter_length_seconds ?? null },
+      );
+      return bucketFillIns(replayGame(gid, evs, quarterSec * 1000), fillInIds);
+    });
   }
 
   // Derive data availability flags
@@ -249,9 +259,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     (s) =>
       Object.keys(s.teamScoreByQtr).length > 0 ||
       Object.keys(s.oppScoreByQtr).length > 0
-  );
-  const hasAvailabilityData = availability.some((a) =>
-    seasonGames.some((g) => g.id === a.game_id)
   );
 
   // Build player name lookup — add a synthetic entry for the fill-in bucket
@@ -290,7 +297,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const attendanceRows = computeAttendance(
     players,
     seasonGames,
-    (availability ?? []) as import("@/lib/types").GameAvailability[]
+    (availability ?? []) as import("@/lib/types").GameAvailability[],
+    snapshots
   );
 
   return (
@@ -308,7 +316,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       totalGames={seasonGames.length}
       hasZoneData={hasZoneData}
       hasScoringData={hasScoringData}
-      hasAvailabilityData={hasAvailabilityData}
     />
   );
 }

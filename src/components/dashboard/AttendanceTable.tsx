@@ -11,8 +11,8 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
   if (!hasData || rows.length === 0) {
     return (
       <EmptyState
-        title="No availability data yet"
-        description="Attendance populates once players are marked available/unavailable for games."
+        title="No attendance data yet"
+        description="Attendance populates once games are played and finalised."
       />
     );
   }
@@ -29,7 +29,7 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
               Player
             </th>
             <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              Avail / {totalGames}
+              Played / {totalGames}
             </th>
             <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
               %
@@ -46,7 +46,7 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
                 {row.playerName}
               </td>
               <td className="px-2 py-2 text-right tabular-nums text-ink-dim">
-                {row.gamesAvailable}
+                {row.gamesPlayed}
               </td>
               <td className="px-2 py-2 text-right">
                 <span

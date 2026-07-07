@@ -28,8 +28,27 @@ function zoneOf(lineup: Lineup, playerId: string): Zone | null {
   return null;
 }
 
-/** Replay one game's sorted events into a full snapshot. */
-export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
+/**
+ * Replay one game's sorted events into a full snapshot.
+ *
+ * `maxQuarterMs` bounds each quarter's counted time to the configured
+ * quarter length. When a coach leaves the clock running past the hooter
+ * (the auto-hooter didn't fire, or nobody hit "end quarter"), a
+ * `quarter_end` can land with elapsed_ms far beyond the scheduled
+ * length — e.g. a 57-minute "quarter". Without the bound, a player on
+ * the field the whole time banks 57 minutes for one quarter, which
+ * inflates their season total, AVG/G and % of available time. Clamping
+ * every elapsed value to the quarter length keeps a runaway clock from
+ * poisoning the numbers; normal games (elapsed ≤ length) are untouched.
+ * Steve 2026-07-07. Omit (undefined) to disable clamping.
+ */
+export function replayGame(
+  gameId: string,
+  events: GameEvent[],
+  maxQuarterMs?: number,
+): GameSnapshot {
+  const clampMs = (ms: number) =>
+    typeof maxQuarterMs === "number" ? Math.min(ms, maxQuarterMs) : ms;
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at)
   );
@@ -52,6 +71,22 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
   let currentQuarter = 0;
   let periodStartMs = 0;
   let quarterActive = false;
+  // Total game playing time — accumulated per quarter at quarter_end.
+  // Denominator for "% of available time".
+  let gameLengthMs = 0;
+  // Absolute game-elapsed ms at which each player FIRST became part of
+  // the game (in a lineup, subbed on, or added as a late arrival). A
+  // starter is 0; a late arrival is their arrival time. Drives per-player
+  // "available time" so a late arrival isn't charged for the minutes
+  // before they showed up. Steve 2026-07-07.
+  const firstSeenAbsMs: Record<string, number> = {};
+  // Time each player spent UNAVAILABLE — injured off (until they recover
+  // or the game ends) — in the absolute frame. A kid who's hurt or has
+  // gone home (marked injured, never un-marked) shouldn't have that time
+  // count toward their available time. `injuryOpenAbs` holds the open
+  // incident's start; `unavailableMs` accumulates closed ones.
+  const injuryOpenAbs: Record<string, number> = {};
+  const unavailableMs: Record<string, number> = {};
 
   // Goals collected during active quarters — assigned to periods after all
   // events are processed (goals and swaps may interleave in created_at order).
@@ -83,7 +118,14 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
 
   for (const ev of sorted) {
     const meta = ev.metadata as Record<string, unknown>;
-    const elapsed = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+    const elapsed = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
+    // Stamp a player's first appearance (absolute game-elapsed = finished
+    // quarters + this quarter's elapsed). Only the earliest sticks.
+    const seeFirst = (pid: string) => {
+      if (pid && firstSeenAbsMs[pid] === undefined) {
+        firstSeenAbsMs[pid] = gameLengthMs + elapsed;
+      }
+    };
 
     switch (ev.type) {
       case "lineup_set": {
@@ -94,10 +136,12 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
           for (const z of ALL_ZONES) {
             for (const pid of lineup[z]) {
               if (!playerIds.includes(pid)) playerIds.push(pid);
+              seeFirst(pid);
             }
           }
           for (const pid of lineup.bench) {
             if (!playerIds.includes(pid)) playerIds.push(pid);
+            seeFirst(pid);
           }
         }
         break;
@@ -144,11 +188,12 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         stints[on] = { zone, startMs: elapsed };
         subsIn[on] = (subsIn[on] ?? 0) + 1;
         if (!playerIds.includes(on)) playerIds.push(on);
+        seeFirst(on);
         break;
       }
 
       case "quarter_end": {
-        const qe = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : elapsed;
+        const qe = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : elapsed);
         for (const [pid, stint] of Object.entries(stints)) {
           addZoneMs(pid, stint.zone, qe - stint.startMs);
         }
@@ -162,6 +207,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         }
 
         closePeriod(qe);
+        gameLengthMs += qe;
         quarterActive = false;
         break;
       }
@@ -207,13 +253,20 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
           lineup.bench.push(ev.player_id);
           if (!playerIds.includes(ev.player_id)) playerIds.push(ev.player_id);
         }
+        // A late arrival's available time starts now — even if they never
+        // make it onto the field, they were present from this point.
+        if (ev.player_id) seeFirst(ev.player_id);
         break;
       }
 
       case "injury": {
         const injured = meta.injured !== false;
-        if (injured && ev.player_id) {
-          const pid = ev.player_id;
+        const pid = ev.player_id;
+        if (!pid) break;
+        const nowAbs = gameLengthMs + elapsed;
+        if (injured) {
+          // Open an unavailable incident (whether on field or bench).
+          if (injuryOpenAbs[pid] === undefined) injuryOpenAbs[pid] = nowAbs;
           const z = zoneOf(lineup, pid);
           if (z) {
             // Close period before removing player so the period records current lineup.
@@ -225,6 +278,11 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
             lineup[z] = lineup[z].filter((p) => p !== pid);
             if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
           }
+        } else if (injuryOpenAbs[pid] !== undefined) {
+          // Recovered — close the unavailable incident.
+          unavailableMs[pid] =
+            (unavailableMs[pid] ?? 0) + Math.max(0, nowAbs - injuryOpenAbs[pid]);
+          delete injuryOpenAbs[pid];
         }
         break;
       }
@@ -307,6 +365,25 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     }
   }
 
+  // Any injury still open at the final hooter never closed — the player
+  // was unavailable (hurt / gone home) through to the end.
+  for (const [pid, startAbs] of Object.entries(injuryOpenAbs)) {
+    unavailableMs[pid] =
+      (unavailableMs[pid] ?? 0) + Math.max(0, gameLengthMs - startAbs);
+  }
+
+  // Per-player available time = the game length, minus the time before
+  // they arrived (0 for a starter; the pre-arrival gap for a late
+  // arrival), minus the time they were UNAVAILABLE — injured off or
+  // loaned to the opposition. So a kid who left early / got hurt isn't
+  // charged for time they couldn't play, mirroring the late-arrival case.
+  // Bounded to [0, gameLengthMs]. Steve 2026-07-07.
+  const playerAvailableMs: Record<string, number> = {};
+  for (const [pid, seen] of Object.entries(firstSeenAbsMs)) {
+    const unavailable = (unavailableMs[pid] ?? 0) + (playerLoanMs[pid] ?? 0);
+    playerAvailableMs[pid] = Math.max(0, gameLengthMs - seen - unavailable);
+  }
+
   // Assign pending goals to lineup periods by time
   for (const goal of pendingGoals) {
     for (const period of lineupPeriods) {
@@ -333,6 +410,8 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     oppScoreByQtr,
     lineupPeriods,
     playerIds,
+    gameLengthMs,
+    playerAvailableMs,
   };
 }
 
@@ -387,6 +466,7 @@ export function bucketFillIns(
     subsIn: mergeNumberMap(snapshot.subsIn),
     subsOut: mergeNumberMap(snapshot.subsOut),
     playerLoanMs: mergeNumberMap(snapshot.playerLoanMs),
+    playerAvailableMs: mergeNumberMap(snapshot.playerAvailableMs),
     lineupPeriods,
     playerIds,
   };

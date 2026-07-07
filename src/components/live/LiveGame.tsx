@@ -86,7 +86,7 @@ import {
   ALL_ZONES,
   emptyZoneMs,
   suggestSwaps,
-  zoneCapsFor,
+  effectiveDisplayZoneCaps,
   type GameState,
   type PlayerZoneMinutes,
   type SeasonAvailability,
@@ -295,16 +295,6 @@ export function LiveGame({
     () => getSportConfig("afl").zones.filter((z) => ageGroup.zones.includes(z.id)),
     [ageGroup.zones],
   );
-  // Display caps for the on-field grid — based on the age-group
-  // DEFAULT, not the current persisted on-field size. When the coach
-  // has reduced count below the default (e.g. 15→13 via Q-break
-  // match-adjustments), Field still draws the missing positions as
-  // "Empty" placeholder tiles so the visual zone shape stays
-  // recognisable. Steve 2026-05-20.
-  const displayZoneCaps = useMemo(
-    () => zoneCapsFor(defaultOnFieldSize, positionModel),
-    [defaultOnFieldSize, positionModel],
-  );
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
   const selected = useLiveGame((s) => s.selected);
@@ -347,6 +337,37 @@ export function LiveGame({
   const injuredIds = useLiveGame((s) => s.injuredIds);
   const setInjured = useLiveGame((s) => s.setInjured);
   const loanedIds = useLiveGame((s) => s.loanedIds);
+  // Display caps for the on-field grid — how many slots each zone draws.
+  // Normally the age-group DEFAULT, so a coach who reduced on-field size
+  // (e.g. 15→13) still sees the missing positions as "Empty" placeholder
+  // tiles (Steve 2026-05-20). BUT a genuinely short squad — fewer healthy
+  // players present than the default — shouldn't see phantom slots for
+  // kids who aren't there: it makes the live field disagree with the
+  // shape-preserving Q-break, and invites filling a slot that can't be
+  // filled. So the display size is capped at the number of AVAILABLE
+  // players; when that's below the default, we collapse to the coach's
+  // actual zone shape instead of the default fill. Full squads (available
+  // ≥ default) are unchanged — the reduced-size affordance is preserved.
+  // Steve 2026-07-07. The suggester itself only ever swaps 1:1, so this
+  // is purely about the rendered slot count.
+  const displayZoneCaps = useMemo(() => {
+    const inj = new Set(injuredIds);
+    const loan = new Set(loanedIds);
+    const present = new Set<string>([
+      ...activeZones.flatMap((z) => lineup[z]),
+      ...lineup.bench,
+    ]);
+    let available = 0;
+    present.forEach((id) => {
+      if (!inj.has(id) && !loan.has(id)) available += 1;
+    });
+    return effectiveDisplayZoneCaps(
+      lineup,
+      available,
+      defaultOnFieldSize,
+      positionModel,
+    );
+  }, [lineup, activeZones, injuredIds, loanedIds, defaultOnFieldSize, positionModel]);
   const loanStartMs = useLiveGame((s) => s.loanStartMs);
   const basePlayedLoanMs = useLiveGame((s) => s.basePlayedLoanMs);
   const setLoaned = useLiveGame((s) => s.setLoaned);

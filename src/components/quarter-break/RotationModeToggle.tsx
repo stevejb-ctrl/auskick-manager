@@ -32,21 +32,29 @@
 
 import { Button } from "@/components/ui/Button";
 
-export type RotationMode = "suggested" | "keep" | "manual";
-
-interface RotationModeToggleProps {
-  mode: RotationMode;
-  onChange: (next: RotationMode) => void;
-  /** Optional disable gate for the entire toggle (e.g. while a server write is pending). */
-  disabled?: boolean;
-}
+// "rotate" (AFL only for now) shifts everyone one line each break —
+// see lib/live/rotateLines. Netball/league don't offer it yet, so they
+// render the default three and never emit it.
+export type RotationMode = "suggested" | "keep" | "manual" | "rotate";
 
 interface ModeOption {
   value: RotationMode;
   label: string;
 }
 
-const OPTIONS: ModeOption[] = [
+interface RotationModeToggleProps {
+  mode: RotationMode;
+  onChange: (next: RotationMode) => void;
+  /**
+   * Which modes to show. Defaults to Suggested / Keep / Set manually.
+   * AFL passes an extended list that includes "Rotate lines".
+   */
+  options?: ModeOption[];
+  /** Optional disable gate for the entire toggle (e.g. while a server write is pending). */
+  disabled?: boolean;
+}
+
+const DEFAULT_OPTIONS: ModeOption[] = [
   { value: "suggested", label: "Suggested" },
   { value: "keep", label: "Keep last quarter" },
   { value: "manual", label: "Set manually" },
@@ -55,11 +63,12 @@ const OPTIONS: ModeOption[] = [
 export function RotationModeToggle({
   mode,
   onChange,
+  options = DEFAULT_OPTIONS,
   disabled = false,
 }: RotationModeToggleProps) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
-      {OPTIONS.map((opt) => {
+      {options.map((opt) => {
         const active = mode === opt.value;
         return (
           <Button
