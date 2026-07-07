@@ -425,16 +425,37 @@ export function computeQuarterScoring(
 export function computeAttendance(
   players: Player[],
   seasonGames: Game[],
-  availability: GameAvailability[]
+  availability: GameAvailability[],
+  snapshots: GameSnapshot[]
 ): AttendanceRow[] {
-  // "Available" = explicitly marked available
+  const gameIds = new Set(seasonGames.map((g) => g.id));
+
+  // "Available" = explicitly marked available (the coach's pre-game
+  // toggle). Kept as a secondary signal.
   const availableSet = new Set(
     availability
-      .filter((a) => a.status === "available" && seasonGames.some((g) => g.id === a.game_id))
+      .filter((a) => a.status === "available" && gameIds.has(a.game_id))
       .map((a) => `${a.game_id}:${a.player_id}`)
   );
 
-  const gameIds = new Set(seasonGames.map((g) => g.id));
+  // ATTENDANCE = games the player actually took part in (appeared in a
+  // lineup, field or bench). This is the objective record — it doesn't
+  // depend on the coach diligently toggling availability, which is why
+  // the old availability-based % looked wrong. Steve 2026-07-07.
+  const playedByPlayer = new Map<string, Set<string>>();
+  for (const snap of snapshots) {
+    if (!gameIds.has(snap.gameId)) continue;
+    for (const pid of snap.playerIds) {
+      let set = playedByPlayer.get(pid);
+      if (!set) {
+        set = new Set<string>();
+        playedByPlayer.set(pid, set);
+      }
+      set.add(snap.gameId);
+    }
+  }
+
+  const totalGames = seasonGames.length;
 
   return players
     .filter((p) => p.is_active)
@@ -442,16 +463,16 @@ export function computeAttendance(
       const gamesAvailable = Array.from(gameIds).filter((gid) =>
         availableSet.has(`${gid}:${player.id}`)
       ).length;
+      const gamesPlayed = playedByPlayer.get(player.id)?.size ?? 0;
 
       return {
         playerId: player.id,
         playerName: player.full_name,
         jerseyNumber: player.jersey_number,
         gamesAvailable,
-        gamesPlayed: gamesAvailable,
-        attendancePct: seasonGames.length > 0
-          ? Math.round((gamesAvailable / seasonGames.length) * 100)
-          : 0,
+        gamesPlayed,
+        attendancePct:
+          totalGames > 0 ? Math.round((gamesPlayed / totalGames) * 100) : 0,
       };
     })
     .sort((a, b) => b.attendancePct - a.attendancePct);

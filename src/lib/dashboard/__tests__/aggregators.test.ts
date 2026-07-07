@@ -453,8 +453,67 @@ describe("computeAttendance — null jersey", () => {
     const availability: GameAvailability[] = [
       { id: "a1", game_id: "g1", player_id: "p1", status: "available", updated_by: null, updated_at: new Date().toISOString() },
     ];
-    const rows = computeAttendance([player], [game], availability);
+    const snap = replayGame("g1", buildSingleQtrEvents());
+    const rows = computeAttendance([player], [game], availability, [snap]);
     const row = rows.find((r) => r.playerId === "p1");
     expect(row?.jerseyNumber).toBeNull();
+  });
+});
+
+describe("computeAttendance — attendance = games actually played (Steve 2026-07-07)", () => {
+  // Attendance must reflect who actually took part, NOT the coach's
+  // availability toggle. p1/p2/p3/p5/p6/p7 appear in the single-quarter
+  // fixture's lineup; a marked-available-but-absent player is 0%.
+  const game = makeGame("g1");
+  const snap = replayGame("g1", buildSingleQtrEvents());
+  const players = [makePlayer("p1", 1), makePlayer("ghost", 99)];
+  // "ghost" is marked available but never appears in a lineup.
+  const availability: GameAvailability[] = [
+    { id: "a1", game_id: "g1", player_id: "ghost", status: "available", updated_by: null, updated_at: new Date().toISOString() },
+  ];
+  const rows = computeAttendance(players, [game], availability, [snap]);
+  const rowOf = (id: string) => rows.find((r) => r.playerId === id);
+
+  it("counts a player who appeared in the lineup as attended (100% of 1 game)", () => {
+    expect(rowOf("p1")?.gamesPlayed).toBe(1);
+    expect(rowOf("p1")?.attendancePct).toBe(100);
+  });
+
+  it("gives a marked-available-but-absent player 0% attendance", () => {
+    expect(rowOf("ghost")?.gamesAvailable).toBe(1); // toggle says available
+    expect(rowOf("ghost")?.gamesPlayed).toBe(0); // but never played
+    expect(rowOf("ghost")?.attendancePct).toBe(0);
+  });
+});
+
+describe("replayGame — clamps a runaway clock (Steve 2026-07-07)", () => {
+  // A quarter left running past the hooter lands a quarter_end with
+  // elapsed_ms far beyond the scheduled length. Without a bound, a
+  // whole-game player banks the overrun; with maxQuarterMs it can't.
+  function runawayQuarterEvents(): GameEvent[] {
+    _seq = 0;
+    return [
+      makeEvent({
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ["p5", "p6"], hback: [], mid: ["p3", "p4"], hfwd: [], fwd: ["p1", "p2"], bench: [] },
+        },
+      }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+      // Clock ran to 40 min before anyone ended the quarter.
+      makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 40 * 60_000 } }),
+    ];
+  }
+
+  it("banks the full 40 min without a bound", () => {
+    const snap = replayGame("g1", runawayQuarterEvents());
+    expect(snap.gameLengthMs).toBe(40 * 60_000);
+    expect(snap.playerZoneMs["p1"].fwd).toBe(40 * 60_000);
+  });
+
+  it("clamps to the 12-min quarter length when maxQuarterMs is set", () => {
+    const snap = replayGame("g1", runawayQuarterEvents(), 12 * 60_000);
+    expect(snap.gameLengthMs).toBe(12 * 60_000);
+    expect(snap.playerZoneMs["p1"].fwd).toBe(12 * 60_000);
   });
 });

@@ -40,7 +40,6 @@ interface DashboardShellProps {
   // Data availability flags
   hasZoneData: boolean;
   hasScoringData: boolean;
-  hasAvailabilityData: boolean;
 }
 
 interface SectionProps {
@@ -73,7 +72,6 @@ export function DashboardShell({
   totalGames,
   hasZoneData,
   hasScoringData,
-  hasAvailabilityData,
 }: DashboardShellProps) {
   if (seasons.length === 0) {
     return (
@@ -156,7 +154,7 @@ export function DashboardShell({
           <AttendanceTable
             rows={attendance}
             totalGames={totalGames}
-            hasData={hasAvailabilityData}
+            hasData={totalGames > 0}
           />
         </Section>
       </div>

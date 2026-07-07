@@ -28,8 +28,27 @@ function zoneOf(lineup: Lineup, playerId: string): Zone | null {
   return null;
 }
 
-/** Replay one game's sorted events into a full snapshot. */
-export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
+/**
+ * Replay one game's sorted events into a full snapshot.
+ *
+ * `maxQuarterMs` bounds each quarter's counted time to the configured
+ * quarter length. When a coach leaves the clock running past the hooter
+ * (the auto-hooter didn't fire, or nobody hit "end quarter"), a
+ * `quarter_end` can land with elapsed_ms far beyond the scheduled
+ * length — e.g. a 57-minute "quarter". Without the bound, a player on
+ * the field the whole time banks 57 minutes for one quarter, which
+ * inflates their season total, AVG/G and % of available time. Clamping
+ * every elapsed value to the quarter length keeps a runaway clock from
+ * poisoning the numbers; normal games (elapsed ≤ length) are untouched.
+ * Steve 2026-07-07. Omit (undefined) to disable clamping.
+ */
+export function replayGame(
+  gameId: string,
+  events: GameEvent[],
+  maxQuarterMs?: number,
+): GameSnapshot {
+  const clampMs = (ms: number) =>
+    typeof maxQuarterMs === "number" ? Math.min(ms, maxQuarterMs) : ms;
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at)
   );
@@ -86,7 +105,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
 
   for (const ev of sorted) {
     const meta = ev.metadata as Record<string, unknown>;
-    const elapsed = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+    const elapsed = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
 
     switch (ev.type) {
       case "lineup_set": {
@@ -151,7 +170,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
       }
 
       case "quarter_end": {
-        const qe = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : elapsed;
+        const qe = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : elapsed);
         for (const [pid, stint] of Object.entries(stints)) {
           addZoneMs(pid, stint.zone, qe - stint.startMs);
         }
