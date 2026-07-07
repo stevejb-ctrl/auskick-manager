@@ -103,6 +103,21 @@ export function replayGame(
     playerLoanMs[pid] = (playerLoanMs[pid] ?? 0) + ms;
   }
 
+  // Close an open loan when the player is back in the coach's squad —
+  // they re-appear in a lineup or get subbed on. Without this, a loan
+  // that never got an explicit "returned" event (loaned:false) keeps
+  // accruing every quarter through to the final hooter, so a kid lent
+  // for one quarter reads a whole game's worth of loan minutes (and,
+  // because loan time is subtracted from available time, an inflated
+  // "% of available"). Steve 2026-07-07.
+  function closeLoan(pid: string, atElapsedMs: number) {
+    const start = loanStart[pid];
+    if (start !== undefined) {
+      addLoanMs(pid, atElapsedMs - start);
+      delete loanStart[pid];
+    }
+  }
+
   function closePeriod(endMs: number) {
     if (!quarterActive || endMs <= periodStartMs) return;
     lineupPeriods.push({
@@ -137,11 +152,14 @@ export function replayGame(
             for (const pid of lineup[z]) {
               if (!playerIds.includes(pid)) playerIds.push(pid);
               seeFirst(pid);
+              // Back in the coach's lineup → any open loan has ended.
+              closeLoan(pid, elapsed);
             }
           }
           for (const pid of lineup.bench) {
             if (!playerIds.includes(pid)) playerIds.push(pid);
             seeFirst(pid);
+            closeLoan(pid, elapsed);
           }
         }
         break;
@@ -189,6 +207,7 @@ export function replayGame(
         subsIn[on] = (subsIn[on] ?? 0) + 1;
         if (!playerIds.includes(on)) playerIds.push(on);
         seeFirst(on);
+        closeLoan(on, elapsed); // subbed on → any open loan has ended
         break;
       }
 

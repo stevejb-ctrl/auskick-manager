@@ -1,22 +1,16 @@
 "use client";
 
 import { Suspense } from "react";
-import type { Zone } from "@/lib/types";
 import type {
   AttendanceRow,
   HeadToHeadRecord,
-  PlayerChemistryPair,
   PlayerSeasonStats,
   PositionFitRow,
   QuarterScoringRow,
   Season,
-  ZoneCombination,
 } from "@/lib/dashboard/types";
 import { SeasonSelector } from "./SeasonSelector";
 import { PlayerStatsTable } from "./PlayerStatsTable";
-import { WinningCombinations } from "./WinningCombinations";
-import { MinutesEquity } from "./MinutesEquity";
-import { PlayerChemistry } from "./PlayerChemistry";
 import { PositionFit } from "./PositionFit";
 import { HeadToHead } from "./HeadToHead";
 import { QuarterScoring } from "./QuarterScoring";
@@ -29,8 +23,6 @@ interface DashboardShellProps {
 
   // Section data
   playerStats: PlayerSeasonStats[];
-  combosByZone: Partial<Record<Zone, ZoneCombination[]>>;
-  chemistryPairs: PlayerChemistryPair[];
   positionFit: PositionFitRow[];
   headToHead: HeadToHeadRecord[];
   quarterScoring: QuarterScoringRow[];
@@ -63,8 +55,6 @@ export function DashboardShell({
   selectedYear,
   playerNames,
   playerStats,
-  combosByZone,
-  chemistryPairs,
   positionFit,
   headToHead,
   quarterScoring,
@@ -107,30 +97,7 @@ export function DashboardShell({
           <PlayerStatsTable stats={playerStats} hasData={hasZoneData} />
         </Section>
 
-        {/* 2. Winning combinations */}
-        <Section title="Winning combinations">
-          <WinningCombinations
-            combosByZone={combosByZone}
-            playerNames={playerNames}
-            hasData={hasZoneData && hasScoringData}
-          />
-        </Section>
-
-        {/* 3. Minutes equity */}
-        <Section title="Minutes equity">
-          <MinutesEquity stats={playerStats} hasData={hasZoneData} />
-        </Section>
-
-        {/* 4. Player chemistry */}
-        <Section title="Player chemistry — top pairs">
-          <PlayerChemistry
-            pairs={chemistryPairs}
-            playerNames={playerNames}
-            hasData={hasZoneData && hasScoringData}
-          />
-        </Section>
-
-        {/* 5. Position fit */}
+        {/* Position fit */}
         <Section title="Position fit">
           <PositionFit
             rows={positionFit}
