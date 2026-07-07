@@ -16,7 +16,7 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
-import { ZoneTimeBar } from "@/components/live/ZoneTimeBar";
+import { ZoneTimePercents } from "@/components/live/ZoneTimePercents";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   Eyebrow,
@@ -968,7 +968,7 @@ export function LineupPicker({
                             {/* Season time-in-zone — helps a coach setting
                                 the lineup by hand start a kid in a zone
                                 they've had least of. Steve 2026-07-07. */}
-                            <ZoneTimeBar zones={season[pid]} className="w-24" />
+                            <ZoneTimePercents zones={season[pid]} />
                           </span>
                           {isSelected ? (
                             <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
