@@ -155,7 +155,6 @@ export function QuarterBreak({
   players,
   season,
   seasonAvailability,
-  zoneCaps,
   positionModel,
   currentOnFieldSize,
   minOnFieldSize,
@@ -174,27 +173,13 @@ export function QuarterBreak({
   // count below default (e.g. 15→13), the zone header still
   // reads `3 / 5` rather than `3 / 4` so the missing slots are
   // visible, and the + Add row stays surfaced until the zone is
-  // at default capacity. zoneCaps remains the source of truth
-  // for the suggester / placement loop. Steve 2026-05-20.
+  // at default capacity. `effectiveZoneCaps` (below) is the source
+  // of truth for the suggester / placement loop. Steve 2026-05-20.
   const displayZoneCaps = useMemo(
     () => zoneCapsFor(defaultOnFieldSize, positionModel),
     [defaultOnFieldSize, positionModel],
   );
 
-  // Effective suggester caps preserve the previous quarter's
-  // zone shape on short-squad games. Pure logic lives in
-  // `deriveEffectiveZoneCaps` in lib/fairness.ts so it's unit-
-  // testable across the AFL age-group matrix. Without this the
-  // suggester would re-derive caps from `currentOnFieldSize` via
-  // the priority `[mid, back, fwd]` and always park the blank
-  // slot in FWD on 11/12 — wiping the coach's Q1 manual
-  // move-to-Backs the moment Q2's break opens. Steve 2026-05-23
-  // from match-day feedback.
-  const effectiveZoneCaps = useMemo<ZoneCaps>(
-    () =>
-      deriveEffectiveZoneCaps(lineup, currentOnFieldSize, positionModel, zoneCaps),
-    [lineup, zoneCaps, currentOnFieldSize, positionModel],
-  );
   const currentQuarter = useLiveGame((s) => s.currentQuarter);
   // Steve 2026-05-16: parity with netball Q-break, which has been
   // surfacing a per-player goal-count badge on its tiles since the
@@ -350,6 +335,32 @@ export function QuarterBreak({
   const sidelinedIdsInLineup = useMemo(
     () => availableForLineup.filter((p) => sidelinedSet.has(p.id)).map((p) => p.id),
     [availableForLineup, sidelinedSet]
+  );
+
+  // Effective suggester caps preserve the previous quarter's zone shape.
+  // Two failure modes this fixes:
+  //   1. Coach's manual blank-in-a-zone choice (same on-field count) —
+  //      the original 2026-05-23 fix.
+  //   2. SHORT SQUAD: fewer available players than the configured
+  //      on-field size (e.g. 10 kids in a 12-slot U10 game running
+  //      3/4/3). Here the effective size is the healthy-player count, so
+  //      `deriveEffectiveZoneCaps` preserves the coach's split instead of
+  //      re-padding to the age-group default 4/4/4 every break. Without
+  //      the `min`, the previous 3/4/3 (=10) never equalled 12 and always
+  //      fell back to the default. Steve 2026-07-07 match-day bug.
+  const effectiveOnFieldSize = Math.min(
+    currentOnFieldSize,
+    healthyForLineup.length,
+  );
+  const effectiveZoneCaps = useMemo<ZoneCaps>(
+    () =>
+      deriveEffectiveZoneCaps(
+        lineup,
+        effectiveOnFieldSize,
+        positionModel,
+        zoneCapsFor(effectiveOnFieldSize, positionModel),
+      ),
+    [lineup, effectiveOnFieldSize, positionModel],
   );
 
   const nextQuarter = currentQuarter + 1;

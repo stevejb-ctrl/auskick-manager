@@ -13,6 +13,7 @@ import {
   suggestStartingLineup,
   seasonZoneMinutes,
   zoneCapsFor,
+  deriveEffectiveZoneCaps,
   zoneTeammatesFromLineup,
   ALL_ZONES,
   emptyZoneMs,
@@ -119,6 +120,22 @@ function resolveChips(input: ProjectGamePlanInput): {
   return { chipByPlayerId, chipModeByKey: input.chipModeByKey ?? {} };
 }
 
+// Build a full AFL Lineup from a groupId->ids map (the coach's current
+// on-field shape). Zones not present in the map default to empty; bench
+// is irrelevant to zone-cap derivation so it stays empty.
+function groupsToLineup(groups: Record<string, string[]>): Lineup {
+  const lineup: Lineup = {
+    back: [],
+    hback: [],
+    mid: [],
+    hfwd: [],
+    fwd: [],
+    bench: [],
+  };
+  for (const z of ALL_ZONES) lineup[z] = [...(groups[z] ?? [])];
+  return lineup;
+}
+
 // ─── AFL — loop the zone-minutes suggester across quarters ───
 function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   const cfg = getSportConfig("afl");
@@ -129,13 +146,35 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   const { label, plural } = resolvePeriodLabels(cfg, ag);
   const short = periodShortLabel(label);
 
+  const model: PositionModel = ag.zones.length >= 5 ? "positions5" : "zones3";
+
+  // Effective on-field size FITS the squad: a short squad (fewer players
+  // than the configured slots — e.g. 10 kids in a 12-slot game) plays what
+  // it has, so caps are computed for the available count, not the config.
+  // Steve 2026-07-07 match-day bug.
+  const availableCount = input.players.length;
+  const effectiveSize = Math.max(0, Math.min(onFieldSize, availableCount));
+
   // Rolling subs only bite when there's a bench to rotate. A short
   // squad (everyone on every period) plays whole periods — no queue, no
   // minute correction — so it keeps the plain whole-period totals.
-  const rotates = input.players.length > onFieldSize;
+  const rotates = availableCount > effectiveSize;
 
-  const model: PositionModel = ag.zones.length >= 5 ? "positions5" : "zones3";
-  const zoneCaps: ZoneCaps = zoneCapsFor(onFieldSize, model);
+  // Caps for the projected periods. When the coach's current on-field
+  // shape is known (live plan-ahead / break), LOCK it in via
+  // `deriveEffectiveZoneCaps` so every projected period keeps that split
+  // instead of snapping back to the age-group default. Falls back to the
+  // fit-to-squad default for cold pre-game plans or when the shape no
+  // longer matches the available count (e.g. a player just became free).
+  const fallbackCaps = zoneCapsFor(effectiveSize, model);
+  const zoneCaps: ZoneCaps = input.currentGroups
+    ? deriveEffectiveZoneCaps(
+        groupsToLineup(input.currentGroups),
+        effectiveSize,
+        model,
+        fallbackCaps,
+      )
+    : fallbackCaps;
   const season: PlayerZoneMinutes = seasonZoneMinutes(input.seasonEvents ?? []);
   const { chipByPlayerId, chipModeByKey } = resolveChips(input);
   // The suggester only reads `.id` off each player; the slim shape is fine.
