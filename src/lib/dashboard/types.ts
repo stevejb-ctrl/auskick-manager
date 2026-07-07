@@ -47,6 +47,14 @@ export interface GameSnapshot {
    * available time". Mirrors netball's `gameLengthMs`.
    */
   gameLengthMs: number;
+  /**
+   * Per-player AVAILABLE time in ms = `gameLengthMs` minus the time
+   * before the player joined the game. A starter is the full game length;
+   * a LATE ARRIVAL is only charged from when they showed up, so they're
+   * not penalised in "% of available time" for minutes they were never
+   * there for. Keyed by player id; players who never appeared are absent.
+   */
+  playerAvailableMs: Record<string, number>;
 }
 
 export interface PlayerSeasonStats {

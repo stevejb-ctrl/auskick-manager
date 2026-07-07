@@ -74,6 +74,12 @@ export function replayGame(
   // Total game playing time — accumulated per quarter at quarter_end.
   // Denominator for "% of available time".
   let gameLengthMs = 0;
+  // Absolute game-elapsed ms at which each player FIRST became part of
+  // the game (in a lineup, subbed on, or added as a late arrival). A
+  // starter is 0; a late arrival is their arrival time. Drives per-player
+  // "available time" so a late arrival isn't charged for the minutes
+  // before they showed up. Steve 2026-07-07.
+  const firstSeenAbsMs: Record<string, number> = {};
 
   // Goals collected during active quarters — assigned to periods after all
   // events are processed (goals and swaps may interleave in created_at order).
@@ -106,6 +112,13 @@ export function replayGame(
   for (const ev of sorted) {
     const meta = ev.metadata as Record<string, unknown>;
     const elapsed = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
+    // Stamp a player's first appearance (absolute game-elapsed = finished
+    // quarters + this quarter's elapsed). Only the earliest sticks.
+    const seeFirst = (pid: string) => {
+      if (pid && firstSeenAbsMs[pid] === undefined) {
+        firstSeenAbsMs[pid] = gameLengthMs + elapsed;
+      }
+    };
 
     switch (ev.type) {
       case "lineup_set": {
@@ -116,10 +129,12 @@ export function replayGame(
           for (const z of ALL_ZONES) {
             for (const pid of lineup[z]) {
               if (!playerIds.includes(pid)) playerIds.push(pid);
+              seeFirst(pid);
             }
           }
           for (const pid of lineup.bench) {
             if (!playerIds.includes(pid)) playerIds.push(pid);
+            seeFirst(pid);
           }
         }
         break;
@@ -166,6 +181,7 @@ export function replayGame(
         stints[on] = { zone, startMs: elapsed };
         subsIn[on] = (subsIn[on] ?? 0) + 1;
         if (!playerIds.includes(on)) playerIds.push(on);
+        seeFirst(on);
         break;
       }
 
@@ -230,6 +246,9 @@ export function replayGame(
           lineup.bench.push(ev.player_id);
           if (!playerIds.includes(ev.player_id)) playerIds.push(ev.player_id);
         }
+        // A late arrival's available time starts now — even if they never
+        // make it onto the field, they were present from this point.
+        if (ev.player_id) seeFirst(ev.player_id);
         break;
       }
 
@@ -330,6 +349,14 @@ export function replayGame(
     }
   }
 
+  // Per-player available time = the game length minus however long they
+  // weren't there yet (0 for starters; the pre-arrival gap for a late
+  // arrival). Bounded to [0, gameLengthMs].
+  const playerAvailableMs: Record<string, number> = {};
+  for (const [pid, seen] of Object.entries(firstSeenAbsMs)) {
+    playerAvailableMs[pid] = Math.max(0, gameLengthMs - seen);
+  }
+
   // Assign pending goals to lineup periods by time
   for (const goal of pendingGoals) {
     for (const period of lineupPeriods) {
@@ -357,6 +384,7 @@ export function replayGame(
     lineupPeriods,
     playerIds,
     gameLengthMs,
+    playerAvailableMs,
   };
 }
 
@@ -411,6 +439,7 @@ export function bucketFillIns(
     subsIn: mergeNumberMap(snapshot.subsIn),
     subsOut: mergeNumberMap(snapshot.subsOut),
     playerLoanMs: mergeNumberMap(snapshot.playerLoanMs),
+    playerAvailableMs: mergeNumberMap(snapshot.playerAvailableMs),
     lineupPeriods,
     playerIds,
   };

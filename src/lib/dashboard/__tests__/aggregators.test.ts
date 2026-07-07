@@ -517,3 +517,62 @@ describe("replayGame — clamps a runaway clock (Steve 2026-07-07)", () => {
     expect(snap.playerZoneMs["p1"].fwd).toBe(12 * 60_000);
   });
 });
+
+describe("late arrival — counted + fairly credited (Steve 2026-07-07)", () => {
+  // 2-quarter game. p1..p6 start; "latey" turns up at the Q2 break
+  // (player_arrived) and is subbed on for p2 for the whole of Q2.
+  function lateArrivalEvents(): GameEvent[] {
+    _seq = 0;
+    return [
+      makeEvent({
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ["p5", "p6"], hback: [], mid: ["p3", "p4"], hfwd: [], fwd: ["p1", "p2"], bench: [] },
+        },
+      }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+      // Late arrival shows up for the second half.
+      makeEvent({ type: "player_arrived", player_id: "latey", metadata: { quarter: 2, elapsed_ms: 0 } }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 2 } }),
+      makeEvent({ type: "swap", metadata: { off_player_id: "p2", on_player_id: "latey", zone: "fwd", quarter: 2, elapsed_ms: 0 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 2, elapsed_ms: 720_000 } }),
+    ];
+  }
+
+  const snap = replayGame("g1", lateArrivalEvents());
+
+  it("charges the late arrival available time only from when they arrived", () => {
+    // Full game is 24 min; latey was only there for the 12-min second half.
+    expect(snap.gameLengthMs).toBe(1_440_000);
+    expect(snap.playerAvailableMs["latey"]).toBe(720_000);
+    expect(snap.playerAvailableMs["p1"]).toBe(1_440_000);
+  });
+
+  it("counts the late arrival as attended (played), not as an absentee", () => {
+    const att = computeAttendance(
+      [makePlayer("latey", 50)],
+      [makeGame("g1")],
+      [],
+      [snap],
+    );
+    const row = att.find((r) => r.playerId === "latey");
+    expect(row?.gamesPlayed).toBe(1);
+    expect(row?.attendancePct).toBe(100);
+  });
+
+  it("gives the late arrival 100% of available time (not penalised for the half they missed)", () => {
+    const stats = computePlayerStats(
+      [makePlayer("latey", 50), makePlayer("p2", 2)],
+      [snap],
+      [makeGame("g1")],
+    );
+    const pct = (id: string) =>
+      stats.find((s) => s.playerId === id)?.teamGameTimePct;
+    // latey played all 12 min of their available (second-half) time → 100%.
+    // With the old whole-game denominator they'd read 50%.
+    expect(pct("latey")).toBe(100);
+    // p2 played only the first half of a two-half game → 50%.
+    expect(pct("p2")).toBe(50);
+  });
+});

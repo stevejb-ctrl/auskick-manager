@@ -87,9 +87,11 @@ export function computePlayerStats(
         totalMs += gameMs;
         for (const z of ALL_ZONES) zoneMs[z] += zm?.[z] ?? 0;
       }
-      // Present at this game → its full length counts toward available time,
-      // whether they played the whole thing or barely came on.
-      if (snap.playerIds.includes(pid)) availableMs += snap.gameLengthMs;
+      // Present at this game → their available time counts, whether they
+      // played the whole thing or barely came on. A late arrival is only
+      // charged from when they showed up (playerAvailableMs), so they
+      // aren't penalised for minutes before they were there.
+      availableMs += snap.playerAvailableMs[pid] ?? 0;
       goals += snap.playerGoals[pid] ?? 0;
       behinds += snap.playerBehinds[pid] ?? 0;
       siCount += snap.subsIn[pid] ?? 0;
