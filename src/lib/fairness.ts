@@ -108,6 +108,35 @@ export function deriveEffectiveZoneCaps(
   return { ...fallbackCaps, ...fromLineup };
 }
 
+/**
+ * Display caps for the live/break field grid — how many slots each zone
+ * draws. Shows the age-group DEFAULT number of slots when the squad is
+ * big enough (`availableCount >= defaultOnFieldSize`), preserving the
+ * reduced-on-field-size affordance where a coach who trimmed the count
+ * still sees the missing positions as empty placeholder tiles. But when
+ * FEWER players are available than the default — a genuinely short squad
+ * — it collapses to the coach's actual zone shape so phantom empty slots
+ * don't appear for kids who aren't there (which made the live field
+ * disagree with the shape-preserving Q-break). Steve 2026-07-07.
+ *
+ * Pure — extracted so the short-squad-vs-reduced-size distinction is
+ * unit-testable without the React tree.
+ */
+export function effectiveDisplayZoneCaps(
+  lineup: Lineup,
+  availableCount: number,
+  defaultOnFieldSize: number,
+  positionModel: PositionModel,
+): ZoneCaps {
+  const displaySize = Math.max(0, Math.min(defaultOnFieldSize, availableCount));
+  return deriveEffectiveZoneCaps(
+    lineup,
+    displaySize,
+    positionModel,
+    zoneCapsFor(displaySize, positionModel),
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 function emptyZM(): ZoneMinutes {
   return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
