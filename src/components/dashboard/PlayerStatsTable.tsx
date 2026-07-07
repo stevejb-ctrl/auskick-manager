@@ -120,11 +120,12 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
                 />
               </div>
 
-              {/* Zone breakdown */}
+              {/* Zone breakdown — Forward → Centre → Back to match the
+                  in-game order + wording. */}
               <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
-                <ZonePill abbr="B" pct={backPct} tone="b" />
-                <ZonePill abbr="M" pct={midPct} tone="c" />
-                <ZonePill abbr="F" pct={fwdPct} tone="f" />
+                <ZonePill abbr="Fwd" pct={fwdPct} tone="f" />
+                <ZonePill abbr="Cen" pct={midPct} tone="c" />
+                <ZonePill abbr="Back" pct={backPct} tone="b" />
               </div>
 
               {/* Footer: behinds + subs + loaned, only if non-zero */}

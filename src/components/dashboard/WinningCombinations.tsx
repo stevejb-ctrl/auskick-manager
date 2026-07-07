@@ -5,10 +5,14 @@ import { EmptyState } from "./EmptyState";
 const ZONE_LABEL: Record<Zone, string> = {
   back: "Back",
   hback: "Half-back",
-  mid: "Midfield",
+  mid: "Centre",
   hfwd: "Half-forward",
   fwd: "Forward",
 };
+
+// Display zones Forward → Centre → Back (top of the ground down), to
+// match the in-game field order. Half-lines sit next to their family.
+const ZONE_DISPLAY_ORDER: Zone[] = ["fwd", "hfwd", "mid", "hback", "back"];
 
 const MS_PER_MIN = 60_000;
 
@@ -32,7 +36,7 @@ export function WinningCombinations({
     );
   }
 
-  const zones = Object.keys(combosByZone) as Zone[];
+  const zones = ZONE_DISPLAY_ORDER.filter((z) => combosByZone[z] !== undefined);
 
   return (
     <div className="space-y-5">

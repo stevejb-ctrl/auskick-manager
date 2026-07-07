@@ -5,7 +5,7 @@ import { EmptyState } from "./EmptyState";
 const ZONE_LABEL: Record<Zone, string> = {
   back: "Back",
   hback: "H-back",
-  mid: "Mid",
+  mid: "Centre",
   hfwd: "H-fwd",
   fwd: "Fwd",
 };
