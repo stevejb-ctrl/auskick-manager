@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { PlayerSeasonStats } from "@/lib/dashboard/types";
 import { EmptyState } from "./EmptyState";
+import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
+import { buildChatText } from "@/lib/dashboard/playerStatsChat";
 
 const MS_PER_MIN = 60_000;
 const fmt = (ms: number) => Math.round(ms / MS_PER_MIN);
@@ -31,6 +33,7 @@ interface Props {
 
 export function PlayerStatsTable({ stats, hasData }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("totalMs");
+  const [showChat, setShowChat] = useState(false);
 
   if (!hasData || stats.length === 0) {
     return (
@@ -47,23 +50,39 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs">
-        <label htmlFor="player-sort" className="text-ink-dim">
-          Sort by
-        </label>
-        <select
-          id="player-sort"
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-          className="rounded-md border border-hairline bg-surface px-2 py-1 font-medium text-ink focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <label htmlFor="player-sort" className="text-ink-dim">
+            Sort by
+          </label>
+          <select
+            id="player-sort"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="rounded-md border border-hairline bg-surface px-2 py-1 font-medium text-ink focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowChat((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-2.5 py-1 font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          aria-expanded={showChat}
         >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          {showChat ? "Hide chat text" : "Text for group chat"}
+        </button>
       </div>
+
+      {showChat && (
+        <div className="rounded-lg border border-hairline bg-surface p-3">
+          <CopyableTextBlock title="Player stats" text={buildChatText(sorted)} />
+        </div>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
