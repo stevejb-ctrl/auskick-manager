@@ -16,6 +16,8 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
+import { ZoneTimeBar } from "@/components/live/ZoneTimeBar";
+import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   Eyebrow,
   Guernsey,
@@ -871,6 +873,22 @@ export function LineupPicker({
       )}
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
+      {/* Key for the season time-in-zone bar under each player — helps
+          a coach placing the lineup by hand spot who's had least of a
+          zone and start them there. Steve 2026-07-07. */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[11px] font-medium text-ink-dim">
+          Season time in zone
+        </span>
+        <ZoneTimeLegend
+          items={[
+            { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+            { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+            { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+          ]}
+        />
+      </div>
+
       {/* Single column — user feedback 2026-05-20: 2-col was too
           cramped inside the demo phone-frame for the FWD / CENTRE /
           BACK / BENCH cards. */}
@@ -936,15 +954,21 @@ export function LineupPicker({
                           }`}
                         >
                           <Guernsey num={p.jersey_number ?? ""} size={32} />
-                          <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                            {p.chip && (
-                              <ChipIndicator
-                                chipKey={p.chip as ChipKey}
-                                mode={chipModeByKey[p.chip as ChipKey]}
-                                className="mr-1.5 align-middle"
-                              />
-                            )}
-                            {p.full_name}
+                          <span className="flex min-w-0 flex-1 flex-col gap-1">
+                            <span className="truncate font-medium text-ink">
+                              {p.chip && (
+                                <ChipIndicator
+                                  chipKey={p.chip as ChipKey}
+                                  mode={chipModeByKey[p.chip as ChipKey]}
+                                  className="mr-1.5 align-middle"
+                                />
+                              )}
+                              {p.full_name}
+                            </span>
+                            {/* Season time-in-zone — helps a coach setting
+                                the lineup by hand start a kid in a zone
+                                they've had least of. Steve 2026-07-07. */}
+                            <ZoneTimeBar zones={season[pid]} className="w-24" />
                           </span>
                           {isSelected ? (
                             <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
