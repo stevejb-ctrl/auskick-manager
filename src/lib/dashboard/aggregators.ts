@@ -43,16 +43,6 @@ export function computePlayerStats(
 ): PlayerSeasonStats[] {
   const playerMap = new Map(players.map((p) => [p.id, p]));
 
-  // Total possible on-field ms = sum of all zone ms across all games
-  const totalTeamMs = snapshots.reduce((sum, snap) => {
-    return (
-      sum +
-      Object.values(snap.playerZoneMs).reduce((s, zm) => {
-        return s + ALL_ZONES.reduce((z2, z) => z2 + zm[z], 0);
-      }, 0)
-    );
-  }, 0);
-
   // Players who actually took part (had non-zero zone time OR were loaned to
   // the opposition in at least one game).
   const allPlayerIds = new Set<string>();
@@ -75,6 +65,13 @@ export function computePlayerStats(
 
     let gamesPlayed = 0;
     let totalMs = 0;
+    // Available time = the full playing time of every game this player was
+    // PRESENT for (in a lineup, field or bench). Dividing on-field time by
+    // this gives "% of available time" — i.e. how much of the time they
+    // COULD have been on, they actually were. A never-benched ever-present
+    // player is 100%; a heavy bencher is lower. This is what surfaces who's
+    // sitting more than their team-mates. Steve 2026-07-07.
+    let availableMs = 0;
     const zoneMs = emptyZoneMs();
     let goals = 0;
     let behinds = 0;
@@ -90,6 +87,9 @@ export function computePlayerStats(
         totalMs += gameMs;
         for (const z of ALL_ZONES) zoneMs[z] += zm?.[z] ?? 0;
       }
+      // Present at this game → its full length counts toward available time,
+      // whether they played the whole thing or barely came on.
+      if (snap.playerIds.includes(pid)) availableMs += snap.gameLengthMs;
       goals += snap.playerGoals[pid] ?? 0;
       behinds += snap.playerBehinds[pid] ?? 0;
       siCount += snap.subsIn[pid] ?? 0;
@@ -98,7 +98,9 @@ export function computePlayerStats(
     }
 
     const teamGameTimePct =
-      totalTeamMs > 0 ? Math.round((totalMs / totalTeamMs) * 100) : 0;
+      availableMs > 0
+        ? Math.min(100, Math.round((totalMs / availableMs) * 100))
+        : 0;
 
     stats.push({
       playerId: pid,

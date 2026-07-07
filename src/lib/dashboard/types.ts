@@ -40,6 +40,13 @@ export interface GameSnapshot {
   lineupPeriods: LineupPeriod[];
   /** All player IDs seen in any lineup_set event for this game. */
   playerIds: string[];
+  /**
+   * Total playing time of the game in ms — sum of every quarter's
+   * `quarter_end` elapsed_ms. This is the on-field time a player who was
+   * never benched would accrue, so it's the denominator for "% of
+   * available time". Mirrors netball's `gameLengthMs`.
+   */
+  gameLengthMs: number;
 }
 
 export interface PlayerSeasonStats {
@@ -54,7 +61,11 @@ export interface PlayerSeasonStats {
   behinds: number;
   subsIn: number;
   subsOut: number;
-  /** % of total possible on-field time across games they played. */
+  /**
+   * % of AVAILABLE time on the field: on-field ms / the total playing
+   * time of every game the player was present for. 100% = never benched
+   * across every game attended; lower = more time on the bench.
+   */
   teamGameTimePct: number;
   /** Total ms lent to the opposition across the season. */
   loanMs: number;

@@ -52,6 +52,9 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
   let currentQuarter = 0;
   let periodStartMs = 0;
   let quarterActive = false;
+  // Total game playing time — accumulated per quarter at quarter_end.
+  // Denominator for "% of available time".
+  let gameLengthMs = 0;
 
   // Goals collected during active quarters — assigned to periods after all
   // events are processed (goals and swaps may interleave in created_at order).
@@ -162,6 +165,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
         }
 
         closePeriod(qe);
+        gameLengthMs += qe;
         quarterActive = false;
         break;
       }
@@ -333,6 +337,7 @@ export function replayGame(gameId: string, events: GameEvent[]): GameSnapshot {
     oppScoreByQtr,
     lineupPeriods,
     playerIds,
+    gameLengthMs,
   };
 }
 

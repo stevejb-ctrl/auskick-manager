@@ -414,6 +414,38 @@ describe("computePlayerStats — null jersey", () => {
   });
 });
 
+describe("computePlayerStats — % of available time (Steve 2026-07-07)", () => {
+  // buildSingleQtrEvents is one 12-min (720_000 ms) quarter:
+  //   p1 — fwd the whole quarter                → 720_000 ms on field
+  //   p2 — fwd, subbed off at 120_000           → 120_000 ms
+  //   p7 — starts on the bench, on at 120_000   → 600_000 ms
+  // All three are PRESENT (in the lineup_set), so their available time is
+  // the full 720_000 game length. The metric must be on-field / available,
+  // NOT the old share-of-whole-team-time (which put p1 at ~17%).
+  const players = [
+    makePlayer("p1", 1),
+    makePlayer("p2", 2),
+    makePlayer("p7", 7),
+  ];
+  const snap = replayGame("g1", buildSingleQtrEvents());
+  const stats = computePlayerStats(players, [snap], [makeGame("g1")]);
+  const pctOf = (id: string) =>
+    stats.find((s) => s.playerId === id)?.teamGameTimePct;
+
+  it("gives a never-benched, ever-present player 100%", () => {
+    expect(pctOf("p1")).toBe(100);
+  });
+
+  it("scales with bench time — a half-benched player is well under 100%", () => {
+    expect(pctOf("p2")).toBe(17); // 120_000 / 720_000
+    expect(pctOf("p7")).toBe(83); // 600_000 / 720_000
+  });
+
+  it("captures the full game length as the denominator", () => {
+    expect(snap.gameLengthMs).toBe(720_000);
+  });
+});
+
 describe("computeAttendance — null jersey", () => {
   it("propagates null jerseyNumber when player has no jersey set", () => {
     const player = makePlayer("p1", null);
