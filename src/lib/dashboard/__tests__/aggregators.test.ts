@@ -623,3 +623,40 @@ describe("early departure / injury — unavailable time not counted (Steve 2026-
     expect(pct("p2")).toBe(100);
   });
 });
+
+describe("loan minutes — bounded to the loaned period (Steve 2026-07-07)", () => {
+  // p1 is loaned 1 min into Q1 and comes back in the Q2 lineup, but the
+  // coach never fired an explicit "returned" event. The loan must be
+  // charged for Q1 only (the coach fielded them again in Q2), NOT kept
+  // open and accrued through every later quarter to the final hooter.
+  function loanNoReturnEvents(): GameEvent[] {
+    _seq = 0;
+    const lineup = {
+      back: ["p5", "p6"], hback: [], mid: ["p3", "p4"], hfwd: [], fwd: ["p1", "p2"], bench: [],
+    };
+    return [
+      makeEvent({ type: "lineup_set", metadata: { lineup } }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+      makeEvent({ type: "player_loan", player_id: "p1", metadata: { loaned: true, quarter: 1, elapsed_ms: 60_000 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+      // Coach fields p1 again in Q2 → their loan has ended.
+      makeEvent({ type: "lineup_set", metadata: { lineup } }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 2 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 2, elapsed_ms: 720_000 } }),
+    ];
+  }
+
+  it("charges only the quarter the player was actually loaned", () => {
+    const snap = replayGame("g1", loanNoReturnEvents());
+    // Loaned from 60s to the Q1 hooter (720s) = 660s. NOT Q1 + Q2.
+    expect(snap.playerLoanMs["p1"]).toBe(660_000);
+  });
+
+  it("doesn't over-subtract the phantom loan from available time", () => {
+    const snap = replayGame("g1", loanNoReturnEvents());
+    const stats = computePlayerStats([makePlayer("p1", 1)], [snap], [makeGame("g1")]);
+    // p1 played 1 min of Q1 (before the loan) + all of Q2 = 780s, and was
+    // available for that same 780s (game length minus the Q1 loan). 100%.
+    expect(stats.find((s) => s.playerId === "p1")?.teamGameTimePct).toBe(100);
+  });
+});
