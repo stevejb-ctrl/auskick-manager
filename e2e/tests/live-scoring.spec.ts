@@ -130,6 +130,65 @@ test("record a goal via the live UI and see it in game_events", async ({
     .toBeGreaterThanOrEqual(1);
 });
 
+// UX review #5 (Steve 2026-07-08): a coach who saw the ball sail
+// through but missed the kicker previously had only Cancel — which
+// silently lost the goal. The +G picker now has a "Didn't see who"
+// escape that records a team goal with no scorer (the rushed-behind
+// mechanism applied to goals).
+test("record an unattributed goal via 'Didn't see who'", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 15,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Our team's +G chip on the scorebug (first of the two) opens the
+  // who-scored picker.
+  await page.getByRole("button", { name: /^\+G$/ }).first().click();
+  await page
+    .getByRole("button", { name: /didn't see who/i })
+    .click();
+
+  await expect
+    .poll(
+      async () => {
+        const { data: events } = await admin
+          .from("game_events")
+          .select("player_id, metadata")
+          .eq("game_id", game.id)
+          .eq("type", "goal");
+        const ev = events?.[0] as
+          | { player_id: string | null; metadata: { unattributed?: boolean } }
+          | undefined;
+        return ev ? `${ev.player_id}|${ev.metadata?.unattributed}` : "none";
+      },
+      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+    )
+    .toBe("null|true");
+});
+
 test("undo last score removes the most recent goal from the tally", async ({
   page,
 }) => {

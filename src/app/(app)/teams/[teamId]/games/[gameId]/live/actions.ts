@@ -681,7 +681,16 @@ export async function addLateArrival(
 export async function recordGoal(
   auth: LiveAuth,
   gameId: string,
-  input: { player_id: string; quarter: number; elapsed_ms: number },
+  input: {
+    /** Null when the coach didn't see who kicked it — the goal counts
+     *  for the team but skips the per-player tally, mirroring rushed
+     *  behinds. Tagged `unattributed` in metadata so reporting can
+     *  distinguish it from a normal scorer-credited goal. */
+    player_id: string | null;
+    quarter: number;
+    elapsed_ms: number;
+    unattributed?: boolean;
+  },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   return insertEvent(
@@ -690,7 +699,11 @@ export async function recordGoal(
     "goal",
     {
       player_id: input.player_id,
-      metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+      metadata: {
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.unattributed ? { unattributed: true } : {}),
+      },
     },
     idempotencyKey,
   );
