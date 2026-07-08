@@ -1256,21 +1256,17 @@ export function QuarterBreak({
             </span>
             <span className="text-xs text-ink-mute">
               {(() => {
-                // Summary line — Steve 2026-05-13 follow-up: always
-                // lead with the rotation mode AND always surface
-                // lent/injured status (even when both are zero) so
-                // the closed header doubles as a discovery hint for
-                // what's inside the collapse. A coach who doesn't
-                // know they can lend/mark-injured at the break sees
-                // "No lent · No injured" and learns the affordances
-                // exist. Size still only shows when non-default —
-                // it's a numeric value not a list, the "no" framing
-                // doesn't fit.
+                // Summary line — always surface lent/injured status
+                // (even when both are zero) so the closed header
+                // doubles as a discovery hint for what's inside the
+                // collapse. A coach who doesn't know they can lend/
+                // mark-injured at the break sees "No lent · No
+                // injured" and learns the affordances exist. Size
+                // only shows when non-default. The rotation mode no
+                // longer leads here — the toggle moved out of the
+                // collapse to sit above the zone cards (UX review
+                // #7, Steve 2026-07-08).
                 const bits: string[] = [];
-                if (lineupMode === "suggested") bits.push("Auto-rebalanced");
-                else if (lineupMode === "rotate") bits.push("Lines rotated");
-                else if (lineupMode === "keep") bits.push("Keeping last Q");
-                else bits.push("Manual lineup");
                 if (currentOnFieldSize !== defaultOnFieldSize) {
                   bits.push(`${currentOnFieldSize} on field`);
                 }
@@ -1314,32 +1310,6 @@ export function QuarterBreak({
             id="qb-match-adjustments"
             className="space-y-4 border-t border-hairline px-4 py-3"
           >
-            {/* Rotation mode. Lifted from the header card here so the
-                header stays clean. Three modes — Suggested rotates per
-                the fairness scorer (default), Keep carries Q{n} forward
-                unchanged for a one-off "same again" quarter, Manual
-                wipes the field for a from-scratch build. */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Rotation</p>
-              <RotationModeToggle
-                mode={lineupMode}
-                options={[
-                  { value: "suggested", label: "Suggested" },
-                  { value: "rotate", label: "Rotate lines" },
-                  { value: "keep", label: "Keep last quarter" },
-                  { value: "manual", label: "Set manually" },
-                ]}
-                onChange={(next) => {
-                  setLineupMode(next);
-                  // "keep" is a per-Q decision — DON'T persist it to
-                  // the store. It's "I want THIS quarter's lineup
-                  // carried forward", not a default. Next Q-break
-                  // falls back to whatever was previously persisted.
-                  if (next !== "keep") setPersistedRotationMode(next);
-                }}
-              />
-            </div>
-
             {/* On-field size dropdown */}
             <div>
               <label
@@ -1893,6 +1863,34 @@ export function QuarterBreak({
         </div>
         );
       })()}
+
+      {/* Rotation mode — surfaced ABOVE the zone cards, not buried in
+          the Game-settings collapse, so "Rotate lines" / "Set manually"
+          are discoverable at the moment they matter (UX review #7,
+          Steve 2026-07-08). Suggested reshuffles per the fairness
+          scorer; Rotate lines shifts everyone one line; Keep carries
+          the quarter forward; Manual wipes for a from-scratch build. */}
+      {availableForLineup.length > 0 && (
+        <div className="px-1">
+          <RotationModeToggle
+            mode={lineupMode}
+            options={[
+              { value: "suggested", label: "Suggested" },
+              { value: "rotate", label: "Rotate lines" },
+              { value: "keep", label: "Keep last quarter" },
+              { value: "manual", label: "Set manually" },
+            ]}
+            onChange={(next) => {
+              setLineupMode(next);
+              // "keep" is a per-Q decision — DON'T persist it to
+              // the store. It's "I want THIS quarter's lineup
+              // carried forward", not a default. Next Q-break
+              // falls back to whatever was previously persisted.
+              if (next !== "keep") setPersistedRotationMode(next);
+            }}
+          />
+        </div>
+      )}
 
       {availableForLineup.length > 0 && (
         <p className="px-1 text-xs text-ink-dim">
