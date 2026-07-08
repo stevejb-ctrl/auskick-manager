@@ -31,13 +31,11 @@ test("team admin toggles a player's availability for a game", async ({
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
-  // The original spec assumed "all players default to available", but
-  // since the AvailabilityRow rework that's no longer true: a fresh
-  // game has NO game_availability rows, AvailabilityRow renders status
-  // "unknown" with the button label "Unavailable", and
-  // `nextStatus.unknown = "available"` — so clicking once flips them
-  // TO available, not the other way. To verify a flip from "available"
-  // to "unavailable", click twice: unknown → available → unavailable.
+  // UX review #11 (Steve 2026-07-08): each row is now ONE segmented
+  // In / Out control — tap the state you want. A fresh game has NO
+  // game_availability rows, so every row starts as "Out" (unknown).
+  // Click In (unknown → available), wait for the active state, then
+  // click Out (available → unavailable).
   const target = players[0];
 
   await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
@@ -46,19 +44,15 @@ test("team admin toggles a player's availability for a game", async ({
     .getByRole("listitem")
     .filter({ hasText: target.full_name })
     .first();
-  // Click 1: unknown → available. Button labels are now action verbs
-  // (renamed 2026-05-09 from current-state to "Mark available" /
-  // "Mark unavailable" — Stagehand showed the previous state-as-label
-  // pattern confused both the agent persona AND a kid persona, who
-  // tapped "Unavailable" thinking that was the action). The button
-  // reads "Mark available" until it flips, then becomes "Mark
-  // unavailable".
-  await row.getByRole("button", { name: /^mark available$/i }).click();
+  const inBtn = row.getByRole("button", { name: /^in$/i });
+  const outBtn = row.getByRole("button", { name: /^out$/i });
+  // Click 1: unknown → available.
+  await inBtn.click();
   // Wait for the round-trip to land before clicking again — otherwise
   // we race and may double-fire on stale state.
-  await expect(row.getByRole("button", { name: /^mark unavailable$/i })).toBeVisible();
+  await expect(inBtn).toHaveAttribute("aria-pressed", "true");
   // Click 2: available → unavailable.
-  await row.getByRole("button", { name: /^mark unavailable$/i }).click();
+  await outBtn.click();
 
   await expect
     .poll(
@@ -74,6 +68,50 @@ test("team admin toggles a player's availability for a game", async ({
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe("unavailable");
+});
+
+// UX review #11 (Steve 2026-07-08): the everyone-showed-up fast path.
+// One "Mark all N in" tap replaces N individual row taps.
+test("Mark all in marks the whole squad available in one tap", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, {
+    teamId: team.id,
+    ownerId,
+    count: 12,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
+
+  await page.getByRole("button", { name: /^mark all 12 in$/i }).click();
+
+  // Every squad player ends up available…
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_availability")
+          .select("status")
+          .eq("game_id", game.id)
+          .eq("status", "available");
+        return data?.length ?? 0;
+      },
+      { timeout: 10_000, intervals: [300, 500, 500, 1000, 1000, 2000] },
+    )
+    .toBe(players.length);
+
+  // …and the bulk button disappears (nothing left to mark).
+  await expect(
+    page.getByRole("button", { name: /mark all .* in/i }),
+  ).toHaveCount(0, { timeout: 10_000 });
 });
 
 // Regression for the "couple-of-seconds dead tap" Steve saw 2026-05-13

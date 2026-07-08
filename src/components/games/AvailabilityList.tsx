@@ -10,6 +10,7 @@ import type {
 import { AvailabilityRow } from "@/components/games/AvailabilityRow";
 import { AddFillInForm } from "@/components/games/AddFillInForm";
 import { FillInRow } from "@/components/games/FillInRow";
+import { MarkAllInButton } from "@/components/games/MarkAllInButton";
 
 interface AvailabilityListProps {
   auth: LiveAuth;
@@ -77,11 +78,9 @@ export async function AvailabilityList({
   }
 
   let available = 0;
-  let unavailable = 0;
   for (const p of squad) {
     const s = availMap.get(p.id) ?? "unknown";
     if (s === "available") available++;
-    else unavailable++;
   }
   // Fill-ins are always available — addFillIn stamps an availability row for them.
   available += fillIns.length;
@@ -102,9 +101,14 @@ export async function AvailabilityList({
   const needsMore =
     typeof requiredAvailable === "number" && available < requiredAvailable;
   const totalRoster = squad.length + fillIns.length;
+  // Squad players not currently In — feeds the bulk "Mark all in"
+  // button (the everyone-showed-up fast path, UX review #11).
+  const notInIds = squad
+    .filter((p) => (availMap.get(p.id) ?? "unknown") !== "available")
+    .map((p) => p.id);
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${
             needsMore
@@ -112,11 +116,11 @@ export async function AvailabilityList({
               : "border-ok/30 bg-ok/10 text-ok"
           }`}
         >
-          {`${available} of ${totalRoster} available`}
+          {`${available} of ${totalRoster} in`}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-alt px-3 py-1 font-semibold text-ink-mute">
-          {unavailable} unavailable
-        </span>
+        {canMarkAvailability && (
+          <MarkAllInButton auth={auth} gameId={gameId} notInIds={notInIds} />
+        )}
       </div>
       {needsMore && (
         <p className="text-xs text-ink-dim">
