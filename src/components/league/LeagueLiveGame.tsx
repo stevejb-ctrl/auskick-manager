@@ -1719,6 +1719,7 @@ export function LeagueLiveGame({
       <LiveTopBar
         exitHref={exitHref}
         game={game}
+        isLive={state.currentQuarter > 0}
         onHelp={handleOpenWalkthrough}
       />
       {walkthroughOpen && (
