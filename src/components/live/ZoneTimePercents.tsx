@@ -24,13 +24,10 @@ export function ZoneTimePercents({
   const back = (zones?.back ?? 0) + (zones?.hback ?? 0);
   const total = fwd + mid + back;
 
-  if (total <= 0) {
-    return (
-      <span className={`text-[11px] text-ink-mute ${className}`}>
-        No season time yet
-      </span>
-    );
-  }
+  // No history → render nothing. The old per-row "No season time yet"
+  // repeated 13× on a fresh team; the parent shows ONE squad-level note
+  // instead (UX review #8, Steve 2026-07-08).
+  if (total <= 0) return null;
 
   const pct = (v: number) => Math.round((v / total) * 100);
   return (

@@ -62,15 +62,12 @@ test("pre-kickoff lineup renders a full field of players", async ({
     ).toHaveCount(1, { timeout: 5_000 });
   }
 
-  // Season time-in-zone breakdown (Steve 2026-07-07): the picker shows a
-  // per-player per-position % indicator + a Fwd/Centre/Back key so a coach
-  // setting the lineup by hand can start kids in a zone they've had least
-  // of. This is a brand-new team, so every player reads "No season time
-  // yet" — which confirms the ZoneTimePercents indicator itself renders.
-  await expect(page.getByText(/season time in zone/i)).toBeVisible();
-  const legend = page.locator('[aria-label="Time-in-zone colour key"]');
-  await expect(legend).toContainText("Fwd");
-  await expect(legend).toContainText("Centre");
-  await expect(legend).toContainText("Back");
-  await expect(page.getByText(/no season time yet/i).first()).toBeVisible();
+  // Season time-in-zone breakdown (Steve 2026-07-07, revised 2026-07-08
+  // UX review #8): on a brand-new team NOBODY has zone history, so the
+  // picker collapses the per-player %s + key to ONE squad-level note
+  // instead of repeating "No season time yet" under all 15 rows.
+  await expect(
+    page.getByText(/zone history appears under each player/i),
+  ).toBeVisible();
+  await expect(page.getByText(/season time in zone/i)).toHaveCount(0);
 });
