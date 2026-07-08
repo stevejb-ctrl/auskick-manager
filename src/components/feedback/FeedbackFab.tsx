@@ -8,10 +8,14 @@ interface FeedbackFabProps {
   kind: FeedbackKind;
   /**
    * Path suffixes on which the FAB should NOT render. Default
-   * `["/live"]` — the in-game UI has its own chrome-aware feedback
-   * trigger inside `LiveTopBar` (FeedbackHeaderButton), so the
-   * floating button stays out of the way mid-game where it was
-   * overlapping the opposition +G/+B chips.
+   * `["/live", "/availability"]`:
+   *   - /live — the in-game UI has its own chrome-aware feedback
+   *     trigger inside `LiveTopBar` (FeedbackHeaderButton), so the
+   *     floating button stays out of the way mid-game where it was
+   *     overlapping the opposition +G/+B chips.
+   *   - /availability — the pre-game availability step ends in a
+   *     sticky "Continue to lineup" footer the FAB sat on top of
+   *     (UX review #10, Steve 2026-07-08).
    *
    * Pass `[]` to show on every route (marketing layout uses this
    * since it has no /live screens anyway, but the explicit empty
@@ -37,7 +41,7 @@ const FAB_ARIA_LABEL: Record<FeedbackKind, string> = {
  */
 export function FeedbackFab({
   kind,
-  hiddenOnPathSuffixes = ["/live"],
+  hiddenOnPathSuffixes = ["/live", "/availability"],
 }: FeedbackFabProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);

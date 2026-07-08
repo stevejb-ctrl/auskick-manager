@@ -12,6 +12,14 @@ interface LiveTopBarProps {
   /** Game row — drives the round/date/venue strip in the centre. */
   game: Game;
   /**
+   * True once the game is underway (past pre-game). Flips the centre
+   * strip from round/date/venue — dead weight during play — to
+   * "vs {opponent}", which is what a mid-game glance actually wants.
+   * UX review #13, Steve 2026-07-08. Omit/false keeps the pre-game
+   * round/date strip (lineup picker, upcoming-game surfaces).
+   */
+  isLive?: boolean;
+  /**
    * Walkthrough trigger. Opens the in-place WalkthroughModal when
    * provided. When absent, the "?" affordance is NOT rendered —
    * Steve 2026-05-25 reported a critical trap in the iOS Capacitor
@@ -36,7 +44,7 @@ interface LiveTopBarProps {
  * Negative inset-x compensates for the parent layout's `px-4` so the
  * bar runs edge-to-edge regardless of which page is hosting it.
  */
-export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
+export function LiveTopBar({ exitHref, game, isLive = false, onHelp }: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
   // some device/cache combos (Steve saw it in production: tap
@@ -70,16 +78,24 @@ export function LiveTopBar({ exitHref, game, onHelp }: LiveTopBarProps) {
           {exiting ? "Exiting…" : "Exit"}
         </button>
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
-          {game.round_number != null && (
-            <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
-              R{game.round_number}
+          {isLive ? (
+            <span className="truncate text-sm font-semibold text-ink-dim">
+              vs {game.opponent}
             </span>
-          )}
-          <span className="truncate">
-            <FormattedDateTime iso={game.scheduled_at} mode="long" />
-          </span>
-          {game.location && (
-            <span className="truncate">· {game.location}</span>
+          ) : (
+            <>
+              {game.round_number != null && (
+                <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
+                  R{game.round_number}
+                </span>
+              )}
+              <span className="truncate">
+                <FormattedDateTime iso={game.scheduled_at} mode="long" />
+              </span>
+              {game.location && (
+                <span className="truncate">· {game.location}</span>
+              )}
+            </>
           )}
         </div>
         {/* Right-edge utility cluster: feedback + walkthrough "?".

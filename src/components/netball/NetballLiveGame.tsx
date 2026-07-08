@@ -1646,7 +1646,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       ? `/teams/${auth.teamId}/games/${game.id}`
       : `/run/${auth.token}`;
   const topUtilityRow = (
-    <LiveTopBar exitHref={exitHref} game={game} onHelp={handleOpenWalkthrough} />
+    <LiveTopBar
+      exitHref={exitHref}
+      game={game}
+      isLive={currentQuarter > 0}
+      onHelp={handleOpenWalkthrough}
+    />
   );
   const walkthroughOverlay = walkthroughOpen ? (
     <WalkthroughModal

@@ -95,9 +95,8 @@ export default async function AvailabilityPage({
           Mark availability
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          Tap each player to mark them in, out, or maybe. You can
-          change this any time before kickoff or add late arrivals
-          once the game starts.
+          Mark each player In or Out. You can change this any time
+          before kickoff or add late arrivals once the game starts.
         </p>
       </SFCard>
 

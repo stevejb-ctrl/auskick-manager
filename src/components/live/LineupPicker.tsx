@@ -385,6 +385,19 @@ export function LineupPicker({
   // + data rely on it) — only the UI grid order is reversed.
   const displayZones = useMemo(() => [...zones].reverse(), [zones]);
   const slots = useMemo<Slot[]>(() => [...displayZones, "bench"], [displayZones]);
+  // Does ANYONE in the squad have season zone history? Drives whether
+  // the per-player %s + key render at all (UX review #8).
+  const anySeasonHistory = useMemo(
+    () =>
+      players.some((p) => {
+        const zm = season[p.id];
+        if (!zm) return false;
+        return (
+          (zm.back ?? 0) + (zm.hback ?? 0) + (zm.mid ?? 0) + (zm.hfwd ?? 0) + (zm.fwd ?? 0) > 0
+        );
+      }),
+    [players, season],
+  );
   const slotLabel = (s: Slot) =>
     s === "bench" ? "Bench" : ZONE_SHORT_LABELS[s];
 
@@ -873,21 +886,30 @@ export function LineupPicker({
       )}
 
       {/* ── Zone + bench cards ───────────────────────────────────────── */}
-      {/* Key for the season time-in-zone bar under each player — helps
+      {/* Key for the season time-in-zone %s under each player — helps
           a coach placing the lineup by hand spot who's had least of a
-          zone and start them there. Steve 2026-07-07. */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] font-medium text-ink-dim">
-          Season time in zone
-        </span>
-        <ZoneTimeLegend
-          items={[
-            { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
-            { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
-            { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
-          ]}
-        />
-      </div>
+          zone and start them there. Steve 2026-07-07. On a squad with
+          NO history yet (fresh team), the key + 13 identical per-row
+          "No season time yet" lines were pure noise — collapse to one
+          note instead (UX review #8, Steve 2026-07-08). */}
+      {anySeasonHistory ? (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-medium text-ink-dim">
+            Season time in zone
+          </span>
+          <ZoneTimeLegend
+            items={[
+              { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
+              { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+              { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
+            ]}
+          />
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-hairline bg-surface-alt px-3 py-2 text-[11px] text-ink-mute">
+          Zone history appears under each player after your first game.
+        </p>
+      )}
 
       {/* Single column — user feedback 2026-05-20: 2-col was too
           cramped inside the demo phone-frame for the FWD / CENTRE /

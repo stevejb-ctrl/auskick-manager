@@ -1270,17 +1270,13 @@ export function NetballQuarterBreak({
             </span>
             <span className="text-xs text-ink-mute">
               {(() => {
-                // Summary line — Steve 2026-05-13 follow-up: always
-                // lead with rotation mode AND always surface lent/
-                // injured (including "No lent" / "No injured") so
-                // the closed header doubles as a discovery hint for
-                // what's inside. Mirrors AFL QB. Steve 2026-05-23:
-                // on-field-size chip surfaces only below default,
-                // matching the pre-game LineupPicker's pattern.
+                // Summary line — always surface lent/injured (including
+                // "No lent" / "No injured") so the closed header doubles
+                // as a discovery hint for what's inside. Mirrors AFL QB.
+                // The rotation mode no longer leads here — the toggle
+                // moved out of the collapse to sit above the court cards
+                // (UX review #7, Steve 2026-07-08).
                 const bits: string[] = [];
-                if (lineupMode === "suggested") bits.push("Auto-rebalanced");
-                else if (lineupMode === "keep") bits.push("Keeping last Q");
-                else bits.push("Manual lineup");
                 if (effectiveOnFieldSize < ageGroup.defaultOnFieldSize) {
                   bits.push(`${effectiveOnFieldSize} on court`);
                 }
@@ -1324,23 +1320,6 @@ export function NetballQuarterBreak({
             id="netball-qb-match-adjustments"
             className="space-y-4 border-t border-hairline px-4 py-3"
           >
-            {/* Rotation mode. Lifted from the old hero card so the
-                header strip stays clean. Three modes — Suggested
-                rotates per the fairness rebalancer (default), Keep
-                carries Q{n} forward unchanged for a one-off "same
-                again" quarter, Manual wipes the court for a from-
-                scratch build. handleModeChange writes Suggested/
-                Manual back to the live store so the choice persists
-                across breaks; Keep is per-quarter and doesn't
-                persist. Mirrors AFL QB. */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Rotation</p>
-              <RotationModeToggle
-                mode={lineupMode}
-                onChange={handleModeChange}
-              />
-            </div>
-
             {/* Short-squad on-court size — Steve 2026-05-23. Mirrors
                 the pre-game LineupPicker dropdown so a coach can also
                 grow (player arrived at Q-break) or shrink (player
@@ -1718,6 +1697,15 @@ export function NetballQuarterBreak({
         </div>
         );
       })()}
+
+      {/* Rotation mode — surfaced above the court cards, out of the
+          Game-settings collapse, so the modes are discoverable at the
+          moment they matter. Mirrors AFL QB (UX review #7, Steve
+          2026-07-08). handleModeChange persists Suggested/Manual;
+          Keep stays per-quarter. */}
+      <div className="px-1">
+        <RotationModeToggle mode={lineupMode} onChange={handleModeChange} />
+      </div>
 
       <p className="px-1 text-xs text-ink-dim">
         Tap any two players to swap them — even across thirds or to the bench.

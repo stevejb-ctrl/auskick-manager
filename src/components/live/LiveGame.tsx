@@ -831,10 +831,35 @@ export function LiveGame({
     ]);
   }
 
+  // Unattributed goal: the coach saw it go through but not who kicked
+  // it (scrum in front of goal, watching a swap, etc). Mirrors the
+  // rushed-behind mechanism — counts +1 for our team, skips the
+  // per-player tally — but the song still plays: it's still our goal.
+  // Steve 2026-07-08 (UX review #5): the old "every goal has a scorer"
+  // assumption cost the whole goal when the coach hit Cancel.
+  function recordUnattributedGoal() {
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = scaledElapsedMs();
+    incTeam("goals");
+    playSong();
+    void hapticTap("light");
+    startUndoToast({
+      kind: "goal",
+      forTeam: "us",
+      playerId: null,
+      playerName: null,
+      quarter,
+    });
+    enqueueLiveAction("recordGoal", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, unattributed: true },
+    ]);
+  }
+
   // Rushed behind: ball deflects through off the opposition (or
   // self-rushed). Counts +1 for our team but has no scorer, so it
   // skips the per-player tally and never plays the goal song.
-  // Only called for `behind` — goals always have a scorer.
   function recordRushedBehind() {
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = scaledElapsedMs();
@@ -1334,7 +1359,7 @@ export function LiveGame({
   // entirely (Steve 2026-05-13). Extracted to LiveTopBar component
   // so the AFL pre-kickoff page can render the same bar.
   const liveTopBar = exitHref ? (
-    <LiveTopBar exitHref={exitHref} game={game} onHelp={handleOpenWalkthrough} />
+    <LiveTopBar exitHref={exitHref} game={game} isLive={!isPreGame} onHelp={handleOpenWalkthrough} />
   ) : null;
 
   // Walkthrough modal — same instance for all branches so the ?
@@ -2347,15 +2372,14 @@ export function LiveGame({
             // tapping a different chip while this picker was open
             // dismissed it silently and lost the goal attribution.
             dismissOnBackdrop={false}
-            // For BEHINDS, surface a "Rushed (no scorer)" row at the
-            // top of the picker. AFL real-game scenario: the ball
-            // deflects through the small posts off the opposition or
-            // is rushed off our own boot. The behind counts for our
-            // team but has no individual scorer, so it can't go
-            // through the player-attribution path. Goals don't get
-            // this option — every goal in junior footy has a scorer
-            // (and an unattributed goal would always be a logging
-            // error worth catching).
+            // No-scorer escape row at the top of the picker.
+            //   • BEHIND → "Rushed": deflected through off the
+            //     opposition or our own boot; counts, no scorer.
+            //   • GOAL → "Didn't see who": the coach saw it sail
+            //     through but missed the kicker (scrum in front,
+            //     mid-swap). Without this the only out was Cancel —
+            //     which silently lost the goal (UX review #5,
+            //     Steve 2026-07-08).
             extraOption={
               pickScorerKind === "behind"
                 ? {
@@ -2366,7 +2390,14 @@ export function LiveGame({
                       setPickScorerKind(null);
                     },
                   }
-                : undefined
+                : {
+                    label: "Didn't see who (no scorer)",
+                    subLabel: "Counts as a goal for our team",
+                    onSelect: () => {
+                      recordUnattributedGoal();
+                      setPickScorerKind(null);
+                    },
+                  }
             }
             onPick={(playerId) => {
               recordPlayerScore(playerId, pickScorerKind);
