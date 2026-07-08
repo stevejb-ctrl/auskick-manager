@@ -289,6 +289,11 @@ export function SwapCard({
               Quarter ending — apply now or it carries to the break
             </p>
           )}
+          {onOverride && (
+            <p className="px-3 pt-2 text-[10px] text-warm/50">
+              Tap a name to change who
+            </p>
+          )}
           <ul className="space-y-1.5 px-3 pb-3 pt-2">
             {valid.map(({ s, off, on, index }) => {
               const edited = isPairEdited(s, autoSuggestions);
@@ -359,9 +364,23 @@ export function SwapCard({
                         <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70">
                           {initials(off.full_name)}
                         </span>
-                        <span className="truncate text-xs font-semibold text-warm/70">
+                        {/* Dashed underline + chevron = "this is editable".
+                            The chips were secretly tappable but rendered as
+                            static labels (UX review #6, Steve 2026-07-08). */}
+                        <span
+                          className={`truncate text-xs font-semibold text-warm/70 ${
+                            canOverride
+                              ? "border-b border-dashed border-warm/40 pb-px"
+                              : ""
+                          }`}
+                        >
                           {first(off.full_name)}
                         </span>
+                        {canOverride && (
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" aria-hidden className="flex-shrink-0 text-warm/50">
+                            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
                       </button>
                       <span className="text-warm/40">→</span>
                       {/* Incoming chip — tap to pick a different bench player. */}
@@ -388,9 +407,20 @@ export function SwapCard({
                         <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200">
                           {initials(on.full_name)}
                         </span>
-                        <span className="truncate text-xs font-bold text-brand-300">
+                        <span
+                          className={`truncate text-xs font-bold text-brand-300 ${
+                            canOverride
+                              ? "border-b border-dashed border-brand-300/50 pb-px"
+                              : ""
+                          }`}
+                        >
                           {first(on.full_name)}
                         </span>
+                        {canOverride && (
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" aria-hidden className="flex-shrink-0 text-brand-300/70">
+                            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
                       </button>
                       {edited && (
                         <button
@@ -413,7 +443,10 @@ export function SwapCard({
                         </button>
                       )}
                     </span>
-                    {onApplyOne && (
+                    {/* Per-row "Do" only earns its place with 2+ swaps —
+                        with a single swap it duplicated the footer button
+                        (UX review #6, Steve 2026-07-08). */}
+                    {onApplyOne && valid.length > 1 && (
                       <button
                         type="button"
                         disabled={pending}
@@ -505,7 +538,9 @@ export function SwapCard({
               )}
               {pending
                 ? "Applying…"
-                : `Do all ${valid.length} swap${valid.length > 1 ? "s" : ""}`}
+                : valid.length === 1
+                  ? "Make this swap"
+                  : `Do all ${valid.length} swaps`}
             </button>
           </div>
         </>
