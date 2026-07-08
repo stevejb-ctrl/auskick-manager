@@ -77,9 +77,13 @@ export function ManualEndQuarterConfirm({
           played on but the clock didn&rsquo;t.
         </p>
         <div className="mt-4 flex gap-2">
+          {/* Primary (brand green), not danger — ending a quarter is a
+              routine every-game action, and red implied something would
+              be destroyed. The consequence copy above keeps it safe.
+              UX review #14, Steve 2026-07-08. */}
           <Button
             className="flex-1"
-            variant="danger"
+            variant="primary"
             onClick={onConfirm}
           >
             End {abbr}{quarter}
