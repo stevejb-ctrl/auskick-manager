@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
+import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
 
@@ -260,6 +261,18 @@ export async function resetGame(
     if (!membership || membership.role !== "admin") {
       return { success: false, error: "Only admins can reset games." };
     }
+    // IDOR guard: the admin client below bypasses RLS and deletes by
+    // game_id, so confirm this game actually belongs to the team the caller
+    // is an admin of — otherwise an admin of any team could pass another
+    // team's gameId and wipe its history.
+    const { data: ownerCheck } = await admin
+      .from("games")
+      .select("team_id")
+      .eq("id", gameId)
+      .maybeSingle();
+    if (!ownerCheck || !gameBelongsToTeam(ownerCheck.team_id, auth.teamId)) {
+      return { success: false, error: "Game not found for this team." };
+    }
     teamId = auth.teamId;
   }
 
@@ -272,7 +285,8 @@ export async function resetGame(
   const { error: updError } = await admin
     .from("games")
     .update({ status: "upcoming" })
-    .eq("id", gameId);
+    .eq("id", gameId)
+    .eq("team_id", teamId);
   if (updError) return { success: false, error: updError.message };
 
   // Game's events just got wiped — drop the season-events cache.
@@ -322,6 +336,19 @@ export async function deleteGame(
   }
 
   const admin = createAdminClient();
+  // IDOR guard: the child-table deletes below run via the RLS-bypassing
+  // admin client keyed only on game_id. Confirm the game belongs to this
+  // team first — otherwise an admin of any team could pass another team's
+  // gameId and wipe its events + availability (the games row itself is
+  // already team-scoped, so it would survive, leaving silent data loss).
+  const { data: ownerCheck } = await admin
+    .from("games")
+    .select("team_id")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (!ownerCheck || !gameBelongsToTeam(ownerCheck.team_id, teamId)) {
+    return { success: false, error: "Game not found for this team." };
+  }
   await admin.from("game_events").delete().eq("game_id", gameId);
   await admin.from("game_availability").delete().eq("game_id", gameId);
   const { error: delError } = await admin
