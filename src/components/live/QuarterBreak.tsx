@@ -698,6 +698,18 @@ export function QuarterBreak({
   function handleLoanToggle(pid: string, nextLoaned: boolean) {
     setLoanError(null);
     setLoaned(pid, nextLoaned);
+    // Recall (nextLoaned === false): drop the player onto the staged draft
+    // bench so they're immediately fieldable at THIS break. A player lent
+    // before kickoff was never placed in the lineup, so without this they'd
+    // stay missing from the picker until the quarter actually started — the
+    // exact bug coaches hit. Only add if they aren't already in the draft
+    // (an in-game lend is already sitting on the bench).
+    const wasInDraft =
+      draft.bench.includes(pid) || ALL_ZONES.some((z) => draft[z].includes(pid));
+    const addedToDraft = !nextLoaned && !wasInDraft;
+    if (addedToDraft) {
+      setDraft((d) => ({ ...d, bench: [...d.bench, pid] }));
+    }
     startLoanTransition(async () => {
       const result = await markLoan(auth, gameId, {
         player_id: pid,
@@ -709,8 +721,11 @@ export function QuarterBreak({
         elapsed_ms: 0,
       });
       if (!result.success) {
-        // Roll back the optimistic flip.
+        // Roll back the optimistic flip (and the draft add, if we made one).
         setLoaned(pid, !nextLoaned);
+        if (addedToDraft) {
+          setDraft((d) => ({ ...d, bench: d.bench.filter((p) => p !== pid) }));
+        }
         setLoanError(result.error);
       }
     });
@@ -1863,6 +1878,48 @@ export function QuarterBreak({
         </div>
         );
       })()}
+
+      {/* Lent players — always-visible recall strip. Sourced from the whole
+          squad (loanedSet), so a player lent BEFORE kickoff (who was never in
+          the saved lineup) still shows here and can be brought back at the
+          break, rather than only after starting the quarter. Tapping "Bring
+          back" recalls them onto the staged bench, ready to field. */}
+      {lentPlayers.length > 0 && (
+        <div className="px-1">
+          <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
+            <p className="text-xs font-semibold text-warn">Lent to the other team</p>
+            <p className="mt-0.5 text-[11px] text-warn/80">
+              Tap “Bring back” to return a player to your bench for this quarter.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {lentPlayers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleLoanToggle(p.id, false)}
+                  disabled={loanPending}
+                  data-testid={`qb-recall-lent-${p.id}`}
+                  aria-label={`Bring ${p.full_name} back`}
+                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                >
+                  {p.jersey_number != null && (
+                    <span className="tabular-nums font-semibold">{p.jersey_number}</span>
+                  )}
+                  <span>{p.full_name}</span>
+                  <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
+                    Bring back
+                  </span>
+                </button>
+              ))}
+            </div>
+            {loanError && (
+              <p className="mt-1 text-xs text-danger" role="alert">
+                {loanError}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Rotation mode — surfaced ABOVE the zone cards, not buried in
           the Game-settings collapse, so "Rotate lines" / "Set manually"
