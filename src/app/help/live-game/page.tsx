@@ -234,8 +234,11 @@ export default function LiveGamePage() {
         </ul>
         <HelpCallout type="note">
           Injured and lent players are parked on the bench and excluded from
-          the rotation algorithm. They will not appear in the lineup when a
-          new quarter starts.
+          the rotation algorithm, so they aren&apos;t auto-placed when a new
+          quarter starts. You can bring a lent player back at any quarter break
+          — or before the game in the lineup picker — from the{" "}
+          <strong className="text-ink">Lent to the other team</strong> strip.
+          They drop onto your bench, ready to field.
         </HelpCallout>
       </section>
 
