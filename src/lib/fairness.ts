@@ -1384,20 +1384,27 @@ export function replayGame(events: GameEvent[]): GameState {
       } else {
         state.injuredIds = state.injuredIds.filter((p) => p !== pid);
       }
-    } else if (ev.type === "player_loan" && state.lineup && ev.player_id) {
+    } else if (ev.type === "player_loan" && ev.player_id) {
       const pid = ev.player_id;
       const loaned = (ev.metadata as { loaned?: boolean }).loaned ?? true;
       if (loaned) {
         if (!state.loanedIds.includes(pid)) state.loanedIds.push(pid);
         state.loanStartMs[pid] = elapsed;
-        const z = zoneOf(state.lineup, pid);
-        if (z) {
-          const sz = state.stintZone[pid] ?? z;
-          addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-          delete state.stintStartMs[pid];
-          delete state.stintZone[pid];
-          state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
-          if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
+        // If the player is currently on the field, close their stint and
+        // bench them. A loan recorded before the first lineup_set (lent in
+        // the pre-game picker) has no lineup to touch yet — the loanedIds
+        // bookkeeping above is what keeps the break/live UI aware of it so
+        // the coach can recall them at a break instead of only after start.
+        if (state.lineup) {
+          const z = zoneOf(state.lineup, pid);
+          if (z) {
+            const sz = state.stintZone[pid] ?? z;
+            addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
+            delete state.stintStartMs[pid];
+            delete state.stintZone[pid];
+            state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
+            if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
+          }
         }
       } else {
         state.loanedIds = state.loanedIds.filter((p) => p !== pid);
