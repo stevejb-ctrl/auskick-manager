@@ -68,3 +68,63 @@ export function swapPlayersInPeriod(
     totals: computeTotals(periods, playerIds),
   };
 }
+
+/**
+ * Clear a period's field — every on-field player moves to the FRONT of the
+ * bench / interchange queue (in field order), leaving all groups empty so the
+ * coach can build the period from scratch tap-by-tap. This is the plan-model
+ * equivalent of the break's "Set manually" mode. Pure; input never mutated.
+ * A period already empty (or out of range) returns the plan unchanged.
+ */
+export function clearPeriodToBench(
+  plan: GamePlan,
+  periodIndex: number,
+): GamePlan {
+  const target = plan.periods[periodIndex];
+  if (!target) return plan;
+  const onField = target.groups.flatMap((g) => g.playerIds);
+  if (onField.length === 0) return plan;
+  const edited: GamePlanPeriod = {
+    ...clonePeriod(target),
+    groups: target.groups.map((g) => ({ ...g, playerIds: [] })),
+    bench: [...onField, ...target.bench],
+  };
+  const periods = plan.periods.map((p, i) => (i === periodIndex ? edited : p));
+  return {
+    ...plan,
+    periods,
+    totals: computeTotals(periods, plan.totals.map((t) => t.playerId)),
+  };
+}
+
+/**
+ * Replace a period's on-field groups + bench wholesale from an externally
+ * computed assignment (groupId → player ids, plus the bench queue). Used by
+ * the live "Rotate lines" action, which computes a fresh lineup via
+ * `rotateLines` and drops it into the planned period. Groups not present in
+ * `groupPlayerIds` are emptied; the caller owns the complete assignment.
+ * Pure; input never mutated. Out-of-range period returns the plan unchanged.
+ */
+export function setPeriodGroups(
+  plan: GamePlan,
+  periodIndex: number,
+  groupPlayerIds: Record<string, string[]>,
+  bench: string[],
+): GamePlan {
+  const target = plan.periods[periodIndex];
+  if (!target) return plan;
+  const edited: GamePlanPeriod = {
+    ...clonePeriod(target),
+    groups: target.groups.map((g) => ({
+      ...g,
+      playerIds: [...(groupPlayerIds[g.groupId] ?? [])],
+    })),
+    bench: [...bench],
+  };
+  const periods = plan.periods.map((p, i) => (i === periodIndex ? edited : p));
+  return {
+    ...plan,
+    periods,
+    totals: computeTotals(periods, plan.totals.map((t) => t.playerId)),
+  };
+}

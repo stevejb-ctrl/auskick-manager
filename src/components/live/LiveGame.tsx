@@ -99,7 +99,11 @@ import {
   resolveDisplaySuggestions,
   swapsEqual,
   availablePlayersForPlan,
+  clearPeriodToBench,
+  setPeriodGroups,
+  type GamePlan,
 } from "@/lib/game-plan";
+import { rotateLines } from "@/lib/live/rotateLines";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -2094,6 +2098,47 @@ export function LiveGame({
           currentBench,
         });
 
+        // "Suggested / Rotate lines / Set manually" shortcuts — the in-game
+        // parity for the break's rotation-mode toggle (Steve's match-day ask).
+        // Rotate reuses the cap-aware rotateLines off the CURRENT on-field
+        // shape (same helper the break uses); manual clears to bench for a
+        // from-scratch build; suggested reverts to the fresh projection.
+        const rotateCaps = {} as ZoneCaps;
+        for (const z of activeZones) rotateCaps[z] = currentGroups[z].length;
+        const rotateLastZone: Record<string, Zone> = {};
+        for (const z of activeZones)
+          for (const pid of currentGroups[z]) rotateLastZone[pid] = z;
+        const rotateZoneMins: Record<string, ZoneMinutes> = {};
+        for (const p of playersForPlan) {
+          const zm = zoneMsByPlayer[p.id] ?? {};
+          const mins = emptyZoneMs();
+          for (const z of ALL_ZONES) mins[z] = (zm[z as Zone] ?? 0) / 60_000;
+          rotateZoneMins[p.id] = mins;
+        }
+        const planActions = [
+          { key: "suggested", label: "Suggested", apply: () => initialPlan },
+          {
+            key: "rotate",
+            label: "Rotate lines",
+            apply: (plan: GamePlan, i: number) => {
+              const rotated = rotateLines({
+                players: playersForPlan.map((p) => p.id),
+                caps: rotateCaps,
+                zoneMins: rotateZoneMins,
+                lastZone: rotateLastZone,
+              });
+              const groupIds: Record<string, string[]> = {};
+              for (const z of activeZones) groupIds[z] = rotated[z];
+              return setPeriodGroups(plan, i, groupIds, rotated.bench);
+            },
+          },
+          {
+            key: "manual",
+            label: "Set manually",
+            apply: (plan: GamePlan, i: number) => clearPeriodToBench(plan, i),
+          },
+        ];
+
         return (
           <GamePlanModal
             sport="afl"
@@ -2106,6 +2151,7 @@ export function LiveGame({
             initialPlan={initialPlan}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
+            planActions={planActions}
             pinLabel={`Pin Q${currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

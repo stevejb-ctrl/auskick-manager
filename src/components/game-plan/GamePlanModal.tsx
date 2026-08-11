@@ -102,6 +102,18 @@ export interface GamePlanModalProps {
     string,
     { totalMs: number; zones: { label: string; ms: number }[] }
   >;
+  /**
+   * Optional one-tap shortcuts that transform the ACTIVE period, mirroring the
+   * break's rotation-mode toggle (e.g. "Suggested" / "Rotate lines" / "Set
+   * manually"). The caller owns each transform so sport-specific logic
+   * (AFL cap-aware line rotation) stays out of this shared modal; netball /
+   * rugby league pass only the generic ones. Rendered in plan-ahead mode.
+   */
+  planActions?: {
+    key: string;
+    label: string;
+    apply: (plan: GamePlan, periodIndex: number) => GamePlan;
+  }[];
   /** Dismiss the planner. */
   onClose: () => void;
 }
@@ -127,6 +139,7 @@ export function GamePlanModal({
   onPin,
   pinLabel = "Use this plan",
   playerStats,
+  planActions,
   onClose,
 }: GamePlanModalProps) {
   // Project a fresh plan for a given seed. Pure — safe to call on
@@ -357,6 +370,29 @@ export function GamePlanModal({
           Tap a player, then tap another to swap them — across groups or
           on/off the bench.
         </p>
+
+        {planActions && planActions.length > 0 && (
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="group"
+            aria-label="Lineup shortcuts"
+          >
+            {planActions.map((a) => (
+              <SFButton
+                key={a.key}
+                variant="subtle"
+                size="sm"
+                data-testid={`game-plan-action-${a.key}`}
+                onClick={() => {
+                  setPlan((p) => a.apply(p, activePeriod));
+                  setSelected(null);
+                }}
+              >
+                {a.label}
+              </SFButton>
+            ))}
+          </div>
+        )}
 
         {period && (
           <div className="grid grid-cols-1 gap-3">
