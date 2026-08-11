@@ -369,6 +369,15 @@ export function LeagueLiveGame({
   }, [thisGameEvents]);
   const injuredSet = useMemo(() => new Set(injuredIds), [injuredIds]);
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
+  // Lent players sourced from the WHOLE squad (not just the lineup), so a
+  // player lent before kickoff — who was never placed and so has no field or
+  // bench tile — is still visible and recallable at the break. Recall fires
+  // markLoan(false); the replay's player_loan handler drops them onto the
+  // bench (see rugby_league/fairness.ts), so they become fieldable at once.
+  const lentPlayers = useMemo(
+    () => squad.filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id)),
+    [squad, loanedSet, injuredSet],
+  );
 
   // ── Vest assignment ──────────────────────────────────────────
   const periodForVests = state.currentQuarter || 1;
@@ -1748,6 +1757,42 @@ export function LeagueLiveGame({
           pending={pending}
           playerById={new Map(squad.map((p) => [p.id, p]))}
         />
+      )}
+
+      {/* Lent players — always-visible recall strip (squad-sourced), so a
+          player lent before kickoff can be brought back at the break rather
+          than only after the period starts. "Bring back" un-loans them; the
+          replay lands them on the bench, ready to field. */}
+      {!isFinished && lentPlayers.length > 0 && (
+        <div className="px-1">
+          <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
+            <p className="text-xs font-semibold text-warn">Lent to the other team</p>
+            <p className="mt-0.5 text-[11px] text-warn/80">
+              Tap “Bring back” to return a player to your bench.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {lentPlayers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => void handleToggleLoan(p.id, false)}
+                  disabled={pending}
+                  data-testid={`league-recall-lent-${p.id}`}
+                  aria-label={`Bring ${p.full_name} back`}
+                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                >
+                  {p.jersey_number != null && (
+                    <span className="tabular-nums font-semibold">{p.jersey_number}</span>
+                  )}
+                  <span>{p.full_name}</span>
+                  <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
+                    Bring back
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Field + bench — hidden at full time (mirrors AFL's
