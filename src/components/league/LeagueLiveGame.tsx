@@ -76,6 +76,8 @@ import {
   projectUpcomingRotation,
   seedNextPeriodLineup,
   availablePlayersForPlan,
+  clearPeriodToBench,
+  type GamePlan,
 } from "@/lib/game-plan";
 import { benchSidelinedInLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -2327,6 +2329,14 @@ export function LeagueLiveGame({
             initialPlan={initialPlan}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
+            planActions={[
+              { key: "suggested", label: "Suggested", apply: () => initialPlan },
+              {
+                key: "manual",
+                label: "Set manually",
+                apply: (plan: GamePlan, i: number) => clearPeriodToBench(plan, i),
+              },
+            ]}
             pinLabel={`Pin ${periodLabel} ${state.currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute

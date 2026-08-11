@@ -91,7 +91,12 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import { projectUpcomingRotation, availablePlayersForPlan } from "@/lib/game-plan";
+import {
+  projectUpcomingRotation,
+  availablePlayersForPlan,
+  clearPeriodToBench,
+  type GamePlan,
+} from "@/lib/game-plan";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -2244,6 +2249,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             initialPlan={initialPlan}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
+            planActions={[
+              { key: "suggested", label: "Suggested", apply: () => initialPlan },
+              {
+                key: "manual",
+                label: "Set manually",
+                apply: (plan: GamePlan, i: number) => clearPeriodToBench(plan, i),
+              },
+            ]}
             pinLabel={`Pin Q${currentQuarter + 1} plan`}
             onPin={(plan) => {
               // The coach edited the NEXT period. Find it by absolute
