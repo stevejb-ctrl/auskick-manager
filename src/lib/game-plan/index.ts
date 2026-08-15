@@ -2,7 +2,7 @@
 export * from "./types";
 export { projectGamePlan } from "./project";
 export { formatGamePlan, type FormatGamePlanOptions } from "./format";
-export { swapPlayersInPeriod } from "./edit";
+export { swapPlayersInPeriod, clearPeriodToBench, setPeriodGroups } from "./edit";
 export { availablePlayersForPlan } from "./availableForPlan";
 export {
   projectUpcomingRotation,

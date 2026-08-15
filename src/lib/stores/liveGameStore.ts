@@ -745,17 +745,26 @@ export const useLiveGame = create<LiveGameState>()(
 
       if (!loaned) {
         // End the loan: accumulate elapsed loan ms and drop the start marker.
-        // Player stays on bench (they're already there).
         const basePlayedLoanMs = { ...prev.basePlayedLoanMs };
         const loanStartMs = { ...prev.loanStartMs };
         const start = loanStartMs[playerId] ?? nowMs;
         basePlayedLoanMs[playerId] =
           (basePlayedLoanMs[playerId] ?? 0) + Math.max(0, nowMs - start);
         delete loanStartMs[playerId];
+        // Recall onto the bench if the player isn't anywhere in the lineup —
+        // e.g. they were lent before kickoff and so were never placed. An
+        // in-game lend already left them on the bench, so this is a no-op then.
+        const inLineup =
+          prev.lineup.bench.includes(playerId) ||
+          ALL_ZONES.some((z) => prev.lineup[z].includes(playerId));
+        const lineup = inLineup
+          ? prev.lineup
+          : { ...prev.lineup, bench: [...prev.lineup.bench, playerId] };
         return {
           loanedIds: prev.loanedIds.filter((p) => p !== playerId),
           loanStartMs,
           basePlayedLoanMs,
+          lineup,
         };
       }
 
