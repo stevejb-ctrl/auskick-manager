@@ -19,6 +19,7 @@
 //   providers, just as in-repo route handlers.)
 
 import { NextResponse, type NextRequest } from "next/server";
+import { renderDecapCallbackHtml } from "@/lib/decap/callbackHtml";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -112,44 +113,13 @@ export async function GET(req: NextRequest) {
     provider: "github",
   });
   const successMessage = `authorization:github:success:${payload}`;
-  // JSON.stringify the message string itself before inlining so it
-  // round-trips through HTML safely (escapes quotes, slashes).
-  const safeSuccessMessage = JSON.stringify(successMessage);
 
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"><title>Authorising…</title></head>
-<body>
-<script>
-(function () {
-  var successMsg = ${safeSuccessMessage};
-  function receiveMessage(e) {
-    // Any message from the parent (Decap's "authorizing:github"
-    // ack, or even just an origin string) is our signal that the
-    // parent has its listener registered and is ready to receive
-    // the token. Respond with the success payload and we're done.
-    if (!window.opener) return;
-    window.opener.postMessage(successMsg, e.origin);
-    // Defer close so the parent processes the message before the
-    // popup goes away — some browsers tear down message ports
-    // synchronously on close().
-    setTimeout(function () { window.close(); }, 0);
-  }
-  window.addEventListener("message", receiveMessage, false);
-  // Start the handshake. "*" is intentional here — we don't know
-  // the parent's origin a priori (could be apex or www after
-  // redirects), and the parent answers with its real origin in
-  // e.origin which we then echo back via targeted postMessage.
-  if (window.opener) {
-    window.opener.postMessage("authorizing:github", "*");
-  } else {
-    // No opener (e.g. popup blocker tore the link) — show a hint.
-    document.body.innerText =
-      "No parent window. Close this tab and try again from /cms.";
-  }
-})();
-</script>
-<p>Authorising… You can close this window.</p>
-</body></html>`;
+  // Render via the extracted, unit-tested builder. It posts the token ONLY
+  // to our own origin and ignores messages from foreign openers — see
+  // src/lib/decap/callbackHtml.ts for the security rationale (the old inline
+  // version echoed the token to e.origin / announced with "*", which let an
+  // attacker-controlled opener capture the repo-scoped GitHub token).
+  const html = renderDecapCallbackHtml(successMessage);
 
   const response = new NextResponse(html, {
     status: 200,
