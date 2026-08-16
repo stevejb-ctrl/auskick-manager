@@ -353,9 +353,19 @@ export function QuarterBreak({
   //      re-padding to the age-group default 4/4/4 every break. Without
   //      the `min`, the previous 3/4/3 (=10) never equalled 12 and always
   //      fell back to the default. Steve 2026-07-07 match-day bug.
+  //
+  //   3. SIDELINED ≠ SHORT SQUAD (Steve 2026-08-16 match-day bug). Marking a
+  //      player out at 3/4 time dropped the healthy count below the configured
+  //      size, so the coach's 4/4/4 (=12) no longer matched and the caps fell
+  //      back to the default for 11 — the formation re-solved, players were
+  //      crammed forward and couldn't be moved. The coach's SHAPE must survive
+  //      a mid-game injury: keep the configured size so the missing player
+  //      simply leaves an empty slot. Only shrink when the squad itself is
+  //      short — i.e. fewer players are IN THE GAME at all (case 2 above) than
+  //      the configured size — which is what `availableForLineup` measures.
   const effectiveOnFieldSize = Math.min(
     currentOnFieldSize,
-    healthyForLineup.length,
+    availableForLineup.length,
   );
   const effectiveZoneCaps = useMemo<ZoneCaps>(
     () =>
