@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
@@ -169,6 +170,7 @@ export default function RootLayout({
         {children}
         {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
