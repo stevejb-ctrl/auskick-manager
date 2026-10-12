@@ -168,6 +168,8 @@ interface NetballLiveGameProps {
    * real estate (Steve 2026-05-13). Mirrors LiveGame.tsx.
    */
   isAdmin?: boolean;
+  /** Game-day "Who's here" panel for the pre-kickoff picker (team auth). */
+  availabilityPanel?: React.ReactNode;
   /**
    * Pre-game lineup draft fetched server-side from
    * game_lineup_drafts. Drives two things on the pre-kickoff
@@ -265,6 +267,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     songStartSeconds = 0,
     songDurationSeconds = 15,
     gamePlanButton,
+    availabilityPanel,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -1653,6 +1656,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballLineupPicker
+          // Rebuild the suggestion when who's-here changes on game day.
+          key={[...availableIds].sort().join(",")}
           ageGroup={ageGroup}
           squad={squad}
           availableIds={availableIds}
@@ -1676,11 +1681,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the
           // link is hidden in that case.
+          // The game-day panel replaces the "Update availability" link.
           availabilityHref={
-            auth.kind === "team"
+            auth.kind === "team" && !availabilityPanel
               ? `/teams/${auth.teamId}/games/${game.id}/availability`
               : undefined
           }
+          availabilityPanel={availabilityPanel}
           gamePlanButton={gamePlanButton}
           walkthroughOffer={
             <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />

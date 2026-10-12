@@ -51,6 +51,11 @@ export const SFIcon = {
       <polyline points="15 18 9 12 15 6" />
     </Base>
   ),
+  chevronDown: (props: IconProps = {}) => (
+    <Base {...props}>
+      <polyline points="6 9 12 15 18 9" />
+    </Base>
+  ),
   swap: (props: IconProps = {}) => (
     <Base {...props}>
       <polyline points="17 1 21 5 17 9" />

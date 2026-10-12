@@ -90,6 +90,8 @@ interface LineupPickerProps {
   availabilityHref?: string;
   /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (via
@@ -196,6 +198,7 @@ export function NetballLineupPicker({
   disabled,
   availabilityHref,
   walkthroughOffer,
+  availabilityPanel,
   gamePlanButton,
   onSavePlan,
   initialSavedAt = null,
@@ -763,8 +766,13 @@ export function NetballLineupPicker({
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
-    <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div
+      role="region"
+      aria-label="Starting lineup"
+      className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]"
+    >
       <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {availabilityPanel}
       {walkthroughOffer}
 
       {/* ── Game settings (collapsible) ──────────────────────────

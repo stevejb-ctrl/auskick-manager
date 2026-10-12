@@ -204,3 +204,48 @@ test("team admin adds a fill-in player for this game only", async ({
     .eq("game_id", game.id);
   expect(fillIns?.find((f) => f.full_name === "Guest Player")).toBeDefined();
 });
+
+// UX plan 1.3 — game day is one screen: availability lives on the
+// lineup screen ("Who's here"), so marking a no-show out doesn't mean
+// leaving the lineup. The lineup rebuilds without them.
+test("game day: marking a player out on the lineup screen drops them from the lineup", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  const noShow = players[0];
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const lineup = page.getByRole("region", { name: /starting lineup/i });
+  await expect(lineup.getByText(noShow.full_name, { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await page.getByRole("button", { name: /who's here/i }).click();
+  await page
+    .getByRole("group", { name: `${noShow.full_name} availability` })
+    .getByRole("button", { name: /^out$/i })
+    .click();
+
+  await expect(page.getByRole("button", { name: /who's here/i })).toContainText("13 of 14 in", {
+    timeout: 10_000,
+  });
+  await expect(lineup.getByText(noShow.full_name, { exact: true })).toHaveCount(0);
+});

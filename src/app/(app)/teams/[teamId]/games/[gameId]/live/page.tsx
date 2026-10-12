@@ -9,6 +9,7 @@ import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -379,6 +380,19 @@ export default async function LivePage({ params }: LivePageProps) {
         return out;
       })();
 
+      const leagueAvailabilityPanel = (
+        <GameDayAvailabilityPanel
+          auth={{ kind: "team", teamId: params.teamId }}
+          teamId={params.teamId}
+          gameId={params.gameId}
+          squad={(players ?? []) as Player[]}
+          availableIds={availableIds}
+          fillInCount={fillInsForLive.length}
+          canManageMatch
+          showJerseyNumber
+        />
+      );
+
       return (
         <div className="space-y-4">
           <LiveTopBar
@@ -386,15 +400,21 @@ export default async function LivePage({ params }: LivePageProps) {
             game={g}
           />
           {availablePlayers.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-              No players marked available — go back and set availability first.
-            </p>
+            <>
+              {leagueAvailabilityPanel}
+              <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
+                Mark who&apos;s here to build the lineup.
+              </p>
+            </>
           ) : (
             // Pre-game lineup picker — rugby pitch + bench strip
             // + LockModal long-press menu. Spike promoted to
             // default (Steve 2026-05-19, see LeagueLineupPicker.tsx
             // header for the interaction model).
             <LeagueLineupPicker
+              // Rebuild the suggestion when who's-here changes.
+              key={Array.from(availableIds).sort().join(",")}
+              availabilityPanel={leagueAvailabilityPanel}
               auth={{ kind: "team", teamId: params.teamId }}
               gameId={params.gameId}
               players={availablePlayers}
@@ -418,7 +438,6 @@ export default async function LivePage({ params }: LivePageProps) {
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
               enforceUnbrokenPeriods={leagueEnforceUnbroken}
               walkthroughOffer={
                 <LeagueWalkthroughOffer
@@ -648,6 +667,18 @@ export default async function LivePage({ params }: LivePageProps) {
           teamName={teamName}
           squad={squad}
           availableIds={availableIds}
+          availabilityPanel={
+            <GameDayAvailabilityPanel
+              auth={{ kind: "team", teamId: params.teamId }}
+              teamId={params.teamId}
+              gameId={params.gameId}
+              squad={(players ?? []) as Player[]}
+              availableIds={availableIds}
+              fillInCount={fillInsForLive.length}
+              canManageMatch
+              showJerseyNumber={false}
+            />
+          }
           ageGroup={ageCfgN}
           quarterLengthSeconds={quarterLengthSeconds}
           initialLineup={state.lineup}
@@ -887,6 +918,18 @@ export default async function LivePage({ params }: LivePageProps) {
   const availableIds = new Set((avail ?? []).map((a) => a.player_id));
   for (const f of fillInsForPicker) availableIds.add(f.id);
   const availablePlayers = allActive.filter((p) => availableIds.has(p.id));
+  const aflAvailabilityPanel = (
+    <GameDayAvailabilityPanel
+      auth={{ kind: "team", teamId: params.teamId }}
+      teamId={params.teamId}
+      gameId={params.gameId}
+      squad={(players ?? []) as Player[]}
+      availableIds={availableIds}
+      fillInCount={fillInsForPicker.length}
+      canManageMatch
+      showJerseyNumber
+    />
+  );
 
   // Season events: all events for this team's prior games.
   const otherGameIds = (teamGames ?? [])
@@ -958,11 +1001,17 @@ export default async function LivePage({ params }: LivePageProps) {
         game={g}
       />
       {availablePlayers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-          No players marked available — go back and set availability first.
-        </p>
+        <>
+          {aflAvailabilityPanel}
+          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
+            Mark who&apos;s here to build the lineup.
+          </p>
+        </>
       ) : (
         <LineupPicker
+          // Rebuild the suggestion when who's-here changes on game day.
+          key={Array.from(availableIds).sort().join(",")}
+          availabilityPanel={aflAvailabilityPanel}
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
           players={availablePlayers}
@@ -975,7 +1024,6 @@ export default async function LivePage({ params }: LivePageProps) {
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
-          availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
           walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
           gamePlanButton={
             <GamePlanButton

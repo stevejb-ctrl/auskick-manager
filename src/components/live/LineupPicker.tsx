@@ -77,6 +77,8 @@ interface LineupPickerProps {
   availabilityHref?: string;
   /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. The server page builds it (it
@@ -159,6 +161,7 @@ export function LineupPicker({
   backHref,
   availabilityHref,
   walkthroughOffer,
+  availabilityPanel,
   gamePlanButton,
   initialDraft,
   chipModeByKey = {},
@@ -628,8 +631,14 @@ export function LineupPicker({
     // pushed the parent's bottom edge so far below the sticky
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
-    <div ref={lineupPickerRootRef} className="space-y-4">
+    <div
+      ref={lineupPickerRootRef}
+      role="region"
+      aria-label="Starting lineup"
+      className="space-y-4"
+    >
       <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {availabilityPanel}
       {walkthroughOffer}
 
       {/* Lent players — always-visible recall strip so a coach can shuffle

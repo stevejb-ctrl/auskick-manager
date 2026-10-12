@@ -108,6 +108,8 @@ interface LeagueLineupPickerProps {
   enforceUnbrokenPeriods?: boolean;
   /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (which
@@ -148,6 +150,7 @@ export function LeagueLineupPicker({
   availabilityHref,
   enforceUnbrokenPeriods = false,
   walkthroughOffer,
+  availabilityPanel,
   gamePlanButton,
   seasonEvents,
   initialLoanedIds = [],
@@ -959,11 +962,17 @@ export function LeagueLineupPicker({
   const backLabel = chipLabels?.b || "Backs";
 
   return (
-    <div ref={pickerRootRef} className="space-y-4 pb-32">
+    <div
+      ref={pickerRootRef}
+      role="region"
+      aria-label="Starting lineup"
+      className="space-y-4 pb-32"
+    >
       <LineupPickerBreadcrumb
         availabilityHref={availabilityHref ?? undefined}
         action={gamePlanButton}
       />
+      {availabilityPanel}
       {walkthroughOffer}
 
       <header className="space-y-1 px-1">
