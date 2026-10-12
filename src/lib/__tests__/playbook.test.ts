@@ -4,6 +4,13 @@ import { defaultAflPositions } from "@/lib/sports/afl/playbook";
 import { leagueCatalogue } from "@/lib/sports/rugby_league/playbook";
 import { playbookSnapshot, resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 import { resetToDefaults, sparsestLine, toDraft } from "@/lib/playbook/positions";
+import {
+  describeRole,
+  normaliseRole,
+  prefsFromRole,
+  roleModelFor,
+  rolesFromPrefs,
+} from "@/lib/playbook/roles";
 
 describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
   it("zones U8–U10, open from U11", () => {
@@ -267,5 +274,62 @@ describe("positions editor helpers", () => {
   it("adds new positions to the thinnest line", () => {
     const noForwards = defaults.filter((p) => p.line !== "fwd");
     expect(sparsestLine(noForwards)).toBe("fwd");
+  });
+});
+
+describe("player roles", () => {
+  const resolve = (sport: "afl" | "netball" | "rugby_league", ageGroup: string, strategy: string | null) =>
+    resolveTeamPlaybook({
+      sport,
+      ageGroup,
+      onFieldSize: sport === "netball" ? 7 : 15,
+      row: { strategy, policy_overrides: {}, season_balance: null, season_balance_since: null },
+    });
+
+  it("has no roles at AFL zoned ages", () => {
+    expect(roleModelFor(resolve("afl", "U9", null))).toBeNull();
+  });
+
+  it("uses positions for set positions and partners, lines otherwise", () => {
+    const set = roleModelFor(resolve("afl", "U14", "set-positions"))!;
+    expect(set.unit).toBe("position");
+    expect(set.home).toBe(true);
+    expect(set.options).toHaveLength(15);
+
+    const preferred = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    expect(preferred).toMatchObject({ unit: "line", home: true });
+    expect(preferred.options.map((o) => o.key)).toEqual(["fwd", "mid", "back"]);
+
+    expect(roleModelFor(resolve("afl", "U12", "free"))).toMatchObject({ unit: "line", home: false });
+    expect(roleModelFor(resolve("netball", "13u", "partners"))).toMatchObject({ unit: "position", home: true });
+    expect(roleModelFor(resolve("netball", "go", "by-thirds"))!.options.map((o) => o.key)).toEqual([
+      "attack-third",
+      "centre-third",
+      "defence-third",
+    ]);
+    expect(roleModelFor(resolve("rugby_league", "U12", "preferred-line"))).toMatchObject({ unit: "line", home: true });
+  });
+
+  it("round-trips a role through prefs, without overlaps", () => {
+    const role = normaliseRole(
+      { home: "ff", also: ["chf", "ff", "hff1"], never: ["r", "chf"], keepOn: true },
+      ["ff", "chf", "hff1", "r"],
+    );
+    expect(role).toEqual({ home: "ff", also: ["chf", "hff1"], never: ["r"], keepOn: true });
+    const rows = prefsFromRole(role, "position").map((r) => ({ ...r, player_id: "p1" }));
+    expect(rolesFromPrefs(rows, "position").p1).toEqual(role);
+    // Position prefs don't leak into a line role.
+    expect(rolesFromPrefs(rows, "line").p1).toEqual({ home: null, also: [], never: [], keepOn: true });
+  });
+
+  it("describes a role in one line", () => {
+    const model = roleModelFor(resolve("afl", "U14", "set-positions"))!;
+    expect(describeRole({ home: "ff", also: ["chf"], never: ["r"], keepOn: false }, model)).toBe(
+      "Home FF · also CHF · not R",
+    );
+    const lines = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    expect(describeRole({ home: "fwd", also: [], never: [], keepOn: true }, lines)).toBe(
+      "Prefers Forward · keep on",
+    );
   });
 });

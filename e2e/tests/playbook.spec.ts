@@ -8,7 +8,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
-import { makeTeam } from "../fixtures/factories";
+import { makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -216,4 +216,69 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
     page.getByRole("group", { name: "Team positions" }).getByRole("button", { name: "Key back (KEY)" }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("group", { name: "Team positions" }).getByRole("button")).toHaveCount(14);
+});
+
+test("a coach sets a player's role from the squad", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
+  await page.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Forward" }).click();
+  await page.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: "Back" }).click();
+  await page.getByRole("switch", { name: "Keep on" }).click();
+  await page.getByRole("button", { name: "Save role" }).click();
+
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Prefers Forward · not Back · keep on");
+  const { data: prefs } = await admin
+    .from("player_position_prefs")
+    .select("kind, line, position_key")
+    .eq("player_id", player.id)
+    .order("kind");
+  expect(prefs).toEqual([
+    { kind: "home", line: "fwd", position_key: null },
+    { kind: "keep_on", line: null, position_key: null },
+    { kind: "never", line: "back", position_key: null },
+  ]);
+});
+
+test("a home position follows the position when the coach renames it", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
+  await page
+    .getByRole("radiogroup", { name: "Home position" })
+    .getByRole("radio", { name: "Full forward (FF)" })
+    .click();
+  await page.getByRole("button", { name: "Save role" }).click();
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home FF");
+
+  // Rename FF on the Team tab; the first save turns defaults into rows.
+  await page.goto(`/teams/${team.id}/settings`);
+  const field = page.getByRole("group", { name: "Team positions" });
+  await field.getByRole("button", { name: "Full forward (FF)" }).click();
+  await page.getByLabel("Short label (up to 4 letters)").fill("TALL");
+  await page.getByLabel("Full name (optional)").fill("Tall forward");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Save positions" }).click();
+  await expect
+    .poll(async () => {
+      const { count } = await admin
+        .from("team_positions")
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", team.id);
+      return count;
+    })
+    .toBe(15);
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home TALL");
 });

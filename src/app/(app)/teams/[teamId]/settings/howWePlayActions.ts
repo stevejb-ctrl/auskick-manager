@@ -6,7 +6,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
-import { sanitizeOverrides } from "@/lib/playbook/team";
+import { resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
+import { normaliseRole, prefsFromRole, roleModelFor, type PlayerRole } from "@/lib/playbook/roles";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { PolicyOverrides, SeasonBalanceSetting } from "@/lib/playbook/types";
 import type { ActionResult, Sport } from "@/lib/types";
@@ -224,4 +225,68 @@ export async function saveTeamPositions(
 
   revalidatePath(`/teams/${teamId}`, "layout");
   return { success: true, data: { ids } };
+}
+
+/**
+ * Save one player's role (UX plan 3.5): replaces their home / also /
+ * not-here rows for this unit (positions or lines) and their keep-on
+ * flag. Keys are checked against the team's current role model.
+ */
+export async function savePlayerRole(
+  teamId: string,
+  playerId: string,
+  role: PlayerRole,
+): Promise<ActionResult> {
+  const { supabase, user, error } = await authedCoach(teamId);
+  if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
+
+  const [{ data: team }, { data: row }, { data: positions }, { data: player }] = await Promise.all([
+    supabase.from("teams").select("sport, age_group").eq("id", teamId).single(),
+    supabase
+      .from("team_playbooks")
+      .select("strategy, policy_overrides, season_balance, season_balance_since")
+      .eq("team_id", teamId)
+      .maybeSingle(),
+    supabase
+      .from("team_positions")
+      .select("id, label, name, line, sort, archived_at")
+      .eq("team_id", teamId)
+      .is("archived_at", null),
+    supabase.from("players").select("id").eq("id", playerId).eq("team_id", teamId).maybeSingle(),
+  ]);
+  if (!team) return { success: false, error: "Team not found." };
+  if (!player) return { success: false, error: "Player not found." };
+  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const ageCfg = getAgeGroupConfig(sport, team.age_group as string);
+  const resolved = resolveTeamPlaybook({
+    sport,
+    ageGroup: ageCfg.id,
+    onFieldSize: ageCfg.defaultOnFieldSize,
+    row: row ?? null,
+    positions: positions ?? [],
+  });
+  const model = roleModelFor(resolved);
+  if (!model) return { success: false, error: "Every player rotates through every zone at this age." };
+  const clean = normaliseRole(
+    model.home ? role : { ...role, home: null, also: [] },
+    model.options.map((o) => o.key),
+  );
+
+  // Replace this unit's rows and the keep-on flag; rows for the other
+  // unit (e.g. line prefs kept from an earlier strategy) stay.
+  const del = supabase.from("player_position_prefs").delete().eq("team_id", teamId).eq("player_id", playerId);
+  const { error: delError } =
+    model.unit === "position"
+      ? await del.or("position_key.not.is.null,kind.eq.keep_on")
+      : await del.is("position_key", null);
+  if (delError) return { success: false, error: delError.message };
+
+  const rows = prefsFromRole(clean, model.unit).map((r) => ({ ...r, team_id: teamId, player_id: playerId }));
+  if (rows.length > 0) {
+    const { error: insError } = await supabase.from("player_position_prefs").insert(rows);
+    if (insError) return { success: false, error: insError.message };
+  }
+
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
 }

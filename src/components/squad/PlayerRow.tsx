@@ -14,6 +14,9 @@ import { ChipPicker } from "@/components/squad/ChipPicker";
 import { type ChipKey } from "@/lib/chips";
 import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
+import { PlayerRoleSheet } from "@/components/playbook/PlayerRoleSheet";
+import { savePlayerRole } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
+import { describeRole, EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
 
 interface PlayerRowProps {
   player: Player;
@@ -37,6 +40,9 @@ interface PlayerRowProps {
    * know team settings.
    */
   chipModes?: Partial<Record<ChipKey, import("@/lib/chips").ChipMode>>;
+  /** How we play role sheet for this team; null where roles don't apply. */
+  roleModel?: RoleModel | null;
+  role?: PlayerRole;
 }
 
 export function PlayerRow({
@@ -47,8 +53,12 @@ export function PlayerRow({
   showJersey = true,
   chipLabels,
   chipModes,
+  roleModel = null,
+  role,
 }: PlayerRowProps) {
   const [editing, setEditing] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const roleText = roleModel ? describeRole(role, roleModel) : "";
   const [name, setName] = useState(player.full_name);
   const [jersey, setJersey] = useState(player.jersey_number != null ? String(player.jersey_number) : "");
   const [chip, setChip] = useState<ChipKey | "">(
@@ -189,7 +199,7 @@ export function PlayerRow({
         </div>
       ) : (
         <>
-          <span className="flex-1 text-sm font-medium text-ink">
+          <span className="min-w-0 flex-1 text-sm font-medium text-ink">
             {player.chip && (
               <ChipIndicator
                 chipKey={player.chip as ChipKey}
@@ -202,7 +212,22 @@ export function PlayerRow({
               />
             )}
             {player.full_name}
+            {roleText && (
+              <span className="block truncate text-xs font-normal text-ink-mute" data-testid={`player-role-${player.id}`}>
+                {roleText}
+              </span>
+            )}
           </span>
+          {canEdit && roleModel && player.is_active && (
+            <SFButton
+              size="sm"
+              variant="ghost"
+              onClick={() => setRoleOpen(true)}
+              aria-label={`Role for ${player.full_name}`}
+            >
+              Role
+            </SFButton>
+          )}
           {canEdit && (
             <SFButton
               size="sm"
@@ -214,6 +239,16 @@ export function PlayerRow({
             </SFButton>
           )}
         </>
+      )}
+
+      {roleOpen && roleModel && (
+        <PlayerRoleSheet
+          playerName={player.full_name}
+          model={roleModel}
+          initial={role ?? EMPTY_ROLE}
+          onSave={(next) => savePlayerRole(teamId, player.id, next)}
+          onClose={() => setRoleOpen(false)}
+        />
       )}
 
       {canEdit && (
