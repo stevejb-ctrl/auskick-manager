@@ -21,7 +21,6 @@ export interface LoadedPlaybook {
 }
 
 export async function loadTeamPlaybook(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
   teamId: string,
   sport: Sport,

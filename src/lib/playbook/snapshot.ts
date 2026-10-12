@@ -10,7 +10,6 @@ import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
 
 export async function kickoffSnapshot(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
   teamId: string,
 ): Promise<PlaybookSnapshot | null> {

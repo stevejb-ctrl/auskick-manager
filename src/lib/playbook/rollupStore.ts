@@ -5,7 +5,6 @@ import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
 import type { GameEvent, Sport } from "@/lib/types";
 import { gameRollupRows, type PlayerGameTimeRow } from "@/lib/playbook/rollup";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = SupabaseClient<any, any, any>;
 
 /** A game's effective period length, as the live screens use it. */

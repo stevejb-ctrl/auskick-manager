@@ -30,7 +30,6 @@ const LABELS: Record<string, string> = {
 };
 
 export async function buildGameReport(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
   team: { id: string; sport: Sport | null; age_group: string | null; quarter_length_seconds: number | null },
   game: Game,
