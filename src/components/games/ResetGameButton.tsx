@@ -26,10 +26,33 @@ interface ResetGameButtonProps {
   gameId: string;
 }
 
-type Stage = "idle" | "confirm" | "final";
+type Stage = "confirm" | "final";
 
 export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
-  const [stage, setStage] = useState<Stage>("idle");
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {/* SFButton danger to match the other destructive actions (Steve
+          2026-05-13). Intrinsic width — Restart is the "if you need it"
+          option next to Add late arrival (Steve 2026-05-15). */}
+      <SFButton variant="danger" size="md" onClick={() => setOpen(true)}>
+        Restart game
+      </SFButton>
+      {open && <ResetGameDialog auth={auth} gameId={gameId} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/**
+ * The two-step restart confirm on its own, so an overflow menu (the
+ * game hub's More sheet) can open it without rendering the trigger.
+ */
+export function ResetGameDialog({
+  auth,
+  gameId,
+  onClose,
+}: ResetGameButtonProps & { onClose: () => void }) {
+  const [stage, setStage] = useState<Stage>("confirm");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -62,104 +85,81 @@ export function ResetGameButton({ auth, gameId }: ResetGameButtonProps) {
       const result = await resetGame(auth, gameId);
       if (result && !result.success) {
         setError(result.error);
-        setStage("idle");
+        setStage("confirm");
       } else {
-        setStage("idle");
+        onClose();
       }
     });
   }
 
   return (
-    <>
-      {/* SFButton danger to match DeleteGameButton's idle treatment
-          (Steve 2026-05-13) — both destructive actions on the game-
-          detail page now share the same red-border ghost look,
-          paired with the SFButton ghost neutrals (Set lineup,
-          Share gameday link). */}
-      {/* Intrinsic width — Restart game is the secondary affordance
-          on the admin row alongside Add late arrival, which now
-          gets the w-full sm:w-auto treatment. Steve 2026-05-15:
-          reversed the width hierarchy because add-late-arrival is
-          the more common scenario; this destructive button should
-          read as the smaller, "if you need it" option. */}
-      <SFButton
-        variant="danger"
-        size="md"
-        onClick={() => setStage("confirm")}
-      >
-        Restart game
-      </SFButton>
+    <Modal>
+      <h2 className="text-center text-lg font-bold text-danger">
+        Restart this game?
+      </h2>
+      <p className="mt-2 text-sm text-ink-dim">
+        Restarting will permanently delete everything that
+        happened in this game.
+      </p>
+      <ul className="mt-2 list-disc pl-5 text-xs text-ink-dim">
+        <li>All quarters, swaps, goals, and behinds will be wiped.</li>
+        <li>The starting lineup will be cleared.</li>
+        <li>Player zone minutes from this game will no longer count.</li>
+        <li>This can&apos;t be undone.</li>
+      </ul>
 
-      {stage !== "idle" && (
-        <Modal>
-          <h2 className="text-center text-lg font-bold text-danger">
-            Restart this game?
-          </h2>
-          <p className="mt-2 text-sm text-ink-dim">
-            Restarting will permanently delete everything that
-            happened in this game.
-          </p>
-          <ul className="mt-2 list-disc pl-5 text-xs text-ink-dim">
-            <li>All quarters, swaps, goals, and behinds will be wiped.</li>
-            <li>The starting lineup will be cleared.</li>
-            <li>Player zone minutes from this game will no longer count.</li>
-            <li>This can&apos;t be undone.</li>
-          </ul>
-
-          {error && (
-            <p
-              className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
-
-          {stage === "confirm" ? (
-            <div className="mt-5 flex flex-col gap-2">
-              <SFButton
-                type="button"
-                variant="danger"
-                size="md"
-                onClick={() => setStage("final")}
-                disabled={isPending}
-              >
-                I understand, continue
-              </SFButton>
-              <SFButton
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setStage("idle")}
-                disabled={isPending}
-              >
-                Cancel
-              </SFButton>
-            </div>
-          ) : (
-            <div className="mt-5 flex flex-col gap-2">
-              <SFButton
-                type="button"
-                variant="alarm"
-                size="md"
-                onClick={handleReset}
-                loading={isPending}
-              >
-                {isPending ? "Restarting…" : "Yes, restart this game"}
-              </SFButton>
-              <SFButton
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setStage("idle")}
-                disabled={isPending}
-              >
-                Cancel
-              </SFButton>
-            </div>
-          )}
-        </Modal>
+      {error && (
+        <p
+          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+          role="alert"
+        >
+          {error}
+        </p>
       )}
-    </>
+
+      {stage === "confirm" ? (
+        <div className="mt-5 flex flex-col gap-2">
+          <SFButton
+            type="button"
+            variant="danger"
+            size="md"
+            onClick={() => setStage("final")}
+            disabled={isPending}
+          >
+            I understand, continue
+          </SFButton>
+          <SFButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={isPending}
+          >
+            Cancel
+          </SFButton>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col gap-2">
+          <SFButton
+            type="button"
+            variant="alarm"
+            size="md"
+            onClick={handleReset}
+            loading={isPending}
+          >
+            {isPending ? "Restarting…" : "Yes, restart this game"}
+          </SFButton>
+          <SFButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={isPending}
+          >
+            Cancel
+          </SFButton>
+        </div>
+      )}
+    </Modal>
   );
 }

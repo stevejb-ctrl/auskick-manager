@@ -30,21 +30,10 @@ test("delete game removes it from the games list", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}`);
 
-  // Delete affordance is typically behind a confirmation. Handle both
-  // a native dialog and an in-page confirm modal.
-  page.once("dialog", (d) => d.accept());
-  await page
-    .getByRole("button", { name: /delete game|delete/i })
-    .first()
-    .click();
-
-  // If an in-page modal appears, click its confirm button too.
-  const confirmBtn = page.getByRole("button", {
-    name: /confirm|yes.*delete/i,
-  });
-  if (await confirmBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await confirmBtn.click();
-  }
+  // Delete lives in the game's More menu, behind a confirm dialog.
+  await page.getByRole("button", { name: /more actions/i }).click();
+  await page.getByRole("button", { name: /^delete game$/i }).click();
+  await page.getByRole("button", { name: /yes, delete this game/i }).click();
 
   // Wait for the cascade-delete to complete in the DB before asserting on
   // the URL or row count. Under parallel workers the deleteGame server
@@ -66,4 +55,36 @@ test("delete game removes it from the games list", async ({ page }) => {
     )
     .toBe(0);
   await expect(page).toHaveURL(/\/teams\/[0-9a-f-]+\/games\/?$/, { timeout: 10_000 });
+});
+
+// Regression (UX plan H3 / 0.7): a final game's detail page led with
+// "Open live game" and stacked Restart + Delete in red underneath. The
+// primary action for a final game is its Summary; destructive actions
+// live behind the More menu.
+test("a final game leads with Summary and keeps Restart/Delete in More", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+
+  await expect(page.getByRole("link", { name: /^summary$/i })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByRole("link", { name: /open live game/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^restart game$/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^delete game$/i })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /more actions/i }).click();
+  const sheet = page.getByRole("dialog", { name: /game actions/i });
+  await expect(sheet.getByRole("button", { name: /^restart game$/i })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /^delete game$/i })).toBeVisible();
 });

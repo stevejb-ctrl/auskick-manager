@@ -2,8 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
-import { DeleteGameButton } from "@/components/games/DeleteGameButton";
+import { GameMoreMenu } from "@/components/games/GameMoreMenu";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import {
   Eyebrow,
@@ -124,6 +123,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
+  // AFL and netball render the full-time summary card on this page.
+  const hasInlineSummary = sport === "afl" || sport === "netball";
   const isUp = g.status === "upcoming";
 
   // Full event log for the post-completion summary card. Fetched
@@ -190,21 +191,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 iconAfter={<SFIcon.chevronRight color="white" />}
                 className="w-full sm:w-auto"
               >
-                Open live game
+                Back to live game
               </SFButton>
               <ShareRunnerLink token={g.share_token} />
-              {role === "admin" && (
-                <ResetGameButton
-                  auth={{ kind: "team", teamId: params.teamId }}
-                  gameId={params.gameId}
-                />
-              )}
-              {role === "admin" && (
-                <DeleteGameButton
-                  teamId={params.teamId}
-                  gameId={params.gameId}
-                />
-              )}
+              <GameMoreMenu
+                teamId={params.teamId}
+                gameId={params.gameId}
+                canRestart={role === "admin"}
+                canDelete={role === "admin"}
+              />
             </div>
           )}
         </SFCard>
@@ -301,6 +296,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                       className="w-full sm:w-auto"
                     />
                   </>
+                ) : isFinal ? (
+                  // A final game's one job is its summary (UX plan H3).
+                  // AFL and netball render it on this page; league's
+                  // full-time screen is the summary until it gets one here.
+                  <SFButton
+                    href={
+                      hasInlineSummary
+                        ? "#summary"
+                        : `/teams/${params.teamId}/games/${params.gameId}/live`
+                    }
+                    variant="primary"
+                    iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                    className="w-full sm:w-auto"
+                  >
+                    Summary
+                  </SFButton>
                 ) : (
                   <SFButton
                     href={`/teams/${params.teamId}/games/${params.gameId}/live`}
@@ -308,7 +319,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     iconAfter={<SFIcon.chevronRight color="currentColor" />}
                     className="w-full sm:w-auto"
                   >
-                    Open live game
+                    Back to live game
                   </SFButton>
                 )}
               </div>
@@ -329,18 +340,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     Plan saved
                   </span>
                 )}
-                {role === "admin" && !isUp && (
-                  <ResetGameButton
-                    auth={{ kind: "team", teamId: params.teamId }}
-                    gameId={params.gameId}
-                  />
-                )}
-                {role === "admin" && (
-                  <DeleteGameButton
-                    teamId={params.teamId}
-                    gameId={params.gameId}
-                  />
-                )}
+                <GameMoreMenu
+                  teamId={params.teamId}
+                  gameId={params.gameId}
+                  liveHref={
+                    isFinal && hasInlineSummary
+                      ? `/teams/${params.teamId}/games/${params.gameId}/live`
+                      : undefined
+                  }
+                  canRestart={role === "admin" && !isUp}
+                  canDelete={role === "admin"}
+                />
               </div>
             </div>
           )}
@@ -426,7 +436,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           | { name?: string; track_scoring?: boolean }
           | null;
         return (
-          <SFCard>
+          <SFCard id="summary">
             <GameSummaryView
               teamName={teamRow?.name ?? "Us"}
               opponentName={g.opponent}
@@ -479,7 +489,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           ) => "attack-third" | "centre-third" | "defence-third" | null,
         );
         return (
-          <SFCard>
+          <SFCard id="summary">
             <NetballGameSummaryCard
               teamName={teamRow?.name ?? "Us"}
               opponentName={g.opponent}

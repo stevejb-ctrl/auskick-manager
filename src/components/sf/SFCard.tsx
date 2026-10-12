@@ -10,6 +10,8 @@ interface SFCardProps {
   onClick?: MouseEventHandler<HTMLDivElement>;
   className?: string;
   style?: CSSProperties;
+  /** DOM id — lets a page link straight to a card ("#summary"). */
+  id?: string;
 }
 
 /**
@@ -27,6 +29,7 @@ export function SFCard({
   onClick,
   className = "",
   style,
+  id,
 }: SFCardProps) {
   const interactiveClasses = interactive || onClick
     ? "cursor-pointer transition-all duration-base ease-out-quart hover:-translate-y-px hover:shadow-pop"
@@ -34,6 +37,7 @@ export function SFCard({
 
   return (
     <div
+      id={id}
       onClick={onClick}
       className={`rounded-lg border border-hairline bg-surface shadow-card ${interactiveClasses} ${className}`}
       style={{ padding: pad, ...style }}
