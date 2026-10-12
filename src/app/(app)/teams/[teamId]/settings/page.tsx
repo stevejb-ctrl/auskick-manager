@@ -11,6 +11,7 @@ import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { SettingsSection } from "@/components/team/SettingsSection";
 import { AgeGroupSettings } from "@/components/team/AgeGroupSettings";
 import { DangerZone } from "@/components/team/DangerZone";
+import { HowWePlayCard, type HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import {
   TeamMembersSettings,
   type MemberRow,
@@ -118,6 +119,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  const { data: playbookRow } = await supabase
+    .from("team_playbooks")
+    .select("strategy, policy_overrides, season_balance, season_balance_since")
+    .eq("team_id", params.teamId)
+    .maybeSingle();
   const ageOptions = getSportConfig(sport).ageGroups.map((a) => ({ id: a.id, label: a.label, notes: a.notes }));
 
   // Team tab sections (UX plan §6 "Where each setting goes"): what the
@@ -135,6 +141,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         title="How we play"
         description="How your team rotates on game day."
       >
+        <HowWePlayCard
+          teamId={params.teamId}
+          sport={sport}
+          ageGroup={ageGroupCfg.id}
+          ageLabel={ageGroupCfg.label}
+          onFieldSize={ageGroupCfg.defaultOnFieldSize}
+          periodWord={ageGroupCfg.periodLabel === "half" ? "half" : "quarter"}
+          row={(playbookRow ?? null) as HowWePlayRow | null}
+          isAdmin={isAdmin}
+        />
         {/* Rugby league §6 Junior Laws: each player plays two full
             unbroken quarters (U6–U9) or one full half (U10–U12). Off by
             default for casual comps. */}

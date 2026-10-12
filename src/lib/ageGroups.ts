@@ -78,7 +78,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
-    notes: "12-a-side, 3 zones, mandatory rotations, scoring introduced.",
+    notes: "12-a-side, no zones from U11, scoring introduced.",
   },
   U12: {
     id: "U12",
@@ -91,7 +91,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 15 * 60,
     subIntervalSeconds: 3 * 60,
     tracksScoreDefault: true,
-    notes: "12-a-side, 3 zones, mandatory zone rotations.",
+    notes: "12-a-side, no zones; lines and positions are up to you.",
   },
   U13: {
     id: "U13",

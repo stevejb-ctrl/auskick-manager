@@ -18,6 +18,7 @@ import {
   type ChipMode,
 } from "@/lib/chips";
 import { ChipIndicator } from "@/components/squad/ChipIndicator";
+import { effectivePolicy } from "@/lib/playbook";
 
 interface CohortChipsSettingsProps {
   teamId: string;
@@ -54,14 +55,9 @@ interface CohortChipsSettingsProps {
   hideSaveButton?: boolean;
 }
 
-// AFL age groups where the Junior Match Policy mandates equal-time
-// rotation across the field (i.e. coaches MUST move every player
-// through every position group across the season). Position-locking
-// chips works against this rule. The 3-zone rotation system ends
-// at U10 — U11 onwards is fair game for position-linked chips.
-// Steve 2026-05-20 (corrected from U8-U11 to U8-U10 after coach
-// feedback).
-const ROTATION_MANDATED_AGE_GROUPS = new Set(["U8", "U9", "U10"]);
+// Whether the AFL junior rules zone this age (U8–U10) comes from the
+// How we play age policy (UX plan 3.1) — position-locking chips work
+// against mandatory zone rotation.
 
 type Mode = "off" | "positions" | "custom";
 
@@ -582,7 +578,7 @@ function allLabelsBlank(labels: {
 // Steve 2026-05-20: corrected threshold from U11→U10 after
 // coach feedback — the mandatory 3-zone rotation ends at U10.
 function AgeRecommendationNote({ ageGroup }: { ageGroup: string }) {
-  const isU10OrUnder = ROTATION_MANDATED_AGE_GROUPS.has(ageGroup);
+  const isU10OrUnder = effectivePolicy("afl", ageGroup).zonesEnforced;
   if (isU10OrUnder) {
     return (
       <div className="mt-3 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs text-warn">

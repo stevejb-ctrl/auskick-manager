@@ -3,6 +3,7 @@ import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
+import { HowWePlayCard, type HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -29,6 +30,8 @@ interface ScoringStepProps {
    */
   initialChipLabels?: { a: string | null; b: string | null; c: string | null };
   initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
+  /** Saved How we play, or null for a new team (age-group defaults). */
+  playbookRow?: HowWePlayRow | null;
 }
 
 export function ScoringStep({
@@ -39,6 +42,7 @@ export function ScoringStep({
   initialQuarterLengthSeconds = null,
   initialChipLabels = { a: null, b: null, c: null },
   initialChipModes = { a: "split", b: "split", c: "split" },
+  playbookRow = null,
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
   // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
@@ -56,7 +60,7 @@ export function ScoringStep({
         groups and switch it on once the kids move up. Flip this on if your
         league keeps a scoreboard —{" "}
         <strong className="text-ink">
-          you can update it later in Settings if you change your mind
+          you can change it later on the Team tab
         </strong>
         .
       </>
@@ -72,7 +76,7 @@ export function ScoringStep({
         <>
           {ageGroup.label} is tag rugby — the laws ban scoring at this age.
           No scoreboard, no conversions. The live screen will hide the
-          scoring buttons. Move up an age group from Settings if you
+          scoring buttons. Move up an age group from the Team tab if you
           switch to modified tackle.
         </>
       )
@@ -81,7 +85,7 @@ export function ScoringStep({
         Most AFL juniors don&apos;t keep score up to U10, then scoring comes in
         around U11. Flip this on if your league keeps a scoreboard —{" "}
         <strong className="text-ink">
-          you can update it later in Settings if you change your mind
+          you can change it later on the Team tab
         </strong>
         .
       </>
@@ -93,6 +97,26 @@ export function ScoringStep({
 
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-ink">How we play</h1>
+        <p className="text-sm text-ink-dim">
+          What {ageGroup.label} requires, and how you want kids to rotate. Change it any
+          time from the Team tab.
+        </p>
+      </div>
+
+      <HowWePlayCard
+        teamId={teamId}
+        sport={sportId}
+        ageGroup={ageGroup.id}
+        ageLabel={ageGroup.label}
+        onFieldSize={ageGroup.defaultOnFieldSize}
+        periodWord={ageGroup.periodLabel === "half" ? "half" : "quarter"}
+        row={playbookRow}
+        isAdmin
+        inWizard
+      />
+
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold text-ink">Scoring</h2>
         <p className="text-sm text-ink-dim">{blurb}</p>
         {!isRugbyLeague && (
           <p className="text-xs text-ink-mute">
