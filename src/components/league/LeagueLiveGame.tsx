@@ -87,6 +87,7 @@ import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
 import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
 import { Modal } from "@/components/ui/Modal";
+import { UndoStrip } from "@/components/live/UndoStrip";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   game: Game;
@@ -2262,16 +2263,8 @@ export function LeagueLiveGame({
             (state.teamScore.points > 0 || state.opponentScore.points > 0)
               && !state.finalised
               ? (
-                <div className="mx-4 mb-1 flex items-center justify-end px-3">
-                  <button
-                    type="button"
-                    onClick={handleUndoScore}
-                    disabled={pending}
-                    className="text-xs font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline disabled:opacity-60"
-                  >
-                    Undo last score
-                  </button>
-                </div>
+                // Same strip as AFL and netball (UX plan Phase 6).
+                <UndoStrip flashing={false} message="" onUndo={handleUndoScore} disabled={pending} />
               )
               : undefined
           }

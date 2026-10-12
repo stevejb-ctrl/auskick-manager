@@ -99,6 +99,7 @@ import {
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
+import { UndoStrip } from "@/components/live/UndoStrip";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -2573,37 +2574,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         scorebug={liveScoreBug}
         undoStrip={
           trackScoring && lastScore ? (
-            <div
-              className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
-                undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+            <UndoStrip
+              flashing={undoToastVisible}
+              message={`${lastScore.kind === "team" ? teamName : game.opponent} goal${
+                lastScore.playerName ? ` — ${lastScore.playerName}` : ""
               }`}
-              role="status"
-              aria-live="polite"
-            >
-              <span
-                className={`text-xs ${
-                  undoToastVisible ? "text-warm/80" : "text-ink-dim"
-                }`}
-              >
-                {undoToastVisible
-                  ? `${
-                      lastScore.kind === "team" ? teamName : game.opponent
-                    } goal${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
-                  : "Undo last score"}
-              </span>
-              <button
-                type="button"
-                onClick={handleUndoLastScore}
-                disabled={isPending}
-                className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
-                  undoToastVisible
-                    ? "text-warn hover:text-warn/80"
-                    : "text-brand-700 hover:text-brand-600"
-                }`}
-              >
-                Undo
-              </button>
-            </div>
+              onUndo={handleUndoLastScore}
+              disabled={isPending}
+            />
           ) : null
         }
       />

@@ -114,6 +114,7 @@ import { subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { UndoStrip } from "@/components/live/UndoStrip";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -2663,29 +2664,12 @@ export function LiveGame({
           scorebug={gameHeader}
           undoStrip={
             lastScore && !isPreGame && !isFinished ? (
-              <div
-                className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
-                  undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
-                }`}
-              >
-                <span
-                  className={`text-xs ${undoToastVisible ? "text-warm/80" : "text-ink-dim"}`}
-                >
-                  {undoToastVisible
-                    ? `${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
-                    : "Undo last score"}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleUndo}
-                  disabled={isPending}
-                  className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
-                    undoToastVisible ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"
-                  }`}
-                >
-                  Undo
-                </button>
-              </div>
+              <UndoStrip
+                flashing={undoToastVisible}
+                message={`${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`}
+                onUndo={handleUndo}
+                disabled={isPending}
+              />
             ) : null
           }
         />
