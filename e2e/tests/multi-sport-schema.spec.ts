@@ -101,10 +101,10 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     ).toMatchObject({ sport: "afl", track_scoring: false });
 
-    // L7 negative-presence — QuarterLengthInput renders only for netball teams.
-    // Confirms the sport === 'netball' conditional-render gate is respected for AFL.
+    // The Team tab shows the period length for every sport (UX plan 2.3:
+    // AFL and league honour the override too; it used to be netball-only).
     await page.goto(`/teams/${teamId}/settings`);
-    await expect(page.getByLabel(/quarter length/i)).not.toBeVisible();
+    await expect(page.getByLabel(/quarter length/i)).toBeVisible();
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();
