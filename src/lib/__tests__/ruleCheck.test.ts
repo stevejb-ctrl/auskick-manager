@@ -38,6 +38,31 @@ describe("rule check (RuleCheckBar)", () => {
     expect(summariseCheck(items)).toEqual({ status: "fail", text: "Ava would sit out twice in a row" });
   });
 
+  it("doesn't claim 'All rules kept' when it only checked the floor, and says where season balance stands", () => {
+    // Usability run: a new Preferred lines team saw "All rules kept" with
+    // only the 50% line behind it, and read that as fairness unchecked.
+    const lineup = {
+      ...base,
+      onField: { mia: "fwd", sam: "back" },
+      bench: ["ava"],
+      playedThisGame: {},
+      benchedLastPeriod: [],
+      period: 1,
+      rules: [],
+    };
+    expect(summariseCheck(checkRules(lineup))).toEqual({ status: "ok", text: "Everyone can play at least 50%" });
+
+    const units = { time: {}, units: ["back", "mid", "fwd"], unitLabel: label };
+    const fresh = checkRules({ ...lineup, season: units });
+    expect(fresh.map((i) => i.text)).toContain("Season balance starts after your first game");
+    expect(summariseCheck(fresh).text).toBe("All rules kept");
+
+    const even = { mia: { back: P, mid: P, fwd: P }, sam: { back: P, mid: P, fwd: P }, ava: { back: P, mid: P, fwd: P } };
+    expect(checkRules({ ...lineup, season: { ...units, time: even } }).map((i) => i.text)).toContain(
+      "Season balance: nobody is short this season",
+    );
+  });
+
   it("knows when a kid can no longer reach the floor or every line", () => {
     const items = checkRules({
       ...base,

@@ -184,8 +184,18 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
   }
 
   // Season nudges: the biggest gaps among today's players. Soft, never block.
+  // With none, still say where season balance stands, so the check shows
+  // it's being kept (usability run: "only checks a 50% minimum").
   if (input.season) {
     const gaps = biggestSeasonGaps(input.season.time, squad, input.season.units, input.periodMs, { limit: 2 });
+    if (gaps.length === 0) {
+      const anyTime = squad.some((pid) => Object.values(input.season!.time[pid] ?? {}).some((ms) => ms > 0));
+      items.push({
+        id: "season-balance",
+        status: "ok",
+        text: anyTime ? "Season balance: nobody is short this season" : "Season balance starts after your first game",
+      });
+    }
     for (const g of gaps) {
       items.push({
         id: `season-${g.playerId}-${g.unit}`,
@@ -205,6 +215,8 @@ export function summariseCheck(items: RuleCheckItem[]): { status: CheckStatus; t
   const warn = items.filter((i) => i.status === "warn");
   if (fail.length > 0) return { status: "fail", text: fail[0].text };
   if (warn.length > 0) return { status: "warn", text: warn[0].text };
+  // One check is just that check: "All rules kept" would overclaim.
+  if (items.length === 1) return { status: "ok", text: items[0].text };
   return { status: "ok", text: "All rules kept" };
 }
 
