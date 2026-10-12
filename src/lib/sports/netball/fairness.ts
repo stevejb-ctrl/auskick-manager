@@ -794,11 +794,18 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
   const benchRule = teamRules.some((r) => r.kind === "max-bench-in-row");
   const hadQuarter = !!lastQuarterThird && Object.keys(lastQuarterThird).length > 0;
   const satOut = (pid: string) => (benchRule && hadQuarter && !lastQuarterThird![pid] ? 0 : 1);
+  // Set positions: at kickoff, girls with a home bib start in it (AFL
+  // parity, usability run). From the first break, least time sits last.
+  const kickoff = !hadQuarter && playerIds.every((pid) => sortKey(pid) === 0);
+  const homeFirst = (pid: string) =>
+    kickoff && playbook?.strategy === "set-positions" && playbook.roleUnit === "position" && playbook.roles[pid]?.home ? 0 : 1;
   shuffled.sort((a, b) => {
     const first = keepOn(a) - keepOn(b) || satOut(a) - satOut(b);
     if (first !== 0) return first;
     const byGameTime = sortKey(a) - sortKey(b);
     if (byGameTime !== 0) return byGameTime;
+    const home = homeFirst(a) - homeFirst(b);
+    if (home !== 0) return home;
     return recencyTiebreak(a, b);
   });
 

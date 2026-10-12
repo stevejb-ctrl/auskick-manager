@@ -795,11 +795,17 @@ export function suggestStartingLineup(
   const benchRule = playbook?.rules?.some((r) => r.kind === "max-bench-in-row");
   const hadQuarter = Object.keys(previousQuarterZones).length > 0;
   const satOut = (pid: string) => (benchRule && hadQuarter && !previousQuarterZones[pid] ? 0 : 1);
+  // Set positions: at kickoff, kids with a home position start in it
+  // (usability run: the full forward sat out Q1 while another kid wore
+  // FF). From the first break the usual rotation decides who sits.
+  const kickoff = !hadQuarter && availablePlayers.every((p) => inGameTotal(p.id) === 0);
+  const homeFirst = (pid: string) => (kickoff && playbook?.positionRoles?.[pid]?.home ? 0 : 1);
   const sortedPlayers = shuffled.sort(
     (a, b) =>
       keepOn(a.id) - keepOn(b.id) ||
       satOut(a.id) - satOut(b.id) ||
-      inGameTotal(a.id) - inGameTotal(b.id),
+      inGameTotal(a.id) - inGameTotal(b.id) ||
+      homeFirst(a.id) - homeFirst(b.id),
   );
   // "Never plays" is a hard filter; a player with no allowed zone open
   // waits, and only fills a gap nobody else can.

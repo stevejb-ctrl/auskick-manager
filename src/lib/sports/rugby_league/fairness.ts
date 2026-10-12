@@ -1206,6 +1206,12 @@ export function suggestLeagueLineup(
     const sa = fa?.shortfall ?? 0;
     const sb = fb?.shortfall ?? 0;
     if (sa !== sb) return sb - sa;
+    // Named positions: kids with a home position start in it (AFL and
+    // netball parity, usability run). §6 shortfall still comes first:
+    // owed unbroken periods are the laws.
+    const ha = playbook?.positionRoles?.[a.id]?.home ? 0 : 1;
+    const hb = playbook?.positionRoles?.[b.id]?.home ? 0 : 1;
+    if (ha !== hb) return ha - hb;
     const ra = playtimeRatio(fa);
     const rb = playtimeRatio(fb);
     if (ra !== rb) return ra - rb;

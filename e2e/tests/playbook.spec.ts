@@ -324,10 +324,14 @@ test("set positions: game day puts kids in their home line, labelled", async ({ 
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
+  // Nine on the field, six on the bench: kids with a home position
+  // still start (usability run: "home kids start"), even at the end of
+  // the jersey order.
+  await admin.from("games").update({ on_field_size: 9 }).eq("id", game.id);
   const homes: [number, string, string, string][] = [
-    [0, "ff", "Forward", "FF"],
-    [1, "fb", "Back", "FB"],
-    [2, "c", "Centre", "C"],
+    [12, "ff", "Forward", "FF"],
+    [13, "fb", "Back", "FB"],
+    [14, "c", "Centre", "C"],
   ];
   await admin.from("player_position_prefs").insert(
     homes.map(([i, key]) => ({ team_id: team.id, player_id: players[i].id, position_key: key, kind: "home" })),
