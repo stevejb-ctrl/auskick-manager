@@ -115,3 +115,35 @@ test("creating a game inside the wizard stays in the wizard and reaches All set"
   await page.getByRole("link", { name: /^continue$/i }).click();
   await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=done`));
 });
+
+// Regression (UX plan C4): step 2 said "Default for Under 14: on" while
+// createTeam only applied the age-group scoring default for rugby
+// league, so older AFL / netball teams started with no scoreboard.
+test("a new AFL U14 team starts with scoring on, matching the stated default", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const teamName = `Scoring ${Date.now()}`;
+
+  await page.goto("/teams/new");
+  await page.getByRole("button", { name: /junior afl/i }).click();
+  await page.getByLabel(/team name/i).fill(teamName);
+  await page.getByLabel(/age group/i).selectOption("U14");
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await page.waitForURL(/\/teams\/[0-9a-f-]+\/setup[?]step=config/, { timeout: 10_000 });
+
+  await expect(page.getByText("Default for Under 14: on")).toBeVisible();
+  await expect(page.getByRole("switch", { name: /track scoring/i })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+
+  const { data: row } = await admin
+    .from("teams")
+    .select("track_scoring")
+    .eq("created_by", ownerId)
+    .eq("name", teamName)
+    .single();
+  expect(row?.track_scoring).toBe(true);
+});

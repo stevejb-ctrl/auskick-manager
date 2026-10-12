@@ -86,9 +86,9 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
-    // L4 — track_scoring stays false (the wizard does NOT auto-flip based on
-    // the age-group hint; the column ships NOT NULL DEFAULT false from
-    // 0003_live_game.sql and remains false until the coach toggles).
+    // track_scoring follows the age-group default the wizard displays
+    // (UX plan C4 replaced the old L4 "never auto-flip" contract).
+    // AFL U10 keeps no score, so it starts false.
     await expect.poll(
       async () => {
         const { data } = await admin
@@ -168,9 +168,9 @@ test("netball setup wizard creates team with sport='netball' and netball-default
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
-    // Assert sport persisted as 'netball'. track_scoring stays false per L4
-    // (the wizard does NOT auto-flip for netball either — the ScoringStep shows
-    // the age-group default as a hint in the UI but doesn't write to the column).
+    // Assert sport persisted as 'netball'. track_scoring follows the
+    // age-group default the wizard displays (UX plan C4): NetSetGO Go
+    // keeps a scoreboard, so it starts true.
     await expect.poll(
       async () => {
         const { data } = await admin
@@ -181,7 +181,7 @@ test("netball setup wizard creates team with sport='netball' and netball-default
         return data;
       },
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
-    ).toMatchObject({ sport: "netball", track_scoring: false });
+    ).toMatchObject({ sport: "netball", track_scoring: true });
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();

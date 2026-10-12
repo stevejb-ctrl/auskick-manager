@@ -1,5 +1,7 @@
 // Barrel re-exports for the sport abstraction.
 import type { AgeGroupConfig } from "@/lib/sports/types";
+import type { Sport } from "@/lib/types";
+import { getSportConfig } from "@/lib/sports/registry";
 
 export * from "@/lib/sports/types";
 export {
@@ -42,4 +44,14 @@ export function getEffectiveQuarterSeconds(
     return game.quarter_length_seconds;
   }
   return team.quarter_length_seconds ?? ageGroup.periodSeconds;
+}
+
+/**
+ * Whether a brand-new team in this sport + age group starts with the
+ * scoreboard on. The setup wizard shows this as "Default for {age}"
+ * and createTeam stores it, so the two can never disagree.
+ */
+export function defaultTrackScoring(sport: Sport, ageGroupId: string): boolean {
+  const ageCfg = getSportConfig(sport).ageGroups.find((a) => a.id === ageGroupId);
+  return ageCfg?.tracksScoreDefault === true;
 }

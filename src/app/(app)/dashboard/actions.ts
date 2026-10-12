@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { getSportConfig } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig } from "@/lib/sports";
 import {
   formatTeamMessage,
   sendTelegramNotification,
@@ -47,16 +47,13 @@ export async function createTeam(
   // RLS policy.
   const teamId = crypto.randomUUID();
 
-  // Rugby league bakes the scoring rule into the laws: tag at U6/U7
-  // (no scoreboard), modified tackle at U8+ (tries + conversions).
-  // Pre-set `track_scoring` to match the age-group default so a
-  // brand-new U8+ RL team can record tries from the first whistle
-  // without the coach having to remember to toggle it on. AFL and
-  // netball keep the explicit toggle in ScoringStep (DB default
-  // `false` preserved for them — same contract as before).
-  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
-  const initialTrackScoring
-    = sport === "rugby_league" && ageCfg?.tracksScoreDefault === true;
+  // Start the scoreboard on or off per the age-group default, for
+  // every sport. The wizard's "How we play" step shows that default
+  // ("Default for Under 14: on") next to the toggle, so storing
+  // anything else made the step contradict itself (UX plan C4).
+  // Rugby league follows its laws: tag at U6/U7 (no scoreboard),
+  // modified tackle at U8+ (tries + conversions).
+  const initialTrackScoring = defaultTrackScoring(sport, ageGroup);
 
   console.log("[createTeam] inserting team", {
     teamId,

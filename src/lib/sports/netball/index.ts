@@ -124,7 +124,7 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     // hand-set 600.
     subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
-    tracksScoreDefault: true,
+    tracksScoreDefault: false,
     notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {
