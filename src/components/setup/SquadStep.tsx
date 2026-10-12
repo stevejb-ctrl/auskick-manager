@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
+import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -79,6 +80,13 @@ export function SquadStep({
           chipLabels={chipLabels}
           chipModes={chipModes}
         />
+        <div className="mt-3 border-t border-hairline pt-3">
+          <BulkAddPlayers
+            teamId={teamId}
+            withJersey={showJersey}
+            room={Math.max(0, maxPlayers - activePlayers.length)}
+          />
+        </div>
       </div>
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">

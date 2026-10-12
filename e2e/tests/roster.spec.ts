@@ -96,3 +96,36 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
     )
     .toBe(true);
 });
+
+// UX plan 2.2: adding a squad one form at a time took ~3 fields × 18
+// kids. Pasting a list adds everyone in one go, after a preview.
+test("pasting a list adds the whole squad at once", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await page.getByRole("button", { name: /^paste a list$/i }).click();
+  await page
+    .getByLabel(/paste your squad/i)
+    .fill("Ava Smith #3\n7 Ben Jones\nCara Lee, 12");
+  await expect(page.getByText(/3 players:/i)).toBeVisible();
+  await page.getByRole("button", { name: /^add 3 players$/i }).click();
+  await expect(page.getByRole("status").filter({ hasText: /added 3 players/i })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  const { data: rows } = await admin
+    .from("players")
+    .select("full_name, jersey_number")
+    .eq("team_id", team.id)
+    .order("jersey_number");
+  expect(rows).toEqual([
+    { full_name: "Ava Smith", jersey_number: 3 },
+    { full_name: "Ben Jones", jersey_number: 7 },
+    { full_name: "Cara Lee", jersey_number: 12 },
+  ]);
+});

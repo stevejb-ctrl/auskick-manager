@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
+import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
@@ -85,6 +86,13 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               chipLabels={chipLabels}
               chipModes={chipModes}
             />
+            <div className="mt-3 border-t border-hairline pt-3">
+              <BulkAddPlayers
+                teamId={teamId}
+                withJersey={showJersey}
+                room={Math.max(0, maxPlayers - activePlayers.length)}
+              />
+            </div>
           </div>
         </SFCard>
       )}
