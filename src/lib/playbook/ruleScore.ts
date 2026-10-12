@@ -12,7 +12,9 @@ export const LINE_RULE_WEIGHT = { must: 20000, prefer: 1500 } as const;
 /**
  * Rule terms for placing player `pid` in zone `z` (UX plan 4.2): lines
  * still to play, players kept apart or together, kids who stay home.
- * `placed` is who's already been put in each zone this pass.
+ * `placed` is who's already been put in each zone this pass. `scale`
+ * matches the engine's tiers: 1 for AFL; netball's tiers are ~100×
+ * larger (unplayed third +100,000), so netball passes 100.
  */
 export function ruleScore(
   rules: RuleInstance[],
@@ -22,6 +24,7 @@ export function ruleScore(
   lineCount: number,
   placedInZone: Set<string> | undefined,
   homeLine: string | null,
+  scale = 1,
 ): number {
   let score = 0;
   for (const rule of rules) {
@@ -50,6 +53,6 @@ export function ruleScore(
         break;
     }
   }
-  return score;
+  return score * scale;
 }
 

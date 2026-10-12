@@ -660,6 +660,8 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
             playbook?.roleUnit === "position"
               ? primaryThirdFor(playbook.roles[pid]?.home ?? "")
               : (playbook?.roles[pid]?.home ?? null),
+            // Netball tiers are ~100× AFL's.
+            100,
           )
         : 0;
 

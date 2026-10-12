@@ -171,3 +171,26 @@ describe("netball styles through the suggester (UX plan 5.1–5.5)", () => {
     for (const l of game) expect(["gs", "ga"]).not.toContain(bibOf(l, "a"));
   });
 });
+
+describe("netball rules at netball's scale", () => {
+  const coverage = (game: GenericLineup[]) => {
+    let total = 0;
+    for (const pid of SQUAD) {
+      total += new Set(
+        game.map((l) => bibOf(l, pid)).filter((b) => b !== "bench").map((b) => primaryThirdFor(b)),
+      ).size;
+    }
+    return total / SQUAD.length;
+  };
+  const everyThird = (strength: "must" | "prefer") => [
+    { id: "r", kind: "every-line-per-game" as const, params: {}, strength, enabled: true },
+  ];
+
+  it("a Prefer every-third rule beats Partners' keep-your-third pull", () => {
+    // Partners holds a kid in their third (+60,000); unscaled, a Prefer
+    // rule (1,500) would never move them.
+    const without = coverage(play(input({ strategy: "partners", roleUnit: "line" })));
+    const prefer = coverage(play(input({ strategy: "partners", roleUnit: "line", rules: everyThird("prefer") })));
+    expect(prefer).toBeGreaterThan(without);
+  });
+});
