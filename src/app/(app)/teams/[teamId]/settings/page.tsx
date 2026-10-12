@@ -69,6 +69,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const sport = ((team.sport as string | null) ?? "afl") as Sport;
 
   // Members: joined to profiles so we can show names/emails.
+  // team_memberships has two FKs to profiles (user_id, invited_by), so
+  // the embed must name the user_id FK — an unqualified profiles(...)
+  // is ambiguous (PGRST201) and returns no rows at all.
   type RawMembership = {
     user_id: string;
     role: TeamRole;
@@ -76,7 +79,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   };
   const { data: rawMembers } = await supabase
     .from("team_memberships")
-    .select("user_id, role, profiles(full_name, email)")
+    .select("user_id, role, profiles!team_memberships_user_id_fkey(full_name, email)")
     .eq("team_id", params.teamId)
     .returns<RawMembership[]>();
 
