@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Toggle } from "@/components/ui/Toggle";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface TeamSongSettingsProps {
   teamId: string;
@@ -261,9 +262,9 @@ export function TeamSongSettings({
       </div>
 
       {error && (
-        <p className="mb-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
+        <InlineAlert className="mb-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
       {success && (
         <p className="mb-3 rounded-md bg-ok/10 px-3 py-2 text-sm text-ok" role="status">

@@ -15,6 +15,7 @@ import { SFButton } from "@/components/sf";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface NetballFullTimeReviewProps {
   auth: LiveAuth;
@@ -128,12 +129,9 @@ export function NetballFullTimeReview({
       )}
 
       {finaliseError && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {finaliseError}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-4 border-t border-hairline pt-3">

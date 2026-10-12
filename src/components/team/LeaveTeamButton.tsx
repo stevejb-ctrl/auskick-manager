@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { leaveTeam } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { SFButton } from "@/components/sf";
 import { Modal } from "@/components/ui/Modal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface LeaveTeamButtonProps {
   teamId: string;
@@ -66,9 +67,9 @@ export function LeaveTeamButton({
             You&apos;ll lose access until a coach invites you back.
           </p>
           {error && (
-            <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
+            <InlineAlert className="mt-3">
               {error}
-            </p>
+            </InlineAlert>
           )}
           <div className="mt-5 flex flex-col gap-2">
             <SFButton variant="alarm" size="md" loading={isPending} onClick={leave}>

@@ -29,6 +29,7 @@ import {
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface LeagueFullTimeReviewProps {
   auth: LiveAuth;
@@ -294,12 +295,9 @@ export function LeagueFullTimeReview({
       )}
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-4 border-t border-hairline pt-3">

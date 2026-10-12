@@ -18,6 +18,7 @@
 import { useState, useTransition } from "react";
 import { setEnforceUnbrokenPeriods } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Toggle } from "@/components/ui/Toggle";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface UnbrokenPeriodsToggleProps {
   teamId: string;
@@ -64,12 +65,9 @@ export function UnbrokenPeriodsToggle({
           unbroken run. Off by default.
         </p>
         {error && (
-          <p
-            className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-            role="alert"
-          >
+          <InlineAlert className="mt-2">
             {error}
-          </p>
+          </InlineAlert>
         )}
       </div>
       <Toggle

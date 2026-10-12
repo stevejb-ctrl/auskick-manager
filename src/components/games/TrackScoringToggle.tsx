@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { setTrackScoring } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Toggle } from "@/components/ui/Toggle";
 import type { Sport } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface TrackScoringToggleProps {
   teamId: string;
@@ -64,12 +65,9 @@ export function TrackScoringToggle({
           scores in the post-game summary.
         </p>
         {error && (
-          <p
-            className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-            role="alert"
-          >
+          <InlineAlert className="mt-2">
             {error}
-          </p>
+          </InlineAlert>
         )}
       </div>
       <Toggle

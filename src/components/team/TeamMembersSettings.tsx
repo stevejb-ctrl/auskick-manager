@@ -20,6 +20,7 @@ import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
 import { isEmail } from "@/lib/email/validate";
 import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 // Mirror of RESEND_THROTTLE_MS on the server. Used for the countdown
 // display on the "Resend email" button so the disabled state matches
@@ -514,13 +515,10 @@ function InviteForm({
           </p>
         )}
         {emailStatus.kind === "failed" && (
-          <p
-            className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-            role="alert"
-          >
+          <InlineAlert>
             Couldn’t email <strong>{emailStatus.recipient}</strong> ({emailStatus.error}).
             Copy the link below and share it manually.
-          </p>
+          </InlineAlert>
         )}
 
         <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@
 import { useState, useTransition } from "react";
 import { setTrackZoneTime } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Toggle } from "@/components/ui/Toggle";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface TrackZoneTimeToggleProps {
   teamId: string;
@@ -67,12 +68,9 @@ export function TrackZoneTimeToggle({
           teams that rotate the vest as a real position. Off by default.
         </p>
         {error && (
-          <p
-            className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-            role="alert"
-          >
+          <InlineAlert className="mt-2">
             {error}
-          </p>
+          </InlineAlert>
         )}
       </div>
       <Toggle

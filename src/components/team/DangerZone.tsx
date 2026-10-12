@@ -8,6 +8,7 @@ import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface DangerZoneProps {
   teamId: string;
@@ -87,9 +88,9 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
             />
           </div>
           {error && (
-            <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
+            <InlineAlert className="mt-3">
               {error}
-            </p>
+            </InlineAlert>
           )}
           <div className="mt-5 flex flex-col gap-2">
             <SFButton

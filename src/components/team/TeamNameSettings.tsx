@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { renameTeam } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface TeamNameSettingsProps {
   teamId: string;
@@ -65,12 +66,9 @@ export function TeamNameSettings({ teamId, currentName, isAdmin }: TeamNameSetti
         </SFButton>
       </div>
       {error && (
-        <p
-          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-2">
           {error}
-        </p>
+        </InlineAlert>
       )}
       {saved && !error && (
         <p

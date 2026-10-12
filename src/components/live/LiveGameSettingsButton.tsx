@@ -36,6 +36,7 @@ import {
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { LiveAuth, Player } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface LiveGameSettingsButtonProps {
   auth: LiveAuth;
@@ -270,12 +271,9 @@ function LiveGameSettingsModal({
       </div>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">
@@ -444,12 +442,9 @@ function ShrinkPickerModal({
       </p>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">

@@ -14,6 +14,7 @@ import type { Player } from "@/lib/types";
 import { PlayerRoleSheet } from "@/components/playbook/PlayerRoleSheet";
 import { savePlayerRole } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
 import { describeRole, EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface PlayerRowProps {
   player: Player;
@@ -151,12 +152,9 @@ export function PlayerRow({
             />
           )}
           {serverError && (
-            <p
-              className="w-full rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-              role="alert"
-            >
+            <InlineAlert className="w-full">
               {serverError}
-            </p>
+            </InlineAlert>
           )}
           <SFButton size="sm" loading={isPending} onClick={saveEdit}>
             Save

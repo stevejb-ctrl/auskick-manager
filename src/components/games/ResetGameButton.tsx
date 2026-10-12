@@ -7,6 +7,7 @@ import { SFButton } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { emptyLineup } from "@/lib/types";
 import type { LiveAuth } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 // ─── Reset Game Button ─────────────────────────────────────────
 // Destructive action — wipes all events for a game so the coach
@@ -109,12 +110,9 @@ export function ResetGameDialog({
       </ul>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       {stage === "confirm" ? (

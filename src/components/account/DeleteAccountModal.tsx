@@ -9,6 +9,7 @@ import {
   GRACE_DAYS,
 } from "@/lib/account/constants";
 import { Modal } from "@/components/ui/Modal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Team {
   id: string;
@@ -169,12 +170,9 @@ export function DeleteAccountModal({
         </label>
 
         {error && (
-          <p
-            role="alert"
-            className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
+          <InlineAlert className="mt-3">
             {error}
-          </p>
+          </InlineAlert>
         )}
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

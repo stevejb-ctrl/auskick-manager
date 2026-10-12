@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface DeleteGameDialogProps {
   teamId: string;
@@ -44,9 +45,9 @@ export function DeleteGameDialog({ teamId, gameId, onClose }: DeleteGameDialogPr
         <li>This can&apos;t be undone.</li>
       </ul>
       {error && (
-        <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
       <div className="mt-5 flex flex-col gap-2">
         <SFButton type="button" variant="alarm" size="md" onClick={handleDelete} loading={isPending}>

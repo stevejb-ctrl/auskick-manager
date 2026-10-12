@@ -6,6 +6,7 @@ import { restoreAccount } from "@/app/(app)/account/actions";
 import { SFButton, SFCard } from "@/components/sf";
 import { GRACE_DAYS } from "@/lib/account/constants";
 import { DeleteAccountModal } from "./DeleteAccountModal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Team {
   id: string;
@@ -78,12 +79,9 @@ export function DeleteAccountSection({
           time.
         </p>
         {error && (
-          <p
-            role="alert"
-            className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
+          <InlineAlert className="mt-3">
             {error}
-          </p>
+          </InlineAlert>
         )}
         <div className="mt-4">
           <SFButton

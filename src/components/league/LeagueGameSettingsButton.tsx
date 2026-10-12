@@ -40,6 +40,7 @@ import {
   setLeagueTrackZoneTime,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import type { LiveAuth, Player } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface LeagueGameSettingsButtonProps {
   auth: LiveAuth;
@@ -363,12 +364,9 @@ function LeagueGameSettingsModal({
       </div>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">
@@ -515,12 +513,9 @@ function ShrinkPickerModal({
       </p>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">

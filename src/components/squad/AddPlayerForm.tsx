@@ -5,6 +5,7 @@ import { addPlayer } from "@/app/(app)/teams/[teamId]/squad/actions";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -123,12 +124,9 @@ export function AddPlayerForm({
       </div>
 
       {serverError && (
-        <p
-          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert>
           {serverError}
-        </p>
+        </InlineAlert>
       )}
 
       <SFButton type="submit" loading={isPending} size="md">

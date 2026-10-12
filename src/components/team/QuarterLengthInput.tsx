@@ -15,6 +15,7 @@ import { setQuarterLengthSeconds } from "@/app/(app)/teams/[teamId]/games/action
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Props {
   teamId: string;
@@ -122,12 +123,9 @@ export function QuarterLengthInput({
         )}
       </div>
       {error && (
-        <p
-          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-2">
           {error}
-        </p>
+        </InlineAlert>
       )}
     </div>
   );
