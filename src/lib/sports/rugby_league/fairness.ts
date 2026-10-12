@@ -1938,6 +1938,24 @@ export function playerZoneMsOnField(
   currentQuarter: number,
   currentElapsedMs: number,
 ): Record<string, LeagueZoneMs> {
+  return walkLeagueStints(events, currentQuarter, currentElapsedMs).zones;
+}
+
+/**
+ * Named positions (5.7): ms per player per position key, from the
+ * slots recorded on each lineup_set. A sub takes over the slot of the
+ * player they replace; a forward/back move leaves the kid unslotted
+ * until the next lineup. Completed periods only.
+ */
+export function playerSlotMsOnField(events: GameEvent[]): Record<string, Record<string, number>> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).slots;
+}
+
+function walkLeagueStints(
+  events: GameEvent[],
+  currentQuarter: number,
+  currentElapsedMs: number,
+): { zones: Record<string, LeagueZoneMs>; slots: Record<string, Record<string, number>> } {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -1947,6 +1965,16 @@ export function playerZoneMsOnField(
     const row = total[pid] ?? { forwards: 0, centre: 0, backs: 0 };
     row[bucket] += ms;
     total[pid] = row;
+  };
+  // Slot time rides along: each open stint is credited to the slot the
+  // player holds when it closes.
+  const slotTotal: Record<string, Record<string, number>> = {};
+  let slotOf: Record<string, string> = {};
+  const addSlotMs = (pid: string, ms: number) => {
+    const slot = slotOf[pid];
+    if (!slot || ms <= 0) return;
+    slotTotal[pid] ??= {};
+    slotTotal[pid][slot] = (slotTotal[pid][slot] ?? 0) + ms;
   };
 
   // Pre-walk to resolve the INITIAL wearer for each (period, vest) —
@@ -2000,6 +2028,7 @@ export function playerZoneMsOnField(
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
+    addSlotMs(pid, dur);
     delete openStint[pid];
   };
 
@@ -2025,7 +2054,10 @@ export function playerZoneMsOnField(
     };
     switch (ev.type) {
       case "lineup_set": {
-        if (meta.lineup) snapshot = normalizeLeagueLineup(meta.lineup);
+        if (meta.lineup) {
+          snapshot = normalizeLeagueLineup(meta.lineup);
+          slotOf = { ...(meta.lineup.slots ?? {}) };
+        }
         break;
       }
       case "quarter_start": {
@@ -2089,6 +2121,12 @@ export function playerZoneMsOnField(
           const vest = on === vestWearer.fr || on === vestWearer.dh;
           openStint[on] = { startMs: at, zone: offZone, vest };
         }
+        // Like-for-like: the sub takes the slot the off player held.
+        if (off && on) {
+          const slot = slotOf[off];
+          delete slotOf[off];
+          if (slot) slotOf[on] = slot;
+        }
         break;
       }
       case "league_position_change": {
@@ -2105,6 +2143,8 @@ export function playerZoneMsOnField(
           closeStint(pid, at);
           openStint[pid] = { startMs: at, zone: toZone, vest: prior.vest };
         }
+        // They've left their position's line.
+        delete slotOf[pid];
         // Mirror into snapshot.
         if (snapshot) {
           const wasOnField
@@ -2208,10 +2248,11 @@ export function playerZoneMsOnField(
       if (s.vest) addMs(pid, "centre", dur);
       else if (s.zone === "forward") addMs(pid, "forwards", dur);
       else addMs(pid, "backs", dur);
+      addSlotMs(pid, dur);
     }
   }
 
-  return total;
+  return { zones: total, slots: slotTotal };
 }
 
 // ─── Whole-bench rotation suggestion ──────────────────────────

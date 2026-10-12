@@ -17,7 +17,8 @@ import type { BalanceUnit } from "./types";
 import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { leaguePositionGroup } from "@/lib/sports/rugby_league/playbook";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -110,8 +111,14 @@ export function gameTimeByUnit(
   }
 
   // Rugby league: forwards / backs, with vest wearers' periods in
-  // "centre" (the duty, not a line). Named positions arrive with slots
-  // on LeagueLineup (chunk 5.7).
+  // "centre" (the duty, not a line). Named positions come from the
+  // slots recorded on each lineup (chunk 5.7).
+  if (unit === "position") {
+    for (const [pid, byKey] of Object.entries(playerSlotMsOnField(events))) {
+      for (const [key, ms] of Object.entries(byKey)) add(out, pid, leaguePositionGroup(key), ms);
+    }
+    return out;
+  }
   if (unit !== "line") return out;
   // A quarter number past the last period closes every stint at its
   // quarter_end; nothing is extended to "now".

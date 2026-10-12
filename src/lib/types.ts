@@ -376,6 +376,12 @@ export interface LeagueLineup {
   forwards: string[];
   backs: string[];
   bench: string[];
+  /**
+   * Named positions (UX plan 5.7): on-field player id → position key,
+   * recorded with the lineup so season balance can count time in each
+   * position. A sub takes the slot of the player they replace.
+   */
+  slots?: Record<string, string>;
 }
 
 export type LeagueZone = "forward" | "back";

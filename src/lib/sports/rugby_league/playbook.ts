@@ -40,6 +40,15 @@ const NAMES: Record<string, string> = {
 const FORWARD_ORDER = ["PR", "HK", "PR", "2R", "2R", "LK"];
 const BACK_ORDER = ["FB", "HB", "5/8", "CE", "CE", "WG", "WG"];
 
+/**
+ * The role a catalogue key plays: duplicates share one (pr1 and pr2
+ * are both props), so season balance and the stats grid count time
+ * as a prop, not per prop spot.
+ */
+export function leaguePositionGroup(key: string): string {
+  return key.replace(/\d+$/, "");
+}
+
 /** Catalogue positions for an on-field size and forward count. */
 export function leagueCatalogue(onFieldSize: number, forwardCount: number): PositionDef[] {
   const forwards = FORWARD_ORDER.slice(0, Math.min(forwardCount, FORWARD_ORDER.length));
