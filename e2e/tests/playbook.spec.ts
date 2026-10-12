@@ -37,8 +37,9 @@ test("an AFL U12 coach picks a strategy and season balance on the Team tab", asy
 
   await page.goto(`/teams/${team.id}/settings`);
   await expect(page.getByText("Under 12 AFL")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/No zones at this age/)).toBeVisible();
-  await expect(page.getByText("Everyone plays at least 50% of the game")).toBeVisible();
+  const policy = page.getByRole("list", { name: "Age group rules" });
+  await expect(policy).toContainText(/No zones at this age/);
+  await expect(policy).toContainText("Everyone plays at least 50% of the game");
 
   // Today's behaviour until the coach chooses; the age group's
   // suggestion is marked.
@@ -85,7 +86,8 @@ test("our league is different: zones back on for U12, and a higher game-time flo
   await page.getByRole("button", { name: /Our league is different/ }).click();
 
   await page.getByRole("switch", { name: "Play in zones" }).click();
-  await expect(page.getByText(/Kids play in zones/)).toBeVisible();
+  const policy = page.getByRole("list", { name: "Age group rules" });
+  await expect(policy).toContainText(/Kids play in zones/);
   // Zoned strategies replace the open-age ones.
   await expect(rotation(page).getByRole("radio", { name: /Rotate lines/ })).toBeVisible();
   await expect(rotation(page).getByRole("radio", { name: /Set positions/ })).toHaveCount(0);
@@ -94,7 +96,7 @@ test("our league is different: zones back on for U12, and a higher game-time flo
     .toEqual({ zonesEnforced: true });
 
   await page.getByRole("combobox", { name: "Minimum game time" }).selectOption("60");
-  await expect(page.getByText("Everyone plays at least 60% of the game")).toBeVisible();
+  await expect(policy).toContainText("Everyone plays at least 60% of the game");
   await expect
     .poll(async () => (await playbookRow(admin, team.id))?.policy_overrides)
     .toEqual({ zonesEnforced: true, minGameTimePct: 60 });
@@ -113,7 +115,7 @@ test("a netball coach picks Position cycle", async ({ page }) => {
   await rotation(page).getByRole("radio", { name: /Position cycle/ }).click();
   await expect.poll(async () => (await playbookRow(admin, team.id))?.strategy).toBe("position-cycle");
   // Season balance evens out positions (bibs) for a cycle.
-  await expect(page.getByText(/time in each position across the season/)).toBeVisible();
+  await expect(page.getByText(/time in each position across the season. It decides/)).toBeVisible();
 });
 
 test("the wizard's How we play step saves the strategy", async ({ page }) => {
@@ -278,6 +280,18 @@ test("a home position follows the position when the coach renames it", async ({ 
       return count;
     })
     .toBe(15);
+  // The pref moves to the new row once the positions are in.
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("player_position_prefs")
+        .select("position_key")
+        .eq("player_id", player.id)
+        .eq("kind", "home")
+        .single();
+      return data?.position_key;
+    })
+    .not.toBe("ff");
 
   await page.goto(`/teams/${team.id}/squad`);
   await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home TALL");
