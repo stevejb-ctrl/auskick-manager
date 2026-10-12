@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PositionsField } from "@/components/playbook/PositionsField";
 import { SFButton } from "@/components/sf";
@@ -53,6 +53,11 @@ export function PositionsEditor({
   const [editing, setEditing] = useState<{ index: number; value: DraftPosition; isNew: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // "Positions saved." until the next change: a greyed-out button alone
+  // left coaches unsure the save had worked.
+  const [justSaved, setJustSaved] = useState(false);
+  // Until the coach starts typing, a tap on the label selects it all.
+  const labelTyped = useRef(false);
   const [nextId, setNextId] = useState(1);
 
   const laidOut = useMemo(() => layoutAflPositions(draft), [draft]);
@@ -100,6 +105,7 @@ export function PositionsEditor({
       const next = draft.map((p, i) => ({ ...p, key: ids[i] ?? p.key }));
       setDraft(next);
       setSaved(next);
+      setJustSaved(true);
       router.refresh();
     });
   }
@@ -161,6 +167,9 @@ export function PositionsEditor({
           <SFButton variant="primary" size="md" onClick={save} disabled={!dirty} loading={isPending}>
             Save positions
           </SFButton>
+          <p className="self-center text-xs text-ink-mute" aria-live="polite">
+            {justSaved && !dirty ? "Positions saved." : ""}
+          </p>
         </div>
       )}
 
@@ -176,9 +185,23 @@ export function PositionsEditor({
                 maxLength={4}
                 autoComplete="off"
                 autoFocus
-                onChange={(e) =>
-                  setEditing({ ...editing, value: { ...editing.value, label: e.target.value.toUpperCase() } })
-                }
+                // Typing replaces the label rather than adding to it, even
+                // after a tap moves the cursor ("CHB" + "KEY" was "CHBK").
+                onFocus={(e) => {
+                  labelTyped.current = false;
+                  e.currentTarget.select();
+                }}
+                onClick={(e) => {
+                  if (labelTyped.current) return;
+                  // A tap places the cursor after this handler on phones, so
+                  // select on the next frame.
+                  const input = e.currentTarget;
+                  requestAnimationFrame(() => input.setSelectionRange(0, input.value.length));
+                }}
+                onChange={(e) => {
+                  labelTyped.current = true;
+                  setEditing({ ...editing, value: { ...editing.value, label: e.target.value.toUpperCase() } });
+                }}
               />
             </div>
             <div className="space-y-1">

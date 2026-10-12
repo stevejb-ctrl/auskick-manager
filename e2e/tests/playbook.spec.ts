@@ -195,9 +195,12 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
   await expect(field.getByRole("button")).toHaveCount(15);
   await expect(page.getByText("15 positions · 15 on the field")).toBeVisible();
 
-  // Rename CHB and give it a full name.
+  // Rename CHB and give it a full name. Typing replaces the old label
+  // (usability run: it used to append, "CHB" + "KEY" → "CHBK").
   await field.getByRole("button", { name: "Centre half-back (CHB)" }).click();
-  await page.getByLabel("Short label (up to 4 letters)").fill("key");
+  await page.getByLabel("Short label (up to 4 letters)").click();
+  await page.keyboard.type("key");
+  await expect(page.getByLabel("Short label (up to 4 letters)")).toHaveValue("KEY");
   await page.getByLabel("Full name (optional)").fill("Key back");
   await page.getByRole("button", { name: "Done" }).click();
   await expect(field.getByRole("button", { name: "Key back (KEY)" })).toBeVisible();
@@ -220,6 +223,9 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
 
   await page.getByRole("button", { name: "Save positions" }).click();
   await expect.poll(async () => (await activePositions()).length).toBe(14);
+  // The editor says it saved (usability run: a greyed button alone left
+  // the coach unsure).
+  await expect(page.getByText("Positions saved.")).toBeVisible();
   const saved = await activePositions();
   expect(saved.find((p) => p.label === "KEY")).toMatchObject({ name: "Key back", line: "back" });
 
