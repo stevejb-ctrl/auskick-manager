@@ -47,6 +47,19 @@ function OptionChip({
 }
 
 /**
+ * What's picked in a group, in full: chips are abbreviations ("LHB"),
+ * so the sheet spells them out ("Left half-back flank").
+ */
+function Picked({ keys, model, testId }: { keys: string[]; model: RoleModel; testId: string }) {
+  const names = keys.map((k) => model.options.find((o) => o.key === k)?.name ?? k);
+  return (
+    <p className="mt-1 min-h-[1rem] text-xs text-ink-dim" data-testid={testId} aria-live="polite">
+      {names.join(", ")}
+    </p>
+  );
+}
+
+/**
  * A player's role for the season (UX plan §7.9 W3): home spot, also
  * plays, never plays, keep on. Options come from the team's role model,
  * so the same sheet serves AFL positions or lines, netball bibs or
@@ -113,6 +126,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
                 />
               ))}
             </div>
+            <Picked keys={role.home ? [role.home] : []} model={model} testId="role-picked-home" />
           </section>
         )}
 
@@ -139,6 +153,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
                   />
                 ))}
             </div>
+            <Picked keys={role.also} model={model} testId="role-picked-also" />
           </section>
         )}
 
@@ -165,6 +180,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
                 />
               ))}
           </div>
+          <Picked keys={role.never} model={model} testId="role-picked-never" />
         </section>
 
         <section className="flex items-start justify-between gap-4">

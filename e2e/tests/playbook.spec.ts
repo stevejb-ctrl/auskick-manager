@@ -954,6 +954,10 @@ test("the wizard's squad step sets players' positions too", async ({ page }) => 
   await page.getByRole("button", { name: `Role for ${player.full_name}` }).click({ timeout: 15_000 });
   const sheet = page.getByRole("dialog", { name: `Role for ${player.full_name}` });
   await sheet.getByRole("radiogroup", { name: "Home position" }).getByRole("radio", { name: /\(FF\)/ }).click();
+  // Chips are abbreviations; the sheet spells out what was picked.
+  await expect(sheet.getByTestId("role-picked-home")).toHaveText("Full forward");
+  await sheet.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: /\(LBP\)/ }).click();
+  await expect(sheet.getByTestId("role-picked-never")).toHaveText("Left back pocket");
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
   await expect(page.getByTestId(`player-role-${player.id}`)).toContainText("FF");
