@@ -2610,6 +2610,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           undo to show. */}
       <LiveStickyScoreBar
         scorebug={liveScoreBug}
+          scoringOff={
+            !trackScoring
+              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              : undefined
+          }
         undoStrip={
           trackScoring && lastScore ? (
             <UndoStrip

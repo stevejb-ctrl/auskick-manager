@@ -2680,6 +2680,11 @@ export function LiveGame({
       {isLivePlay && (
         <LiveStickyScoreBar
           scorebug={gameHeader}
+          scoringOff={
+            !trackScoring
+              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              : undefined
+          }
           undoStrip={
             lastScore && !isPreGame && !isFinished ? (
               <UndoStrip

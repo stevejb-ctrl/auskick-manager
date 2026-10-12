@@ -2222,6 +2222,11 @@ export function LeagueLiveGame({
       {/* Sticky-bottom scorebug + undo strip. */}
       {hasStickyBottom && (
         <LiveStickyScoreBar
+          scoringOff={
+            !trackScoring
+              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              : undefined
+          }
           scorebug={
             <LeagueScoreBug
               teamName={teamName}

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // ─── LiveStickyScoreBar ──────────────────────────────────────
 // Shared sticky-bottom wrapper that hosts the in-play scorebug +
 // optional undo strip on both AFL `LiveGame.tsx` and netball
@@ -40,15 +42,35 @@ interface LiveStickyScoreBarProps {
   scorebug: ReactNode;
   /** Optional content rendered below the scorebug (typically the undo strip). */
   undoStrip?: ReactNode;
+  /**
+   * Scoring is off for this team: say so above the scorebug, so a
+   * score sitting at 0 or "—" isn't a puzzle. `settingsHref` links a
+   * coach to turn it on; null for runners, who can't.
+   */
+  scoringOff?: { settingsHref: string | null };
 }
 
 export function LiveStickyScoreBar({
   scorebug,
   undoStrip,
+  scoringOff,
 }: LiveStickyScoreBarProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto">
       <div className="mx-auto max-w-4xl">
+        {scoringOff && (
+          <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
+            Scoring is off
+            {scoringOff.settingsHref && (
+              <>
+                {" · "}
+                <Link href={scoringOff.settingsHref} className="font-semibold text-brand-700 underline-offset-2 hover:underline">
+                  Turn it on
+                </Link>
+              </>
+            )}
+          </p>
+        )}
         {scorebug}
         {undoStrip}
       </div>

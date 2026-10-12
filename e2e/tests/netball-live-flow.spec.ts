@@ -367,6 +367,12 @@ test("NETBALL-04 (live-shell): track_scoring=false hides +G button in score bug"
   await expect(
     page.getByRole("button", { name: /record opponent goal/i }),
   ).toHaveCount(0);
+  // ...and the score bar says why, with a way to turn scoring on.
+  await expect(page.getByText("Scoring is off")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Turn it on" })).toHaveAttribute(
+    "href",
+    `/teams/${team.id}/settings#section-game-day-extras`,
+  );
 });
 
 // ─── Hydration: the live court survives a slow phone ──────
