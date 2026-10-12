@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { newRule } from "@/lib/playbook/rules";
 import { checkRules, summariseCheck, whyMove } from "@/lib/playbook/ruleCheck";
+import { gameReport } from "@/lib/playbook/gameReport";
 
 describe("rule check (RuleCheckBar)", () => {
   const P = 12 * 60_000;
@@ -90,3 +91,69 @@ describe("rule check (RuleCheckBar)", () => {
   });
 });
 
+
+describe("game report (How we played)", () => {
+  const P = 12 * 60_000;
+  const label = (k: string) => ({ back: "Back", mid: "Centre", fwd: "Forward" })[k] ?? k;
+  const base = {
+    lines: ["back", "mid", "fwd"],
+    lineLabel: label,
+    lineWord: "line",
+    periodLabel: (n: number) => `Q${n}`,
+    periodCount: 4,
+    periodMs: P,
+    minGameTimePct: 50,
+    name: (id: string) => id.charAt(0).toUpperCase() + id.slice(1),
+  };
+
+  it("reports rules kept and missed over the whole game", () => {
+    const report = gameReport({
+      ...base,
+      byPeriod: {
+        mia: { 1: { fwd: P }, 2: { mid: P }, 3: { back: P } },
+        jack: { 1: { fwd: P }, 4: { fwd: P } },
+        ava: { 1: { back: P }, 2: { back: P }, 3: { mid: P }, 4: { fwd: P } },
+      },
+      rules: [
+        { ...newRule("max-bench-in-row"), strength: "must" },
+        { ...newRule("keep-apart"), params: { playerIds: ["mia", "jack"] } },
+        { ...newRule("every-line-per-game"), strength: "prefer" },
+      ],
+    });
+    expect(report.items.map((i) => [i.status, i.text])).toEqual([
+      ["ok", "Everyone played at least 50%"],
+      ["fail", "Jack sat out 2 in a row"],
+      ["warn", "Mia and Jack shared Forward in Q1"],
+      ["warn", "Jack didn't get every line"],
+    ]);
+    expect(report.seasonLine).toBeNull();
+  });
+
+  it("counts kids whose season got more even", () => {
+    const report = gameReport({
+      ...base,
+      byPeriod: { mia: { 1: { fwd: P } }, ava: { 1: { back: P } } },
+      rules: [],
+      season: {
+        before: { mia: { back: 2 * P, mid: 2 * P }, ava: { back: 2 * P, mid: 2 * P } },
+        after: { mia: { back: 2 * P, mid: 2 * P, fwd: P }, ava: { back: 3 * P, mid: 2 * P } },
+        units: ["back", "mid", "fwd"],
+      },
+    });
+    // Judged on the one period the game reached.
+    expect(report.items[0]).toMatchObject({ status: "ok", text: "Everyone played at least 50%" });
+    expect(report.seasonLine).toBe("Season balance: improved for 1 kid");
+  });
+
+  it("counts kids who never got on, and says nothing about season balance on a first game", () => {
+    const report = gameReport({
+      ...base,
+      byPeriod: { mia: { 1: { fwd: P }, 2: { mid: P } } },
+      present: ["mia", "zoe"],
+      rules: [{ ...newRule("max-bench-in-row"), strength: "must" }],
+      season: { before: {}, after: { mia: { fwd: P, mid: P } }, units: ["back", "mid", "fwd"] },
+    });
+    expect(report.items.map((i) => i.text)).toEqual(["Zoe played under 50%", "Zoe sat out 2 in a row"]);
+    expect(report.seasonLine).toBeNull();
+  });
+});

@@ -21,6 +21,6 @@ export async function kickoffSnapshot(
     .maybeSingle();
   if (!team) return null;
   const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
-  const { resolved } = await loadTeamPlaybook(supabase, teamId, sport, team.age_group as string | null);
-  return playbookSnapshot(resolved);
+  const { resolved, rules } = await loadTeamPlaybook(supabase, teamId, sport, team.age_group as string | null);
+  return { ...playbookSnapshot(resolved), rules };
 }

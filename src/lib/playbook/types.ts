@@ -179,5 +179,7 @@ export interface PlaybookSnapshot {
   seasonBalanceSince: string | null;
   /** Named positions in force, so renaming one later never rewrites history. */
   positions: { key: string; label: string; line: string }[];
+  /** The team's rules that were on at kickoff (How we play › Rules). */
+  rules?: import("@/lib/playbook/rules").RuleInstance[];
   takenAt: string;
 }

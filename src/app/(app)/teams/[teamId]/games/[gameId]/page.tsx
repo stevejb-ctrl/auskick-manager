@@ -21,6 +21,8 @@ import { primaryThirdFor } from "@/lib/sports/netball";
 import { GameSummaryView } from "@/components/live/GameSummaryCard";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
+import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 
 interface GameDetailPageProps {
@@ -57,7 +59,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, name, track_scoring")
+      .select("age_group, sport, name, track_scoring, quarter_length_seconds")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -145,6 +147,24 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .order("created_at", { ascending: true });
     summaryEvents = (data ?? []) as GameEvent[];
   }
+
+  // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  const howWePlayed =
+    isFinal && summaryEvents
+      ? await buildGameReport(
+          supabase,
+          {
+            id: params.teamId,
+            sport,
+            age_group: (team as { age_group?: string | null } | null)?.age_group ?? null,
+            quarter_length_seconds:
+              (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null,
+          },
+          g,
+          summaryEvents,
+          Object.fromEntries(Array.from(playerById.values()).map((p) => [p.id, p.full_name])),
+        )
+      : null;
 
   return (
     <div className="space-y-6">
@@ -535,6 +555,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </SFCard>
         );
       })()}
+
+      {howWePlayed && (
+        <SFCard>
+          <HowWePlayedCard report={howWePlayed} />
+        </SFCard>
+      )}
 
       {/* Availability list moved to its own page — see
           ./availability/page.tsx. The "Start game" / "Set lineup"

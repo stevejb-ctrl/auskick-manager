@@ -529,3 +529,39 @@ test("stats show season balance, backfilled, with since-reset", async ({ page })
   await page.getByRole("link", { name: "Whole season" }).click();
   await expect(page.getByTestId("season-balance-summary")).toContainText("of 12 kids");
 });
+
+test("a finished game says how we played against the rules", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "free",
+    rules: [{ id: "r1", kind: "max-bench-in-row", params: { count: 2 }, strength: "must", enabled: true }],
+  });
+  // Two kids sit out Q1 and Q2.
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const Q = 15 * 60_000;
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: t(70) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(69) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: Q }, created_by: ownerId, created_at: t(54) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 2 }, created_by: ownerId, created_at: t(53) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 2, elapsed_ms: Q }, created_by: ownerId, created_at: t(38) },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 4 }, created_by: ownerId, created_at: t(37) },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const card = page.getByTestId("how-we-played");
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toContainText(`${players[12].full_name} and ${players[13].full_name} sat out 2 in a row`);
+  await expect(card).toContainText(`${players[12].full_name} and ${players[13].full_name} played under 50%`);
+  await expect(card).toContainText("2 rules missed");
+  // A team's first game has no season to compare with.
+  await expect(card).not.toContainText("Season balance");
+});
