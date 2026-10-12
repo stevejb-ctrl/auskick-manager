@@ -20,7 +20,7 @@ export function TeamTabBar({ teamId }: TeamTabBarProps) {
   const pathname = usePathname();
 
   const tabs: Array<SegTabOption & { exact?: boolean }> = [
-    { id: "home", label: "Home", href: `/teams/${teamId}`, exact: true },
+    { id: "home", label: "Today", href: `/teams/${teamId}`, exact: true },
     { id: "squad", label: "Squad", href: `/teams/${teamId}/squad` },
     { id: "games", label: "Games", href: `/teams/${teamId}/games` },
     { id: "stats", label: "Stats", href: `/teams/${teamId}/stats` },
