@@ -65,6 +65,8 @@ import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
+import { netballRuleCheck } from "@/lib/sports/netball/engine";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 // Slot identifiers used to bucket the lineup display. "bench" is a
 // pseudo-third for the strip below the three on-court bands.
 type Slot = "attack-third" | "centre-third" | "defence-third" | "bench";
@@ -453,6 +455,22 @@ export function NetballQuarterBreak({
   //     on the bench, and let the coach build the lineup themselves
   //     position-by-position. Mirrors the AFL Q-break.
   const [draft, setDraft] = useState<GenericLineup>(suggestedLineup);
+  // Rule check + Why for the lineup about to start (UX plan 4.3).
+  const breakRuleCheck = useMemo(() => {
+    if (!netballPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of squad) names[p.id] = p.full_name;
+    return netballRuleCheck({
+      lineup: draft,
+      previousLineup,
+      names,
+      thirdMs,
+      period: nextQuarter,
+      periodCount: ageGroup.periodCount ?? 4,
+      periodMs: periodSeconds * 1000,
+      input: netballPlaybook,
+    });
+  }, [netballPlaybook, squad, draft, previousLineup, thirdMs, nextQuarter, periodSeconds, ageGroup.periodCount]);
   const [selected, setSelected] = useState<string | null>(null);
   // Initial value defers to the live store's rotationMode (set by
   // the pre-game LineupPicker or by a prior Q-break) so a coach who
@@ -1726,6 +1744,8 @@ export function NetballQuarterBreak({
           { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
         ]}
       />
+
+      {breakRuleCheck && <RuleCheckBar items={breakRuleCheck.items} why={breakRuleCheck.why} />}
 
       {/* The same court the live game draws (UX plan principle 2: one
           lineup, one picture). Tap two players to swap — across thirds or

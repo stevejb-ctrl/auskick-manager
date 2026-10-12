@@ -14,6 +14,7 @@ import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
+import { checkRules, whyMove, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 
 export interface NetballRole {
   /** A bib ("gs") for position roles, or a third for line roles. */
@@ -132,10 +133,11 @@ export function netballRoleTerm(input: NetballPlaybookInput | undefined, pid: st
 }
 
 /**
- * Position cycle (5.2): everyone steps one along GS → GA → … → GK →
- * bench → GS. Kids who've left are dropped; new arrivals join the end
- * of the bench. A kid who'd land on a bib they never play swaps with
- * the next kid along who can take it.
+ * Position cycle (5.2): everyone moves along GS → GA → … → GK → bench
+ * → GS. The step is the bench size (at least one), so the whole bench
+ * comes on and nobody sits out twice in a row. Kids who've left are
+ * dropped; new arrivals join the end of the bench. A kid who'd land on
+ * a bib they never play swaps with the next kid along who can take it.
  */
 export function cycleLineup(
   previous: GenericLineup,
@@ -153,8 +155,9 @@ export function cycleLineup(
   ];
   const seen = new Set(seq.filter(Boolean) as string[]);
   for (const pid of present) if (!seen.has(pid)) seq.push(pid);
-  // Step one along: the last in the sequence wraps round to GS.
-  const rotated = seq.length > 0 ? [seq[seq.length - 1], ...seq.slice(0, -1)] : [];
+  // Step along by the bench size: the bench wraps round to GS.
+  const step = Math.max(1, seq.length - bibs.length);
+  const rotated = seq.length > 0 ? [...seq.slice(seq.length - step), ...seq.slice(0, seq.length - step)] : [];
   // Fill empty bib slots from the bench end of the sequence first.
   const onCourt = rotated.slice(0, bibs.length);
   const bench = rotated.slice(bibs.length).filter((p): p is string => !!p);
@@ -192,4 +195,98 @@ export function withNetballSnapshot(
     strategy: snapshot.strategy,
     seasonWeight: seasonBalanceWeight("netball", snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance),
   };
+}
+
+const THIRD_LABEL: Record<string, string> = {
+  "attack-third": "Attack",
+  "centre-third": "Centre",
+  "defence-third": "Defence",
+};
+
+/**
+ * The rule check and Why lines for a netball lineup about to start a
+ * quarter (UX plan 4.3 for netball), on the shared checkRules / whyMove.
+ */
+export function netballRuleCheck(c: {
+  lineup: GenericLineup;
+  previousLineup: GenericLineup | null;
+  names: Record<string, string>;
+  /** This game's ms per player per third so far. */
+  thirdMs: Map<string, { attack: number; centre: number; defence: number }>;
+  period: number;
+  periodCount: number;
+  periodMs: number;
+  input: NetballPlaybookInput | undefined;
+}): { items: RuleCheckItem[]; why: { playerName: string; to: string; reason: string }[] } {
+  const thirds = ["attack-third", "centre-third", "defence-third"];
+  const onField: Record<string, string> = {};
+  const bibOf: Record<string, string> = {};
+  for (const [bib, ids] of Object.entries(c.lineup.positions)) {
+    for (const pid of ids) {
+      onField[pid] = primaryThirdFor(bib) ?? "centre-third";
+      bibOf[pid] = bib;
+    }
+  }
+  const prevBib: Record<string, string> = {};
+  for (const [bib, ids] of Object.entries(c.previousLineup?.positions ?? {})) for (const pid of ids) prevBib[pid] = bib;
+  const played: Record<string, Record<string, number>> = {};
+  for (const pid of [...Object.keys(onField), ...c.lineup.bench]) {
+    const t = c.thirdMs.get(pid);
+    played[pid] = t ? { "attack-third": t.attack, "centre-third": t.centre, "defence-third": t.defence } : {};
+  }
+  const name = (pid: string) => c.names[pid] ?? "A player";
+  const seasonOn = (c.input?.seasonWeight ?? 0) > 0 && !!c.input?.season;
+  const byBib = c.input?.unit === "bib";
+  const bibs = Object.keys(c.lineup.positions);
+  const items = checkRules({
+    onField,
+    bench: c.lineup.bench,
+    lines: thirds,
+    lineLabel: (k) => THIRD_LABEL[k] ?? k,
+    name,
+    playedThisGame: played,
+    benchedLastPeriod: c.previousLineup?.bench ?? [],
+    period: c.period,
+    periodCount: c.periodCount,
+    periodMs: c.periodMs,
+    periodWord: "quarter",
+    lineWord: "third",
+    minGameTimePct: c.input?.minGameTimePct ?? 50,
+    rules: c.input?.rules ?? [],
+    season: seasonOn
+      ? {
+          time: c.input!.season!,
+          units: byBib ? bibs : thirds,
+          unitLabel: (k) => (byBib ? k.toUpperCase() : (THIRD_LABEL[k] ?? k).toLowerCase()),
+        }
+      : undefined,
+  });
+
+  const why: { playerName: string; to: string; reason: string }[] = [];
+  if (c.previousLineup) {
+    for (const pid of [...Object.keys(onField), ...c.lineup.bench]) {
+      const to = bibOf[pid] ?? null;
+      const from = prevBib[pid] ?? null;
+      if (to === from) continue;
+      const strategy = c.input?.strategy;
+      let reason: string;
+      if (to && strategy === "position-cycle") reason = "Everyone moves along the cycle";
+      else if (to && strategy === "partners" && from && primaryThirdFor(from) === primaryThirdFor(to)) reason = "Swaps with their partner";
+      else if (to && c.input?.roles[pid]?.home === to) reason = `Home: ${to.toUpperCase()}`;
+      else {
+        reason = whyMove({
+          playerId: pid,
+          to: to ? onField[pid] : null,
+          from: from ? primaryThirdFor(from) : null,
+          lineLabel: (k) => THIRD_LABEL[k] ?? k,
+          periodWord: "quarter",
+          playedThisGame: played[pid] ?? {},
+          benchedLastPeriod: (c.previousLineup.bench ?? []).includes(pid),
+          strategy: strategy ?? "by-thirds",
+        });
+      }
+      why.push({ playerName: name(pid), to: to ? to.toUpperCase() : "Bench", reason });
+    }
+  }
+  return { items, why };
 }

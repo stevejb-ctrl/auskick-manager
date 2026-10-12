@@ -19,16 +19,24 @@ describe("position cycle (UX plan 5.2)", () => {
     bench: ["h", "i"],
   };
 
-  it("steps everyone one along, the bench rolling back on at GS", () => {
+  it("moves everyone along by the bench size, so the whole bench comes on", () => {
     const next = cycleLineup(prev, BIBS, ["a", "b", "c", "d", "e", "f", "g", "h", "i"]);
-    expect(next.positions).toEqual({ gs: ["i"], ga: ["a"], wa: ["b"], c: ["c"], wd: ["d"], gd: ["e"], gk: ["f"] });
-    expect(next.bench).toEqual(["g", "h"]);
+    expect(next.positions).toEqual({ gs: ["h"], ga: ["i"], wa: ["a"], c: ["b"], wd: ["c"], gd: ["d"], gk: ["e"] });
+    expect(next.bench).toEqual(["f", "g"]);
+  });
+
+  it("steps one along when nobody's on the bench", () => {
+    const full = { positions: prev.positions, bench: [] };
+    const next = cycleLineup(full, BIBS, ["a", "b", "c", "d", "e", "f", "g"]);
+    expect(next.positions.gs).toEqual(["g"]);
+    expect(next.positions.ga).toEqual(["a"]);
   });
 
   it("drops kids who've gone and adds arrivals to the bench", () => {
     const next = cycleLineup(prev, BIBS, ["a", "b", "c", "d", "e", "f", "g", "h", "z"]);
-    expect(next.positions.gs).toEqual(["z"]);
-    expect(next.bench).toEqual(["g", "h"]);
+    expect(next.positions.gs).toEqual(["h"]);
+    expect(next.positions.ga).toEqual(["z"]);
+    expect(next.bench).toEqual(["f", "g"]);
   });
 
   it("never sends a kid to a bib they never play", () => {
@@ -121,11 +129,12 @@ describe("netball styles through the suggester (UX plan 5.1–5.5)", () => {
     }
   });
 
-  it("Position cycle: Q2 is Q1 stepped one along", () => {
+  it("Position cycle: Q2 is Q1 moved along by the bench size", () => {
     const [q1, q2] = play(input({ strategy: "position-cycle" }), 2);
     const seq = [...BIBS.map((b) => q1.positions[b][0]), ...q1.bench];
-    const rotated = [seq[seq.length - 1], ...seq.slice(0, -1)];
+    const rotated = [...seq.slice(-2), ...seq.slice(0, -2)];
     expect(BIBS.map((b) => q2.positions[b][0])).toEqual(rotated.slice(0, 7));
+    expect(q2.bench.some((p) => q1.bench.includes(p))).toBe(false);
   });
 
   it("Partners: kids keep their third and swap bibs", () => {

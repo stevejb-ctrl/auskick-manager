@@ -560,9 +560,9 @@ test("the netball break draws the court with where-next captions", async ({ page
   await expect(page.getByText(/^(stays|bench → \w+|\w+ → \w+)$/i).first()).toBeVisible();
 });
 
-// How we play (UX plan 5.2): a Position cycle team's break steps
-// everyone one bib along — GS → GA → … → GK → bench → GS.
-test("Position cycle: the break steps everyone one bib along", async ({ page }) => {
+// How we play (UX plan 5.2): a Position cycle team's break moves
+// everyone along GS → GA → … → GK → bench → GS by the bench size.
+test("Position cycle: the break moves everyone along the cycle", async ({ page }) => {
   const { team, game, admin, players } = await setupQ1AutoEnded({});
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "position-cycle" });
   await suppressWalkthrough(page);
@@ -573,8 +573,8 @@ test("Position cycle: the break steps everyone one bib along", async ({ page }) 
   await expect(page.getByRole("heading", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /^start clock$/i }).click();
 
-  // Q1: players 0–6 at GS…GK, 7 and 8 on the bench. One step along:
-  // 8 comes on at GS, everyone else moves up, 6 (was GK) and 7 sit.
+  // Q1: players 0–6 at GS…GK, 7 and 8 on the bench. Two steps along:
+  // 7 and 8 come on at GS and GA, everyone moves up two, 5 and 6 sit.
   const ids = players.map((p) => p.id);
   await expect
     .poll(async () => {
@@ -586,5 +586,24 @@ test("Position cycle: the break steps everyone one bib along", async ({ page }) 
       const lineup = (data?.[0]?.metadata as { lineup?: { positions: Record<string, string[]>; bench: string[] } })?.lineup;
       return lineup ? NETBALL_LINEUP_KEYS.map((k) => lineup.positions[k]?.[0]) : null;
     }, { timeout: 10_000 })
-    .toEqual([ids[8], ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]]);
+    .toEqual([ids[7], ids[8], ids[0], ids[1], ids[2], ids[3], ids[4]]);
+});
+
+test("the netball break shows the rule check and why kids move", async ({ page }) => {
+  const { team, game, admin } = await setupQ1AutoEnded({});
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "position-cycle",
+    rules: [{ id: "r1", kind: "max-bench-in-row", params: { count: 2 }, strength: "must", enabled: true }],
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  const check = page.getByTestId("rule-check");
+  await expect(check).toBeVisible();
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
+  await check.getByRole("button").first().click();
+  await expect(check).toContainText("Nobody sits out twice in a row");
+  await expect(page.getByRole("list", { name: "Why these moves" })).toContainText("Everyone moves along the cycle");
 });
