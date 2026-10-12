@@ -5,6 +5,7 @@ import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Player, Sport } from "@/lib/types";
+import type { PlayerRole, RoleModel } from "@/lib/playbook/roles";
 
 interface SquadStepProps {
   teamId: string;
@@ -18,6 +19,9 @@ interface SquadStepProps {
    * readouts rely on.
    */
   sportId?: Sport;
+  /** How we play role sheet (from the step before); null where roles don't apply. */
+  roleModel?: RoleModel | null;
+  roles?: Record<string, PlayerRole>;
 }
 
 export function SquadStep({
@@ -25,6 +29,8 @@ export function SquadStep({
   ageGroup,
   players,
   sportId = "afl",
+  roleModel = null,
+  roles = {},
 }: SquadStepProps) {
   // AFL + rugby league show jersey numbers (jersey-driven sports);
   // netball doesn't (positions are letter-coded). RL falls into the
@@ -75,6 +81,12 @@ export function SquadStep({
           </h2>
           <span className="text-xs text-ink-mute">max {maxPlayers}</span>
         </div>
+        {roleModel && activePlayers.length > 0 && (
+          <p className="border-b border-hairline px-4 py-2 text-xs text-ink-dim">
+            Tap Role to give a player their {roleModel.unit === "position" ? "home position and backups" : "preferred line"}.
+            You can do this later on the Squad tab.
+          </p>
+        )}
         {activePlayers.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-ink-mute">
             No players yet — add your first one above.
@@ -89,6 +101,8 @@ export function SquadStep({
                 takenJerseys={takenJerseys}
                 canEdit
                 showJersey={showJersey}
+                roleModel={roleModel}
+                role={roles[player.id]}
               />
             ))}
           </ul>

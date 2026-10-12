@@ -920,3 +920,28 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   await expect(kidToken).toBeVisible({ timeout: 15_000 });
   await expect(kidToken).toHaveAccessibleName(/^(Goal Shooter|Goal Attack),/);
 });
+
+test("the wizard's squad step sets players' positions too", async ({ page }) => {
+  // Regression: How we play comes before the squad in the wizard, but
+  // the squad step had no Role button, so a Set positions coach
+  // couldn't give kids their positions while adding them.
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U15" });
+  const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
+
+  await page.goto(`/teams/${team.id}/setup?step=squad`);
+  await page.getByRole("button", { name: `Role for ${player.full_name}` }).click({ timeout: 15_000 });
+  const sheet = page.getByRole("dialog", { name: `Role for ${player.full_name}` });
+  await sheet.getByRole("radiogroup", { name: "Home position" }).getByRole("radio", { name: /\(FF\)/ }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByTestId(`player-role-${player.id}`)).toContainText("FF");
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("player_position_prefs").select("position_key").eq("player_id", player.id).eq("kind", "home");
+      return data?.[0]?.position_key;
+    })
+    .toBe("ff");
+});

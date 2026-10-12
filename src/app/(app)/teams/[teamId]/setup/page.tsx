@@ -8,6 +8,7 @@ import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { getAgeGroupConfig } from "@/lib/sports";
+import { loadSquadRoles } from "@/lib/playbook/load";
 import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { Player, Sport } from "@/lib/types";
 
@@ -169,6 +170,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
       .eq("team_id", params.teamId)
       .order("jersey_number");
     const players = (playersRaw ?? []) as Player[];
+    // How we play was chosen on the step before, so players can get
+    // their positions / lines as they're added (same sheet as Squad).
+    const { roleModel, roles } = await loadSquadRoles(adminClient, params.teamId, sport, ageGroupCfg.id);
 
     return (
       <SquadStep
@@ -176,6 +180,8 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         players={players}
         sportId={sport}
+        roleModel={roleModel}
+        roles={roles}
       />
     );
   }

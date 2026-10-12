@@ -6,9 +6,7 @@ import { PlayerRow } from "@/components/squad/PlayerRow";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow, SFCard } from "@/components/sf";
-import { resolveTeamPlaybook } from "@/lib/playbook/team";
-import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
-import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
+import { loadSquadRoles } from "@/lib/playbook/load";
 
 interface PlayerListProps {
   teamId: string;
@@ -18,7 +16,7 @@ interface PlayerListProps {
 export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   const supabase = createClient();
 
-  const [{ data: players }, { data: team }, { data: playbookRow }, { data: positionRows }, { data: prefRows }] = await Promise.all([
+  const [{ data: players }, { data: team }] = await Promise.all([
     supabase
       .from("players")
       .select("*")
@@ -29,20 +27,6 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .select("age_group, sport")
       .eq("id", teamId)
       .single(),
-    supabase
-      .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since")
-      .eq("team_id", teamId)
-      .maybeSingle(),
-    supabase
-      .from("team_positions")
-      .select("id, label, name, line, sort, archived_at")
-      .eq("team_id", teamId)
-      .is("archived_at", null),
-    supabase
-      .from("player_position_prefs")
-      .select("player_id, position_key, line, kind, rank")
-      .eq("team_id", teamId),
   ]);
 
   // Resolve age-group config against the team's sport so netball teams
@@ -56,27 +40,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   const maxPlayers = ageGroupCfg.maxSquadSize;
   // Player roles (How we play): what the role sheet offers depends on
   // how the team plays — null at AFL zoned ages.
-  const roleModel = roleModelFor(
-    resolveTeamPlaybook({
-      sport,
-      ageGroup: ageGroupCfg.id,
-      onFieldSize: ageGroupCfg.defaultOnFieldSize,
-      row: (playbookRow ?? null) as Pick<
-        TeamPlaybookRow,
-        "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
-      > | null,
-      positions: (positionRows ?? []) as Pick<
-        TeamPositionRow,
-        "id" | "label" | "name" | "line" | "sort" | "archived_at"
-      >[],
-    }),
-  );
-  const roles = roleModel
-    ? rolesFromPrefs(
-        (prefRows ?? []) as Pick<PlayerPositionPrefRow, "player_id" | "position_key" | "line" | "kind" | "rank">[],
-        roleModel.unit,
-      )
-    : {};
+  const { roleModel, roles } = await loadSquadRoles(supabase, teamId, sport, ageGroupCfg.id);
   const showJersey = sport === "afl";
 
   const allPlayers = players ?? [];

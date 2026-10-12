@@ -8,6 +8,7 @@ import { resolveTeamPlaybook, type ResolvedPlaybook } from "@/lib/playbook/team"
 import { activeRules, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
 import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
+import { roleModelFor, rolesFromPrefs, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
 
 export type PrefRow = Pick<PlayerPositionPrefRow, "player_id" | "position_key" | "line" | "kind" | "rank">;
 
@@ -62,4 +63,20 @@ export async function loadTeamPlaybook(
     rules: activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)),
     vestStrategy: (row as { vest_strategy?: "auto" | "fixed-order" | "coach" } | null)?.vest_strategy ?? "auto",
   };
+}
+
+/**
+ * The squad's role sheet: what it offers (null where roles don't
+ * apply, e.g. AFL zoned ages) and each player's saved role. Shared by
+ * the Squad tab and the setup wizard's squad step.
+ */
+export async function loadSquadRoles(
+  supabase: SupabaseClient<any, any, any>,
+  teamId: string,
+  sport: Sport,
+  ageGroup: string | null,
+): Promise<{ roleModel: RoleModel | null; roles: Record<string, PlayerRole> }> {
+  const { resolved, prefs } = await loadTeamPlaybook(supabase, teamId, sport, ageGroup);
+  const roleModel = roleModelFor(resolved);
+  return { roleModel, roles: roleModel ? rolesFromPrefs(prefs, roleModel.unit) : {} };
 }
