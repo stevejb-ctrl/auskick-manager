@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
-import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
+import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -820,7 +820,11 @@ export default async function LivePage({ params }: LivePageProps) {
       (e) => e.game_id !== params.gameId,
     );
     const season = seasonZoneMinutes(allTeamEvents);
-    const aflPlaybook = withBalanceSeason(aflPlaybookBase, allTeamEvents, playbook.seasonBalanceSince);
+    const aflPlaybook = withBalanceSeason(
+      withSnapshot(aflPlaybookBase, g.playbook_snapshot),
+      allTeamEvents,
+      playbook.seasonBalanceSince,
+    );
     const loanMins = seasonLoanMinutes(allTeamEvents);
     const seasonAvail = seasonAvailability(allTeamEvents);
     // Page-level sticky-bar clearance — kicks in at a Q-break

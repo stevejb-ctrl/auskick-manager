@@ -17,6 +17,8 @@ import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // Same clamp as live/actions.ts — duplicated rather than imported to
 // keep these two server-action modules independent. Reads team
@@ -180,9 +182,16 @@ export async function startNetballGame(
   // Validate the override before writing — bounds match the picker
   // input (1..30 min). Leaves the column untouched when the picker
   // sent `null` / `undefined` (i.e. coach left the team default).
-  const update: { status: "in_progress"; on_field_size: number; quarter_length_seconds?: number | null } = {
+  const update: {
+    status: "in_progress";
+    on_field_size: number;
+    quarter_length_seconds?: number | null;
+    playbook_snapshot: PlaybookSnapshot | null;
+  } = {
     status: "in_progress",
     on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
   };
   if (quarterLengthSeconds != null) {
     if (

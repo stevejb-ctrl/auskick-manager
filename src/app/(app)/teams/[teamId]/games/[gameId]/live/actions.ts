@@ -10,6 +10,7 @@ import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -202,6 +203,8 @@ export async function startGame(
       status: "in_progress",
       sub_interval_seconds: subIntervalSeconds,
       on_field_size: clampedSize,
+      // How we play at kickoff (UX plan 3.7).
+      playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
     })
     .eq("id", gameId);
 

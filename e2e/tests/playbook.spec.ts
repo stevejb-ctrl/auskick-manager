@@ -310,3 +310,39 @@ test("set positions: game day puts kids in their home line, labelled", async ({ 
     await expect(tile).toContainText(label);
   }
 });
+
+test("kickoff freezes How we play onto the game", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin
+    .from("team_playbooks")
+    .insert({ team_id: team.id, strategy: "preferred-lines", season_balance: "strong" });
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^start q1$/i })).toBeVisible();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  const snapshot = async () => {
+    const { data } = await admin.from("games").select("playbook_snapshot").eq("id", game.id).single();
+    return data?.playbook_snapshot as { strategy: string; seasonBalance: string; policy: { minGameTimePct: number } } | null;
+  };
+  await expect.poll(async () => (await snapshot())?.strategy, { timeout: 15_000 }).toBe("preferred-lines");
+  expect((await snapshot())?.seasonBalance).toBe("strong");
+  expect((await snapshot())?.policy.minGameTimePct).toBe(50);
+
+  // A change on the Team tab afterwards doesn't rewrite the game.
+  await admin.from("team_playbooks").update({ strategy: "free" }).eq("team_id", team.id);
+  expect((await snapshot())?.strategy).toBe("preferred-lines");
+});

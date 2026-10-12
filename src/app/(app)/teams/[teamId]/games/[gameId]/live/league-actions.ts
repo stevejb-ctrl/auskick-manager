@@ -36,6 +36,8 @@ import {
   kickoffCycle,
 } from "@/lib/sports/rugby_league/kicks";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
@@ -348,9 +350,12 @@ export async function startLeagueGame(
     status: "in_progress";
     on_field_size: number;
     sub_interval_seconds?: number;
+    playbook_snapshot: PlaybookSnapshot | null;
   } = {
     status: "in_progress",
     on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
   };
   if (subIntervalSeconds != null) {
     const clamped = Math.round(

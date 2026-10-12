@@ -3,7 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
-import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
+import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -539,7 +539,7 @@ export default async function RunPage({ params }: RunPageProps) {
       teamRow?.age_group ?? null,
     );
     const aflPlaybook = withBalanceSeason(
-      aflPlaybookInput(playbook, playbookPrefs),
+      withSnapshot(aflPlaybookInput(playbook, playbookPrefs), g.playbook_snapshot),
       (allTeamEvents ?? []) as GameEvent[],
       playbook.seasonBalanceSince,
     );

@@ -8,7 +8,7 @@
 import type { GameEvent, Lineup, Zone } from "@/lib/types";
 import type { PlayerZoneMinutes } from "@/lib/fairness";
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
-import type { PlayerPositionPrefRow } from "@/lib/playbook/types";
+import type { PlaybookSnapshot, PlayerPositionPrefRow } from "@/lib/playbook/types";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
@@ -212,4 +212,24 @@ export function withBalanceSeason(
     balanceSeason[pid] = zm;
   }
   return { ...input, balanceSeason };
+}
+
+/**
+ * A game in progress plays the strategy and season balance it kicked
+ * off with (games.playbook_snapshot), even if the coach changes How we
+ * play mid-game. Roles stay live — they're about the kids.
+ */
+export function withSnapshot(
+  input: AflPlaybookInput,
+  snapshot: PlaybookSnapshot | null | undefined,
+): AflPlaybookInput {
+  if (!snapshot) return input;
+  return {
+    ...input,
+    strategy: snapshot.strategy,
+    seasonWeight: seasonBalanceWeight(
+      "afl",
+      snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance,
+    ),
+  };
 }
