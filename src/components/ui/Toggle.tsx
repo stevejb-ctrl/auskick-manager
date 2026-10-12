@@ -20,6 +20,8 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-base ease-out-quart",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
+        // Pressed feedback (UX plan Phase 6: active states on chips).
+        "motion-safe:active:scale-[0.97]",
         checked ? "bg-brand-600" : "bg-surface-alt",
       ].join(" ")}
     >

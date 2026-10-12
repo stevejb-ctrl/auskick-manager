@@ -1056,7 +1056,7 @@ export function NetballLineupPicker({
                         onClick={() => handleLendToggle(p.id, false)}
                         disabled={loanPending}
                         aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                       >
                         ×
                       </button>
@@ -1066,7 +1066,7 @@ export function NetballLineupPicker({
                     type="button"
                     onClick={() => setLendPickerOpen(true)}
                     disabled={loanPending}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                   >
                     <span aria-hidden>+</span>
                     Lend a player

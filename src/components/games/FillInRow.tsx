@@ -114,7 +114,7 @@ export function FillInRow({
               type="button"
               onClick={handleRemove}
               disabled={isPending || removing}
-              className="inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
             >
               {(isPending || removing) && <PulseDot size="sm" />}
               {removing

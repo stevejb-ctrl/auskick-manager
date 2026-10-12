@@ -1785,7 +1785,7 @@ export function LeagueLiveGame({
                   disabled={pending}
                   data-testid={`league-recall-lent-${p.id}`}
                   aria-label={`Bring ${p.full_name} back`}
-                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   {p.jersey_number != null && (
                     <span className="tabular-nums font-semibold">{p.jersey_number}</span>
@@ -2029,7 +2029,7 @@ export function LeagueLiveGame({
                   type="button"
                   onClick={() => setAddArrivedPickerOpen(true)}
                   disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Add arrived player
@@ -2038,7 +2038,7 @@ export function LeagueLiveGame({
                   type="button"
                   onClick={() => setMarkOutPickerOpen(true)}
                   disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark a player out
@@ -2047,7 +2047,7 @@ export function LeagueLiveGame({
                   type="button"
                   onClick={() => setBreakInjuredPickerOpen(true)}
                   disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark injured

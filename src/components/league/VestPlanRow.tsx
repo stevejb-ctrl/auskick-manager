@@ -54,7 +54,7 @@ export function VestPlanPill({
           : readOnly
             ? "cursor-default border-hairline bg-surface-alt"
             : "border-hairline bg-surface hover:border-brand-500/40 hover:bg-surface-alt"
-      }`}
+      } motion-safe:active:scale-[0.97]`}
     >
       <span
         className={`rounded-sm px-1 font-mono text-[9px] font-bold uppercase tracking-micro ${tagBg}`}

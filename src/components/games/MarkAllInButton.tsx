@@ -55,7 +55,7 @@ export function MarkAllInButton({ auth, gameId, notInIds }: MarkAllInButtonProps
       disabled={pending}
       className={`inline-flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 ${
         pending ? "opacity-60" : ""
-      }`}
+      } motion-safe:active:scale-[0.97]`}
     >
       {pending && <PulseDot size="sm" />}
       {pending ? "Marking…" : `Mark all ${notInIds.length} in`}

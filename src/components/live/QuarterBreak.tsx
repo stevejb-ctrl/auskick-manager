@@ -1412,7 +1412,7 @@ export function QuarterBreak({
                       onClick={() => handleLoanToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1422,7 +1422,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player
@@ -1466,7 +1466,7 @@ export function QuarterBreak({
                       onClick={() => handleInjuryToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Mark ${p.full_name} fit`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1476,7 +1476,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setInjuredPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark injured
@@ -1509,7 +1509,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setAddArrivedPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Add arrived player
@@ -1518,7 +1518,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setMarkOutPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark a player out
@@ -1792,7 +1792,7 @@ export function QuarterBreak({
                                   type="button"
                                   onClick={() => setPendingDelete(e)}
                                   disabled={isPending}
-                                  className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                                  className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                                   aria-label="Delete this score"
                                 >
                                   ×
@@ -1924,7 +1924,7 @@ export function QuarterBreak({
                   disabled={loanPending}
                   data-testid={`qb-recall-lent-${p.id}`}
                   aria-label={`Bring ${p.full_name} back`}
-                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   {p.jersey_number != null && (
                     <span className="tabular-nums font-semibold">{p.jersey_number}</span>

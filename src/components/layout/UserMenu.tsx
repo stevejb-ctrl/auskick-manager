@@ -61,7 +61,7 @@ export function UserMenu({ email }: UserMenuProps) {
         aria-expanded={open}
         aria-label="Account menu"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-warm shadow-card transition-transform duration-fast ease-out-quart hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-warm shadow-card transition-transform duration-fast ease-out-quart hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 motion-safe:active:scale-[0.97]"
         data-testid="user-menu-trigger"
       >
         <span className="text-sm font-bold">{initial}</span>

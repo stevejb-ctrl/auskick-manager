@@ -238,7 +238,7 @@ export function GameHeader({
           <button
             type="button"
             onClick={onShowQuarterScores}
-            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink motion-safe:active:scale-[0.97]"
             aria-label="Show quarter-by-quarter scores"
           >
             Q-by-Q

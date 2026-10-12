@@ -102,7 +102,7 @@ export function UsersFilterBar({ tags }: UsersFilterBarProps) {
                   active
                     ? "bg-brand-600 text-warm"
                     : "bg-surface-alt text-ink-dim hover:text-ink"
-                }`}
+                } motion-safe:active:scale-[0.97]`}
               >
                 {t.name}
               </button>

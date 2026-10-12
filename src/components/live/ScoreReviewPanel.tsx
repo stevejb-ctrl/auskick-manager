@@ -233,7 +233,7 @@ export function ScoreReviewPanel({
                         <button
                           type="button"
                           onClick={() => setPendingDelete(e)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
+                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
                           aria-label="Delete this score"
                         >
                           ×

@@ -431,7 +431,7 @@ export function SwapCard({
                             revertPair(index);
                           }}
                           title="You set this — tap to revert to the auto pick"
-                          className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-brand-300/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-micro text-brand-200 transition-colors duration-fast ease-out-quart hover:bg-brand-300/25"
+                          className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-brand-300/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-micro text-brand-200 transition-colors duration-fast ease-out-quart hover:bg-brand-300/25 motion-safe:active:scale-[0.97]"
                         >
                           <svg width="8" height="8" viewBox="0 0 24 24" fill="none" aria-hidden>
                             <path
@@ -492,7 +492,7 @@ export function SwapCard({
                                   selected
                                     ? "bg-brand-600 text-white"
                                     : "bg-white/10 text-warm/80 hover:bg-white/20"
-                                }`}
+                                } motion-safe:active:scale-[0.97]`}
                               >
                                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-black/20 font-mono text-[7px] font-bold">
                                   {p ? initials(p.full_name) : "?"}

@@ -1413,7 +1413,7 @@ export function NetballQuarterBreak({
                       type="button"
                       onClick={() => handleLendToggleAtBreak(p.id, false)}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1422,7 +1422,7 @@ export function NetballQuarterBreak({
                 <button
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player
@@ -1450,7 +1450,7 @@ export function NetballQuarterBreak({
                       type="button"
                       onClick={() => handleInjuryToggleAtBreak(p.id, false)}
                       aria-label={`Mark ${p.full_name} fit`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1459,7 +1459,7 @@ export function NetballQuarterBreak({
                 <button
                   type="button"
                   onClick={() => setInjuredPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark injured
@@ -1484,7 +1484,7 @@ export function NetballQuarterBreak({
                 <button
                   type="button"
                   onClick={() => setAddArrivedPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Add arrived player
@@ -1492,7 +1492,7 @@ export function NetballQuarterBreak({
                 <button
                   type="button"
                   onClick={() => setMarkOutPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark a player out
