@@ -7,6 +7,9 @@ import { MotionPreferenceBridge } from "@/components/preferences/MotionPreferenc
 import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { TeamSwitcher, type SwitcherTeam } from "@/components/layout/TeamSwitcher";
+import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
+import type { Sport } from "@/lib/types";
 import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
 import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 
@@ -36,6 +39,25 @@ export default async function AppLayout({
       deletion_scheduled_for: string | null;
     }>();
   const isSuperAdmin = Boolean(profile?.is_super_admin);
+
+  // The coach's teams, for the header team switcher.
+  const { data: memberships } = await createClient()
+    .from("team_memberships")
+    .select("teams(id, name, sport, age_group)")
+    .eq("user_id", user.id)
+    .returns<{ teams: { id: string; name: string; sport: Sport | null; age_group: string | null } | null }[]>();
+  const switcherTeams: SwitcherTeam[] = (memberships ?? [])
+    .flatMap((m) => (m.teams ? [m.teams] : []))
+    .map((t) => {
+      const sport = (t.sport ?? "afl") as Sport;
+      const sportName = sport === "afl" ? "AFL" : getSportConfig(sport).name;
+      return {
+        id: t.id,
+        name: t.name,
+        detail: `${sportName} · ${getAgeGroupConfig(sport, t.age_group).label}`,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
   const deletionScheduledFor = profile?.deletion_scheduled_for ?? null;
 
   return (
@@ -93,7 +115,7 @@ export default async function AppLayout({
           to run the match. */}
       <AppHeaderShell>
         <header className="sticky top-0 z-20 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
-          <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2 sm:py-3">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-4 py-2 sm:py-3">
             {/* ConnectedWordmark wraps SirenWordmark with a live
                 reconcile halo — pulses around the mark when the
                 device returns from offline / drains a backlog of
@@ -102,7 +124,8 @@ export default async function AppLayout({
                 their work landed. See P1.5-2 in
                 .planning/MICRO-INTERACTIONS-PLAN.md. */}
             <ConnectedWordmark size="sm" />
-            <div className="flex items-center gap-2 sm:gap-3">
+            <TeamSwitcher teams={switcherTeams} />
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               {isSuperAdmin && (
                 <Link
                   href="/admin"
@@ -111,15 +134,6 @@ export default async function AppLayout({
                   Admin
                 </Link>
               )}
-              {/* Help is reachable from the footer and the in-page
-                  walkthrough; hiding it on phones declutters the bar
-                  without losing access. */}
-              <Link
-                href="/help"
-                className="hidden rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink sm:inline-flex"
-              >
-                Help
-              </Link>
               {/* Avatar dropdown — My account, Sign out. Replaces
                   the previous inline "email · Sign out" pair so the
                   account-level affordances live in one discoverable

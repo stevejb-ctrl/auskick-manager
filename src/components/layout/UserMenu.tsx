@@ -107,6 +107,14 @@ export function UserMenu({ email }: UserMenuProps) {
           >
             Join a team
           </Link>
+          <Link
+            href="/help"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2.5 text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Help
+          </Link>
           <button
             type="button"
             role="menuitem"
