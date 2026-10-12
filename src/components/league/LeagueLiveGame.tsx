@@ -127,6 +127,8 @@ interface LeagueLiveGameProps {
   chipModes?: Partial<
     Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
   >;
+  /** How we play for the league suggester (UX plan 5.6). */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   isAdmin: boolean;
   exitHref: string;
 }
@@ -146,6 +148,7 @@ export function LeagueLiveGame({
   thisGameEvents,
   seasonEvents,
   chipModes,
+  leaguePlaybook,
   isAdmin,
   exitHref,
 }: LeagueLiveGameProps) {
@@ -662,6 +665,7 @@ export function LeagueLiveGame({
       excludeOff,
       elapsedMs,
       chipByPlayerId,
+      leaguePlaybook,
     );
   }, [
     thisGameEvents,

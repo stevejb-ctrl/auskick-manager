@@ -38,6 +38,7 @@ export interface HowWePlayPatch {
   strategy?: string;
   policyOverrides?: PolicyOverrides;
   seasonBalance?: SeasonBalanceSetting;
+  vestStrategy?: "auto" | "fixed-order" | "coach";
 }
 
 /**
@@ -84,12 +85,17 @@ export async function saveHowWePlay(teamId: string, patch: HowWePlayPatch): Prom
     seasonBalance = patch.seasonBalance;
   }
 
+  if (patch.vestStrategy !== undefined && !["auto", "fixed-order", "coach"].includes(patch.vestStrategy)) {
+    return { success: false, error: "Unknown vest strategy." };
+  }
+
   const { error: upsertError } = await supabase.from("team_playbooks").upsert(
     {
       team_id: teamId,
       strategy,
       policy_overrides: overrides,
       season_balance: seasonBalance,
+      ...(patch.vestStrategy ? { vest_strategy: patch.vestStrategy } : {}),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     },

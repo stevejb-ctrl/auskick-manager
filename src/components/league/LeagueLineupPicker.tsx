@@ -128,6 +128,8 @@ interface LeagueLineupPickerProps {
   chipModes?: Partial<
     Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
   >;
+  /** How we play for the league suggester (UX plan 5.6). */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   /**
    * Default sub interval in MINUTES — the game's configured
    * `sub_interval_seconds` (defaulted to the age-group value at game
@@ -156,6 +158,7 @@ export function LeagueLineupPicker({
   initialLoanedIds = [],
   chipLabels,
   chipModes,
+  leaguePlaybook,
   defaultSubMinutes,
 }: LeagueLineupPickerProps) {
   const router = useRouter();
@@ -228,6 +231,7 @@ export function LeagueLineupPicker({
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -668,6 +672,7 @@ export function LeagueLineupPicker({
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       });
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);
@@ -694,6 +699,7 @@ export function LeagueLineupPicker({
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       });
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);

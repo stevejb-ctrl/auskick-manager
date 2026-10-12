@@ -16,6 +16,8 @@ export interface LoadedPlaybook {
   prefs: PrefRow[];
   /** The team's own rules that are on (How we play › Rules). */
   rules: RuleInstance[];
+  /** Rugby league vest strategy. */
+  vestStrategy: "auto" | "fixed-order" | "coach";
 }
 
 export async function loadTeamPlaybook(
@@ -29,7 +31,7 @@ export async function loadTeamPlaybook(
   const [{ data: row }, { data: positions }, { data: prefs }] = await Promise.all([
     supabase
       .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
+      .select("strategy, policy_overrides, season_balance, season_balance_since, rules, vest_strategy")
       .eq("team_id", teamId)
       .maybeSingle(),
     supabase
@@ -59,5 +61,6 @@ export async function loadTeamPlaybook(
     resolved,
     prefs: (prefs ?? []) as PrefRow[],
     rules: activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)),
+    vestStrategy: (row as { vest_strategy?: "auto" | "fixed-order" | "coach" } | null)?.vest_strategy ?? "auto",
   };
 }

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -207,6 +208,16 @@ export default async function RunPage({ params }: RunPageProps) {
           .in("game_id", otherGameIds)
       : { data: [] as GameEvent[] };
     const leagueSeasonEvents = (leagueSeasonEventsRaw ?? []) as GameEvent[];
+    // How we play for the league suggester, as on the coach's page.
+    const lg = await loadTeamPlaybook(admin, g.team_id, "rugby_league", teamRow?.age_group ?? null);
+    const leaguePlaybook = leaguePlaybookInput(
+      lg.resolved,
+      lg.prefs,
+      lg.rules,
+      seasonTimeByUnit("rugby_league", leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
+      periodSeconds * 1000,
+      lg.vestStrategy,
+    );
 
     // Chip labels for RL — Forward/Back are auto-seeded by the
     // 0043 trigger on team INSERT, but the picker accepts arbitrary
@@ -299,6 +310,7 @@ export default async function RunPage({ params }: RunPageProps) {
               }
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
+              leaguePlaybook={leaguePlaybook}
             />
           )}
         </div>
@@ -333,6 +345,7 @@ export default async function RunPage({ params }: RunPageProps) {
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents}
           chipModes={teamChipModes}
+          leaguePlaybook={leaguePlaybook}
           // Runner-token grants restart access (same convention as
           // the netball branch — folded into LeagueLiveGame's
           // admin-utility row).

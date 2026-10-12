@@ -4,6 +4,7 @@ import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
@@ -353,6 +354,25 @@ export default async function LivePage({ params }: LivePageProps) {
     const leagueSeasonEvents = allLeagueSeasonEvents.filter(
       (e) => e.game_id !== params.gameId,
     );
+    // How we play for the league suggester (UX plan 5.6): lines from
+    // roles and season balance, the vest strategy, keep-on.
+    const lg = await loadTeamPlaybook(supabase, params.teamId, "rugby_league", teamRow?.age_group ?? null);
+    const lgAge = getAgeGroupConfig("rugby_league", teamRow?.age_group ?? null);
+    const lgPeriodSeconds = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+      lgAge,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const leaguePlaybook = leaguePlaybookInput(
+      lg.resolved,
+      lg.prefs,
+      lg.rules,
+      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "line", {
+        since: lg.resolved.seasonBalanceSince,
+      }),
+      lgPeriodSeconds * 1000,
+      lg.vestStrategy,
+    );
 
     if (!hasStarted) {
       // Pre-kickoff: load saved draft (if any) and use the season
@@ -475,6 +495,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 b: teamChipLabels.b,
               }}
               chipModes={teamChipModes}
+              leaguePlaybook={leaguePlaybook}
             />
           )}
         </div>
@@ -498,6 +519,7 @@ export default async function LivePage({ params }: LivePageProps) {
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
           chipModes={teamChipModes}
+          leaguePlaybook={leaguePlaybook}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

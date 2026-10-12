@@ -579,3 +579,58 @@ test("a finished game says how we played against the rules", async ({ page }) =>
   // A team's first game has no season to compare with.
   await expect(card).not.toContainText("Season balance");
 });
+
+test("league: lines from roles, and vests in a fixed order", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-line", vest_strategy: "fixed-order" });
+  // Four kids who never play forwards.
+  const backsOnly = players.slice(9, 13);
+  await admin.from("player_position_prefs").insert(
+    backsOnly.map((p) => ({ team_id: team.id, player_id: p.id, line: "forwards", kind: "never" })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  // The Team tab shows the vest strategy.
+  await page.goto(`/teams/${team.id}/settings`);
+  await expect(
+    page.getByRole("radiogroup", { name: "Vests" }).getByRole("radio", { name: "Fixed order" }),
+  ).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  const lineupSet = async () => {
+    const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
+    return (data?.[0]?.metadata as { lineup?: { forwards: string[]; backs: string[] } })?.lineup ?? null;
+  };
+  await expect.poll(async () => (await lineupSet()) !== null, { timeout: 15_000 }).toBe(true);
+  const lineup = (await lineupSet())!;
+  for (const p of backsOnly) expect(lineup.forwards).not.toContain(p.id);
+
+  // Fixed order with no previous wearer: FR goes to the lowest jersey on the field.
+  const onField = [...lineup.forwards, ...lineup.backs];
+  const firstByJersey = players
+    .filter((p) => onField.includes(p.id))
+    .sort((a, b) => a.jersey_number - b.jersey_number)[0];
+  const { data: vests } = await admin
+    .from("game_events")
+    .select("player_id, metadata")
+    .eq("game_id", game.id)
+    .eq("type", "vest_assigned");
+  const fr = (vests ?? []).find((v) => (v.metadata as { vest?: string; period?: number }).vest === "fr" && (v.metadata as { period?: number }).period === 1);
+  expect(fr?.player_id).toBe(firstByJersey.id);
+});

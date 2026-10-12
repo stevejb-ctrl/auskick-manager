@@ -126,7 +126,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
     supabase
       .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
+      .select("strategy, policy_overrides, season_balance, season_balance_since, rules, vest_strategy")
       .eq("team_id", params.teamId)
       .maybeSingle(),
     supabase

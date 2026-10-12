@@ -9,6 +9,7 @@ import { PositionsEditor } from "@/components/playbook/PositionsEditor";
 import { RulesEditor } from "@/components/playbook/RulesEditor";
 import { toDraft } from "@/lib/playbook/positions";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import {
   addRulePack,
   resetSeasonBalance,
@@ -37,7 +38,7 @@ const SPORT_WORD: Record<Sport, string> = {
 export type HowWePlayRow = Pick<
   TeamPlaybookRow,
   "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
-> & { rules?: unknown };
+> & { rules?: unknown; vest_strategy?: "auto" | "fixed-order" | "coach" };
 
 export type HowWePlayPosition = Pick<
   TeamPositionRow,
@@ -176,6 +177,27 @@ export function HowWePlayCard({
           maxPositions={maxOnFieldSize}
           disabled={disabled}
         />
+      )}
+
+      {sport === "rugby_league" && (resolved.policy.vests.fr || resolved.policy.vests.dh) && (
+        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+          <p className="text-sm font-semibold text-ink">Vests</p>
+          <p className="mt-0.5 text-xs text-ink-dim">
+            How Siren picks the FR and DH vests each half, always within the vest rules.
+          </p>
+          <SegmentedControl
+            className="mt-3"
+            label="Vests"
+            disabled={disabled}
+            value={row.vest_strategy ?? "auto"}
+            options={[
+              { id: "auto", label: "Auto-fair" },
+              { id: "fixed-order", label: "Fixed order" },
+              { id: "coach", label: "Coach picks" },
+            ]}
+            onChange={(v) => save({ ...row, vest_strategy: v }, { vestStrategy: v })}
+          />
+        </div>
       )}
 
       {resolved.strategy.balanceUnit && (
