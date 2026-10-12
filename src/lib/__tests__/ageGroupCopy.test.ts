@@ -14,3 +14,10 @@ describe("AFL age-group notes", () => {
     }
   });
 });
+
+describe("league age-group labels", () => {
+  it("read like AFL's (Under 10), not U10", async () => {
+    const { rugbyLeagueSport } = await import("@/lib/sports/rugby_league");
+    for (const ag of rugbyLeagueSport.ageGroups) expect(ag.label).toMatch(/^Under \d+/);
+  });
+});

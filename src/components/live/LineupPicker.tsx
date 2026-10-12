@@ -288,7 +288,7 @@ export function LineupPicker({
 
   // Game-settings collapse. Steve 2026-05-13 (follow-up): always
   // start closed. The collapsed-header summary now spells out the
-  // active state in plain English ("Auto-suggested · No lent" or
+  // active state in plain English ("Suggested lineup · No lent" or
   // "Manual lineup · 1 lent") which makes the discoverability
   // auto-expand was solving unnecessary.
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
@@ -767,7 +767,7 @@ export function LineupPicker({
                 // hit the field yet.
                 const bits: string[] = [];
                 bits.push(
-                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                  lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
                 );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);

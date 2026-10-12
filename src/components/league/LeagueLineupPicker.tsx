@@ -963,7 +963,7 @@ export function LeagueLineupPicker({
   const settingsSummary = (() => {
     const bits: string[] = [];
     bits.push(
-      lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+      lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
     bits.push(`${(subIntervalSeconds / 60).toFixed(1)} min subs`);

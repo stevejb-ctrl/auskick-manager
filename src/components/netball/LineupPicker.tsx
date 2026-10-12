@@ -820,7 +820,7 @@ export function NetballLineupPicker({
               {(() => {
                 const bits: string[] = [];
                 bits.push(
-                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                  lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
                 );
                 // Quarter length only surfaces in the summary when it
                 // differs from the team's default (defaultQuarterSeconds

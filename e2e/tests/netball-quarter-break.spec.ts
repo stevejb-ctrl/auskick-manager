@@ -337,7 +337,7 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   // Time-in-zone colour key (Steve 2026-06-29): the per-player time-
   // by-third bars encode the third by colour alone, so a shared legend
   // must render once with the Attack/Centre/Defence labels.
-  const legend = page.locator('[aria-label="Time-in-zone colour key"]');
+  const legend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(legend).toBeVisible();
   await expect(legend).toContainText("Attack");
   await expect(legend).toContainText("Centre");

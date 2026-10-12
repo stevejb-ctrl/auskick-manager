@@ -302,7 +302,7 @@ test("game detail shows rugby league's on-field size, not AFL's", async ({ page 
 
   await page.goto(`/teams/${team.id}/games/${game.id}`);
 
-  await expect(page.getByText("U10 · 11 on field")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Under 10 · 11 on field")).toBeVisible({ timeout: 10_000 });
 });
 
 // Regression (UX plan H7 / 0.9): enforce_unbroken_periods was stored

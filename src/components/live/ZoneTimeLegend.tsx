@@ -32,7 +32,10 @@ export function ZoneTimeLegend({
   return (
     <div
       className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${className}`}
-      aria-label="Time-in-zone colour key"
+      // Named from its own labels, so each sport reads in its words
+      // ("Colour key: Attack, Centre, Defence" for netball).
+      role="group"
+      aria-label={`Colour key: ${items.map((it) => it.label).join(", ")}`}
     >
       {items.map((it) => (
         <span key={it.label} className="flex items-center gap-1">

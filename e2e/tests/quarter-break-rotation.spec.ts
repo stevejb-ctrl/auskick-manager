@@ -112,9 +112,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // Time-in-zone colour key (Steve 2026-06-29): the per-player bars
   // encode zone by colour alone, so a shared legend must render once
   // on the break with the Fwd/Centre/Back labels in field order.
-  const breakLegend = page.locator(
-    '[aria-label="Time-in-zone colour key"]',
-  );
+  const breakLegend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(breakLegend).toBeVisible();
   await expect(breakLegend).toContainText("Fwd");
   await expect(breakLegend).toContainText("Centre");
@@ -180,7 +178,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
 
   // The colour key also renders on the live field above the tiles, so
   // a mid-game glance at a bar stays legible.
-  const liveLegend = page.locator('[aria-label="Time-in-zone colour key"]');
+  const liveLegend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(liveLegend).toBeVisible();
   await expect(liveLegend).toContainText("Fwd");
   await expect(liveLegend).toContainText("Centre");

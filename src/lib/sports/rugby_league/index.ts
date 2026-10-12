@@ -88,7 +88,7 @@ const HALF_SUB_INTERVAL = deriveSubIntervalSeconds(HALF_PERIOD_SECONDS, 240);
 const RL_AGE_GROUPS: AgeGroupConfig[] = [
   {
     id: "U6",
-    label: "U6 (Tag)",
+    label: "Under 6 (Tag)",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 6,
@@ -112,7 +112,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U7",
-    label: "U7 (Tag → Tackle)",
+    label: "Under 7 (Tag → Tackle)",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 6,
@@ -133,7 +133,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U8",
-    label: "U8",
+    label: "Under 8",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 8,
@@ -156,7 +156,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U9",
-    label: "U9",
+    label: "Under 9",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 8,
@@ -178,7 +178,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U10",
-    label: "U10",
+    label: "Under 10",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 11,
@@ -207,7 +207,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U11",
-    label: "U11",
+    label: "Under 11",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 11,
@@ -229,7 +229,7 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
   },
   {
     id: "U12",
-    label: "U12",
+    label: "Under 12",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 13,
