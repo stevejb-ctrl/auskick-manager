@@ -13,7 +13,7 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1 to begin the first quarter. The clock runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
+      body: "Tap Start Q1, then Start clock when the siren goes. The clock runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
     },
     {
       emoji: "🏟️",

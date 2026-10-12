@@ -144,7 +144,7 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
 
   // The break surface shows a "Ready for H2"/"Ready for half 2" CTA.
   await expect(
-    page.getByRole("button", { name: /^ready for (h2|half 2|q2)$/i }),
+    page.getByRole("button", { name: /^start (h2|half 2|q2)$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────

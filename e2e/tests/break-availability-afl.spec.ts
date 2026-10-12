@@ -137,7 +137,7 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
     await selectTeamBtn.click({ timeout: 10_000 });
   }
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // Open the break-surface availability controls. The new entry lives

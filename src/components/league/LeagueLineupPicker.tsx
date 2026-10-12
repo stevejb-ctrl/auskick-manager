@@ -1377,7 +1377,7 @@ export function LeagueLineupPicker({
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
         confirmLabel={
-          ageGroup.periodLabel === "half" ? "Ready for H1" : "Ready for Q1"
+          ageGroup.periodLabel === "half" ? "Start H1" : "Start Q1"
         }
         confirmDisabled={confirmDisabled}
         confirmLoading={isPending}

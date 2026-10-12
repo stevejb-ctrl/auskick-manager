@@ -60,7 +60,7 @@ async function enterQBreakView(
     )
     .toBe(true);
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 }
 

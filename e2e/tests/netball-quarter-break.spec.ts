@@ -212,7 +212,7 @@ async function enterQBreakView(
   // "Ready for Q2" — matches the StartQuarterModal heading "Ready for
   // Q2" while staying distinct from its CTA "Start Q2".
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 }
 
@@ -380,11 +380,11 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   //   2. Modal "Start Q2" — writes quarter_start.
   // Splitting the flow gives the GM control of the clock-start
   // moment — the umpire's whistle, not the lineup tap.
-  await page.getByRole("button", { name: /^ready for q2$/i }).click();
-  await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /^start q2$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^start q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Rule-1 fix from the plan source: periodBreakSwap is called with
   // `nextQuarter` (= 2), and netball-actions.ts:160-167 writes

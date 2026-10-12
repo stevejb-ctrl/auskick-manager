@@ -222,7 +222,7 @@ test("NETBALL-01: pre-kickoff renders the netball lineup picker (six-state machi
   // matches the StartQuarterModal heading so the user knows the
   // tap opens the modal (not commits immediately).
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -248,7 +248,7 @@ test("NETBALL-01: live state renders score bug + court + opponent name when Q1 i
   await expect(page.getByText(/test opponent/i).first()).toBeVisible();
 });
 
-test("NETBALL-01: Ready for Q1 surfaces the await-kickoff modal — both events deferred to the modal CTA", async ({
+test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — both events deferred to the modal CTA", async ({
   page,
 }) => {
   // Two-step kickoff (Steve 2026-05-15 refactor): the "Ready for Q1"
@@ -278,14 +278,14 @@ test("NETBALL-01: Ready for Q1 surfaces the await-kickoff modal — both events 
   // NetballLiveGame's `!hasStarted` branch because no lineup_set
   // event exists yet. The picker auto-suggests a starting lineup on
   // mount so the confirm button is enabled without further input.
-  const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
+  const readyForQ1 = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
   await readyForQ1.click();
 
   // Modal opens — heading "Ready for Q1" lives inside
   // NetballStartQuarterModal (mirrors AFL StartQuarterModal).
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 2_000 });
 
   // CRITICAL: opening the modal must NOT commit anything yet. Coach
@@ -300,7 +300,7 @@ test("NETBALL-01: Ready for Q1 surfaces the await-kickoff modal — both events 
   expect(preEvents ?? []).toHaveLength(0);
 
   // Modal CTA "Start Q1" — fires the atomic commit.
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Both events land now in the same server round-trip.
   await expect
@@ -882,7 +882,7 @@ test("ABSTRACT-03: team.quarter_length_seconds=480 fires the auto-hooter at the 
   // matches the modal heading "Ready for Q2" and is distinct from
   // the modal CTA "Start Q2".)
   await expect(
-    page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
+    page.getByRole("button", { name: /start q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -935,7 +935,7 @@ test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length
   // user taps "Ready for Q2". Match the same regex as the sibling test
   // above (NETBALL-01 auto-hooter).
   await expect(
-    page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
+    page.getByRole("button", { name: /start q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -962,8 +962,8 @@ test("a NetSetGO Set team can kick off four-a-side", async ({ page }) => {
 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^ready for q1$/i }).click();
   await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   await expect
     .poll(

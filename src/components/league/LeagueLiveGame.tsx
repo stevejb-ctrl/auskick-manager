@@ -1978,7 +1978,7 @@ export function LeagueLiveGame({
             size="lg"
             full
           >
-            Ready for {periodLabel} {state.currentQuarter + 1}
+            Start {periodLabel.charAt(0).toUpperCase()}{state.currentQuarter + 1}
           </SFButton>
 
           {/* Manage availability (AVAIL-02 / B2) — mirrors AFL

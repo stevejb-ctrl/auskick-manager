@@ -106,7 +106,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // suggester chose — the test's contract is "what you see here is
   // what you get in Q2", not "the suggester picked X".
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Time-in-zone colour key (Steve 2026-06-29): the per-player bars
@@ -166,13 +166,13 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // the snapshot + opens the modal; the modal's "Start Q2" CTA
   // actually kicks off the clock. The Q-break label matches the
   // modal heading; the modal CTA stays distinct.
-  await page.getByRole("button", { name: /^ready for q2$/i }).click();
-  await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /^start q2$/i }).click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
+    page.getByRole("heading", { name: /^start q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeHidden({ timeout: 3_000 });
 
   // Q2 is now live. The Field component renders the lineup with
@@ -279,7 +279,7 @@ test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the 
     .getByRole("button", { name: /select team for q2/i })
     .click({ timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Count PLAYER tiles per zone card (a zone card is <h3>ZONE</h3> then a
@@ -342,7 +342,7 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /select team for q2/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^ready for q2$/i })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
 
   // The rotation toggle lives inside the collapsed "Game settings" card.
   await page.getByRole("button", { name: /game settings/i }).click();

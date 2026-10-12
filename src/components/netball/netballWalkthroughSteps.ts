@@ -28,7 +28,7 @@ export function buildNetballWalkthroughSteps(opts: {
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1 to begin the first quarter. The clock counts down and ends the quarter automatically when it hits zero. Tap the clock pill to pause if there's a stoppage in play, then tap it again to resume.",
+      body: "Tap Start Q1, then Start clock when the umpire calls play. The clock counts down and ends the quarter automatically when it hits zero. Tap the clock pill to pause if there's a stoppage in play, then tap it again to resume.",
     },
     {
       emoji: "🏐",

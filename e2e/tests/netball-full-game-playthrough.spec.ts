@@ -166,12 +166,12 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // quarter_start event. Distinct labels avoid the looping issue
   // Stagehand caught where both buttons shared an accessible name.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
+  const readyForQ1 = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
   await readyForQ1.click();
   // Modal CTA "Start Q1" — distinct from the page-level button.
   await page
-    .getByRole("button", { name: /^start q1$/i })
+    .getByRole("button", { name: /^start clock$/i })
     .click({ timeout: 5_000 });
 
   // ─── Phase 2: Q1 goal ─────────────────────────────────────
@@ -239,17 +239,17 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   //      NetballStartQuarterModal (heading "Ready for Q{n}").
   //   2. Modal "Start Q{n}" — fires startNetballQuarter (quarter_start).
   // Labels distinguish the two stages so the agent (and coaches) know
-  // which is which. Body text "Tap when the umpires call play" gates
+  // which is which. Body text "Tap Start clock when the umpire calls play" gates
   // the second tap.
   async function startNextQuarter(n: number): Promise<void> {
     await page
-      .getByRole("button", { name: new RegExp(`^ready for q${n}$`, "i") })
+      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
       .click();
     await page
-      .getByText(/tap when the umpires call play/i)
+      .getByText(/tap start clock when the umpire calls play/i)
       .waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .getByRole("button", { name: /^start clock$/i })
       .click();
   }
 
@@ -272,7 +272,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   for (const next of [3, 4]) {
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^ready for q${next}$`, "i"),
+        name: new RegExp(`^start q${next}$`, "i"),
       }),
     ).toBeVisible({ timeout: 25_000 });
     await startNextQuarter(next);

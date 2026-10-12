@@ -170,7 +170,7 @@ test("Continue-to-lineup CTA is a button with pending state, not a plain link", 
   // signal (see lineup.spec.ts for the deeper assertion).
   await expect(page).toHaveURL(/\/live$/, { timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 

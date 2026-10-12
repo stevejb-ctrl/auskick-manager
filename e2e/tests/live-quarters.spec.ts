@@ -83,7 +83,7 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
   // (Q-break commit-CTA, renamed iteratively to disambiguate from
   // the StartQuarterModal's "Start Q{n}" CTA and to match the modal
   // heading for a continuous narrative).
-  await expect(page.getByRole("button", { name: /^ready for q2$/i })).toBeVisible({
+  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({
     timeout: 5_000,
   });
 

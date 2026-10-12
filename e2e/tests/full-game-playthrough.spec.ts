@@ -181,12 +181,12 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page
-    .getByRole("button", { name: /^ready for q1$/i })
+    .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 10_000 });
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Tap a field player and record a goal. The PlayerTile carries
   // a testid we can target deterministically — names render
@@ -248,15 +248,15 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // "Confirm lineup" → "Ready for Q{n}") so it both reads as a
   // distinct intent from the modal CTA AND matches the modal's
   // heading "Ready for Q{n}" — the transition feels continuous to a
-  // coach. The body text "Tap when the hooter goes" gates the second
+  // coach. The body text "Tap Start clock when the siren goes" gates the second
   // tap so we don't double-click before the modal mounts.
   async function startNextQuarter(n: number): Promise<void> {
     await page
-      .getByRole("button", { name: new RegExp(`^ready for q${n}$`, "i") })
-      .click();
-    await page.getByText(/tap when the hooter goes/i).waitFor({ timeout: 5_000 });
-    await page
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .click();
+    await page.getByText(/tap start clock when the siren goes/i).waitFor({ timeout: 5_000 });
+    await page
+      .getByRole("button", { name: /^start clock$/i })
       .click();
   }
 
@@ -283,7 +283,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     // is fully rendered" from "previous Q-break still mounted".
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^ready for q${next}$`, "i"),
+        name: new RegExp(`^start q${next}$`, "i"),
       }),
     ).toBeVisible({ timeout: 10_000 });
     await startNextQuarter(next);

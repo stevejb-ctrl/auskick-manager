@@ -1119,7 +1119,7 @@ export function LineupPicker({
         savedAt={savedAt}
         savePlanDisabled={onFieldCount === 0 || isPending}
         onConfirm={handleOpenStartModal}
-        confirmLabel="Ready for Q1"
+        confirmLabel="Start Q1"
         confirmDisabled={onFieldCount === 0 || isPending}
         confirmIconAfter={<SFIcon.chevronRight color="currentColor" />}
       />

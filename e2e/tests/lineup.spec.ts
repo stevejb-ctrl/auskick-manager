@@ -50,7 +50,7 @@ test("pre-kickoff lineup renders a full field of players", async ({
   // QuarterBreak narrative) — the "Start Q1" button only appears
   // AFTER the lineup is committed, inside LiveGame.tsx.
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // PlayerTile renders single-word names verbatim (the factory uses

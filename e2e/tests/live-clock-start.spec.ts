@@ -52,7 +52,7 @@ async function buildLineup(opts: {
   return lineup;
 }
 
-test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", async ({
+test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", async ({
   page,
 }) => {
   // Updated 2026-05-15 to match the post-2026-05-13 kickoff
@@ -99,22 +99,22 @@ test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", 
   // LineupPicker renders pre-kickoff with the sticky "Ready for Q1"
   // CTA. Tap opens the StartQuarterModal in-place.
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^ready for q1$/i }).click();
+  await page.getByRole("button", { name: /^start q1$/i }).click();
 
   // Modal heading appears.
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap "Start Q1" in the modal. Single tap = server lineup_set +
   // quarter_start + local clock start.
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Modal disappears, clock pill flips to running ("Pause clock").
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeHidden({ timeout: 3_000 });
   await expect(
     page.getByRole("button", { name: /^pause clock$/i }),
@@ -179,17 +179,17 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Open the modal via LineupPicker's "Ready for Q1" CTA.
-  const readyButton = page.getByRole("button", { name: /^ready for q1$/i });
+  const readyButton = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyButton).toBeVisible({ timeout: 10_000 });
   await readyButton.click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap "Back to lineup" — modal dismisses, no server write.
   await page.getByRole("button", { name: /^back to lineup$/i }).click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeHidden({ timeout: 2_000 });
 
   // No quarter_start event yet — dismissing is purely client-side.
@@ -206,7 +206,7 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   // for real.
   await expect(readyButton).toBeVisible({ timeout: 2_000 });
   await readyButton.click();
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
   await expect(
     page.getByRole("button", { name: /^pause clock$/i }),
   ).toBeVisible({ timeout: 5_000 });
@@ -269,7 +269,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
 
   // QuarterBreak's CTA is "Ready for Q2" (matches modal heading,
   // distinct from modal CTA "Start Q2").
-  const readyForQ2InBreak = page.getByRole("button", { name: /^ready for q2$/i });
+  const readyForQ2InBreak = page.getByRole("button", { name: /^start q2$/i });
   await expect(readyForQ2InBreak).toBeVisible({ timeout: 10_000 });
 
   await readyForQ2InBreak.click();
@@ -287,11 +287,11 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   //
   // Assert the modal heading is up after the LineupPicker CTA tap.
   await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
+    page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap the modal's "Start Q2" — single tap commits everything.
-  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // After the commit QuarterBreak's distinctive sub-heading drops
   // (replayGame returns currentQuarter=2 + quarterEnded=false, so
@@ -353,8 +353,8 @@ test("first-time coach is offered the walkthrough before kickoff, never over the
     timeout: 10_000,
   });
 
-  await page.getByRole("button", { name: /^ready for q1$/i }).click();
   await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
   await expect(page.getByRole("button", { name: /^pause clock$/i })).toBeVisible({
     timeout: 5_000,
   });

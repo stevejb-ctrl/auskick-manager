@@ -25,7 +25,7 @@ import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import {
   netballSport,
   pickNetballPositionsToFill,
@@ -1132,7 +1132,8 @@ export function NetballLineupPicker({
           the modal — zero server writes, the picker is still
           editable in the background. */}
       {startModalOpen && (
-        <NetballStartQuarterModal
+        <StartQuarterModal
+          cue="umpire calls play"
           quarter={1}
           loading={saving}
           onStart={handleConfirmStart}

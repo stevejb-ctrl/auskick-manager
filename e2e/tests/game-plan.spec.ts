@@ -152,7 +152,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   // Wait for the picker to render (its commit CTA) before reaching for
   // the breadcrumb-mounted planner button.
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: /^game plan$/i }).click();

@@ -1737,7 +1737,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
           initialSavedAt={initialDraft?.updated_at ?? null}
-          confirmLabel="Ready for Q1"
+          confirmLabel="Start Q1"
           disabled={isPending}
         />
       </div>

@@ -23,7 +23,7 @@ import { SFButton } from "@/components/sf";
 interface QuarterKickoffBarProps {
   /** Tapped to open the per-sport StartQuarterModal. */
   onConfirm: () => void;
-  /** Button label, typically "Ready for Q{nextQuarter}". */
+  /** Button label, typically "Start Q{nextQuarter}". */
   confirmLabel: string;
   /** Disable gate — server write pending, missing lineup, etc. */
   disabled?: boolean;

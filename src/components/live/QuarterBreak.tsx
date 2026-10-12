@@ -2260,7 +2260,7 @@ export function QuarterBreak({
           agent). */}
       <QuarterKickoffBar
         onConfirm={handleOpenStartModal}
-        confirmLabel={`Ready for Q${nextQuarter}`}
+        confirmLabel={`Start Q${nextQuarter}`}
         disabled={isPending}
       />
 

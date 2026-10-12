@@ -253,13 +253,13 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .getByRole("button", { name: /^end\s*[qh]\s*1$/i })
     .click();
   // Ending H1 fires LeagueLiveGame's qbreak auto-open effect, which
-  // pops StartQuarterModal ("Ready for H2" → confirm with "Start H2")
-  // on top of the inline "Ready for half 2" break card. That modal
+  // pops StartQuarterModal ("Start H2" → confirm with "Start clock")
+  // on top of the inline "Start H2" break card. That modal
   // (z-50) covers the inline button, so we drive H2 straight from the
-  // modal's "Start H2" CTA. Wait for it so Phase 5 doesn't race the
+  // modal's "Start clock" CTA. Wait for it so Phase 5 doesn't race the
   // auto-open.
   await expect(
-    page.getByRole("button", { name: /^start\s*[qh]\s*2$/i }),
+    page.getByRole("button", { name: /^start clock$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
@@ -276,7 +276,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await page
-    .getByRole("button", { name: /^start\s*[qh]\s*2$/i })
+    .getByRole("button", { name: /^start clock$/i })
     .click();
   // H2 now active. Same paused-only flow as Phase 4: pause the clock
   // to surface the end-early chip, then end + confirm. An inline

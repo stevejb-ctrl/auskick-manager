@@ -32,7 +32,7 @@ import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
-import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
@@ -1881,20 +1881,21 @@ export function NetballQuarterBreak({
           so the last in-flow element isn't hidden behind the bar.
 
           Two-stage kickoff narrative preserved:
-            Q-break button     "Ready for Q{n}"
-            NetballStartModal  heading "Ready for Q{n}"
+            Q-break button     "Start Q{n}"
+            StartQuarterModal  heading "Start Q{n}", button "Start clock"
                                 body    "Tap when the umpires call play."
                                 CTA     "Start Q{n}"
           Distinct labels so each tap signals a different intent
           (commit-lineup → start-clock-on-whistle). */}
       <QuarterKickoffBar
         onConfirm={handleStart}
-        confirmLabel={`Ready for Q${nextQuarter}`}
+        confirmLabel={`Start Q${nextQuarter}`}
         loading={isPending && pendingStartQuarter === null}
       />
 
       {pendingStartQuarter !== null && (
-        <NetballStartQuarterModal
+        <StartQuarterModal
+          cue="umpire calls play"
           quarter={pendingStartQuarter}
           loading={isPending}
           onStart={handleConfirmQuarterStart}
