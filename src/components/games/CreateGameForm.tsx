@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createGame } from "@/app/(app)/teams/[teamId]/games/actions";
+import { createGame, updateGame } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -13,8 +13,27 @@ interface CreateGameFormProps {
   onCancel?: () => void;
   /** Passed through to createGame — see its `afterCreate` doc. */
   afterCreate?: "open-game" | "stay";
-  /** Called after a successful create when `afterCreate` is "stay". */
+  /** Called after a successful create when `afterCreate` is "stay", or after an edit. */
   onCreated?: () => void;
+  /**
+   * Edit an existing game instead of creating one (the game hub's
+   * More → Edit details). Prefills the form and saves via updateGame.
+   */
+  existingGame?: {
+    id: string;
+    opponent: string;
+    scheduled_at: string;
+    location: string | null;
+    round_number: number | null;
+    notes: string | null;
+  };
+}
+
+/** ISO timestamp → the local "YYYY-MM-DDTHH:mm" a datetime-local input wants. */
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function CreateGameForm({
@@ -23,13 +42,18 @@ export function CreateGameForm({
   onCancel,
   afterCreate = "open-game",
   onCreated,
+  existingGame,
 }: CreateGameFormProps) {
   const cfg = ageGroup;
-  const [opponent, setOpponent] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [location, setLocation] = useState("");
-  const [round, setRound] = useState("");
-  const [notes, setNotes] = useState("");
+  const [opponent, setOpponent] = useState(existingGame?.opponent ?? "");
+  const [scheduledAt, setScheduledAt] = useState(
+    existingGame ? toLocalInputValue(existingGame.scheduled_at) : "",
+  );
+  const [location, setLocation] = useState(existingGame?.location ?? "");
+  const [round, setRound] = useState(
+    existingGame?.round_number != null ? String(existingGame.round_number) : "",
+  );
+  const [notes, setNotes] = useState(existingGame?.notes ?? "");
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -53,6 +77,18 @@ export function CreateGameForm({
     }
 
     startTransition(async () => {
+      if (existingGame) {
+        const result = await updateGame(teamId, existingGame.id, {
+          opponent: opponent.trim(),
+          scheduled_at: new Date(scheduledAt).toISOString(),
+          location: location.trim() || null,
+          round_number: roundNum,
+          notes: notes.trim() || null,
+        });
+        if (!result.success) setServerError(result.error);
+        else onCreated?.();
+        return;
+      }
       const result = await createGame(teamId, {
         opponent,
         scheduled_at: new Date(scheduledAt).toISOString(),
@@ -142,7 +178,7 @@ export function CreateGameForm({
 
       <div className="flex gap-2">
         <Button type="submit" loading={isPending} size="sm">
-          Create game
+          {existingGame ? "Save changes" : "Create game"}
         </Button>
         {onCancel && (
           <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
-import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
 import { GameMoreMenu } from "@/components/games/GameMoreMenu";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import {
@@ -125,6 +124,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const isFinal = g.status === "completed";
   // AFL and netball render the full-time summary card on this page.
   const hasInlineSummary = sport === "afl" || sport === "netball";
+  // "Game day" from six hours before kickoff: the primary reads "Start
+  // game day" instead of "Plan lineup" (same screen, different intent).
+  const isGameDay =
+    g.status === "upcoming" &&
+    Date.now() >= new Date(g.scheduled_at).getTime() - 6 * 60 * 60 * 1000;
   const isUp = g.status === "upcoming";
 
   // Full event log for the post-completion summary card. Fetched
@@ -193,10 +197,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               >
                 Back to live game
               </SFButton>
-              <ShareRunnerLink token={g.share_token} />
               <GameMoreMenu
                 teamId={params.teamId}
                 gameId={params.gameId}
+                shareToken={g.share_token}
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
               />
@@ -211,7 +215,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {g.round_number != null
                   ? `Round ${String(g.round_number).padStart(2, "0")}`
                   : "Game"}
-                {g.location && ` · Home`}
               </Eyebrow>
               <StatusPill status={isFinal ? "final" : "upcoming"} />
             </div>
@@ -247,38 +250,33 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </div>
           {canRun && (
             <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
-              {/* Three-tier visual hierarchy (Steve 2026-05-13):
-                    primary (filled black)  → hero CTA: Start / Open
-                    ghost (border, no fill) → Set lineup AND Share —
-                                              same treatment so they
-                                              read as a matched pair
-                    danger (red border)     → Reset / Delete
-                  Previously every secondary affordance was rendered
-                  with a different button library + override classes,
-                  giving the page four visually distinct treatments
-                  for four near-equivalent actions. */}
+              {/* Game hub (UX plan §6): one primary action per state —
+                    upcoming → Plan lineup (Start game day on the day)
+                    live     → Back to live game
+                    final    → Summary
+                  Secondary actions are ghost buttons; everything else
+                  (game-day link, edit, restart, delete) is in More. */}
               <div className="flex flex-col gap-2">
                 {isUp ? (
                   <>
-                    {/* Upcoming games route through /availability first,
-                        which then forwards to /live for the lineup
-                        picker. Two-step pre-game flow: roster ➔ lineup.
-                        Live and completed games skip availability (the
-                        roster is already locked at kickoff). */}
+                    {/* One door into the lineup screen. It used to be
+                        two buttons ("Start game", "Set lineup") that
+                        both opened availability (UX plan H2). Availability
+                        stays one tap away for the night before. */}
                     <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
                       variant="primary"
                       iconAfter={<SFIcon.chevronRight color="currentColor" />}
                       className="w-full sm:w-auto"
                     >
-                      Start game
+                      {isGameDay ? "Start game day" : "Plan lineup"}
                     </SFButton>
                     <SFButton
                       href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
                       variant="ghost"
                       className="w-full sm:w-auto"
                     >
-                      {planSavedAt ? "Edit lineup plan" : "Set lineup"}
+                      Availability
                     </SFButton>
                     {/* Pre-game rotation planner — auto-suggests a fair
                         full-game rotation the coach can tweak and copy
@@ -324,10 +322,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 )}
               </div>
 
-              {/* Secondary affordances — Share link, plan-saved chip,
-                  Reset / Delete (admin). Wraps to a row on desktop. */}
+              {/* Plan-saved chip + the More menu. Wraps to a row on desktop. */}
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
-                <ShareRunnerLink token={g.share_token} />
                 {/* Pre-game lineup-plan indicator. Surfaces only when
                     the coach has saved a draft and the game's still
                     upcoming. Cleared automatically at kickoff. */}
@@ -343,6 +339,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 <GameMoreMenu
                   teamId={params.teamId}
                   gameId={params.gameId}
+                  shareToken={g.share_token}
+                  edit={
+                    isUp && role === "admin"
+                      ? {
+                          ageGroup: planAgeCfg,
+                          game: {
+                            id: g.id,
+                            opponent: g.opponent,
+                            scheduled_at: g.scheduled_at,
+                            location: g.location,
+                            round_number: g.round_number,
+                            notes: g.notes,
+                          },
+                        }
+                      : undefined
+                  }
                   liveHref={
                     isFinal && hasInlineSummary
                       ? `/teams/${params.teamId}/games/${params.gameId}/live`
