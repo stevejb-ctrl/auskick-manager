@@ -24,11 +24,11 @@ const ICONS: Record<string, ReactNode> = {
  * Renders an in-flow spacer as well, so page content never sits under
  * the fixed bar.
  */
-export function TeamBottomBar({ teamId }: { teamId: string }) {
+export function TeamBottomBar({ teamId, role }: { teamId: string; role?: string | null }) {
   const pathname = usePathname();
   if (!showsTeamBottomBar(pathname)) return null;
 
-  const tabs = teamTabs(teamId);
+  const tabs = teamTabs(teamId, role);
   const activeId =
     tabs.find((t) => (t.exact ? pathname === t.href : pathname?.startsWith(t.href)))?.id ??
     "today";
@@ -40,7 +40,10 @@ export function TeamBottomBar({ teamId }: { teamId: string }) {
         aria-label="Team sections"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
-        <ul className="mx-auto grid max-w-md grid-cols-5">
+        <ul
+          className="mx-auto grid max-w-md"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+        >
           {tabs.map((t) => {
             const active = t.id === activeId;
             return (

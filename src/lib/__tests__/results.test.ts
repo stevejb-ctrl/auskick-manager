@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { outcomeOf, scoreFromEvents, seasonRecord } from "@/lib/results";
+import { liveStatusFromEvents, outcomeOf, scoreFromEvents, seasonRecord } from "@/lib/results";
 import type { GameEvent } from "@/lib/types";
 
 let seq = 0;
@@ -51,5 +51,23 @@ describe("outcome and season record", () => {
       lost: 1,
       drawn: 1,
     });
+  });
+});
+
+describe("liveStatusFromEvents", () => {
+  it("tracks the period, breaks and full time", () => {
+    expect(liveStatusFromEvents([])).toEqual({ period: 0, periodEnded: false, finalised: false });
+    expect(liveStatusFromEvents([ev("quarter_start", { quarter: 1 }, null)])).toEqual({
+      period: 1,
+      periodEnded: false,
+      finalised: false,
+    });
+    expect(
+      liveStatusFromEvents([
+        ev("quarter_start", { quarter: 1 }, null),
+        ev("quarter_end", { quarter: 1 }, null),
+      ]),
+    ).toMatchObject({ period: 1, periodEnded: true });
+    expect(liveStatusFromEvents([ev("game_finalised", {}, null)]).finalised).toBe(true);
   });
 });

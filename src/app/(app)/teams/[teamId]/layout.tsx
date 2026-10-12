@@ -48,9 +48,9 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
 
   return (
     <div className="space-y-6">
-      <TeamNav teamId={params.teamId} teamName={team.name} />
+      <TeamNav teamId={params.teamId} teamName={team.name} role={membership.role} />
       {children}
-      <TeamBottomBar teamId={params.teamId} />
+      <TeamBottomBar teamId={params.teamId} role={membership.role} />
     </div>
   );
 }

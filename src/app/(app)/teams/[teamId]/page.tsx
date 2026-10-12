@@ -128,6 +128,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const playerCount = totalActive ?? 0;
   const upcomingCount = upcomingTotal ?? 0;
   const isAdmin = membership?.role === "admin";
+  // Coaches and managers run games; parents follow them (UX plan §6).
+  const canRun = isAdmin || membership?.role === "game_manager";
   const showSetupBanner = isAdmin && playerCount === 0;
 
   const availMap = new Map<string, number>();
@@ -163,13 +165,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
 
       {liveGame ? (
-        <LiveHero teamId={params.teamId} game={liveGame} />
+        <LiveHero teamId={params.teamId} game={liveGame} canRun={canRun} />
       ) : featuredGame ? (
         <NextUpHero
           teamId={params.teamId}
           game={featuredGame}
           available={availMap.get(featuredGame.id) ?? 0}
           playerCount={playerCount}
+          canRun={canRun}
         />
       ) : (
         <EmptyHero teamId={params.teamId} />
@@ -238,7 +241,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
 // ─── Live banner ─────────────────────────────────────────────────────────────
 
-function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
+function LiveHero({ teamId, game, canRun }: { teamId: string; game: Game; canRun: boolean }) {
   return (
     <SFCard pad={0} className="overflow-hidden border-alarm/60">
       <div className="bg-ink px-5 py-5 text-warm sm:px-7 sm:py-6">
@@ -269,7 +272,7 @@ function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
           full
           iconAfter={<SFIcon.chevronRight color="white" />}
         >
-          Back to live game
+          {canRun ? "Back to live game" : "Watch live"}
         </SFButton>
       </div>
     </SFCard>
@@ -400,12 +403,15 @@ function NextUpHero({
   game,
   available,
   playerCount,
+  canRun,
 }: {
   teamId: string;
   game: Game;
   available: number;
   playerCount: number;
+  canRun: boolean;
 }) {
+  const startsGameDay = canRun && isGameDay(game);
   return (
     <SFCard pad={0} className="overflow-hidden">
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-800 px-5 py-6 text-warm sm:px-8 sm:py-8">
@@ -482,7 +488,7 @@ function NextUpHero({
               Today → Start game day → Start Q1 (UX plan §4 target). */}
           <SFButton
             href={
-              isGameDay(game)
+              startsGameDay
                 ? `/teams/${teamId}/games/${game.id}/live`
                 : `/teams/${teamId}/games/${game.id}`
             }
@@ -490,7 +496,7 @@ function NextUpHero({
             iconAfter={<SFIcon.chevronRight color="currentColor" />}
             className="w-full sm:w-auto"
           >
-            {isGameDay(game) ? "Start game day" : "Open game"}
+            {startsGameDay ? "Start game day" : "Open game"}
           </SFButton>
         </KickoffPulseWrapper>
       </div>

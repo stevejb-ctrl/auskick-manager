@@ -7,6 +7,7 @@ import { isFullScreenTeamPath } from "@/lib/nav";
 interface TeamNavProps {
   teamId: string;
   teamName: string;
+  role?: string | null;
 }
 
 /**
@@ -18,14 +19,14 @@ interface TeamNavProps {
  * Hidden on the full-screen game modes (game day / live, availability,
  * setup) — those screens bring their own chrome.
  */
-export function TeamNav({ teamId, teamName }: TeamNavProps) {
+export function TeamNav({ teamId, teamName, role }: TeamNavProps) {
   const pathname = usePathname();
   if (isFullScreenTeamPath(pathname)) return null;
 
   return (
     <div className="space-y-3">
       <h1 className="sr-only md:not-sr-only md:text-2xl md:font-bold md:text-ink">{teamName}</h1>
-      <TeamTabBar teamId={teamId} />
+      <TeamTabBar teamId={teamId} role={role} />
     </div>
   );
 }

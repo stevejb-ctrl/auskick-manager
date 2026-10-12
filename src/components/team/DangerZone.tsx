@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteTeam, leaveTeam } from "@/app/(app)/teams/[teamId]/settings/actions";
+import { deleteTeam } from "@/app/(app)/teams/[teamId]/settings/actions";
+import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -21,7 +22,7 @@ interface DangerZoneProps {
  */
 export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"leave" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"delete" | null>(null);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -52,9 +53,7 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
           <p className="text-sm font-semibold text-ink">Leave team</p>
           <p className="text-xs text-ink-mute">Remove yourself from {teamName}.</p>
         </div>
-        <SFButton variant="danger" size="md" onClick={() => setDialog("leave")}>
-          Leave team
-        </SFButton>
+        <LeaveTeamButton teamId={teamId} teamName={teamName} />
       </div>
       {isAdmin && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3">
@@ -68,28 +67,6 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
             Delete team
           </SFButton>
         </div>
-      )}
-
-      {dialog === "leave" && (
-        <Modal>
-          <h2 className="text-center text-lg font-bold text-danger">Leave {teamName}?</h2>
-          <p className="mt-2 text-sm text-ink-dim">
-            You&apos;ll lose access until a coach invites you back.
-          </p>
-          {error && (
-            <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="mt-5 flex flex-col gap-2">
-            <SFButton variant="alarm" size="md" loading={isPending} onClick={() => run(() => leaveTeam(teamId))}>
-              Yes, leave the team
-            </SFButton>
-            <SFButton variant="ghost" size="sm" onClick={close} disabled={isPending}>
-              Cancel
-            </SFButton>
-          </div>
-        </Modal>
       )}
 
       {dialog === "delete" && (

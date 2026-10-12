@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PlayerList } from "@/components/squad/PlayerList";
 import { Spinner } from "@/components/ui/Spinner";
@@ -22,6 +23,8 @@ export default async function SquadPage({ params }: SquadPageProps) {
       .eq("user_id", user.id)
       .single();
     isAdmin = membership?.role === "admin";
+    // Parents follow the team read-only — no squad screen (UX plan §6).
+    if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
   }
 
   return (

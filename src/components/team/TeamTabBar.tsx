@@ -6,15 +6,16 @@ import { teamTabs } from "@/components/team/teamTabs";
 
 interface TeamTabBarProps {
   teamId: string;
+  role?: string | null;
 }
 
 /**
  * Desktop / tablet team navigation (≥ 768 px). Phones use the bottom
  * TeamBottomBar instead; both read the same five sections.
  */
-export function TeamTabBar({ teamId }: TeamTabBarProps) {
+export function TeamTabBar({ teamId, role }: TeamTabBarProps) {
   const pathname = usePathname();
-  const tabs = teamTabs(teamId);
+  const tabs = teamTabs(teamId, role);
   const activeId =
     tabs.find((t) => (t.exact ? pathname === t.href : pathname?.startsWith(t.href)))?.id ??
     "today";

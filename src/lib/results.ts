@@ -61,3 +61,25 @@ export function seasonRecord(scores: GameScore[]): SeasonRecord {
   }
   return rec;
 }
+
+export interface LiveStatus {
+  /** The latest period started (0 before kickoff). */
+  period: number;
+  /** That period has ended (a break, or full time). */
+  periodEnded: boolean;
+  finalised: boolean;
+}
+
+/** Where a game is up to, from its events — any sport. */
+export function liveStatusFromEvents(events: GameEvent[]): LiveStatus {
+  let period = 0;
+  let endedPeriod = 0;
+  let finalised = false;
+  for (const ev of events) {
+    const q = (ev.metadata as { quarter?: number } | null)?.quarter ?? 0;
+    if (ev.type === "quarter_start") period = Math.max(period, q);
+    else if (ev.type === "quarter_end") endedPeriod = Math.max(endedPeriod, q);
+    else if (ev.type === "game_finalised") finalised = true;
+  }
+  return { period, periodEnded: period > 0 && endedPeriod >= period, finalised };
+}

@@ -9,6 +9,7 @@ import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
 import {
   replayGame,
@@ -148,13 +149,6 @@ export default async function LivePage({ params }: LivePageProps) {
 
   const isAdmin = membership?.role === "admin";
   const canRun = isAdmin || membership?.role === "game_manager";
-  if (!canRun) {
-    return (
-      <div className="rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
-        Only coaches and managers can run a live game.
-      </div>
-    );
-  }
 
   const [{ data: game }, { data: teamRow }, { data: thisGameEvents }] = await Promise.all([
     supabase
@@ -186,6 +180,26 @@ export default async function LivePage({ params }: LivePageProps) {
   // gate, score-bug numeric gate, walkthrough scoring-step gate,
   // and the summary-card result+goals-line gate.
   const trackScoring = teamRow?.track_scoring ?? false;
+
+  // Parents follow the game read-only: a self-refreshing scoreboard,
+  // not the old "only coaches and managers" dead end (UX plan §6).
+  if (!canRun) {
+    const periodLabel = (getAgeGroupConfig(sport, teamRow?.age_group ?? null).periodLabel ??
+      "quarter") as "quarter" | "half" | "period";
+    return (
+      <div className="space-y-4">
+        <LiveTopBar exitHref={`/teams/${params.teamId}/games/${params.gameId}`} game={g} />
+        <ParentScoreboard
+          sport={sport}
+          teamName={teamName}
+          opponent={g.opponent}
+          events={(thisGameEvents ?? []) as GameEvent[]}
+          trackScoring={trackScoring}
+          periodLabel={periodLabel}
+        />
+      </div>
+    );
+  }
   // Netball-only: opt-in mid-quarter subs. Default false so existing
   // teams keep the break-only sub behaviour they've always had.
   // AFL ignores this — AFL has its own interchange flow.

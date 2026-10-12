@@ -187,6 +187,18 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               )}
             </div>
           </div>
+          {!canRun && (
+            <div className="border-t border-hairline bg-surface px-5 py-4 sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                variant="alarm"
+                iconAfter={<SFIcon.chevronRight color="white" />}
+                className="w-full sm:w-auto"
+              >
+                Watch live
+              </SFButton>
+            </div>
+          )}
           {canRun && (
             <div className="flex flex-col gap-2 border-t border-hairline bg-surface px-5 py-4 sm:flex-row sm:px-7">
               <SFButton

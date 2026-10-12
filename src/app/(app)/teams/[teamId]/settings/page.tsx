@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
@@ -48,6 +48,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   ]);
 
   if (!team) notFound();
+  // Parents follow the team read-only — no Team tab (UX plan §6).
+  if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
 
   // Read `join_code` in its own query so a deploy that beats the
   // migration to prod still renders the rest of the page. Migration

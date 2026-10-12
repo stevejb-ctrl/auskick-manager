@@ -4,6 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
@@ -141,7 +142,12 @@ export default async function AccountPage() {
                   <span className="truncate font-medium text-ink">
                     {t.name}
                   </span>
-                  <Badge variant={t.role}>{ROLE_LABEL[t.role]}</Badge>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Badge variant={t.role}>{ROLE_LABEL[t.role]}</Badge>
+                    {/* Parents have no Team tab, so this is where anyone can
+                        leave a team. */}
+                    <LeaveTeamButton teamId={t.id} teamName={t.name} size="sm" labelWithTeam />
+                  </span>
                 </li>
               ))}
             </ul>
