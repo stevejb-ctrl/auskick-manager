@@ -2,6 +2,8 @@ import { SFButton, SFIcon } from "@/components/sf";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -528,6 +530,19 @@ export default async function RunPage({ params }: RunPageProps) {
       ? await admin.from("game_events").select("*").in("game_id", priorGameIds)
       : { data: [] as GameEvent[] };
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
+    // How we play for the AFL suggesters (UX plan 3.6), same as the
+    // coach's live page.
+    const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+      admin,
+      g.team_id,
+      "afl",
+      teamRow?.age_group ?? null,
+    );
+    const aflPlaybook = withBalanceSeason(
+      aflPlaybookInput(playbook, playbookPrefs),
+      (allTeamEvents ?? []) as GameEvent[],
+      playbook.seasonBalanceSince,
+    );
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
 
@@ -559,6 +574,7 @@ export default async function RunPage({ params }: RunPageProps) {
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}

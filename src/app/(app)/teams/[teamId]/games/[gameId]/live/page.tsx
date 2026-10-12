@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -771,6 +773,15 @@ export default async function LivePage({ params }: LivePageProps) {
     { quarter_length_seconds: g.quarter_length_seconds },
   ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
+  // How we play (UX plan 3.6): strategy, roles and season balance for
+  // the AFL suggesters.
+  const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+    supabase,
+    params.teamId,
+    "afl",
+    teamRow?.age_group ?? null,
+  );
+  const aflPlaybookBase = aflPlaybookInput(playbook, playbookPrefs);
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
@@ -809,6 +820,7 @@ export default async function LivePage({ params }: LivePageProps) {
       (e) => e.game_id !== params.gameId,
     );
     const season = seasonZoneMinutes(allTeamEvents);
+    const aflPlaybook = withBalanceSeason(aflPlaybookBase, allTeamEvents, playbook.seasonBalanceSince);
     const loanMins = seasonLoanMinutes(allTeamEvents);
     const seasonAvail = seasonAvailability(allTeamEvents);
     // Page-level sticky-bar clearance — kicks in at a Q-break
@@ -874,6 +886,7 @@ export default async function LivePage({ params }: LivePageProps) {
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           isAdmin={isAdmin}
           songUrl={songUrl}
@@ -957,6 +970,11 @@ export default async function LivePage({ params }: LivePageProps) {
     : { data: [] as GameEvent[] };
 
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
+  const aflPlaybook = withBalanceSeason(
+    aflPlaybookBase,
+    (seasonEvents ?? []) as GameEvent[],
+    playbook.seasonBalanceSince,
+  );
 
   // Pre-game saved lineup. Picker pre-populates from this if present;
   // null/missing falls back to the fairness suggester.
@@ -1049,10 +1067,12 @@ export default async function LivePage({ params }: LivePageProps) {
               opponentName={g.opponent}
               seasonEvents={(seasonEvents ?? []) as GameEvent[]}
               chipModeByKey={teamChipModes}
+              aflPlaybook={aflPlaybook}
             />
           }
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
           initialLoanedIds={initialLoanedIds}
         />
       )}

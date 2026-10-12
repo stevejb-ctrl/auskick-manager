@@ -113,6 +113,7 @@ import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
 import { subIntervalStartFloor } from "@/lib/live/subDistribution";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
+import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -215,6 +216,11 @@ interface LiveGameProps {
    * back.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles for the AFL suggesters. Omitted = today's behaviour.
+   */
+  aflPlaybook?: AflPlaybookInput;
   exitHref?: string;
   /**
    * True when the current user has admin role on this team. Drives
@@ -271,6 +277,7 @@ export function LiveGame({
   maxOnFieldSize,
   defaultOnFieldSize,
   chipModeByKey,
+  aflPlaybook,
   exitHref,
   isAdmin = false,
   songUrl,
@@ -1371,6 +1378,7 @@ export function LiveGame({
           defaultOnFieldSize={defaultOnFieldSize}
           fullPeriodMs={quarterMs}
           chipModeByKey={chipModeByKey}
+          aflPlaybook={aflPlaybook}
           clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
           onPrimeAudio={primeSong}
@@ -1417,7 +1425,8 @@ export function LiveGame({
           // ON-side recency guard: keep a just-subbed-off player on the
           // bench for a rest before re-suggesting them (was yo-yoing back
           // on ~1 min later — Steve 2026-06-29).
-          initialState.lastSubbedOffMs
+          initialState.lastSubbedOffMs,
+          aflPlaybook ? { ...aflPlaybook, season, periodMs: quarterMs } : undefined,
         );
 
   // Hide the SwapCard when the next sub-due moment would fall AFTER
@@ -1726,6 +1735,7 @@ export function LiveGame({
               wakeUpKey={fieldWakeUpKey}
               playerScores={playerScores}
               totalPairs={totalPairs}
+              positionLabels={assignPositionLabels(lineup, aflPlaybook)}
             />
             <Bench
               playersById={playersById}
@@ -2077,6 +2087,7 @@ export function LiveGame({
           onFieldSize: currentOnFieldSize,
           seed: 7,
           chipModeByKey,
+          aflPlaybook,
           // Issue 8: the plan must reflect THIS game's configured period
           // length + sub cadence, not the age-group defaults. quarterMs
           // is the effective period length; subIntervalMs is the live
@@ -2138,6 +2149,7 @@ export function LiveGame({
             teamName={teamName}
             opponentName={opponentName}
             chipModeByKey={chipModeByKey}
+            aflPlaybook={aflPlaybook}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}

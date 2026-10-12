@@ -32,6 +32,7 @@ import {
 } from "@/lib/fairness";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
+import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -99,6 +100,11 @@ interface LineupPickerProps {
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
   /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles for the AFL suggesters. Omitted = today's behaviour.
+   */
+  aflPlaybook?: AflPlaybookInput;
+  /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
    * chip survives a page reload. Empty by default for a fresh game.
@@ -163,6 +169,7 @@ export function LineupPicker({
   gamePlanButton,
   initialDraft,
   chipModeByKey = {},
+  aflPlaybook,
   initialLoanedIds = [],
   defaultSubMinutes,
 }: LineupPickerProps) {
@@ -315,6 +322,7 @@ export function LineupPicker({
       chipByPlayerId,
       chipModeByKey,
       fullPeriodMs,
+      aflPlaybook,
     );
   };
 
@@ -997,6 +1005,7 @@ export function LineupPicker({
           displayZoneCaps={displayZoneCaps}
           positionModel={positionModel}
           chipModeByKey={chipModeByKey}
+          positionLabels={assignPositionLabels(lineup, aflPlaybook)}
         />
         <Bench
           playersById={playerById}

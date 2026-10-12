@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
@@ -71,6 +73,18 @@ export default async function LineupPage({ params }: LineupPageProps) {
     ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
+  // How we play for the AFL suggester (UX plan 3.6).
+  const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+    admin,
+    g.team_id,
+    "afl",
+    (teamRow as { age_group?: string } | null)?.age_group ?? null,
+  );
+  const aflPlaybook = withBalanceSeason(
+    aflPlaybookInput(playbook, playbookPrefs),
+    (seasonEvents ?? []) as GameEvent[],
+    playbook.seasonBalanceSince,
+  );
 
   // Pre-game saved lineup, if the coach built one ahead of game day.
   const { data: draftRow } = await admin
@@ -129,6 +143,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
           fullPeriodMs={ageCfg.quarterSeconds * 1000}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
         />
       )}
     </div>

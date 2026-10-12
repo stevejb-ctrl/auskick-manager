@@ -60,6 +60,7 @@ import { Field, ZONE_SHORT } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import type { TileCaption } from "@/components/live/PlayerTile";
 
+import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
@@ -94,6 +95,11 @@ interface QuarterBreakProps {
   fullPeriodMs: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
+  /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles for the AFL suggesters. Omitted = today's behaviour.
+   */
+  aflPlaybook?: AflPlaybookInput;
   /**
    * Demo-clock speed multiplier (default 1). Used to scale real-time
    * stint durations into game-time when checking the "recent arrival"
@@ -131,6 +137,7 @@ export function QuarterBreak({
   defaultOnFieldSize,
   fullPeriodMs,
   chipModeByKey = {},
+  aflPlaybook,
   clockMultiplier = 1,
   onStarted,
   onPrimeAudio,
@@ -536,6 +543,7 @@ export function QuarterBreak({
       chipByPlayerId,
       chipModeByKey,
       fullPeriodMs,
+      aflPlaybook,
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -1997,6 +2005,7 @@ export function QuarterBreak({
           chipModeByKey={chipModeByKey}
           playerScores={playerScores}
           captions={breakCaptions}
+          positionLabels={assignPositionLabels(draft, aflPlaybook)}
         />
         <Bench
           playersById={playersById}

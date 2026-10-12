@@ -68,6 +68,8 @@ export interface GamePlanModalProps {
   seasonEvents?: GameEvent[];
   /** Per-chip mode (split/group/zone) so chip-aware placement matches the lineup picker. */
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
+  /** How we play for the AFL suggester (UX plan 3.6). */
+  aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
   /**
@@ -133,6 +135,7 @@ export function GamePlanModal({
   opponentName,
   seasonEvents,
   chipModeByKey = {},
+  aflPlaybook,
   initialSeed = 7,
   initialPlan,
   initialPeriodIndex = 0,
@@ -154,8 +157,9 @@ export function GamePlanModal({
         seasonEvents,
         seed,
         chipModeByKey,
+        aflPlaybook,
       }),
-    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey],
+    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook],
   );
 
   const [seed, setSeed] = useState(initialSeed);

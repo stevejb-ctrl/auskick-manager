@@ -8,7 +8,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
-import { makePlayers, makeTeam } from "../fixtures/factories";
+import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -281,4 +281,32 @@ test("a home position follows the position when the coach renames it", async ({ 
 
   await page.goto(`/teams/${team.id}/squad`);
   await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home TALL");
+});
+
+test("set positions: game day puts kids in their home line, labelled", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
+  const homes: [number, string, string, string][] = [
+    [0, "ff", "Forward", "FF"],
+    [1, "fb", "Back", "FB"],
+    [2, "c", "Centre", "C"],
+  ];
+  await admin.from("player_position_prefs").insert(
+    homes.map(([i, key]) => ({ team_id: team.id, player_id: players[i].id, position_key: key, kind: "home" })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  for (const [i, , line, label] of homes) {
+    const tile = page.getByRole("group", { name: line, exact: true }).getByTestId(`player-tile-${players[i].id}`);
+    await expect(tile).toBeVisible();
+    await expect(tile).toContainText(label);
+  }
 });

@@ -64,6 +64,8 @@ interface FieldProps {
   dimUnselected?: boolean;
   /** Per-player tile captions ("STAYS", "BENCH → FWD"). */
   captions?: Record<string, TileCaption>;
+  /** Set positions: playerId → position label shown on the tile. */
+  positionLabels?: Record<string, string>;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -104,6 +106,7 @@ export function Field({
   primedEmptyZone = null,
   dimUnselected = true,
   captions,
+  positionLabels,
 }: FieldProps) {
   // displayCaps drives the rendered slot count; zoneCaps drives the
   // suggester / placement rules. They diverge only when on-field
@@ -297,6 +300,7 @@ export function Field({
                     <PlayerTile
                       player={player}
                       currentZone={key}
+                      positionLabel={positionLabels?.[pid]}
                       onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
                       onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                       selected={isSelected}

@@ -1,0 +1,56 @@
+// Load a team's How we play for a server page: the stored row, the
+// team's own positions and every player's prefs, resolved against the
+// sport and age group. One query each, in parallel.
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAgeGroupConfig } from "@/lib/sports";
+import { resolveTeamPlaybook, type ResolvedPlaybook } from "@/lib/playbook/team";
+import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
+import type { Sport } from "@/lib/types";
+
+export type PrefRow = Pick<PlayerPositionPrefRow, "player_id" | "position_key" | "line" | "kind" | "rank">;
+
+export interface LoadedPlaybook {
+  resolved: ResolvedPlaybook;
+  prefs: PrefRow[];
+}
+
+export async function loadTeamPlaybook(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+  teamId: string,
+  sport: Sport,
+  ageGroup: string | null,
+): Promise<LoadedPlaybook> {
+  const ageCfg = getAgeGroupConfig(sport, ageGroup);
+  const [{ data: row }, { data: positions }, { data: prefs }] = await Promise.all([
+    supabase
+      .from("team_playbooks")
+      .select("strategy, policy_overrides, season_balance, season_balance_since")
+      .eq("team_id", teamId)
+      .maybeSingle(),
+    supabase
+      .from("team_positions")
+      .select("id, label, name, line, sort, archived_at")
+      .eq("team_id", teamId)
+      .is("archived_at", null),
+    supabase
+      .from("player_position_prefs")
+      .select("player_id, position_key, line, kind, rank")
+      .eq("team_id", teamId),
+  ]);
+  const resolved = resolveTeamPlaybook({
+    sport,
+    ageGroup: ageCfg.id,
+    onFieldSize: ageCfg.defaultOnFieldSize,
+    row: (row ?? null) as Pick<
+      TeamPlaybookRow,
+      "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
+    > | null,
+    positions: (positions ?? []) as Pick<
+      TeamPositionRow,
+      "id" | "label" | "name" | "line" | "sort" | "archived_at"
+    >[],
+  });
+  return { resolved, prefs: (prefs ?? []) as PrefRow[] };
+}

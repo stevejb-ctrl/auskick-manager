@@ -218,6 +218,7 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
       // so this tracks the planned game's clock. (Plan named a non-existent
       // `input.periodSeconds`; the input field is `periodMinutes`.)
       periodMinutes * 60_000,
+      input.aflPlaybook,
     );
 
     // Accumulate this quarter's whole-period minutes so the next

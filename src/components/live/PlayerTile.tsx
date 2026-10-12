@@ -53,6 +53,8 @@ interface PlayerTileProps {
    * no swap header.
    */
   caption?: TileCaption | null;
+  /** Set positions: the named position shown instead of the zone ("CHB"). */
+  positionLabel?: string | null;
 }
 
 export interface TileCaption {
@@ -84,6 +86,7 @@ function PlayerTileImpl({
   score,
   chipModes,
   caption,
+  positionLabel,
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -143,7 +146,7 @@ function PlayerTileImpl({
   const firstName = parts[0] ?? "";
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
 
-  const zoneLabel = currentZone ? ZONE_SHORT[currentZone] : null;
+  const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
 
   return (
     // P1-7 in MICRO-INTERACTIONS-PLAN.md: when this tile is part of
@@ -386,6 +389,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.compact !== b.compact) return false;
   if (a.chipModes !== b.chipModes) return false;
   if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
+  if (a.positionLabel !== b.positionLabel) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.
