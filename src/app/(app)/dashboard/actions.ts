@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
 import { defaultTrackScoring, getSportConfig } from "@/lib/sports";
+import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
   sendTelegramNotification,
@@ -100,6 +101,17 @@ export async function createTeam(
     console.error("[createTeam] insert failed", insertError);
     return { success: false, error: insertError.message };
   }
+
+  // A new team starts on its age group's suggested way to play (Set
+  // positions at U15, say), so the wizard's "Suggested" and its
+  // selection agree. Teams with no row keep the older fallback, which
+  // is why this is written here rather than defaulted in the resolver.
+  // Not fatal: the coach can still pick in the wizard.
+  const suggested = getSportPlaybook(sport).recommendedStrategy(effectivePolicy(sport, ageGroup));
+  const { error: playbookError } = await supabase
+    .from("team_playbooks")
+    .insert({ team_id: teamId, strategy: suggested });
+  if (playbookError) console.error("[createTeam] playbook insert failed", playbookError);
 
   console.log("[createTeam] insert succeeded, redirecting", {
     teamId,

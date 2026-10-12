@@ -178,6 +178,28 @@ test("a new AFL U14 team starts with scoring on, matching the stated default", a
   expect(row?.track_scoring).toBe(true);
 });
 
+test("a new team starts on the age group's suggested way to play", async ({ page }) => {
+  // Usability run: for a new U15 team the wizard pre-selected Free
+  // rotation while labelling Set positions "Suggested for Under 15".
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const teamName = `Suggested ${Date.now()}`;
+
+  await page.goto("/teams/new");
+  await page.getByRole("button", { name: /junior afl/i }).click();
+  await page.getByLabel(/team name/i).fill(teamName);
+  await page.getByLabel(/age group/i).selectOption("U15");
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await page.waitForURL(/\/teams\/[0-9a-f-]+\/setup[?]step=config/, { timeout: 10_000 });
+
+  const setPositions = page.getByRole("radiogroup", { name: "How kids rotate" }).getByRole("radio", { name: /Set positions/ });
+  await expect(setPositions).toContainText("Suggested for Under 15");
+  await expect(setPositions).toHaveAttribute("aria-checked", "true");
+  const { data: team } = await admin.from("teams").select("id").eq("created_by", ownerId).eq("name", teamName).single();
+  const { data: playbook } = await admin.from("team_playbooks").select("strategy").eq("team_id", team!.id).single();
+  expect(playbook?.strategy).toBe("set-positions");
+});
+
 // UX plan 2.1 / M2: on a phone the wizard ran inside full team chrome
 // and its stepper truncated to "B…", "P…". It's now a focused shell: a
 // readable "Step n of 5" stepper and no team switcher.
