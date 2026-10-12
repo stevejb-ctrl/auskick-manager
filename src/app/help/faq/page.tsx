@@ -78,8 +78,8 @@ const FAQ: FAQItem[] = [
         <strong>active</strong> (not paused and not in a quarter break). Make
         sure you&apos;ve tapped <strong>Start Q{"{n}"}</strong> on the quarter
         break screen. If the clock isn&apos;t running, the timer doesn&apos;t
-        count. Also check that the sub interval is set in your team settings
-        (a value of 0 disables the timer).
+        count. Also check the sub interval in the lineup screen&apos;s Game
+        settings (a value of 0 disables the timer).
       </>
     ),
   },
@@ -123,7 +123,7 @@ const FAQ: FAQItem[] = [
     q: "How do I invite another coach to manage my team?",
     a: (
       <>
-        Open your team and go to <strong>Settings</strong>. You&apos;ll find a
+        Open your team and go to the <strong>Team</strong> tab, under People. You&apos;ll find a
         shareable invite link. Anyone with the link joins as a Manager.
         Managers can run live games but cannot delete the team or change settings.
       </>

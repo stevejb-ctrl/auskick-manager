@@ -109,9 +109,10 @@ export default function SquadsPage() {
 
         <h3 className="mt-5 text-base font-semibold text-ink">Step 1 — name your chips</h3>
         <ol className="mt-2 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open <strong className="text-ink">Settings</strong> on your team.</li>
+          <li>Open your team&apos;s <strong className="text-ink">Team</strong> tab.</li>
           <li>
-            Scroll to the <strong className="text-ink">Player chips</strong> card.
+            Under <strong className="text-ink">How we play</strong>, find the{" "}
+            <strong className="text-ink">Player chips</strong> card.
           </li>
           <li>
             For each chip you want to use, type a label (e.g.{" "}
@@ -155,19 +156,21 @@ export default function SquadsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Setting availability before a game</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Before starting a live game, you&apos;ll be asked to mark which players are
-          available that day. Only available players are included in the lineup
-          picker and rotation suggestions.
+          Only available players are included in the lineup and rotation
+          suggestions. You can set availability the night before, or fix it on
+          the day.
         </p>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open the game from the <strong className="text-ink">Games</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Start game</strong>. The availability
-            screen appears.
+            The night before: open the game and tap{" "}
+            <strong className="text-ink">Availability</strong>. Mark each player in
+            or out, then tap <strong className="text-ink">Continue to lineup</strong>.
           </li>
-          <li>Tap each player who is present to mark them available.</li>
           <li>
-            Tap <strong className="text-ink">Continue to lineup</strong> when done.
+            On the day: tap <strong className="text-ink">Start game day</strong>.
+            The <strong className="text-ink">Who&apos;s here</strong> line at the
+            top of the lineup shows who&apos;s in; open it to mark a no-show out and
+            the lineup rebuilds without them.
           </li>
         </ol>
 

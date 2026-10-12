@@ -82,7 +82,7 @@ export default function GettingStartedPage() {
 
         <HelpCallout type="tip">
           You can rename the team or change its settings any time from the team&apos;s{" "}
-          <strong>Settings</strong> tab. See{" "}
+          <strong>Team</strong> tab. See{" "}
           <Link href="/help/teams" className="font-medium underline">
             Teams
           </Link>{" "}
@@ -140,8 +140,8 @@ export default function GettingStartedPage() {
         />
 
         <HelpCallout type="tip">
-          On game day, open the game card and tap{" "}
-          <strong>Start game</strong> to enter the live game view. See{" "}
+          On game day, tap <strong>Start game day</strong> on the Today tab: mark
+          who&apos;s here, check the lineup, then <strong>Start Q1</strong>. See{" "}
           <Link href="/help/live-game" className="font-medium underline">
             Live Game
           </Link>{" "}

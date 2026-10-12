@@ -75,7 +75,8 @@ export default function LiveGamePage() {
           <li>
             <strong className="text-ink">Header</strong>: your team&apos;s
             score on the left, a dark clock pill in the centre, opponent
-            score on the right. Tap the clock pill to pause or resume.
+            score on the right. Tap the clock to pause, resume or end the
+            quarter early.
           </li>
           <li>
             <strong className="text-ink">SwapCard</strong> (football only): a
@@ -178,7 +179,7 @@ export default function LiveGamePage() {
           reaches zero the SwapCard pulses with a{" "}
           <strong className="text-ink">NOW</strong> countdown and expands
           automatically to show the suggested swaps. The sub interval is set
-          on your team settings page.
+          in the lineup screen&apos;s Game settings.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
           You can tap <strong className="text-ink">Do</strong> next to any
@@ -200,28 +201,28 @@ export default function LiveGamePage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player actions: lock, injury, loan</h2>
+        <h2 className="text-xl font-semibold text-ink">Player actions: keep on, injury, loan</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Long-press any player tile to open the{" "}
-          <strong className="text-ink">Player actions</strong> sheet:
+          Tap a player, then <strong className="text-ink">Player actions</strong>{" "}
+          (or long-press the tile as a shortcut) to open the sheet:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Lock to area</strong> (football only):
+            <strong className="text-ink">Keep on field</strong> (football only):
             the player is never subbed out. Good for a player who needs extra
             game time.
           </li>
           <li>
-            <strong className="text-ink">Lock to position</strong>: the
+            <strong className="text-ink">Keep in a zone</strong>: the
             player can rotate off temporarily but always returns to the same
-            position. For netball this presents as &quot;Keep at{" "}
+            zone. For netball this presents as &quot;Keep in{" "}
             <em>position</em> next break&quot;.
           </li>
           <li>
             <strong className="text-ink">Mark injured</strong>: moves the
             player to the bench and excludes them from rotation suggestions.
             Their tile shows an <strong className="text-ink">INJ</strong>{" "}
-            badge. Tap <strong className="text-ink">Mark recovered</strong>{" "}
+            badge. Tap <strong className="text-ink">Back on</strong>{" "}
             to return them.
           </li>
           <li>
@@ -246,11 +247,11 @@ export default function LiveGamePage() {
         <h2 className="text-xl font-semibold text-ink">Ending a quarter</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            Tap <strong className="text-ink">End Q{"{n}"}</strong> when the
-            umpire&apos;s siren or whistle sounds. A confirmation dialog
-            appears.
+            The quarter ends by itself when the clock runs out. If the siren
+            beats the clock, tap the clock and choose{" "}
+            <strong className="text-ink">End Q{"{n}"} now</strong>.
           </li>
-          <li>Tap <strong className="text-ink">End quarter</strong> to confirm.</li>
+          <li>Tap <strong className="text-ink">End Q{"{n}"}</strong> to confirm.</li>
           <li>
             The quarter-break screen appears for Q1–Q3. For Q4, the game is
             marked complete.

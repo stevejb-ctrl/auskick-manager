@@ -49,7 +49,7 @@ export default function TeamsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Renaming a team</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open the team and tap the <strong className="text-ink">Settings</strong> tab.</li>
+          <li>Open the team and tap the <strong className="text-ink">Team</strong> tab.</li>
           <li>Edit the team name field.</li>
           <li>Tap <strong className="text-ink">Save</strong>.</li>
         </ol>
@@ -96,9 +96,11 @@ export default function TeamsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Deleting a team</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          To delete a team, open the team <strong className="text-ink">Settings</strong> tab
-          and scroll to the bottom. Tap <strong className="text-ink">Delete team</strong> and
-          confirm. This permanently removes all games and stats for that team.
+          To delete a team, open the <strong className="text-ink">Team</strong> tab
+          and scroll to <strong className="text-ink">Danger zone</strong>. Tap{" "}
+          <strong className="text-ink">Delete team</strong> and type the team&apos;s
+          name to confirm. This permanently removes all games and stats for that team.
+          Anyone can leave a team from the same place, or from their account page.
         </p>
         <HelpCallout type="warning">
           Deleting a team cannot be undone. All game history and stats are permanently

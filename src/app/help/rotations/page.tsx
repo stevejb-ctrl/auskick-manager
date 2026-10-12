@@ -282,29 +282,27 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player locks</h2>
+        <h2 className="text-xl font-semibold text-ink">Keeping a player on</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Long-press any player to open the{" "}
-          <strong className="text-ink">Player actions</strong> sheet. Lock
-          options are available there:
+          Tap a player, then <strong className="text-ink">Player actions</strong>{" "}
+          (or long-press them) to open the sheet:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Always-on lock</strong>: the player
+            <strong className="text-ink">Keep on field</strong>: the player
             is excluded from rotation suggestions and never leaves the playing
-            area for the rest of the game (football&apos;s &quot;lock to
-            field&quot;).
+            area for the rest of the game.
           </li>
           <li>
-            <strong className="text-ink">Position lock</strong>: the player
+            <strong className="text-ink">Keep in a zone</strong>: the player
             can rotate off temporarily but the algorithm always returns them
-            to the same position. For netball this presents as &quot;Keep at{" "}
+            to the same zone. For netball this presents as &quot;Keep in{" "}
             <em>position</em> next break&quot;.
           </li>
         </ul>
         <HelpCallout type="note">
-          Locked players are pinned in the quarter-break reshuffle too. The
-          algorithm keeps them in their assigned position.
+          Kept players are pinned in the quarter-break reshuffle too. The
+          algorithm keeps them where you put them.
         </HelpCallout>
       </section>
 

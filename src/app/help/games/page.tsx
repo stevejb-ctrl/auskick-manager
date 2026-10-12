@@ -67,17 +67,18 @@ export default function GamesPage() {
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
             <strong className="text-ink">Upcoming</strong>:game is scheduled but
-            not yet started. Tap <strong className="text-ink">Start game</strong> to
-            begin on game day.
+            not yet started. Tap <strong className="text-ink">Plan lineup</strong>{" "}
+            any time, or <strong className="text-ink">Start game day</strong> on the day.
           </li>
           <li>
             <strong className="text-ink">In progress</strong>:the game has been
-            started. Tap <strong className="text-ink">Open live game</strong> to
+            started. Tap <strong className="text-ink">Back to live game</strong> to
             return to the live view.
           </li>
           <li>
-            <strong className="text-ink">Completed</strong>:all four quarters have
-            ended. Stats are now available in the Stats tab.
+            <strong className="text-ink">Final</strong>: the game is finished.
+            Tap <strong className="text-ink">Summary</strong> for the result and the
+            group-chat summary; stats are in the Stats tab.
           </li>
         </ul>
       </section>
@@ -91,14 +92,16 @@ export default function GamesPage() {
           <li>See the final or current score</li>
           <li>View top scorers (if scoring was tracked)</li>
           <li>Start or re-enter the live game view</li>
-          <li>Edit game details (opponent, round, date, etc.)</li>
-          <li>Toggle the <strong className="text-ink">Track scoring</strong> setting</li>
+          <li>
+            Under <strong className="text-ink">More</strong>: the game-day link, edit
+            details (opponent, round, date, etc.), restart or delete the game
+          </li>
         </ul>
 
         <HelpFigure
           src="/help-screenshots/games-detail.png"
           alt="The game detail page showing score, round, opponent, date, and action buttons"
-          caption="The game detail page. Tap Start game or Open live game to jump into the live view."
+          caption="The game detail page. One main button per game state: Plan lineup, Back to live game, or Summary."
         />
 
         <HelpCallout type="tip">
