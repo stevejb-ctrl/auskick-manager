@@ -27,7 +27,6 @@ import {
   type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   ALL_ZONES,
@@ -57,25 +56,14 @@ import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
 import { getSportConfig } from "@/lib/sports/registry";
-import { useLongPress } from "@/lib/live/useLongPress";
+import { Field, ZONE_SHORT } from "@/components/live/Field";
+import { Bench } from "@/components/live/Bench";
+import type { TileCaption } from "@/components/live/PlayerTile";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
 
-// Format a minute count (decimal — e.g. 12.5) as M:SS. Used for the
-// per-player THIS-GAME running total beside each time bar so a coach
-// (and any parent at their shoulder) can see at a glance who's
-// played 12:30 vs 4:00 today. Netball's PlayerTile already shows
-// this; AFL was the gap. Season totals are deliberately not shown
-// — kids who miss games naturally accrue lower season minutes and
-// surfacing that just invites the wrong complaint.
-function fmtMinSec(min: number): string {
-  const totalSec = Math.max(0, Math.floor(min * 60));
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
@@ -125,26 +113,6 @@ interface QuarterBreakProps {
 }
 
 type Slot = Zone | "bench";
-
-const ZONE_BAR_COLOR: Record<Zone, string> = {
-  back: "bg-zone-b",
-  hback: "bg-zone-b/70",
-  mid: "bg-zone-c",
-  hfwd: "bg-zone-f/70",
-  fwd: "bg-zone-f",
-};
-
-// Section-header text tint — matches the per-tile colour stripes
-// so a coach scanning the Q-break can trace "BACK in blue" right
-// down to a player tile's blue bar without translating between
-// labels and colours. Steve 2026-05-23 (parent feedback follow-up).
-const ZONE_HEADER_TEXT: Record<Zone, string> = {
-  back: "text-zone-b",
-  hback: "text-zone-b",
-  mid: "text-zone-c",
-  hfwd: "text-zone-f",
-  fwd: "text-zone-f",
-};
 
 function emptyZM(): ZoneMinutes {
   return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
@@ -225,10 +193,6 @@ export function QuarterBreak({
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
-  // Per-player time-in-zone bar renders FWD → CENTRE → BACK (left →
-  // right) so it matches the forward-first card order above it AND the
-  // FWD/Centre/Back legend — one consistent direction everywhere.
-  const barZones = useMemo(() => [...zones].reverse(), [zones]);
   // Labelled zones (config-derived, age-group filtered) for the shared
   // PlayerInsightSummary — same derivation the in-game LockModal uses.
   const insightZones = useMemo(
@@ -241,16 +205,8 @@ export function QuarterBreak({
   // ─── Long-press → player insight + injury toggle (issues 8 & 9) ──
   // Mirror the in-game long-press: hold a tile to open the SAME stats
   // sheet (PlayerInsightSummary) plus mark-injured / mark-available.
-  // One press is active at a time, so a single shared useLongPress
-  // controller + a "which pid" ref is enough — no per-tile hook (which
-  // would break the rules-of-hooks inside the tile .map).
+  // The field tiles own the gesture (PlayerTile's useLongPress).
   const [insightPlayerId, setInsightPlayerId] = useState<string | null>(null);
-  const pressPidRef = useRef<string | null>(null);
-  const longPress = useLongPress({
-    onLongPress: () => {
-      if (pressPidRef.current) setInsightPlayerId(pressPidRef.current);
-    },
-  });
   // Display FWD → CENTRE → BACK (top → bottom) to match the coach's field mental model.
   const slots = useMemo<Slot[]>(() => [[...zones].reverse(), "bench"].flat() as Slot[], [zones]);
   const slotLabel = (s: Slot) => {
@@ -288,6 +244,16 @@ export function QuarterBreak({
   }, [season, currentGameZoneMins]);
 
   const [draft, setDraft] = useState<Lineup>(lineup);
+
+  // Field tiles: this game's minutes so far.
+  const gameTotalMs = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
+      out[pid] = ALL_ZONES.reduce((a, z) => a + zm[z], 0);
+    }
+    return out;
+  }, [basePlayedZoneMs]);
+
   const [selected, setSelected] = useState<string | null>(null);
   // Slot the coach is filling via the SlotFillSheet. Set when they
   // tap an empty zone slot; cleared when they pick or cancel. Null
@@ -489,6 +455,25 @@ export function QuarterBreak({
     placeInZone(playerId, fillTargetZone);
     setFillTargetZone(null);
     setSelected(null);
+  }
+
+  // Tile captions: where each player goes for the next quarter,
+  // against the lineup that finished this one.
+  const captionSlot = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT[s]);
+  const breakCaptions: Record<string, TileCaption> = {};
+  for (const s of slots) {
+    for (const pid of draft[s]) {
+      if (sidelinedSet.has(pid)) {
+        breakCaptions[pid] = { text: "Unavailable", tone: "stay" };
+        continue;
+      }
+      const prev = slotOf(pid, lineup);
+      if (!prev) continue;
+      breakCaptions[pid] =
+        prev === s
+          ? { text: "Stays", tone: "stay" }
+          : { text: `${captionSlot(prev)} → ${captionSlot(s)}`, tone: "move" };
+    }
   }
 
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
@@ -1977,275 +1962,57 @@ export function QuarterBreak({
         ]}
       />
 
-      {/* Single column — user feedback 2026-05-20: the prior
-          `sm:grid-cols-2` (1-col phones, 2-col tablet+) still
-          rendered 2-col inside the desktop demo phone-frame
-          (md+ viewport but only ~390px wide), where it cramped
-          player names and the STAYS / MOVES + progress bars. */}
-      <div className="grid grid-cols-1 gap-3">
-        {slots.map((slot) => (
-          <div
-            key={slot}
-            className="rounded-md border border-hairline bg-surface p-3 shadow-card"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <h3
-                className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
-                  slot === "bench" ? "text-ink-dim" : ZONE_HEADER_TEXT[slot]
-                }`}
-              >
-                {slotLabel(slot)}
-              </h3>
-              <span className="text-xs tabular-nums text-ink-mute">
-                {draft[slot].length}
-                {slot !== "bench" && ` / ${displayZoneCaps[slot]}`}
-              </span>
-            </div>
-            {draft[slot].length === 0 ? (
-              slot === "bench" ? (
-                <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
-              ) : (
-                // Tappable empty-zone placeholder. Two modes:
-                //   - With a player selected (bench OR field): MOVE
-                //     them into this zone. `placeInZone` pulls them
-                //     out of wherever they currently live and drops
-                //     them here, so a Backs-selected player moving
-                //     into an empty Forward leaves an empty slot
-                //     where they came from — exactly the blank-slot
-                //     reshuffle a short-squad coach needs.
-                //   - With nothing selected: open the SlotFillSheet
-                //     so the coach can pick a bench player without
-                //     going through the two-tap swap dance.
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selected) {
-                      placeInZone(selected, slot);
-                      setSelected(null);
-                      return;
-                    }
-                    setFillTargetZone(slot);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-3 py-2.5 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                  aria-label={
-                    selected
-                      ? `Move selected player to ${slotLabel(slot)}`
-                      : `Empty ${slotLabel(slot)} — tap to fill`
-                  }
-                >
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
-                  >
-                    +
-                  </span>
-                  <span className="font-medium">
-                    {selected ? "Move here" : "Tap to fill"}
-                  </span>
-                </button>
-              )
-            ) : (
-              <ul className="space-y-1.5">
-                {draft[slot].map((pid) => {
-                  const p = playersById.get(pid);
-                  if (!p) return null;
-                  const isSelected = selected === pid;
-                  const isInjured = injuredSet.has(pid);
-                  const isLoaned = loanedSet.has(pid);
-                  const isSidelined = isInjured || isLoaned;
-                  const zm = currentGameZoneMins[pid] ?? emptyZM();
-                  // Total played minutes drives the visible "12:30"
-                  // label — 0 keeps the label hidden rather than
-                  // showing "0:00".
-                  const realTotal = zones.reduce((a, z) => a + zm[z], 0);
-                  const prevSlot = slotOf(pid, lineup);
-                  const moved = prevSlot && prevSlot !== slot;
-                  // Per-player scoring totals across the game so
-                  // far. goals × 6 + behinds is AFL's points value,
-                  // but the badge shows "Ng·Mb" so coaches can see
-                  // both contributions at a glance. Mirrors the
-                  // netball Q-break tile's goal-count badge, scaled
-                  // up for two values.
-                  const pScore = playerScores[pid] ?? { goals: 0, behinds: 0 };
-                  const hasScored = pScore.goals > 0 || pScore.behinds > 0;
-                  return (
-                    <li key={pid} className="relative">
-                      <button
-                        type="button"
-                        // NOT `disabled` — a disabled button swallows all
-                        // pointer events, but a sidelined (injured/lent)
-                        // player must still be long-pressable to bring
-                        // them back (issue 9). Tap is no-op'd below
-                        // instead; the styling still reads disabled.
-                        aria-disabled={isSidelined}
-                        onClick={() => {
-                          if (longPress.consumedLongPress()) return;
-                          if (isSidelined) return;
-                          handleTap(pid);
-                        }}
-                        onPointerDown={(e) => {
-                          pressPidRef.current = pid;
-                          longPress.handlers.onPointerDown?.(e);
-                        }}
-                        onPointerUp={longPress.handlers.onPointerUp}
-                        onPointerCancel={longPress.handlers.onPointerCancel}
-                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                          isSelected
-                            ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                            : isSidelined
-                              ? "cursor-not-allowed border-hairline bg-surface-alt opacity-60"
-                              : "border-hairline hover:bg-surface-alt"
-                        } ${
-                          longPress.arming &&
-                          pressPidRef.current === pid &&
-                          !isSelected
-                            ? "ring-2 ring-brand-300 ring-offset-1"
-                            : ""
-                        }`}
-                      >
-                        {/* Goal/behind badge — top-right corner, ink
-                            pill, mirrors netball. Hidden when zero
-                            so non-scorers stay visually clean.
-                            "Ng·Mb" packs both counts; coaches read
-                            it like a mini scorebug for that player.
-                            aria-label spells it out for SR users. */}
-                        {hasScored && (
-                          <span
-                            className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-                            aria-label={`${pScore.goals} goal${pScore.goals === 1 ? "" : "s"}, ${pScore.behinds} behind${pScore.behinds === 1 ? "" : "s"}`}
-                          >
-                            {pScore.goals}g·{pScore.behinds}b
-                          </span>
-                        )}
-                        <span className="flex items-center gap-2">
-                          <Guernsey num={p.jersey_number ?? ""} size={28} />
-                          <span className="flex flex-col items-start">
-                            <span className="flex items-center gap-1.5">
-                              <span className="font-medium text-ink">
-                                {p.chip && (
-                                  <ChipIndicator
-                                    chipKey={p.chip as ChipKey}
-                                    mode={chipModeByKey[p.chip as ChipKey]}
-                                    className="mr-1 align-middle"
-                                  />
-                                )}
-                                {p.full_name}
-                              </span>
-                              {isInjured && (
-                                <span className="rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                                  INJ
-                                </span>
-                              )}
-                              {isLoaned && !isInjured && (
-                                <span className="rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                                  LENT
-                                </span>
-                              )}
-                            </span>
-                            {moved && prevSlot && !isSidelined && (
-                              <span className="text-[10px] font-semibold uppercase tracking-micro text-brand-600">
-                                {slotLabel(prevSlot)} → {slotLabel(slot)}
-                              </span>
-                            )}
-                            {!moved && prevSlot && !isSidelined && (
-                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
-                                stays
-                              </span>
-                            )}
-                            {isSidelined && (
-                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
-                                unavailable
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          {realTotal > 0 && !isSidelined && (
-                            <span className="nums font-mono text-[10px] font-semibold tabular-nums text-ink-dim">
-                              {fmtMinSec(realTotal)}
-                            </span>
-                          )}
-                          {/* Time-in-zone bar — one segment per zone
-                              the player has spent time in, width
-                              proportional to ms played in that zone.
-                              Steve 2026-05-13 asked for this back
-                              after my earlier per-quarter
-                              experiment: "i still can't see the
-                              coloured bar indicating how much time
-                              in each zone in the Set zones for Qx
-                              page". The proportional bar answers
-                              "how much of this kid's game has been
-                              in each zone" at a glance, which the
-                              per-quarter version didn't. Bar stays
-                              empty (just the rounded grey track)
-                              for a player who hasn't been on yet.
-                              Colour tokens match the FWD/CENTRE/
-                              BACK card headers via ZONE_BAR_COLOR. */}
-                          <span
-                            className="flex h-2.5 w-20 shrink-0 overflow-hidden rounded-full bg-surface-alt"
-                            aria-hidden
-                          >
-                            {realTotal > 0 &&
-                              barZones.map((z) => {
-                                const pct = (zm[z] / realTotal) * 100;
-                                if (pct <= 0) return null;
-                                return (
-                                  <span
-                                    key={z}
-                                    style={{ width: `${pct}%` }}
-                                    className={ZONE_BAR_COLOR[z]}
-                                    title={`${slotLabel(z)}: ${fmtMinSec(zm[z])}`}
-                                  />
-                                );
-                              })}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-                {/* Spare-capacity affordance — when a non-bench zone
-                    has fewer players than its cap, surface a "+ Add"
-                    row. With a player selected (bench OR field), tap
-                    moves them here — same blank-slot reshuffle path
-                    as the empty-zone placeholder. With nothing
-                    selected, opens the SlotFillSheet. Bench has no
-                    cap, so it never renders. */}
-                {slot !== "bench" && draft[slot].length < displayZoneCaps[slot] && (
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selected) {
-                          placeInZone(selected, slot);
-                          setSelected(null);
-                          return;
-                        }
-                        setFillTargetZone(slot);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-2.5 py-2 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                      aria-label={
-                        selected
-                          ? `Move selected player to ${slotLabel(slot)}`
-                          : `Add player to ${slotLabel(slot)}`
-                      }
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
-                      >
-                        +
-                      </span>
-                      <span className="font-medium">
-                        {selected ? "Move here" : "Add player"}
-                      </span>
-                    </button>
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-        ))}
+      {/* The same field the live game uses (UX plan principle 2: one
+          lineup, one picture). Tap two players to swap — across zones
+          or with the bench; with a player selected, an empty spot moves
+          them there; with nothing selected it opens the bench picker.
+          Each tile says where the player goes next (STAYS / BENCH → FWD)
+          and its bar is this game's time in zone. Long-press opens the
+          player sheet (stats, injured, available). */}
+      <div className="space-y-3">
+        <Field
+          playersById={playersById}
+          lineup={draft}
+          selectedPlayerId={selected}
+          dimUnselected={false}
+          onTapField={(pid, zone) => {
+            if (pid) {
+              handleTap(pid);
+              return;
+            }
+            if (selected) {
+              placeInZone(selected, zone);
+              setSelected(null);
+              return;
+            }
+            setFillTargetZone(zone);
+          }}
+          onLongPress={(pid) => setInsightPlayerId(pid)}
+          zoneMsByPlayer={basePlayedZoneMs}
+          totalMsByPlayer={gameTotalMs}
+          injuredIds={injuredIds}
+          zoneCaps={effectiveZoneCaps}
+          displayZoneCaps={displayZoneCaps}
+          positionModel={positionModel}
+          chipModeByKey={chipModeByKey}
+          playerScores={playerScores}
+          captions={breakCaptions}
+        />
+        <Bench
+          playersById={playersById}
+          lineup={draft}
+          selectedPlayerId={selected}
+          dimUnselected={false}
+          onTapBench={handleTap}
+          onLongPress={(pid) => setInsightPlayerId(pid)}
+          zoneMsByPlayer={basePlayedZoneMs}
+          totalMsByPlayer={gameTotalMs}
+          injuredIds={injuredIds}
+          loanedIds={loanedIds}
+          playerScores={playerScores}
+          captions={breakCaptions}
+          chipModeByKey={chipModeByKey}
+        />
       </div>
 
       {error && <InlineAlert>{error}</InlineAlert>}

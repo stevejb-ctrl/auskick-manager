@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
-import { positionsFor } from "@/lib/ageGroups";
+import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
 import { PlayerTile, type TileCaption } from "@/components/live/PlayerTile";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 
@@ -258,7 +258,9 @@ export function Field({
               {showDivider && (
                 <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
               )}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Named group per zone so screen readers (and specs)
+                  can tell which line a tile is on. */}
+              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2">
                 {Array.from({ length: slotCount }).map((_, slot) => {
                   const isOrphan = slot === orphanIdx;
                   const pid = ids[slot];

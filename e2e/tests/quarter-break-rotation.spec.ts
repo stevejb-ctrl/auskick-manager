@@ -142,19 +142,16 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // ~L158 — "fwd" → "Forward" to match the "Centre" treatment).
   // The selector previously looked for `has-text("Fwd")` which is
   // NOT a substring of "Forward" (different letters after the F).
+  // The break draws the live field; each zone is a named group.
   const fwdNamesInBreak = await page
-    .locator('h3:has-text("Forward")')
+    .getByRole("group", { name: "Forward", exact: true })
     .first()
-    .locator("xpath=../following-sibling::ul[1]")
-    .locator("li button")
+    .locator('[data-testid^="player-tile-"]')
     .evaluateAll((btns, names) => {
       const re = new RegExp(`(${(names as string[]).join("|")})`);
       return btns
         .map((b) => (b.textContent ?? "").trim())
-        .map((t) => {
-          const m = t.match(re);
-          return m ? m[1] : "";
-        })
+        .map((t) => t.match(re)?.[1] ?? "")
         .filter((s) => s.length > 0);
     }, SQUAD_NAMES);
   expect(
@@ -282,20 +279,19 @@ test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the 
     page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // Count PLAYER tiles per zone card (a zone card is <h3>ZONE</h3> then a
-  // sibling <ul>). Filter to tiles carrying a known squad name so the
-  // "+ Add" spare-capacity rows (present because displayZoneCaps still
-  // shows /4 slots) don't inflate the count.
+  // Count PLAYER tiles per zone (each zone row on the field is a named
+  // group). Filter to tiles carrying a known squad name so the "Empty"
+  // spots (present because displayZoneCaps still shows 4 slots) don't
+  // inflate the count.
   const SQUAD_NAMES = [
     "Alicia", "Brendan", "Camille", "Damian", "Elena",
     "Felix", "Gemma", "Harvey", "Ingrid", "Joaquin",
   ];
   const countZone = (heading: string) =>
     page
-      .locator(`h3:has-text("${heading}")`)
+      .getByRole("group", { name: heading, exact: true })
       .first()
-      .locator("xpath=../following-sibling::ul[1]")
-      .locator("li button")
+      .locator('[data-testid^="player-tile-"]')
       .evaluateAll((btns, names) => {
         const re = new RegExp(`(${(names as string[]).join("|")})`);
         return btns.filter((b) => re.test(b.textContent ?? "")).length;
@@ -352,10 +348,9 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
   // Read the BACK zone's player tiles — after the rotation, last
   // quarter's FORWARD line should be there (Fwd → Back).
   const backNames = await page
-    .locator('h3:has-text("Back")')
+    .getByRole("group", { name: "Back", exact: true })
     .first()
-    .locator("xpath=../following-sibling::ul[1]")
-    .locator("li button")
+    .locator('[data-testid^="player-tile-"]')
     .evaluateAll((btns, names) => {
       const re = new RegExp(`(${(names as string[]).join("|")})`);
       return btns
