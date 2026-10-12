@@ -271,28 +271,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     >
                       {isGameDay ? "Start game day" : "Plan lineup"}
                     </SFButton>
-                    <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
-                      variant="ghost"
-                      className="w-full sm:w-auto"
-                    >
-                      Availability
-                    </SFButton>
-                    {/* Pre-game rotation planner — auto-suggests a fair
-                        full-game rotation the coach can tweak and copy
-                        into the team chat. Pure client compute; no DB
-                        write, doesn't touch how the live game runs. */}
-                    <GamePlanButton
-                      sport={sport}
-                      ageGroup={planAgeCfg}
-                      players={players ?? []}
-                      onFieldSize={planAgeCfg.defaultOnFieldSize}
-                      teamName={teamName}
-                      opponentName={g.opponent}
-                      variant="ghost"
-                      size="md"
-                      className="w-full sm:w-auto"
-                    />
                   </>
                 ) : isFinal ? (
                   // A final game's one job is its summary (UX plan H3).
@@ -322,8 +300,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 )}
               </div>
 
-              {/* Plan-saved chip + the More menu. Wraps to a row on desktop. */}
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+              {/* Secondary actions share one row under the primary —
+                  equal thirds on a phone, natural widths from sm. */}
+              <div className="mt-2 space-y-2">
                 {/* Pre-game lineup-plan indicator. Surfaces only when
                     the coach has saved a draft and the game's still
                     upcoming. Cleared automatically at kickoff. */}
@@ -335,6 +314,32 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     <span aria-hidden>✓</span>
                     Plan saved
                   </span>
+                )}
+                <div className="grid grid-flow-col auto-cols-fr gap-2 sm:flex sm:flex-wrap">
+                {isUp && (
+                  <SFButton
+                    href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                    variant="ghost"
+                    className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"
+                  >
+                    Availability
+                  </SFButton>
+                )}
+                {/* Pre-game rotation planner — auto-suggests a fair
+                    full-game rotation the coach can tweak and copy into
+                    the team chat. Pure client compute; no DB write. */}
+                {isUp && (
+                  <GamePlanButton
+                    sport={sport}
+                    ageGroup={planAgeCfg}
+                    players={players ?? []}
+                    onFieldSize={planAgeCfg.defaultOnFieldSize}
+                    teamName={teamName}
+                    opponentName={g.opponent}
+                    variant="ghost"
+                    size="md"
+                    className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"
+                  />
                 )}
                 <GameMoreMenu
                   teamId={params.teamId}
@@ -363,6 +368,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   canRestart={role === "admin" && !isUp}
                   canDelete={role === "admin"}
                 />
+                </div>
               </div>
             </div>
           )}

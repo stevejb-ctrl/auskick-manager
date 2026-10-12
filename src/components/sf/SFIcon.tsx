@@ -20,10 +20,14 @@ function Base({
   color = "currentColor",
   size = 16,
   children,
+  className,
   ...rest
 }: IconProps & { children: React.ReactNode }) {
   return (
     <svg
+      // Fixed-size glyphs never shrink inside a tight flex row (a
+      // phone-width button row squashed them to a dot).
+      className={className ? `shrink-0 ${className}` : "shrink-0"}
       width={size}
       height={size}
       viewBox="0 0 24 24"

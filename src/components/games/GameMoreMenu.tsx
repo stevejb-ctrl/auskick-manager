@@ -108,6 +108,7 @@ export function GameMoreMenu({
         aria-label="More actions"
         icon={<SFIcon.more color="currentColor" />}
         onClick={() => setSheetOpen(true)}
+        className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"
       >
         More
       </SFButton>
