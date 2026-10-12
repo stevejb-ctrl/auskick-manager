@@ -16,6 +16,7 @@ import {
   type AflPlaybookInput,
 } from "@/lib/sports/afl/engine";
 import type { Lineup, Player, Zone } from "@/lib/types";
+import { newRule, type RuleInstance } from "@/lib/playbook/rules";
 
 const CAPS: ZoneCaps = { back: 4, hback: 0, mid: 4, hfwd: 0, fwd: 4 };
 const ZONES: Zone[] = ["back", "mid", "fwd"];
@@ -246,5 +247,73 @@ describe("season balance over a season (Vitest fixture for the weights)", () => 
     expect(off).toBeGreaterThan(legacy);
     // Within a quarter of even per kid after ten games.
     expect(balanced).toBeLessThan(1);
+  });
+});
+
+describe("rules (UX plan 4.2): Must is a constraint, Prefer a weight", () => {
+  const rule = (kind: RuleInstance["kind"], over: Partial<RuleInstance> = {}): RuleInstance => ({
+    ...newRule(kind),
+    strength: "must",
+    ...over,
+  });
+  const withRules = (strategy: string, rules: RuleInstance[], roles: Record<string, AflLineRole> = {}) => ({
+    ...base(strategy, roles),
+    rules,
+  });
+
+  it("every line each game beats a preferred line", () => {
+    const squad = players(12);
+    const game = playGame(
+      squad,
+      withRules("preferred-lines", [rule("every-line-per-game")], { p1: role({ home: "fwd" }) }),
+    );
+    expect(new Set(game.map((l) => zoneOf(l, "p1")))).toEqual(new Set(["back", "mid", "fwd"]));
+  });
+
+  it("keeps two players apart all game", () => {
+    const squad = players(12);
+    for (const seed of [1, 2, 3]) {
+      const game = playGame(squad, withRules("free", [rule("keep-apart", { params: { playerIds: ["p1", "p2"] } })]), {}, seed);
+      for (const l of game) {
+        const a = zoneOf(l, "p1");
+        if (a !== "bench") expect(zoneOf(l, "p2")).not.toBe(a);
+      }
+    }
+  });
+
+  it("keeps two players together", () => {
+    const squad = players(12);
+    const game = playGame(squad, withRules("free", [rule("keep-together", { params: { playerIds: ["p3", "p4"] } })]));
+    for (const l of game) expect(zoneOf(l, "p3")).toBe(zoneOf(l, "p4"));
+  });
+
+  it("a player stays home all game", () => {
+    const squad = players(12);
+    const game = playGame(
+      squad,
+      withRules("free", [rule("stays-home", { params: { playerIds: ["p5"] } })], { p5: role({ home: "back" }) }),
+    );
+    for (const l of game) expect(zoneOf(l, "p5")).toBe("back");
+  });
+
+  it("nobody sits out two quarters in a row", () => {
+    const squad = players(16);
+    const game = playGame(squad, withRules("free", [rule("max-bench-in-row", { params: { count: 2 } })]));
+    for (let q = 1; q < 4; q++) {
+      for (const pid of game[q].bench) expect(game[q - 1].bench).not.toContain(pid);
+    }
+  });
+
+  const lineup: Lineup = { back: ["b1"], hback: [], mid: ["m1"], hfwd: [], fwd: ["f1"], bench: ["x"] };
+  const swaps = (pb: AflPlaybookInput) =>
+    suggestSwaps(lineup, { b1: 600_000, m1: 600_000, f1: 600_000 }, 0, [], ZONES, [], {}, {}, {}, 0, 0, {}, pb);
+
+  it("subs at the breaks only: no rolling subs", () => {
+    expect(swaps(withRules("free", [rule("subs-at-breaks")]))).toEqual([]);
+  });
+
+  it("like-for-like bench swaps for any strategy with a home", () => {
+    const s = swaps(withRules("preferred-lines", [rule("like-for-like")], { x: role({ home: "mid" }) }));
+    expect(s[0]).toMatchObject({ on_player_id: "x", zone: "mid" });
   });
 });

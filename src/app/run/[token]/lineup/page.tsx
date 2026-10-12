@@ -74,14 +74,14 @@ export default async function LineupPage({ params }: LineupPageProps) {
     : { data: [] as GameEvent[] };
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
   // How we play for the AFL suggester (UX plan 3.6).
-  const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+  const { resolved: playbook, prefs: playbookPrefs, rules: playbookRules } = await loadTeamPlaybook(
     admin,
     g.team_id,
     "afl",
     (teamRow as { age_group?: string } | null)?.age_group ?? null,
   );
   const aflPlaybook = withBalanceSeason(
-    aflPlaybookInput(playbook, playbookPrefs),
+    aflPlaybookInput(playbook, playbookPrefs, playbookRules),
     (seasonEvents ?? []) as GameEvent[],
     playbook.seasonBalanceSince,
   );

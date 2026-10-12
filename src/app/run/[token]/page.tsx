@@ -532,14 +532,14 @@ export default async function RunPage({ params }: RunPageProps) {
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
     // How we play for the AFL suggesters (UX plan 3.6), same as the
     // coach's live page.
-    const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+    const { resolved: playbook, prefs: playbookPrefs, rules: playbookRules } = await loadTeamPlaybook(
       admin,
       g.team_id,
       "afl",
       teamRow?.age_group ?? null,
     );
     const aflPlaybook = withBalanceSeason(
-      withSnapshot(aflPlaybookInput(playbook, playbookPrefs), g.playbook_snapshot),
+      withSnapshot(aflPlaybookInput(playbook, playbookPrefs, playbookRules), g.playbook_snapshot),
       (allTeamEvents ?? []) as GameEvent[],
       playbook.seasonBalanceSince,
     );

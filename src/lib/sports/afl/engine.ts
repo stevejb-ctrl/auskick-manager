@@ -12,6 +12,7 @@ import type { PlaybookSnapshot, PlayerPositionPrefRow } from "@/lib/playbook/typ
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
+import type { RuleInstance } from "@/lib/playbook/rules";
 
 /** A player's role at line level — what the zone engine can act on. */
 export interface AflLineRole {
@@ -32,6 +33,63 @@ export interface AflPlaybookInput {
   positionRoles?: Record<string, { home: string | null; also: string[]; never: string[] }>;
   /** Season since a balance reset, in minutes; omitted = the full season. */
   balanceSeason?: PlayerZoneMinutes;
+  /** The team's rules that are on (How we play › Rules). */
+  rules?: RuleInstance[];
+  /** The game-time floor, for the rule check. */
+  minGameTimePct?: number;
+}
+
+/** Must = the engine doesn't break it; Prefer = a weight. */
+export const RULE_WEIGHT = { must: 20000, prefer: 3000 } as const;
+/** A line a kid hasn't played yet, under an every-line rule. */
+export const LINE_RULE_WEIGHT = { must: 20000, prefer: 1500 } as const;
+
+/**
+ * Rule terms for placing player `pid` in zone `z` (UX plan 4.2): lines
+ * still to play, players kept apart or together, kids who stay home.
+ * `placed` is who's already been put in each zone this pass.
+ */
+export function ruleScore(
+  rules: RuleInstance[],
+  pid: string,
+  line: Zone,
+  linesPlayed: Set<Zone>,
+  lineCount: number,
+  placedInZone: Set<string> | undefined,
+  homeLine: Zone | null,
+): number {
+  let score = 0;
+  for (const rule of rules) {
+    switch (rule.kind) {
+      case "every-line-per-game":
+      case "distinct-lines": {
+        const need = rule.kind === "every-line-per-game" ? lineCount : (rule.params.count ?? 2);
+        if (linesPlayed.size < need && !linesPlayed.has(line)) score += LINE_RULE_WEIGHT[rule.strength];
+        break;
+      }
+      case "keep-apart":
+      case "keep-together": {
+        const ids = rule.params.playerIds ?? [];
+        if (!ids.includes(pid) || !placedInZone) break;
+        let mates = 0;
+        placedInZone.forEach((other) => {
+          if (other !== pid && ids.includes(other)) mates++;
+        });
+        score += (rule.kind === "keep-apart" ? -1 : 1) * mates * RULE_WEIGHT[rule.strength];
+        break;
+      }
+      case "stays-home":
+        if ((rule.params.playerIds ?? []).includes(pid) && homeLine === line) score += RULE_WEIGHT[rule.strength];
+        break;
+      default:
+        break;
+    }
+  }
+  return score;
+}
+
+export function hasRule(input: AflPlaybookInput | undefined, kind: RuleInstance["kind"]): RuleInstance | undefined {
+  return input?.rules?.find((r) => r.kind === kind);
 }
 
 /** suggestSwaps also needs the season so rolling subs pay down debt. */
@@ -75,6 +133,7 @@ export function rotatedZone(prev: Zone, zones: Zone[]): Zone | null {
 export function aflPlaybookInput(
   resolved: ResolvedPlaybook,
   prefs: Pick<PlayerPositionPrefRow, "player_id" | "position_key" | "line" | "kind" | "rank">[],
+  rules: RuleInstance[] = [],
 ): AflPlaybookInput {
   const strategy = resolved.strategy.id;
   const seasonWeight = seasonBalanceWeight(
@@ -83,7 +142,8 @@ export function aflPlaybookInput(
   );
   const model = roleModelFor(resolved);
   const roles: Record<string, AflLineRole> = {};
-  if (!model) return { strategy, seasonWeight, roles };
+  const common = { rules, minGameTimePct: resolved.policy.minGameTimePct };
+  if (!model) return { strategy, seasonWeight, roles, ...common };
 
   if (model.unit === "line") {
     for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "line"))) {
@@ -94,7 +154,7 @@ export function aflPlaybookInput(
         keepOn: r.keepOn,
       };
     }
-    return { strategy, seasonWeight, roles };
+    return { strategy, seasonWeight, roles, ...common };
   }
 
   // Positions: the zone engine places lines; slots are filled after.
@@ -118,6 +178,7 @@ export function aflPlaybookInput(
     roles,
     positions: resolved.positions.map((p) => ({ key: p.key, label: p.label, line: p.line as Zone })),
     positionRoles,
+    ...common,
   };
 }
 
@@ -232,4 +293,71 @@ export function withSnapshot(
       snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance,
     ),
   };
+}
+
+/**
+ * Must rules the greedy placement can miss — the zone a kid needs filled
+ * up before their turn — are repaired by swapping zones with a teammate
+ * the rules don't name (UX plan 4.2). Keep together, then apart, then
+ * stays home. Pinned players never move; nobody is sent to a line they
+ * never play. Mutates and returns the lineup.
+ */
+export function repairLineupForRules(
+  lineup: Lineup,
+  input: AflPlaybookInput,
+  zones: Zone[],
+  pinned: Set<string>,
+): Lineup {
+  const musts = (input.rules ?? []).filter((r) => r.strength === "must");
+  if (musts.length === 0) return lineup;
+  const zoneOf = (pid: string) => zones.find((z) => lineup[z].includes(pid)) ?? null;
+  const never = (pid: string, z: Zone) => {
+    const n = input.roles[pid]?.never ?? [];
+    return n.includes(z) || n.includes(LINE_OF_ZONE[z]);
+  };
+  const named = new Set(musts.flatMap((r) => r.params.playerIds ?? []));
+  const swap = (a: string, za: Zone, b: string, zb: Zone) => {
+    lineup[za] = lineup[za].map((p) => (p === a ? b : p));
+    lineup[zb] = lineup[zb].map((p) => (p === b ? a : p));
+  };
+  /** Move \`pid\` (in \`from\`) into \`to\` by swapping with someone free there. */
+  const moveInto = (pid: string, from: Zone, to: Zone, avoid: Set<string>) => {
+    if (never(pid, to)) return false;
+    const other = lineup[to].find((c) => !pinned.has(c) && !avoid.has(c) && !named.has(c) && !never(c, from));
+    if (!other) return false;
+    swap(pid, from, other, to);
+    return true;
+  };
+
+  for (const r of musts.filter((x) => x.kind === "keep-together")) {
+    const ids = (r.params.playerIds ?? []).filter((p) => zoneOf(p));
+    if (ids.length < 2) continue;
+    const count = (z: Zone) => ids.filter((p) => lineup[z].includes(p)).length;
+    const target = [...zones].sort((a, b) => count(b) - count(a))[0];
+    for (const pid of ids) {
+      const from = zoneOf(pid);
+      if (from && from !== target && !pinned.has(pid)) moveInto(pid, from, target, new Set(ids));
+    }
+  }
+  for (const r of musts.filter((x) => x.kind === "keep-apart")) {
+    const ids = r.params.playerIds ?? [];
+    for (const z of zones) {
+      const here = ids.filter((p) => lineup[z].includes(p));
+      for (const pid of here.slice(1)) {
+        if (pinned.has(pid)) continue;
+        const free = zones.find((z2) => z2 !== z && !ids.some((p) => lineup[z2].includes(p)) && !never(pid, z2));
+        if (free) moveInto(pid, z, free, new Set(ids));
+      }
+    }
+  }
+  for (const r of musts.filter((x) => x.kind === "stays-home")) {
+    for (const pid of r.params.playerIds ?? []) {
+      const home = input.roles[pid]?.home;
+      const from = zoneOf(pid);
+      if (!home || !from || LINE_OF_ZONE[from] === home || pinned.has(pid)) continue;
+      const to = zones.find((z) => LINE_OF_ZONE[z] === home);
+      if (to) moveInto(pid, from, to, new Set());
+    }
+  }
+  return lineup;
 }

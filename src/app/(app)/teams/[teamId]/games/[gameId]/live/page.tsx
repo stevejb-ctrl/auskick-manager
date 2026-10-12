@@ -775,13 +775,13 @@ export default async function LivePage({ params }: LivePageProps) {
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
   // How we play (UX plan 3.6): strategy, roles and season balance for
   // the AFL suggesters.
-  const { resolved: playbook, prefs: playbookPrefs } = await loadTeamPlaybook(
+  const { resolved: playbook, prefs: playbookPrefs, rules: playbookRules } = await loadTeamPlaybook(
     supabase,
     params.teamId,
     "afl",
     teamRow?.age_group ?? null,
   );
-  const aflPlaybookBase = aflPlaybookInput(playbook, playbookPrefs);
+  const aflPlaybookBase = aflPlaybookInput(playbook, playbookPrefs, playbookRules);
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);

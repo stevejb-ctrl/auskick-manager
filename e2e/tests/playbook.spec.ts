@@ -397,3 +397,47 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
   await page.getByRole("button", { name: /Remove rule: Keep/ }).click();
   await expect.poll(async () => (await rules()).some((r) => r.kind === "keep-apart")).toBe(false);
 });
+
+test("Must rules shape the game-day lineup", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const homeBack = players.slice(0, 3);
+  const apart = [players[3], players[4]];
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "free",
+    rules: [
+      { id: "r1", kind: "stays-home", params: { playerIds: homeBack.map((p) => p.id) }, strength: "must", enabled: true },
+      { id: "r2", kind: "keep-apart", params: { playerIds: apart.map((p) => p.id) }, strength: "must", enabled: true },
+    ],
+  });
+  await admin.from("player_position_prefs").insert(
+    homeBack.map((p) => ({ team_id: team.id, player_id: p.id, line: "back", kind: "home" })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  // Staying home is about where they play, not whether: on the field
+  // means the Back line (with 14 kids, two start on the bench).
+  for (const p of homeBack) {
+    for (const line of ["Centre", "Forward"]) {
+      await expect(
+        page.getByRole("group", { name: line, exact: true }).getByTestId(`player-tile-${p.id}`),
+      ).toHaveCount(0);
+    }
+  }
+  await expect(
+    page.getByRole("group", { name: "Back", exact: true }).getByTestId(new RegExp(homeBack.map((p) => p.id).join("|"))),
+  ).not.toHaveCount(0);
+  for (const line of ["Back", "Centre", "Forward"]) {
+    const group = page.getByRole("group", { name: line, exact: true });
+    const both = (await group.getByTestId(`player-tile-${apart[0].id}`).count()) + (await group.getByTestId(`player-tile-${apart[1].id}`).count());
+    expect(both).toBeLessThan(2);
+  }
+});

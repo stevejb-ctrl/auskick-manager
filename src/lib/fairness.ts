@@ -12,7 +12,9 @@
 // ============================================================
 
 import {
+  repairLineupForRules,
   rotatedZone,
+  ruleScore,
   seasonOwedByZone,
   strategyWeights,
   type AflPlaybookInput,
@@ -681,6 +683,12 @@ export function suggestStartingLineup(
     if (playbook.strategy === "keep" || playbook.strategy === "manual") return prev;
     return null;
   };
+  // How we play rules (UX plan 4.2): lines still to play this game,
+  // players kept apart / together, kids who stay home.
+  const teamRules = playbook?.rules ?? [];
+  const ruleLines = Array.from(new Set(zones.map((z) => lineOf(z))));
+  const linesPlayed = (pid: string) =>
+    new Set(zones.filter((z) => (currentGame[pid]?.[z] ?? 0) > 0).map((z) => lineOf(z)));
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
@@ -691,7 +699,10 @@ export function suggestStartingLineup(
       const roleBonus =
         role?.home === lineOf(z) ? weights.home : role?.also.includes(lineOf(z)) ? weights.also : 0;
       const rule = ruleZone(pid) === z ? RULE_ZONE_BONUS : 0;
-      return inGameBonus + sameAsLastQ + roleBonus + rule + playbook.seasonWeight * seasonOwed(pid, z);
+      const teamRule = teamRules.length
+        ? ruleScore(teamRules, pid, lineOf(z), linesPlayed(pid), ruleLines.length, placedByZone.get(z), role?.home ?? null)
+        : 0;
+      return inGameBonus + sameAsLastQ + roleBonus + rule + teamRule + playbook.seasonWeight * seasonOwed(pid, z);
     }
     // The effective per-game period length (fullPeriodMs) is passed by
     // production callers so the season-diversity nudge tracks THIS game's
@@ -779,8 +790,15 @@ export function suggestStartingLineup(
   // Keep-on players (How we play roles) are placed first, so they're
   // never the ones left over for the bench.
   const keepOn = (pid: string) => (roles[pid]?.keepOn ? 0 : 1);
+  // "Nobody sits out twice in a row": last quarter's bench goes on first.
+  const benchRule = playbook?.rules?.some((r) => r.kind === "max-bench-in-row");
+  const hadQuarter = Object.keys(previousQuarterZones).length > 0;
+  const satOut = (pid: string) => (benchRule && hadQuarter && !previousQuarterZones[pid] ? 0 : 1);
   const sortedPlayers = shuffled.sort(
-    (a, b) => keepOn(a.id) - keepOn(b.id) || inGameTotal(a.id) - inGameTotal(b.id),
+    (a, b) =>
+      keepOn(a.id) - keepOn(b.id) ||
+      satOut(a.id) - satOut(b.id) ||
+      inGameTotal(a.id) - inGameTotal(b.id),
   );
   // "Never plays" is a hard filter; a player with no allowed zone open
   // waits, and only fills a gap nobody else can.
@@ -825,6 +843,7 @@ export function suggestStartingLineup(
     }
   }
 
+  if (playbook?.rules?.length) repairLineupForRules(lineup, playbook, zones, pinnedIds);
   return lineup;
 }
 
@@ -998,6 +1017,8 @@ export function suggestSwaps(
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
   const roles = playbook?.roles ?? {};
+  // "Subs only at the breaks": no rolling-sub suggestions.
+  if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));
   if (fitBench.length === 0) return [];
 
@@ -1091,7 +1112,9 @@ export function suggestSwaps(
         .filter((z) => allowedFor(on, z) && fieldByZone[z][zoneCursor[z]])
         .sort((a, b) => zoneRank(on, b) - zoneRank(on, a));
       const role = roles[on];
-      const likeForLike = playbook.strategy === "set-positions" && role?.home;
+      const likeForLike =
+        (playbook.strategy === "set-positions" || playbook.rules?.some((r) => r.kind === "like-for-like")) &&
+        role?.home;
       // Set positions sub like-for-like (home line, then also-plays);
       // otherwise a zone they haven't played this game comes first.
       const first = likeForLike
