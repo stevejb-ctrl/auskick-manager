@@ -99,6 +99,13 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   availabilityHref?: string | null;
+  /**
+   * Junior League §6 (unbroken periods) is opt-in per team / game
+   * (enforce_unbroken_periods). When off, the suggester and the sub
+   * interval ignore the age group's minUnbrokenPeriods (UX plan H7 —
+   * the flag used to be stored but never read here).
+   */
+  enforceUnbrokenPeriods?: boolean;
   /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
   /**
@@ -139,6 +146,7 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   availabilityHref,
+  enforceUnbrokenPeriods = false,
   walkthroughOffer,
   gamePlanButton,
   seasonEvents,
@@ -203,6 +211,9 @@ export function LeagueLineupPicker({
     () => seasonVestCountsByPlayer(seasonEvents),
     [seasonEvents],
   );
+  const requiredUnbroken = enforceUnbrokenPeriods
+    ? (ageGroup.minUnbrokenPeriods ?? 0)
+    : 0;
 
   // ── Initial suggestion ──────────────────────────────────────
   const initialSuggestion = useMemo(
@@ -212,7 +223,7 @@ export function LeagueLineupPicker({
         defaultOnFieldSize,
         forwardCount: ageGroup.forwardCount,
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,8 +275,7 @@ export function LeagueLineupPicker({
   const gameMinutes
     = (ageGroup.periodSeconds * ageGroup.periodCount) / 60;
   const periodMinutes = ageGroup.periodSeconds / 60;
-  const unbrokenLockedMinutes
-    = (ageGroup.minUnbrokenPeriods ?? 0) * periodMinutes;
+  const unbrokenLockedMinutes = requiredUnbroken * periodMinutes;
   const benchCountForSuggest = Math.max(
     0,
     players.length - defaultOnFieldSize,
@@ -653,7 +663,7 @@ export function LeagueLineupPicker({
         defaultOnFieldSize: onFieldSize,
         forwardCount: ageGroup.forwardCount,
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
       });
       setForwardIds(r.lineup.forwards);
@@ -679,7 +689,7 @@ export function LeagueLineupPicker({
         defaultOnFieldSize: next,
         forwardCount: ageGroup.forwardCount,
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
       });
       setForwardIds(r.lineup.forwards);
@@ -711,7 +721,7 @@ export function LeagueLineupPicker({
       onFieldIds: fieldIds,
       players: playersForLineup,
       seasonEvents,
-      requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+      requiredUnbrokenPeriods: requiredUnbroken,
       vestRequirements: reqs,
       periodCount: ageGroup.periodCount,
     });
@@ -751,7 +761,7 @@ export function LeagueLineupPicker({
     fieldIds,
     playersForLineup,
     seasonEvents,
-    ageGroup.minUnbrokenPeriods,
+    requiredUnbroken,
     ageGroup.periodCount,
     reqs,
     vestRequiredFr,
@@ -1068,10 +1078,15 @@ export function LeagueLineupPicker({
                 className="w-32"
               />
               <p className="text-[11px] text-ink-mute">
-                Suggested: {suggestedSubMin.toFixed(1)} min (accounts for
-                {" "}
-                {ageGroup.minUnbrokenPeriods ?? 0} unbroken{" "}
-                {ageGroup.periodLabelPlural ?? "periods"} per player).
+                Suggested: {suggestedSubMin.toFixed(1)} min
+                {requiredUnbroken > 0 ? (
+                  <>
+                    {" "}(keeps {requiredUnbroken} unbroken{" "}
+                    {ageGroup.periodLabelPlural ?? "periods"} per player).
+                  </>
+                ) : (
+                  "."
+                )}
               </p>
             </div>
             <div className="space-y-1">

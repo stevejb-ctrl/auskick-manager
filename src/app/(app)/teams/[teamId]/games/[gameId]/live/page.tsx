@@ -419,6 +419,7 @@ export default async function LivePage({ params }: LivePageProps) {
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
               availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+              enforceUnbrokenPeriods={leagueEnforceUnbroken}
               walkthroughOffer={
                 <LeagueWalkthroughOffer
                   trackScoring={trackScoring}

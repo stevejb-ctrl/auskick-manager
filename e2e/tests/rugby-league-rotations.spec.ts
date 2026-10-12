@@ -304,3 +304,48 @@ test("game detail shows rugby league's on-field size, not AFL's", async ({ page 
 
   await expect(page.getByText("U10 · 11 on field")).toBeVisible({ timeout: 10_000 });
 });
+
+// Regression (UX plan H7 / 0.9): enforce_unbroken_periods was stored
+// (team + game) but the lineup picker always applied the age group's
+// §6 minimum, so turning the rule off changed nothing. The picker must
+// honour the setting.
+test("the unbroken-periods setting drives the league lineup picker", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U9",
+    sport: "rugby_league",
+    name: `RL-UNB-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("league-walkthrough-seen", "1"); } catch {}
+  });
+
+  // Rule off (the default): no unbroken-period requirement.
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /game settings/i }).click();
+  await expect(page.getByText(/^Suggested: .* min/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/unbroken quarters per player/i)).toHaveCount(0);
+
+  // Rule on at team level: the picker keeps the §6 minimum.
+  await admin.from("teams").update({ enforce_unbroken_periods: true }).eq("id", team.id);
+  await page.reload();
+  await page.getByRole("button", { name: /game settings/i }).click();
+  await expect(page.getByText(/2 unbroken quarters per player/i)).toBeVisible({
+    timeout: 10_000,
+  });
+});

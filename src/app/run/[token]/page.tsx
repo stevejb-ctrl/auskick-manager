@@ -287,6 +287,12 @@ export default async function RunPage({ params }: RunPageProps) {
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
               availabilityHref={`/run/${params.token}`}
+              enforceUnbrokenPeriods={
+                (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
+                (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+                  ?.enforce_unbroken_periods ??
+                false
+              }
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
             />
