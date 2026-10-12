@@ -123,6 +123,8 @@ export interface ProjectGamePlanInput {
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
   /** How we play for the AFL suggester (UX plan 3.6); ignored by other sports. */
   aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
    * The coach's CURRENT on-field shape (groupId -> player ids), when the
    * plan is projected mid-game from live reality (see

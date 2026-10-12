@@ -359,6 +359,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
       thisGameTotalMs,
       chipByPlayerId,
       chipModeByKey,
+      playbook: input.netballPlaybook ? { ...input.netballPlaybook, previousLineup: prevLineup } : undefined,
     });
 
     // Accumulate appearance counts + on-court ms so the next quarter

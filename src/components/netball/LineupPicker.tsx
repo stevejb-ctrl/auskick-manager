@@ -149,6 +149,8 @@ interface LineupPickerProps {
    * back-compat with callers pre-dating this prop.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
    * Team-level default for "allow mid-quarter subs" (mirrors the
    * team Settings toggle). Used as the fallback when no per-game
@@ -206,6 +208,7 @@ export function NetballLineupPicker({
   gameId,
   initialLoanedIds = [],
   chipModeByKey = {},
+  netballPlaybook,
   teamAllowMidQuarterSubs = false,
   gameAllowMidQuarterSubs = null,
   currentOnFieldSize,
@@ -359,6 +362,7 @@ export function NetballLineupPicker({
       previousTeammates: prevTeammates,
       chipByPlayerId,
       chipModeByKey,
+      playbook: netballPlaybook ? { ...netballPlaybook, previousLineup: null } : undefined,
     });
   };
 

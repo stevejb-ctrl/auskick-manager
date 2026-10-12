@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -403,6 +405,23 @@ export default async function RunPage({ params }: RunPageProps) {
       : { data: [] as GameEvent[] };
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
+    // How we play for the netball suggester, as on the coach's page.
+    const nb = await loadTeamPlaybook(admin, g.team_id, "netball", teamRow?.age_group ?? null);
+    const netballPlaybook = withNetballSnapshot(
+      netballPlaybookInput(
+        nb.resolved,
+        nb.prefs,
+        nb.rules,
+        seasonTimeByUnit(
+          "netball",
+          (seasonEventsNetball ?? []) as GameEvent[],
+          nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib",
+          { since: nb.resolved.seasonBalanceSince, periodSeconds: quarterLengthSeconds },
+        ),
+        quarterLengthSeconds * 1000,
+      ),
+      g.playbook_snapshot,
+    );
     const isPreKickoff = state.lineup === null;
     // Gate the availability section on "not enough available to
     // start yet". For demo games (and any flow where availability
@@ -479,6 +498,7 @@ export default async function RunPage({ params }: RunPageProps) {
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
+          netballPlaybook={netballPlaybook}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}

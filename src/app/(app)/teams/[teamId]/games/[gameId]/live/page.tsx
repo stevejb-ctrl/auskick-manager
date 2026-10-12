@@ -3,6 +3,8 @@ import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
@@ -592,6 +594,24 @@ export default async function LivePage({ params }: LivePageProps) {
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
 
+    // How we play for the netball suggester (UX plan Phase 5): style,
+    // roles, rules and season balance by third or bib (since a reset).
+    const nb = await loadTeamPlaybook(supabase, params.teamId, "netball", teamRow?.age_group ?? null);
+    const nbUnit = nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib";
+    const netballPlaybook = withNetballSnapshot(
+      netballPlaybookInput(
+        nb.resolved,
+        nb.prefs,
+        nb.rules,
+        seasonTimeByUnit("netball", seasonEvents as GameEvent[], nbUnit, {
+          since: nb.resolved.seasonBalanceSince,
+          periodSeconds: quarterLengthSeconds,
+        }),
+        quarterLengthSeconds * 1000,
+      ),
+      g.playbook_snapshot,
+    );
+
     // Pre-game lineup draft (netball) — saved by Save plan & exit
     // from inside NetballLineupPicker. Cleared at kickoff by
     // startNetballGame. Steve 2026-05-13 sport-parity fix —
@@ -716,6 +736,7 @@ export default async function LivePage({ params }: LivePageProps) {
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
+          netballPlaybook={netballPlaybook}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}

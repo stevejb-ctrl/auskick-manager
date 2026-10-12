@@ -156,6 +156,8 @@ interface Props {
    * team-level per-chip split/group mode.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
    * Steve 2026-05-23: short-squad on-court size. When omitted, falls
    * back to `ageGroup.defaultOnFieldSize` so existing surfaces are
@@ -190,6 +192,7 @@ export function NetballQuarterBreak({
   midQuarterSubs,
   trackScoring = true,
   chipModeByKey = {},
+  netballPlaybook,
   currentOnFieldSize,
   onStarted,
 }: Props) {
@@ -348,6 +351,7 @@ export function NetballQuarterBreak({
       chipByPlayerId,
       chipModeByKey,
       lastSubbedOnMs,
+      playbook: netballPlaybook ? { ...netballPlaybook, previousLineup } : undefined,
     });
     // Pre-apply locks: locked player goes to locked position. If the
     // locked player was already placed elsewhere by the suggester, we

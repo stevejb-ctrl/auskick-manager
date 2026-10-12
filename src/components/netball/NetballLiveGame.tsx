@@ -216,6 +216,8 @@ interface NetballLiveGameProps {
    * actually sees them influence the rotation.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
    * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
    * on each own-team goal commit. AFL has had this since song
@@ -264,6 +266,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     teamAllowMidQuarterSubs = false,
     gameAllowMidQuarterSubs = null,
     chipModeByKey = {},
+    netballPlaybook,
     songUrl = null,
     songStartSeconds = 0,
     songDurationSeconds = 15,
@@ -1682,6 +1685,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           gameId={game.id}
           initialLoanedIds={Array.from(loanedIds)}
           chipModeByKey={chipModeByKey}
+          netballPlaybook={netballPlaybook}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           // "Back to availability" breadcrumb — only meaningful for
@@ -1911,6 +1915,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
           chipModeByKey={chipModeByKey}
+          netballPlaybook={netballPlaybook}
           trackScoring={trackScoring}
           onStarted={() => {
             // Local overlay is durable now via the period_break_swap
@@ -2233,6 +2238,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onFieldSize: game.on_field_size,
           seed: 7,
           chipModeByKey,
+          netballPlaybook,
           fromPeriodIndex: Math.max(0, currentQuarter - 1),
           currentGroups,
           currentBench,
@@ -2248,6 +2254,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             opponentName={game.opponent}
             seasonEvents={seasonEvents}
             chipModeByKey={chipModeByKey}
+            netballPlaybook={netballPlaybook}
             initialPlan={initialPlan}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}

@@ -70,6 +70,8 @@ export interface GamePlanModalProps {
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
   /** How we play for the AFL suggester (UX plan 3.6). */
   aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
   /**
@@ -136,6 +138,7 @@ export function GamePlanModal({
   seasonEvents,
   chipModeByKey = {},
   aflPlaybook,
+  netballPlaybook,
   initialSeed = 7,
   initialPlan,
   initialPeriodIndex = 0,
@@ -158,8 +161,9 @@ export function GamePlanModal({
         seed,
         chipModeByKey,
         aflPlaybook,
+        netballPlaybook,
       }),
-    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook],
+    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook],
   );
 
   const [seed, setSeed] = useState(initialSeed);

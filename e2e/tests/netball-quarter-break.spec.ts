@@ -559,3 +559,32 @@ test("the netball break draws the court with where-next captions", async ({ page
   // At least one court token carries a where-next caption.
   await expect(page.getByText(/^(stays|bench → \w+|\w+ → \w+)$/i).first()).toBeVisible();
 });
+
+// How we play (UX plan 5.2): a Position cycle team's break steps
+// everyone one bib along — GS → GA → … → GK → bench → GS.
+test("Position cycle: the break steps everyone one bib along", async ({ page }) => {
+  const { team, game, admin, players } = await setupQ1AutoEnded({});
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "position-cycle" });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await expect(page.getByRole("heading", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  // Q1: players 0–6 at GS…GK, 7 and 8 on the bench. One step along:
+  // 8 comes on at GS, everyone else moves up, 6 (was GK) and 7 sit.
+  const ids = players.map((p) => p.id);
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("metadata")
+        .eq("game_id", game.id)
+        .eq("type", "period_break_swap");
+      const lineup = (data?.[0]?.metadata as { lineup?: { positions: Record<string, string[]>; bench: string[] } })?.lineup;
+      return lineup ? NETBALL_LINEUP_KEYS.map((k) => lineup.positions[k]?.[0]) : null;
+    }, { timeout: 10_000 })
+    .toEqual([ids[8], ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]]);
+});
