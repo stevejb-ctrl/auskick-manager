@@ -18,6 +18,16 @@
 //   * quarter_start       — optional anchor; implicit if not present
 //   * quarter_end         — closes the period's lineup count
 
+import {
+  cycleLineup,
+  netballAllowed,
+  netballRoleTerm,
+  netballSeasonTerm,
+  netballWeights,
+  type NetballPlaybookInput,
+} from "@/lib/sports/netball/engine";
+import { ruleScore } from "@/lib/playbook/ruleScore";
+import { primaryThirdFor } from "@/lib/sports/netball";
 import type { GameEvent } from "@/lib/types";
 
 /** Generic map lineup shape used by netball game_events. */
@@ -429,6 +439,12 @@ export interface NetballSuggestInput {
    * netball — the tiebreak is windowless (see `lastSubbedOnMs`).
    */
   minStintMs?: number;
+  /**
+   * How we play (UX plan Phase 5): rotation style, season balance by
+   * third or bib, player roles and rules. Omitted = today's behaviour
+   * (By thirds with a single-digit season-rarity tiebreak).
+   */
+  playbook?: NetballPlaybookInput;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per
@@ -514,9 +530,23 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     chipByPlayerId,
     chipModeByKey,
     lastSubbedOnMs,
+    playbook,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
+
+  // Position cycle (5.2): after Q1 everyone steps one bib along.
+  if (
+    playbook?.strategy === "position-cycle" &&
+    playbook.previousLineup &&
+    Object.values(playbook.previousLineup.positions).some((ids) => ids.length > 0)
+  ) {
+    return cycleLineup(playbook.previousLineup, positions, playerIds, playbook);
+  }
+  const w = playbook ? netballWeights(playbook.strategy) : null;
+  const allowed = (pid: string, posId: string) => isAllowed(pid, posId) && netballAllowed(playbook, pid, posId);
+  const teamRules = playbook?.rules ?? [];
+
 
   // Track who's already been placed in each third as we walk the
   // candidate list. Drives tier 4 — when evaluating (X, P) we look
@@ -556,16 +586,18 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     if (candidateThird) {
       const playedThirds = thirdsPlayedThisGame[pid];
       if (!playedThirds || !playedThirds.has(candidateThird)) {
-        unplayedThirdBonus = 100000;
+        unplayedThirdBonus = w ? w.unplayedThird : 100000;
       }
     }
+    // Position by position (5.3): a bib not worn yet this game.
+    const unplayedBibBonus = w && w.unplayedBib && playedThisGameAtPos === 0 ? w.unplayedBib : 0;
 
     // Tier 2: heavy penalty for repeating the EXACT position this
     // game. With 7 positions and 4 quarters, no player ever NEEDS to
     // repeat a position — when they do it's the algorithm's last
     // resort. Stronger than the same-third-as-last-quarter penalty
     // (which is a softer "keep them moving" preference).
-    const samePositionPenalty = playedThisGameAtPos > 0 ? -50000 : 0;
+    const samePositionPenalty = playedThisGameAtPos > 0 ? (w ? w.samePosition : -50000) : 0;
 
     // Tier 3: soft preference — avoid placing them in the same third
     // they were in last quarter. Beats season rarity but bows to the
@@ -573,7 +605,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     let sameThirdAsLastPenalty = 0;
     if (candidateThird && lastQuarterThird) {
       const last = lastQuarterThird[pid];
-      if (last && last === candidateThird) sameThirdAsLastPenalty = -10000;
+      if (last && last === candidateThird) sameThirdAsLastPenalty = w ? w.sameThirdAsLast : -10000;
     }
 
     // Tier 4: split last-quarter teammates apart. For each player
@@ -605,14 +637,31 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
         const placed = placedInThird[candidateThird];
         if (placed) {
           placed.forEach((other) => {
-            if (myPrevMates.has(other)) teammateRepeatPenalty -= 150000;
+            if (myPrevMates.has(other)) teammateRepeatPenalty += w ? w.teammate : -150000;
           });
         }
       }
     }
 
-    // Tier 5: prefer positions they've played least across the season.
-    const seasonRarity = -seasonCount;
+    // Tier 5: prefer positions they've played least across the season —
+    // with How we play, W × periods owed by third or bib (§7.5).
+    const seasonRarity = playbook ? netballSeasonTerm(playbook, pid, posId, positions) : -seasonCount;
+    // Roles (home / also) and the team's rules.
+    const roleTerm = netballRoleTerm(playbook, pid, posId);
+    const ruleTerm =
+      teamRules.length && candidateThird
+        ? ruleScore(
+            teamRules,
+            pid,
+            candidateThird,
+            thirdsPlayedThisGame[pid] ?? new Set<string>(),
+            3,
+            placedInThird[candidateThird],
+            playbook?.roleUnit === "position"
+              ? primaryThirdFor(playbook.roles[pid]?.home ?? "")
+              : (playbook?.roles[pid]?.home ?? null),
+          )
+        : 0;
 
     // Tier 6: cohort-chip placement preference. AFL parity, five
     // modes (Steve 2026-05-20):
@@ -660,10 +709,13 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
 
     return (
       unplayedThirdBonus +
+      unplayedBibBonus +
       samePositionPenalty +
       sameThirdAsLastPenalty +
       teammateRepeatPenalty +
       seasonRarity +
+      roleTerm +
+      ruleTerm +
       chipTerm
     );
   };
@@ -730,7 +782,15 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     return la > lb ? -1 : 1;
   };
   const shuffled = seededShuffle(playerIds, seed + 41);
+  // How we play: keep-on kids first, then (with the rule) last
+  // quarter's bench, then least time this game.
+  const keepOn = (pid: string) => (playbook?.roles[pid]?.keepOn ? 0 : 1);
+  const benchRule = teamRules.some((r) => r.kind === "max-bench-in-row");
+  const hadQuarter = !!lastQuarterThird && Object.keys(lastQuarterThird).length > 0;
+  const satOut = (pid: string) => (benchRule && hadQuarter && !lastQuarterThird![pid] ? 0 : 1);
   shuffled.sort((a, b) => {
+    const first = keepOn(a) - keepOn(b) || satOut(a) - satOut(b);
+    if (first !== 0) return first;
     const byGameTime = sortKey(a) - sortKey(b);
     if (byGameTime !== 0) return byGameTime;
     return recencyTiebreak(a, b);
@@ -738,6 +798,38 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);
+
+  // Set positions (5.5): who plays is still least-time-first; then kids
+  // go to their home bib, then a backup, then whatever's left.
+  if (playbook?.strategy === "set-positions" && playbook.roleUnit === "position") {
+    const playing = shuffled.slice(0, positions.length);
+    lineup.bench.push(...shuffled.slice(positions.length));
+    const seat = (pid: string, posId: string) => {
+      lineup.positions[posId].push(pid);
+      remaining.delete(posId);
+      assigned.add(pid);
+    };
+    for (const pid of playing) {
+      const home = playbook.roles[pid]?.home;
+      if (home && remaining.has(home) && allowed(pid, home)) seat(pid, home);
+    }
+    for (const pid of playing) {
+      if (assigned.has(pid)) continue;
+      const backup = (playbook.roles[pid]?.also ?? []).find((b) => remaining.has(b) && allowed(pid, b));
+      if (backup) seat(pid, backup);
+    }
+    for (const pid of playing) {
+      if (assigned.has(pid)) continue;
+      const options = Array.from(remaining).filter((b) => allowed(pid, b));
+      if (options.length === 0) {
+        lineup.bench.push(pid);
+        continue;
+      }
+      options.sort((a, b) => owed(pid, b) - owed(pid, a));
+      seat(pid, options[0]);
+    }
+    return lineup;
+  }
 
   // Per-player count of how many times this game they've played
   // each third. Used as the tie-break when two positions score
@@ -772,7 +864,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     let bestThirdCount = Infinity;
     const remainingList = Array.from(remaining);
     for (const posId of remainingList) {
-      if (!isAllowed(pid, posId)) continue;
+      if (!allowed(pid, posId)) continue;
       const s = owed(pid, posId);
       const tc = thirdCountOf(pid, posId);
       // Higher score wins; tie → lower third-count wins (fresher
