@@ -211,10 +211,19 @@ export function NetballLineupPicker({
   // Effective short-squad size for this picker session. When the
   // parent passes a value (game already had on_field_size set, even
   // if it's the default), we honour it; otherwise fall back to the
-  // age group's default so existing surfaces are unchanged.
-  const [onFieldSize, setOnFieldSize] = useState<number>(
-    () => currentOnFieldSize ?? ageGroup.defaultOnFieldSize,
-  );
+  // age group's default. Either way, never ask for more kids than
+  // turned up — a Set team with four kids starts four-a-side instead
+  // of showing an empty bib (AFL's picker caps the same way).
+  const [onFieldSize, setOnFieldSize] = useState<number>(() => {
+    const target = Math.min(
+      currentOnFieldSize ?? ageGroup.defaultOnFieldSize,
+      availableIds.length,
+    );
+    return Math.max(
+      ageGroup.minOnFieldSize,
+      Math.min(ageGroup.maxOnFieldSize, target),
+    );
+  });
   const sizeOptions = useMemo(() => {
     const opts: number[] = [];
     for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {

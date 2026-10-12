@@ -938,3 +938,44 @@ test("ABSTRACT-03: game.quarter_length_seconds=360 OVERRIDES team.quarter_length
     page.getByRole("button", { name: /ready for q2|suggested/i }).first(),
   ).toBeVisible({ timeout: 10_000 });
 });
+
+// Regression (UX plan M10 / 0.9): games.on_field_size was checked
+// 5–18 (migration 0015), but NetSetGO Set and rugby league U6/U7 allow
+// 4 on the field. A Set team with only four kids could not kick off.
+test("a NetSetGO Set team can kick off four-a-side", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "set",
+    sport: "netball",
+    name: `NB-SET4-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 4, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const })),
+  );
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^ready for q1$/i }).click();
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("games")
+          .select("on_field_size, status")
+          .eq("id", game.id)
+          .single();
+        return data;
+      },
+      { timeout: 10_000, intervals: [200, 500, 1000, 1000] },
+    )
+    .toMatchObject({ on_field_size: 4, status: "in_progress" });
+});
