@@ -6,13 +6,18 @@ import { PolicyCard } from "@/components/playbook/PolicyCard";
 import { StrategyPicker } from "@/components/playbook/StrategyPicker";
 import { SeasonBalanceControl } from "@/components/playbook/SeasonBalanceControl";
 import { PositionsEditor } from "@/components/playbook/PositionsEditor";
+import { RulesEditor } from "@/components/playbook/RulesEditor";
 import { toDraft } from "@/lib/playbook/positions";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import {
+  addRulePack,
   resetSeasonBalance,
   saveHowWePlay,
+  saveRules,
   type HowWePlayPatch,
 } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
+import { lockedRules, ruleCatalogue, ruleWords, sanitizeRules } from "@/lib/playbook/rules";
+import { rulePacksFor } from "@/lib/playbook/rulePacks";
 import { getSportPlaybook } from "@/lib/playbook";
 import { resolveTeamPlaybook } from "@/lib/playbook/team";
 import type {
@@ -32,7 +37,7 @@ const SPORT_WORD: Record<Sport, string> = {
 export type HowWePlayRow = Pick<
   TeamPlaybookRow,
   "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
->;
+> & { rules?: unknown };
 
 export type HowWePlayPosition = Pick<
   TeamPositionRow,
@@ -51,6 +56,8 @@ interface HowWePlayCardProps {
   periodWord: string;
   /** The team's own named positions (AFL open ages). */
   positions?: HowWePlayPosition[];
+  /** The squad, for rules about particular players. */
+  players?: { id: string; name: string }[];
   row: HowWePlayRow | null;
   isAdmin: boolean;
   /** Wizard step 2: no season to reset yet. */
@@ -71,6 +78,7 @@ export function HowWePlayCard({
   maxOnFieldSize,
   periodWord,
   positions = [],
+  players = [],
   row: initialRow,
   isAdmin,
   inWizard = false,
@@ -89,6 +97,8 @@ export function HowWePlayCard({
   );
   const agePolicy = getSportPlaybook(sport).agePolicy(ageGroup);
   const disabled = !isAdmin;
+  const words = ruleWords(sport, periodWord, resolved.strategy.usesPositions);
+  const [initialRules] = useState(() => sanitizeRules(initialRow?.rules ?? [], null));
 
   function save(next: HowWePlayRow, patch: HowWePlayPatch) {
     if (!isAdmin) return;
@@ -179,6 +189,31 @@ export function HowWePlayCard({
           onReset={reset}
         />
       )}
+
+      <RulesEditor
+        locked={lockedRules(resolved, words, sport === "afl" ? "AFL" : sport === "netball" ? "Netball" : "NRL")}
+        catalogue={ruleCatalogue(resolved)}
+        words={words}
+        players={players}
+        initial={initialRules}
+        packs={rulePacksFor(sport, ageGroup)}
+        disabled={disabled}
+        onSave={async (rules) => {
+          const res = await saveRules(teamId, rules);
+          if (res.success) setSavedAt(Date.now());
+          return res;
+        }}
+        onAddPack={async (packId) => {
+          const res = await addRulePack(teamId, packId);
+          if (res.success && res.data) {
+            const overrides = res.data.policyOverrides;
+            setRow((r) => ({ ...r, policy_overrides: overrides }));
+            setSavedAt(Date.now());
+            router.refresh();
+          }
+          return res.success ? { success: true, data: res.data ? { rules: res.data.rules } : undefined } : res;
+        }}
+      />
 
       {error && <InlineAlert>{error}</InlineAlert>}
       <p className="min-h-[1rem] px-1 text-xs text-ink-mute" aria-live="polite">

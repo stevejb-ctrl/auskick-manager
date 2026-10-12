@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgeGroupConfig } from "@/lib/sports";
 import { resolveTeamPlaybook, type ResolvedPlaybook } from "@/lib/playbook/team";
+import { activeRules, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
 import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
 
@@ -13,6 +14,8 @@ export type PrefRow = Pick<PlayerPositionPrefRow, "player_id" | "position_key" |
 export interface LoadedPlaybook {
   resolved: ResolvedPlaybook;
   prefs: PrefRow[];
+  /** The team's own rules that are on (How we play › Rules). */
+  rules: RuleInstance[];
 }
 
 export async function loadTeamPlaybook(
@@ -26,7 +29,7 @@ export async function loadTeamPlaybook(
   const [{ data: row }, { data: positions }, { data: prefs }] = await Promise.all([
     supabase
       .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since")
+      .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
       .eq("team_id", teamId)
       .maybeSingle(),
     supabase
@@ -52,5 +55,9 @@ export async function loadTeamPlaybook(
       "id" | "label" | "name" | "line" | "sort" | "archived_at"
     >[],
   });
-  return { resolved, prefs: (prefs ?? []) as PrefRow[] };
+  return {
+    resolved,
+    prefs: (prefs ?? []) as PrefRow[],
+    rules: activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)),
+  };
 }

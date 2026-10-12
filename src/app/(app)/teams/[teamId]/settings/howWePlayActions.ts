@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 import { normaliseRole, prefsFromRole, roleModelFor, type PlayerRole } from "@/lib/playbook/roles";
+import { sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
+import { applyPackRules, rulePacksFor } from "@/lib/playbook/rulePacks";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { PolicyOverrides, SeasonBalanceSetting } from "@/lib/playbook/types";
 import type { ActionResult, Sport } from "@/lib/types";
@@ -289,4 +291,62 @@ export async function savePlayerRole(
 
   revalidatePath(`/teams/${teamId}`, "layout");
   return { success: true };
+}
+
+/** How we play › Rules (UX plan 4.1): save the team's rules, cleaned. */
+export async function saveRules(teamId: string, rules: RuleInstance[]): Promise<ActionResult> {
+  const { supabase, user, error } = await authedCoach(teamId);
+  if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
+  const { data: squad } = await supabase.from("players").select("id").eq("team_id", teamId);
+  const clean = sanitizeRules(rules, (squad ?? []).map((p) => p.id as string));
+  const { error: upsertError } = await supabase.from("team_playbooks").upsert(
+    { team_id: teamId, rules: clean, updated_by: user.id, updated_at: new Date().toISOString() },
+    { onConflict: "team_id" },
+  );
+  if (upsertError) return { success: false, error: upsertError.message };
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
+}
+
+/**
+ * Add a local rule pack (UX plan 4.6): its rules join the team's
+ * (replacing ones of the same kind) and any policy it sets is applied
+ * within the age group's band.
+ */
+export async function addRulePack(
+  teamId: string,
+  packId: string,
+): Promise<ActionResult<{ rules: RuleInstance[]; policyOverrides: PolicyOverrides }>> {
+  const { supabase, user, error } = await authedCoach(teamId);
+  if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
+  const [{ data: team }, { data: row }, { data: squad }] = await Promise.all([
+    supabase.from("teams").select("sport, age_group").eq("id", teamId).single(),
+    supabase.from("team_playbooks").select("rules, policy_overrides").eq("team_id", teamId).maybeSingle(),
+    supabase.from("players").select("id").eq("team_id", teamId),
+  ]);
+  if (!team) return { success: false, error: "Team not found." };
+  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const ageGroup = team.age_group as string;
+  const pack = rulePacksFor(sport, ageGroup).find((p) => p.id === packId);
+  if (!pack) return { success: false, error: "That rule pack isn't available for this team." };
+
+  const squadIds = (squad ?? []).map((p) => p.id as string);
+  const rules = sanitizeRules(applyPackRules(sanitizeRules(row?.rules ?? [], squadIds), pack), squadIds);
+  const policyOverrides = sanitizeOverrides(sport, ageGroup, {
+    ...((row?.policy_overrides ?? {}) as PolicyOverrides),
+    ...(pack.policy ?? {}),
+  });
+  const { error: upsertError } = await supabase.from("team_playbooks").upsert(
+    {
+      team_id: teamId,
+      rules,
+      policy_overrides: policyOverrides,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "team_id" },
+  );
+  if (upsertError) return { success: false, error: upsertError.message };
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true, data: { rules, policyOverrides } };
 }

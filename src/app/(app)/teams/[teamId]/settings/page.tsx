@@ -123,10 +123,10 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
-  const [{ data: playbookRow }, { data: positionRows }] = await Promise.all([
+  const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
     supabase
       .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since")
+      .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
       .eq("team_id", params.teamId)
       .maybeSingle(),
     supabase
@@ -135,6 +135,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       .eq("team_id", params.teamId)
       .is("archived_at", null)
       .order("sort"),
+    supabase
+      .from("players")
+      .select("id, full_name")
+      .eq("team_id", params.teamId)
+      .eq("is_active", true)
+      .order("full_name"),
   ]);
   const ageOptions = getSportConfig(sport).ageGroups.map((a) => ({ id: a.id, label: a.label, notes: a.notes }));
 
@@ -163,6 +169,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           periodWord={ageGroupCfg.periodLabel === "half" ? "half" : "quarter"}
           row={(playbookRow ?? null) as HowWePlayRow | null}
           positions={(positionRows ?? []) as HowWePlayPosition[]}
+          players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
         />
         {/* Rugby league §6 Junior Laws: each player plays two full

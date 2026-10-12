@@ -20,7 +20,7 @@ async function superAdminId(admin: SupabaseClient): Promise<string> {
 async function playbookRow(admin: SupabaseClient, teamId: string) {
   const { data } = await admin
     .from("team_playbooks")
-    .select("strategy, policy_overrides, season_balance, season_balance_since")
+    .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
     .eq("team_id", teamId)
     .maybeSingle();
   return data;
@@ -345,4 +345,55 @@ test("kickoff freezes How we play onto the game", async ({ page }) => {
   // A change on the Team tab afterwards doesn't rewrite the game.
   await admin.from("team_playbooks").update({ strategy: "free" }).eq("team_id", team.id);
   expect((await snapshot())?.strategy).toBe("preferred-lines");
+});
+
+test("a coach adds rules and a local rule pack", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const [mia, jack] = await makePlayers(admin, { teamId: team.id, ownerId, count: 4 });
+  const rules = async () =>
+    ((await playbookRow(admin, team.id)) as { rules?: { kind: string; params: Record<string, unknown>; strength: string; source?: string }[] } | null)?.rules ?? [];
+
+  await page.goto(`/teams/${team.id}/settings`);
+  const list = page.getByRole("list", { name: "Rules", exact: true });
+  // The game-time floor is always there, locked, with its source.
+  await expect(list).toContainText("Everyone plays at least 50% of the game");
+  await expect(list).toContainText("AFL junior rules");
+
+  // Add "nobody sits out twice in a row", make it Prefer.
+  await page.getByRole("button", { name: "+ Add a rule" }).click();
+  await page.getByRole("listitem").filter({ hasText: "Nobody sits out twice in a row" }).click();
+  const bench = page.getByTestId("rule-max-bench-in-row");
+  await expect(bench).toContainText("Nobody sits on the bench 2 stints in a row");
+  await bench.getByRole("radio", { name: "Prefer" }).click();
+  await expect
+    .poll(async () => (await rules()).map((r) => [r.kind, r.strength]))
+    .toEqual([["max-bench-in-row", "prefer"]]);
+
+  // Keep two players apart.
+  await page.getByRole("button", { name: "+ Add a rule" }).click();
+  await page.getByRole("listitem").filter({ hasText: "Keep players apart" }).click();
+  const picker = page.getByRole("group", { name: "Players" });
+  await picker.getByRole("checkbox", { name: mia.full_name }).click();
+  await picker.getByRole("checkbox", { name: jack.full_name }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByTestId("rule-keep-apart")).toContainText(`Keep ${mia.full_name} and ${jack.full_name} apart`);
+  await expect
+    .poll(async () => (await rules()).find((r) => r.kind === "keep-apart")?.params.playerIds)
+    .toEqual([mia.id, jack.id]);
+
+  // A local pack: its rules join, and its 60% floor applies.
+  await page.getByRole("button", { name: "+ Add a rule" }).click();
+  await page.getByRole("button", { name: /Club development/ }).click();
+  await expect(page.getByTestId("rule-every-line-per-game")).toContainText("Local rules (added by you)");
+  await expect(page.getByText("Everyone plays at least 60% of the game").first()).toBeVisible();
+  await expect
+    .poll(async () => (await rules()).map((r) => r.kind).sort())
+    .toEqual(["every-line-per-game", "keep-apart", "max-bench-in-row"]);
+  expect((await playbookRow(admin, team.id))?.policy_overrides).toEqual({ minGameTimePct: 60 });
+
+  // Remove a rule.
+  await page.getByRole("button", { name: /Remove rule: Keep/ }).click();
+  await expect.poll(async () => (await rules()).some((r) => r.kind === "keep-apart")).toBe(false);
 });

@@ -170,7 +170,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     const [{ data: playbookRow }, { data: positionRows }] = await Promise.all([
       adminClient
         .from("team_playbooks")
-        .select("strategy, policy_overrides, season_balance, season_balance_since")
+        .select("strategy, policy_overrides, season_balance, season_balance_since, rules")
         .eq("team_id", params.teamId)
         .maybeSingle(),
       adminClient
