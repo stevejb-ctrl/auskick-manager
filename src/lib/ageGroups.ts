@@ -116,7 +116,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 3 zones (5-5-5 split by default).",
+    notes: "15-a-side; lines and positions are up to you.",
   },
   U14: {
     id: "U14",
@@ -129,7 +129,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 3 zones (5-5-5 split by default).",
+    notes: "15-a-side; lines and positions are up to you.",
   },
   U15: {
     id: "U15",
@@ -142,7 +142,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "15-a-side, 3 zones (5-5-5 split by default).",
+    notes: "15-a-side; lines and positions are up to you.",
   },
   // ─── Legacy unsplit U16 / U17 ────────────────────────────
   // Steve 2026-05-20: kept in AGE_GROUPS so existing teams whose
@@ -164,7 +164,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default). Legacy — created before the U16 Boys / U16 Girls split.",
+    notes: "18-a-side; lines and positions are up to you. Legacy — created before the U16 Boys / U16 Girls split.",
   },
   U17: {
     id: "U17",
@@ -177,7 +177,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default). Legacy — created before the U17 Boys / U17 Girls split.",
+    notes: "18-a-side; lines and positions are up to you. Legacy — created before the U17 Boys / U17 Girls split.",
   },
   // ─── Gender-split U16 / U17 / U18 ────────────────────────
   // AFL Junior Match Policy splits at U16+: Boys play 18-a-side,
@@ -194,7 +194,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+    notes: "18-a-side; lines and positions are up to you.",
   },
   U16_girls: {
     id: "U16_girls",
@@ -207,7 +207,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "16-a-side, 3 zones (5-6-5 split by default).",
+    notes: "16-a-side; lines and positions are up to you.",
   },
   U17_boys: {
     id: "U17_boys",
@@ -220,7 +220,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+    notes: "18-a-side; lines and positions are up to you.",
   },
   U17_girls: {
     id: "U17_girls",
@@ -233,7 +233,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "16-a-side, 3 zones (5-6-5 split by default).",
+    notes: "16-a-side; lines and positions are up to you.",
   },
   U18_boys: {
     id: "U18_boys",
@@ -246,7 +246,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "18-a-side, 3 zones (6-6-6 split by default).",
+    notes: "18-a-side; lines and positions are up to you.",
   },
   U18_girls: {
     id: "U18_girls",
@@ -259,7 +259,7 @@ export const AGE_GROUPS: Record<AgeGroup, AgeGroupConfig> = {
     quarterSeconds: 20 * 60,
     subIntervalSeconds: 4 * 60,
     tracksScoreDefault: true,
-    notes: "16-a-side, 3 zones (5-6-5 split by default).",
+    notes: "16-a-side; lines and positions are up to you.",
   },
 };
 
