@@ -8,7 +8,7 @@
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
 import type { PlayerPositionPrefRow } from "@/lib/playbook/types";
 import type { RuleInstance } from "@/lib/playbook/rules";
-import { rolesFromPrefs } from "@/lib/playbook/roles";
+import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import type { GameEvent } from "@/lib/types";
@@ -34,6 +34,9 @@ export interface LeaguePlaybookInput {
   rules?: RuleInstance[];
   vestStrategy: VestStrategy;
   minGameTimePct?: number;
+  /** Named positions (5.7): the catalogue in force and each kid's home / also. */
+  positions?: { key: string; label: string; line: LeagueLine }[];
+  positionRoles?: Record<string, { home: string | null; also: string[]; never: string[] }>;
 }
 
 /** Preferred line aims for this share of a kid's time. */
@@ -50,15 +53,36 @@ export function leaguePlaybookInput(
   vestStrategy: VestStrategy = "auto",
 ): LeaguePlaybookInput {
   const roles: Record<string, LeagueRole> = {};
-  for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "line"))) {
-    roles[pid] = {
-      home: r.home === "forwards" || r.home === "backs" ? r.home : null,
-      also: r.also,
-      never: r.never,
-      keepOn: r.keepOn,
-    };
+  const model = roleModelFor(resolved);
+  let positions: LeaguePlaybookInput["positions"];
+  let positionRoles: LeaguePlaybookInput["positionRoles"];
+  if (model?.unit === "position") {
+    // Named positions: a kid's home position decides their line.
+    positions = resolved.positions.map((p) => ({ key: p.key, label: p.label, line: p.line as LeagueLine }));
+    const lineOf = new Map(positions.map((p) => [p.key, p.line]));
+    positionRoles = {};
+    for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "position"))) {
+      positionRoles[pid] = { home: r.home, also: r.also, never: r.never };
+      const home = r.home ? (lineOf.get(r.home) ?? null) : null;
+      const never = (["forwards", "backs"] as LeagueLine[]).filter((line) => {
+        const keys = positions!.filter((p) => p.line === line).map((p) => p.key);
+        return keys.length > 0 && keys.every((k) => r.never.includes(k));
+      });
+      roles[pid] = { home, also: [], never, keepOn: r.keepOn };
+    }
+  } else {
+    for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "line"))) {
+      roles[pid] = {
+        home: r.home === "forwards" || r.home === "backs" ? r.home : null,
+        also: r.also,
+        never: r.never,
+        keepOn: r.keepOn,
+      };
+    }
   }
   return {
+    positions,
+    positionRoles,
     strategy: resolved.strategy.id,
     seasonWeight: seasonBalanceWeight("rugby_league", resolved.seasonBalance === "off" ? null : resolved.seasonBalance),
     season,
@@ -75,7 +99,11 @@ export function leagueLineScores(input: LeaguePlaybookInput, pid: string): Recor
   const role = input.roles[pid];
   const lines: LeagueLine[] = ["forwards", "backs"];
   const allowed = lines.filter((l) => !role?.never.includes(l));
-  const homeOn = input.strategy === "preferred-line" && role?.home && allowed.includes(role.home);
+  // Named positions lean to the home position's line like Preferred line.
+  const homeOn =
+    (input.strategy === "preferred-line" || input.strategy === "named-positions") &&
+    role?.home &&
+    allowed.includes(role.home);
   const owed =
     input.seasonWeight > 0 && input.season && allowed.length > 1
       ? periodsOwed({
@@ -89,7 +117,8 @@ export function leagueLineScores(input: LeaguePlaybookInput, pid: string): Recor
       : {};
   const score = (l: LeagueLine) => {
     if (!allowed.includes(l)) return -Infinity;
-    return (homeOn && role!.home === l ? HOME_WEIGHT : 0) + input.seasonWeight * (owed[l] ?? 0);
+    const homeWeight = input.strategy === "named-positions" ? 3000 : HOME_WEIGHT;
+    return (homeOn && role!.home === l ? homeWeight : 0) + input.seasonWeight * (owed[l] ?? 0);
   };
   return { forwards: score("forwards"), backs: score("backs") };
 }
@@ -150,4 +179,48 @@ export function nextInOrder(
   if (!last) return order[0];
   const lastIdx = squadOrder.indexOf(last);
   return order.find((id) => squadOrder.indexOf(id) > lastIdx) ?? order[0];
+}
+
+/**
+ * Named positions (UX plan 5.7, Mod League): who wears which catalogue
+ * position within each line — home first, then also-plays, then the
+ * line's positions in formation order. playerId → label for the tiles.
+ */
+export function assignLeaguePositionLabels(
+  lineup: { forwards: string[]; backs: string[] },
+  input: LeaguePlaybookInput | null | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!input?.positions || input.positions.length === 0) return out;
+  const roles = input.positionRoles ?? {};
+  for (const line of ["forwards", "backs"] as const) {
+    const players = lineup[line];
+    const free = input.positions.filter((p) => p.line === line);
+    const taken = new Set<string>();
+    const place = (pid: string, key: string) => {
+      const pos = free.find((p) => p.key === key && !taken.has(p.key));
+      if (!pos || out[pid]) return false;
+      out[pid] = pos.label;
+      taken.add(pos.key);
+      return true;
+    };
+    for (const pid of players) {
+      const home = roles[pid]?.home;
+      if (home) place(pid, home);
+    }
+    for (const pid of players) {
+      if (out[pid]) continue;
+      for (const k of roles[pid]?.also ?? []) if (place(pid, k)) break;
+    }
+    for (const pid of players) {
+      if (out[pid]) continue;
+      const never = roles[pid]?.never ?? [];
+      const pos = free.find((p) => !taken.has(p.key) && !never.includes(p.key)) ?? free.find((p) => !taken.has(p.key));
+      if (pos) {
+        out[pid] = pos.label;
+        taken.add(pos.key);
+      }
+    }
+  }
+  return out;
 }

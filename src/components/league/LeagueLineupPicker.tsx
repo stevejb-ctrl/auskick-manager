@@ -67,6 +67,7 @@ import type {
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
+import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -1208,6 +1209,10 @@ export function LeagueLineupPicker({
             onFieldSize={onFieldSize}
             vestRequirements={reqs}
             vestByPlayer={vestByPlayer}
+            positionLabels={assignLeaguePositionLabels(
+              { forwards: forwardIds, backs: backIds },
+              leaguePlaybook,
+            )}
             selectedPlayerId={selectedPlayerId}
             chipModes={chipModes}
             onPlayerClick={handleTileTap}

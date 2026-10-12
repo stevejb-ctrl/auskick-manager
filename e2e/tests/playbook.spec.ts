@@ -634,3 +634,31 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   const fr = (vests ?? []).find((v) => (v.metadata as { vest?: string; period?: number }).vest === "fr" && (v.metadata as { period?: number }).period === 1);
   expect(fr?.player_id).toBe(firstByJersey.id);
 });
+
+test("league named positions: a home position shows on the tile", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions" });
+  const hooker = players[3];
+  await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: hooker.id, position_key: "hk", kind: "home" });
+
+  // The squad's role sheet offers the catalogue positions.
+  await page.goto(`/teams/${team.id}/squad`);
+  await expect(page.getByTestId(`player-role-${hooker.id}`)).toHaveText("Home HK", { timeout: 15_000 });
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const tile = page.getByTestId(`league-player-tile-${hooker.id}`).first();
+  await expect(tile.getByLabel("Position HK")).toBeVisible({ timeout: 15_000 });
+});

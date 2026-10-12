@@ -188,6 +188,8 @@ interface LeagueFieldProps {
    *  entirely (default). */
   zoneMsByPlayer?: Record<string, import("@/lib/sports/rugby_league/fairness").LeagueZoneMs>;
   vestByPlayer?: Record<string, VestType>;
+  /** Named positions: playerId → position label on the tile. */
+  positionLabels?: Record<string, string>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
   injuredIds?: Set<string>;
@@ -254,6 +256,7 @@ export function LeagueField({
   totalMsByPlayer,
   zoneMsByPlayer,
   vestByPlayer,
+  positionLabels,
   conversionByPlayer,
   kickoffTakerIds,
   injuredIds,
@@ -418,6 +421,7 @@ export function LeagueField({
                       totalMs={totalMsByPlayer?.[player.id]}
                       zoneMs={zoneMsByPlayer?.[player.id]}
                       vest={vestByPlayer?.[player.id] ?? null}
+                      positionLabel={positionLabels?.[player.id] ?? null}
                       conversion={conversionByPlayer?.[player.id] ?? null}
                       kickedOff={kickoffTakerIds?.has(player.id) ?? false}
                       injured={injuredIds?.has(player.id) ?? false}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assignLeagueLines,
+  assignLeaguePositionLabels,
   lastVestWearer,
   leagueLineScores,
   nextInOrder,
@@ -69,5 +70,27 @@ describe("vests in a fixed order", () => {
       created_at: t,
     });
     expect(lastVestWearer([ev("a", "fr", "2026-01-01"), ev("b", "fr", "2026-02-01"), ev("c", "dh", "2026-03-01")], "fr")).toBe("b");
+  });
+});
+
+describe("named positions (UX plan 5.7)", () => {
+  const positions = [
+    { key: "pr1", label: "PR", line: "forwards" as const },
+    { key: "hk", label: "HK", line: "forwards" as const },
+    { key: "fb", label: "FB", line: "backs" as const },
+    { key: "hb", label: "HB", line: "backs" as const },
+  ];
+  it("labels kids home first within their line", () => {
+    const labels = assignLeaguePositionLabels(
+      { forwards: ["a", "b"], backs: ["c", "d"] },
+      input({ positions, positionRoles: { b: { home: "pr1", also: [], never: [] }, d: { home: "fb", also: [], never: [] } } }),
+    );
+    expect(labels).toEqual({ b: "PR", a: "HK", d: "FB", c: "HB" });
+  });
+
+  it("holds a kid to their home position's line", () => {
+    const pb = input({ strategy: "named-positions", roles: { a: role({ home: "backs" }) } });
+    const s = leagueLineScores(pb, "a");
+    expect(s.backs - s.forwards).toBeGreaterThanOrEqual(3000);
   });
 });

@@ -85,6 +85,7 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
+import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   game: Game;
@@ -1846,6 +1847,14 @@ export function LeagueLiveGame({
             totalMsByPlayer={totalMsByPlayer}
             zoneMsByPlayer={zoneMsByPlayer}
             vestByPlayer={vestByPlayer}
+            positionLabels={
+              state.lineup
+                ? assignLeaguePositionLabels(
+                    { forwards: state.lineup.forwards, backs: state.lineup.backs },
+                    leaguePlaybook,
+                  )
+                : undefined
+            }
             conversionByPlayer={conversionByPlayer}
             kickoffTakerIds={kickoffTakerIds}
             injuredIds={injuredSet}

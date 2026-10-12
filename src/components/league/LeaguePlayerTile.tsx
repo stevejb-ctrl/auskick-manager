@@ -91,6 +91,8 @@ interface LeaguePlayerTileProps {
   onLongPress?: () => void;
   /** Optional disable gate during a pending mutation. */
   disabled?: boolean;
+  /** Named positions (Mod League): the kid's position, e.g. "HK". */
+  positionLabel?: string | null;
 }
 
 function formatMinSec(ms: number): string {
@@ -118,6 +120,7 @@ function LeaguePlayerTileImpl({
   onClick,
   onLongPress,
   disabled = false,
+  positionLabel = null,
 }: LeaguePlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,6 +252,14 @@ function LeaguePlayerTileImpl({
             name (previously absolute top-left, which overlapped the
             centered name on narrow tiles). Only one badge shows at
             a time, in priority order. */}
+        {positionLabel && !vest && !injured && !loaned && (
+          <span
+            className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-ink-dim"
+            aria-label={`Position ${positionLabel}`}
+          >
+            {positionLabel}
+          </span>
+        )}
         {(vest || injured || loaned) && (
           <span className="inline-flex h-3.5 items-center">
             {injured ? (
@@ -365,6 +376,7 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
   if (a.kickedOff !== b.kickedOff) return false;
   if (a.injured !== b.injured) return false;
   if (a.loaned !== b.loaned) return false;
+  if (a.positionLabel !== b.positionLabel) return false;
   // `swap` is an object — shallow compare the fields. Without this
   // the memo would never invalidate when the next-sub suggestion
   // moves on or off this tile.
