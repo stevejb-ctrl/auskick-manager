@@ -309,7 +309,7 @@ export function LineupPicker({
     // Build chip-by-id map from the available players list — picked
     // up by the suggester's chip-spread / chip-group penalty (Phase D).
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    for (const p of playersForLineup) chipByPlayerId[p.id] = p.chip;
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
     return suggestStartingLineup(
       playersForLineup,
       season,

@@ -662,3 +662,24 @@ test("league named positions: a home position shows on the tile", async ({ page 
   const tile = page.getByTestId(`league-player-tile-${hooker.id}`).first();
   await expect(tile.getByLabel("Position HK")).toBeVisible({ timeout: 15_000 });
 });
+
+test("chips are retired: no chip card or picker, carried-over rules are labelled", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const [a, b] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+  // What migration 0056 writes for a team that had a "group" chip.
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    rules: [{ id: "chip-a", kind: "keep-together", params: { playerIds: [a.id, b.id] }, strength: "prefer", enabled: true, source: "chips" }],
+  });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await expect(page.getByTestId("rule-keep-together")).toContainText("Carried over from your player chips", { timeout: 15_000 });
+  await expect(page.getByText(/^Player chips/)).toHaveCount(0);
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await expect(page.getByRole("button", { name: `Role for ${a.full_name}` })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Edit" }).first().click();
+  await expect(page.getByRole("radiogroup", { name: /chip/i })).toHaveCount(0);
+});

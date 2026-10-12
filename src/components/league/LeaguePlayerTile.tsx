@@ -24,7 +24,6 @@ import { memo, useRef, useState } from "react";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
@@ -291,13 +290,6 @@ function LeaguePlayerTileImpl({
             plain coloured dot — same as the legacy look. Steve
             2026-05-20. */}
         <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
-          {player.chip && (
-            <ChipIndicator
-              chipKey={player.chip as ChipKey}
-              mode={chipModes?.[player.chip as ChipKey]}
-              size="md"
-            />
-          )}
           <span className="truncate">
             {lastInitial ? `${firstName} ${lastInitial}` : firstName}
           </span>

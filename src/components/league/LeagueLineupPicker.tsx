@@ -55,7 +55,6 @@ import {
   suggestLeagueLineup,
   suggestVestRotation,
 } from "@/lib/sports/rugby_league/fairness";
-import { chipZone } from "@/lib/sports/rugby_league/positions";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type {
   GameEvent,
@@ -405,9 +404,10 @@ export function LeagueLineupPicker({
     if (dhId === playerId) setDhId(null);
   }
   function moveToField(playerId: string, preferred?: LeagueZone) {
-    const player = playerById.get(playerId);
+    // A kid's home line (How we play) replaces the old chip zone.
+    const home = leaguePlaybook?.roles[playerId]?.home;
     const target: LeagueZone
-      = preferred ?? chipZone(player?.chip) ?? "forward";
+      = preferred ?? (home === "backs" ? "back" : home === "forwards" ? "forward" : null) ?? "forward";
     setBenchIds((prev) => prev.filter((id) => id !== playerId));
     if (target === "forward") {
       setForwardIds((prev) =>
@@ -965,8 +965,8 @@ export function LeagueLineupPicker({
   const actionIsOnField
     = actionSheetPlayerId !== null && zoneOf(actionSheetPlayerId) !== null;
   const actionZone = actionSheetPlayerId ? zoneOf(actionSheetPlayerId) : null;
-  const fwdLabel = chipLabels?.a || "Forwards";
-  const backLabel = chipLabels?.b || "Backs";
+  const fwdLabel = "Forwards";
+  const backLabel = "Backs";
 
   return (
     <div

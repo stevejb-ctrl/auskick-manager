@@ -114,6 +114,9 @@ export function RulesEditor({
               {r.source?.startsWith("pack:") && (
                 <p className="text-[11px] text-ink-mute">Local rules (added by you)</p>
               )}
+              {r.source === "chips" && (
+                <p className="text-[11px] text-ink-mute">Carried over from your player chips</p>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {def.countRange && (
                   <select

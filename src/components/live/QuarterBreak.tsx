@@ -550,7 +550,7 @@ export function QuarterBreak({
     // suggester scatters older/younger (or whatever the coach labels
     // each chip) across zones rather than bunching them.
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    for (const p of players) chipByPlayerId[p.id] = p.chip;
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,

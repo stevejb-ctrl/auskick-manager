@@ -5,7 +5,6 @@ import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 
@@ -297,19 +296,8 @@ function PlayerTileImpl({
         </span>
       )}
 
-      {/* Name (with leading chip indicator if the player has a cohort chip).
-          Uses the shared ChipIndicator at md size so zone-mode chips
-          (forward / centre / back) surface their F / C / B letter
-          inside the dot — same affordance the lineup picker and
-          squad rows already use. Steve 2026-05-20. */}
+      {/* Name. (Cohort chips retired with How we play, UX plan 5.8.) */}
       <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
-        {player.chip && (
-          <ChipIndicator
-            chipKey={player.chip as ChipKey}
-            mode={chipModes?.[player.chip as ChipKey]}
-            size="md"
-          />
-        )}
         <span className="truncate">
           {lastInitial ? `${firstName} ${lastInitial}` : firstName}
         </span>

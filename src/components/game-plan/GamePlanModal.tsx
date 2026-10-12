@@ -23,7 +23,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
   formatGamePlan,
   projectGamePlan,
@@ -281,13 +280,6 @@ export function GamePlanModal({
           <Guernsey num={p?.jersey_number ?? ""} size={32} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate font-medium text-ink">
-              {p?.chip && (
-                <ChipIndicator
-                  chipKey={p.chip as ChipKey}
-                  mode={chipModeByKey[p.chip]}
-                  className="mr-1.5 align-middle"
-                />
-              )}
               {p?.full_name ?? pid}
             </span>
             {/* Game context (issue: plan the next period with break-level

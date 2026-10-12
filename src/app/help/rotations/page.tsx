@@ -59,14 +59,14 @@ export default function RotationsPage() {
             assigned position
           </li>
           <li>
-            <strong className="text-ink">Player chips</strong>: optional
-            coloured tags that either spread chip-mates across zones (mix
-            older with younger) or keep them together (a kid who needs to
-            stay paired with familiar teammates). See the{" "}
+            <strong className="text-ink">How we play</strong>: your rotation
+            style, season balance, each player&apos;s role (home, also plays,
+            never plays, keep on) and your rules (keep apart, keep together,
+            nobody sits out twice in a row…). See the{" "}
             <Link href="/help/squads" className="font-medium underline">
               Squads
             </Link>{" "}
-            help page for setup.
+            help page for roles.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">

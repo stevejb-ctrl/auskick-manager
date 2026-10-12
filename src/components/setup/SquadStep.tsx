@@ -3,7 +3,6 @@ import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import type { ChipKey, ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Player, Sport } from "@/lib/types";
 
@@ -19,15 +18,6 @@ interface SquadStepProps {
    * readouts rely on.
    */
   sportId?: Sport;
-  /**
-   * Team chip labels (set in the previous "How we play" step). When
-   * any label is non-null we expose the chip picker on the add-player
-   * form and surface chip indicators on existing rows, so coaches can
-   * tag cohorts as they build the squad without leaving onboarding.
-   * Steve 2026-05-20.
-   */
-  chipLabels?: { a: string | null; b: string | null; c: string | null };
-  chipModes?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 export function SquadStep({
@@ -35,8 +25,6 @@ export function SquadStep({
   ageGroup,
   players,
   sportId = "afl",
-  chipLabels,
-  chipModes,
 }: SquadStepProps) {
   // AFL + rugby league show jersey numbers (jersey-driven sports);
   // netball doesn't (positions are letter-coded). RL falls into the
@@ -47,7 +35,6 @@ export function SquadStep({
   const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);
-  const chipsConfigured = !!(chipLabels && (chipLabels.a || chipLabels.b || chipLabels.c));
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -65,20 +52,12 @@ export function SquadStep({
 
       <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
         <h2 className="mb-1 text-base font-semibold text-ink">Add player</h2>
-        {chipsConfigured && (
-          <p className="mb-4 text-xs text-ink-mute">
-            You have chips set up — tag each player as you go, or leave
-            the chip picker blank and assign later from the squad page.
-          </p>
-        )}
         <AddPlayerForm
           teamId={teamId}
           activeCount={activePlayers.length}
           maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
           showJersey={showJersey}
-          chipLabels={chipLabels}
-          chipModes={chipModes}
         />
         <div className="mt-3 border-t border-hairline pt-3">
           <BulkAddPlayers
@@ -110,8 +89,6 @@ export function SquadStep({
                 takenJerseys={takenJerseys}
                 canEdit
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
               />
             ))}
           </ul>

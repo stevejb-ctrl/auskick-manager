@@ -26,7 +26,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group, sport, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("age_group, sport")
       .eq("id", teamId)
       .single(),
     supabase
@@ -78,29 +78,6 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       )
     : {};
   const showJersey = sport === "afl";
-  const teamRow = team as
-    | {
-        chip_a_label: string | null;
-        chip_b_label: string | null;
-        chip_c_label: string | null;
-        chip_a_mode?: import("@/lib/chips").ChipMode | null;
-        chip_b_mode?: import("@/lib/chips").ChipMode | null;
-        chip_c_mode?: import("@/lib/chips").ChipMode | null;
-      }
-    | null;
-  const chipLabels = {
-    a: teamRow?.chip_a_label ?? null,
-    b: teamRow?.chip_b_label ?? null,
-    c: teamRow?.chip_c_label ?? null,
-  };
-  // Threaded into PlayerRow so the chip indicator surfaces the
-  // zone-preference letter (F / C / B) when the chip mode is
-  // forward / centre / back. Steve 2026-05-20.
-  const chipModes: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>> = {
-    a: teamRow?.chip_a_mode ?? undefined,
-    b: teamRow?.chip_b_mode ?? undefined,
-    c: teamRow?.chip_c_mode ?? undefined,
-  };
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -123,8 +100,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               maxPlayers={maxPlayers}
               takenJerseys={takenJerseys}
               showJersey={showJersey}
-              chipLabels={chipLabels}
-              chipModes={chipModes}
+              
             />
             <div className="mt-3 border-t border-hairline pt-3">
               <BulkAddPlayers
@@ -158,8 +134,6 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
                 roleModel={roleModel}
                 role={roles[player.id]}
               />
@@ -185,8 +159,6 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
               />
             ))}
           </ul>

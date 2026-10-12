@@ -332,7 +332,8 @@ export function NetballQuarterBreak({
     // Drives the new tier-6 chip term in suggestNetballLineup
     // (AFL parity, Steve 2026-05-16).
     const chipByPlayerId = Object.fromEntries(
-      squad.map((p) => [p.id, p.chip ?? null]),
+      // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+      squad.map((p) => [p.id, null]),
     );
     const base = suggestNetballLineup({
       playerIds: candidatePool,

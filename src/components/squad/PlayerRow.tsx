@@ -10,9 +10,6 @@ import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { Guernsey } from "@/components/sf";
-import { ChipPicker } from "@/components/squad/ChipPicker";
-import { type ChipKey } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 import { PlayerRoleSheet } from "@/components/playbook/PlayerRoleSheet";
 import { savePlayerRole } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
@@ -30,16 +27,6 @@ interface PlayerRowProps {
    * behaviour.
    */
   showJersey?: boolean;
-  /** Optional team-defined labels for chip A/B/C — drives the edit picker. */
-  chipLabels?: { a: string | null; b: string | null; c: string | null };
-  /**
-   * Team-level chip modes (steve 2026-05-20). When supplied, the
-   * indicator next to a player's name surfaces the chip's zone
-   * preference letter (F / C / B) if the mode is forward/centre/
-   * back. Optional for backwards compat with callers that don't
-   * know team settings.
-   */
-  chipModes?: Partial<Record<ChipKey, import("@/lib/chips").ChipMode>>;
   /** How we play role sheet for this team; null where roles don't apply. */
   roleModel?: RoleModel | null;
   role?: PlayerRole;
@@ -51,8 +38,6 @@ export function PlayerRow({
   takenJerseys,
   canEdit,
   showJersey = true,
-  chipLabels,
-  chipModes,
   roleModel = null,
   role,
 }: PlayerRowProps) {
@@ -61,9 +46,6 @@ export function PlayerRow({
   const roleText = roleModel ? describeRole(role, roleModel) : "";
   const [name, setName] = useState(player.full_name);
   const [jersey, setJersey] = useState(player.jersey_number != null ? String(player.jersey_number) : "");
-  const [chip, setChip] = useState<ChipKey | "">(
-    (player.chip ?? "") as ChipKey | "",
-  );
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -72,7 +54,6 @@ export function PlayerRow({
   function cancelEdit() {
     setName(player.full_name);
     setJersey(player.jersey_number != null ? String(player.jersey_number) : "");
-    setChip((player.chip ?? "") as ChipKey | "");
     setNameError(undefined);
     setJerseyError(undefined);
     setServerError(null);
@@ -107,7 +88,6 @@ export function PlayerRow({
       const result = await updatePlayer(teamId, player.id, {
         full_name: name.trim(),
         jersey_number: jerseyNum,
-        chip: chip === "" ? null : chip,
       });
       if (!result.success) {
         setServerError(result.error);
@@ -170,18 +150,6 @@ export function PlayerRow({
               aria-label="Jersey number"
             />
           )}
-          {chipLabels &&
-            (chipLabels.a || chipLabels.b || chipLabels.c) && (
-              <div className="basis-full">
-                <ChipPicker
-                  value={chip}
-                  onChange={setChip}
-                  labels={chipLabels}
-                  modes={chipModes}
-                  disabled={isPending}
-                />
-              </div>
-            )}
           {serverError && (
             <p
               className="w-full rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
@@ -200,17 +168,6 @@ export function PlayerRow({
       ) : (
         <>
           <span className="min-w-0 flex-1 text-sm font-medium text-ink">
-            {player.chip && (
-              <ChipIndicator
-                chipKey={player.chip as ChipKey}
-                mode={chipModes?.[player.chip as ChipKey]}
-                title={
-                  chipLabels?.[player.chip as ChipKey] ??
-                  `Chip ${player.chip.toUpperCase()}`
-                }
-                className="mr-2 align-middle"
-              />
-            )}
             {player.full_name}
             {roleText && (
               <span className="block truncate text-xs font-normal text-ink-mute" data-testid={`player-role-${player.id}`}>

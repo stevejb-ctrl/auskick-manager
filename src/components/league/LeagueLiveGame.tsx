@@ -647,7 +647,8 @@ export function LeagueLiveGame({
   // for injured / loaned. The suggester reads `currentLineup.bench`
   // directly, so we pass a filtered copy rather than the raw lineup.
   const chipByPlayerId = useMemo(
-    () => new Map(squad.map((p) => [p.id, p.chip ?? null])),
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    () => new Map(squad.map((p) => [p.id, null])),
     [squad],
   );
   const nextSubSuggestions = useMemo(() => {
@@ -678,6 +679,7 @@ export function LeagueLiveGame({
     excludeOff,
     elapsedMs,
     chipByPlayerId,
+    leaguePlaybook,
   ]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────

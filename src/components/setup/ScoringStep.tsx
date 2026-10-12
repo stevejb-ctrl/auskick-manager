@@ -2,13 +2,11 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
-import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import {
   HowWePlayCard,
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import type { ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -25,15 +23,6 @@ interface ScoringStepProps {
   sportId?: Sport;
   /** Current quarter-length override in seconds, or null to use age-group default. */
   initialQuarterLengthSeconds?: number | null;
-  /**
-   * Existing chip labels and modes on the team. A freshly-created team
-   * has all-null labels (which the chip card treats as "off"); coaches
-   * who opt in during onboarding fill them in here and the SquadStep
-   * picks them up so chips can be applied as players are added. Steve
-   * 2026-05-20.
-   */
-  initialChipLabels?: { a: string | null; b: string | null; c: string | null };
-  initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
   /** Saved How we play, or null for a new team (age-group defaults). */
   playbookRow?: HowWePlayRow | null;
   /** The team's own named positions (AFL open ages). */
@@ -46,8 +35,6 @@ export function ScoringStep({
   initialEnabled,
   sportId = "afl",
   initialQuarterLengthSeconds = null,
-  initialChipLabels = { a: null, b: null, c: null },
-  initialChipModes = { a: "split", b: "split", c: "split" },
   playbookRow = null,
   positions = [],
 }: ScoringStepProps) {
@@ -155,24 +142,6 @@ export function ScoringStep({
         />
       )}
 
-      {/* Optional player chips — coaches who want to tag cohorts
-          within the squad (older / younger, mates, position-locked
-          regulars) can configure them here. Rendered open by
-          default because the previous dashed-border <details>
-          collapse was a custom UI element we never used elsewhere
-          and read as unclickable. The card defaults to Off so a
-          coach who doesn't engage with it leaves at "no chips" and
-          can come back later via Team Settings. Steve 2026-05-20:
-          replaces the <details> wrapper. */}
-      <CohortChipsSettings
-        teamId={teamId}
-        initialLabels={initialChipLabels}
-        initialModes={initialChipModes}
-        isAdmin
-        sport={sportId}
-        ageGroup={ageGroup.id}
-        hideSaveButton
-      />
 
       <div className="flex justify-end">
         <Link

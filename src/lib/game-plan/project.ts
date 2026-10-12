@@ -116,7 +116,8 @@ function resolveChips(input: ProjectGamePlanInput): {
 } {
   const chipByPlayerId =
     input.chipByPlayerId ??
-    Object.fromEntries(input.players.map((p) => [p.id, p.chip ?? null]));
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    {};
   return { chipByPlayerId, chipModeByKey: input.chipModeByKey ?? {} };
 }
 

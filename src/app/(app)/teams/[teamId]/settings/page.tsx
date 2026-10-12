@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
-import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
@@ -22,7 +21,6 @@ import {
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
 import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
-import { normalizeChipMode } from "@/lib/chips";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -39,7 +37,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -204,22 +202,6 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             isAdmin={isAdmin}
           />
         )}
-        <CohortChipsSettings
-          teamId={params.teamId}
-          initialLabels={{
-            a: (team as { chip_a_label?: string | null }).chip_a_label ?? null,
-            b: (team as { chip_b_label?: string | null }).chip_b_label ?? null,
-            c: (team as { chip_c_label?: string | null }).chip_c_label ?? null,
-          }}
-          initialModes={{
-            a: normalizeChipMode((team as { chip_a_mode?: string | null }).chip_a_mode),
-            b: normalizeChipMode((team as { chip_b_mode?: string | null }).chip_b_mode),
-            c: normalizeChipMode((team as { chip_c_mode?: string | null }).chip_c_mode),
-          }}
-          isAdmin={isAdmin}
-          sport={sport}
-          ageGroup={(team as { age_group?: string | null }).age_group ?? null}
-        />
       </SettingsSection>
 
       <SettingsSection title="People">
