@@ -58,3 +58,23 @@ test("the header team switcher moves between teams", async ({ page }) => {
   await page.getByRole("menuitem", { name: new RegExp(b.name) }).click();
   await expect(page).toHaveURL(new RegExp(`/teams/${b.id}$`));
 });
+
+// Help opens from the avatar menu inside the app; a signed-in coach
+// used to land on a marketing header whose only link was "Sign in"
+// (UX plan 2.5). Signed out, the Sign in link stays.
+test("Help gives a signed-in coach a way back to the app", async ({ page }) => {
+  await page.goto("/help/live-game");
+  const back = page.getByRole("banner").getByRole("link", { name: /back to siren/i });
+  await expect(back).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("banner").getByRole("link", { name: "Sign in" })).toHaveCount(0);
+  await back.click();
+  await expect(page).toHaveURL(/\/dashboard/);
+});
+
+test("Help keeps Sign in for visitors", async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto("/help");
+  await expect(page.getByRole("banner").getByRole("link", { name: "Sign in" })).toBeVisible({
+    timeout: 10_000,
+  });
+});

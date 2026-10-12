@@ -1,25 +1,34 @@
 import Link from "next/link";
 import { HelpNav } from "@/components/help/HelpNav";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { getUser } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Help · Siren",
   description: "Documentation and guides for Siren.",
 };
 
-export default function HelpLayout({ children }: { children: React.ReactNode }) {
+// Help opens from inside the app (the avatar menu), so a signed-in
+// coach gets a way back instead of a "Sign in" button (UX plan §2.5).
+export default async function HelpLayout({ children }: { children: React.ReactNode }) {
+  const {
+    data: { user },
+  } = await getUser();
+  const exit = user
+    ? { href: "/dashboard", label: "← Back to Siren" }
+    : { href: "/login", label: "Sign in" };
   return (
     <div className="min-h-screen bg-warm">
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link href="/" aria-label="Siren home">
+          <Link href={user ? "/dashboard" : "/"} aria-label="Siren home">
             <SirenWordmark size="sm" />
           </Link>
           <Link
-            href="/login"
-            className="rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink"
+            href={exit.href}
+            className="inline-flex min-h-[44px] items-center rounded-md border border-hairline bg-surface px-3 text-xs font-medium text-ink-dim hover:bg-surface-alt hover:text-ink"
           >
-            Sign in
+            {exit.label}
           </Link>
         </div>
       </header>
@@ -39,8 +48,8 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
 
       <footer className="mt-12 border-t border-hairline py-6 text-center text-xs text-ink-mute">
         <span>Siren · </span>
-        <Link href="/login" className="hover:text-ink-dim">
-          Sign in
+        <Link href={exit.href} className="hover:text-ink-dim">
+          {exit.label}
         </Link>
       </footer>
     </div>
