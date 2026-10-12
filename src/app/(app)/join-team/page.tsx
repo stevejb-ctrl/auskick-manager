@@ -29,7 +29,7 @@ export default async function JoinTeamPage() {
           Join a team
         </p>
         <h1 className="text-2xl font-bold tracking-tightest text-ink sm:text-3xl">
-          Got a join code?
+          Got a team code?
         </h1>
         <p className="text-sm text-ink-dim">
           Enter the 8-character code your coach gave you. Codes look like{" "}

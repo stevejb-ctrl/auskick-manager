@@ -297,7 +297,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
 
   // FullTimeReview renders. "Finalise game" button is the marker.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // Game status MUST still be in_progress at this point — the
@@ -319,7 +319,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   expect(midReviewEvents?.length ?? 0).toBe(0);
 
   // ─── Phase 6: finalise → summary ──────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // GameSummaryCard heading is visible.
   await expect(page.getByText(/game summary/i).first()).toBeVisible({

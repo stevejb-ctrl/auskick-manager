@@ -41,7 +41,7 @@ export function ShareRunnerLink({ token }: ShareRunnerLinkProps) {
         onClick={() => setShow(true)}
         className="w-full sm:w-auto"
       >
-        Share gameday link
+        Game-day link
       </SFButton>
     );
   }

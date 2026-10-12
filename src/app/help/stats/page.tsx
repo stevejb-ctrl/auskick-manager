@@ -60,7 +60,7 @@ export default function StatsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Minutes equity</h2>
+        <h2 className="text-xl font-semibold text-ink">Game time</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           A visual breakdown of how total minutes on the playing area are
           distributed across the squad. An even spread means every player is
@@ -75,7 +75,7 @@ export default function StatsPage() {
         <HelpFigure
           src="/help-screenshots/stats-minutes-equity.png"
           alt="The minutes equity chart showing stacked per-position bars for each player"
-          caption="Minutes equity: each bar shows a player's position breakdown for the season."
+          caption="Game time: each bar shows a player's position breakdown for the season."
         />
       </section>
 

@@ -143,7 +143,7 @@ export function NetballFullTimeReview({
           onClick={handleFinalise}
           loading={finalisePending}
         >
-          Finalise game
+          Finish game
         </SFButton>
         <p className="mt-2 text-center text-[11px] text-ink-mute">
           Locks the score and shows the summary you can share.

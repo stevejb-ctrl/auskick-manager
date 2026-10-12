@@ -283,7 +283,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // currentQuarter >= 4` branch renders NetballFullTimeReview
   // (NOT another Q-break). The "Finalise game" button is the marker.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 25_000 });
 
   // Game status MUST still be in_progress at this point — the
@@ -305,7 +305,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   expect(midReviewEvents?.length ?? 0).toBe(0);
 
   // ─── Phase 8: finalise → summary ──────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // NetballGameSummaryCard's "Game summary" heading is the marker
   // (mirrors AFL's GameSummaryCard).

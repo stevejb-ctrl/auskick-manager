@@ -1966,7 +1966,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
           {isPending && <PulseDot size="sm" />}
-          {isPending ? "Finalising…" : "Finalise game"}
+          {isPending ? "Finishing…" : "Finish game"}
         </button>
       </div>
     );

@@ -1234,7 +1234,7 @@ export function NetballQuarterBreak({
           Quarter break
         </p>
         <p className="mt-0.5 text-lg font-bold text-ink">
-          Set positions for Q{nextQuarter}
+          Lineup for Q{nextQuarter}
         </p>
         {hasPlannedSeed && (
           <p

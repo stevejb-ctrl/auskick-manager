@@ -259,7 +259,7 @@ export function LeagueNextSubCard({
                     }}
                     className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
-                    {pending ? "…" : "Do"}
+                    {pending ? "…" : "Make swap"}
                   </button>
                 )}
               </li>
@@ -294,7 +294,9 @@ export function LeagueNextSubCard({
               </svg>
               {pending
                 ? "Applying…"
-                : `Do all ${valid.length} swap${valid.length > 1 ? "s" : ""}`}
+                : valid.length === 1
+                  ? "Make this swap"
+                  : `Make all ${valid.length} swaps`}
             </button>
           </div>
         </>

@@ -60,7 +60,7 @@ export async function joinTeamByCode(
     return {
       success: false,
       error:
-        "That doesn't look like a team join code — they're 8 characters like ABCD-EFGH.",
+        "That doesn't look like a team code — they're 8 characters like ABCD-EFGH.",
     };
   }
 
@@ -125,7 +125,7 @@ export async function joinTeamByCode(
       sendPushNotification({
         user_id: a.user_id,
         title: "New member joined",
-        body: `${accepterName} joined ${team.name} as ${ROLE_LABEL.parent} via your team join code.`,
+        body: `${accepterName} joined ${team.name} as ${ROLE_LABEL.parent} via your team code.`,
         data: { team_id: team.id },
       }),
     ),

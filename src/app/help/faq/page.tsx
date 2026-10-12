@@ -124,8 +124,8 @@ const FAQ: FAQItem[] = [
     a: (
       <>
         Open your team and go to <strong>Settings</strong>. You&apos;ll find a
-        shareable join link. Anyone with the link can join as a game manager.
-        They can run live games but cannot delete the team or change settings.
+        shareable invite link. Anyone with the link joins as a Manager.
+        Managers can run live games but cannot delete the team or change settings.
       </>
     ),
   },

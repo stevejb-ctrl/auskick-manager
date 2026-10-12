@@ -125,7 +125,7 @@ export function NetballDashboardShell(props: Props) {
           <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
         </Section>
 
-        <Section title="Minutes equity">
+        <Section title="Game time">
           <MinutesEquity stats={minutesEquityRows} hasData={hasPlayData} />
         </Section>
 

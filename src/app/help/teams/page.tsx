@@ -87,9 +87,9 @@ export default function TeamsPage() {
           <li>Invite other coaches to help manage the team</li>
         </ul>
         <HelpCallout type="note">
-          Team invitations are sent via a join link. Share the link from the
-          team&apos;s <strong>Settings</strong> page. Anyone with the link can join
-          as a game manager.
+          Team invitations are sent via an invite link. Share the link from the
+          team&apos;s <strong>Settings</strong> page. Anyone with the link joins
+          as a Manager. Parents can also join with the team code.
         </HelpCallout>
       </section>
 

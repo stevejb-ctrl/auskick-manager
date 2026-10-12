@@ -98,7 +98,7 @@ test("ending Q4 completes the game and renders the summary card", async ({
   // shareable summary doesn't appear until the coach explicitly
   // taps "Finalise game" so they can fix scores in between.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // The game's status should still be "in_progress" at this point —
@@ -112,7 +112,7 @@ test("ending Q4 completes the game and renders the summary card", async ({
 
   // Tap Finalise. That writes game_finalised + flips status to
   // completed; the GameSummaryCard renders below.
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // Summary card content — "full time" / "game summary" / similar.
   await expect(

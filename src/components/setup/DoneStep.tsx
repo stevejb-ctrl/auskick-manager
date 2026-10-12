@@ -73,7 +73,7 @@ export function DoneStep({
           <li className="flex gap-2">
             <span aria-hidden className="mt-0.5 text-brand-600">•</span>
             <span>
-              <strong className="text-ink">Invite a co-manager</strong> so
+              <strong className="text-ink">Invite a manager</strong> so
               you&rsquo;ve got backup when you can&rsquo;t be on the sideline.
             </span>
           </li>
@@ -92,7 +92,7 @@ export function DoneStep({
           href={`/teams/${teamId}/settings`}
           className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
         >
-          Invite a co-manager
+          Invite a manager
         </Link>
         <Link
           href={`/teams/${teamId}`}

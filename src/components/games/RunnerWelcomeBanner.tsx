@@ -42,8 +42,8 @@ export function RunnerWelcomeBanner({
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-ink-dim">
         <li>
           <span className="font-medium text-ink">Mark who&apos;s here</span>{" "}
-          using the list below. Tap &quot;Mark available&quot; next to each
-          kid who turned up.
+          using the list below. Tap &quot;In&quot; next to each kid who
+          turned up.
         </li>
         <li>
           <span className="font-medium text-ink">Set the starting

@@ -150,7 +150,7 @@ export default async function LivePage({ params }: LivePageProps) {
   if (!canRun) {
     return (
       <div className="rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
-        Only admins and game managers can run a live game.
+        Only coaches and managers can run a live game.
       </div>
     );
   }

@@ -431,7 +431,7 @@ test("entering an existing Siren user's email swaps Send invite for direct-add",
       timeout: 10_000,
     });
     const directAddButton = page.getByRole("button", {
-      name: /^add existing target as game manager$/i,
+      name: /^add existing target as manager$/i,
     });
     await expect(directAddButton).toBeVisible();
     await directAddButton.click();

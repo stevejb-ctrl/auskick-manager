@@ -271,7 +271,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // full-time branch one period early: the "Finalise game" CTA (the
   // full-time/review surface) must be absent at the H1 boundary.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeHidden();
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
@@ -293,7 +293,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .getByRole("button", { name: /^end\s*[qh]\s*2$/i })
     .click();
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // Pre-finalise the game must still be in_progress — coach hasn't
@@ -306,7 +306,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   expect(midReviewGame?.status).toBe("in_progress");
 
   // ─── Phase 6: Finalise ────────────────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // game_finalised event + status flip.
   await expect

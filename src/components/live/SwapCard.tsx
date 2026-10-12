@@ -456,7 +456,7 @@ export function SwapCard({
                         }}
                         className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                       >
-                        {pending ? "…" : "Do"}
+                        {pending ? "…" : "Make swap"}
                       </button>
                     )}
                   </div>
@@ -540,7 +540,7 @@ export function SwapCard({
                 ? "Applying…"
                 : valid.length === 1
                   ? "Make this swap"
-                  : `Do all ${valid.length} swaps`}
+                  : `Make all ${valid.length} swaps`}
             </button>
           </div>
         </>

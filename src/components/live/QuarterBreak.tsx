@@ -1246,7 +1246,7 @@ export function QuarterBreak({
           Quarter break
         </p>
         <p className="mt-0.5 text-lg font-bold text-ink">
-          Set zones for Q{nextQuarter}
+          Lineup for Q{nextQuarter}
         </p>
         {hasPlannedSeed && (
           <p

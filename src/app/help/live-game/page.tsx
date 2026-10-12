@@ -183,7 +183,7 @@ export default function LiveGamePage() {
         <p className="mt-2 text-sm text-ink-dim">
           You can tap <strong className="text-ink">Do</strong> next to any
           individual pair to apply just that one swap, or tap{" "}
-          <strong className="text-ink">Do all N swaps</strong> to apply
+          <strong className="text-ink">Make all N swaps</strong> to apply
           everything at once. After any swap is committed, the card collapses
           automatically and the timer resets.
         </p>
@@ -194,8 +194,8 @@ export default function LiveGamePage() {
 
         <HelpFigure
           src="/help-screenshots/live-game-sub-due.png"
-          alt="The sub due swap card expanded showing swap pairs with Do buttons and a Do all swaps button"
-          caption="The Sub Due state: the card expands with suggested pairs and a Do all swaps button."
+          alt="The sub due swap card expanded showing swap pairs with Make swap buttons and a Make all swaps button"
+          caption="The Sub Due state: the card expands with suggested pairs and a Make all swaps button."
         />
       </section>
 
@@ -273,7 +273,7 @@ export default function LiveGamePage() {
         <h2 className="text-xl font-semibold text-ink">Quarter breaks</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Between quarters, the app shows a{" "}
-          <strong className="text-ink">Set positions for Q{"{n}"}</strong>{" "}
+          <strong className="text-ink">Lineup for Q{"{n}"}</strong>{" "}
           screen. This is your chance to adjust who plays where in the next
           quarter. For netball this is the primary moment of substitution; for
           football it&apos;s an optional reshuffle on top of the rolling subs

@@ -55,7 +55,7 @@ export default async function WelcomePage() {
     {
       num: 5,
       title: "Ready for round 1",
-      body: "Invite co-coaches, share availability.",
+      body: "Invite a manager, share availability.",
     },
   ];
 

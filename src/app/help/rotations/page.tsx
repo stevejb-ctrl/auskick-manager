@@ -94,19 +94,19 @@ export default function RotationsPage() {
             <strong className="text-ink">Expanded</strong>: shows each pair
             in a row with the position label colour-coded, a{" "}
             <strong className="text-ink">Do</strong> button per pair, and a{" "}
-            <strong className="text-ink">Do all N swaps</strong> button at
+            <strong className="text-ink">Make all N swaps</strong> button at
             the bottom.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
           After you commit a swap (via <strong className="text-ink">Do</strong>{" "}
-          or <strong className="text-ink">Do all</strong>), the card collapses
+          or <strong className="text-ink">Make all</strong>), the card collapses
           automatically and the sub timer resets.
         </p>
 
         <HelpFigure
           src="/help-screenshots/rotations-swap-card.png"
-          alt="The SwapCard expanded showing two swap pairs with position labels, Do buttons, and a Do all 2 swaps button"
+          alt="The SwapCard expanded showing two swap pairs with position labels, Make swap buttons, and a Make all 2 swaps button"
           caption="The SwapCard expanded. Position labels are colour-coded — see the colour key below."
         />
       </section>

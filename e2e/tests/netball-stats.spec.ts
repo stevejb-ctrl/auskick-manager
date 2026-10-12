@@ -148,7 +148,7 @@ test("NETBALL-05: stats dashboard renders all 5 sections after a finalised netba
   // section ordering changed.
   const sectionTitles = [
     /player statistics/i,
-    /minutes equity/i,
+    /^game time$/i,
     /player chemistry/i,
     /head-to-head/i,
     /attendance/i,

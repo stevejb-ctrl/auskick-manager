@@ -129,7 +129,7 @@ function JoinCodeSection({
     setError(null);
     if (
       !confirm(
-        "Regenerate the join code? The old one will stop working immediately. " +
+        "Regenerate the team code? The old one will stop working immediately. " +
           "Anyone using the old code will need the new one to join.",
       )
     ) {
@@ -148,7 +148,7 @@ function JoinCodeSection({
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-semibold text-ink">Team join code</h3>
+        <h3 className="text-sm font-semibold text-ink">Team code</h3>
       </div>
       <p className="text-xs text-ink-mute">
         Parents with a Siren account can enter this code to join the team as a

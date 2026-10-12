@@ -224,7 +224,7 @@ test("garbage code format fails before hitting the DB", async ({ browser }) => {
   await expect(
     page
       .getByRole("alert")
-      .filter({ hasText: /doesn't look like a team join code/i }),
+      .filter({ hasText: /doesn't look like a team code/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // Sanity: no rogue membership row was created.

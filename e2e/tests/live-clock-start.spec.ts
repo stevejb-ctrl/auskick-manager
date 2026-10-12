@@ -297,7 +297,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   // (replayGame returns currentQuarter=2 + quarterEnded=false, so
   // isBetweenQuarters=false and QuarterBreak unmounts).
   await expect(
-    page.getByText(/set zones for q2/i),
+    page.getByText(/lineup for q2/i),
   ).toBeHidden({ timeout: 5_000 });
 
   // And the server should have recorded exactly one quarter_start
