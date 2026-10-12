@@ -28,6 +28,13 @@
 //   * Per-player time-on-field accumulation (out of scope — RL fairness
 //     is "unbroken periods", not minute-accuracy zone-minutes like AFL)
 
+import {
+  assignLeagueLines,
+  lastVestWearer,
+  leagueLineScores,
+  nextInOrder,
+  type LeaguePlaybookInput,
+} from "@/lib/sports/rugby_league/engine";
 import type { GameEvent, LeagueLineup, LeagueZone } from "@/lib/types";
 import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
 import { chipZone } from "./positions";
@@ -942,6 +949,12 @@ export interface LeagueSuggestInput {
   requiredUnbrokenPeriods: number;
   /** Vest requirements from the age-group config — controls suggestedFr / suggestedDh. */
   vestRequirements?: { fr: boolean; dh: boolean };
+  /**
+   * How we play (UX plan 5.6): lines from roles and season balance
+   * instead of chips, keep-on first, and the vest strategy. Omitted =
+   * today's chip-driven lines and auto-fair vests.
+   */
+  playbook?: LeaguePlaybookInput;
 }
 
 export interface LeagueSuggestOutput {
@@ -1155,6 +1168,7 @@ export function suggestLeagueLineup(
     seasonEvents,
     requiredUnbrokenPeriods,
     vestRequirements,
+    playbook,
   } = input;
 
   const fairness = computeSeasonFairness(
@@ -1182,7 +1196,11 @@ export function suggestLeagueLineup(
   //      everyone's caught up, the kid at every week gets the
   //      next go, not the kid who just showed up.
   //   4. jersey ASC — deterministic stable tiebreak.
+  const keepOn = (id: string) => (playbook?.roles[id]?.keepOn ? 0 : 1);
   const ranked = [...players].sort((a, b) => {
+    // How we play: keep-on kids start.
+    const k = keepOn(a.id) - keepOn(b.id);
+    if (k !== 0) return k;
     const fa = fairness.get(a.id);
     const fb = fairness.get(b.id);
     const sa = fa?.shortfall ?? 0;
@@ -1231,7 +1249,19 @@ export function suggestLeagueLineup(
   const backs: string[] = [];
   const unplaced: typeof starters = [];
 
-  for (const p of starters) {
+  // How we play: lines from roles + season balance, not chips.
+  if (playbook) {
+    const lines = assignLeagueLines(
+      starters.map((p) => p.id),
+      targetForwards,
+      targetBacks,
+      playbook,
+    );
+    forwards.push(...lines.forwards);
+    backs.push(...lines.backs);
+  }
+
+  for (const p of playbook ? [] : starters) {
     const zone = chipZone(p.chip);
     if (zone === "forward" && forwards.length < targetForwards) {
       forwards.push(p.id);
@@ -1296,18 +1326,31 @@ export function suggestLeagueLineup(
     return jerseyOf(a) - jerseyOf(b);
   };
 
-  if (vestRequirements?.fr) {
-    const frRanked = [...fieldPicks].sort((a, b) =>
-      compareVest(a, b, (r) => r?.frCount ?? 0, frRatio),
-    );
-    suggestedFr = frRanked[0] ?? null;
+  const vestStrategy = playbook?.vestStrategy ?? "auto";
+  // Fixed order: round the squad in jersey order from the last wearer.
+  const squadOrder = [...players]
+    .sort((a, b) => (a.jersey_number ?? Number.MAX_SAFE_INTEGER) - (b.jersey_number ?? Number.MAX_SAFE_INTEGER))
+    .map((p) => p.id);
+  if (vestRequirements?.fr && vestStrategy !== "coach") {
+    if (vestStrategy === "fixed-order") {
+      suggestedFr = nextInOrder(fieldPicks, squadOrder, lastVestWearer(seasonEvents, "fr"));
+    } else {
+      const frRanked = [...fieldPicks].sort((a, b) =>
+        compareVest(a, b, (r) => r?.frCount ?? 0, frRatio),
+      );
+      suggestedFr = frRanked[0] ?? null;
+    }
   }
-  if (vestRequirements?.dh) {
-    const dhPool = fieldPicks.filter((id) => id !== suggestedFr);
-    const dhRanked = [...dhPool].sort((a, b) =>
-      compareVest(a, b, (r) => r?.dhCount ?? 0, dhRatio),
-    );
-    suggestedDh = dhRanked[0] ?? null;
+  if (vestRequirements?.dh && vestStrategy !== "coach") {
+    if (vestStrategy === "fixed-order") {
+      suggestedDh = nextInOrder(fieldPicks, squadOrder, lastVestWearer(seasonEvents, "dh"), suggestedFr);
+    } else {
+      const dhPool = fieldPicks.filter((id) => id !== suggestedFr);
+      const dhRanked = [...dhPool].sort((a, b) =>
+        compareVest(a, b, (r) => r?.dhCount ?? 0, dhRatio),
+      );
+      suggestedDh = dhRanked[0] ?? null;
+    }
   }
 
   return {
@@ -2219,6 +2262,8 @@ export function suggestLeagueSubs(
   excludeOffPlayers: readonly string[],
   elapsedMs: number,
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
+  /** How we play: home line, never-plays and keep-on instead of chips. */
+  playbook?: LeaguePlaybookInput,
 ): LeagueSubSuggestion[] {
   const onFieldIds = leagueOnField(currentLineup);
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
@@ -2318,6 +2363,8 @@ export function suggestLeagueSubs(
   };
   for (const id of onFieldIds) {
     if (excludeSet.has(id)) continue;
+    // Keep-on kids aren't subbed off.
+    if (playbook?.roles[id]?.keepOn) continue;
     fieldByZone[zoneOf(id)].push(id);
   }
   for (const z of ["forward", "back"] as LeagueZone[]) {
@@ -2335,14 +2382,23 @@ export function suggestLeagueSubs(
     // stays stable across rotations. Soft preference: if the
     // matched zone is exhausted, fall back to the other zone.
     const chip = chipByPlayerId?.get(benchId) ?? null;
-    const preferredZone: LeagueZone | null
+    let preferredZone: LeagueZone | null
       = chip === "a" ? "forward" : chip === "b" ? "back" : null;
-    const zoneOrder: LeagueZone[]
-      = preferredZone === "forward"
-        ? ["forward", "back"]
-        : preferredZone === "back"
-          ? ["back", "forward"]
-          : ["forward", "back"];
+    let zoneOrder: LeagueZone[];
+    if (playbook) {
+      // Lines the incoming kid wants (role, season balance), never-plays out.
+      const s = leagueLineScores(playbook, benchId);
+      preferredZone = s.backs > s.forwards ? "back" : "forward";
+      zoneOrder = (preferredZone === "back" ? (["back", "forward"] as LeagueZone[]) : (["forward", "back"] as LeagueZone[]))
+        .filter((z) => Number.isFinite(z === "forward" ? s.forwards : s.backs));
+    } else {
+      zoneOrder
+        = preferredZone === "forward"
+          ? ["forward", "back"]
+          : preferredZone === "back"
+            ? ["back", "forward"]
+            : ["forward", "back"];
+    }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
     for (const z of zoneOrder) {
@@ -2357,7 +2413,11 @@ export function suggestLeagueSubs(
       }
       if (pickedOff) break;
     }
-    if (!pickedOff || !pickedZone) break; // no field players left
+    if (!pickedOff || !pickedZone) {
+      // With roles, this kid may just have no line open — try the next.
+      if (playbook) continue;
+      break; // no field players left
+    }
     usedOff.add(pickedOff);
     usedOn.add(benchId);
     swaps.push({
@@ -2379,6 +2439,7 @@ export function suggestNextLeagueSub(
   excludeOffPlayers: readonly string[],
   elapsedMs: number,
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
+  playbook?: LeaguePlaybookInput,
 ): LeagueSubSuggestion | null {
   const all = suggestLeagueSubs(
     events,
@@ -2387,6 +2448,7 @@ export function suggestNextLeagueSub(
     excludeOffPlayers,
     elapsedMs,
     chipByPlayerId,
+    playbook,
   );
   return all[0] ?? null;
 }
