@@ -126,7 +126,9 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
                 the gesture reads as a general menu trigger, with
                 a short examples list so the lock case still
                 surfaces. */}
-            <span>Long-press a player for actions (lock, injury, lend…)</span>
+            {/* Tap reaches every action since UX plan 1.6 (Player
+                actions in the dock); the hint now sells the shortcut. */}
+            <span>Shortcut: long-press a player for actions (keep on, injured, lend…)</span>
             <button
               type="button"
               onClick={handleGotIt}

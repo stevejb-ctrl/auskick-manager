@@ -1238,12 +1238,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       setReplacingTarget({ positionId, vacatingPlayerId: null });
       return;
     }
-    if (!SCORING_POSITIONS.has(positionId)) return;
-    // NETBALL-04: scoring affordance gated on track_scoring. The tap
-    // becomes a no-op when the team isn't tracking scores; long-press
-    // (handleTokenLongPress) is unaffected so coaches can still open
-    // the actions modal on GS/GA tokens.
-    if (!trackScoring) return;
+    // Shooters with scoring on get the goal dock (which also offers
+    // Player actions). Everyone else opens the action sheet straight
+    // away — a tap used to do nothing here, leaving injure / lend /
+    // keep behind a long-press only (UX plan H5).
+    if (!SCORING_POSITIONS.has(positionId) || !trackScoring) {
+      setActionsTarget({ playerId, positionId });
+      return;
+    }
     setPendingGoal({ playerId, positionId });
   };
 
@@ -2524,6 +2526,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               </>
             }
             onCancel={handleCancelGoal}
+          onPlayerActions={() => {
+            const target = pendingGoal;
+            handleCancelGoal();
+            if (target) setActionsTarget(target);
+          }}
             actions={
               <button
                 type="button"
@@ -2600,7 +2607,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           commit 2ca8e90. We mount it unconditionally on the
           live-play branch (this branch only renders when
           currentQuarter > 0 && !quarterEnded && !finalised). */}
-      <LongPressHint enabled />
+      {/* Hidden while the goal dock is open so it never covers it. */}
+      <LongPressHint enabled={!pendingGoal} />
 
     </div>
   );

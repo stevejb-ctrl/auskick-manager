@@ -1697,12 +1697,11 @@ export function LeagueLiveGame({
     && isPeriodActive
     && Boolean(selectedPlayer)
     && selectedOnField;
-  const selectionHintVisible
-    = !trackScoring
-    && isPeriodActive
-    && Boolean(selectedPlayer);
+  // Any selected player gets the dock (Player actions, swap hint);
+  // the + Try row only when scoring an on-field player.
+  const playerDockVisible = isPeriodActive && Boolean(selectedPlayer);
   const stickyPb
-    = scoreDockVisible
+    = playerDockVisible
       ? "pb-[calc(13rem+env(safe-area-inset-bottom))]"
       : hasStickyBottom
         ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
@@ -2143,31 +2142,37 @@ export function LeagueLiveGame({
           the standalone link button has been folded into the
           pause-aware affordance pattern from AFL's `GameHeader`. */}
 
-      {/* Selection hint — non-scoring sports (U6/U7 tag rugby) get
-          this banner instead of the score dock. Tells the coach
-          tapping a player is enough to start a swap; no scoring
-          affordance because the laws don't track points here. */}
-      {selectionHintVisible && selectedPlayer && (
-        <p className="rounded-sm bg-brand-50 px-3 py-2 text-xs text-brand-800">
-          {selectedOnField
-            ? "Tap a bench player to swap them in, or tap the selected player again to cancel."
-            : "Tap a field tile to swap this player in, or tap them again to cancel."}
-        </p>
-      )}
-
-      {/* Score-recording dock — appears when a field player is selected. */}
-      {scoreDockVisible && selectedPlayer && (
+      {/* Player dock — any selected player. + Try when scoring an
+          on-field player (tag rugby / bench: just the swap hint);
+          Player actions opens the same sheet as long-press. */}
+      {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
           heading={
-            <>
-              Record score for{" "}
-              <span className="text-brand-700">
-                {selectedPlayer.full_name}
-              </span>
-            </>
+            scoreDockVisible ? (
+              <>
+                Record score for{" "}
+                <span className="text-brand-700">
+                  {selectedPlayer.full_name}
+                </span>
+              </>
+            ) : (
+              <span className="text-brand-700">{selectedPlayer.full_name}</span>
+            )
           }
           onCancel={handleClearSelection}
+          onPlayerActions={() => {
+            const id = selectedPlayer.id;
+            handleClearSelection();
+            setActionSheetPlayerId(id);
+          }}
           actions={
+            !scoreDockVisible ? (
+              <p className="text-xs text-ink-dim">
+                {selectedOnField
+                  ? "Tap a bench player to swap them off."
+                  : "Tap a field player to swap them on."}
+              </p>
+            ) : (
             <div className="space-y-2">
               {/* Single + Try button. The conversion dialog auto-
                   opens after the try lands at U8+, since you can't
@@ -2185,6 +2190,7 @@ export function LeagueLiveGame({
                 <strong>{selectedPlayer.full_name}</strong> off.
               </p>
             </div>
+            )
           }
         />
       )}
@@ -2675,7 +2681,8 @@ export function LeagueLiveGame({
       })()}
 
       {/* First-tap long-press discovery hint. */}
-      <LongPressHint enabled={isPeriodActive} />
+      {/* Hidden while the player dock is open so it never covers it. */}
+      <LongPressHint enabled={isPeriodActive && !selectedPlayer} />
     </div>
   );
 }

@@ -1379,8 +1379,13 @@ export function LiveGame({
     );
   }
 
+  // Player action sheet (long-press shortcut, or "Player actions" in
+  // the tap dock). The zone is where the player is NOW: a bench player
+  // has none, even if they played earlier — taking their last stint's
+  // zone offered "Keep in Back" on the bench and sent Mark injured down
+  // the on-field replacement path.
   function handleLongPress(playerId: string) {
-    const zone = stintZone[playerId] ?? lastStintZone[playerId] ?? null;
+    const zone = activeZones.find((z) => lineup[z].includes(playerId)) ?? null;
     setLockModal({ playerId, zone });
   }
 
@@ -1832,9 +1837,12 @@ export function LiveGame({
         );
       })()}
 
-      {canScore && (() => {
-        const pid = selected && selected.kind === "field" ? selected.playerId : null;
-        const p = pid ? playersById.get(pid) : null;
+      {selected && !isPreGame && !isFinished && (() => {
+        const pid = selected.playerId;
+        const p = playersById.get(pid);
+        const name = p
+          ? `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}`
+          : "player";
         // Floating record-score card — chrome owned by the shared
         // ScoreRecordingDock (Phase 5c). The dock pins to bottom-
         // viewport, owns the heading row + Cancel chip + the
@@ -1845,16 +1853,22 @@ export function LiveGame({
         return (
           <ScoreRecordingDock
             heading={
-              <>
-                Record score for{" "}
-                <span className="text-brand-700">
-                  {p ? `#${p.jersey_number} ${p.full_name}` : "player"}
-                </span>
-              </>
+              canScore ? (
+                <>
+                  Record score for <span className="text-brand-700">{name}</span>
+                </>
+              ) : (
+                <span className="text-brand-700">{name}</span>
+              )
             }
             onCancel={() => clearSelection()}
+            onPlayerActions={() => {
+              clearSelection();
+              handleLongPress(pid);
+            }}
             actions={
               <>
+                {canScore && (
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1873,6 +1887,12 @@ export function LiveGame({
                     + Behind
                   </button>
                 </div>
+                )}
+                {selected.kind === "bench" && (
+                  <p className="text-xs text-ink-dim">
+                    Tap a field player to swap {p ? p.full_name.split(" ")[0] : "them"} on.
+                  </p>
+                )}
                 {/* Swap player — covers both cases:
                       1. Sub off (pick a bench player → field-to-bench)
                       2. Rotate position (pick another field player in
@@ -1894,7 +1914,7 @@ export function LiveGame({
                       })
                     }
                     disabled={isPending}
-                    className="mt-2 w-full rounded-sm border border-hairline bg-surface-alt py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:opacity-60"
+                    className={`${canScore ? "mt-2 " : ""}min-h-[44px] w-full rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline disabled:opacity-60`}
                   >
                     Swap player
                   </button>
@@ -1905,13 +1925,6 @@ export function LiveGame({
         );
       })()}
 
-      {selected && !canScore && (
-        <p className="rounded-sm bg-brand-50 px-3 py-2 text-xs text-brand-800">
-          {selected.kind === "field"
-            ? "Tap a bench player to swap them in, or tap the selected player again to cancel."
-            : "Tap a field tile to swap this player in, or tap them again to cancel."}
-        </p>
-      )}
 
       {pendingSwap && (
         <SwapConfirmDialog
@@ -2670,7 +2683,8 @@ export function LiveGame({
           dismissal. P1.5-3 in MICRO-INTERACTIONS-PLAN.md. Gated on
           isLivePlay so it doesn't appear during pre-game (no
           long-press flow there) or post-game (the gesture is moot). */}
-      <LongPressHint enabled={isLivePlay} />
+      {/* Hidden while the player dock is open so it never covers it. */}
+      <LongPressHint enabled={isLivePlay && !selected} />
     </div>
   );
 }

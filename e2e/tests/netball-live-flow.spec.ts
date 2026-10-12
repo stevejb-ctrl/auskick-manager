@@ -601,7 +601,7 @@ test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal"
     page.getByRole("button", { name: /lend to opposition/i }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /keep at .* next break/i }),
+    page.getByRole("button", { name: /keep in .* next break/i }),
   ).toBeVisible();
 });
 

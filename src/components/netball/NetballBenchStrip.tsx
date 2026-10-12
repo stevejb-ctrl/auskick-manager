@@ -41,7 +41,11 @@ interface Props {
   playerStats?: Map<string, PlayerThirdMs>;
   /** Per-player goals scored; drives the dark chip in each tile's top-right corner. */
   playerGoals?: Record<string, number>;
-  /** Long-press fires the actions modal for that player (positionId stays null for bench targets). */
+  /**
+   * Opens the actions modal for that player (positionId stays null for
+   * bench targets). Fired by a tap or a long-press — the tile has no
+   * other tap job, so a tap shouldn't be a dead end (UX plan H5).
+   */
   onTileLongPress?: (playerId: string) => void;
 }
 
@@ -148,6 +152,20 @@ function BenchTile({
       onPointerDown={onLongPress ? handlePointerDown : undefined}
       onPointerUp={onLongPress ? cancelLongPress : undefined}
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
+      onClick={
+        onLongPress
+          ? () => {
+              cancelLongPress();
+              // The long-press already opened the sheet — swallow its
+              // trailing click.
+              if (didLongPressRef.current) {
+                didLongPressRef.current = false;
+                return;
+              }
+              onLongPress();
+            }
+          : undefined
+      }
       className={[
         "relative flex w-24 flex-shrink-0 flex-col items-stretch rounded-md border px-2 py-1.5 text-center shadow-card transition-all duration-fast ease-out-quart",
         baseBg,

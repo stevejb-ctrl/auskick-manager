@@ -47,6 +47,12 @@ interface ScoreRecordingDockProps {
   onCancel: () => void;
   /** Optional Cancel label override (default "Cancel"). */
   cancelLabel?: string;
+  /**
+   * Opens the full player action sheet (keep on, injured, lend…) — the
+   * same sheet long-press opens, so every action is reachable with a
+   * plain tap (UX plan H5). Rendered as the dock's last row.
+   */
+  onPlayerActions?: () => void;
 }
 
 export function ScoreRecordingDock({
@@ -54,6 +60,7 @@ export function ScoreRecordingDock({
   actions,
   onCancel,
   cancelLabel = "Cancel",
+  onPlayerActions,
 }: ScoreRecordingDockProps) {
   return (
     <div
@@ -74,6 +81,15 @@ export function ScoreRecordingDock({
           </button>
         </div>
         {actions}
+        {onPlayerActions && (
+          <button
+            type="button"
+            onClick={onPlayerActions}
+            className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline"
+          >
+            Player actions
+          </button>
+        )}
       </div>
     </div>
   );

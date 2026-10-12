@@ -198,11 +198,11 @@ export function NetballPlayerActions({
           {positionId && (
             isLockedForNextBreak ? (
               <ActionButton variant="ghost" onClick={onUnlock}>
-                🔓 Unlock for next break
+                🔓 Let rotate next break
               </ActionButton>
             ) : (
               <ActionButton variant="ghost" onClick={onLockForNextBreak}>
-                🔒 Keep at {positionLabel} next break
+                🔒 Keep in {positionLabel} next break
               </ActionButton>
             )
           )}
@@ -211,7 +211,7 @@ export function NetballPlayerActions({
               auto-prompt a replacement when toggling on. */}
           {isInjured ? (
             <ActionButton variant="ghost" onClick={onUnInjury}>
-              🩹 Mark recovered
+              🩹 Back on
             </ActionButton>
           ) : (
             <ActionButton variant="warn" onClick={onMarkInjured}>
@@ -223,7 +223,7 @@ export function NetballPlayerActions({
               the opposition when their numbers are short). */}
           {isLoaned ? (
             <ActionButton variant="ghost" onClick={onUnLoan}>
-              ↩️ Bring back from loan
+              ↩️ Bring back
             </ActionButton>
           ) : (
             <ActionButton variant="warn" onClick={onMarkLoaned}>

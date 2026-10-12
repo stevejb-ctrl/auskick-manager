@@ -159,7 +159,7 @@ export function LockModal({
                 onClick={onToggleInjury}
                 className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
               >
-                <span className="text-sm font-bold">Mark {firstName} recovered</span>
+                <span className="text-sm font-bold">Back on</span>
                 <span className="mt-0.5 text-xs opacity-90">
                   Back in the rotation from the next sub
                 </span>
@@ -205,8 +205,8 @@ export function LockModal({
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
               {currentLock === "field"
-                ? "Always on field — never subbed off."
-                : `Locked to ${zoneLabel ?? "position"} — subs back to this zone only.`}
+                ? "Kept on field — never subbed off."
+                : `Kept in ${zoneLabel ?? "position"} — subs back to this zone only.`}
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -214,7 +214,7 @@ export function LockModal({
                 onClick={onUnlock}
                 className="w-full rounded-md border border-hairline py-2.5 text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
               >
-                Unlock player
+                Let them rotate again
               </button>
               <button
                 type="button"
@@ -352,7 +352,7 @@ export function LockModal({
                   onClick={onLockField}
                   className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
                 >
-                  <span className="text-sm font-bold">Always on field</span>
+                  <span className="text-sm font-bold">Keep on field</span>
                   <span className="mt-0.5 text-xs opacity-80">Never substituted off</span>
                 </button>
               )}
@@ -362,7 +362,7 @@ export function LockModal({
                   onClick={onLockZone}
                   className="flex w-full flex-col items-center rounded-md bg-warn px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-warn/90"
                 >
-                  <span className="text-sm font-bold">Lock to {zoneLabel}</span>
+                  <span className="text-sm font-bold">Keep in {zoneLabel}</span>
                   <span className="mt-0.5 text-xs opacity-90">
                     Can sub on/off but only to this position
                   </span>
