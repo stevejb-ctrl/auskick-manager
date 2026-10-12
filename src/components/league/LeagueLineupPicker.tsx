@@ -67,6 +67,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
 import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
+import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -131,6 +132,11 @@ interface LeagueLineupPickerProps {
   /** How we play for the league suggester (UX plan 5.6). */
   leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   */
+  roleSheet?: RoleSheetConfig;
+  /**
    * Default sub interval in MINUTES — the game's configured
    * `sub_interval_seconds` (defaulted to the age-group value at game
    * creation). When provided it's the pre-game default, so what the
@@ -159,6 +165,7 @@ export function LeagueLineupPicker({
   chipLabels,
   chipModes,
   leaguePlaybook,
+  roleSheet,
   defaultSubMinutes,
 }: LeagueLineupPickerProps) {
   const router = useRouter();
@@ -383,6 +390,11 @@ export function LeagueLineupPicker({
   );
   const [actionSheetPlayerId, setActionSheetPlayerId] = useState<string | null>(
     null,
+  );
+  const playerRoles = useRoleSheet(
+    roleSheet,
+    auth.kind === "team" ? auth.teamId : null,
+    (pid) => playerById.get(pid)?.full_name,
   );
 
   // Clear selection if the selected player gets benched / loaned
@@ -1427,10 +1439,19 @@ export function LeagueLineupPicker({
           isFr={frId === actionSheetPlayerId}
           isDh={dhId === actionSheetPlayerId}
           onToggleBench={handleActionToggleBench}
+          onEditRole={
+            playerRoles.open
+              ? () => {
+                  setActionSheetPlayerId(null);
+                  playerRoles.open?.(actionPlayer.id);
+                }
+              : undefined
+          }
           isOnField={actionIsOnField}
           onClose={() => setActionSheetPlayerId(null)}
         />
       )}
+      {playerRoles.sheet}
 
       {/* Two-step kickoff modal — mirrors AFL's LineupPicker. Opens
           on "Ready for Q1/H1", the modal's primary button is what

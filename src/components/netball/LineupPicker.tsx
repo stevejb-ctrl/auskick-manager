@@ -42,6 +42,8 @@ import {
   lastQuarterTeammatesInThird,
 } from "@/lib/sports/netball/fairness";
 import type { GameEvent } from "@/lib/types";
+import { useLongPress } from "@/lib/live/useLongPress";
+import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -152,6 +154,11 @@ interface LineupPickerProps {
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   */
+  roleSheet?: RoleSheetConfig;
+  /**
    * Team-level default for "allow mid-quarter subs" (mirrors the
    * team Settings toggle). Used as the fallback when no per-game
    * override is set, and used to detect when the per-game override
@@ -209,6 +216,7 @@ export function NetballLineupPicker({
   initialLoanedIds = [],
   chipModeByKey = {},
   netballPlaybook,
+  roleSheet,
   teamAllowMidQuarterSubs = false,
   gameAllowMidQuarterSubs = null,
   currentOnFieldSize,
@@ -540,6 +548,11 @@ export function NetballLineupPicker({
     () => new Map(squad.map((p) => [p.id, p])),
     [squad],
   );
+  const playerRoles = useRoleSheet(
+    roleSheet,
+    auth?.kind === "team" ? auth.teamId : null,
+    (pid) => squadById.get(pid)?.full_name,
+  );
 
   // Which player is currently in which position/bench. Used to find
   // where the selected player lives so a swap can put the displaced
@@ -762,6 +775,7 @@ export function NetballLineupPicker({
             if (occupantId) handleTapPlayer(occupantId);
             else handleTapEmpty(positionId);
           }}
+          onLongPress={occupantId && playerRoles.open ? () => playerRoles.open?.(occupantId) : undefined}
         />
       </div>
     );
@@ -1098,7 +1112,9 @@ export function NetballLineupPicker({
         availableIds={availableIds}
         selectedId={selected}
         onTapPlayer={handleTapPlayer}
+        onLongPressPlayer={playerRoles.open}
       />
+      {playerRoles.sheet}
 
       {/* Per-game quarter-length override moved UP into the
           "Game settings" collapse (Steve 2026-05-16) so all pre-
@@ -1219,6 +1235,7 @@ function BenchStrip({
   availableIds,
   selectedId,
   onTapPlayer,
+  onLongPressPlayer,
 }: {
   bench: string[];
   onCourtIds: string[];
@@ -1227,6 +1244,7 @@ function BenchStrip({
   /** Currently-selected player id (highlighted to confirm the tap). */
   selectedId: string | null;
   onTapPlayer: (playerId: string) => void;
+  onLongPressPlayer?: (playerId: string) => void;
 }) {
   // "Bench + unassigned" = available players who aren't currently in a
   // position. That's the explicit bench list plus anyone in availableIds
@@ -1254,24 +1272,53 @@ function BenchStrip({
           all.map((pid) => {
             const player = squadById.get(pid);
             if (!player) return null;
-            const isSelected = selectedId === pid;
             return (
-              <button
+              <BenchChip
                 key={pid}
-                type="button"
-                onClick={() => onTapPlayer(pid)}
-                className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                  isSelected
-                    ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
-                    : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
-                }`}
-              >
-                {player.full_name}
-              </button>
+                player={player}
+                selected={selectedId === pid}
+                onTap={() => onTapPlayer(pid)}
+                onLongPress={onLongPressPlayer ? () => onLongPressPlayer(pid) : undefined}
+              />
             );
           })
         )}
       </div>
     </div>
+  );
+}
+
+/** A bench chip: tap to pick, long-press for the player's role. */
+function BenchChip({
+  player,
+  selected,
+  onTap,
+  onLongPress,
+}: {
+  player: Player;
+  selected: boolean;
+  onTap: () => void;
+  onLongPress?: () => void;
+}) {
+  const lp = useLongPress({ onLongPress });
+  return (
+    <button
+      type="button"
+      data-testid={`bench-chip-${player.id}`}
+      {...lp.handlers}
+      onClick={() => {
+        if (lp.consumedLongPress()) return;
+        onTap();
+      }}
+      className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+        selected
+          ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
+          : lp.arming
+            ? "border-brand-400 bg-surface-alt text-ink"
+            : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
+      }`}
+    >
+      {player.full_name}
+    </button>
   );
 }

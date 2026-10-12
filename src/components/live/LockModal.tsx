@@ -79,6 +79,11 @@ interface LockModalProps {
    */
   onToggleBench?: () => void;
   /**
+   * How we play: opens the player role sheet (home, also plays,
+   * never plays, keep on). Pre-game pickers only, coaches only.
+   */
+  onEditRole?: () => void;
+  /**
    * `true` when the player is on the field. Drives the bench
    * button label and hides Move/Vest actions that don't apply
    * to bench players.
@@ -118,6 +123,7 @@ export function LockModal({
   isFr,
   isDh,
   onToggleBench,
+  onEditRole,
   isOnField,
   insight,
   onClose,
@@ -339,6 +345,16 @@ export function LockModal({
                       ? "Moves to the bench"
                       : "Bring this player onto the field"}
                   </span>
+                </button>
+              )}
+              {onEditRole && (
+                <button
+                  type="button"
+                  onClick={onEditRole}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Player role</span>
+                  <span className="mt-0.5 text-xs text-ink-dim">Home, also plays, never plays, keep on</span>
                 </button>
               )}
               {onLockField && (

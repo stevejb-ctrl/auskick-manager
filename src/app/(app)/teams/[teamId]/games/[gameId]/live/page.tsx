@@ -3,6 +3,7 @@ import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
+import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
@@ -38,6 +39,17 @@ import { EmptyState } from "@/components/ui/EmptyState";
  * one into that shape. Their ids stay unique UUIDs so game_events can
  * reference them directly.
  */
+/** The lineup's player role sheet: coaches only, and only when How we play has roles. */
+function coachRoleSheet(
+  isAdmin: boolean,
+  resolved: Parameters<typeof roleModelFor>[0],
+  prefs: Parameters<typeof rolesFromPrefs>[0],
+): RoleSheetConfig | undefined {
+  if (!isAdmin) return undefined;
+  const model = roleModelFor(resolved);
+  return model ? { model, roles: rolesFromPrefs(prefs, model.unit) } : undefined;
+}
+
 function fillInToPlayer(f: FillIn, teamId: string): Player {
   return {
     id: f.id,
@@ -496,6 +508,7 @@ export default async function LivePage({ params }: LivePageProps) {
               }}
               chipModes={teamChipModes}
               leaguePlaybook={leaguePlaybook}
+              roleSheet={coachRoleSheet(isAdmin, lg.resolved, lg.prefs)}
             />
           )}
         </div>
@@ -759,6 +772,7 @@ export default async function LivePage({ params }: LivePageProps) {
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
           netballPlaybook={netballPlaybook}
+          roleSheet={coachRoleSheet(isAdmin, nb.resolved, nb.prefs)}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
@@ -1118,11 +1132,7 @@ export default async function LivePage({ params }: LivePageProps) {
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
-          roleSheet={(() => {
-            if (!isAdmin) return undefined;
-            const model = roleModelFor(playbook);
-            return model ? { model, roles: rolesFromPrefs(playbookPrefs, model.unit) } : undefined;
-          })()}
+          roleSheet={coachRoleSheet(isAdmin, playbook, playbookPrefs)}
           initialLoanedIds={initialLoanedIds}
         />
       )}

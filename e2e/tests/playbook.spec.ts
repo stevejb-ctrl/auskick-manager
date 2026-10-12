@@ -728,3 +728,71 @@ test("a coach sets a role from the game-day lineup with a long-press", async ({ 
     })
     .toBe("back");
 });
+
+test("netball and league lineups: long-press opens the same role sheet", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  const homeOf = async (playerId: string) => {
+    const { data } = await admin
+      .from("player_position_prefs")
+      .select("position_key, line")
+      .eq("player_id", playerId)
+      .eq("kind", "home");
+    return data?.[0] ?? null;
+  };
+
+  // Netball, set positions: long-press a bench chip, give them a home bib.
+  const nbTeam = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+  const nbPlayers = await makePlayers(admin, { teamId: nbTeam.id, ownerId, count: 9, ageGroup: "U10" });
+  const nbGame = await makeGame(admin, { teamId: nbTeam.id, ownerId, ageGroup: "U10" });
+  await admin.from("game_availability").insert(
+    nbPlayers.map((p) => ({ game_id: nbGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: nbTeam.id, strategy: "set-positions" });
+
+  await page.goto(`/teams/${nbTeam.id}/games/${nbGame.id}/live`);
+  const chip = page.locator('[data-testid^="bench-chip-"]').first();
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  const benchId = (await chip.getAttribute("data-testid"))!.replace("bench-chip-", "");
+  const benchName = nbPlayers.find((p) => p.id === benchId)!.full_name;
+  // PlayerTile parity: the long-press fires after a 500ms hold.
+  await chip.click({ delay: 600 });
+  const nbSheet = page.getByRole("dialog", { name: `Role for ${benchName}` });
+  await expect(nbSheet).toBeVisible();
+  await nbSheet.getByRole("radiogroup", { name: "Home position" }).getByRole("radio", { name: /\(GK\)/ }).click();
+  await nbSheet.getByRole("button", { name: "Save role" }).click();
+  await expect(nbSheet).toHaveCount(0);
+  await expect.poll(async () => (await homeOf(benchId))?.position_key).toBe("gk");
+  // The long-press didn't also pick the chip for a swap.
+  await expect(chip).not.toHaveClass(/ring-2/);
+
+  // League: the long-press menu gains "Player role".
+  const lgTeam = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  const lgPlayers = await makePlayers(admin, { teamId: lgTeam.id, ownerId, count: 13, ageGroup: "U10" });
+  const lgGame = await makeGame(admin, { teamId: lgTeam.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 11 }).eq("id", lgGame.id);
+  await admin.from("game_availability").insert(
+    lgPlayers.map((p) => ({ game_id: lgGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: lgTeam.id, strategy: "preferred-line" });
+
+  await page.goto(`/teams/${lgTeam.id}/games/${lgGame.id}/live`);
+  const target = lgPlayers[0];
+  const tile = page.getByTestId(`league-player-tile-${target.id}`).first();
+  await expect(tile).toBeVisible({ timeout: 15_000 });
+  await tile.click({ delay: 600 });
+  await page.getByRole("button", { name: /Player role/ }).click();
+  const lgSheet = page.getByRole("dialog", { name: `Role for ${target.full_name}` });
+  await expect(lgSheet).toBeVisible();
+  await lgSheet.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Backs" }).click();
+  await lgSheet.getByRole("button", { name: "Save role" }).click();
+  await expect(lgSheet).toHaveCount(0);
+  await expect.poll(async () => (await homeOf(target.id))?.line).toBe("backs");
+});

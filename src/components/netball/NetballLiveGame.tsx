@@ -219,6 +219,8 @@ interface NetballLiveGameProps {
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** Player roles on the pre-game lineup (long-press). Coaches only. */
+  roleSheet?: import("@/components/playbook/useRoleSheet").RoleSheetConfig;
   /**
    * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
    * on each own-team goal commit. AFL has had this since song
@@ -268,6 +270,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     gameAllowMidQuarterSubs = null,
     chipModeByKey = {},
     netballPlaybook,
+    roleSheet,
     songUrl = null,
     songStartSeconds = 0,
     songDurationSeconds = 15,
@@ -1687,6 +1690,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           initialLoanedIds={Array.from(loanedIds)}
           chipModeByKey={chipModeByKey}
           netballPlaybook={netballPlaybook}
+          roleSheet={roleSheet}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           // "Back to availability" breadcrumb — only meaningful for
