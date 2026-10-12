@@ -489,6 +489,7 @@ export default async function RunPage({ params }: RunPageProps) {
         )}
         <NetballLiveGame
           auth={auth}
+          renderedAtMs={Date.now()}
           game={g}
           teamName={teamName}
           squad={squad}

@@ -164,6 +164,14 @@ interface NetballLiveGameProps {
    */
   clockMultiplier?: number;
   /**
+   * When the server rendered the page (ms). The first client render
+   * uses it as "now" so tile times and the clock match the server's
+   * HTML; after mount the clock runs off Date.now(). Without it a
+   * second's gap before hydration ("1:00" vs "1:02") made React throw
+   * the HTML away and swallow the coach's first tap.
+   */
+  renderedAtMs?: number;
+  /**
    * True when the current user has admin role on this team. Drives
    * the "Restart game" affordance — folded into the same row as
    * "+ Add late arrival" at the bottom of the live court so the
@@ -264,6 +272,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
+    renderedAtMs,
     isAdmin = false,
     initialDraft = null,
     allowMidQuarterSubs = false,
@@ -316,6 +325,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // `_quarterElapsedMs` from the parent (which represents the frozen
   // recorded value) so a closed quarter can't keep ticking.
   const [, setClockTick] = useState(0);
+  // Server's "now" until mounted, so hydration sees the same text.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // Pause state. `pausedAtMs` is the wall-clock timestamp of the
   // current pause (null when running). `accumulatedPauseMs` is the
   // total paused time across all pauses this quarter — subtracted
@@ -382,7 +394,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     accumulatedPauseMs,
     fallbackElapsedMs: _quarterElapsedMs,
     clockMultiplier,
-    nowMs: Date.now(),
+    nowMs: mounted || renderedAtMs === undefined ? Date.now() : renderedAtMs,
   });
   const isPaused = pausedAtMs !== null;
   const toggleClock = useCallback(() => {

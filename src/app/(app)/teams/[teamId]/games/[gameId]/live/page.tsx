@@ -743,6 +743,7 @@ export default async function LivePage({ params }: LivePageProps) {
             in-game chrome itself. */}
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          renderedAtMs={Date.now()}
           game={g}
           teamName={teamName}
           squad={squad}

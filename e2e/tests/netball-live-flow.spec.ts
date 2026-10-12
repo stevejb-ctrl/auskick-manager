@@ -369,6 +369,36 @@ test("NETBALL-04 (live-shell): track_scoring=false hides +G button in score bug"
   ).toHaveCount(0);
 });
 
+// ─── Hydration: the live court survives a slow phone ──────
+
+test("the live court hydrates cleanly on a slow phone, so the first tap works", async ({ page }) => {
+  // Regression: tile times and the clock were computed from Date.now()
+  // in render, so the server said "1:00" and the browser "1:02". React
+  // threw the server HTML away and re-rendered, swallowing the coach's
+  // first tap. Holding the app's JavaScript back 1.5s makes the gap
+  // between server render and hydration certain.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
+  await suppressWalkthrough(page);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route("**/_next/static/chunks/**", async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const gs = page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") });
+  await expect(gs).toBeVisible({ timeout: 15_000 });
+  // Hydrated once the live clock button responds to the app's code.
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[aria-label^="Clock"]');
+    return !!el && Object.keys(el).some((k) => k.startsWith("__reactProps"));
+  }, null, { timeout: 30_000 });
+  await gs.click();
+  await expect(page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i })).toBeVisible();
+  expect(errors.filter((m) => /hydrat|did not match|server-rendered/i.test(m))).toEqual([]);
+});
+
 // ─── NETBALL-03: goal scoring flow ─────────────────────────
 
 test("NETBALL-03: tapping GS opens confirm sheet, confirming records goal + 8s undo toast", async ({
