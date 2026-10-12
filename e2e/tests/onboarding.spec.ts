@@ -116,6 +116,36 @@ test("creating a game inside the wizard stays in the wizard and reaches All set"
   await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=done`));
 });
 
+// Regression (UX plan C3): the completed "Basics" pill linked to
+// /teams/new, so going back to fix the team name created a second team.
+test("the Basics step pill edits the existing team instead of creating another", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const original = `Basics ${Date.now()}`;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name: original });
+
+  await page.goto(`/teams/${team.id}/setup?step=config`);
+  await page.getByRole("link", { name: /back to team basics/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=basics`));
+
+  const nameInput = page.getByLabel(/team name/i);
+  await expect(nameInput).toHaveValue(original);
+  await nameInput.fill(`${original} Renamed`);
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=config`), {
+    timeout: 10_000,
+  });
+
+  const { data: rows } = await admin
+    .from("teams")
+    .select("id, name")
+    .eq("created_by", ownerId)
+    .like("name", `${original}%`);
+  expect(rows).toEqual([{ id: team.id, name: `${original} Renamed` }]);
+});
+
 // Regression (UX plan C4): step 2 said "Default for Under 14: on" while
 // createTeam only applied the age-group scoring default for rugby
 // league, so older AFL / netball teams started with no scoreboard.

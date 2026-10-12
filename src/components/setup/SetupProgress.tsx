@@ -26,7 +26,8 @@ interface SetupProgressProps {
 }
 
 function stepHref(teamId: string, step: SetupStep): string {
-  if (step === "basics") return "/teams/new";
+  // Basics edits the team that already exists — never /teams/new,
+  // which would create a second team (UX plan C3).
   return `/teams/${teamId}/setup?step=${step}`;
 }
 

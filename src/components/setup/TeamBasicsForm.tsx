@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { createTeam } from "@/app/(app)/dashboard/actions";
+import { updateTeamBasics } from "@/app/(app)/teams/[teamId]/setup/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -19,12 +20,18 @@ interface TeamBasicsFormProps {
    * multiple sports can pick when adding a team.
    */
   lockSport?: boolean;
+  /**
+   * Edit an existing team instead of creating one (the wizard's Basics
+   * step after the team exists). Sport is shown but can't change.
+   */
+  existingTeam?: { id: string; name: string; ageGroup: string };
 }
 
 export function TeamBasicsForm({
   userId,
   defaultSport = "afl",
   lockSport = false,
+  existingTeam,
 }: TeamBasicsFormProps) {
   const [sport, setSport] = useState<Sport>(defaultSport);
   const cfg = useMemo(() => getSportConfig(sport), [sport]);
@@ -43,8 +50,10 @@ export function TeamBasicsForm({
     }
   };
 
-  const [name, setName] = useState("");
-  const [ageGroup, setAgeGroup] = useState<string>(defaultAgeFor(sport));
+  const [name, setName] = useState(existingTeam?.name ?? "");
+  const [ageGroup, setAgeGroup] = useState<string>(
+    existingTeam?.ageGroup ?? defaultAgeFor(sport),
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -68,7 +77,9 @@ export function TeamBasicsForm({
     // returns from the action in that case.  The result branch here
     // only runs for the failure path.
     startTransition(async () => {
-      const result = await createTeam(userId, name.trim(), ageGroup, sport);
+      const result = existingTeam
+        ? await updateTeamBasics(existingTeam.id, name.trim(), ageGroup)
+        : await createTeam(userId, name.trim(), ageGroup, sport);
       if (!result.success) {
         setError(result.error);
       }
@@ -77,7 +88,13 @@ export function TeamBasicsForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!lockSport && (
+      {existingTeam && (
+        <div className="space-y-1">
+          <Label>Sport</Label>
+          <p className="text-sm text-ink">{cfg.name}</p>
+        </div>
+      )}
+      {!lockSport && !existingTeam && (
         <div className="space-y-1">
           <Label>Sport</Label>
           {/*

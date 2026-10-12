@@ -5,12 +5,14 @@ import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
 import { DoneStep } from "@/components/setup/DoneStep";
+import { SetupProgress } from "@/components/setup/SetupProgress";
+import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { getAgeGroupConfig } from "@/lib/sports";
 import type { Player, Sport } from "@/lib/types";
 
-type SetupQueryStep = "config" | "squad" | "games" | "done";
+type SetupQueryStep = "basics" | "config" | "squad" | "games" | "done";
 
-const VALID_STEPS: SetupQueryStep[] = ["config", "squad", "games", "done"];
+const VALID_STEPS: SetupQueryStep[] = ["basics", "config", "squad", "games", "done"];
 
 interface SetupPageProps {
   params: { teamId: string };
@@ -136,6 +138,32 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     b: teamWithChips.chip_b_mode ?? undefined,
     c: teamWithChips.chip_c_mode ?? undefined,
   };
+
+  if (step === "basics") {
+    return (
+      <div className="mx-auto max-w-xl space-y-6">
+        <SetupProgress current="basics" teamId={params.teamId} />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-ink">Team basics</h1>
+          <p className="text-sm text-ink-dim">
+            Your age group sets the default on-field size, quarter length, and
+            rotation rules for this team.
+          </p>
+        </div>
+        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+          <TeamBasicsForm
+            userId={user.id}
+            defaultSport={sport}
+            existingTeam={{
+              id: params.teamId,
+              name: teamName,
+              ageGroup: (team.age_group as string | null) ?? ageGroupCfg.id,
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (step === "config") {
     return (
