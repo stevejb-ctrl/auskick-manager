@@ -85,7 +85,7 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
-import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
+import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 interface LeagueLiveGameProps {
@@ -970,18 +970,19 @@ export function LeagueLiveGame({
         for (const id of availableIds) {
           if (!placed.has(id)) benchSet.add(id);
         }
-        const { flushed: lineupFlushed } = enqueueLiveAction(
-          "recordLeagueLineupSet",
-          [
-            auth,
-            game.id,
+        const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
+          auth,
+          game.id,
+          // Named positions: record each kid's slot (UX plan 5.7).
+          withLeagueSlots(
             {
               forwards: seededForwards,
               backs: seededBacks,
               bench: Array.from(benchSet),
             },
-          ],
-        );
+            leaguePlaybook,
+          ),
+        ]);
         await lineupFlushed;
         clearPlannedRotation();
         lineupRecorded = true;
@@ -999,18 +1000,19 @@ export function LeagueLiveGame({
       loanedSet.forEach((id) => sidelined.add(id));
       const reconciled = benchSidelinedInLeagueLineup(state.lineup, sidelined);
       if (reconciled !== state.lineup) {
-        const { flushed: reconcileFlushed } = enqueueLiveAction(
-          "recordLeagueLineupSet",
-          [
-            auth,
-            game.id,
+        const { flushed: reconcileFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
+          auth,
+          game.id,
+          // Named positions: record each kid's slot (UX plan 5.7).
+          withLeagueSlots(
             {
               forwards: reconciled.forwards,
               backs: reconciled.backs,
               bench: reconciled.bench,
             },
-          ],
-        );
+            leaguePlaybook,
+          ),
+        ]);
         await reconcileFlushed;
       }
     }
@@ -1208,11 +1210,15 @@ export function LeagueLiveGame({
       const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
         auth,
         game.id,
-        {
-          forwards: nextForwards,
-          backs: nextBacks,
-          bench: state.lineup.bench,
-        },
+        // Named positions: record each kid's slot (UX plan 5.7).
+        withLeagueSlots(
+          {
+            forwards: nextForwards,
+            backs: nextBacks,
+            bench: state.lineup.bench,
+          },
+          leaguePlaybook,
+        ),
       ]);
       await flushed;
       setPending(false);
@@ -1290,7 +1296,8 @@ export function LeagueLiveGame({
       const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
         auth,
         game.id,
-        { forwards: nextForwards, backs: nextBacks, bench: nextBench },
+        // Named positions: record each kid's slot (UX plan 5.7).
+        withLeagueSlots({ forwards: nextForwards, backs: nextBacks, bench: nextBench }, leaguePlaybook),
       ]);
       await flushed;
       setPending(false);

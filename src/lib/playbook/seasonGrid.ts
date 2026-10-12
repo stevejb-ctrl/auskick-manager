@@ -7,6 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
+import { leaguePositionGroup } from "@/lib/sports/rugby_league/playbook";
 
 export interface SeasonGridCell {
   unit: string;
@@ -32,7 +33,12 @@ export interface SeasonGrid {
 }
 
 /** What the grid's columns are for a sport and balance unit. */
-export function gridUnits(sport: Sport, unit: BalanceUnit | null): { unit: BalanceUnit; columns: { key: string; label: string }[] } {
+export function gridUnits(
+  sport: Sport,
+  unit: BalanceUnit | null,
+  /** League named positions: the team's catalogue, one column each. */
+  positions: { key: string; label: string }[] = [],
+): { unit: BalanceUnit; columns: { key: string; label: string }[] } {
   if (sport === "netball") {
     if (unit === "bib") {
       return {
@@ -50,6 +56,15 @@ export function gridUnits(sport: Sport, unit: BalanceUnit | null): { unit: Balan
     };
   }
   if (sport === "rugby_league") {
+    if (unit === "position" && positions.length > 0) {
+      // One column per role (two props are one "PR" column).
+      const columns = new Map<string, string>();
+      for (const p of positions) {
+        const group = leaguePositionGroup(p.key);
+        if (!columns.has(group)) columns.set(group, p.label);
+      }
+      return { unit: "position", columns: Array.from(columns, ([key, label]) => ({ key, label })) };
+    }
     return {
       unit: "line",
       columns: [

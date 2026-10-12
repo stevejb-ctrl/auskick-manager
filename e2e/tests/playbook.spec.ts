@@ -796,3 +796,73 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await expect(lgSheet).toHaveCount(0);
   await expect.poll(async () => (await homeOf(target.id))?.line).toBe("backs");
 });
+
+test("league named positions: lineups record positions, and stats count time by position", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const ids = players.map((p) => p.id);
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions" });
+  const hooker = players[3];
+  await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: hooker.id, position_key: "hk", kind: "home" });
+
+  // A finished game whose lineup recorded positions (two props: one role).
+  const past = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const lineup = {
+    forwards: ids.slice(0, 3),
+    backs: ids.slice(3, 5),
+    bench: [],
+    slots: { [ids[0]]: "pr1", [ids[1]]: "hk", [ids[2]]: "pr2", [ids[3]]: "fb", [ids[4]]: "hb" },
+  };
+  await admin.from("game_events").insert([
+    { game_id: past.id, type: "lineup_set", metadata: { lineup, sport: "rugby_league" }, created_by: ownerId, created_at: t(70) },
+    { game_id: past.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(70) },
+    { game_id: past.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 20 * 60_000 }, created_by: ownerId, created_at: t(50) },
+    { game_id: past.id, type: "game_finalised", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(49) },
+  ]);
+  await admin.from("games").update({ status: "completed", scheduled_at: t(80) }).eq("id", past.id);
+
+  await page.goto(`/teams/${team.id}/stats`);
+  const grid = page.getByRole("table", { name: "Season balance" });
+  await expect(grid).toBeVisible({ timeout: 15_000 });
+  await expect(grid.getByRole("columnheader", { name: "PR", exact: true })).toHaveCount(1);
+  await expect(grid.getByRole("columnheader", { name: "HK", exact: true })).toBeVisible();
+  // The rollup stores time by role, beside the lines.
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("player_game_time")
+        .select("player_id, unit_key, ms")
+        .eq("game_id", past.id)
+        .eq("unit_kind", "position");
+      return (data ?? []).filter((r) => r.player_id === ids[2]).map((r) => [r.unit_key, r.ms]);
+    })
+    .toEqual([["pr", 20 * 60_000]]);
+
+  // Kickoff records a position for every kid on the field.
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+  // Eleven here, so everyone (the hooker too) starts on the field.
+  await admin.from("game_availability").insert(
+    players.slice(0, 11).map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  const recorded = async () => {
+    const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
+    return (data?.[0]?.metadata as { lineup?: { forwards: string[]; backs: string[]; slots?: Record<string, string> } })?.lineup ?? null;
+  };
+  await expect.poll(async () => (await recorded()) !== null, { timeout: 15_000 }).toBe(true);
+  const kickoff = (await recorded())!;
+  expect(Object.keys(kickoff.slots ?? {}).sort()).toEqual([...kickoff.forwards, ...kickoff.backs].sort());
+  expect(kickoff.slots?.[hooker.id]).toBe("hk");
+});

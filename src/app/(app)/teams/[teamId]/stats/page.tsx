@@ -158,7 +158,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   );
   const balanceSince = playbook.seasonBalanceSince;
   const useSince = searchParams.balance === "since" && !!balanceSince;
-  const { unit: gridUnit, columns: gridColumns } = gridUnits(sport, playbook.strategy.balanceUnit);
+  const { unit: gridUnit, columns: gridColumns } = gridUnits(sport, playbook.strategy.balanceUnit, playbook.positions);
   const seasonBalance: SeasonBalanceSectionProps = {
     grid: seasonBalanceGrid({
       time: seasonFromRollup(rollupRows, gridUnit, useSince ? balanceSince : null),

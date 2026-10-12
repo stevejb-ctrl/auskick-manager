@@ -386,6 +386,9 @@ export default async function LivePage({ params }: LivePageProps) {
       }),
       lgPeriodSeconds * 1000,
       lg.vestStrategy,
+      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "position", {
+        since: lg.resolved.seasonBalanceSince,
+      }),
     );
 
     if (!hasStarted) {

@@ -28,6 +28,17 @@ export const BASE_UNIT: Record<Sport, BalanceUnit> = {
   rugby_league: "line",
 };
 
+/**
+ * Units stored per sport: the base unit, plus league named positions
+ * (UX plan 5.7), which can't fold from lines. A game with no recorded
+ * slots simply writes no position rows.
+ */
+const STORED_UNITS: Record<Sport, BalanceUnit[]> = {
+  afl: ["zone"],
+  netball: ["bib"],
+  rugby_league: ["line", "position"],
+};
+
 export function gameRollupRows(
   sport: Sport,
   gameId: string,
@@ -37,22 +48,23 @@ export function gameRollupRows(
 ): PlayerGameTimeRow[] {
   if (events.length === 0) return [];
   const playedAt = events.reduce((m, e) => (e.created_at < m ? e.created_at : m), events[0].created_at);
-  const unit = BASE_UNIT[sport];
-  const time = gameTimeByUnit(sport, events, unit, periodSeconds);
   const rows: PlayerGameTimeRow[] = [];
-  for (const [pid, byKey] of Object.entries(time)) {
-    for (const [key, ms] of Object.entries(byKey)) {
-      if (!(ms > 0)) continue;
-      rows.push({
-        game_id: gameId,
-        team_id: teamId,
-        player_id: pid,
-        unit_kind: unit,
-        unit_key: key,
-        ms: Math.round(ms),
-        periods: Math.round((ms / (periodSeconds * 1000)) * 100) / 100,
-        played_at: playedAt,
-      });
+  for (const unit of STORED_UNITS[sport]) {
+    const time = gameTimeByUnit(sport, events, unit, periodSeconds);
+    for (const [pid, byKey] of Object.entries(time)) {
+      for (const [key, ms] of Object.entries(byKey)) {
+        if (!(ms > 0)) continue;
+        rows.push({
+          game_id: gameId,
+          team_id: teamId,
+          player_id: pid,
+          unit_kind: unit,
+          unit_key: key,
+          ms: Math.round(ms),
+          periods: Math.round((ms / (periodSeconds * 1000)) * 100) / 100,
+          played_at: playedAt,
+        });
+      }
     }
   }
   return rows;

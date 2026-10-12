@@ -66,7 +66,7 @@ import type {
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
-import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
+import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
@@ -939,7 +939,8 @@ export function LeagueLineupPicker({
       const result = await startLeagueGame(
         auth,
         gameId,
-        lineup,
+        // Named positions: record each kid's slot (UX plan 5.7).
+        withLeagueSlots(lineup, leaguePlaybook),
         fieldIds.length,
         true,
         vestPlan,

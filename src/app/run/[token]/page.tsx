@@ -217,6 +217,7 @@ export default async function RunPage({ params }: RunPageProps) {
       seasonTimeByUnit("rugby_league", leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
       periodSeconds * 1000,
       lg.vestStrategy,
+      seasonTimeByUnit("rugby_league", leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
     );
 
     // Chip labels for RL — Forward/Back are auto-seeded by the

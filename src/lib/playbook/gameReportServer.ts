@@ -93,7 +93,7 @@ export async function buildGameReport(
     const strategyUnit = snapshot
       ? effectiveStrategy(sport, snapshot.policy, snapshot.strategy).balanceUnit
       : resolved.strategy.balanceUnit;
-    const { unit, columns } = gridUnits(sport, strategyUnit);
+    const { unit, columns } = gridUnits(sport, strategyUnit, snapshot?.positions ?? resolved.positions);
     season = {
       before: seasonTimeByUnit(sport, before, unit, { since, periodSeconds }),
       after: seasonTimeByUnit(sport, [...before, ...events], unit, { since, periodSeconds }),
