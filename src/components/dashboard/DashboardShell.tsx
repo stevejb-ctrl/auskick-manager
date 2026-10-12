@@ -15,6 +15,7 @@ import { PositionFit } from "./PositionFit";
 import { HeadToHead } from "./HeadToHead";
 import { QuarterScoring } from "./QuarterScoring";
 import { AttendanceTable } from "./AttendanceTable";
+import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
 
 interface DashboardShellProps {
   seasons: Season[];
@@ -32,6 +33,8 @@ interface DashboardShellProps {
   // Data availability flags
   hasZoneData: boolean;
   hasScoringData: boolean;
+  /** Stats › Season balance (UX plan 4.4). */
+  seasonBalance?: SeasonBalanceSectionProps;
 }
 
 interface SectionProps {
@@ -62,6 +65,7 @@ export function DashboardShell({
   totalGames,
   hasZoneData,
   hasScoringData,
+  seasonBalance,
 }: DashboardShellProps) {
   if (seasons.length === 0) {
     return (
@@ -96,6 +100,8 @@ export function DashboardShell({
         <Section title="Player statistics">
           <PlayerStatsTable stats={playerStats} hasData={hasZoneData} />
         </Section>
+
+        {seasonBalance && <SeasonBalanceSection {...seasonBalance} />}
 
         {/* Position fit */}
         <Section title="Position fit">

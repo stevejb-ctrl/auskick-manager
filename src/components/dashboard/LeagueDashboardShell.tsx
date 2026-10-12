@@ -10,6 +10,7 @@
 // continuity rather than a fresh design. The data shape is the
 // only thing that's sport-specific.
 
+import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import type {
@@ -24,6 +25,8 @@ interface LeagueDashboardShellProps {
   playerNames: Record<string, string>;
   aggregate: LeagueSeasonAggregate;
   totalGames: number;
+  /** Stats › Season balance (UX plan 4.4). */
+  seasonBalance?: SeasonBalanceSectionProps;
 }
 
 export function LeagueDashboardShell({
@@ -32,6 +35,7 @@ export function LeagueDashboardShell({
   playerNames,
   aggregate,
   totalGames,
+  seasonBalance,
 }: LeagueDashboardShellProps) {
   if (totalGames === 0) {
     return (
@@ -117,6 +121,8 @@ export function LeagueDashboardShell({
           </ul>
         </section>
       )}
+
+      {seasonBalance && <SeasonBalanceSection {...seasonBalance} />}
 
       {/* Per-player table */}
       <section className="overflow-x-auto rounded-xl border border-hairline bg-surface shadow-card">

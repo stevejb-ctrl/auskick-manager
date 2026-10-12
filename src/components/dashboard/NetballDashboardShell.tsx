@@ -25,6 +25,7 @@ import type { AttendanceRow, Season } from "@/lib/dashboard/types";
 import { SeasonSelector } from "./SeasonSelector";
 import { MinutesEquity } from "./MinutesEquity";
 import { AttendanceTable } from "./AttendanceTable";
+import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
 import { EmptyState } from "./EmptyState";
 
 interface Props {
@@ -39,6 +40,8 @@ interface Props {
   hasPlayData: boolean;
   hasScoringData: boolean;
   hasAvailabilityData: boolean;
+  /** Stats › Season balance (UX plan 4.4). */
+  seasonBalance?: SeasonBalanceSectionProps;
 }
 
 function Section({
@@ -125,9 +128,14 @@ export function NetballDashboardShell(props: Props) {
           <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
         </Section>
 
-        <Section title="Game time">
-          <MinutesEquity stats={minutesEquityRows} hasData={hasPlayData} />
-        </Section>
+        {/* Season balance replaces "Game time" minutes equity (UX plan 4.4). */}
+        {props.seasonBalance ? (
+          <SeasonBalanceSection {...props.seasonBalance} />
+        ) : (
+          <Section title="Game time">
+            <MinutesEquity stats={minutesEquityRows} hasData={hasPlayData} />
+          </Section>
+        )}
 
         <Section title="Player chemistry — top pairs">
           <NetballChemistry

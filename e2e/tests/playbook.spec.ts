@@ -491,3 +491,41 @@ test("the rule check reads the lineup, and the break says why kids move", async 
   await expect(why.getByRole("listitem")).toHaveCount(5);
   await expect(check).toContainText(/and [0-9]+ more moves for a fair rotation/);
 });
+
+test("stats show season balance, backfilled, with since-reset", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  // A finished game from before the rollup existed: events only.
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: [] };
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: t(70) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(70) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 15 * 60_000 }, created_by: ownerId, created_at: t(55) },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 4 }, created_by: ownerId, created_at: t(50) },
+  ]);
+  await admin.from("games").update({ status: "completed", scheduled_at: t(80) }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/stats`);
+  const section = page.getByRole("region", { name: "Season balance" });
+  await expect(section).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("season-balance-summary")).toContainText("of 12 kids within a quarter of even");
+  await expect(section.getByRole("table", { name: "Season balance" })).toContainText(players[0].full_name);
+  // The rollup was backfilled for that game.
+  await expect
+    .poll(async () => (await admin.from("player_game_time").select("player_id").eq("game_id", game.id)).data?.length ?? 0)
+    .toBe(12);
+
+  // After a reset, "Since reset" counts nothing yet.
+  await admin.from("team_playbooks").insert({ team_id: team.id, season_balance_since: new Date().toISOString() });
+  await page.reload();
+  await page.getByRole("link", { name: "Since reset" }).click();
+  await expect(page).toHaveURL(/balance=since/);
+  await expect(section.getByText("No data yet")).toBeVisible();
+  await page.getByRole("link", { name: "Whole season" }).click();
+  await expect(page.getByTestId("season-balance-summary")).toContainText("of 12 kids");
+});

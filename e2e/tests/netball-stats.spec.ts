@@ -148,7 +148,8 @@ test("NETBALL-05: stats dashboard renders all 5 sections after a finalised netba
   // section ordering changed.
   const sectionTitles = [
     /player statistics/i,
-    /^game time$/i,
+    // Season balance replaced "Game time" minutes equity (UX plan 4.4).
+    /^season balance$/i,
     /player chemistry/i,
     /head-to-head/i,
     /attendance/i,
