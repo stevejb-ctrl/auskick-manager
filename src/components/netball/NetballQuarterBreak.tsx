@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/Label";
 import { RotationModeToggle, type RotationMode } from "@/components/quarter-break/RotationModeToggle";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
+import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
@@ -244,24 +245,6 @@ export function NetballQuarterBreak({
     return pickNetballPositionsToFill(ageGroup, effectiveOnFieldSize);
   }, [ageGroup, previousLineup, positions, effectiveOnFieldSize]);
 
-  // ─── Position grouping by third (drives section order) ────
-  // Order top→bottom: Attack, Centre, Defence, Bench. Same as the live
-  // court so the q-break view echoes the playing geography.
-  const positionsByThird = useMemo(() => {
-    const m: Record<Slot, string[]> = {
-      "attack-third": [],
-      "centre-third": [],
-      "defence-third": [],
-      bench: [],
-    };
-    for (const id of positions) {
-      const t = primaryThirdFor(id);
-      if (t === "attack-third") m["attack-third"].push(id);
-      else if (t === "centre-third") m["centre-third"].push(id);
-      else if (t === "defence-third") m["defence-third"].push(id);
-    }
-    return m;
-  }, [positions]);
 
   // ─── Suggested reshuffle ───────────────────────────────────
   const sidelinedSet = useMemo(() => {
@@ -717,6 +700,24 @@ export function NetballQuarterBreak({
     placeInPosition(playerId, fillTargetPosition);
     setFillTargetPosition(null);
     setSelected(null);
+  }
+
+  // Court captions: where each player goes next quarter, against the
+  // lineup that finished this one ("STAYS", "GA → WA", "BENCH → C").
+  const courtCaptions: Record<string, { text: string; tone: "move" | "stay" }> = {};
+  for (const [positionId, ids] of Object.entries(draft.positions)) {
+    const pid = ids[0];
+    if (!pid || sidelinedSet.has(pid)) continue;
+    const prevPos = positionOfPlayer(pid, previousLineup);
+    const wasOn = prevPos !== null || previousLineup.bench.includes(pid);
+    if (!wasOn) continue;
+    courtCaptions[positionId] =
+      prevPos === positionId
+        ? { text: "Stays", tone: "stay" }
+        : {
+            text: `${prevPos ? prevPos.toUpperCase() : "Bench"} → ${positionId.toUpperCase()}`,
+            tone: "move",
+          };
   }
 
   function handleTap(pid: string) {
@@ -1217,7 +1218,6 @@ export function NetballQuarterBreak({
   }
 
   // ─── Render ────────────────────────────────────────────────
-  const slots: Slot[] = ["attack-third", "centre-third", "defence-third", "bench"];
 
   return (
     <div className="space-y-4">
@@ -1723,26 +1723,29 @@ export function NetballQuarterBreak({
         ]}
       />
 
-      {/* Per-slot sections */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {slots.map((slot) => {
-          // Build the list of {playerId, positionId|null} for this slot.
-          // For court bands, also surface UNFILLED positions as null-pid
-          // entries so they render as tappable empty placeholders — coach
-          // can pick a bench player and tap an empty slot to fill the
-          // hole (otherwise lock-displacement / cancelled swaps leave
-          // permanently-stuck holes the validator then refuses to ship).
-          const items: { pid: string | null; positionId: string | null }[] = [];
-          if (slot === "bench") {
-            for (const pid of draft.bench) items.push({ pid, positionId: null });
-          } else {
-            for (const posId of positionsByThird[slot]) {
-              const occupant = draft.positions[posId]?.[0];
-              if (occupant) items.push({ pid: occupant, positionId: posId });
-              else items.push({ pid: null, positionId: posId });
-            }
-          }
-          const cap = slot === "bench" ? null : positionsByThird[slot].length;
+      {/* The same court the live game draws (UX plan principle 2: one
+          lineup, one picture). Tap two players to swap — across thirds or
+          with the bench below; tap an empty position to fill it. */}
+      <CourtDisplay
+        lineup={draft}
+        ageGroup={ageGroup}
+        squadById={playersById}
+        selectedPlayerId={selected}
+        onTokenTap={(positionId, pid) => (pid ? handleTap(pid) : handleTapEmpty(positionId))}
+        injuredIds={injuredIds}
+        loanedIds={loanedIds}
+        playerStats={thirdMs}
+        playerGoals={playerGoals}
+        captions={courtCaptions}
+      />
+
+      {/* Bench — list tiles under the court (tap one, then a court
+          player, to swap). */}
+      <div className="grid gap-3">
+        {(["bench"] as const).map((slot) => {
+          const items: { pid: string | null; positionId: string | null }[] =
+            draft.bench.map((pid) => ({ pid, positionId: null }));
+          const cap: number | null = null;
           return (
             <div
               key={slot}
@@ -1764,23 +1767,7 @@ export function NetballQuarterBreak({
               ) : (
                 <ul className="space-y-1.5">
                   {items.map(({ pid, positionId }) => {
-                    if (!pid) {
-                      // Empty position placeholder — always tappable.
-                      // No selection → opens the SlotFillSheet so the
-                      // coach can pick a bench player in one tap.
-                      // Selection → drops the selected player here
-                      // (legacy two-tap path). Keyed by positionId
-                      // since pid is null.
-                      return (
-                        <li key={`empty-${positionId}`}>
-                          <EmptySlotTile
-                            positionId={positionId!}
-                            disabled={false}
-                            onTap={() => positionId && handleTapEmpty(positionId)}
-                          />
-                        </li>
-                      );
-                    }
+                    if (!pid) return null;
                     const p = playersById.get(pid);
                     if (!p) return null;
                     const isSelected = selected === pid;
@@ -1951,44 +1938,6 @@ export function NetballQuarterBreak({
         );
       })()}
     </div>
-  );
-}
-
-// ─── Empty-slot tile ─────────────────────────────────────────
-// Renders for an unfilled position so the coach has something to
-// tap. Visually a dashed-border placeholder with the position label
-// — always tappable now that tapping opens the SlotFillSheet (or
-// fills with the currently-selected player as a fallback).
-function EmptySlotTile({
-  positionId,
-  disabled,
-  onTap,
-}: {
-  positionId: string;
-  disabled: boolean;
-  onTap: () => void;
-}) {
-  const pos = netballSport.allPositions.find((p) => p.id === positionId);
-  const posLabel = pos?.shortLabel ?? positionId.toUpperCase();
-  return (
-    <button
-      type="button"
-      onClick={onTap}
-      disabled={disabled}
-      className={`flex w-full items-center gap-3 rounded-md border-2 border-dashed px-3 py-2 text-left text-sm transition-colors ${
-        disabled
-          ? "border-hairline text-ink-mute"
-          : "border-brand-500 bg-brand-50 text-brand-800 hover:bg-brand-100"
-      }`}
-      aria-label={`Empty ${posLabel} — tap to fill`}
-    >
-      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-current px-2 text-[10px] font-bold uppercase tracking-micro">
-        {posLabel}
-      </span>
-      <span className="font-medium">
-        {disabled ? "Empty" : "Tap to fill"}
-      </span>
-    </button>
   );
 }
 

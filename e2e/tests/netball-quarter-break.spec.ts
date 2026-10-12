@@ -532,3 +532,30 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
     page.getByRole("button", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 });
+
+// UX plan 1.7 / H4: the netball break listed the next lineup in cards
+// per third while live play showed the court. The break now draws the
+// same court — every bib is a court token with a STAYS / "GA → WA"
+// caption for where the player goes next.
+test("the netball break draws the court with where-next captions", async ({ page }) => {
+  const { team, game, admin } = await setupQ1AutoEnded({});
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  for (const position of [
+    "Goal Shooter",
+    "Goal Attack",
+    "Wing Attack",
+    "Centre",
+    "Wing Defence",
+    "Goal Defence",
+    "Goal Keeper",
+  ]) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(`^${position}, `) }),
+    ).toBeVisible({ timeout: 5_000 });
+  }
+  // At least one court token carries a where-next caption.
+  await expect(page.getByText(/^(stays|bench → \w+|\w+ → \w+)$/i).first()).toBeVisible();
+});

@@ -58,6 +58,8 @@ interface PositionTokenProps {
    * clockPulseKey pattern on GameHeader / NetballScoreBug.
    */
   pulseKey?: string | number | null;
+  /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
+  caption?: { text: string; tone: "move" | "stay" } | null;
 }
 
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
@@ -92,6 +94,7 @@ export function PositionToken({
   totalMs,
   goalCount,
   pulseKey,
+  caption,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -268,6 +271,18 @@ export function PositionToken({
             />
           </svg>
         </span>
+      )}
+
+      {caption && (
+        <div
+          className={`rounded-t-[5px] border-b px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
+            caption.tone === "move"
+              ? "border-brand-700 bg-brand-600 text-white"
+              : "border-hairline bg-surface-alt text-ink-mute"
+          }`}
+        >
+          {caption.text}
+        </div>
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-1">
