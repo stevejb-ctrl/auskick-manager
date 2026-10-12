@@ -2201,6 +2201,7 @@ export function QuarterBreak({
                   zones: insightZones,
                   inGameZoneMs: basePlayedZoneMs[insightPlayerId] ?? {},
                   seasonZoneMs: season[insightPlayerId] ?? {},
+                  seasonPeriod: fullPeriodMs / 60000,
                 })}
               />
             </div>

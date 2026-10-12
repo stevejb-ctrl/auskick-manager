@@ -193,3 +193,26 @@ describe("buildPlayerInsight — purity", () => {
     expect(a).toEqual(b); // deterministic
   });
 });
+
+describe("season balance in the player view (UX plan 4.4)", () => {
+  it("flags zones the player is owed a period or more", () => {
+    const vm = buildPlayerInsight({
+      zones: [
+        { id: "back", label: "Back", shortLabel: "B" },
+        { id: "mid", label: "Centre", shortLabel: "C" },
+        { id: "fwd", label: "Forward", shortLabel: "F" },
+      ] as never,
+      inGameZoneMs: {},
+      perPeriod: [],
+      seasonZoneMs: { back: 48, mid: 24, fwd: 0 },
+      seasonPeriod: 12,
+      lastSubbedOnMs: null,
+      nowAbsMs: 0,
+    });
+    expect(vm.seasonZonePct.map((z) => [z.id, z.owed])).toEqual([
+      ["back", false],
+      ["mid", false],
+      ["fwd", true],
+    ]);
+  });
+});

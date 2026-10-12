@@ -2256,6 +2256,7 @@ export function LiveGame({
               inGameZoneMs: zoneMsByPlayer[pid] ?? {},
               perPeriod: insightPerPeriod,
               seasonZoneMs: season[pid] ?? {},
+              seasonPeriod: quarterMs / 60000,
               lastSubbedOnMs: initialState.lastSubbedOnMs[pid] ?? null,
               nowAbsMs: initialState.completedQuarterMs + nowMs * clockMultiplier,
             }}

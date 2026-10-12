@@ -1215,6 +1215,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       inGameZoneMs,
       perPeriod,
       seasonZoneMs: seasonZoneCounts[pid] ?? {},
+      // Netball's season is counted in quarters.
+      seasonPeriod: 1,
       lastSubbedOnMs: replayState.lastSubbedOnMs[pid] ?? null,
       nowAbsMs,
     };

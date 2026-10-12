@@ -15,6 +15,7 @@
 //        player was never subbed on.
 
 import type { ZoneDef } from "@/lib/sports/types";
+import { periodsOwed } from "@/lib/playbook/seasonBalance";
 
 /** One period's per-zone played ms, as fed in by the host (replay + live overlay). */
 export interface PlayerInsightPeriodInput {
@@ -32,6 +33,13 @@ export interface PlayerInsightInput {
   perPeriod: PlayerInsightPeriodInput[];
   /** Zone id -> season ms (completed games only). */
   seasonZoneMs: Record<string, number>;
+  /**
+   * One period in the same units as seasonZoneMs (AFL keeps minutes, so
+   * the quarter length in minutes; netball counts quarters, so 1). When
+   * given, zones the player is owed a period or more are flagged (UX plan
+   * 4.4, season balance in the player view).
+   */
+  seasonPeriod?: number;
   /** Absolute frame ms the player most recently went bench->field; null = never. */
   lastSubbedOnMs: number | null;
   /** Absolute game-elapsed ms now: completedPeriodMs + current-period elapsed. */
@@ -64,6 +72,8 @@ export interface SeasonZoneRow {
   label: string;
   shortLabel: string;
   pct: number;
+  /** Owed at least a period of time here this season (season balance). */
+  owed: boolean;
 }
 
 export interface PlayerInsight {
@@ -112,6 +122,10 @@ export function buildPlayerInsight(input: PlayerInsightInput): PlayerInsight {
 
   // D-04: percentages of the player's own season total. All-zero -> 0 (no NaN).
   const seasonTotal = zones.reduce((acc, z) => acc + (seasonZoneMs[z.id] ?? 0), 0);
+  const owed =
+    input.seasonPeriod && input.seasonPeriod > 0 && seasonTotal > 0
+      ? periodsOwed({ byUnit: seasonZoneMs, units: zones.map((z) => z.id), periodMs: input.seasonPeriod })
+      : {};
   const seasonZonePct: SeasonZoneRow[] = zones.map((z) => ({
     id: z.id,
     label: z.label,
@@ -120,6 +134,7 @@ export function buildPlayerInsight(input: PlayerInsightInput): PlayerInsight {
       seasonTotal > 0
         ? Math.round(((seasonZoneMs[z.id] ?? 0) / seasonTotal) * 100)
         : 0,
+    owed: (owed[z.id] ?? 0) >= 1,
   }));
 
   return {
@@ -142,6 +157,8 @@ export interface BreakInsightInput {
   inGameZoneMs: Record<string, number>;
   /** Zone id -> season total (any consistent unit — output is % only). */
   seasonZoneMs: Record<string, number>;
+  /** One period in the season's unit, to flag owed zones (optional). */
+  seasonPeriod?: number;
 }
 
 /**
@@ -161,6 +178,7 @@ export function breakInsightInput(input: BreakInsightInput): PlayerInsightInput 
     inGameZoneMs: input.inGameZoneMs ?? {},
     perPeriod: [],
     seasonZoneMs: input.seasonZoneMs ?? {},
+    seasonPeriod: input.seasonPeriod,
     lastSubbedOnMs: null,
     nowAbsMs: 0,
   };
