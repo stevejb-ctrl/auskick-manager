@@ -35,6 +35,14 @@ const SPORT_WORD: Record<Sport, string> = {
   rugby_league: "league",
 };
 
+/** What each vest strategy does, under the control (usability run: "doesn't say what order"). */
+const VEST_HELP: Record<"auto" | "fixed-order" | "coach", string> = {
+  auto: "Each vest goes to whoever on the field has worn it least.",
+  "fixed-order":
+    "Each vest goes round the squad in jersey-number order: the next kid on the field after whoever wore it last.",
+  coach: "Siren doesn't hand them out: you pick who wears each vest at the start of each half.",
+};
+
 export type HowWePlayRow = Pick<
   TeamPlaybookRow,
   "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
@@ -197,6 +205,9 @@ export function HowWePlayCard({
             ]}
             onChange={(v) => save({ ...row, vest_strategy: v }, { vestStrategy: v })}
           />
+          <p className="mt-2 text-xs text-ink-dim">
+            {VEST_HELP[row.vest_strategy ?? "auto"]}
+          </p>
         </div>
       )}
 

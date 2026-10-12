@@ -625,6 +625,8 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   await expect(
     page.getByRole("radiogroup", { name: "Vests" }).getByRole("radio", { name: "Fixed order" }),
   ).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
+  // It says what the fixed order is (usability run: "doesn't say what order").
+  await expect(page.getByText(/in jersey-number order/)).toBeVisible();
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
