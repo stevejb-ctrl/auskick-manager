@@ -441,3 +441,53 @@ test("Must rules shape the game-day lineup", async ({ page }) => {
     expect(both).toBeLessThan(2);
   }
 });
+
+test("the rule check reads the lineup, and the break says why kids move", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "free",
+    season_balance: "off",
+    rules: [{ id: "r1", kind: "max-bench-in-row", params: { count: 2 }, strength: "must", enabled: true }],
+  });
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  // Pre-game: everything's kept.
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept", { timeout: 15_000 });
+  await page.getByTestId("rule-check").getByRole("button").first().click();
+  await expect(page.getByTestId("rule-check")).toContainText("Nobody sits out twice in a row");
+  await expect(page.getByTestId("rule-check")).toContainText("Everyone can play at least 50%");
+
+  // Q1 played with two on the bench; at the break the suggestion brings
+  // them on and says why.
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const t = new Date(Date.now() - 16 * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: t },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: t },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 15 * 60_000 }, created_by: ownerId, created_at: t },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const check = page.getByTestId("rule-check");
+  await expect(check).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
+  await check.getByRole("button").first().click();
+  const why = page.getByRole("list", { name: "Why these moves" });
+  await expect(why).toContainText("Hasn't played");
+  await expect(why.getByRole("listitem")).toHaveCount(5);
+  await expect(check).toContainText(/and [0-9]+ more moves for a fair rotation/);
+});

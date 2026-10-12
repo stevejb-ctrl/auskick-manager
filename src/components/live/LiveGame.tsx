@@ -1379,6 +1379,7 @@ export function LiveGame({
           fullPeriodMs={quarterMs}
           chipModeByKey={chipModeByKey}
           aflPlaybook={aflPlaybook}
+          periodCount={ageGroup.periodCount}
           clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
           onPrimeAudio={primeSong}

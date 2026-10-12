@@ -60,7 +60,8 @@ import { Field, ZONE_SHORT } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import type { TileCaption } from "@/components/live/PlayerTile";
 
-import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
@@ -95,6 +96,8 @@ interface QuarterBreakProps {
   fullPeriodMs: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
+  /** Periods in a game (4 quarters / 2 halves), for the rule check. */
+  periodCount?: number;
   /**
    * How we play (UX plan 3.6): strategy, season balance and player
    * roles for the AFL suggesters. Omitted = today's behaviour.
@@ -138,6 +141,7 @@ export function QuarterBreak({
   fullPeriodMs,
   chipModeByKey = {},
   aflPlaybook,
+  periodCount = 4,
   clockMultiplier = 1,
   onStarted,
   onPrimeAudio,
@@ -297,6 +301,23 @@ export function QuarterBreak({
     () => new Map(players.map((p) => [p.id, p])),
     [players]
   );
+
+  const breakRuleCheck = useMemo(() => {
+    if (!aflPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of players) names[p.id] = p.full_name;
+    return aflRuleCheck({
+      lineup: draft,
+      names,
+      gameMinutes: currentGameZoneMins,
+      previousZones: lastStintZone,
+      period: currentQuarter + 1,
+      periodCount,
+      periodMs: fullPeriodMs,
+      season,
+      input: aflPlaybook,
+    });
+  }, [aflPlaybook, players, draft, currentGameZoneMins, lastStintZone, currentQuarter, periodCount, fullPeriodMs, season]);
   const availableForLineup = useMemo(() => {
     const all: string[] = [...lineup.bench];
     for (const z of ALL_ZONES) all.push(...lineup[z]);
@@ -1957,6 +1978,9 @@ export function QuarterBreak({
           Tap any two players to swap them — even across zones or to the bench.
         </p>
       )}
+
+      {/* Rule check + Why (UX plan 4.3) for the lineup about to start. */}
+      {breakRuleCheck && <RuleCheckBar items={breakRuleCheck.items} why={breakRuleCheck.why} />}
 
       {/* Colour key for the per-player time-in-zone bars below — shown
           once so a glance at any bar reads instantly (Steve 2026-06-29:

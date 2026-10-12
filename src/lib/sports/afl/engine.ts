@@ -13,6 +13,8 @@ import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import type { RuleInstance } from "@/lib/playbook/rules";
+import { checkRules, whyMove, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
+import type { UnitTime } from "@/lib/playbook/seasonTime";
 
 /** A player's role at line level — what the zone engine can act on. */
 export interface AflLineRole {
@@ -360,4 +362,101 @@ export function repairLineupForRules(
     }
   }
   return lineup;
+}
+
+const AFL_LINE_LABEL: Record<string, string> = { back: "Back", mid: "Centre", fwd: "Forward" };
+
+export interface AflRuleCheckInput {
+  lineup: Lineup;
+  names: Record<string, string>;
+  /** This game's minutes per zone so far (empty before Q1). */
+  gameMinutes: PlayerZoneMinutes;
+  /** Where each player finished last quarter; absent = sat it out. */
+  previousZones: Record<string, Zone>;
+  /** The period about to start (1-based). */
+  period: number;
+  periodCount: number;
+  periodMs: number;
+  /** Season minutes per zone (balanceSeason when the coach reset it). */
+  season: PlayerZoneMinutes;
+  input: AflPlaybookInput | undefined;
+}
+
+/**
+ * The rule check and Why lines for an AFL lineup about to start a
+ * period (UX plan 4.3), on the shared checkRules / whyMove.
+ */
+export function aflRuleCheck(c: AflRuleCheckInput): { items: RuleCheckItem[]; why: { playerName: string; to: string; reason: string }[] } {
+  const lines = ["back", "mid", "fwd"];
+  const onField: Record<string, string> = {};
+  for (const z of ["back", "hback", "mid", "hfwd", "fwd"] as Zone[]) {
+    for (const pid of c.lineup[z] ?? []) onField[pid] = LINE_OF_ZONE[z];
+  }
+  const byLineMs = (zm: Record<string, number> | undefined) => {
+    const out: Record<string, number> = {};
+    for (const [z, mins] of Object.entries(zm ?? {})) {
+      const line = LINE_OF_ZONE[z as Zone];
+      if (line) out[line] = (out[line] ?? 0) + mins * 60000;
+    }
+    return out;
+  };
+  const playedThisGame: Record<string, Record<string, number>> = {};
+  for (const pid of [...Object.keys(onField), ...c.lineup.bench]) playedThisGame[pid] = byLineMs(c.gameMinutes[pid]);
+  const hadQuarter = Object.keys(c.previousZones).length > 0;
+  const benchedLastPeriod = hadQuarter ? c.lineup.bench.concat(Object.keys(onField)).filter((pid) => !c.previousZones[pid]) : [];
+  const seasonSource = c.input?.balanceSeason ?? c.season;
+  const seasonOn = (c.input?.seasonWeight ?? 0) > 0;
+  const seasonMs: UnitTime = {};
+  if (seasonOn) for (const [pid, zm] of Object.entries(seasonSource)) seasonMs[pid] = byLineMs(zm);
+  const name = (pid: string) => c.names[pid] ?? "A player";
+
+  const items = checkRules({
+    onField,
+    bench: c.lineup.bench,
+    lines,
+    lineLabel: (k) => AFL_LINE_LABEL[k] ?? k,
+    name,
+    playedThisGame,
+    benchedLastPeriod,
+    period: c.period,
+    periodCount: c.periodCount,
+    periodMs: c.periodMs,
+    periodWord: "quarter",
+    lineWord: "line",
+    minGameTimePct: c.input?.minGameTimePct ?? 50,
+    rules: c.input?.rules ?? [],
+    homeLine: Object.fromEntries(Object.entries(c.input?.roles ?? {}).map(([pid, r]) => [pid, r.home])),
+    season: seasonOn
+      ? { time: seasonMs, units: lines, unitLabel: (k) => (AFL_LINE_LABEL[k] ?? k).toLowerCase() }
+      : undefined,
+  });
+
+  const why: { playerName: string; to: string; reason: string }[] = [];
+  if (hadQuarter) {
+    for (const pid of [...Object.keys(onField), ...c.lineup.bench]) {
+      const to = onField[pid] ?? null;
+      const from = c.previousZones[pid] ? LINE_OF_ZONE[c.previousZones[pid]] : null;
+      if (to === from) continue;
+      const owed = seasonOn
+        ? seasonOwedByZone(pid, seasonSource, ["back", "mid", "fwd"], c.input?.roles[pid], c.periodMs)
+        : undefined;
+      why.push({
+        playerName: name(pid),
+        to: to ? AFL_LINE_LABEL[to] : "Bench",
+        reason: whyMove({
+          playerId: pid,
+          to,
+          from,
+          lineLabel: (k) => AFL_LINE_LABEL[k] ?? k,
+          periodWord: "quarter",
+          playedThisGame: playedThisGame[pid] ?? {},
+          benchedLastPeriod: benchedLastPeriod.includes(pid),
+          homeLine: c.input?.roles[pid]?.home ?? null,
+          strategy: c.input?.strategy ?? "suggested",
+          seasonOwed: owed,
+        }),
+      });
+    }
+  }
+  return { items, why };
 }

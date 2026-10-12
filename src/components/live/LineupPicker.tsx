@@ -32,7 +32,8 @@ import {
 } from "@/lib/fairness";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
-import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -393,6 +394,23 @@ export function LineupPicker({
     () => new Map(players.map((p) => [p.id, p])),
     [players],
   );
+
+  const ruleCheck = useMemo(() => {
+    if (!aflPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of playersForLineup) names[p.id] = p.full_name;
+    return aflRuleCheck({
+      lineup,
+      names,
+      gameMinutes: {},
+      previousZones: {},
+      period: 1,
+      periodCount: Math.max(1, Math.round((gameMinutes * 60000) / fullPeriodMs)),
+      periodMs: fullPeriodMs,
+      season,
+      input: aflPlaybook,
+    });
+  }, [aflPlaybook, playersForLineup, lineup, gameMinutes, fullPeriodMs, season]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // Display order mirrors the in-game field: forwards at the top, backs
@@ -986,6 +1004,10 @@ export function LineupPicker({
           Zone history appears under each player after your first game.
         </p>
       )}
+
+      {/* Rule check (UX plan 4.3): the team's rules, the game-time
+          floor and season balance against this lineup. */}
+      {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
 
       {/* The same field the live game uses (UX plan principle 2: one
           lineup, one picture). Tap a player then another to swap them
