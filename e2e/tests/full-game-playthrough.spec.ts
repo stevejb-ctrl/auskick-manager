@@ -348,6 +348,15 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     .eq("type", "game_finalised");
   expect(finalisedEvents?.length ?? 0).toBeGreaterThanOrEqual(1);
 
+  // Finalising writes the season-time rollup (UX plan 4.5): every kid who
+  // played has time in a zone.
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("player_game_time").select("player_id, ms").eq("game_id", game.id);
+      return (data ?? []).filter((r) => r.ms > 0).length;
+    })
+    .toBeGreaterThan(0);
+
   // ─── Final guard: no console errors fired during the run ──
   // Catches the "everything looks fine but a useEffect crashed
   // silently" class of bugs that scripted assertions miss.

@@ -18,6 +18,7 @@ import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvail
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // Same clamp as live/actions.ts — duplicated rather than imported to
@@ -475,6 +476,9 @@ export async function finaliseNetballGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     // Perf phase 6: was `, "layout"` which dragged in

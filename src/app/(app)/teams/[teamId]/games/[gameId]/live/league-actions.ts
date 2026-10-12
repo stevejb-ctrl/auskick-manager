@@ -37,6 +37,7 @@ import {
 } from "@/lib/sports/rugby_league/kicks";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
@@ -496,6 +497,9 @@ export async function finaliseLeagueGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);

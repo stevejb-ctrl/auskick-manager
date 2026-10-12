@@ -11,6 +11,7 @@ import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -623,6 +624,9 @@ export async function finaliseGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     // Perf phase 6: finalising affects the game detail page (status

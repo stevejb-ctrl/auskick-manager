@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { clearGameRollup } from "@/lib/playbook/rollupStore";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
@@ -281,6 +282,8 @@ export async function resetGame(
     .delete()
     .eq("game_id", gameId);
   if (delError) return { success: false, error: delError.message };
+  // The game's time goes with its events (UX plan 4.5).
+  await clearGameRollup(admin, gameId);
 
   const { error: updError } = await admin
     .from("games")

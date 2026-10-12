@@ -1,0 +1,81 @@
+// player_game_time (UX plan §7.5 v2, chunk 4.5): a per-game rollup of
+// each player's time per unit, so season balance and stats are a sum of
+// ~1,500 rows a season instead of a walk over every event. Written at
+// finalise, deleted on restart, and backfilled on read for any final
+// game that has none. One base unit is stored per sport — AFL zones,
+// netball bibs, league lines — and coarser units fold from it.
+
+import type { GameEvent, Sport } from "@/lib/types";
+import type { BalanceUnit } from "@/lib/playbook/types";
+import { primaryThirdFor } from "@/lib/sports/netball";
+import { gameTimeByUnit, type UnitTime } from "@/lib/playbook/seasonTime";
+
+export interface PlayerGameTimeRow {
+  game_id: string;
+  team_id: string;
+  player_id: string;
+  unit_kind: BalanceUnit;
+  unit_key: string;
+  ms: number;
+  periods: number;
+  played_at: string;
+}
+
+/** The unit stored for each sport. */
+export const BASE_UNIT: Record<Sport, BalanceUnit> = {
+  afl: "zone",
+  netball: "bib",
+  rugby_league: "line",
+};
+
+export function gameRollupRows(
+  sport: Sport,
+  gameId: string,
+  teamId: string,
+  events: GameEvent[],
+  periodSeconds: number,
+): PlayerGameTimeRow[] {
+  if (events.length === 0) return [];
+  const playedAt = events.reduce((m, e) => (e.created_at < m ? e.created_at : m), events[0].created_at);
+  const unit = BASE_UNIT[sport];
+  const time = gameTimeByUnit(sport, events, unit, periodSeconds);
+  const rows: PlayerGameTimeRow[] = [];
+  for (const [pid, byKey] of Object.entries(time)) {
+    for (const [key, ms] of Object.entries(byKey)) {
+      if (!(ms > 0)) continue;
+      rows.push({
+        game_id: gameId,
+        team_id: teamId,
+        player_id: pid,
+        unit_kind: unit,
+        unit_key: key,
+        ms: Math.round(ms),
+        periods: Math.round((ms / (periodSeconds * 1000)) * 100) / 100,
+        played_at: playedAt,
+      });
+    }
+  }
+  return rows;
+}
+
+const AFL_LINE: Record<string, string> = { back: "back", hback: "back", mid: "mid", hfwd: "fwd", fwd: "fwd" };
+
+/** Season time per player per unit from rollup rows, folding coarser units. */
+export function seasonFromRollup(
+  rows: Pick<PlayerGameTimeRow, "player_id" | "unit_kind" | "unit_key" | "ms" | "played_at">[],
+  unit: BalanceUnit,
+  since?: string | null,
+): UnitTime {
+  const out: UnitTime = {};
+  for (const r of rows) {
+    if (since && r.played_at < since) continue;
+    let key: string | null = r.unit_key;
+    if (r.unit_kind === "zone" && unit === "line") key = AFL_LINE[r.unit_key] ?? null;
+    else if (r.unit_kind === "bib" && unit === "third") key = primaryThirdFor(r.unit_key);
+    else if (r.unit_kind !== unit) continue;
+    if (!key) continue;
+    out[r.player_id] ??= {};
+    out[r.player_id][key] = (out[r.player_id][key] ?? 0) + r.ms;
+  }
+  return out;
+}

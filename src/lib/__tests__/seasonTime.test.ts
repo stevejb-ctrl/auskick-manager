@@ -10,6 +10,7 @@ import {
   playersWithinAPeriod,
   seasonBalanceWeight,
 } from "@/lib/playbook/seasonBalance";
+import { gameRollupRows, seasonFromRollup } from "@/lib/playbook/rollup";
 
 const MIN = 60_000;
 let ts = 0;
@@ -223,5 +224,35 @@ describe("season gaps and summary", () => {
     expect(seasonBalanceWeight("netball", "strong")).toBe(40_000);
     expect(seasonBalanceWeight("afl", null)).toBe(0);
     expect(totalTime(season.mia)).toBe(6 * P);
+  });
+});
+
+describe("player_game_time rollup == derived", () => {
+  const rollup = (sport: "afl" | "netball" | "rugby_league", games: [string, GameEvent[]][], periodSeconds = 600) =>
+    games.flatMap(([id, evs]) => gameRollupRows(sport, id, "t1", evs, periodSeconds));
+
+  it("AFL zones and lines", () => {
+    const g1 = aflGame("r-g1", 1);
+    const g2 = aflGame("r-g2", 8);
+    const rows = rollup("afl", [["r-g1", g1], ["r-g2", g2]], 720);
+    expect(seasonFromRollup(rows, "zone")).toEqual(seasonTimeByUnit("afl", [...g1, ...g2], "zone"));
+    expect(seasonFromRollup(rows, "line")).toEqual(seasonTimeByUnit("afl", [...g1, ...g2], "line"));
+    const since = new Date(Date.UTC(2026, 3, 5)).toISOString();
+    expect(seasonFromRollup(rows, "zone", since)).toEqual(seasonTimeByUnit("afl", [...g1, ...g2], "zone", { since }));
+    expect(rows[0].periods).toBeGreaterThan(0);
+  });
+
+  it("netball bibs and thirds", () => {
+    const g1 = netballGame("r-n1", 1, true);
+    const g2 = netballGame("r-n2", 8, false);
+    const rows = rollup("netball", [["r-n1", g1], ["r-n2", g2]]);
+    expect(seasonFromRollup(rows, "bib")).toEqual(seasonTimeByUnit("netball", [...g1, ...g2], "bib", { periodSeconds: 600 }));
+    expect(seasonFromRollup(rows, "third")).toEqual(seasonTimeByUnit("netball", [...g1, ...g2], "third", { periodSeconds: 600 }));
+  });
+
+  it("league lines", () => {
+    const g1 = leagueGame("r-l1", 1);
+    const rows = rollup("rugby_league", [["r-l1", g1]]);
+    expect(seasonFromRollup(rows, "line")).toEqual(seasonTimeByUnit("rugby_league", g1, "line"));
   });
 });
