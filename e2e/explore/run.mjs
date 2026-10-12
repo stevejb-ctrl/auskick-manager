@@ -65,8 +65,21 @@ const maxSteps = parseInt(flag("max-steps", "25"), 10);
 // a `provider/model` prefix (e.g. "anthropic/claude-sonnet-4-5-20250929").
 // Default to the latest Sonnet snapshot from the CUA-supported list so
 // it works in both DOM and hybrid modes.
-const modelName = flag("model", "anthropic/claude-sonnet-4-5-20250929");
+// Claude Haiku 5.5 explores and judges. Sonnet 5.5 rejects the forced
+// "done" tool call Stagehand makes at the end of a run, and the 4.5
+// snapshot is gone.
+const modelName = flag("model", "anthropic/claude-haiku-5-5");
+// act()/observe() send a temperature, which current Claude models
+// reject, so the clicks themselves go through a model that takes one.
+const actModel = flag("act-model", modelName);
 const headed = flag("headed", "true") !== "false";
+// --as=coach: start signed in as a brand-new coach (fresh account, no
+// teams), the way a real first-timer lands after the email link.
+// Without it the agent starts wherever --url points (runner links).
+const as = flag("as", "");
+// --seed=NAME (with --as=coach): the coach already has a team, squad and
+// a game today, so a game-day mission starts where a Saturday does.
+const seed = flag("seed", "");
 
 // ─── Load mission prompt ───────────────────────────────────────
 const missionPath = resolve(__dirname, "missions", `${mission}.md`);
@@ -95,6 +108,14 @@ function resolveApiKey(model) {
   );
 }
 
+// Shells launched by Claude Code inherit an ANTHROPIC_BASE_URL for the
+// CLI's own traffic; the AI SDK honours it, so the project's key went
+// to the wrong endpoint ("Not Found"). Talk to Anthropic directly
+// unless --anthropic-base-url says otherwise.
+const anthropicBaseUrl = flag("anthropic-base-url", "");
+if (anthropicBaseUrl) process.env.ANTHROPIC_BASE_URL = anthropicBaseUrl;
+else delete process.env.ANTHROPIC_BASE_URL;
+
 const apiKey = resolveApiKey(modelName);
 if (!apiKey) {
   console.error(
@@ -106,7 +127,7 @@ if (!apiKey) {
 
 console.log(`▶ Mission: ${mission}`);
 console.log(`▶ Start URL: ${startUrl}`);
-console.log(`▶ Model: ${modelName}`);
+console.log(`▶ Model: ${modelName} (clicks: ${actModel})`);
 console.log(`▶ Max steps: ${maxSteps}\n`);
 
 // ─── Bootstrap Stagehand ───────────────────────────────────────
@@ -118,8 +139,8 @@ console.log(`▶ Max steps: ${maxSteps}\n`);
 // agent side is still configured.
 const stagehand = new Stagehand({
   env: "LOCAL",
-  modelName,
-  modelClientOptions: { apiKey },
+  modelName: actModel,
+  modelClientOptions: { apiKey: resolveApiKey(actModel) },
   verbose: 1,
   localBrowserLaunchOptions: {
     headless: !headed,
@@ -131,12 +152,83 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 
+// ─── Optional: a fresh coach account, signed in ────────────────
+// The /login flow is email-first with a magic link the agent can't
+// click, so (like e2e/tests/onboarding.spec.ts) we create a confirmed
+// user with the admin SDK and sign in with the password fallback.
+// The password is random and never printed; the email goes in the
+// report so the account's data can be inspected afterwards.
+let coachEmail = null;
+let seededStart = null;
+if (as === "coach") {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { randomBytes } = await import("node:crypto");
+  // The local stack the dev server runs on (scripts/dev-local.mjs reads
+  // .env.test). NOT .env.local: that holds production values.
+  const testEnv = {};
+  const testEnvPath = resolve(__dirname, "..", "..", ".env.test");
+  if (existsSync(testEnvPath)) {
+    for (const line of readFileSync(testEnvPath, "utf8").split(/\r?\n/)) {
+      const eq = line.indexOf("=");
+      if (!line || line.startsWith("#") || eq < 1) continue;
+      testEnv[line.slice(0, eq).trim()] = line.slice(eq + 1).trim().replace(/^"|"$/g, "");
+    }
+  }
+  const supaUrl = testEnv.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = testEnv.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supaUrl || !serviceKey) {
+    console.error("--as=coach needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.test");
+    process.exit(1);
+  }
+  if (!["localhost", "127.0.0.1"].includes(new URL(supaUrl).hostname)) {
+    console.error(`--as=coach only creates accounts on a local Supabase; .env.test points at ${new URL(supaUrl).host}.`);
+    process.exit(1);
+  }
+  const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  coachEmail = `stagehand-${mission}-${Date.now()}@siren.test`;
+  const password = randomBytes(18).toString("base64url");
+  const { error: createErr } = await admin.auth.admin.createUser({ email: coachEmail, password, email_confirm: true });
+  if (createErr) {
+    console.error(`Couldn't create the coach account: ${createErr.message}`);
+    process.exit(1);
+  }
+  const origin = new URL(startUrl).origin;
+  const loginPage = await stagehand.context.newPage(`${origin}/login`);
+  await loginPage.waitForSelector('[data-testid="login-mode-toggle"]', { timeout: 30_000 });
+  // The toggle only works once React has hydrated; a click before that
+  // is lost, so retry until the password field shows.
+  for (let i = 0; i < 10; i++) {
+    await loginPage.locator('[data-testid="login-mode-toggle"]').click();
+    const shown = await loginPage
+      .waitForSelector('[data-testid="login-password"]', { timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (shown) break;
+  }
+  // Keystrokes, not fill(): the inputs are React-controlled.
+  await loginPage.locator('[data-testid="login-email"]').click();
+  await loginPage.locator('[data-testid="login-email"]').type(coachEmail);
+  await loginPage.locator('[data-testid="login-password"]').click();
+  await loginPage.locator('[data-testid="login-password"]').type(password);
+  await loginPage.locator('[data-testid="login-submit"]').click();
+  for (let i = 0; i < 60 && loginPage.url().includes("/login"); i++) await loginPage.waitForTimeout(500);
+  if (loginPage.url().includes("/login")) {
+    console.error("Sign-in didn't leave /login.");
+    process.exit(1);
+  }
+  console.log(`▶ Signed in as ${coachEmail}`);
+  await loginPage.close();
+  if (seed) seededStart = await seedTeam(admin, coachEmail, seed, origin);
+}
+
 // Stagehand v3 dropped the top-level `stagehand.page` accessor —
 // pages now hang off `stagehand.context`. `newPage(url)` opens a
 // page already navigated to the start URL, which we then thread
 // into the agent via `execute({ page })` so the agent acts on
 // this page instead of opening its own.
-const page = await stagehand.context.newPage(startUrl);
+const page = await stagehand.context.newPage(
+  seededStart ?? (as === "coach" && startUrl.endsWith("/login") ? startUrl.replace(/\/login$/, "/dashboard") : startUrl),
+);
 
 // ─── Run the agent ─────────────────────────────────────────────
 // v3 fields are `systemPrompt` (not v2's `instructions`) and `model`
@@ -145,6 +237,9 @@ const page = await stagehand.context.newPage(startUrl);
 // arbitrary keys, so we pass apiKey there to override AISDK's
 // default env-var lookup.
 const agent = stagehand.agent({
+  // hybrid: coordinate clicks from screenshots plus the aria tree, so a
+  // usability run sees what a coach sees. "dom" is Stagehand legacy.
+  mode: flag("mode", "hybrid"),
   systemPrompt:
     "You are an exploratory tester for a junior football and netball app. " +
     "You think like a volunteer coach using the app for the first time. " +
@@ -152,6 +247,8 @@ const agent = stagehand.agent({
     "than in completing the task perfectly. Report what you observe " +
     "alongside the actions you took.",
   model: { modelName, apiKey },
+  // The tool calls behind each click/type (see actModel above).
+  executionModel: { modelName: actModel, apiKey: resolveApiKey(actModel) },
 });
 
 const result = await agent.execute({
@@ -170,8 +267,9 @@ const lines = [
   `# Stagehand exploration — ${mission}`,
   ``,
   `- **Start URL**: ${startUrl}`,
-  `- **Model**: ${modelName}`,
+  `- **Model**: ${modelName} (clicks: ${actModel})`,
   `- **Max steps**: ${maxSteps}`,
+  ...(coachEmail ? [`- **Coach account**: ${coachEmail}${seed ? ` (seed: ${seed})` : ""}`] : []),
   `- **Completed**: ${result.completed ? "yes" : "no"}`,
   `- **Success**: ${result.success ? "yes" : "no"}`,
   ``,
@@ -206,6 +304,84 @@ console.log(`\n✓ Report written to ${reportPath}`);
 await stagehand.close();
 
 // ─── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Game-day seeds for --seed: a team owned by the fresh coach, a squad,
+ * How we play choices, and a game starting soon with everyone
+ * available. Quarters run 8× fast (as fresh-explore-token.mjs) so the
+ * agent reaches a break. Returns the team's Today tab URL.
+ */
+async function seedTeam(admin, email, name, origin) {
+  const SEEDS = {
+    "afl-u12-gameday": {
+      team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
+      playbook: { strategy: "preferred-lines" },
+      squad: 17,
+    },
+    "afl-u15-gameday": {
+      team: { name: "Brunswick Bears", age_group: "U15", sport: "afl" },
+      playbook: { strategy: "set-positions" },
+      squad: 20,
+    },
+    "netball-11u-gameday": {
+      team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
+      playbook: { strategy: "position-by-position" },
+      squad: 9,
+    },
+  };
+  const s = SEEDS[name];
+  if (!s) {
+    console.error(`Unknown --seed=${name}. Seeds: ${Object.keys(SEEDS).join(", ")}`);
+    process.exit(1);
+  }
+  const NAMES = [
+    "Ava Nguyen", "Lachlan Smith", "Mia Patel", "Oliver Brown", "Isla Wilson", "Noah Taylor",
+    "Ruby Martin", "Jack Anderson", "Zara Thompson", "Leo White", "Chloe Harris", "Hamish Clarke",
+    "Matilda King", "Archie Walker", "Sienna Hall", "Cooper Young", "Grace Allen", "Hudson Wright",
+    "Eloise Scott", "Max Green", "Harper Baker", "Toby Adams",
+  ];
+  const { data: users } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const ownerId = users.users.find((u) => u.email === email).id;
+  // Insert, then read back: an AFTER INSERT trigger makes the coach a
+  // member, which the select policy needs.
+  // Scoring on, as the wizard defaults it, so missions can record goals.
+  const { error: teamErr } = await admin.from("teams").insert({ ...s.team, track_scoring: true, created_by: ownerId });
+  if (teamErr) throw new Error(`seed team: ${teamErr.message}`);
+  const { data: team } = await admin.from("teams").select("id").eq("created_by", ownerId).single();
+  await admin.from("team_playbooks").insert({ team_id: team.id, ...s.playbook });
+  const { data: players } = await admin
+    .from("players")
+    .insert(
+      NAMES.slice(0, s.squad).map((full_name, i) => ({
+        team_id: team.id,
+        full_name,
+        jersey_number: i + 1,
+        is_active: true,
+        created_by: ownerId,
+      })),
+    )
+    .select("id");
+  const { data: game, error: gameErr } = await admin
+    .from("games")
+    .insert({
+      team_id: team.id,
+      opponent: "Sandringham Sharks",
+      scheduled_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+      round_number: 4,
+      created_by: ownerId,
+      clock_multiplier: 8,
+      // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
+      sub_interval_seconds: 900,
+    })
+    .select("id")
+    .single();
+  if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available", updated_by: ownerId })),
+  );
+  console.log(`▶ Seeded ${s.team.name} (${name})`);
+  return `${origin}/teams/${team.id}`;
+}
 function listMissions() {
   const fs = require("node:fs");
   const dir = resolve(__dirname, "missions");
