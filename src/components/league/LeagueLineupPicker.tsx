@@ -99,6 +99,8 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   availabilityHref?: string | null;
+  /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (which
@@ -137,6 +139,7 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   availabilityHref,
+  walkthroughOffer,
   gamePlanButton,
   seasonEvents,
   initialLoanedIds = [],
@@ -951,6 +954,7 @@ export function LeagueLineupPicker({
         availabilityHref={availabilityHref ?? undefined}
         action={gamePlanButton}
       />
+      {walkthroughOffer}
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">

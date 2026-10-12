@@ -88,6 +88,8 @@ interface LineupPickerProps {
    * starting roster" recovery scenario).
    */
   availabilityHref?: string;
+  /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (via
@@ -193,6 +195,7 @@ export function NetballLineupPicker({
   confirmLabel = "Confirm lineup",
   disabled,
   availabilityHref,
+  walkthroughOffer,
   gamePlanButton,
   onSavePlan,
   initialSavedAt = null,
@@ -753,6 +756,7 @@ export function NetballLineupPicker({
   return (
     <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {walkthroughOffer}
 
       {/* ── Game settings (collapsible) ──────────────────────────
           Steve 2026-05-16: parity with the AFL pre-game picker —

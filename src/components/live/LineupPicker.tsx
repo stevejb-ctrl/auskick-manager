@@ -75,6 +75,8 @@ interface LineupPickerProps {
   backHref?: string;
   /** The game's availability page, for the "Update availability" link. */
   availabilityHref?: string;
+  /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. The server page builds it (it
@@ -156,6 +158,7 @@ export function LineupPicker({
   fullPeriodMs,
   backHref,
   availabilityHref,
+  walkthroughOffer,
   gamePlanButton,
   initialDraft,
   chipModeByKey = {},
@@ -627,6 +630,7 @@ export function LineupPicker({
     // (Steve 2026-05-20 demo fix).
     <div ref={lineupPickerRootRef} className="space-y-4">
       <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {walkthroughOffer}
 
       {/* Lent players — always-visible recall strip so a coach can shuffle
           lent players straight from the picker (recall was previously only

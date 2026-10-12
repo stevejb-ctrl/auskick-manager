@@ -318,3 +318,48 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
     )
     .toBe(1);
 });
+
+// Regression (UX plan H1 / 0.8): on a coach's first visit the
+// "Welcome to Game Manager" walkthrough auto-opened the moment LiveGame
+// mounted — i.e. right after Start Q1, over a running clock. The tour is
+// now offered on the lineup screen before kickoff and never auto-opens.
+test("first-time coach is offered the walkthrough before kickoff, never over the clock", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  await page.addInitScript(() => {
+    try { localStorage.removeItem("gm-walkthrough-seen"); } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Offered inline on the lineup screen, not as a modal.
+  await expect(page.getByText(/first game day with siren\?/i)).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await page.getByRole("button", { name: /^ready for q1$/i }).click();
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await expect(page.getByRole("button", { name: /^pause clock$/i })).toBeVisible({
+    timeout: 5_000,
+  });
+
+  // Nothing modal over the running clock.
+  await page.waitForTimeout(1_000);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

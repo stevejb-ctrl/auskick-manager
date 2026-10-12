@@ -68,7 +68,7 @@ async function setupNetballGame(opts: { trackScoring: boolean }) {
   return { team, players, game, ownerId, admin };
 }
 
-test("NETBALL-07: walkthrough fires on first visit when localStorage key is absent", async ({ page }) => {
+test("NETBALL-07: first visit offers the walkthrough on the lineup screen", async ({ page }) => {
   const { team, game } = await setupNetballGame({ trackScoring: true });
 
   // CRITICAL: addInitScript runs BEFORE the page's own scripts, so it
@@ -81,16 +81,13 @@ test("NETBALL-07: walkthrough fires on first visit when localStorage key is abse
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // The walkthrough modal opens in a "welcome" phase first
-  // (WalkthroughModal.tsx:82-117). Assert the welcome heading is
-  // visible — that proves the walkthrough fired on first visit.
-  await expect(
-    page.getByRole("heading", { name: /welcome to game manager/i }),
-  ).toBeVisible({ timeout: 5_000 });
-
-  // Advance past welcome to the first step so we know the "steps"
-  // phase actually renders.
-  await page.getByRole("button", { name: /yes,?\s*show me/i }).click();
+  // The tour is offered inline on the pre-kickoff lineup screen (UX
+  // plan H1) — never auto-opened as a modal. "Show me" opens the steps.
+  await expect(page.getByText(/first game day with siren\?/i)).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: /^show me$/i }).click();
   await expect(
     page.getByRole("heading", { name: /starting the game/i }),
   ).toBeVisible({ timeout: 2_000 });
@@ -116,11 +113,9 @@ test("NETBALL-07: closing walkthrough persists nb-walkthrough-seen and a re-visi
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Walk past welcome -> through every step -> click the final close
-  // affordance. WalkthroughModal opens on "welcome" phase
-  // (WalkthroughModal.tsx:82-117); advance to "steps" first.
-  await expect(page.getByRole("heading", { name: /welcome to game manager/i })).toBeVisible();
-  await page.getByRole("button", { name: /yes,?\s*show me/i }).click();
+  // Take the offer -> walk every step -> click the final close
+  // affordance.
+  await page.getByRole("button", { name: /^show me$/i }).click();
   await expect(page.getByRole("heading", { name: /starting the game/i })).toBeVisible();
 
   // Click "Next" until we hit the final step, then click "Let's go!"
@@ -150,8 +145,9 @@ test("NETBALL-07: closing walkthrough persists nb-walkthrough-seen and a re-visi
     { timeout: 5_000 },
   ).toBe("1");
 
-  // Reload — the modal must NOT re-appear.
+  // Reload — neither the offer nor the modal comes back.
   await page.reload();
+  await expect(page.getByText(/first game day with siren\?/i)).toHaveCount(0);
   // Give the page a chance to mount + run the effect; if the modal were
   // going to fire it would do so on mount.
   await expect(
@@ -176,9 +172,10 @@ test("NETBALL-07: track_scoring=true walkthrough INCLUDES the recording-scores s
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Advance past the welcome phase (WalkthroughModal.tsx:82-117) into
-  // the steps phase before scanning step headings.
-  await page.getByRole("button", { name: /yes,?\s*show me/i }).click();
+  // Take the offer to open the steps before scanning step headings.
+  // The modal is loaded on demand, so wait for its first step.
+  await page.getByRole("button", { name: /^show me$/i }).click();
+  await expect(page.getByRole("heading", { name: /starting the game/i })).toBeVisible();
 
   // Step through until we either find the scoring step or exhaust steps.
   // The step's title is "Recording scores" (per netballWalkthroughSteps.ts).
@@ -210,10 +207,10 @@ test("NETBALL-07: track_scoring=false walkthrough OMITS the recording-scores ste
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Advance past the welcome phase (WalkthroughModal.tsx:82-117) into
-  // the steps phase. The "Recording scores" step is reachable only in
-  // the steps phase.
-  await page.getByRole("button", { name: /yes,?\s*show me/i }).click();
+  // Take the offer to open the steps (loaded on demand — wait for step 1
+  // so the loop below can't pass vacuously).
+  await page.getByRole("button", { name: /^show me$/i }).click();
+  await expect(page.getByRole("heading", { name: /starting the game/i })).toBeVisible();
 
   // Step through every page; assert "Recording scores" never appears.
   // The loop's `done` regex matches ONLY the last-step "Let's go!" button.

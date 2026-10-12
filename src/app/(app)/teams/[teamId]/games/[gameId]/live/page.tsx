@@ -7,6 +7,7 @@ import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import {
   replayGame,
@@ -265,6 +266,21 @@ export default async function LivePage({ params }: LivePageProps) {
       ageCfgL,
       { quarter_length_seconds: g.quarter_length_seconds },
     );
+    // Game → team → false. Newly-created games have a null override so
+    // they inherit the team's standing preference; the mid-game toggle
+    // writes the per-game value as a true override (Steve 2026-05-26).
+    const leagueEnforceUnbroken =
+      (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
+      (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+        ?.enforce_unbroken_periods ??
+      false;
+    // Same fallback for "Track forward/back time" — prior behaviour read
+    // only game.track_zone_time, so new games never inherited the team
+    // setting (Steve 2026-05-26).
+    const leagueTrackZoneTime =
+      (g as { track_zone_time?: boolean | null }).track_zone_time ??
+      (teamRow as { track_zone_time?: boolean | null } | null)?.track_zone_time ??
+      false;
 
     const [
       { data: avail },
@@ -403,6 +419,19 @@ export default async function LivePage({ params }: LivePageProps) {
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
               availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+              walkthroughOffer={
+                <LeagueWalkthroughOffer
+                  trackScoring={trackScoring}
+                  periodLabel={(ageCfgL.periodLabel ?? "quarter") as "quarter" | "half" | "period"}
+                  vestsEnabled={
+                    (ageCfgL.vestRequirements?.fr ?? false) ||
+                    (ageCfgL.vestRequirements?.dh ?? false)
+                  }
+                  kickingAllowed={ageCfgL.kickingAllowed === true}
+                  trackZoneTime={leagueTrackZoneTime}
+                  enforceUnbrokenPeriods={leagueEnforceUnbroken}
+                />
+              }
               chipLabels={{
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,
@@ -425,34 +454,8 @@ export default async function LivePage({ params }: LivePageProps) {
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
           trackScoring={trackScoring}
-          enforceUnbrokenPeriods={
-            // Game → team → false fallback. Same shape as
-            // trackZoneTime above — newly-created games have a null
-            // override so they should inherit the team's standing
-            // preference. Mid-game toggle writes the per-game value
-            // as a true override (Steve 2026-05-26 — paired with
-            // the trackZoneTime fix in this commit).
-            (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
-            (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
-              ?.enforce_unbroken_periods ??
-            false
-          }
-          trackZoneTime={
-            // Fall back game → team → false so a coach who turns on
-            // "Track forward/back time" at the team level sees the
-            // in-game bar without having to re-flip it per game.
-            // The mid-game Game-Settings toggle writes
-            // games.track_zone_time directly (true/false) — once
-            // set, the per-game value overrides the team default
-            // (Steve 2026-05-26 — prior behaviour read only
-            // game.track_zone_time and ignored the team setting,
-            // so newly-created games never inherited the team's
-            // standing preference).
-            (g as { track_zone_time?: boolean | null }).track_zone_time ??
-            (teamRow as { track_zone_time?: boolean | null } | null)
-              ?.track_zone_time ??
-            false
-          }
+          enforceUnbrokenPeriods={leagueEnforceUnbroken}
+          trackZoneTime={leagueTrackZoneTime}
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
@@ -972,6 +975,7 @@ export default async function LivePage({ params }: LivePageProps) {
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+          walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
           gamePlanButton={
             <GamePlanButton
               sport={sport}

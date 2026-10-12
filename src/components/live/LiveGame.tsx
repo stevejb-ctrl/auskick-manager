@@ -240,16 +240,6 @@ interface LiveGameProps {
    * Existing scalar props (quarterMs, subIntervalSeconds, positionModel, defaultOnFieldSize)
    * are intentionally KEPT alongside this — collapsing the redundancy is deferred (D-01b). */
   ageGroup: AgeGroupConfig;
-  /**
-   * Suppress the first-visit walkthrough auto-open. Used by the
-   * runner-token page when it ALSO renders an availability section
-   * above LiveGame — without this, the welcome modal opens at
-   * z-50 fixed inset-0 and silently swallows clicks meant for the
-   * availability buttons underneath. Coaches still see the
-   * walkthrough on the team-auth live page (default behaviour).
-   * The "?" button always remains as a manual trigger.
-   */
-  suppressAutoWalkthrough?: boolean;
 }
 
 type LastScore = {
@@ -288,7 +278,6 @@ export function LiveGame({
   clockMultiplier = 1,
   quarterMs,
   ageGroup,
-  suppressAutoWalkthrough = false,
 }: LiveGameProps) {
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // F3 (Phase 12): labelled zones for the long-press player summary, derived
@@ -391,7 +380,6 @@ export function LiveGame({
 
   const walkthroughSteps = useMemo(() => buildWalkthroughSteps(trackScoring), [trackScoring]);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
   // Tracks whether the init effect has populated the store for this
@@ -503,27 +491,16 @@ export function LiveGame({
     [squadPlayers]
   );
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem("gm-walkthrough-seen")) return;
-    // Caller can suppress auto-open on first visit — used by the
-    // runner-token page when it's also rendering an availability
-    // section above this component, since the modal would block
-    // the availability buttons underneath. The "?" button still
-    // surfaces it manually. Default behaviour (auto-open on first
-    // visit) is unchanged when the prop isn't passed.
-    if (suppressAutoWalkthrough) return;
-    setWalkthroughOpen(true);
-  }, [suppressAutoWalkthrough]);
-
+  // The walkthrough never auto-opens here: LiveGame mounts at Start Q1,
+  // so a first-visit auto-open landed over a running clock (UX plan
+  // H1). It's offered before kickoff (WalkthroughOffer on the lineup
+  // screen) and the "?" in the top bar opens it on demand.
   function handleWalkthroughClose() {
     localStorage.setItem("gm-walkthrough-seen", "1");
     setWalkthroughOpen(false);
-    setWalkthroughSkipWelcome(false);
   }
 
   function handleOpenWalkthrough() {
-    setWalkthroughSkipWelcome(true);
     setWalkthroughOpen(true);
   }
 
@@ -1367,15 +1344,9 @@ export function LiveGame({
   ) : null;
 
   // Walkthrough modal — same instance for all branches so the ?
-  // button in the top bar works at QB too. Mounted-when-open
-  // pattern; the suppressAutoWalkthrough effect elsewhere governs
-  // first-visit auto-opening (not relevant here).
+  // button in the top bar works at QB too. Mounted-when-open.
   const walkthroughOverlay = walkthroughOpen ? (
-    <WalkthroughModal
-      steps={walkthroughSteps}
-      skipWelcome={walkthroughSkipWelcome}
-      onClose={handleWalkthroughClose}
-    />
+    <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
   ) : null;
 
   if (isBetweenQuarters) {

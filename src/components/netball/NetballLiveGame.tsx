@@ -35,6 +35,7 @@ import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 
 // Perf phase 8: same dynamic-import pattern as LiveGame.tsx for
 // the rare-state netball modals. Saves cold-start bundle weight
@@ -160,16 +161,6 @@ interface NetballLiveGameProps {
    */
   clockMultiplier?: number;
   /**
-   * Suppress the first-visit walkthrough auto-open. Used by the
-   * runner-token page when it ALSO renders an availability section
-   * above this component — without this, the welcome modal opens
-   * at z-50 fixed inset-0 and silently swallows clicks meant for
-   * the availability buttons underneath. Default behaviour
-   * (auto-open on first visit) is unchanged when omitted. The "?"
-   * button stays as a manual trigger.
-   */
-  suppressAutoWalkthrough?: boolean;
-  /**
    * True when the current user has admin role on this team. Drives
    * the "Restart game" affordance — folded into the same row as
    * "+ Add late arrival" at the bottom of the live court so the
@@ -264,7 +255,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
-    suppressAutoWalkthrough = false,
     isAdmin = false,
     initialDraft = null,
     allowMidQuarterSubs = false,
@@ -1599,7 +1589,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the AFL walkthrough still gets the netball one on their first
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
   // Q-by-Q modal trigger — set to true when the coach taps the
   // small chip under the clock pill in NetballScoreBug. Mirrors
   // AFL's quarterScoresOpen in LiveGame.tsx.
@@ -1613,27 +1602,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     () => buildNetballWalkthroughSteps({ trackScoring }),
     [trackScoring],
   );
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem("nb-walkthrough-seen")) return;
-    // Caller can suppress auto-open. Used by the runner-token page
-    // when it ALSO renders an availability section above this
-    // component — without it the welcome modal opens at z-50 fixed
-    // inset-0 and swallows clicks meant for the availability
-    // buttons. Coaches on the team-auth live page still see the
-    // walkthrough (default). The "?" button is the manual trigger.
-    if (suppressAutoWalkthrough) return;
-    setWalkthroughOpen(true);
-  }, [suppressAutoWalkthrough]);
+  // No auto-open: the tour is offered on the pre-kickoff lineup screen
+  // (WalkthroughOffer, passed into the picker below) and the "?" opens
+  // it on demand — never a modal over the clock or a break (UX plan H1).
   function handleWalkthroughClose() {
     if (typeof window !== "undefined") {
       localStorage.setItem("nb-walkthrough-seen", "1");
     }
     setWalkthroughOpen(false);
-    setWalkthroughSkipWelcome(false);
   }
   function handleOpenWalkthrough() {
-    setWalkthroughSkipWelcome(true);
     setWalkthroughOpen(true);
   }
 
@@ -1659,11 +1637,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     />
   );
   const walkthroughOverlay = walkthroughOpen ? (
-    <WalkthroughModal
-      steps={walkthroughSteps}
-      skipWelcome={walkthroughSkipWelcome}
-      onClose={handleWalkthroughClose}
-    />
+    <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
   ) : null;
 
   // ─── Initial lineup (before game starts) ────────────────────
@@ -1708,6 +1682,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
           gamePlanButton={gamePlanButton}
+          walkthroughOffer={
+            <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
+          }
           currentOnFieldSize={game.on_field_size}
           onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {

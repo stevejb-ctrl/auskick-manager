@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-interface Step {
+export interface WalkthroughStep {
   emoji: string;
   title: string;
   body: string;
 }
 
-export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
-  const steps: Step[] = [
+export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] {
+  const steps: WalkthroughStep[] = [
     {
       emoji: "⏱️",
       title: "Starting the game",
@@ -70,13 +70,15 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
 }
 
 interface WalkthroughModalProps {
-  steps: Step[];
-  skipWelcome?: boolean;
+  steps: WalkthroughStep[];
   onClose: () => void;
 }
 
-export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughModalProps) {
-  const [phase, setPhase] = useState<"welcome" | "steps">(skipWelcome ? "steps" : "welcome");
+// Opens straight onto the steps. The old "Welcome to Game Manager"
+// interstitial is gone: the tour is offered on the lineup screen before
+// kickoff (WalkthroughOffer) or opened from the "?" button, and both of
+// those already ask the question (UX plan H1).
+export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
   const [idx, setIdx] = useState(0);
 
   // Direction tracking for step-content slide animations. The
@@ -92,54 +94,6 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
   useEffect(() => {
     prevIdxRef.current = idx;
   }, [idx]);
-
-  if (phase === "welcome") {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="wt-welcome-title"
-        // Backdrop tap dismisses — the walkthrough is purely
-        // informational and a parent on a phone shouldn't have to
-        // hunt for the Skip button. Stagehand exploration 2026-05-09
-        // also showed an agent persona tapping items on the page
-        // BEHIND this modal (because the modal looked dismissable);
-        // backdrop dismiss makes those taps register correctly on
-        // the second go.
-        onClick={onClose}
-      >
-        <div
-          className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="mb-4 text-center text-5xl">👋</div>
-          <h2 id="wt-welcome-title" className="mb-2 text-center text-xl font-bold text-ink">
-            Welcome to Game Manager
-          </h2>
-          <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">
-            You&apos;re in charge of today&apos;s game. Would you like a quick walkthrough of how it works?
-          </p>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setPhase("steps")}
-              className="w-full rounded-md bg-brand-600 py-3 text-base font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-            >
-              Yes, show me!
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full rounded-md border border-hairline py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-            >
-              Skip for now
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const step = steps[idx];
   const isFirst = idx === 0;

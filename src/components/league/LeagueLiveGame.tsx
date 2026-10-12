@@ -176,7 +176,6 @@ export function LeagueLiveGame({
   // subsequent live-game opens. The "?" button in LiveTopBar
   // re-opens the steps (skipWelcome) on demand.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
   const [subAckedAtBaseMs, setSubAckedAtBaseMs] = useState<number | null>(
     null,
   );
@@ -850,24 +849,17 @@ export function LeagueLiveGame({
     ageGroup.periodCount,
   ]);
 
-  // First-visit walkthrough auto-open. Mirrors netball's pattern —
-  // dedicated `league-walkthrough-seen` localStorage key (sibling to
-  // `nb-walkthrough-seen`) so each sport's walkthrough acks
-  // independently. The "?" button in LiveTopBar re-opens manually.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.localStorage.getItem("league-walkthrough-seen")) return;
-    setWalkthroughOpen(true);
-  }, []);
+  // No first-visit auto-open: the tour is offered on the pre-kickoff
+  // lineup screen (LeagueWalkthroughOffer) and the "?" in LiveTopBar
+  // opens it on demand — never a modal over the clock (UX plan H1).
+  // `league-walkthrough-seen` is shared with the offer card.
   function handleWalkthroughClose() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("league-walkthrough-seen", "1");
     }
     setWalkthroughOpen(false);
-    setWalkthroughSkipWelcome(false);
   }
   function handleOpenWalkthrough() {
-    setWalkthroughSkipWelcome(true);
     setWalkthroughOpen(true);
   }
   // Build the steps once per dependency change. Vests / kicking /
@@ -1734,11 +1726,7 @@ export function LeagueLiveGame({
         onHelp={handleOpenWalkthrough}
       />
       {walkthroughOpen && (
-        <WalkthroughModal
-          steps={walkthroughSteps}
-          skipWelcome={walkthroughSkipWelcome}
-          onClose={handleWalkthroughClose}
-        />
+        <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
       )}
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
