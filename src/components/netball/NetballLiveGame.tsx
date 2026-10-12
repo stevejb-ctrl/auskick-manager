@@ -36,6 +36,7 @@ import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
+import { ClockMenu } from "@/components/live/ClockMenu";
 
 // Perf phase 8: same dynamic-import pattern as LiveGame.tsx for
 // the rare-state netball modals. Saves cold-start bundle weight
@@ -376,7 +377,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     nowMs: Date.now(),
   });
   const isPaused = pausedAtMs !== null;
-  const handleClockTap = useCallback(() => {
+  const toggleClock = useCallback(() => {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     // Once the auto-hooter has fired for this quarter the clock is
     // locked — tapping the pill to "resume" would re-start time
@@ -467,6 +468,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // quarter length so on-court players are credited the time they
   // actually played, not the wall-clock that was paused.
   const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
+  // The clock pill opens the clock menu (pause / resume / end now).
+  const [clockMenuOpen, setClockMenuOpen] = useState(false);
   // Steve 2026-05-17 bug: was `useRef(false)` and flipped to `true`
   // on first fire and never reset. Q1's manual end-early worked
   // once, but Q2's tap silently no-op'd because the guard was
@@ -2020,17 +2023,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ? () => setPickScorerOpen(true)
           : undefined
       }
-      onClockTap={handleClockTap}
+      onClockTap={
+        currentQuarter >= 1 && !quarterEnded && !finalised
+          ? () => setClockMenuOpen(true)
+          : undefined
+      }
+      clockLabel={`Clock — Q${currentQuarter}, ${isPaused ? "paused" : "running"}`}
       // Q-by-Q chip surfaces only when there's something to show.
       // trackScoring=false hides it entirely (would be empty).
       onShowQuarterScores={
         trackScoring ? () => setQuarterScoresOpen(true) : undefined
       }
-      // Surface "End Q early" only when the coach paused at the
-      // start of a quarter and forgot to resume — the chip
-      // self-gates on `paused` inside NetballScoreBug, so passing
-      // it here unconditionally is fine.
-      onEndQuarterEarly={() => setShowManualEndConfirm(true)}
       paused={isPaused}
       showScores={trackScoring}
       // Strip the inner card chrome — this scorebug renders
@@ -2050,6 +2053,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarter credit per Steve's spec ("apply all the
           remaining minutes of the quarter to the players on
           field"). */}
+      {clockMenuOpen && (
+        <ClockMenu
+          periodAbbr={`Q${currentQuarter}`}
+          running={!isPaused}
+          onPause={toggleClock}
+          onResume={toggleClock}
+          onEndEarly={() => setShowManualEndConfirm(true)}
+          onClose={() => setClockMenuOpen(false)}
+        />
+      )}
+
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
@@ -2614,7 +2628,7 @@ function NetballScoreBug({
   isPending,
   onClockTap,
   onShowQuarterScores,
-  onEndQuarterEarly,
+  clockLabel,
   paused = false,
   showScores = true,
   clockPulseKey = null,
@@ -2659,7 +2673,8 @@ function NetballScoreBug({
    * the same name. Real-game scenario: paused at the start of the
    * quarter, forgot to resume, need to skip to the Q-break.
    */
-  onEndQuarterEarly?: () => void;
+  /** Accessible name of the clock pill, e.g. "Clock — Q2, running". */
+  clockLabel?: string;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
   /**
@@ -2765,7 +2780,7 @@ function NetballScoreBug({
           <button
             type="button"
             onClick={onClockTap}
-            aria-label={paused ? "Resume clock" : "Pause clock"}
+            aria-label={clockLabel}
             className={`${baseClass} transition-shadow hover:bg-ink/90 ${
               paused ? "ring-2 ring-brand-500" : ""
             }`}
@@ -2799,20 +2814,6 @@ function NetballScoreBug({
                 aria-label="Show quarter-by-quarter scores"
               >
                 Q-by-Q
-              </button>
-            )}
-            {/* End-Q-early — paused-only "rescue" affordance.
-                Mirrors AFL's GameHeader behaviour. Coach paused
-                at the start of the quarter, forgot to resume,
-                game played on; this is how they recover. */}
-            {onEndQuarterEarly && paused && (
-              <button
-                type="button"
-                onClick={onEndQuarterEarly}
-                className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
-                aria-label="End the current quarter now"
-              >
-                End Q early
               </button>
             )}
           </div>

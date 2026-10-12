@@ -234,17 +234,10 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // ─── Phase 4: End H1 via manual hooter ────────────────────
   // The auto-hooter in LeagueLiveGame uses real wall-clock time, so
   // we end the period deterministically via the manual affordance.
-  // That affordance lives on the scorebug clock pill and is a
-  // *paused-only* rescue control: "End half early" only renders
-  // when the clock is paused (`!running`) — see LeagueScoreBug. So
-  // the sequence is: tap the clock pill to pause → the "End half
-  // early" chip drops in → click it → confirm in
-  // ManualEndQuarterConfirm. The chip text has no period number
-  // ("End half early", not "End half 1 early").
-  await page.getByRole("button", { name: /pause clock/i }).click();
-  await page
-    .getByRole("button", { name: /end half early/i })
-    .click();
+  // Tapping the scorebug clock pill opens the clock menu; "End H1 now"
+  // opens ManualEndQuarterConfirm (UX plan H5 — no pause needed).
+  await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
+  await page.getByRole("button", { name: /^end h1 now$/i }).click();
   // ManualEndQuarterConfirm modal — confirm with the destructive
   // "End H{n}" button (U10 plays halves; the shared modal now
   // reads the periodLabel from the age-group config and renders
@@ -278,17 +271,14 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await page
     .getByRole("button", { name: /^start clock$/i })
     .click();
-  // H2 now active. Same paused-only flow as Phase 4: pause the clock
-  // to surface the end-early chip, then end + confirm. An inline
+  // H2 now active. Same clock-menu flow as Phase 4. An inline
   // KickoffPicker may render for H2, but it's a non-blocking
   // <section> (not an overlay), so it never covers the clock pill.
-  await page.getByRole("button", { name: /pause clock/i }).click();
-  await expect(
-    page.getByRole("button", { name: /end half early/i }),
-  ).toBeVisible({ timeout: 10_000 });
-  await page
-    .getByRole("button", { name: /end half early/i })
-    .click();
+  await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
+  await expect(page.getByRole("button", { name: /^end h2 now$/i })).toBeVisible({
+    timeout: 10_000,
+  });
+  await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*2$/i })
     .click();

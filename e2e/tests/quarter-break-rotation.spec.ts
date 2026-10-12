@@ -178,7 +178,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // Q2 is now live. The Field component renders the lineup with
   // FWD/CENTRE/BACK columns. Read the FWD column's player tiles.
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("button", { name: /^clock — q2, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // The colour key also renders on the live field above the tiles, so

@@ -29,6 +29,7 @@ import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
+import { ClockMenu } from "@/components/live/ClockMenu";
 import { SubDueModal } from "@/components/live/SubDueModal";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -380,6 +381,8 @@ export function LiveGame({
 
   const walkthroughSteps = useMemo(() => buildWalkthroughSteps(trackScoring), [trackScoring]);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  // The clock pill opens the clock menu (pause / resume / end now).
+  const [clockMenuOpen, setClockMenuOpen] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
   // Tracks whether the init effect has populated the store for this
@@ -1464,8 +1467,7 @@ export function LiveGame({
 
   function handleClockTap() {
     if (isPreGame || isFinished) return;
-    if (running) handlePause();
-    else handleResume();
+    setClockMenuOpen(true);
   }
 
   // Live-play sticks the scorebug to the bottom of the viewport so
@@ -1516,15 +1518,6 @@ export function LiveGame({
       onShowQuarterScores={
         trackScoring && !isPreGame && !isFinished
           ? () => setQuarterScoresOpen(true)
-          : undefined
-      }
-      // End-Q-early "rescue" path. The header only renders the
-      // chip when paused, but we still gate by !isPreGame here
-      // so a coach who pauses pre-Q1 (e.g. waiting on stragglers)
-      // can't accidentally end Q0.
-      onEndQuarterEarly={
-        !isPreGame && !isFinished
-          ? () => setShowManualEndConfirm(true)
           : undefined
       }
       // Strip the inner card chrome when sticky-bottom (Steve
@@ -1977,6 +1970,19 @@ export function LiveGame({
           on-field players the full quarter time and triggers the
           Q-break (or FT review on Q4). Same shape as
           SwapConfirmDialog so the visual language stays consistent. */}
+      {clockMenuOpen && (
+        <ClockMenu
+          periodAbbr={`Q${currentQuarter}`}
+          running={running}
+          onPause={handlePause}
+          onResume={handleResume}
+          onEndEarly={
+            !isPreGame && !isFinished ? () => setShowManualEndConfirm(true) : undefined
+          }
+          onClose={() => setClockMenuOpen(false)}
+        />
+      )}
+
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}

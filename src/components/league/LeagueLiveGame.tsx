@@ -16,6 +16,7 @@ import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
+import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { buildLeagueWalkthroughSteps } from "./leagueWalkthroughSteps";
 // Walkthrough modal is heavy (animations, slide tracking) and only
@@ -176,6 +177,8 @@ export function LeagueLiveGame({
   // subsequent live-game opens. The "?" button in LiveTopBar
   // re-opens the steps (skipWelcome) on demand.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  // The clock pill opens the clock menu (pause / resume / end now).
+  const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [subAckedAtBaseMs, setSubAckedAtBaseMs] = useState<number | null>(
     null,
   );
@@ -280,11 +283,17 @@ export function LeagueLiveGame({
     setPausedAtElapsedMs(null);
   }, [state.currentQuarter, state.quarterEnded]);
 
-  function handleClockTap() {
+  function toggleClock() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
     }
     setPausedAtElapsedMs((prev) => (prev == null ? elapsedMs : null));
+  }
+  function handleClockTap() {
+    if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
+      return;
+    }
+    setClockMenuOpen(true);
   }
 
   const hooterFiredRef = useRef(false);
@@ -2225,9 +2234,6 @@ export function LeagueLiveGame({
               pending={pending}
               running={running}
               onClockTap={isPeriodActive ? handleClockTap : undefined}
-              onEndPeriodEarly={
-                isPeriodActive ? () => setEndQConfirmOpen(true) : undefined
-              }
             />
           }
           undoStrip={
@@ -2375,6 +2381,17 @@ export function LeagueLiveGame({
             void handleStartNextPeriod();
           }}
           onCancel={() => setStartPeriodConfirmOpen(false)}
+        />
+      )}
+
+      {clockMenuOpen && (
+        <ClockMenu
+          periodAbbr={`${periodLabel.charAt(0).toUpperCase()}${state.currentQuarter}`}
+          running={running}
+          onPause={toggleClock}
+          onResume={toggleClock}
+          onEndEarly={isPeriodActive ? () => setEndQConfirmOpen(true) : undefined}
+          onClose={() => setClockMenuOpen(false)}
         />
       )}
 

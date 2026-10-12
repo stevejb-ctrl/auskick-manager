@@ -45,7 +45,6 @@ interface LeagueScoreBugProps {
   /** Tap on the dark clock pill — toggle pause/resume. */
   onClockTap?: () => void;
   /** End-period-early — surfaces below the clock when paused (AFL parity). */
-  onEndPeriodEarly?: () => void;
 }
 
 // Mirrors AFL's `SCORE_CHIP` token shape so the buttons read the
@@ -78,7 +77,6 @@ export function LeagueScoreBug({
   pending,
   running = true,
   onClockTap,
-  onEndPeriodEarly,
 }: LeagueScoreBugProps) {
   const periodNoun = periodLabel.toUpperCase();
   const periodLabelLine
@@ -141,9 +139,7 @@ export function LeagueScoreBug({
           className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
           aria-label={
             onClockTap
-              ? running
-                ? "Pause clock"
-                : "Resume clock"
+              ? `Clock — ${periodNoun.charAt(0)}${currentPeriod || 1}, ${running ? "running" : "paused"}`
               : `${periodLabelLine}, ${clockReadout}`
           }
         >
@@ -160,25 +156,9 @@ export function LeagueScoreBug({
             {clockReadout}
           </span>
         </button>
-        {/* End-period-early — paused-only "rescue" affordance,
-            same shape AFL uses. Stays out of the way during normal
-            play; appears under the clock when the coach has
-            paused. */}
-        {onEndPeriodEarly && !running && !quarterEnded && (
-          <button
-            type="button"
-            onClick={onEndPeriodEarly}
-            disabled={pending}
-            className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15 disabled:opacity-60"
-          >
-            End {periodLabel.toLowerCase()} early
-          </button>
-        )}
-        {(!onEndPeriodEarly || running || quarterEnded) && (
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim">
-            of {periodCount} {periodLabelPlural}
-          </p>
-        )}
+        <p className="font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim">
+          of {periodCount} {periodLabelPlural}
+        </p>
       </div>
 
       {/* Right: opponent (mirror) */}

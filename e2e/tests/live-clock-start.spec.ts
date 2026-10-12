@@ -112,12 +112,12 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
   // quarter_start + local clock start.
   await page.getByRole("button", { name: /^start clock$/i }).click();
 
-  // Modal disappears, clock pill flips to running ("Pause clock").
+  // Modal disappears, clock pill flips to running ("Clock — Q1, running").
   await expect(
     page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeHidden({ timeout: 3_000 });
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Server has exactly one quarter_start event — proving the single
@@ -208,7 +208,7 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   await readyButton.click();
   await page.getByRole("button", { name: /^start clock$/i }).click();
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 });
 
@@ -355,11 +355,62 @@ test("first-time coach is offered the walkthrough before kickoff, never over the
 
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start clock$/i }).click();
-  await expect(page.getByRole("button", { name: /^pause clock$/i })).toBeVisible({
+  await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({
     timeout: 5_000,
   });
 
   // Nothing modal over the running clock.
   await page.waitForTimeout(1_000);
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+// UX plan 1.6 / H5: ending a quarter early used to need a pause, then a
+// ~20 px "End Q early" chip that only existed while paused. The clock
+// pill now opens a clock menu (≥ 44 pt rows): Pause / Resume and
+// End Q{n} now — reachable while the clock is running.
+test("the clock menu pauses and ends the quarter early", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  const clock = page.getByRole("button", { name: /^clock — q1, running$/i });
+  await expect(clock).toBeVisible({ timeout: 10_000 });
+
+  // Pause from the menu.
+  await clock.click();
+  const menu = page.getByRole("dialog", { name: /q1 clock/i });
+  const pause = menu.getByRole("button", { name: /^pause clock$/i });
+  await expect(pause).toBeVisible();
+  expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await pause.click();
+  await expect(page.getByRole("button", { name: /^clock — q1, paused$/i })).toBeVisible();
+
+  // End Q1 from the menu (confirm), landing on the quarter break.
+  await page.getByRole("button", { name: /^clock — q1, paused$/i }).click();
+  await page
+    .getByRole("dialog", { name: /q1 clock/i })
+    .getByRole("button", { name: /^end q1 now$/i })
+    .click();
+  await page.getByRole("button", { name: /^end q1$/i }).click();
+  await expect(page.getByText(/lineup for q2/i)).toBeVisible({ timeout: 10_000 });
 });
