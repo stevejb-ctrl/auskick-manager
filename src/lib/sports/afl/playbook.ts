@@ -16,6 +16,7 @@ import type {
   SportPlaybook,
   StrategyDef,
 } from "@/lib/playbook/types";
+import { sidedPositions } from "@/lib/playbook/sides";
 
 const AFL_RULES = "AFL Junior Rules (May 2024)";
 /** Ages the AFL junior rules list zone splits for. */
@@ -163,7 +164,8 @@ export function defaultAflPositions(onFieldSize: number): PositionDef[] {
       });
     }
   }
-  return layoutAflPositions(list);
+  // Every position its own name: FP → LFP / RFP, HFF → LHF / RHF.
+  return sidedPositions(layoutAflPositions(list), { HFF: "HF", HBF: "HB" });
 }
 
 const ZONED_STRATEGIES: StrategyDef[] = [

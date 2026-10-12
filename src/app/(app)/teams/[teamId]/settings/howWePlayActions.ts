@@ -180,6 +180,9 @@ export async function saveTeamPositions(
     }
     if (p.name && p.name.length > 40) return { success: false, error: "Position names are up to 40 characters." };
   }
+  // Every position is its own: two can't share a label.
+  const twice = clean.find((p, i) => clean.findIndex((q) => q.label === p.label) !== i);
+  if (twice) return { success: false, error: `Each position needs its own label: ${twice.label} is used twice.` };
 
   const { data: existing } = await supabase
     .from("team_positions")

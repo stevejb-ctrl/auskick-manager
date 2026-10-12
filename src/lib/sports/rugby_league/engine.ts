@@ -12,7 +12,6 @@ import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import type { GameEvent } from "@/lib/types";
-import { leaguePositionGroup } from "./playbook";
 
 export type LeagueLine = "forwards" | "backs";
 export type VestStrategy = "auto" | "fixed-order" | "coach";
@@ -38,7 +37,7 @@ export interface LeaguePlaybookInput {
   /** Named positions (5.7): the catalogue in force and each kid's home / also. */
   positions?: { key: string; label: string; line: LeagueLine }[];
   positionRoles?: Record<string, { home: string | null; also: string[]; never: string[] }>;
-  /** ms per player per named position this season (since a reset), by leaguePositionGroup. */
+  /** ms per player per named position this season (since a reset), from recorded slots. */
   seasonPositions?: UnitTime;
 }
 
@@ -201,7 +200,7 @@ export function assignLeaguePositions(
   // Season balance (5.7): among the spots a kid can take, the one
   // they've played least this season. Off = catalogue order.
   const season = input.seasonWeight > 0 ? input.seasonPositions : undefined;
-  const msAt = (pid: string, key: string) => season?.[pid]?.[leaguePositionGroup(key)] ?? 0;
+  const msAt = (pid: string, key: string) => season?.[pid]?.[key] ?? 0;
   for (const line of ["forwards", "backs"] as const) {
     const players = lineup[line];
     const free = input.positions.filter((p) => p.line === line);

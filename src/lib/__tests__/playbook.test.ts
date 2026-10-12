@@ -79,17 +79,35 @@ describe("AFL default formations (UX plan §7.3)", () => {
 
   it("matches the confirmed 18, 16, 15 and 12 formations", () => {
     expect(labelsByLine(18)).toEqual({
-      fwd: ["FP", "FF", "FP", "HFF", "CHF", "HFF"],
-      mid: ["W", "C", "W", "R", "RR", "ROV"],
-      back: ["HBF", "CHB", "HBF", "BP", "FB", "BP"],
+      fwd: ["LFP", "FF", "RFP", "LHF", "CHF", "RHF"],
+      mid: ["LW", "C", "RW", "R", "RR", "ROV"],
+      back: ["LHB", "CHB", "RHB", "LBP", "FB", "RBP"],
     });
     expect(labelsByLine(16).mid).toEqual(["C", "R", "RR", "ROV"]);
-    expect(labelsByLine(15).back).toEqual(["CHB", "HBF", "BP", "FB", "BP"]);
+    expect(labelsByLine(15).back).toEqual(["CHB", "HBF", "LBP", "FB", "RBP"]);
     expect(labelsByLine(12)).toEqual({
-      fwd: ["FP", "FF", "FP", "CHF"],
+      fwd: ["LFP", "FF", "RFP", "CHF"],
       mid: ["W", "C", "R", "RR"],
-      back: ["CHB", "BP", "FB", "BP"],
+      back: ["CHB", "LBP", "FB", "RBP"],
     });
+  });
+
+  it("names every position on its own: pairs become left and right as drawn", () => {
+    for (const n of [9, 12, 13, 15, 16, 17, 18]) {
+      const ps = defaultAflPositions(n);
+      expect(new Set(ps.map((p) => p.label)).size).toBe(n);
+      expect(new Set(ps.map((p) => p.name)).size).toBe(n);
+      for (const p of ps) {
+        if (p.label.startsWith("L") && ps.some((q) => q.label === `R${p.label.slice(1)}`)) {
+          expect(p.x).toBeLessThan(ps.find((q) => q.label === `R${p.label.slice(1)}`)!.x);
+        }
+      }
+    }
+    const fp = defaultAflPositions(18).filter((p) => p.label.endsWith("FP"));
+    expect(fp.map((p) => [p.key, p.label, p.name])).toEqual([
+      ["fp1", "LFP", "Left forward pocket"],
+      ["fp2", "RFP", "Right forward pocket"],
+    ]);
   });
 
   it("gives every position a unique key and places lines attacking up", () => {
@@ -115,9 +133,9 @@ describe("AFL default formations (UX plan §7.3)", () => {
         .sort((a, b) => a[0] - b[0])
         .map(([, l]) => l);
     };
-    expect(rows("fwd")).toEqual([["FP", "FF", "FP"], ["CHF"]]);
+    expect(rows("fwd")).toEqual([["LFP", "FF", "RFP"], ["CHF"]]);
     expect(rows("mid")).toEqual([["W", "C"], ["R", "RR"]]);
-    expect(rows("back")).toEqual([["CHB"], ["BP", "FB", "BP"]]);
+    expect(rows("back")).toEqual([["CHB"], ["LBP", "FB", "RBP"]]);
   });
 });
 
@@ -154,9 +172,11 @@ describe("rugby league", () => {
     const u12 = league.positionModel(effectivePolicy("rugby_league", "U12"), 13);
     expect(u12.kind).toBe("catalogue");
     expect(u12.canRename).toBe(false);
+    // Pairs are left and right as drawn, so every position is its own.
     expect(u12.defaults.map((p) => p.label)).toEqual([
-      "PR", "HK", "PR", "2R", "2R", "LK", "FB", "HB", "5/8", "CE", "CE", "WG", "WG",
+      "LPR", "HK", "RPR", "L2R", "R2R", "LK", "FB", "HB", "5/8", "LCE", "RCE", "RWG", "LWG",
     ]);
+    expect(u12.defaults.find((p) => p.label === "LPR")?.name).toBe("Left prop");
   });
 
   it("carries vests and §6 unbroken periods from the age config", () => {

@@ -67,19 +67,6 @@ describe("assignLeaguePositions", () => {
     expect(assignLeaguePositions({ forwards: ["a"], backs: [] }, also)).toEqual({ a: "hk" });
   });
 
-  it("two spots of one role share their season time", () => {
-    const props = input({
-      positions: [
-        { key: "pr1", label: "PR", line: "forwards" },
-        { key: "hk", label: "HK", line: "forwards" },
-        { key: "pr2", label: "PR", line: "forwards" },
-      ],
-      // Time as a prop is stored by role ("pr"), whichever prop spot.
-      seasonPositions: { a: { pr: 40 * MIN } },
-    });
-    expect(assignLeaguePositions({ forwards: ["a", "b"], backs: [] }, props)).toEqual({ a: "hk", b: "pr1" });
-  });
-
   it("with season balance off, season time is ignored", () => {
     const pb = input({ seasonWeight: 0, seasonPositions: { a: { pr: 40 * MIN } } });
     expect(assignLeaguePositions({ forwards: ["a"], backs: [] }, pb)).toEqual({ a: "pr" });
@@ -123,12 +110,12 @@ describe("playerSlotMsOnField", () => {
     expect(playerSlotMsOnField(plain)).toEqual({});
   });
 
-  it("feeds season time by role", () => {
+  it("feeds season time by position", () => {
     const events = [
       lineup({ a: "pr2", c: "fb" }),
       ev("quarter_start", { quarter: 1 }),
       ev("quarter_end", { quarter: 1, elapsed_ms: 20 * MIN }),
     ];
-    expect(seasonTimeByUnit("rugby_league", events, "position")).toEqual({ a: { pr: 20 * MIN }, c: { fb: 20 * MIN } });
+    expect(seasonTimeByUnit("rugby_league", events, "position")).toEqual({ a: { pr2: 20 * MIN }, c: { fb: 20 * MIN } });
   });
 });

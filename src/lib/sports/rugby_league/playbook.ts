@@ -16,6 +16,7 @@ import type {
   SportPlaybook,
   StrategyDef,
 } from "@/lib/playbook/types";
+import { sidedPositions } from "@/lib/playbook/sides";
 
 const NRL_LAWS = "NRL Junior League Laws";
 const MOD_LEAGUE = new Set(["U10", "U11", "U12"]);
@@ -39,15 +40,6 @@ const NAMES: Record<string, string> = {
 // Filled in this order as the on-field size grows (13 = a full side).
 const FORWARD_ORDER = ["PR", "HK", "PR", "2R", "2R", "LK"];
 const BACK_ORDER = ["FB", "HB", "5/8", "CE", "CE", "WG", "WG"];
-
-/**
- * The role a catalogue key plays: duplicates share one (pr1 and pr2
- * are both props), so season balance and the stats grid count time
- * as a prop, not per prop spot.
- */
-export function leaguePositionGroup(key: string): string {
-  return key.replace(/\d+$/, "");
-}
 
 /** Catalogue positions for an on-field size and forward count. */
 export function leagueCatalogue(onFieldSize: number, forwardCount: number): PositionDef[] {
@@ -73,7 +65,8 @@ export function leagueCatalogue(onFieldSize: number, forwardCount: number): Posi
       })),
     );
   };
-  return [...place(forwards, "forwards", 0.12, 0.38), ...place(backs, "backs", 0.58, 0.9)];
+  // Every position its own name: PR → LPR / RPR, as AFL's pockets.
+  return sidedPositions([...place(forwards, "forwards", 0.12, 0.38), ...place(backs, "backs", 0.58, 0.9)]);
 }
 
 const BASE_STRATEGIES: StrategyDef[] = [

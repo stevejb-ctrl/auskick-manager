@@ -18,7 +18,6 @@ import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
-import { leaguePositionGroup } from "@/lib/sports/rugby_league/playbook";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -115,7 +114,7 @@ export function gameTimeByUnit(
   // slots recorded on each lineup (chunk 5.7).
   if (unit === "position") {
     for (const [pid, byKey] of Object.entries(playerSlotMsOnField(events))) {
-      for (const [key, ms] of Object.entries(byKey)) add(out, pid, leaguePositionGroup(key), ms);
+      for (const [key, ms] of Object.entries(byKey)) add(out, pid, key, ms);
     }
     return out;
   }

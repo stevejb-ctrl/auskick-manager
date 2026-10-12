@@ -203,9 +203,20 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
   await expect(field.getByRole("button", { name: "Key back (KEY)" })).toBeVisible();
 
   // Remove a forward pocket.
-  await field.getByRole("button", { name: "Forward pocket (FP)" }).first().click();
+  await field.getByRole("button", { name: "Left forward pocket (LFP)" }).click();
   await page.getByRole("button", { name: "Remove position" }).click();
   await expect(page.getByText(/14 positions · 15 on the field\. Add 1 more/)).toBeVisible();
+
+  // Every position is its own: two can't share a label.
+  await field.getByRole("button", { name: "Full back (FB)" }).click();
+  await page.getByLabel("Short label (up to 4 letters)").fill("key");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Save positions" }).click();
+  await expect(page.getByText("Each position needs its own label: KEY is used twice.")).toBeVisible();
+  expect(await activePositions()).toHaveLength(0);
+  await field.getByRole("button", { name: "Full back (KEY)" }).click();
+  await page.getByLabel("Short label (up to 4 letters)").fill("fb");
+  await page.getByRole("button", { name: "Done" }).click();
 
   await page.getByRole("button", { name: "Save positions" }).click();
   await expect.poll(async () => (await activePositions()).length).toBe(14);
@@ -807,7 +818,7 @@ test("league named positions: lineups record positions, and stats count time by 
   const hooker = players[3];
   await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: hooker.id, position_key: "hk", kind: "home" });
 
-  // A finished game whose lineup recorded positions (two props: one role).
+  // A finished game whose lineup recorded positions.
   const past = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
   const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const lineup = {
@@ -827,9 +838,11 @@ test("league named positions: lineups record positions, and stats count time by 
   await page.goto(`/teams/${team.id}/stats`);
   const grid = page.getByRole("table", { name: "Season balance" });
   await expect(grid).toBeVisible({ timeout: 15_000 });
-  await expect(grid.getByRole("columnheader", { name: "PR", exact: true })).toHaveCount(1);
+  // Every position its own column: the props are LPR and RPR.
+  await expect(grid.getByRole("columnheader", { name: "LPR", exact: true })).toBeVisible();
+  await expect(grid.getByRole("columnheader", { name: "RPR", exact: true })).toBeVisible();
   await expect(grid.getByRole("columnheader", { name: "HK", exact: true })).toBeVisible();
-  // The rollup stores time by role, beside the lines.
+  // The rollup stores time by position, beside the lines.
   await expect
     .poll(async () => {
       const { data } = await admin
@@ -839,7 +852,7 @@ test("league named positions: lineups record positions, and stats count time by 
         .eq("unit_kind", "position");
       return (data ?? []).filter((r) => r.player_id === ids[2]).map((r) => [r.unit_key, r.ms]);
     })
-    .toEqual([["pr", 20 * 60_000]]);
+    .toEqual([["pr2", 20 * 60_000]]);
 
   // Kickoff records a position for every kid on the field.
   const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
