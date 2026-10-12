@@ -42,6 +42,8 @@ export interface RuleCheckInput {
   homeLine?: Record<string, string | null>;
   /** Season balance: season time per player per unit, and its units. */
   season?: { time: UnitTime; units: string[]; unitLabel: (key: string) => string };
+  /** Carnival day: lines each player played in the day's earlier games. */
+  playedEarlierToday?: Record<string, string[]>;
 }
 
 const joinNames = (names: string[]) =>
@@ -104,6 +106,24 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
             text: rule.kind === "every-line-per-game" ? `Everyone gets every ${input.lineWord}` : `Everyone gets ${need} ${input.lineWord}s`,
           });
         }
+        break;
+      }
+      case "every-line-per-day": {
+        // Later games today can still make it up, so this only warns,
+        // and only once this game can't.
+        const missing = squad.filter((pid) => {
+          const today = new Set([...Array.from(playedLines(pid)), ...(input.playedEarlierToday?.[pid] ?? [])]);
+          return today.size < input.lines.length;
+        });
+        items.push(
+          missing.length === 0
+            ? { id: rule.id, status: "ok", text: `Everyone has played every ${input.lineWord} today` }
+            : {
+                id: rule.id,
+                status: remainingAfter === 0 ? "warn" : "ok",
+                text: `${joinNames(missing.map(input.name))} still to play every ${input.lineWord} today`,
+              },
+        );
         break;
       }
       case "keep-apart": {

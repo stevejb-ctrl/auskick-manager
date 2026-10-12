@@ -16,6 +16,8 @@ export type RuleStrength = "must" | "prefer";
 
 export type RuleKind =
   | "every-line-per-game"
+  // Carnival days (several games in a day): every line across the day.
+  | "every-line-per-day"
   | "distinct-lines"
   | "stays-home"
   | "keep-apart"
@@ -59,6 +61,14 @@ const DEFS: Record<RuleKind, RuleDef> = {
   "every-line-per-game": {
     kind: "every-line-per-game",
     title: "Everyone plays every line each game",
+    defaultParams: {},
+    defaultStrength: "prefer",
+    repeatable: false,
+    needsPlayers: false,
+  },
+  "every-line-per-day": {
+    kind: "every-line-per-day",
+    title: "Everyone plays every line across the day",
     defaultParams: {},
     defaultStrength: "prefer",
     repeatable: false,
@@ -158,6 +168,8 @@ export function ruleCatalogue(resolved: ResolvedPlaybook): RuleDef[] {
   }
   // AFL and league sub on the run; netball's breaks-only is its default.
   if (resolved.sport !== "netball") kinds.push("subs-at-breaks");
+  // Netball carnivals play several games in a day.
+  if (resolved.sport === "netball") kinds.splice(1, 0, "every-line-per-day");
   // Zoned AFL already rotates every kid through every zone by rule.
   if (resolved.sport === "afl" && resolved.policy.zonesEnforced) {
     return kinds.filter((k) => k !== "every-line-per-game" && k !== "distinct-lines").map(ruleDef);
@@ -171,6 +183,8 @@ export function ruleSentence(rule: RuleInstance, words: RuleWords, names: (ids: 
   switch (rule.kind) {
     case "every-line-per-game":
       return `Every player plays each ${words.line} at least once per game`;
+    case "every-line-per-day":
+      return `Every player plays each ${words.line} across the day's games`;
     case "distinct-lines":
       return `Every player plays at least ${p.count ?? 2} different ${words.lines} per game`;
     case "stays-home":

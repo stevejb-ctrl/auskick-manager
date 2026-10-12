@@ -662,6 +662,10 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
               : (playbook?.roles[pid]?.home ?? null),
             // Netball tiers are ~100× AFL's.
             100,
+            // Carnival day: thirds played in the day's earlier games count too.
+            playbook?.thirdsToday
+              ? new Set([...Array.from(thirdsPlayedThisGame[pid] ?? []), ...(playbook.thirdsToday[pid] ?? [])])
+              : undefined,
           )
         : 0;
 
@@ -895,7 +899,50 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     }
   }
 
+  // Carnival day: the greedy pass can hand out a third's bibs before
+  // the kid who still needs that third today gets a pick, so swap
+  // them in (AFL's repairLineupForRules, for this rule).
+  if (thirdOf && playbook?.thirdsToday && teamRules.some((r) => r.kind === "every-line-per-day" && r.enabled !== false)) {
+    repairDayThirds(lineup, playbook.thirdsToday, thirdsPlayedThisGame, thirdOf, allowed);
+  }
+
   return lineup;
+}
+
+/**
+ * Carnival day repair: a kid on court in a third they've already
+ * played today swaps with a kid in a third they haven't, when that kid
+ * has already played it today and both bibs are allowed. Mutates.
+ */
+export function repairDayThirds(
+  lineup: GenericLineup,
+  earlierToday: Record<string, string[]>,
+  thisGame: Record<string, Set<string>>,
+  thirdOf: (posId: string) => string | null | undefined,
+  allowed: (pid: string, posId: string) => boolean,
+): void {
+  const bibOf = new Map<string, string>();
+  for (const [bib, ids] of Object.entries(lineup.positions)) for (const pid of ids) bibOf.set(pid, bib);
+  const today = (pid: string) => new Set([...(earlierToday[pid] ?? []), ...Array.from(thisGame[pid] ?? [])]);
+  const thirds = ["attack-third", "centre-third", "defence-third"];
+  for (const pid of Array.from(bibOf.keys())) {
+    const mine = today(pid);
+    const myBib = bibOf.get(pid)!;
+    const myThird = thirdOf(myBib);
+    if (!myThird || !mine.has(myThird)) continue;
+    for (const want of thirds.filter((t) => !mine.has(t))) {
+      const other = Array.from(bibOf.entries()).find(
+        ([o, bib]) => o !== pid && thirdOf(bib) === want && today(o).has(want) && allowed(pid, bib) && allowed(o, myBib),
+      );
+      if (!other) continue;
+      const [o, theirBib] = other;
+      lineup.positions[theirBib] = lineup.positions[theirBib].map((x) => (x === o ? pid : x));
+      lineup.positions[myBib] = lineup.positions[myBib].map((x) => (x === pid ? o : x));
+      bibOf.set(pid, theirBib);
+      bibOf.set(o, myBib);
+      break;
+    }
+  }
 }
 
 // ─── Replay one game → live state ────────────────────────────

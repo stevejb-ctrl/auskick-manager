@@ -40,6 +40,8 @@ export interface NetballPlaybookInput {
   minGameTimePct?: number;
   /** Last quarter's lineup, for Position cycle. */
   previousLineup?: GenericLineup | null;
+  /** Carnival day: thirds each player played in the day's earlier games. */
+  thirdsToday?: Record<string, string[]>;
 }
 
 /** Tier weights per style (see suggestNetballLineup's tier notes). */
@@ -253,6 +255,7 @@ export function netballRuleCheck(c: {
     lineWord: "third",
     minGameTimePct: c.input?.minGameTimePct ?? 50,
     rules: c.input?.rules ?? [],
+    playedEarlierToday: c.input?.thirdsToday,
     season: seasonOn
       ? {
           time: c.input!.season!,

@@ -25,6 +25,8 @@ export function ruleScore(
   placedInZone: Set<string> | undefined,
   homeLine: string | null,
   scale = 1,
+  /** Lines played today, this game included (Carnival day); defaults to this game's. */
+  linesPlayedToday?: Set<string>,
 ): number {
   let score = 0;
   for (const rule of rules) {
@@ -33,6 +35,11 @@ export function ruleScore(
       case "distinct-lines": {
         const need = rule.kind === "every-line-per-game" ? lineCount : (rule.params.count ?? 2);
         if (linesPlayed.size < need && !linesPlayed.has(line)) score += LINE_RULE_WEIGHT[rule.strength];
+        break;
+      }
+      case "every-line-per-day": {
+        const today = linesPlayedToday ?? linesPlayed;
+        if (today.size < lineCount && !today.has(line)) score += LINE_RULE_WEIGHT[rule.strength];
         break;
       }
       case "keep-apart":
