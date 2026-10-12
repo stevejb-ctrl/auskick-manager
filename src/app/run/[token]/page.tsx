@@ -22,6 +22,7 @@ import { getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/l
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
+import { withThirdsToday } from "@/lib/playbook/dayLines";
 
 export const dynamic = "force-dynamic";
 
@@ -421,20 +422,25 @@ export default async function RunPage({ params }: RunPageProps) {
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
     // How we play for the netball suggester, as on the coach's page.
     const nb = await loadTeamPlaybook(admin, g.team_id, "netball", teamRow?.age_group ?? null);
-    const netballPlaybook = withNetballSnapshot(
-      netballPlaybookInput(
-        nb.resolved,
-        nb.prefs,
-        nb.rules,
-        seasonTimeByUnit(
-          "netball",
-          (seasonEventsNetball ?? []) as GameEvent[],
-          nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib",
-          { since: nb.resolved.seasonBalanceSince, periodSeconds: quarterLengthSeconds },
+    const netballPlaybook = withThirdsToday(
+      withNetballSnapshot(
+        netballPlaybookInput(
+          nb.resolved,
+          nb.prefs,
+          nb.rules,
+          seasonTimeByUnit(
+            "netball",
+            (seasonEventsNetball ?? []) as GameEvent[],
+            nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib",
+            { since: nb.resolved.seasonBalanceSince, periodSeconds: quarterLengthSeconds },
+          ),
+          quarterLengthSeconds * 1000,
         ),
-        quarterLengthSeconds * 1000,
+        g.playbook_snapshot,
       ),
-      g.playbook_snapshot,
+      (seasonEventsNetball ?? []) as GameEvent[],
+      (thisGameEvents ?? []) as GameEvent[],
+      quarterLengthSeconds,
     );
     const isPreKickoff = state.lineup === null;
     // Gate the availability section on "not enough available to

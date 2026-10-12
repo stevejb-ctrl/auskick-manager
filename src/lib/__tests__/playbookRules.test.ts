@@ -89,7 +89,7 @@ describe("local rule packs", () => {
     expect(rulePacksFor("afl", "U12").map((p) => p.id)).toEqual(["afl-club-development"]);
     expect(rulePacksFor("afl", "U11").map((p) => p.id)).toEqual(["afl-club-development", "afl-zones-until-u11"]);
     expect(rulePacksFor("afl", "U14")).toEqual([]);
-    expect(rulePacksFor("netball", "11u").map((p) => p.id)).toEqual(["netball-association-junior"]);
+    expect(rulePacksFor("netball", "11u").map((p) => p.id)).toEqual(["netball-association-junior", "netball-carnival-day"]);
   });
 
   it("replaces rules of the same kind and marks them as local", () => {

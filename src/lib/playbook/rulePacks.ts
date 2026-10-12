@@ -52,6 +52,13 @@ export const RULE_PACKS: RulePack[] = [
     ],
   },
   {
+    id: "netball-carnival-day",
+    sport: "netball",
+    title: "Carnival day",
+    blurb: "Every player plays every third across the day's games",
+    rules: [{ kind: "every-line-per-day", strength: "prefer" }],
+  },
+  {
     id: "league-mod-club",
     sport: "rugby_league",
     title: "Mod League club rules",

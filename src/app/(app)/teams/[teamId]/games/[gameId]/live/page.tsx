@@ -3,6 +3,7 @@ import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
+import { withThirdsToday } from "@/lib/playbook/dayLines";
 import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
@@ -636,18 +637,23 @@ export default async function LivePage({ params }: LivePageProps) {
     // roles, rules and season balance by third or bib (since a reset).
     const nb = await loadTeamPlaybook(supabase, params.teamId, "netball", teamRow?.age_group ?? null);
     const nbUnit = nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib";
-    const netballPlaybook = withNetballSnapshot(
-      netballPlaybookInput(
-        nb.resolved,
-        nb.prefs,
-        nb.rules,
-        seasonTimeByUnit("netball", seasonEvents as GameEvent[], nbUnit, {
-          since: nb.resolved.seasonBalanceSince,
-          periodSeconds: quarterLengthSeconds,
-        }),
-        quarterLengthSeconds * 1000,
+    const netballPlaybook = withThirdsToday(
+      withNetballSnapshot(
+        netballPlaybookInput(
+          nb.resolved,
+          nb.prefs,
+          nb.rules,
+          seasonTimeByUnit("netball", seasonEvents as GameEvent[], nbUnit, {
+            since: nb.resolved.seasonBalanceSince,
+            periodSeconds: quarterLengthSeconds,
+          }),
+          quarterLengthSeconds * 1000,
+        ),
+        g.playbook_snapshot,
       ),
-      g.playbook_snapshot,
+      seasonEvents as GameEvent[],
+      (thisGameEvents ?? []) as GameEvent[],
+      quarterLengthSeconds,
     );
 
     // Pre-game lineup draft (netball) — saved by Save plan & exit

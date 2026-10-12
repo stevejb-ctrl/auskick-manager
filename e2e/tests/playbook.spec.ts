@@ -866,3 +866,57 @@ test("league named positions: lineups record positions, and stats count time by 
   expect(Object.keys(kickoff.slots ?? {}).sort()).toEqual([...kickoff.forwards, ...kickoff.backs].sort());
   expect(kickoff.slots?.[hooker.id]).toBe("hk");
 });
+
+test("netball Carnival day: a kid gets the third they haven't played today", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 7, ageGroup: "U10" });
+  const ids = players.map((p) => p.id);
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "by-thirds",
+    season_balance: "off",
+    rules: [{ id: "carnival", kind: "every-line-per-day", params: {}, strength: "prefer", enabled: true, source: "pack:netball-carnival-day" }],
+  });
+  // This morning's game: everyone had a turn in attack (GS / GA) except
+  // the last kid, who played C, GK and WD (centre and defence thirds).
+  const morning = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+  const lineupWith = (order: string[]) => ({ positions: Object.fromEntries(keys.map((k, i) => [k, [order[i]]])), bench: [] });
+  const kid = ids[6];
+  const quarters = [
+    [ids[0], ids[1], ids[2], kid, ids[3], ids[4], ids[5]],
+    [ids[2], ids[3], ids[4], ids[5], ids[0], ids[1], kid],
+    [ids[4], ids[5], ids[0], ids[1], kid, ids[2], ids[3]],
+  ];
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: morning.id, type: "lineup_set", metadata: { lineup: lineupWith(quarters[0]) }, created_by: ownerId, created_at: t(120) },
+    ...quarters.flatMap((order, i) => [
+      ...(i > 0
+        ? [{ game_id: morning.id, type: "period_break_swap", metadata: { quarter: i + 1, lineup: lineupWith(order), sport: "netball", midQuarterSubs: [] }, created_by: ownerId, created_at: t(118 - i * 12) }]
+        : []),
+      { game_id: morning.id, type: "quarter_start", metadata: { quarter: i + 1 }, created_by: ownerId, created_at: t(118 - i * 12) },
+      { game_id: morning.id, type: "quarter_end", metadata: { quarter: i + 1, elapsed_ms: 10 * 60_000 }, created_by: ownerId, created_at: t(108 - i * 12) },
+    ]),
+    { game_id: morning.id, type: "game_finalised", metadata: { quarter: 3 }, created_by: ownerId, created_at: t(80) },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", morning.id);
+
+  // The next game: the suggested lineup puts the kid in the attack third.
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const kidToken = page.getByRole("button", { name: new RegExp(`, ${players[6].full_name}$`) });
+  await expect(kidToken).toBeVisible({ timeout: 15_000 });
+  await expect(kidToken).toHaveAccessibleName(/^(Goal Shooter|Goal Attack),/);
+});
