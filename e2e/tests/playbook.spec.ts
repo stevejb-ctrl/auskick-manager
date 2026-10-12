@@ -698,3 +698,33 @@ test("dialogs are named and close on Escape (one Modal primitive)", async ({ pag
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 });
+
+test("a coach sets a role from the game-day lineup with a long-press", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const tile = page.getByTestId(`player-tile-${players[0].id}`);
+  await expect(tile).toBeVisible({ timeout: 15_000 });
+  // PlayerTile fires onLongPress after a 500ms hold.
+  await tile.click({ delay: 600 });
+
+  const sheet = page.getByRole("dialog", { name: `Role for ${players[0].full_name}` });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Back" }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("player_position_prefs").select("line").eq("player_id", players[0].id).eq("kind", "home");
+      return data?.[0]?.line;
+    })
+    .toBe("back");
+});

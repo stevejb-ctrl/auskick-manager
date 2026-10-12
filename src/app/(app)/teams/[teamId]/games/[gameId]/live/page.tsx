@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
@@ -1117,6 +1118,11 @@ export default async function LivePage({ params }: LivePageProps) {
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          roleSheet={(() => {
+            if (!isAdmin) return undefined;
+            const model = roleModelFor(playbook);
+            return model ? { model, roles: rolesFromPrefs(playbookPrefs, model.unit) } : undefined;
+          })()}
           initialLoanedIds={initialLoanedIds}
         />
       )}

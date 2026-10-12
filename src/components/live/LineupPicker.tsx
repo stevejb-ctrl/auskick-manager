@@ -35,6 +35,9 @@ import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { PlayerRoleSheet } from "@/components/playbook/PlayerRoleSheet";
+import { savePlayerRole } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
+import { EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -107,6 +110,12 @@ interface LineupPickerProps {
    */
   aflPlaybook?: AflPlaybookInput;
   /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on — the same sheet as the Squad
+   * tab (UX plan 3.5). Coaches only; omitted for runners and managers.
+   */
+  roleSheet?: { model: RoleModel; roles: Record<string, PlayerRole> };
+  /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
    * chip survives a page reload. Empty by default for a fresh game.
@@ -172,6 +181,7 @@ export function LineupPicker({
   initialDraft,
   chipModeByKey = {},
   aflPlaybook,
+  roleSheet,
   initialLoanedIds = [],
   defaultSubMinutes,
 }: LineupPickerProps) {
@@ -395,6 +405,8 @@ export function LineupPicker({
     () => new Map(players.map((p) => [p.id, p])),
     [players],
   );
+  const [rolePlayerId, setRolePlayerId] = useState<string | null>(null);
+  const [roles, setRoles] = useState<Record<string, PlayerRole>>(roleSheet?.roles ?? {});
 
   const ruleCheck = useMemo(() => {
     if (!aflPlaybook) return null;
@@ -1016,6 +1028,7 @@ export function LineupPicker({
           primedEmptyZone={selected?.kind === "empty" ? selected.zone : null}
           dimUnselected={false}
           onTapField={(pid, zone) => (pid ? tapPlayer(pid) : tapEmpty(zone))}
+          onLongPress={roleSheet && auth.kind === "team" ? (pid) => setRolePlayerId(pid) : undefined}
           zoneMsByPlayer={seasonMsByPlayer}
           zoneCaps={displayZoneCaps}
           displayZoneCaps={displayZoneCaps}
@@ -1029,9 +1042,23 @@ export function LineupPicker({
           selectedPlayerId={selected?.kind === "player" ? selected.id : null}
           dimUnselected={false}
           onTapBench={tapPlayer}
+          onLongPress={roleSheet && auth.kind === "team" ? (pid) => setRolePlayerId(pid) : undefined}
           zoneMsByPlayer={seasonMsByPlayer}
           chipModeByKey={chipModeByKey}
         />
+        {roleSheet && rolePlayerId && auth.kind === "team" && (
+          <PlayerRoleSheet
+            playerName={playerById.get(rolePlayerId)?.full_name ?? "Player"}
+            model={roleSheet.model}
+            initial={roles[rolePlayerId] ?? EMPTY_ROLE}
+            onSave={async (next) => {
+              const res = await savePlayerRole(auth.teamId, rolePlayerId, next);
+              if (res.success) setRoles((r) => ({ ...r, [rolePlayerId]: next }));
+              return res;
+            }}
+            onClose={() => setRolePlayerId(null)}
+          />
+        )}
       </div>
 
       {/* Sub interval input moved UP into the Game settings
