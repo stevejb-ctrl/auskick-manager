@@ -12,6 +12,13 @@
 // ============================================================
 
 import {
+  rotatedZone,
+  seasonOwedByZone,
+  strategyWeights,
+  type AflPlaybookInput,
+  type AflSwapPlaybook,
+} from "@/lib/sports/afl/engine";
+import {
   emptyLineup,
   normalizeLineup,
   type GameEvent,
@@ -590,9 +597,17 @@ export function suggestStartingLineup(
    * the threshold tracks this game's actual clock (D-03).
    */
   fullPeriodMs: number = 12 * 60 * 1000,
+  /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles. Omitted = today's behaviour exactly (legacy tiers, binary
+   * SEASON_DIVERSITY).
+   */
+  playbook?: AflPlaybookInput,
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
+  const roles = playbook?.roles ?? {};
+  const weights = strategyWeights(playbook?.strategy);
 
   const zones = activeZones(zoneCaps);
   const zoneFill: ZoneCaps = emptyCaps();
@@ -617,7 +632,7 @@ export function suggestStartingLineup(
     return total / (zm.length * zones.length);
   })();
 
-  const IN_GAME_DIVERSITY = 1000;
+  const IN_GAME_DIVERSITY = weights.inGameDiversity;
   // 500 < 1000 so an in-game-fresh zone always beats a season-fresh-but-
   // already-played-this-game zone. (Season diversity nudges, in-game forces.)
   const SEASON_DIVERSITY = 500;
@@ -625,14 +640,14 @@ export function suggestStartingLineup(
   // is still subordinate to playing a fresh-this-game zone — but it's strong
   // enough to break ties cleanly when in-game diversity is even (e.g. mid-
   // game in Q3 when all zones have already been played).
-  const SAME_AS_LAST_Q = 800;
+  const SAME_AS_LAST_Q = weights.sameAsLastQ;
   // Per-teammate penalty for partnership avoidance. Tuned so one prior-
   // quarter mate already in a target zone flips the preference: with
   // IN_GAME_DIVERSITY (+1000) and SAME_AS_LAST_Q (-800), a fresh zone with
   // one mate scores 1000-2000=-1000, losing to a stale zone with no mates
   // (-800). A fresh zone with NO mates still wins clearly (+1000 vs -800).
   // Two mates (-4000) make the target essentially unreachable.
-  const PARTNERSHIP_PENALTY = 2000;
+  const PARTNERSHIP_PENALTY = weights.partnership;
 
   // WR-01: the season map is in MINUTES (gameZoneMinutes divides ms by
   // 60000), but `fullPeriodMs` is in MILLISECONDS. Comparing the two
@@ -643,16 +658,46 @@ export function suggestStartingLineup(
   // is minutes-to-minutes ("played this zone for >= a full period all
   // season").
   const fullPeriodMins = fullPeriodMs / 60000;
+  // How we play season balance (§7.5): W_season × periods owed, against
+  // the player's target split, replacing the binary SEASON_DIVERSITY
+  // nudge and the small fairness term. Memoised per player.
+  const owedCache = new Map<string, Record<string, number>>();
+  const seasonOwed = (pid: string, z: Zone) => {
+    let owedByZone = owedCache.get(pid);
+    if (!owedByZone) {
+      owedByZone = seasonOwedByZone(pid, playbook?.balanceSeason ?? season, zones, roles[pid], fullPeriodMs);
+      owedCache.set(pid, owedByZone);
+    }
+    return owedByZone[z] ?? 0;
+  };
+  const lineOf = (z: Zone): Zone => (z === "hback" ? "back" : z === "hfwd" ? "fwd" : z);
+  // Zoned "Rotate lines" / "Keep last quarter" (and Manual, which keeps
+  // the last quarter for the coach to change): the rule's zone wins.
+  const RULE_ZONE_BONUS = 4000;
+  const ruleZone = (pid: string): Zone | null => {
+    const prev = previousQuarterZones[pid];
+    if (!prev || !playbook) return null;
+    if (playbook.strategy === "rotate") return rotatedZone(prev, zones);
+    if (playbook.strategy === "keep" || playbook.strategy === "manual") return prev;
+    return null;
+  };
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
     const inGameBonus = gameMins === 0 ? IN_GAME_DIVERSITY : 0;
+    const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
+    if (playbook) {
+      const role = roles[pid];
+      const roleBonus =
+        role?.home === lineOf(z) ? weights.home : role?.also.includes(lineOf(z)) ? weights.also : 0;
+      const rule = ruleZone(pid) === z ? RULE_ZONE_BONUS : 0;
+      return inGameBonus + sameAsLastQ + roleBonus + rule + playbook.seasonWeight * seasonOwed(pid, z);
+    }
     // The effective per-game period length (fullPeriodMs) is passed by
     // production callers so the season-diversity nudge tracks THIS game's
     // clock; the back-compat default (12 min) keeps unit callers unchanged
     // (D-02/D-03).
     const seasonBonus = seasonMins < fullPeriodMins ? SEASON_DIVERSITY : 0;
-    const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
     const fairnessTerm = Math.max(0, avgPerZone - seasonMins);
     return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
   };
@@ -731,14 +776,29 @@ export function suggestStartingLineup(
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
+  // Keep-on players (How we play roles) are placed first, so they're
+  // never the ones left over for the bench.
+  const keepOn = (pid: string) => (roles[pid]?.keepOn ? 0 : 1);
   const sortedPlayers = shuffled.sort(
-    (a, b) => inGameTotal(a.id) - inGameTotal(b.id),
+    (a, b) => keepOn(a.id) - keepOn(b.id) || inGameTotal(a.id) - inGameTotal(b.id),
   );
+  // "Never plays" is a hard filter; a player with no allowed zone open
+  // waits, and only fills a gap nobody else can.
+  const deferred: string[] = [];
+  const isNever = (pid: string, z: Zone) => {
+    const never = roles[pid]?.never;
+    return !!never && (never.includes(z) || never.includes(lineOf(z)));
+  };
 
   for (const p of sortedPlayers) {
-    const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
-    if (openZones.length === 0) {
+    const anyOpen = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
+    if (anyOpen.length === 0) {
       lineup.bench.push(p.id);
+      continue;
+    }
+    const openZones = anyOpen.filter((z) => !isNever(p.id, z));
+    if (openZones.length === 0) {
+      deferred.push(p.id);
       continue;
     }
     const shuffledZones = seededShuffle(openZones, seed + p.id.charCodeAt(0));
@@ -753,6 +813,16 @@ export function suggestStartingLineup(
     lineup[chosen].push(p.id);
     zoneFill[chosen]++;
     trackPlaced(p.id, chosen);
+  }
+
+  for (const pid of deferred) {
+    const z = zones.find((zz) => zoneFill[zz] < zoneCaps[zz]);
+    if (z) {
+      lineup[z].push(pid);
+      zoneFill[z]++;
+    } else {
+      lineup.bench.push(pid);
+    }
   }
 
   return lineup;
@@ -916,10 +986,18 @@ export function suggestSwaps(
    * report). Trailing-optional with an inert default so legacy callers are
    * unchanged.
    */
-  lastSubbedOffMs: Record<string, number> = {}
+  lastSubbedOffMs: Record<string, number> = {},
+  /**
+   * How we play (UX plan 3.6): never-plays zones are skipped, keep-on
+   * players stay on, set positions sub like-for-like into the home
+   * line, and rolling subs pay down season balance. Omitted = today's
+   * behaviour.
+   */
+  playbook?: AflSwapPlaybook,
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
+  const roles = playbook?.roles ?? {};
   const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));
   if (fitBench.length === 0) return [];
 
@@ -936,7 +1014,7 @@ export function suggestSwaps(
   for (const z of ALL_ZONES) fieldByZone[z] = [];
   for (const z of activeZoneList) {
     fieldByZone[z] = seededShuffle(
-      lineup[z].filter((p) => !injured.has(p) && !locked.has(p)),
+      lineup[z].filter((p) => !injured.has(p) && !locked.has(p) && !roles[p]?.keepOn),
       tieBreak + 131 * (ALL_ZONES.indexOf(z) + 1)
     );
     fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a));
@@ -965,6 +1043,32 @@ export function suggestSwaps(
     ...benchByGameMin.filter((p) => !recentlyBenched(p)),
     ...benchByGameMin.filter((p) => recentlyBenched(p)),
   ];
+  if (playbook) {
+    // Keep-on players come back on first.
+    benchSorted.sort((a, b) => (roles[a]?.keepOn ? 0 : 1) - (roles[b]?.keepOn ? 0 : 1));
+  }
+  const lineOfZone = (z: Zone): Zone => (z === "hback" ? "back" : z === "hfwd" ? "fwd" : z);
+  const seasonOwedCache = new Map<string, Record<string, number>>();
+  const zoneRank = (pid: string, z: Zone) => {
+    const role = roles[pid];
+    const line = lineOfZone(z);
+    const roleRank = role?.home === line ? 2 : role?.also.includes(line) ? 1 : 0;
+    let owed = 0;
+    if (playbook?.season && playbook.seasonWeight > 0 && playbook.periodMs) {
+      let byZone = seasonOwedCache.get(pid);
+      if (!byZone) {
+        byZone = seasonOwedByZone(pid, playbook.balanceSeason ?? playbook.season, activeZoneList, role, playbook.periodMs);
+        seasonOwedCache.set(pid, byZone);
+      }
+      owed = byZone[z] ?? 0;
+    }
+    // Role first (home > also > other), then season debt (±2 periods).
+    return roleRank * 10 + owed;
+  };
+  const allowedFor = (pid: string, z: Zone) => {
+    const never = roles[pid]?.never;
+    return !never || (!never.includes(z) && !never.includes(lineOfZone(z)));
+  };
 
   const zoneOrder = seededShuffle(activeZoneList, tieBreak + 77);
   const zoneCursor = emptyCaps();
@@ -981,6 +1085,20 @@ export function suggestSwaps(
         pickZone = forcedZone;
       }
       if (!pickZone) continue; // no one to rotate out of that zone right now
+    } else if (playbook) {
+      const rotation = Array.from({ length: zoneOrder.length }, (_, k) => zoneOrder[(i + k) % zoneOrder.length]);
+      const open = rotation
+        .filter((z) => allowedFor(on, z) && fieldByZone[z][zoneCursor[z]])
+        .sort((a, b) => zoneRank(on, b) - zoneRank(on, a));
+      const role = roles[on];
+      const likeForLike = playbook.strategy === "set-positions" && role?.home;
+      // Set positions sub like-for-like (home line, then also-plays);
+      // otherwise a zone they haven't played this game comes first.
+      const first = likeForLike
+        ? open.filter((z) => lineOfZone(z) === role.home || role.also.includes(lineOfZone(z)))
+        : open.filter((z) => !hasPlayedZone(on, z));
+      pickZone = first[0] ?? open[0] ?? null;
+      if (!pickZone) continue; // nobody they may replace right now
     } else {
       // First pass: prefer a zone this player hasn't played yet this game.
       for (let k = 0; k < zoneOrder.length; k++) {
