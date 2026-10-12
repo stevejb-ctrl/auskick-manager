@@ -22,8 +22,8 @@ const AFL_RULES = "AFL Junior Rules (May 2024)";
 const ZONED_AGES = new Set(["U8", "U9", "U10"]);
 
 export const AFL_LINES: LineDef[] = [
-  { id: "forward", label: "Forward", colorToken: "zone-f" },
-  { id: "centre", label: "Centre", colorToken: "zone-c" },
+  { id: "fwd", label: "Forward", colorToken: "zone-f" },
+  { id: "mid", label: "Centre", colorToken: "zone-c" },
   { id: "back", label: "Back", colorToken: "zone-b" },
 ];
 
@@ -45,36 +45,37 @@ const NAMES: Record<string, string> = {
 
 type Rows = string[][];
 /** Formation rows per line, top to bottom (attacking up the page). */
-type Formation = Record<"forward" | "centre" | "back", Rows>;
+type AflLine = "fwd" | "mid" | "back";
+type Formation = Record<AflLine, Rows>;
 
 // The default formations Steve confirmed (UX plan §7.3).
 const FORMATIONS: Record<number, Formation> = {
   18: {
-    forward: [["FP", "FF", "FP"], ["HFF", "CHF", "HFF"]],
-    centre: [["W", "C", "W"], ["R", "RR", "ROV"]],
+    fwd: [["FP", "FF", "FP"], ["HFF", "CHF", "HFF"]],
+    mid: [["W", "C", "W"], ["R", "RR", "ROV"]],
     back: [["HBF", "CHB", "HBF"], ["BP", "FB", "BP"]],
   },
   16: {
-    forward: [["FP", "FF", "FP"], ["HFF", "CHF", "HFF"]],
-    centre: [["C", "R"], ["RR", "ROV"]],
+    fwd: [["FP", "FF", "FP"], ["HFF", "CHF", "HFF"]],
+    mid: [["C", "R"], ["RR", "ROV"]],
     back: [["HBF", "CHB", "HBF"], ["BP", "FB", "BP"]],
   },
   15: {
-    forward: [["FP", "FF", "FP"], ["HFF", "CHF"]],
-    centre: [["W", "C"], ["R", "RR", "ROV"]],
+    fwd: [["FP", "FF", "FP"], ["HFF", "CHF"]],
+    mid: [["W", "C"], ["R", "RR", "ROV"]],
     back: [["CHB", "HBF"], ["BP", "FB", "BP"]],
   },
   12: {
-    forward: [["FP", "FF", "FP"], ["CHF"]],
-    centre: [["W", "C"], ["R", "RR"]],
+    fwd: [["FP", "FF", "FP"], ["CHF"]],
+    mid: [["W", "C"], ["R", "RR"]],
     back: [["CHB"], ["BP", "FB", "BP"]],
   },
 };
 
 // Other on-field sizes take the most important spots first.
 const PRIORITY: Record<keyof Formation, string[]> = {
-  forward: ["FF", "CHF", "FP", "FP", "HFF", "HFF"],
-  centre: ["C", "R", "RR", "W", "W", "ROV"],
+  fwd: ["FF", "CHF", "FP", "FP", "HFF", "HFF"],
+  mid: ["C", "R", "RR", "W", "W", "ROV"],
   back: ["FB", "CHB", "BP", "BP", "HBF", "HBF"],
 };
 
@@ -86,43 +87,82 @@ function generatedFormation(onFieldSize: number): Formation {
     return rows;
   };
   return {
-    forward: rowsOf(PRIORITY.forward.slice(0, caps.fwd)),
-    centre: rowsOf(PRIORITY.centre.slice(0, caps.mid)),
+    fwd: rowsOf(PRIORITY.fwd.slice(0, caps.fwd)),
+    mid: rowsOf(PRIORITY.mid.slice(0, caps.mid)),
     back: rowsOf(PRIORITY.back.slice(0, caps.back)),
   };
 }
 
 const LINE_BANDS: Record<keyof Formation, [number, number]> = {
-  forward: [0.08, 0.3],
-  centre: [0.38, 0.62],
+  fwd: [0.08, 0.3],
+  mid: [0.38, 0.62],
   back: [0.7, 0.92],
 };
+
+/** Full name for a default label ("CHB" → "Centre half-back"). */
+export function aflPositionName(label: string): string {
+  return NAMES[label] ?? label;
+}
+
+/**
+ * Row sizes for n positions on a line, at most three a row. Forward and
+ * back lines fill full rows from the goal end, so the short row sits
+ * nearest the centre (FP FF FP / CHF); the centre line splits evenly.
+ */
+function rowSizes(line: AflLine, n: number): number[] {
+  if (n <= 0) return [];
+  const rows = Math.ceil(n / 3);
+  if (line === "mid") {
+    const base = Math.floor(n / rows);
+    const extra = n % rows;
+    return Array.from({ length: rows }, (_, i) => base + (i >= rows - extra ? 1 : 0));
+  }
+  const sizes = Array.from({ length: rows }, (_, i) => (i < rows - 1 ? 3 : n - 3 * (rows - 1)));
+  // Goal end first: top of the page for forwards, bottom for backs.
+  return line === "fwd" ? sizes : sizes.reverse();
+}
+
+/**
+ * Lays named positions out on the oval (attacking up the page) in list
+ * order, line by line. Defaults and a team’s own positions both go
+ * through here, so a saved default formation looks the same.
+ */
+export function layoutAflPositions(list: Omit<PositionDef, "x" | "y">[]): PositionDef[] {
+  const out: PositionDef[] = [];
+  for (const line of ["fwd", "mid", "back"] as const) {
+    const items = list.filter((p) => p.line === line);
+    const sizes = rowSizes(line, items.length);
+    const [top, bottom] = LINE_BANDS[line];
+    let i = 0;
+    sizes.forEach((size, r) => {
+      const y = sizes.length === 1 ? (top + bottom) / 2 : top + ((bottom - top) * r) / (sizes.length - 1);
+      for (let c = 0; c < size; c++, i++) {
+        out.push({ ...items[i], x: (c + 0.5) / size, y });
+      }
+    });
+  }
+  return out;
+}
 
 /** Default named positions for an on-field size, with formation coords. */
 export function defaultAflPositions(onFieldSize: number): PositionDef[] {
   const formation = FORMATIONS[onFieldSize] ?? generatedFormation(onFieldSize);
+  const all = Object.values(formation).flat(2);
   const seen: Record<string, number> = {};
-  const out: PositionDef[] = [];
-  for (const line of ["forward", "centre", "back"] as const) {
-    const rows = formation[line];
-    const [top, bottom] = LINE_BANDS[line];
-    rows.forEach((row, r) => {
-      const y = rows.length === 1 ? (top + bottom) / 2 : top + ((bottom - top) * r) / (rows.length - 1);
-      row.forEach((label, c) => {
-        seen[label] = (seen[label] ?? 0) + 1;
-        const dupes = Object.values(formation).flat(2).filter((l) => l === label).length;
-        out.push({
-          key: dupes > 1 ? `${label.toLowerCase()}${seen[label]}` : label.toLowerCase(),
-          label,
-          name: NAMES[label] ?? label,
-          line,
-          x: (c + 0.5) / row.length,
-          y,
-        });
+  const list: Omit<PositionDef, "x" | "y">[] = [];
+  for (const line of ["fwd", "mid", "back"] as const) {
+    for (const label of formation[line].flat()) {
+      seen[label] = (seen[label] ?? 0) + 1;
+      const dupes = all.filter((l) => l === label).length;
+      list.push({
+        key: dupes > 1 ? `${label.toLowerCase()}${seen[label]}` : label.toLowerCase(),
+        label,
+        name: NAMES[label] ?? label,
+        line,
       });
-    });
+    }
   }
-  return out;
+  return layoutAflPositions(list);
 }
 
 const ZONED_STRATEGIES: StrategyDef[] = [

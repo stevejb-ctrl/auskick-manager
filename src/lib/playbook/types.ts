@@ -125,3 +125,59 @@ export interface SportPlaybook {
    */
   fallbackStrategy(policy: EffectivePolicy): string;
 }
+
+// ─── Stored How we play (migration 0053) ────────────────────────────────────
+
+/** Season balance as the coach sets it; "off" switches the rule off. */
+export type SeasonBalanceSetting = "off" | "light" | "balanced" | "strong";
+
+export interface TeamPlaybookRow {
+  team_id: string;
+  strategy: string | null;
+  policy_overrides: PolicyOverrides;
+  rules: unknown[];
+  /** null = the strategy's default (Balanced when it rotates, off for set positions). */
+  season_balance: SeasonBalanceSetting | null;
+  /** When the coach last reset season balance; only games after it count. */
+  season_balance_since: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+/** AFL open ages: a team's own named position. */
+export interface TeamPositionRow {
+  id: string;
+  team_id: string;
+  label: string;
+  name: string | null;
+  line: "back" | "mid" | "fwd";
+  sort: number;
+  on_field_size: number | null;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export type PositionPrefKind = "home" | "also" | "never" | "keep_on";
+
+export interface PlayerPositionPrefRow {
+  id: string;
+  team_id: string;
+  player_id: string;
+  /** team_positions.id (AFL), a netball bib, or a league catalogue key. */
+  position_key: string | null;
+  line: string | null;
+  kind: PositionPrefKind;
+  rank: number | null;
+  created_at: string;
+}
+
+/** What a game was played under, frozen at kickoff (games.playbook_snapshot). */
+export interface PlaybookSnapshot {
+  policy: EffectivePolicy;
+  strategy: string;
+  seasonBalance: SeasonBalanceSetting;
+  seasonBalanceSince: string | null;
+  /** Named positions in force, so renaming one later never rewrites history. */
+  positions: { key: string; label: string; line: string }[];
+  takenAt: string;
+}

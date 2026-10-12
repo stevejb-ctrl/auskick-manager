@@ -252,6 +252,8 @@ export interface Game {
   quarter_length_seconds: number | null;
   /** Multiplier applied to the clock for demo games (1 = real-time, 6 = 6× speed). */
   clock_multiplier: number;
+  /** How we play at kickoff (migration 0053); null for games not yet started. */
+  playbook_snapshot?: import("@/lib/playbook/types").PlaybookSnapshot | null;
   external_source: string | null;
   external_id: string | null;
   created_by: string;
@@ -539,6 +541,36 @@ export type Database = {
           created_at?: string;
         };
         Update: never;
+        Relationships: [];
+      };
+      team_playbooks: {
+        Row: import("@/lib/playbook/types").TeamPlaybookRow;
+        Insert: Partial<import("@/lib/playbook/types").TeamPlaybookRow> & { team_id: string };
+        Update: Partial<Omit<import("@/lib/playbook/types").TeamPlaybookRow, "team_id">>;
+        Relationships: [];
+      };
+      team_positions: {
+        Row: import("@/lib/playbook/types").TeamPositionRow;
+        Insert: Omit<import("@/lib/playbook/types").TeamPositionRow, "id" | "created_at" | "archived_at" | "name" | "on_field_size"> & {
+          id?: string;
+          name?: string | null;
+          on_field_size?: number | null;
+          archived_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Omit<import("@/lib/playbook/types").TeamPositionRow, "id" | "team_id" | "created_at">>;
+        Relationships: [];
+      };
+      player_position_prefs: {
+        Row: import("@/lib/playbook/types").PlayerPositionPrefRow;
+        Insert: Omit<import("@/lib/playbook/types").PlayerPositionPrefRow, "id" | "created_at" | "rank" | "position_key" | "line"> & {
+          id?: string;
+          position_key?: string | null;
+          line?: string | null;
+          rank?: number | null;
+          created_at?: string;
+        };
+        Update: Partial<Omit<import("@/lib/playbook/types").PlayerPositionPrefRow, "id" | "team_id" | "player_id" | "created_at">>;
         Relationships: [];
       };
       contact_preferences: {

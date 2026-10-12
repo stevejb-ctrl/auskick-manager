@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { effectivePolicy, effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
 import { defaultAflPositions } from "@/lib/sports/afl/playbook";
 import { leagueCatalogue } from "@/lib/sports/rugby_league/playbook";
+import { playbookSnapshot, resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 
 describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
   it("zones U8–U10, open from U11", () => {
@@ -55,22 +56,22 @@ describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
 
 describe("AFL default formations (UX plan §7.3)", () => {
   const labelsByLine = (n: number) => {
-    const out: Record<string, string[]> = { forward: [], centre: [], back: [] };
+    const out: Record<string, string[]> = { fwd: [], mid: [], back: [] };
     for (const p of defaultAflPositions(n)) out[p.line].push(p.label);
     return out;
   };
 
   it("matches the confirmed 18, 16, 15 and 12 formations", () => {
     expect(labelsByLine(18)).toEqual({
-      forward: ["FP", "FF", "FP", "HFF", "CHF", "HFF"],
-      centre: ["W", "C", "W", "R", "RR", "ROV"],
+      fwd: ["FP", "FF", "FP", "HFF", "CHF", "HFF"],
+      mid: ["W", "C", "W", "R", "RR", "ROV"],
       back: ["HBF", "CHB", "HBF", "BP", "FB", "BP"],
     });
-    expect(labelsByLine(16).centre).toEqual(["C", "R", "RR", "ROV"]);
+    expect(labelsByLine(16).mid).toEqual(["C", "R", "RR", "ROV"]);
     expect(labelsByLine(15).back).toEqual(["CHB", "HBF", "BP", "FB", "BP"]);
     expect(labelsByLine(12)).toEqual({
-      forward: ["FP", "FF", "FP", "CHF"],
-      centre: ["W", "C", "R", "RR"],
+      fwd: ["FP", "FF", "FP", "CHF"],
+      mid: ["W", "C", "R", "RR"],
       back: ["CHB", "BP", "FB", "BP"],
     });
   });
@@ -84,8 +85,23 @@ describe("AFL default formations (UX plan §7.3)", () => {
     const ps = defaultAflPositions(18);
     const avgY = (line: string) =>
       ps.filter((p) => p.line === line).reduce((a, p) => a + p.y, 0) / 6;
-    expect(avgY("forward")).toBeLessThan(avgY("centre"));
-    expect(avgY("centre")).toBeLessThan(avgY("back"));
+    expect(avgY("fwd")).toBeLessThan(avgY("mid"));
+    expect(avgY("mid")).toBeLessThan(avgY("back"));
+  });
+
+  it("lays rows out like the field: short rows sit nearest the centre", () => {
+    const rows = (line: string) => {
+      const byY = new Map<number, string[]>();
+      for (const p of defaultAflPositions(12).filter((q) => q.line === line)) {
+        byY.set(p.y, [...(byY.get(p.y) ?? []), p.label]);
+      }
+      return Array.from(byY.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, l]) => l);
+    };
+    expect(rows("fwd")).toEqual([["FP", "FF", "FP"], ["CHF"]]);
+    expect(rows("mid")).toEqual([["W", "C"], ["R", "RR"]]);
+    expect(rows("back")).toEqual([["CHB"], ["BP", "FB", "BP"]]);
   });
 });
 
@@ -157,5 +173,77 @@ describe("effectiveStrategy", () => {
     expect(effectiveStrategy("afl", effectivePolicy("afl", "U12"), "set-positions").id).toBe(
       "set-positions",
     );
+  });
+});
+
+describe("a team's How we play, resolved", () => {
+  it("plays today's behaviour until the coach chooses", () => {
+    const r = resolveTeamPlaybook({ sport: "afl", ageGroup: "U12", onFieldSize: 15, row: null });
+    expect(r.strategy.id).toBe("free");
+    expect(r.recommendedId).toBe("preferred-lines");
+    expect(r.seasonBalance).toBe("balanced");
+    expect(r.positionModel.kind).toBe("custom");
+    expect(r.positions).toHaveLength(15);
+    expect(r.customPositions).toBe(false);
+  });
+
+  it("falls back when zones come back on and the saved strategy no longer fits", () => {
+    const r = resolveTeamPlaybook({
+      sport: "afl",
+      ageGroup: "U12",
+      onFieldSize: 15,
+      row: {
+        strategy: "set-positions",
+        policy_overrides: { zonesEnforced: true },
+        season_balance: null,
+        season_balance_since: null,
+      },
+    });
+    expect(r.policy.zonesEnforced).toBe(true);
+    expect(r.strategy.id).toBe("suggested");
+    expect(r.savedStrategy).toBe("set-positions");
+    expect(r.positionModel.kind).toBe("none");
+  });
+
+  it("switches season balance off for set positions unless the coach turns it on", () => {
+    const base = { sport: "afl" as const, ageGroup: "U14", onFieldSize: 18 };
+    const row = { policy_overrides: {}, season_balance_since: null, strategy: "set-positions" };
+    expect(resolveTeamPlaybook({ ...base, row: { ...row, season_balance: null } }).seasonBalance).toBe("off");
+    expect(resolveTeamPlaybook({ ...base, row: { ...row, season_balance: "light" } }).seasonBalance).toBe("light");
+  });
+
+  it("uses the team's own positions, laid out by line", () => {
+    const r = resolveTeamPlaybook({
+      sport: "afl",
+      ageGroup: "U13",
+      onFieldSize: 4,
+      row: null,
+      positions: [
+        { id: "p2", label: "KEY", name: null, line: "fwd", sort: 1, archived_at: null },
+        { id: "p1", label: "FB", name: null, line: "back", sort: 0, archived_at: null },
+        { id: "p3", label: "OLD", name: null, line: "mid", sort: 2, archived_at: "2026-01-01" },
+      ],
+    });
+    expect(r.customPositions).toBe(true);
+    expect(r.positions.map((p) => [p.key, p.label, p.name])).toEqual([
+      ["p2", "KEY", "KEY"],
+      ["p1", "FB", "Full back"],
+    ]);
+  });
+
+  it("stores only overrides the age policy allows, clamped to the band", () => {
+    expect(sanitizeOverrides("afl", "U12", { minGameTimePct: 90, zonesEnforced: false })).toEqual({
+      minGameTimePct: 75,
+    });
+    expect(sanitizeOverrides("afl", "U12", { minGameTimePct: 50 })).toEqual({});
+    expect(sanitizeOverrides("netball", "11u", { zonesEnforced: true })).toEqual({});
+  });
+
+  it("freezes the policy, strategy and positions for kickoff", () => {
+    const r = resolveTeamPlaybook({ sport: "netball", ageGroup: "go", onFieldSize: 7, row: null });
+    const snap = playbookSnapshot(r, new Date("2026-10-12T09:00:00Z"));
+    expect(snap.strategy).toBe("by-thirds");
+    expect(snap.positions.map((p) => p.label)).toEqual(["GS", "GA", "WA", "C", "WD", "GD", "GK"]);
+    expect(snap.takenAt).toBe("2026-10-12T09:00:00.000Z");
   });
 });
