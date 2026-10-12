@@ -8,13 +8,15 @@ import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
 import { TrackZoneTimeToggle } from "@/components/team/TrackZoneTimeToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
-import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { SettingsSection } from "@/components/team/SettingsSection";
+import { AgeGroupSettings } from "@/components/team/AgeGroupSettings";
+import { DangerZone } from "@/components/team/DangerZone";
 import {
   TeamMembersSettings,
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
 import { normalizeChipMode } from "@/lib/chips";
 import type { Sport, TeamRole } from "@/lib/types";
 
@@ -113,126 +115,125 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     invites = (rawInvites ?? []) as PendingInvite[];
   }
 
+  const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  const ageOptions = getSportConfig(sport).ageGroups.map((a) => ({ id: a.id, label: a.label, notes: a.notes }));
+
+  // Team tab sections (UX plan §6 "Where each setting goes"): what the
+  // coach changes about how the team plays, who's on it, the season, the
+  // game-day extras, and the danger zone — instead of one long stack.
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
         isAdmin={isAdmin}
       />
-      <TeamMembersSettings
-        teamId={params.teamId}
-        isAdmin={isAdmin}
-        members={members}
-        invites={invites}
-        joinCode={joinCode}
-      />
-      <TrackScoringToggle
-        teamId={params.teamId}
-        initialEnabled={team.track_scoring ?? false}
-        isAdmin={isAdmin}
-        sportId={sport}
-      />
-      {/* Netball-only knobs: quarter-length override + mid-quarter
-          subs gate. Junior netball formats vary so much across
-          leagues (10-min, 12-min, 7-min depending on weather and
-          double-headers), and the mid-Q sub feature is a Steve-
-          requested opt-in for the minority of teams that use
-          rolling subs. AFL keeps its existing age-group quarters
-          as the source of truth — no override needed — and uses
-          its own interchange flow that doesn't read these
-          columns. */}
-      {/* Rugby-league-only: unbroken-period enforcement toggle.
-          §6 Junior Laws — each player must play two full unbroken
-          quarters (U6–U9) or one full half (U10–U12). Off by default
-          for casual comps; coaches whose league enforces it flip once
-          and all games for the team plan with the rule respected. */}
-      {sport === "rugby_league" && (
-        <UnbrokenPeriodsToggle
+
+      <SettingsSection
+        title="How we play"
+        description="How your team rotates on game day."
+      >
+        {/* Rugby league §6 Junior Laws: each player plays two full
+            unbroken quarters (U6–U9) or one full half (U10–U12). Off by
+            default for casual comps. */}
+        {sport === "rugby_league" && (
+          <UnbrokenPeriodsToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+            }
+            isAdmin={isAdmin}
+          />
+        )}
+        {/* Rugby league zone-time bar (AFL F/C/B equivalent). */}
+        {sport === "rugby_league" && (
+          <TrackZoneTimeToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
+            }
+            isAdmin={isAdmin}
+          />
+        )}
+        {/* Netball's opt-in rolling subs (Steve-requested). */}
+        {sport === "netball" && (
+          <MidQuarterSubsToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ?? false
+            }
+            isAdmin={isAdmin}
+          />
+        )}
+        <CohortChipsSettings
           teamId={params.teamId}
-          initialEnabled={
-            (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
-          }
+          initialLabels={{
+            a: (team as { chip_a_label?: string | null }).chip_a_label ?? null,
+            b: (team as { chip_b_label?: string | null }).chip_b_label ?? null,
+            c: (team as { chip_c_label?: string | null }).chip_c_label ?? null,
+          }}
+          initialModes={{
+            a: normalizeChipMode((team as { chip_a_mode?: string | null }).chip_a_mode),
+            b: normalizeChipMode((team as { chip_b_mode?: string | null }).chip_b_mode),
+            c: normalizeChipMode((team as { chip_c_mode?: string | null }).chip_c_mode),
+          }}
+          isAdmin={isAdmin}
+          sport={sport}
+          ageGroup={(team as { age_group?: string | null }).age_group ?? null}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="People">
+        <TeamMembersSettings
+          teamId={params.teamId}
+          isAdmin={isAdmin}
+          members={members}
+          invites={invites}
+          joinCode={joinCode}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Season">
+        <AgeGroupSettings
+          teamId={params.teamId}
+          current={ageGroupCfg.id}
+          options={ageOptions}
           isAdmin={isAdmin}
         />
-      )}
-      {/* Rugby-league-only: zone-time tracking bar (AFL F/C/B
-          equivalent, with FR / DH vest time mapped to "centre").
-          Off by default. */}
-      {sport === "rugby_league" && (
-        <TrackZoneTimeToggle
+        {/* Every sport's period length (it used to show for netball
+            only, though AFL and league honour it too). A game can still
+            override it. */}
+        <QuarterLengthInput
           teamId={params.teamId}
-          initialEnabled={
-            (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
+          ageGroupDefaultSeconds={ageGroupCfg.periodSeconds}
+          initialOverrideSeconds={
+            (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
           }
+          periodWord={ageGroupCfg.periodLabel === "half" ? "Half" : "Quarter"}
           isAdmin={isAdmin}
         />
-      )}
-      {sport === "netball" && (() => {
-        const ageGroup = getAgeGroupConfig(
-          sport,
-          (team as { age_group?: string | null }).age_group ?? null,
-        );
-        return (
-          <>
-            <QuarterLengthInput
-              teamId={params.teamId}
-              ageGroupDefaultSeconds={ageGroup.periodSeconds}
-              initialOverrideSeconds={
-                (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
-              }
-              isAdmin={isAdmin}
-            />
-            <MidQuarterSubsToggle
-              teamId={params.teamId}
-              initialEnabled={
-                (team as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ?? false
-              }
-              isAdmin={isAdmin}
-            />
-          </>
-        );
-      })()}
-      <CohortChipsSettings
-        teamId={params.teamId}
-        initialLabels={{
-          a:
-            (team as { chip_a_label?: string | null }).chip_a_label ?? null,
-          b:
-            (team as { chip_b_label?: string | null }).chip_b_label ?? null,
-          c:
-            (team as { chip_c_label?: string | null }).chip_c_label ?? null,
-        }}
-        initialModes={{
-          a: normalizeChipMode(
-            (team as { chip_a_mode?: string | null }).chip_a_mode,
-          ),
-          b: normalizeChipMode(
-            (team as { chip_b_mode?: string | null }).chip_b_mode,
-          ),
-          c: normalizeChipMode(
-            (team as { chip_c_mode?: string | null }).chip_c_mode,
-          ),
-        }}
-        isAdmin={isAdmin}
-        sport={sport}
-        ageGroup={(team as { age_group?: string | null }).age_group ?? null}
-      />
-      <TeamSongSettings
-        teamId={params.teamId}
-        currentSongUrl={team.song_url ?? null}
-        currentStartSeconds={team.song_start_seconds ?? 0}
-        currentDurationSeconds={team.song_duration_seconds ?? 15}
-        currentEnabled={team.song_enabled ?? true}
-        isAdmin={isAdmin}
-      />
-      {/* P2-10: per-user motion preference toggle. Not gated on
-          isAdmin — this is a personal accessibility setting, every
-          team member should be able to opt themselves out of
-          animations regardless of role. Writes to localStorage
-          (per-device, per-browser) so the choice doesn't leak
-          across users sharing a device. */}
-      <MotionPreferenceSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Game-day extras">
+        <TrackScoringToggle
+          teamId={params.teamId}
+          initialEnabled={team.track_scoring ?? false}
+          isAdmin={isAdmin}
+          sportId={sport}
+        />
+        <TeamSongSettings
+          teamId={params.teamId}
+          currentSongUrl={team.song_url ?? null}
+          currentStartSeconds={team.song_start_seconds ?? 0}
+          currentDurationSeconds={team.song_duration_seconds ?? 15}
+          currentEnabled={team.song_enabled ?? true}
+          isAdmin={isAdmin}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Danger zone" tone="danger">
+        <DangerZone teamId={params.teamId} teamName={team.name} isAdmin={isAdmin} />
+      </SettingsSection>
     </div>
   );
 }

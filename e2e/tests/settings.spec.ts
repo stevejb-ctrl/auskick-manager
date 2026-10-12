@@ -147,3 +147,61 @@ test("team members list shows every member and changes a role", async ({ page })
     await deleteTestUser(admin, helper.id);
   }
 });
+
+// UX plan 2.3: the Team tab is grouped (How we play · People · Season ·
+// Game-day extras · Danger zone), the age group can change, and a coach
+// can delete the team (migration 0052 adds the RLS delete policy).
+test("Team tab: sections, age group change, and deleting the team", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const name = `Doomed ${Date.now()}`;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  for (const section of ["How we play", "People", "Season", "Game-day extras", "Danger zone"]) {
+    await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
+  }
+
+  const age = page.getByLabel("Age group", { exact: true });
+  await waitForAdminHydration(age);
+  await age.selectOption("U11");
+  await page.getByRole("button", { name: /^save age group$/i }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("teams").select("age_group").eq("id", team.id).single();
+      return data?.age_group;
+    })
+    .toBe("U11");
+
+  await page.getByRole("button", { name: /^delete team$/i }).click();
+  const confirm = page.getByRole("button", { name: /^delete team$/i }).last();
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel(/type the team name/i).fill(name);
+  await confirm.click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+  const { data: rows } = await admin.from("teams").select("id").eq("id", team.id);
+  expect(rows).toEqual([]);
+});
+
+test("the team's only coach can't leave it", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await page.getByRole("button", { name: /^leave team$/i }).click();
+  await page.getByRole("button", { name: /yes, leave the team/i }).click();
+  await expect(page.getByText(/only coach/i)).toBeVisible();
+  const { data } = await admin
+    .from("team_memberships")
+    .select("user_id")
+    .eq("team_id", team.id)
+    .eq("user_id", ownerId);
+  expect(data).toHaveLength(1);
+});

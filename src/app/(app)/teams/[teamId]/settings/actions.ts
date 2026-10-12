@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeChipMode } from "@/lib/chips";
-import type { ActionResult } from "@/lib/types";
+import { getSportConfig } from "@/lib/sports";
+import type { ActionResult, Sport } from "@/lib/types";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -295,5 +296,83 @@ export async function updateTeamChipSettings(
 
   revalidatePath(`/teams/${teamId}/settings`);
   revalidatePath(`/teams/${teamId}/squad`);
+  return { success: true };
+}
+
+/**
+ * Team › Season › Age group. Validated against the team's sport; the
+ * scoring toggle and existing games are left as they are.
+ */
+export async function setTeamAgeGroup(
+  teamId: string,
+  ageGroup: string,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  const sport = ((team as { sport?: Sport | null } | null)?.sport ?? "afl") as Sport;
+  const cfg = getSportConfig(sport);
+  if (!cfg.ageGroups.some((a) => a.id === ageGroup)) {
+    return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ age_group: ageGroup })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
+}
+
+/** Team › Danger zone › Leave team — removes the caller's own membership. */
+export async function leaveTeam(teamId: string): Promise<ActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Unauthenticated." };
+
+  const { error: deleteError } = await supabase
+    .from("team_memberships")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("user_id", user.id);
+  if (deleteError) {
+    // guard_last_team_admin (migration 0052)
+    if (deleteError.message.includes("last_admin")) {
+      return {
+        success: false,
+        error: "You're the team's only coach. Make someone else a coach first, or delete the team.",
+      };
+    }
+    return { success: false, error: deleteError.message };
+  }
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Team › Danger zone › Delete team. Coaches only (RLS "teams: delete"),
+ * and the caller must have typed the team's name. Squad, games, events
+ * and memberships cascade.
+ */
+export async function deleteTeam(teamId: string, confirmName: string): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  if (confirmName.trim() !== (team.name as string).trim()) {
+    return { success: false, error: "Type the team name exactly to confirm." };
+  }
+
+  const { error: deleteError } = await supabase.from("teams").delete().eq("id", teamId);
+  if (deleteError) return { success: false, error: deleteError.message };
+
+  revalidatePath("/dashboard");
   return { success: true };
 }

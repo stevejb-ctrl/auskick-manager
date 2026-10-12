@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
+import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
@@ -146,6 +147,13 @@ export default async function AccountPage() {
             </ul>
           </SFCard>
         )}
+      </section>
+
+      {/* Personal preferences live with the account, not a team page
+          (UX plan §6) — motion is per person, per device. */}
+      <section className="space-y-2">
+        <Eyebrow>Preferences</Eyebrow>
+        <MotionPreferenceSettings />
       </section>
 
       <DeleteAccountSection

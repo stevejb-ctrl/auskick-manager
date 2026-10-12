@@ -24,6 +24,8 @@ interface Props {
   initialOverrideSeconds: number | null;
   /** Whether the current user can edit (admins only typically). */
   isAdmin?: boolean;
+  /** "Half" for sports that play halves (rugby league U10+). */
+  periodWord?: "Quarter" | "Half";
 }
 
 export function QuarterLengthInput({
@@ -31,6 +33,7 @@ export function QuarterLengthInput({
   ageGroupDefaultSeconds,
   initialOverrideSeconds,
   isAdmin = true,
+  periodWord = "Quarter",
 }: Props) {
   const initialMinutes =
     (initialOverrideSeconds ?? ageGroupDefaultSeconds) / 60;
@@ -48,7 +51,7 @@ export function QuarterLengthInput({
     setError(null);
     const next = parseInt(minutes, 10);
     if (!Number.isInteger(next) || next < 1 || next > 30) {
-      setError("Quarter length must be a whole number between 1 and 30.");
+      setError(`${periodWord} length must be a whole number between 1 and 30.`);
       return;
     }
     const overrideSeconds = next === ageGroupMinutes ? null : next * 60;
@@ -75,7 +78,7 @@ export function QuarterLengthInput({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[10rem]">
           <Label htmlFor={`quarter-length-${teamId}`}>
-            Quarter length (minutes)
+            {periodWord} length (minutes)
           </Label>
           <Input
             id={`quarter-length-${teamId}`}
