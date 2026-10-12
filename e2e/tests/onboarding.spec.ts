@@ -177,3 +177,25 @@ test("a new AFL U14 team starts with scoring on, matching the stated default", a
     .single();
   expect(row?.track_scoring).toBe(true);
 });
+
+// UX plan 2.1 / M2: on a phone the wizard ran inside full team chrome
+// and its stepper truncated to "B…", "P…". It's now a focused shell: a
+// readable "Step n of 5" stepper and no team switcher.
+test.describe("setup wizard on a phone", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("shows a readable stepper and no team chrome", async ({ page }) => {
+    const admin = createAdminClient();
+    const ownerId = await superAdminId(admin);
+    const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+    await page.goto(`/teams/${team.id}/setup?step=squad`);
+    await expect(page.getByText("Step 3 of 5 · Add the squad")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("link", { name: /back to how we play/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /switch team/i })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: /team sections/i })).toHaveCount(0);
+
+    await page.goto("/teams/new");
+    await expect(page.getByRole("button", { name: /^junior afl$/i })).toBeVisible();
+  });
+});

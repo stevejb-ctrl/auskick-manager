@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SFIcon } from "@/components/sf";
-import { teamIdFromPath } from "@/lib/nav";
+import { isFullScreenTeamPath, teamIdFromPath } from "@/lib/nav";
 
 export interface SwitcherTeam {
   id: string;
@@ -43,7 +43,8 @@ export function TeamSwitcher({ teams }: { teams: SwitcherTeam[] }) {
     };
   }, [open]);
 
-  if (!current) return null;
+  // Full-screen modes (setup wizard, game day) are focused shells.
+  if (!current || isFullScreenTeamPath(pathname)) return null;
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1">

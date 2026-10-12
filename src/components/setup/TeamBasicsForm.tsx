@@ -202,6 +202,7 @@ function SportPill({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
+      aria-label={title}
       className={[
         "rounded-md border p-3 text-left text-sm transition-colors",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600",
