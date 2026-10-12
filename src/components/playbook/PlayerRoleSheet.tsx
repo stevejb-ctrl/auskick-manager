@@ -75,7 +75,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
   }
 
   return (
-    <Modal>
+    <Modal label={`Role for ${playerName}`} onClose={onClose}>
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-lg font-bold text-ink">{playerName}</h2>
         <button

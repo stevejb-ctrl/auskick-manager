@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_LABELS } from "@/lib/ageGroups";
 
+import { Modal } from "@/components/ui/Modal";
 interface Props {
   off: string; // field player going to bench; "" = empty slot
   on: string; // bench player coming on
@@ -23,9 +24,7 @@ export function SwapConfirmDialog({ off, on, zone, playersById, onConfirm, onCan
     : `Move ${onName} to ${zoneName}?`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-ink/40" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+    <Modal label={message} onClose={onCancel}>
         <p className="text-center text-sm font-semibold text-ink">{message}</p>
         <div className="mt-4 flex gap-2">
           <Button className="flex-1" onClick={onConfirm}>
@@ -35,7 +34,6 @@ export function SwapConfirmDialog({ off, on, zone, playersById, onConfirm, onCan
             Cancel
           </Button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

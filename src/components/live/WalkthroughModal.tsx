@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Modal } from "@/components/ui/Modal";
 
 export interface WalkthroughStep {
   emoji: string;
@@ -100,17 +101,7 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
   const isLast = idx === steps.length - 1;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="wt-step-title"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal placement="sheet" labelledBy="wt-step-title" onClose={onClose} padding="p-6">
         {/* Progress dots */}
         <div className="mb-5 flex justify-center gap-1.5">
           {steps.map((_, i) => (
@@ -174,7 +165,6 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
             Skip walkthrough
           </button>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }

@@ -3,20 +3,50 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-type ModalSize = "sm" | "md" | "lg";
+type ModalSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface ModalProps {
   children: ReactNode;
   size?: ModalSize;
+  /** id of the heading that names the dialog (aria-labelledby). */
+  labelledBy?: string;
+  /** Accessible name when there's no visible heading. */
+  label?: string;
+  /**
+   * Called on a backdrop tap or Escape (UX plan Phase 6: one modal
+   * primitive everywhere). Omit for dialogs that must be answered.
+   */
+  onClose?: () => void;
+  /** Extra classes for the card (e.g. scrolling, padding tweaks). */
+  className?: string;
+  /**
+   * "center" (default) is a dialog; "sheet" rises from the bottom on a
+   * phone and centres on wider screens — for pickers and longer forms.
+   */
+  placement?: "center" | "sheet";
+  /** Card padding (default p-5); "p-0" for cards with their own sections. */
+  padding?: string;
 }
 
 const sizeClasses: Record<ModalSize, string> = {
+  xs: "max-w-xs",
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-xl",
+  xl: "max-w-2xl",
 };
 
-export function Modal({ children, size = "sm" }: ModalProps) {
+export function Modal({
+  children,
+  size = "sm",
+  labelledBy,
+  label,
+  onClose,
+  className = "",
+  placement = "center",
+  padding = "p-5",
+}: ModalProps) {
+  const sheet = placement === "sheet";
   // Portal-mount at document.body so `position: fixed` is always
   // anchored to the viewport regardless of ancestor stacking contexts.
   //
@@ -39,6 +69,14 @@ export function Modal({ children, size = "sm" }: ModalProps) {
   // action so the one-frame delay before mount is invisible.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   if (!mounted) return null;
 
   return createPortal(
@@ -50,7 +88,7 @@ export function Modal({ children, size = "sm" }: ModalProps) {
     // this padded box — Steve 2026-06-02: the Plan-Ahead planner was
     // extending above the top bar on iPhone.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`fixed inset-0 z-50 flex justify-center ${sheet ? "items-end sm:items-center" : "items-center"}`}
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
@@ -71,7 +109,11 @@ export function Modal({ children, size = "sm" }: ModalProps) {
           InjuryReplacementModal, QuarterScoreModal, FeedbackModal)
           inherits this behaviour from the Modal primitive — no
           per-modal change needed. */}
-      <div className="absolute inset-0 z-0 bg-ink/40 motion-safe:animate-fade-in" />
+      <div
+        className="absolute inset-0 z-0 bg-ink/40 motion-safe:animate-fade-in"
+        onClick={onClose}
+        aria-hidden
+      />
       {/* Inner card: capped to viewport height (minus the p-4
           breathing room above) and rendered as a flex column so
           children can opt-in to scrolling middle + pinned footer.
@@ -101,7 +143,11 @@ export function Modal({ children, size = "sm" }: ModalProps) {
           line 205). z-indexes don't change visual appearance —
           purely a hit-test fix. */}
       <div
-        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col rounded-lg border border-hairline bg-surface p-5 shadow-modal motion-safe:animate-sheet-up`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-label={labelledBy ? undefined : label}
+        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col border border-hairline bg-surface ${padding} shadow-modal motion-safe:animate-sheet-up ${sheet ? "rounded-t-2xl sm:rounded-2xl" : "rounded-lg"} ${className}`}
       >
         {children}
       </div>

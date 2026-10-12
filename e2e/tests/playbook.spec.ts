@@ -683,3 +683,18 @@ test("chips are retired: no chip card or picker, carried-over rules are labelled
   await page.getByRole("button", { name: "Edit" }).first().click();
   await expect(page.getByRole("radiogroup", { name: /chip/i })).toHaveCount(0);
 });
+
+test("dialogs are named and close on Escape (one Modal primitive)", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 2 });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
+  const sheet = page.getByRole("dialog", { name: `Role for ${player.full_name}` });
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+});

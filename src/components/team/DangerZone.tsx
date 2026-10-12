@@ -70,7 +70,7 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
       )}
 
       {dialog === "delete" && (
-        <Modal>
+        <Modal label={`Delete ${teamName}?`} onClose={isPending ? undefined : close}>
           <h2 className="text-center text-lg font-bold text-danger">Delete {teamName}?</h2>
           <ul className="mt-2 list-disc pl-5 text-xs text-ink-dim">
             <li>The squad, every game, availability and stats are removed.</li>

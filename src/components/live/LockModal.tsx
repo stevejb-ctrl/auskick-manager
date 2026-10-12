@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { Modal } from "@/components/ui/Modal";
 
 interface LockModalProps {
   player: Player;
@@ -127,13 +128,7 @@ export function LockModal({
   const squadLabel = Math.round(squadLoanMins);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="lock-modal-title"
-    >
-      <div className="w-full max-w-xs rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
@@ -401,7 +396,6 @@ export function LockModal({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }

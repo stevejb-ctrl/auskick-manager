@@ -18,6 +18,7 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { Button } from "@/components/ui/Button";
 import type { LiveAuth, Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -355,12 +356,7 @@ export function ScoreReviewPanel({
           const subject = isOurs ? playerName ?? "Player" : "Opposition";
           const q = e.quarter ?? defaultQuarter;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-ink/40"
-                onClick={() => setPendingDelete(null)}
-              />
-              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <Modal label="Delete this score?" onClose={() => setPendingDelete(null)}>
                 <p className="text-center text-sm font-semibold text-ink">
                   Delete this score?
                 </p>
@@ -388,8 +384,7 @@ export function ScoreReviewPanel({
                     Cancel
                   </Button>
                 </div>
-              </div>
-            </div>
+              </Modal>
           );
         })()}
     </div>

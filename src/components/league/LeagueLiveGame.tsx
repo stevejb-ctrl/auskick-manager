@@ -86,6 +86,7 @@ import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
 import { assignLeaguePositionLabels } from "@/lib/sports/rugby_league/engine";
+import { Modal } from "@/components/ui/Modal";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   game: Game;
@@ -2470,8 +2471,7 @@ export function LeagueLiveGame({
           the field (sub, injury, loan) until the coach picks a
           replacement OR explicitly dismisses for the period. */}
       {forceVestReplaceOpen && vestRequired && state.lineup && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-2xl bg-surface p-4 shadow-modal sm:rounded-2xl">
+        <Modal size="md" placement="sheet" label="Replace vest wearer" onClose={handleForceVestDismiss} padding="p-4">
             <header className="mb-3 flex items-start justify-between">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
@@ -2503,8 +2503,7 @@ export function LeagueLiveGame({
               period={state.currentQuarter || 1}
               onDone={() => setForceVestReplaceOpen(false)}
             />
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Own-team scorer picker — invoked by scorebug +T. */}

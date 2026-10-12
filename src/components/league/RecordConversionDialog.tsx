@@ -25,6 +25,7 @@ import {
   totalConversionAttemptsByPlayer,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 interface RecordConversionDialogProps {
   auth: LiveAuth;
@@ -119,20 +120,7 @@ export function RecordConversionDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-      {/*
-       * max-h caps the panel so it can never extend behind the
-       * LiveTopBar on mobile. LiveTopBar = env(safe-area-inset-top)
-       * + 44px content row. The player list is flex-1 overflow-y-auto
-       * so it scrolls inside the capped height while the header and
-       * force-toggle footer stay pinned. sm: override via sm:rounded-2xl
-       * / sm:max-h-[90dvh] keeps the centred desktop layout tidy.
-       */}
-      <div
-        role="dialog"
-        aria-label="Record conversion"
-        className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-modal sm:rounded-2xl max-h-[calc(100dvh-env(safe-area-inset-top)-44px)] sm:max-h-[90dvh]"
-      >
+    <Modal size="md" placement="sheet" label="Record conversion" onClose={onClose} padding="p-0">
         {/* Header — pinned, never scrolls out of view */}
         <header className="flex flex-shrink-0 items-center justify-between px-4 pt-4 pb-3">
           <div>
@@ -252,7 +240,6 @@ export function RecordConversionDialog({
             </span>
           </label>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

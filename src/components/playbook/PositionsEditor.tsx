@@ -165,7 +165,7 @@ export function PositionsEditor({
       )}
 
       {editing && (
-        <Modal>
+        <Modal label={editing.isNew ? "New position" : "Edit position"} onClose={() => setEditing(null)}>
           <h2 className="text-lg font-bold text-ink">{editing.isNew ? "New position" : "Edit position"}</h2>
           <div className="mt-4 space-y-3">
             <div className="space-y-1">

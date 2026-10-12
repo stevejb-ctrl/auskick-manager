@@ -170,7 +170,7 @@ export function RulesEditor({
       </p>
 
       {adding && (
-        <Modal>
+        <Modal label="Add a rule" onClose={() => setAdding(false)}>
           <h2 className="text-lg font-bold text-ink">Add a rule</h2>
           <div className="mt-3 space-y-2" role="list">
             {addable.map((d) => (
@@ -254,7 +254,7 @@ function PlayerPicker({
 }) {
   const [picked, setPicked] = useState<string[]>(initial);
   return (
-    <Modal>
+    <Modal label="Choose players" onClose={onCancel}>
       <h2 className="text-lg font-bold text-ink">Choose players</h2>
       {players.length === 0 ? (
         <p className="mt-3 text-sm text-ink-mute">Add your squad first.</p>

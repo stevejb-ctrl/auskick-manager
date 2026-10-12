@@ -2,6 +2,7 @@
 
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { Modal } from "@/components/ui/Modal";
 
 /** AFL Zone ids (back | hback | mid | hfwd | fwd) widen to string so
  *  other sports (rugby league: "forward" | "back") can pass their own
@@ -67,13 +68,7 @@ export function InjuryReplacementModal({
       : String(zone).charAt(0).toUpperCase() + String(zone).slice(1);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="injury-replacement-title"
-    >
-      <div className="flex max-h-[85vh] w-full max-w-sm flex-col rounded-lg border border-hairline bg-surface shadow-modal">
+    <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
         <div className="px-5 pt-5">
           <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-danger">
             Marking {firstName} injured
@@ -149,7 +144,6 @@ export function InjuryReplacementModal({
             Cancel
           </button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

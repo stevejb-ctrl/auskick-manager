@@ -6,6 +6,7 @@ import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
 import { Button } from "@/components/ui/Button";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
+import { Modal } from "@/components/ui/Modal";
 interface Props {
   teamId: string;
   ageGroup: AgeGroupConfig;
@@ -53,14 +54,7 @@ export function AddGameSection({
       </div>
 
       {showManual && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
-          onClick={() => setShowManual(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-hairline bg-surface p-5 shadow-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal size="lg" label="Create a game" onClose={() => setShowManual(false)} className="overflow-y-auto">
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-ink">
@@ -86,8 +80,7 @@ export function AddGameSection({
               afterCreate={afterCreate}
               onCreated={() => setShowManual(false)}
             />
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

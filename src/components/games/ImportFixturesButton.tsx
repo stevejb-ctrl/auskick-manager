@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/Label";
 import { Spinner } from "@/components/ui/Spinner";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import type { PlayHQFixture, PlayHQTeamMeta } from "@/lib/playhq";
+import { Modal } from "@/components/ui/Modal";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -119,14 +120,7 @@ export function ImportFixturesButton({
       </Button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
-          onClick={close}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-hairline bg-surface p-5 shadow-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal size="xl" label="Import fixtures from PlayHQ" onClose={close} className="overflow-y-auto">
             <div className="mb-4 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-ink">
                 Import fixtures from PlayHQ
@@ -332,8 +326,7 @@ export function ImportFixturesButton({
                 <Spinner size="sm" /> Fetching from PlayHQ…
               </div>
             )}
-          </div>
-        </div>
+          </Modal>
       )}
     </>
   );

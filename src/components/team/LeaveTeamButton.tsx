@@ -50,7 +50,17 @@ export function LeaveTeamButton({
         Leave team
       </SFButton>
       {open && (
-        <Modal>
+        <Modal
+          label={`Leave ${teamName}?`}
+          onClose={
+            isPending
+              ? undefined
+              : () => {
+                  setOpen(false);
+                  setError(null);
+                }
+          }
+        >
           <h2 className="text-center text-lg font-bold text-danger">Leave {teamName}?</h2>
           <p className="mt-2 text-sm text-ink-dim">
             You&apos;ll lose access until a coach invites you back.

@@ -8,6 +8,7 @@
 
 import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 interface LeagueScorerPickerProps {
   /** On-field players, in display order. */
@@ -25,12 +26,7 @@ export function LeagueScorerPicker({
   pending,
 }: LeagueScorerPickerProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-      <div
-        role="dialog"
-        aria-label="Who scored the try?"
-        className="w-full max-w-md rounded-t-2xl bg-surface p-4 shadow-modal sm:rounded-2xl"
-      >
+    <Modal size="md" placement="sheet" label="Who scored the try?" onClose={onCancel} padding="p-4">
         <header className="mb-2 flex items-start justify-between">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
@@ -74,7 +70,6 @@ export function LeagueScorerPicker({
             ))}
           </ul>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }
