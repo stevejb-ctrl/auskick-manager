@@ -159,7 +159,7 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   // Freeze the lineup to "Keep last quarter" so the fairness suggester
   // doesn't rotate the seeded court/bench — the mark-out flow needs
   // `outPlayer` to still be on court and `replacement` on the bench.
-  await page.getByRole("button", { name: /keep last quarter/i }).click();
+  await page.getByRole("radio", { name: /keep last quarter/i }).click();
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page

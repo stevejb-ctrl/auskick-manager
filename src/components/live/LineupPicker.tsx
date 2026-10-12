@@ -34,6 +34,7 @@ import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -699,7 +700,7 @@ export function LineupPicker({
                 disabled={loanPending}
                 data-testid={`picker-recall-lent-${p.id}`}
                 aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 {p.jersey_number != null && (
                   <span className="tabular-nums font-semibold">{p.jersey_number}</span>
@@ -805,24 +806,17 @@ export function LineupPicker({
             {/* Rotation mode */}
             <div>
               <p className="text-xs font-semibold text-ink">Rotation</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <SFButton
-                  variant={lineupMode === "suggested" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => handleModeChange("suggested")}
-                >
-                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-                </SFButton>
-                <SFButton
-                  variant={lineupMode === "manual" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => handleModeChange("manual")}
-                >
-                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-                </SFButton>
-              </div>
+              <SegmentedControl
+                className="mt-2"
+                label="Rotation"
+                disabled={isPending}
+                value={lineupMode}
+                options={[
+                  { id: "suggested", label: "Suggested" },
+                  { id: "manual", label: "Set manually" },
+                ]}
+                onChange={(next) => handleModeChange(next)}
+              />
               <p className="mt-1.5 text-xs text-ink-mute">
                 {lineupMode === "suggested"
                   ? "Auto-rotates each quarter — players with less season zone time start."
@@ -921,7 +915,7 @@ export function LineupPicker({
                       onClick={() => handleLendToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -931,7 +925,7 @@ export function LineupPicker({
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player

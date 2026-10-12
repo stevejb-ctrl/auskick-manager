@@ -233,7 +233,7 @@ async function enterQBreakView(
 // the old copy. Anchored with `^` so it doesn't accidentally match
 // the longer "Suggested rotation" string if it ever reappears in
 // surrounding copy.
-const ROTATION_TOGGLE = /^(?:✓\s*)?Suggested$/i;
+const ROTATION_TOGGLE = /^Suggested$/i;
 
 // The rotation toggle now lives inside the collapsed "Game settings"
 // section in NetballQuarterBreak (Steve 2026-05-13: moved out of the
@@ -273,7 +273,7 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   // "Game settings" section — expand it first.
   await expandGameSettings(page);
   await expect(
-    page.getByRole("button", { name: ROTATION_TOGGLE }),
+    page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 
   // The PlayerTile renders the position shortLabel (GS / GA / WA /
@@ -325,10 +325,14 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   // sits inside the collapsed "Game settings" section now, so
   // expand before asserting. Label was shortened from "Suggested
   // rotation" to "Suggested" when the three-mode pill row landed.
+  // The toggle is now the shared 44 pt SegmentedControl (UX plan
+  // Phase 6): "Suggested" is the checked radio.
   await expandGameSettings(page);
-  await expect(
-    page.getByRole("button", { name: /^✓\s*Suggested$/i }),
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("radio", { name: /^Suggested$/i })).toHaveAttribute(
+    "aria-checked",
+    "true",
+    { timeout: 5_000 },
+  );
 
   // Time-in-zone colour key (Steve 2026-06-29): the per-player time-
   // by-third bars encode the third by colour alone, so a shared legend
@@ -529,7 +533,7 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   // first so the canary button is in the DOM.
   await expandGameSettings(page);
   await expect(
-    page.getByRole("button", { name: ROTATION_TOGGLE }),
+    page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 });
 

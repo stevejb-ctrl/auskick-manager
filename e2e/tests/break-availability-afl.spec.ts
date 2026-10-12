@@ -155,7 +155,7 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
   // mark-out flow needs `outPlayer` to still be on the field and
   // `replacement` to still be on the bench when we pick them.
   await page
-    .getByRole("button", { name: /keep last quarter/i })
+    .getByRole("radio", { name: /keep last quarter/i })
     .click();
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────

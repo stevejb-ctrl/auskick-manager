@@ -343,7 +343,7 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
   // The rotation toggle lives inside the collapsed "Game settings" card.
   await page.getByRole("button", { name: /game settings/i }).click();
   // Switch to the rotate mode.
-  await page.getByRole("button", { name: /rotate lines/i }).click();
+  await page.getByRole("radio", { name: /rotate lines/i }).click();
 
   // Read the BACK zone's player tiles — after the rotation, last
   // quarter's FORWARD line should be there (Fwd → Back).

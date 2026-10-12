@@ -14,9 +14,8 @@
 //     on the bench, and let the coach build the lineup themselves
 //     position-by-position.
 //
-// Active mode renders with the primary variant and a "✓ " prefix
-// in the label; the other two render as secondary buttons with the
-// bare label.
+// Renders the shared 44 pt SegmentedControl (UX plan Phase 6); the
+// selected mode is the checked radio.
 //
 // Both sports persist "Suggested" and "Manual" choices to the live
 // store so the same mode survives across Q-breaks, while "Keep" is
@@ -30,7 +29,7 @@
 // Six button declarations × two sports collapse to one source of
 // truth; future copy / styling tweaks now land in one place.
 
-import { Button } from "@/components/ui/Button";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
 // "rotate" (AFL only for now) shifts everyone one line each break —
 // see lib/live/rotateLines. Netball/league don't offer it yet, so they
@@ -67,21 +66,13 @@ export function RotationModeToggle({
   disabled = false,
 }: RotationModeToggleProps) {
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
-      {options.map((opt) => {
-        const active = mode === opt.value;
-        return (
-          <Button
-            key={opt.value}
-            size="sm"
-            variant={active ? "primary" : "secondary"}
-            disabled={disabled}
-            onClick={() => onChange(opt.value)}
-          >
-            {active ? `✓ ${opt.label}` : opt.label}
-          </Button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      className="mt-2"
+      label="How the next lineup is built"
+      options={options.map((o) => ({ id: o.value, label: o.label }))}
+      value={mode}
+      disabled={disabled}
+      onChange={onChange}
+    />
   );
 }

@@ -31,9 +31,10 @@ interface SegTabsProps {
   ariaLabel?: string;
 }
 
+// Every size is a 44 pt target (UX plan Phase 6); size sets the type.
 const HEIGHT: Record<Size, string> = {
-  sm: "h-[32px] text-[12px]",
-  md: "h-[38px] text-[13px]",
+  sm: "h-11 text-[12px]",
+  md: "h-11 text-[13px]",
   lg: "h-11 text-sm",
 };
 
