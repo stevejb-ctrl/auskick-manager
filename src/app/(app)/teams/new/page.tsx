@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { getBrand } from "@/lib/brand";
+import { BackLink } from "@/components/ui/BackLink";
 
 export default async function NewTeamPage() {
   const supabase = createClient();
@@ -32,16 +33,11 @@ export default async function NewTeamPage() {
 
   const isFirstTeam = (membershipCount ?? 0) === 0;
   const backHref = isFirstTeam ? "/welcome" : "/dashboard";
-  const backLabel = isFirstTeam ? "← Welcome" : "← My teams";
+  const backLabel = isFirstTeam ? "Welcome" : "My teams";
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <Link
-        href={backHref}
-        className="inline-block text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
-      >
-        {backLabel}
-      </Link>
+      <BackLink href={backHref} label={backLabel} />
 
       <SetupProgress current="basics" />
 

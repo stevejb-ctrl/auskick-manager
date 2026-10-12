@@ -8,6 +8,7 @@ import { seasonZoneMinutes } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BackLink } from "@/components/ui/BackLink";
 
 export const dynamic = "force-dynamic";
 
@@ -103,12 +104,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-3">
       <div>
-        <Link
-          href={`/run/${params.token}`}
-          className="text-sm text-ink-dim transition-colors duration-fast ease-out-quart hover:text-brand-700"
-        >
-          ← Availability
-        </Link>
+        <BackLink href={`/run/${params.token}`} label="Availability" />
       </div>
 
       <div>

@@ -24,6 +24,7 @@ import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
 import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, Sport } from "@/lib/types";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -168,13 +169,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/teams/${params.teamId}/games`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-      >
-        <SFIcon.chevronLeft />
-        Games
-      </Link>
+      <BackLink href={`/teams/${params.teamId}/games`} label="Games" />
 
       {/* ── Hero card — status-aware ─────────────────────────────────── */}
       {isLive ? (

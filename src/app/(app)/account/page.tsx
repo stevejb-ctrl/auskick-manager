@@ -9,6 +9,7 @@ import { DeleteAccountSection } from "@/components/account/DeleteAccountSection"
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BackLink } from "@/components/ui/BackLink";
 
 // Force dynamic — the page reads the user's profile + deletion
 // schedule. Even though that's a tiny query, we don't want stale
@@ -90,13 +91,7 @@ export default async function AccountPage() {
   return (
     <div className="space-y-6">
       <header>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-        >
-          <SFIcon.chevronLeft />
-          Back
-        </Link>
+        <BackLink href="/dashboard" label="My teams" />
         <Eyebrow className="mt-4">Settings</Eyebrow>
         <h1 className="mt-1.5 text-3xl font-bold tracking-tightest text-ink">
           My account

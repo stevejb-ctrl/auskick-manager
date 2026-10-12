@@ -78,3 +78,19 @@ test("Help keeps Sign in for visitors", async ({ page }) => {
     timeout: 10_000,
   });
 });
+
+// UX plan Phase 6: one back affordance — a chevron link top-left, 44 pt.
+test("pages share one back link", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const back = page.getByTestId("back-link");
+  await expect(back).toHaveText("Games");
+  await expect(back).toBeVisible({ timeout: 15_000 });
+  expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await back.click();
+  await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/games$`));
+});

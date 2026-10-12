@@ -8,6 +8,7 @@ import { TagPicker } from "@/components/admin/TagPicker";
 import { UnsubscribeToggle } from "@/components/admin/UnsubscribeToggle";
 import { getUserDetail, listAllTags } from "@/lib/admin/queries";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface PageProps {
   params: { profileId: string };
@@ -25,12 +26,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin/users"
-          className="text-xs font-medium text-brand-600 hover:text-brand-700"
-        >
-          ← All users
-        </Link>
+        <BackLink href="/admin/users" label="All users" />
       </div>
 
       {/* Identity card */}

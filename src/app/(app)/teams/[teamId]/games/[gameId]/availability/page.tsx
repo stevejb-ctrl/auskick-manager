@@ -7,6 +7,7 @@ import { ContinueToLineupButton } from "@/components/games/ContinueToLineupButto
 import { Spinner } from "@/components/ui/Spinner";
 import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface AvailabilityPageProps {
   params: { teamId: string; gameId: string };
@@ -82,13 +83,7 @@ export default async function AvailabilityPage({
 
   return (
     <div className="space-y-6 pb-32">
-      <Link
-        href={`/teams/${params.teamId}/games/${params.gameId}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-      >
-        <SFIcon.chevronLeft />
-        Back to game
-      </Link>
+      <BackLink href={`/teams/${params.teamId}/games/${params.gameId}`} label="Back to game" />
 
       <SFCard>
         <h1 className="text-2xl font-bold tracking-tightest text-ink">

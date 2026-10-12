@@ -21,6 +21,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SFIcon } from "@/components/sf";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface LineupPickerBreadcrumbProps {
   /**
@@ -47,13 +48,7 @@ export function LineupPickerBreadcrumb({
     <div className="flex items-start justify-between gap-3">
       {availabilityHref ? (
         <div className="flex min-w-0 flex-col gap-1">
-          <Link
-            href={availabilityHref}
-            className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-          >
-            <SFIcon.chevronLeft />
-            Update availability
-          </Link>
+          <BackLink href={availabilityHref} label="Update availability" />
           <p className="text-xs text-ink-mute">
             A player didn&apos;t turn up? Tap here to mark them
             unavailable.
