@@ -1,9 +1,10 @@
 "use client";
 
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import type { Player, Zone } from "@/lib/types";
+import type { Lineup, Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
-import { PlayerTile } from "@/components/live/PlayerTile";
+import { PlayerTile, type TileCaption } from "@/components/live/PlayerTile";
+import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface BenchProps {
   playersById: Map<string, Player>;
@@ -18,6 +19,14 @@ interface BenchProps {
   onLongPress?: (playerId: string) => void;
   playerScores?: Record<string, { goals: number; behinds: number }>;
   totalPairs?: number;
+  /** Planning screens pass their draft; omit to read the live store. */
+  lineup?: Lineup;
+  /** The selected player; omit to read the live store's selection. */
+  selectedPlayerId?: string | null;
+  /** Dim bench tiles while another is selected (live only). */
+  dimUnselected?: boolean;
+  captions?: Record<string, TileCaption>;
+  chipModeByKey?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 export function Bench({
@@ -33,14 +42,26 @@ export function Bench({
   onLongPress,
   playerScores,
   totalPairs,
+  lineup: lineupProp,
+  selectedPlayerId,
+  dimUnselected = true,
+  captions,
+  chipModeByKey,
 }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
-  const lineup = useLiveGame((s) => s.lineup);
-  const selected = useLiveGame((s) => s.selected);
-
-  const benchActive = selected?.kind === "field";
+  const storeLineup = useLiveGame((s) => s.lineup);
+  const storeSelected = useLiveGame((s) => s.selected);
+  const lineup = lineupProp ?? storeLineup;
+  const selectedBenchId =
+    selectedPlayerId !== undefined
+      ? selectedPlayerId
+      : storeSelected?.kind === "bench"
+        ? storeSelected.playerId
+        : null;
+  const dimOthers =
+    dimUnselected && storeSelected !== null && storeSelected.kind !== "field";
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-2 shadow-card">
@@ -54,8 +75,7 @@ export function Bench({
           {lineup.bench.map((pid) => {
             const p = playersById.get(pid);
             if (!p) return null;
-            const isSelected =
-              selected?.kind === "bench" && selected.playerId === pid;
+            const isSelected = selectedBenchId === pid;
             return (
               <PlayerTile
                 key={pid}
@@ -74,7 +94,7 @@ export function Bench({
                 }
                 onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                 selected={isSelected}
-                dimmed={!benchActive && selected !== null}
+                dimmed={dimOthers && !isSelected}
                 swap={(() => {
                   const info = swapOns?.get(pid);
                   return info ? { role: "on", pair: info.pair, zone: info.zone, totalPairs } : null;
@@ -85,6 +105,8 @@ export function Bench({
                 loaned={loanedSet.has(pid)}
                 lockMode={lockedSet.has(pid) ? "field" : zoneLockedPlayers?.[pid] ? "zone" : null}
                 score={playerScores?.[pid]}
+                caption={captions?.[pid]}
+                chipModes={chipModeByKey}
               />
             );
           })}

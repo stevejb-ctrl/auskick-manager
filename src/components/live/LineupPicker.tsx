@@ -8,21 +8,19 @@ import {
   saveLineupDraft,
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
+import type { ChipKey, ChipMode } from "@/lib/chips";
+import { Field } from "@/components/live/Field";
+import { Bench } from "@/components/live/Bench";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
-import { ZoneTimePercents } from "@/components/live/ZoneTimePercents";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   Eyebrow,
-  Guernsey,
   SFButton,
-  SFCard,
   SFIcon,
 } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
@@ -623,6 +621,21 @@ export function LineupPicker({
     });
   }
 
+  // Season time in zone, in ms for the field tiles' zone bars.
+  const seasonMsByPlayer = useMemo(() => {
+    const out: Record<string, (typeof season)[string]> = {};
+    for (const [pid, z] of Object.entries(season)) {
+      out[pid] = {
+        back: z.back * 60_000,
+        hback: z.hback * 60_000,
+        mid: z.mid * 60_000,
+        hfwd: z.hfwd * 60_000,
+        fwd: z.fwd * 60_000,
+      };
+    }
+    return out;
+  }, [season]);
+
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
@@ -966,139 +979,34 @@ export function LineupPicker({
         </p>
       )}
 
-      {/* Single column — user feedback 2026-05-20: 2-col was too
-          cramped inside the demo phone-frame for the FWD / CENTRE /
-          BACK / BENCH cards. */}
-      <div className="grid grid-cols-1 gap-3">
-        {slots.map((slot) => {
-          const isBench = slot === "bench";
-          const cap = isBench ? null : displayZoneCaps[slot];
-          const filled = lineup[slot].length;
-          const emptyCount =
-            isBench || cap === null ? 0 : Math.max(0, cap - filled);
-          const isFull = !isBench && cap !== null && filled === cap;
-          return (
-            <SFCard key={slot} pad={0} className="overflow-hidden">
-              <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-                <span
-                  aria-hidden="true"
-                  className={`block h-5 w-1 rounded-sm ${
-                    isBench ? "bg-ink-mute" : zoneAccent(slot)
-                  }`}
-                />
-                <div className="min-w-0 flex-1">
-                  {/* Header tinted to match the zone — coach can
-                      trace "BACK in blue" right through to the
-                      blue bar on each player tile. Steve 2026-05-23
-                      (parent feedback: hard to correlate labels
-                      with the per-tile colour stripes). Bench
-                      stays neutral ink. */}
-                  <h3
-                    className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
-                      isBench ? "text-ink" : zoneHeaderText(slot)
-                    }`}
-                  >
-                    {slotLabel(slot)}
-                  </h3>
-                </div>
-                <span
-                  className={`font-mono text-xs font-semibold tabular-nums ${
-                    isFull ? "text-ink" : "text-ink-mute"
-                  }`}
-                >
-                  {filled}
-                  {!isBench && cap !== null && ` / ${cap}`}
-                </span>
-              </div>
-              {filled === 0 && emptyCount === 0 ? (
-                <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
-              ) : (
-                <ul className="divide-y divide-hairline">
-                  {lineup[slot].map((pid) => {
-                    const p = playerById.get(pid);
-                    if (!p) return null;
-                    const isSelected =
-                      selected?.kind === "player" && selected.id === pid;
-                    return (
-                      <li key={pid}>
-                        <button
-                          type="button"
-                          onClick={() => tapPlayer(pid)}
-                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                            isSelected
-                              ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
-                              : "hover:bg-surface-alt"
-                          }`}
-                        >
-                          <Guernsey num={p.jersey_number ?? ""} size={32} />
-                          <span className="flex min-w-0 flex-1 flex-col gap-1">
-                            <span className="truncate font-medium text-ink">
-                              {p.chip && (
-                                <ChipIndicator
-                                  chipKey={p.chip as ChipKey}
-                                  mode={chipModeByKey[p.chip as ChipKey]}
-                                  className="mr-1.5 align-middle"
-                                />
-                              )}
-                              {p.full_name}
-                            </span>
-                            {/* Season time-in-zone — helps a coach setting
-                                the lineup by hand start a kid in a zone
-                                they've had least of. Steve 2026-07-07. */}
-                            <ZoneTimePercents zones={season[pid]} />
-                          </span>
-                          {isSelected ? (
-                            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
-                              Swapping…
-                            </span>
-                          ) : (
-                            <span className="text-ink-mute opacity-60">
-                              <SFIcon.swap />
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                  {!isBench &&
-                    Array.from({ length: emptyCount }).map((_, idx) => {
-                      const isSelected =
-                        selected?.kind === "empty" && selected.zone === slot;
-                      return (
-                        <li key={`__open-${idx}`}>
-                          <button
-                            type="button"
-                            onClick={() => tapEmpty(slot)}
-                            aria-label={`Empty ${slotLabel(slot)} position`}
-                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                              isSelected
-                                ? "bg-warn-soft ring-2 ring-inset ring-warn"
-                                : "hover:bg-surface-alt"
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-ink-mute/60 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-mute"
-                            >
-                              —
-                            </span>
-                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
-                              Open slot
-                            </span>
-                            {isSelected ? (
-                              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-warn">
-                                Tap a player
-                              </span>
-                            ) : null}
-                          </button>
-                        </li>
-                      );
-                    })}
-                </ul>
-              )}
-            </SFCard>
-          );
-        })}
+      {/* The same field the live game uses (UX plan principle 2: one
+          lineup, one picture). Tap a player then another to swap them
+          — across zones or with the bench; tap a player then an empty
+          spot to move them; tap an empty spot first to pick from the
+          bench. The zone bar on each tile is season time in zone. */}
+      <div className="space-y-3">
+        <Field
+          playersById={playerById}
+          lineup={lineup}
+          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
+          primedEmptyZone={selected?.kind === "empty" ? selected.zone : null}
+          dimUnselected={false}
+          onTapField={(pid, zone) => (pid ? tapPlayer(pid) : tapEmpty(zone))}
+          zoneMsByPlayer={seasonMsByPlayer}
+          zoneCaps={displayZoneCaps}
+          displayZoneCaps={displayZoneCaps}
+          positionModel={positionModel}
+          chipModeByKey={chipModeByKey}
+        />
+        <Bench
+          playersById={playerById}
+          lineup={lineup}
+          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
+          dimUnselected={false}
+          onTapBench={tapPlayer}
+          zoneMsByPlayer={seasonMsByPlayer}
+          chipModeByKey={chipModeByKey}
+        />
       </div>
 
       {/* Sub interval input moved UP into the Game settings
@@ -1174,41 +1082,3 @@ export function LineupPicker({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-/**
- * Tailwind class for the small accent bar at the left of each zone-card
- * header. Uses our existing colourblind-tested zone tokens.
- */
-function zoneAccent(zone: Zone): string {
-  switch (zone) {
-    case "fwd":
-      return "bg-zone-f";
-    case "hfwd":
-      return "bg-zone-f/70";
-    case "mid":
-      return "bg-zone-c";
-    case "hback":
-      return "bg-zone-b/70";
-    case "back":
-      return "bg-zone-b";
-  }
-}
-
-/**
- * Tailwind text-colour class for the section-header label
- * ("FORWARD" / "CENTRE" / "BACK") so the heading text colour
- * matches the accent strip + the per-tile colour bars. Steve
- * 2026-05-23 — parent feedback that the labels and colours
- * weren't visually tied together at thumbnail size.
- */
-function zoneHeaderText(zone: Zone): string {
-  switch (zone) {
-    case "fwd":
-    case "hfwd":
-      return "text-zone-f";
-    case "mid":
-      return "text-zone-c";
-    case "back":
-    case "hback":
-      return "text-zone-b";
-  }
-}

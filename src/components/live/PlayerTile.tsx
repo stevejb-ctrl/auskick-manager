@@ -47,6 +47,18 @@ interface PlayerTileProps {
    * fallback. Steve 2026-05-20.
    */
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
+  /**
+   * Header caption for planning screens — the quarter break says where
+   * each player is heading ("STAYS", "BENCH → FWD"). Shown when there's
+   * no swap header.
+   */
+  caption?: TileCaption | null;
+}
+
+export interface TileCaption {
+  text: string;
+  /** "move" = changing position this break; "stay" = same spot. */
+  tone: "move" | "stay";
 }
 
 function formatMinSec(ms: number): string {
@@ -71,6 +83,7 @@ function PlayerTileImpl({
   lockMode,
   score,
   chipModes,
+  caption,
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -202,6 +215,18 @@ function PlayerTileImpl({
         >
           {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
           <span>→ ON</span>
+        </div>
+      )}
+
+      {caption && !isOff && !isOn && (
+        <div
+          className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
+            caption.tone === "move"
+              ? "border-brand-700 bg-brand-600 text-white"
+              : "border-hairline bg-surface-alt text-ink-mute"
+          }`}
+        >
+          {caption.text}
         </div>
       )}
 
@@ -359,6 +384,8 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.loaned !== b.loaned) return false;
   if (a.lockMode !== b.lockMode) return false;
   if (a.compact !== b.compact) return false;
+  if (a.chipModes !== b.chipModes) return false;
+  if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.
