@@ -13,7 +13,6 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { getAgeGroupConfig } from "@/lib/sports";
 import { replayGame } from "@/lib/fairness";
 import {
@@ -93,16 +92,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
-  const ageGroup = ageGroupOf(
-    (team as { age_group?: string } | null)?.age_group,
-  );
-  const ageCfg = AGE_GROUPS[ageGroup];
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
   const sport: Sport = ((team as { sport?: Sport } | null)?.sport) ?? "afl";
   const teamName = (team as { name?: string } | null)?.name ?? "Us";
-  // Sport-config age-group shape (positions / zones / period count)
-  // for the pre-game planner — distinct from the legacy AFL-only
-  // `ageCfg` above, which the rest of this AFL-centric page uses.
+  // Sport-config age-group shape (label, on-field size, positions,
+  // zones, period count). Always the team's own sport — never the
+  // AFL-only AGE_GROUPS map, which mislabelled netball and league
+  // games (UX plan H3).
   const planAgeCfg = getAgeGroupConfig(
     sport,
     (team as { age_group?: string } | null)?.age_group,
@@ -241,9 +237,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 )}
               </div>
               <p className="mt-3 text-xs text-ink-mute">
-                {ageCfg.label} ·{" "}
-                {isUp ? ageCfg.defaultOnFieldSize : g.on_field_size} on field
-                {!isUp && g.on_field_size < ageCfg.defaultOnFieldSize && (
+                {planAgeCfg.label} ·{" "}
+                {isUp ? planAgeCfg.defaultOnFieldSize : g.on_field_size} on field
+                {!isUp && g.on_field_size < planAgeCfg.defaultOnFieldSize && (
                   <span className="ml-1 font-medium text-warn">(short-handed)</span>
                 )}
               </p>

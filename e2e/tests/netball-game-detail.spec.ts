@@ -89,3 +89,29 @@ test("netball game-detail scorers card uses 'Goal shooters / Who put it in', omi
   // through, that's a regression.
   await expect(page.locator("svg[aria-label*='jersey']")).toHaveCount(0);
 });
+
+// Regression (UX plan H3 / 0.5): the game-detail header read the
+// AFL-only AGE_GROUPS map, so a netball "Go" game showed
+// "Under 10 · 12 on field". It must use the netball sport config.
+test("netball game detail shows the netball age label and on-court size", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "go",
+    sport: "netball",
+    name: `NB-HDR-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+
+  await expect(page.getByText("Go (8–10) · 7 on field")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/Under 10/)).toHaveCount(0);
+});

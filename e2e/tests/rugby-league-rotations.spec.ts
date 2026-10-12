@@ -282,3 +282,25 @@ test("kickoff §16: rotation tracks every player in the squad", async () => {
   // kickoffTakers includes both who have kicked.
   expect(kickoffTakers(events)).toEqual(new Set([playerIds[0], playerIds[1]]));
 });
+
+// Regression (UX plan H3 / 0.5): the game-detail header read the
+// AFL-only AGE_GROUPS map, so a rugby league U10 game claimed "12 on
+// field" (AFL U10). RL U10 plays 11-a-side.
+test("game detail shows rugby league's on-field size, not AFL's", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-HDR-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+
+  await expect(page.getByText("U10 · 11 on field")).toBeVisible({ timeout: 10_000 });
+});
