@@ -287,6 +287,10 @@ export type GameEventType =
   | "score_undo"
   | "field_zone_swap"
   | "player_loan"
+  // A coach's hold on a player: Keep on / Keep in {zone} (AFL) or
+  // Keep in {position} (netball). Metadata: { lock: PlayerLock | null,
+  // quarter, elapsed_ms }; null clears it. See lib/live/locks.ts.
+  | "player_lock"
   // Mid-quarter on-field-size REDUCTION. Metadata:
   //   { remove_player_ids: string[], new_size, quarter, elapsed_ms }
   // Replays as: close each removed player's open stint, drop them

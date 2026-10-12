@@ -30,6 +30,7 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
+import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import {
   type ChipKey,
   type ChipMode,
@@ -1255,6 +1256,12 @@ export interface GameState {
   basePlayedLoanMs: Record<string, number>;
   /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
   quarterStartedAt: string | null;
+  /**
+   * Saved holds (Keep on / Keep in {zone}) from player_lock events.
+   * Undefined when the game has none, so a game started before holds
+   * were saved keeps the ones on the coach's phone.
+   */
+  locks?: Record<string, PlayerLock>;
 }
 
 // Empty per-quarter score record. Used both during replay and by the
@@ -1656,6 +1663,7 @@ export function replayGame(events: GameEvent[]): GameState {
 
   if (state.lineup) state.lineup = normalizeLineup(state.lineup);
   state.quarterStartedAt = quarterStartedAt;
+  if (sorted.some((ev) => ev.type === "player_lock")) state.locks = replayLocks(sorted);
 
   return state;
 }
