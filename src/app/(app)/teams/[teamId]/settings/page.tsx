@@ -11,7 +11,11 @@ import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { SettingsSection } from "@/components/team/SettingsSection";
 import { AgeGroupSettings } from "@/components/team/AgeGroupSettings";
 import { DangerZone } from "@/components/team/DangerZone";
-import { HowWePlayCard, type HowWePlayRow } from "@/components/playbook/HowWePlayCard";
+import {
+  HowWePlayCard,
+  type HowWePlayPosition,
+  type HowWePlayRow,
+} from "@/components/playbook/HowWePlayCard";
 import {
   TeamMembersSettings,
   type MemberRow,
@@ -119,11 +123,19 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
-  const { data: playbookRow } = await supabase
-    .from("team_playbooks")
-    .select("strategy, policy_overrides, season_balance, season_balance_since")
-    .eq("team_id", params.teamId)
-    .maybeSingle();
+  const [{ data: playbookRow }, { data: positionRows }] = await Promise.all([
+    supabase
+      .from("team_playbooks")
+      .select("strategy, policy_overrides, season_balance, season_balance_since")
+      .eq("team_id", params.teamId)
+      .maybeSingle(),
+    supabase
+      .from("team_positions")
+      .select("id, label, name, line, sort, archived_at")
+      .eq("team_id", params.teamId)
+      .is("archived_at", null)
+      .order("sort"),
+  ]);
   const ageOptions = getSportConfig(sport).ageGroups.map((a) => ({ id: a.id, label: a.label, notes: a.notes }));
 
   // Team tab sections (UX plan §6 "Where each setting goes"): what the
@@ -147,8 +159,10 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           ageGroup={ageGroupCfg.id}
           ageLabel={ageGroupCfg.label}
           onFieldSize={ageGroupCfg.defaultOnFieldSize}
+          maxOnFieldSize={ageGroupCfg.maxOnFieldSize}
           periodWord={ageGroupCfg.periodLabel === "half" ? "half" : "quarter"}
           row={(playbookRow ?? null) as HowWePlayRow | null}
+          positions={(positionRows ?? []) as HowWePlayPosition[]}
           isAdmin={isAdmin}
         />
         {/* Rugby league §6 Junior Laws: each player plays two full

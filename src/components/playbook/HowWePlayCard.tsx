@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { PolicyCard } from "@/components/playbook/PolicyCard";
 import { StrategyPicker } from "@/components/playbook/StrategyPicker";
 import { SeasonBalanceControl } from "@/components/playbook/SeasonBalanceControl";
+import { PositionsEditor } from "@/components/playbook/PositionsEditor";
+import { toDraft } from "@/lib/playbook/positions";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import {
   resetSeasonBalance,
@@ -17,6 +19,7 @@ import type {
   PolicyOverrides,
   SeasonBalanceSetting,
   TeamPlaybookRow,
+  TeamPositionRow,
 } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
 
@@ -31,6 +34,11 @@ export type HowWePlayRow = Pick<
   "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
 >;
 
+export type HowWePlayPosition = Pick<
+  TeamPositionRow,
+  "id" | "label" | "name" | "line" | "sort" | "archived_at"
+>;
+
 interface HowWePlayCardProps {
   teamId: string;
   sport: Sport;
@@ -38,7 +46,11 @@ interface HowWePlayCardProps {
   /** "U12", "11U". */
   ageLabel: string;
   onFieldSize: number;
+  /** Most positions a team may name (the age group's max on field). */
+  maxOnFieldSize: number;
   periodWord: string;
+  /** The team's own named positions (AFL open ages). */
+  positions?: HowWePlayPosition[];
   row: HowWePlayRow | null;
   isAdmin: boolean;
   /** Wizard step 2: no season to reset yet. */
@@ -56,7 +68,9 @@ export function HowWePlayCard({
   ageGroup,
   ageLabel,
   onFieldSize,
+  maxOnFieldSize,
   periodWord,
+  positions = [],
   row: initialRow,
   isAdmin,
   inWizard = false,
@@ -70,8 +84,8 @@ export function HowWePlayCard({
   const [isPending, startTransition] = useTransition();
 
   const resolved = useMemo(
-    () => resolveTeamPlaybook({ sport, ageGroup, onFieldSize, row }),
-    [sport, ageGroup, onFieldSize, row],
+    () => resolveTeamPlaybook({ sport, ageGroup, onFieldSize, row, positions }),
+    [sport, ageGroup, onFieldSize, row, positions],
   );
   const agePolicy = getSportPlaybook(sport).agePolicy(ageGroup);
   const disabled = !isAdmin;
@@ -142,6 +156,17 @@ export function HowWePlayCard({
           onChange={changeStrategy}
         />
       </div>
+
+      {resolved.strategy.usesPositions && resolved.positionModel.kind === "custom" && (
+        <PositionsEditor
+          teamId={teamId}
+          initial={resolved.positions.map(toDraft)}
+          defaults={resolved.positionModel.defaults.map(toDraft)}
+          onFieldSize={onFieldSize}
+          maxPositions={maxOnFieldSize}
+          disabled={disabled}
+        />
+      )}
 
       {resolved.strategy.balanceUnit && (
         <SeasonBalanceControl

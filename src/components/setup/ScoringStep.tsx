@@ -3,7 +3,11 @@ import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
-import { HowWePlayCard, type HowWePlayRow } from "@/components/playbook/HowWePlayCard";
+import {
+  HowWePlayCard,
+  type HowWePlayPosition,
+  type HowWePlayRow,
+} from "@/components/playbook/HowWePlayCard";
 import type { ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -32,6 +36,8 @@ interface ScoringStepProps {
   initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
   /** Saved How we play, or null for a new team (age-group defaults). */
   playbookRow?: HowWePlayRow | null;
+  /** The team's own named positions (AFL open ages). */
+  positions?: HowWePlayPosition[];
 }
 
 export function ScoringStep({
@@ -43,6 +49,7 @@ export function ScoringStep({
   initialChipLabels = { a: null, b: null, c: null },
   initialChipModes = { a: "split", b: "split", c: "split" },
   playbookRow = null,
+  positions = [],
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
   // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
@@ -109,8 +116,10 @@ export function ScoringStep({
         ageGroup={ageGroup.id}
         ageLabel={ageGroup.label}
         onFieldSize={ageGroup.defaultOnFieldSize}
+        maxOnFieldSize={ageGroup.maxOnFieldSize}
         periodWord={ageGroup.periodLabel === "half" ? "half" : "quarter"}
         row={playbookRow}
+        positions={positions}
         isAdmin
         inWizard
       />

@@ -93,10 +93,11 @@ function generatedFormation(onFieldSize: number): Formation {
   };
 }
 
+// Gaps between lines leave room for 44 pt position chips on a phone.
 const LINE_BANDS: Record<keyof Formation, [number, number]> = {
-  fwd: [0.08, 0.3],
-  mid: [0.38, 0.62],
-  back: [0.7, 0.92],
+  fwd: [0.04, 0.26],
+  mid: [0.4, 0.6],
+  back: [0.74, 0.96],
 };
 
 /** Full name for a default label ("CHB" → "Centre half-back"). */

@@ -8,7 +8,7 @@ import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { getAgeGroupConfig } from "@/lib/sports";
-import type { HowWePlayRow } from "@/components/playbook/HowWePlayCard";
+import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { Player, Sport } from "@/lib/types";
 
 type SetupQueryStep = "basics" | "config" | "squad" | "games" | "done";
@@ -167,14 +167,23 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   }
 
   if (step === "config") {
-    const { data: playbookRow } = await adminClient
-      .from("team_playbooks")
-      .select("strategy, policy_overrides, season_balance, season_balance_since")
-      .eq("team_id", params.teamId)
-      .maybeSingle();
+    const [{ data: playbookRow }, { data: positionRows }] = await Promise.all([
+      adminClient
+        .from("team_playbooks")
+        .select("strategy, policy_overrides, season_balance, season_balance_since")
+        .eq("team_id", params.teamId)
+        .maybeSingle(),
+      adminClient
+        .from("team_positions")
+        .select("id, label, name, line, sort, archived_at")
+        .eq("team_id", params.teamId)
+        .is("archived_at", null)
+        .order("sort"),
+    ]);
     return (
       <ScoringStep
         playbookRow={(playbookRow ?? null) as HowWePlayRow | null}
+        positions={(positionRows ?? []) as HowWePlayPosition[]}
         teamId={params.teamId}
         ageGroup={ageGroupCfg}
         initialEnabled={team.track_scoring ?? false}

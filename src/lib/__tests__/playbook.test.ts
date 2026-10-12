@@ -3,6 +3,7 @@ import { effectivePolicy, effectiveStrategy, getSportPlaybook } from "@/lib/play
 import { defaultAflPositions } from "@/lib/sports/afl/playbook";
 import { leagueCatalogue } from "@/lib/sports/rugby_league/playbook";
 import { playbookSnapshot, resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
+import { resetToDefaults, sparsestLine, toDraft } from "@/lib/playbook/positions";
 
 describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
   it("zones U8–U10, open from U11", () => {
@@ -245,5 +246,26 @@ describe("a team's How we play, resolved", () => {
     expect(snap.strategy).toBe("by-thirds");
     expect(snap.positions.map((p) => p.label)).toEqual(["GS", "GA", "WA", "C", "WD", "GD", "GK"]);
     expect(snap.takenAt).toBe("2026-10-12T09:00:00.000Z");
+  });
+});
+
+describe("positions editor helpers", () => {
+  const defaults = defaultAflPositions(12).map(toDraft);
+
+  it("keeps a saved position's id when reset finds the same label", () => {
+    const saved = [
+      { key: "uuid-chb", label: "CHB", name: "", line: "back" as const },
+      { key: "uuid-key", label: "KEY", name: "Key back", line: "back" as const },
+    ];
+    const reset = resetToDefaults(saved, defaults);
+    expect(reset).toHaveLength(12);
+    expect(reset.find((p) => p.label === "CHB")?.key).toBe("uuid-chb");
+    expect(reset.some((p) => p.key === "uuid-key")).toBe(false);
+    expect(reset.find((p) => p.label === "FF")?.key).toBe("ff");
+  });
+
+  it("adds new positions to the thinnest line", () => {
+    const noForwards = defaults.filter((p) => p.line !== "fwd");
+    expect(sparsestLine(noForwards)).toBe("fwd");
   });
 });

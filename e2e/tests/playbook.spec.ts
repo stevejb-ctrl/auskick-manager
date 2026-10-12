@@ -170,3 +170,50 @@ test("only a coach can change how the team plays", async () => {
     await deleteTestUser(admin, manager.id);
   }
 });
+
+test("an AFL U14 coach names the team's positions on the field", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const activePositions = async () => {
+    const { data } = await admin
+      .from("team_positions")
+      .select("label, name, line, sort")
+      .eq("team_id", team.id)
+      .is("archived_at", null)
+      .order("sort");
+    return data ?? [];
+  };
+
+  await page.goto(`/teams/${team.id}/settings`);
+  // Positions appear once the strategy uses them.
+  await expect(page.getByRole("group", { name: "Team positions" })).toHaveCount(0);
+  await rotation(page).getByRole("radio", { name: /Set positions/ }).click();
+  const field = page.getByRole("group", { name: "Team positions" });
+  await expect(field.getByRole("button")).toHaveCount(15);
+  await expect(page.getByText("15 positions · 15 on the field")).toBeVisible();
+
+  // Rename CHB and give it a full name.
+  await field.getByRole("button", { name: "Centre half-back (CHB)" }).click();
+  await page.getByLabel("Short label (up to 4 letters)").fill("key");
+  await page.getByLabel("Full name (optional)").fill("Key back");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(field.getByRole("button", { name: "Key back (KEY)" })).toBeVisible();
+
+  // Remove a forward pocket.
+  await field.getByRole("button", { name: "Forward pocket (FP)" }).first().click();
+  await page.getByRole("button", { name: "Remove position" }).click();
+  await expect(page.getByText(/14 positions · 15 on the field\. Add 1 more/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save positions" }).click();
+  await expect.poll(async () => (await activePositions()).length).toBe(14);
+  const saved = await activePositions();
+  expect(saved.find((p) => p.label === "KEY")).toMatchObject({ name: "Key back", line: "back" });
+
+  // Survives a reload, laid out on the field.
+  await page.reload();
+  await expect(
+    page.getByRole("group", { name: "Team positions" }).getByRole("button", { name: "Key back (KEY)" }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("group", { name: "Team positions" }).getByRole("button")).toHaveCount(14);
+});
