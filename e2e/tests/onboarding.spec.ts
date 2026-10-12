@@ -6,6 +6,13 @@
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
+import { makeTeam } from "../fixtures/factories";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function superAdminId(admin: SupabaseClient): Promise<string> {
+  const { data } = await admin.auth.admin.listUsers();
+  return data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+}
 
 test.describe.configure({ mode: "parallel" });
 
@@ -61,7 +68,7 @@ test("new user signs up, creates team, adds first player", async ({
     await page.getByLabel(/age group/i).selectOption("U10");
     await page.getByRole("button", { name: /continue/i }).click();
 
-    // Setup flow lands on /teams/[id]/setup?step=config or similar.
+    // Setup flow lands on /teams/[id]/setup[?]step=config or similar.
     await page.waitForURL(/\/teams\/[0-9a-f-]+/, { timeout: 10_000 });
 
     // --- Add first player ---
@@ -82,4 +89,29 @@ test("new user signs up, creates team, adds first player", async ({
     if (userId) await deleteTestUser(admin, userId);
     await context.close();
   }
+});
+
+// Regression (UX plan C2): createGame always redirected to game detail,
+// so a coach who created a game inside the setup wizard was ejected and
+// never reached "All set" (invite co-coach, share availability).
+test("creating a game inside the wizard stays in the wizard and reaches All set", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  await page.goto(`/teams/${team.id}/setup?step=games`);
+  await page.getByRole("button", { name: /create manually/i }).click();
+  await page.getByLabel(/opponent/i).fill("Wizard Wombats");
+  await page.getByLabel(/date & time/i).fill("2026-11-01T09:00");
+  await page.getByRole("button", { name: /^create game$/i }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=games`), {
+    timeout: 10_000,
+  });
+  await expect(page.getByText("vs Wizard Wombats")).toBeVisible();
+
+  await page.getByRole("link", { name: /^continue$/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=done`));
 });

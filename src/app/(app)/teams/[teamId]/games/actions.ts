@@ -37,7 +37,14 @@ export async function createGame(
     round_number: number | null;
     notes: string | null;
     on_field_size?: number;
-  }
+  },
+  /**
+   * What happens after the insert. "open-game" (default) redirects to
+   * the new game's detail page. "stay" returns success so the caller
+   * keeps the coach where they are — the setup wizard uses it so a new
+   * coach isn't dropped onto game detail mid-onboarding (UX plan C2).
+   */
+  afterCreate: "open-game" | "stay" = "open-game",
 ): Promise<ActionResult & { gameId?: string }> {
   const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
@@ -90,6 +97,10 @@ export async function createGame(
   });
 
   revalidatePath(`/teams/${teamId}/games`);
+  if (afterCreate === "stay") {
+    revalidatePath(`/teams/${teamId}/setup`);
+    return { success: true, gameId };
+  }
   redirect(`/teams/${teamId}/games/${gameId}`);
 }
 

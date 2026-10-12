@@ -11,9 +11,19 @@ interface CreateGameFormProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   onCancel?: () => void;
+  /** Passed through to createGame — see its `afterCreate` doc. */
+  afterCreate?: "open-game" | "stay";
+  /** Called after a successful create when `afterCreate` is "stay". */
+  onCreated?: () => void;
 }
 
-export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormProps) {
+export function CreateGameForm({
+  teamId,
+  ageGroup,
+  onCancel,
+  afterCreate = "open-game",
+  onCreated,
+}: CreateGameFormProps) {
   const cfg = ageGroup;
   const [opponent, setOpponent] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -50,9 +60,11 @@ export function CreateGameForm({ teamId, ageGroup, onCancel }: CreateGameFormPro
         round_number: roundNum,
         notes: notes || null,
         on_field_size: cfg.defaultOnFieldSize,
-      });
+      }, afterCreate);
       if (result && !result.success) {
         setServerError(result.error);
+      } else if (result?.success) {
+        onCreated?.();
       }
     });
   }

@@ -46,6 +46,7 @@ export function GamesStep({
         ageGroup={ageGroup}
         existingExternalIds={existingExternalIds}
         initialUrl={playhqUrl}
+        afterCreate="stay"
       />
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">

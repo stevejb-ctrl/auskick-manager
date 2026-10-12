@@ -11,6 +11,8 @@ interface Props {
   ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   initialUrl?: string;
+  /** What the manual create form does afterwards (see createGame). */
+  afterCreate?: "open-game" | "stay";
 }
 
 export function AddGameSection({
@@ -18,6 +20,7 @@ export function AddGameSection({
   ageGroup,
   existingExternalIds,
   initialUrl = "",
+  afterCreate = "open-game",
 }: Props) {
   const [showManual, setShowManual] = useState(false);
 
@@ -80,6 +83,8 @@ export function AddGameSection({
               teamId={teamId}
               ageGroup={ageGroup}
               onCancel={() => setShowManual(false)}
+              afterCreate={afterCreate}
+              onCreated={() => setShowManual(false)}
             />
           </div>
         </div>
