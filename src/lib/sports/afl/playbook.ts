@@ -226,7 +226,9 @@ const OPEN_STRATEGIES: StrategyDef[] = [
     blurb: "Named positions with home and backup spots; like-for-like bench.",
     fit: "U13 and up",
     usesPositions: true,
-    balanceUnit: "position",
+    // The AFL engine balances by line; time in each named position
+    // isn't counted, so balance (when a coach turns it on) is by line.
+    balanceUnit: "line",
     balanceByDefault: false,
   },
 ];

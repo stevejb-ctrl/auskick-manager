@@ -60,6 +60,14 @@ describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
     expect(afl.recommendedStrategy(effectivePolicy("afl", "U12"))).toBe("preferred-lines");
     expect(afl.recommendedStrategy(effectivePolicy("afl", "U14"))).toBe("set-positions");
   });
+
+  it("AFL season balance says what it does: lines, even with set positions", () => {
+    // The AFL engine evens out time by line; per-position time isn't
+    // counted, so the control mustn't promise "each position".
+    const afl = getSportPlaybook("afl");
+    const units = afl.strategies(effectivePolicy("afl", "U14")).map((s) => s.balanceUnit);
+    expect(units).toEqual(["line", "line", "line"]);
+  });
 });
 
 describe("AFL default formations (UX plan §7.3)", () => {
