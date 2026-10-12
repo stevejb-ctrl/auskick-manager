@@ -1263,6 +1263,15 @@ function BenchStrip({
         <h3 className="text-sm font-semibold text-ink-dim">Bench + unassigned</h3>
         <span className="text-xs text-ink-mute">{bench.length} benched</span>
       </div>
+      {/* Why kids sit (usability run: "no stated reason"). Netball subs
+          only at the breaks, so sitting out is a whole quarter; at
+          kickoff nobody has played yet, so it's simply turns. */}
+      {availableIds.length > onCourtIds.length && onCourtIds.length > 0 && (
+        <p className="text-xs text-ink-dim">
+          With {availableIds.length} here and {onCourtIds.length} on court,{" "}
+          {availableIds.length - onCourtIds.length} sit out each quarter and everyone takes a turn.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {all.length === 0 ? (
           <span className="text-xs italic text-ink-mute">

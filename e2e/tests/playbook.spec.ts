@@ -779,6 +779,8 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await page.goto(`/teams/${nbTeam.id}/games/${nbGame.id}/live`);
   const chip = page.locator('[data-testid^="bench-chip-"]').first();
   await expect(chip).toBeVisible({ timeout: 15_000 });
+  // The bench says why kids sit (usability run: "no stated reason").
+  await expect(page.getByText("With 9 here and 7 on court, 2 sit out each quarter and everyone takes a turn.")).toBeVisible();
   const benchId = (await chip.getAttribute("data-testid"))!.replace("bench-chip-", "");
   const benchName = nbPlayers.find((p) => p.id === benchId)!.full_name;
   // PlayerTile parity: the long-press fires after a 500ms hold.
