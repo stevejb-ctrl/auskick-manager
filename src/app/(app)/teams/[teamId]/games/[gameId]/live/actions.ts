@@ -10,6 +10,7 @@ import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
+import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
@@ -824,6 +825,41 @@ export async function markLoan(
       player_id: input.player_id,
       metadata: {
         loaned: input.loaned,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
+    },
+    idempotencyKey,
+  );
+}
+
+/**
+ * Save a coach's hold on a player (Keep on / Keep in {zone} / Keep in
+ * {position}); a null lock clears it. Replayed by lib/live/locks.ts so
+ * the hold survives a reload and shows on a co-manager's phone.
+ */
+export async function recordPlayerLock(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_id: string;
+    lock: PlayerLock | null;
+    quarter: number;
+    elapsed_ms: number;
+  },
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (input.lock !== null && !isPlayerLock(input.lock)) {
+    return { success: false, error: "That hold isn't one we know." };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "player_lock",
+    {
+      player_id: input.player_id,
+      metadata: {
+        lock: input.lock,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
       },

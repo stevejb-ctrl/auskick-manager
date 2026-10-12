@@ -19,6 +19,7 @@ import {
   recordLineupSet,
   recordSwap,
   recordFieldZoneSwap,
+  recordPlayerLock,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 
 import {
@@ -81,6 +82,8 @@ const handlers: Record<string, ActionHandler> = {
   recordOpponentScore: recordOpponentScore as unknown as ActionHandler,
   markInjury: markInjury as unknown as ActionHandler,
   markLoan: markLoan as unknown as ActionHandler,
+  // Saved holds; netball uses it too (Keep in {position}).
+  recordPlayerLock: recordPlayerLock as unknown as ActionHandler,
   recordLineupSet: recordLineupSet as unknown as ActionHandler,
   recordSwap: recordSwap as unknown as ActionHandler,
   recordFieldZoneSwap: recordFieldZoneSwap as unknown as ActionHandler,

@@ -88,6 +88,7 @@ import {
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
@@ -842,7 +843,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // until the coach explicitly unlocks. Coaches use this to keep a
   // strong shooter at GS or a defensive specialist at GK across the
   // game without having to re-pin each break.
-  const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>({});
+  // Saved as player_lock events, so a reload or a co-manager's phone
+  // keeps them (UX plan 5.5).
+  const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>(() =>
+    netballPositionLocks(replayLocks(thisGameEvents)),
+  );
   // Mid-quarter substitution overlay. Coach injuries a court player and
   // picks a bench replacement; the change is reflected here client-side
   // until the next quarter break makes it durable via period_break_swap.
@@ -1440,19 +1445,36 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget?.positionId) return;
     const { playerId, positionId } = actionsTarget;
     closeActions();
-    setNextBreakLocks((prev) => ({ ...prev, [positionId]: playerId }));
+    // One bib per kid: holding them at a new bib frees the old one.
+    setNextBreakLocks((prev) => {
+      const next: Record<string, string> = {};
+      for (const [pos, pid] of Object.entries(prev)) if (pid !== playerId) next[pos] = pid;
+      next[positionId] = playerId;
+      return next;
+    });
+    saveLock(playerId, { kind: "position", position: positionId });
   };
 
   const handleUnlock = () => {
     if (!actionsTarget?.positionId) return;
     const { positionId } = actionsTarget;
     closeActions();
+    const held = nextBreakLocks[positionId];
     setNextBreakLocks((prev) => {
       const next = { ...prev };
       delete next[positionId];
       return next;
     });
+    if (held) saveLock(held, null);
   };
+
+  function saveLock(playerId: string, lock: PlayerLock | null) {
+    enqueueLiveAction("recordPlayerLock", [
+      auth,
+      game.id,
+      { player_id: playerId, lock, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
+    ]);
+  }
 
   // Pick-replacement: drop the picked bench player into the vacated
   // position in the local overlay AND record the substitution

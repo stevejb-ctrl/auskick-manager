@@ -12,6 +12,7 @@ import {
   undoLastScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
@@ -628,6 +629,8 @@ export function LiveGame({
       loanedIds: initialState.loanedIds,
       loanStartMs: initialState.loanStartMs,
       basePlayedLoanMs: initialState.basePlayedLoanMs,
+      // Saved holds win over this phone's copy once the game has any.
+      ...(initialState.locks ? aflStoreLocks(initialState.locks) : {}),
       clockStartedAt,
       accumulatedMs,
     });
@@ -943,6 +946,16 @@ export function LiveGame({
       auth,
       gameId,
       { player_id: playerId, loaned, quarter, elapsed_ms },
+    ]);
+  }
+
+  // Holds are saved (player_lock) so a reload or a co-manager's
+  // phone keeps them; the store update above stays instant.
+  function saveLock(playerId: string, lock: PlayerLock | null) {
+    enqueueLiveAction("recordPlayerLock", [
+      auth,
+      gameId,
+      { player_id: playerId, lock, quarter: Math.max(1, currentQuarter), elapsed_ms: scaledElapsedMs() },
     ]);
   }
 
@@ -2275,15 +2288,20 @@ export function LiveGame({
             insight={insight}
             onLockField={() => {
               setLocked(lockModal.playerId, true);
+              saveLock(lockModal.playerId, { kind: "field" });
               setLockModal(null);
             }}
             onLockZone={() => {
-              if (lockModal.zone) setZoneLocked(lockModal.playerId, lockModal.zone);
+              if (lockModal.zone) {
+                setZoneLocked(lockModal.playerId, lockModal.zone);
+                saveLock(lockModal.playerId, { kind: "zone", zone: lockModal.zone });
+              }
               setLockModal(null);
             }}
             onUnlock={() => {
               setLocked(lockModal.playerId, false);
               setZoneLocked(lockModal.playerId, null);
+              saveLock(lockModal.playerId, null);
               setLockModal(null);
             }}
             onToggleInjury={() => {
