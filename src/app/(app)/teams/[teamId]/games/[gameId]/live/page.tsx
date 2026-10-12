@@ -29,6 +29,7 @@ import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -440,9 +441,7 @@ export default async function LivePage({ params }: LivePageProps) {
           {availablePlayers.length === 0 ? (
             <>
               {leagueAvailabilityPanel}
-              <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-                Mark who&apos;s here to build the lineup.
-              </p>
+              <EmptyState title="Mark who's here to build the lineup." />
             </>
           ) : (
             // Pre-game lineup picker — rugby pitch + bench strip
@@ -1082,9 +1081,7 @@ export default async function LivePage({ params }: LivePageProps) {
       {availablePlayers.length === 0 ? (
         <>
           {aflAvailabilityPanel}
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-            Mark who&apos;s here to build the lineup.
-          </p>
+          <EmptyState title="Mark who's here to build the lineup." />
         </>
       ) : (
         <LineupPicker

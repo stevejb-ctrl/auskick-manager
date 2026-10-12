@@ -16,6 +16,7 @@ import { HeadToHead } from "./HeadToHead";
 import { QuarterScoring } from "./QuarterScoring";
 import { AttendanceTable } from "./AttendanceTable";
 import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface DashboardShellProps {
   seasons: Season[];
@@ -69,14 +70,11 @@ export function DashboardShell({
 }: DashboardShellProps) {
   if (seasons.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-hairline bg-surface-alt px-6 py-16 text-center">
-        <p className="text-sm font-medium text-ink-dim">
-          No completed games yet
-        </p>
-        <p className="mt-1 text-xs text-ink-mute">
-          Stats will appear here once the first game is played and finalised.
-        </p>
-      </div>
+      <EmptyState
+        size="page"
+        title="No completed games yet"
+        description="Stats will appear here once the first game is played and finalised."
+      />
     );
   }
 

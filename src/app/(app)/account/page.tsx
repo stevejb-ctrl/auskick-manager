@@ -8,6 +8,7 @@ import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // Force dynamic — the page reads the user's profile + deletion
 // schedule. Even though that's a tiny query, we don't want stale
@@ -128,9 +129,7 @@ export default async function AccountPage() {
       <section className="space-y-2">
         <Eyebrow>Your teams</Eyebrow>
         {teams.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-4 text-sm text-ink-mute">
-            You&apos;re not on any teams.
-          </p>
+          <EmptyState size="compact" title="You're not on any teams." />
         ) : (
           <SFCard pad={0}>
             <ul className="divide-y divide-hairline">

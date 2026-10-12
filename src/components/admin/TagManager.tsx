@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { TagChip, TAG_COLORS } from "@/components/admin/TagChip";
 import { createTag, deleteTag, updateTag } from "@/app/(app)/admin/actions";
 import type { ContactTag } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface TagManagerProps {
   initialTags: ContactTag[];
@@ -131,9 +132,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
       {/* List */}
       <div className="space-y-2">
         {tags.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-            No tags yet. Create one above.
-          </p>
+          <EmptyState title="No tags yet." description="Create one above." />
         ) : (
           <ul className="divide-y divide-hairline rounded-lg border border-hairline bg-surface">
             {tags.map((t) => {

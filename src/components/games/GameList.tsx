@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Game, GameAvailability } from "@/lib/types";
 import { GameRow } from "@/components/games/GameRow";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface GameListProps {
   teamId: string;
@@ -61,9 +62,7 @@ export async function GameList({ teamId, filter = "all" }: GameListProps) {
 
   if (all.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
-        No games yet — create your first game above.
-      </p>
+      <EmptyState title="No games yet" description="Create your first game above." />
     );
   }
 
@@ -111,15 +110,11 @@ export async function GameList({ teamId, filter = "all" }: GameListProps) {
       )}
 
       {filter === "upcoming" && active.length === 0 && (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
-          No upcoming games.
-        </p>
+        <EmptyState title="No upcoming games." />
       )}
 
       {filter === "final" && completed.length === 0 && (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
-          No completed games.
-        </p>
+        <EmptyState title="No completed games." />
       )}
     </div>
   );

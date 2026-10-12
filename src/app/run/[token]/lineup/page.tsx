@@ -7,6 +7,7 @@ import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
 import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export const dynamic = "force-dynamic";
 
@@ -120,9 +121,10 @@ export default async function LineupPage({ params }: LineupPageProps) {
       </div>
 
       {availablePlayers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-          No one&apos;s marked available yet. Go back and mark players available first.
-        </p>
+        <EmptyState
+          title="No one's marked available yet."
+          description="Go back and mark players available first."
+        />
       ) : (
         <LineupPicker
           auth={auth}

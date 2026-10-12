@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export interface Column<T> {
   key: string;
@@ -27,9 +28,7 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-8 text-center text-sm text-ink-mute">
-        {empty}
-      </div>
+      <EmptyState title={empty} />
     );
   }
 
