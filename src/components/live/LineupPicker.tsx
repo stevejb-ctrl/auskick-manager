@@ -71,8 +71,10 @@ interface LineupPickerProps {
    * EFFECTIVE ms; the legacy share-token mount supplies the age-group default.
    */
   fullPeriodMs: number;
-  /** Optional href for the Back button shown above the picker. */
+  /** Where "Save plan & exit" returns to (game detail). */
   backHref?: string;
+  /** The game's availability page, for the "Update availability" link. */
+  availabilityHref?: string;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. The server page builds it (it
@@ -153,6 +155,7 @@ export function LineupPicker({
   gameMinutes,
   fullPeriodMs,
   backHref,
+  availabilityHref,
   gamePlanButton,
   initialDraft,
   chipModeByKey = {},
@@ -623,7 +626,7 @@ export function LineupPicker({
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
     <div ref={lineupPickerRootRef} className="space-y-4">
-      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
+      <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
 
       {/* Lent players — always-visible recall strip so a coach can shuffle
           lent players straight from the picker (recall was previously only

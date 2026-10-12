@@ -286,7 +286,7 @@ export default async function RunPage({ params }: RunPageProps) {
               seasonEvents={leagueSeasonEvents}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              backHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}`}
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
             />

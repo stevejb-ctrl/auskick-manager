@@ -98,7 +98,7 @@ interface LeagueLineupPickerProps {
   minOnFieldSize: number;
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
-  backHref?: string | null;
+  availabilityHref?: string | null;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (which
@@ -136,7 +136,7 @@ export function LeagueLineupPicker({
   minOnFieldSize,
   maxOnFieldSize,
   initialDraft,
-  backHref,
+  availabilityHref,
   gamePlanButton,
   seasonEvents,
   initialLoanedIds = [],
@@ -948,7 +948,7 @@ export function LeagueLineupPicker({
   return (
     <div ref={pickerRootRef} className="space-y-4 pb-32">
       <LineupPickerBreadcrumb
-        backHref={backHref ?? undefined}
+        availabilityHref={availabilityHref ?? undefined}
         action={gamePlanButton}
       />
 

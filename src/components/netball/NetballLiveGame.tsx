@@ -1702,9 +1702,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the
           // link is hidden in that case.
-          backHref={
+          availabilityHref={
             auth.kind === "team"
-              ? `/teams/${auth.teamId}/games/${game.id}`
+              ? `/teams/${auth.teamId}/games/${game.id}/availability`
               : undefined
           }
           gamePlanButton={gamePlanButton}

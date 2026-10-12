@@ -71,3 +71,35 @@ test("pre-kickoff lineup renders a full field of players", async ({
   ).toBeVisible();
   await expect(page.getByText(/season time in zone/i)).toHaveCount(0);
 });
+
+// Regression (UX plan H2 / 0.6): "Update availability" above the
+// pre-kickoff picker linked to game detail, not the availability page,
+// so a coach fixing a no-show took an extra detour.
+test("Update availability on the lineup screen opens the availability page", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("link", { name: /update availability/i }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/teams/${team.id}/games/${game.id}/availability$`),
+    { timeout: 10_000 },
+  );
+});

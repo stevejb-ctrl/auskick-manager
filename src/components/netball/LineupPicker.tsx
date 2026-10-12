@@ -87,7 +87,7 @@ interface LineupPickerProps {
    * (e.g. Q-break flow where we're not in a "I picked the wrong
    * starting roster" recovery scenario).
    */
-  backHref?: string;
+  availabilityHref?: string;
   /**
    * Optional pre-game "Game plan" opener, rendered in the shared
    * breadcrumb row above the picker. Built by the server page (via
@@ -192,7 +192,7 @@ export function NetballLineupPicker({
   onConfirm,
   confirmLabel = "Confirm lineup",
   disabled,
-  backHref,
+  availabilityHref,
   gamePlanButton,
   onSavePlan,
   initialSavedAt = null,
@@ -752,7 +752,7 @@ export function NetballLineupPicker({
 
   return (
     <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
+      <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
 
       {/* ── Game settings (collapsible) ──────────────────────────
           Steve 2026-05-16: parity with the AFL pre-game picker —

@@ -402,7 +402,7 @@ export default async function LivePage({ params }: LivePageProps) {
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              backHref={`/teams/${params.teamId}/games/${params.gameId}`}
+              availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
               chipLabels={{
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,
@@ -971,6 +971,7 @@ export default async function LivePage({ params }: LivePageProps) {
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          availabilityHref={`/teams/${params.teamId}/games/${params.gameId}/availability`}
           gamePlanButton={
             <GamePlanButton
               sport={sport}
