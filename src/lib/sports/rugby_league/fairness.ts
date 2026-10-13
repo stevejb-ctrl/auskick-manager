@@ -116,6 +116,32 @@ export function emptyLeagueGameState(): LeagueGameState {
 }
 
 /**
+ * A rolling sub: `on` takes the exact spot `off` held in their line and
+ * `off` goes to the bench. Every other kid keeps their place — the field
+ * draws spots in list order (the last back is the fullback), so appending
+ * the sub to the end of the line shifted everyone after the gap. A
+ * late arrival (not on the bench) comes on the same way; an `off` who is
+ * somehow not on the field leaves `on` joining the forwards.
+ */
+export function swapInLeagueLineup<T extends { forwards: string[]; backs: string[]; bench: string[] }>(
+  lineup: T,
+  off: string,
+  on: string,
+): { lineup: T; offZone: LeagueZone } {
+  const without = (ids: string[]) => ids.filter((id) => id !== on);
+  const forwards = without(lineup.forwards);
+  const backs = without(lineup.backs);
+  const bench = without(lineup.bench);
+  const offZone: LeagueZone = backs.includes(off) ? "back" : "forward";
+  const line = offZone === "back" ? backs : forwards;
+  const spot = line.indexOf(off);
+  if (spot >= 0) line[spot] = on;
+  else line.push(on);
+  if (!bench.includes(off)) bench.push(off);
+  return { lineup: { ...lineup, forwards, backs, bench }, offZone };
+}
+
+/**
  * Replay a rugby-league game's events into a `LeagueGameState`.
  *
  * Pure function — input must already include `created_at` for stable
@@ -202,35 +228,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         const off = meta.off_player_id;
         const on = meta.on_player_id;
         if (!off || !on) break;
-        const forwards = state.lineup.forwards.slice();
-        const backs = state.lineup.backs.slice();
-        const bench = state.lineup.bench.slice();
-        // Figure out where the off-player was. Default to "forward"
-        // if they were already off the field somehow — gives the
-        // replay forward-bias when the data is inconsistent.
-        let offZone: LeagueZone = "forward";
-        const fwdIdx = forwards.indexOf(off);
-        const backIdx = backs.indexOf(off);
-        if (backIdx >= 0) {
-          offZone = "back";
-          backs.splice(backIdx, 1);
-        } else if (fwdIdx >= 0) {
-          offZone = "forward";
-          forwards.splice(fwdIdx, 1);
-        }
-        // Bench off-player slot — re-append unless already on bench.
-        if (!bench.includes(off)) bench.push(off);
-        // Pull on-player from bench / other zone if present.
-        const benchIdx = bench.indexOf(on);
-        if (benchIdx >= 0) bench.splice(benchIdx, 1);
-        const onFwdIdx = forwards.indexOf(on);
-        if (onFwdIdx >= 0) forwards.splice(onFwdIdx, 1);
-        const onBackIdx = backs.indexOf(on);
-        if (onBackIdx >= 0) backs.splice(onBackIdx, 1);
-        // Place on-player into the off-player's vacated zone.
-        if (offZone === "back") backs.push(on);
-        else forwards.push(on);
-        state.lineup = { forwards, backs, bench };
+        state.lineup = swapInLeagueLineup(state.lineup, off, on).lineup;
         // B4 recency: a mid-quarter sub-on is a bench->field transition;
         // stamp the absolute frame so it survives the period boundary.
         state.lastSubbedOnMs[on] = completedQuarterMs + (meta.elapsed_ms ?? 0);
@@ -1664,29 +1662,7 @@ export function playerMsOnField(
         // replayer); a late arrival (on-player not on bench) lands
         // in that vacated zone too.
         if (snapshot && meta.off_player_id && meta.on_player_id) {
-          const off = meta.off_player_id;
-          const on = meta.on_player_id;
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          let bench: string[] = snapshot.bench.slice();
-          let offZone: LeagueZone = "forward";
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) {
-            offZone = "back";
-            backs.splice(bIdx, 1);
-          } else if (fIdx >= 0) {
-            offZone = "forward";
-            forwards.splice(fIdx, 1);
-          }
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, meta.off_player_id, meta.on_player_id).lineup;
         }
         break;
       }
@@ -1857,29 +1833,7 @@ export function playedZoneMsByPeriod(
         // Mirror the swap into snapshot so a later quarter_start seeds
         // the right field set (same rule as playerMsOnField).
         if (snapshot && meta.off_player_id && meta.on_player_id) {
-          const off = meta.off_player_id;
-          const on = meta.on_player_id;
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          const bench: string[] = snapshot.bench.slice();
-          let offZone: LeagueZone = "forward";
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) {
-            offZone = "back";
-            backs.splice(bIdx, 1);
-          } else if (fIdx >= 0) {
-            offZone = "forward";
-            forwards.splice(fIdx, 1);
-          }
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, meta.off_player_id, meta.on_player_id).lineup;
         }
         break;
       }
@@ -2124,21 +2078,7 @@ function walkLeagueStints(
         }
         // Mirror the swap into snapshot (same rules as playerMsOnField).
         if (snapshot && off && on) {
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          let bench: string[] = snapshot.bench.slice();
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) backs.splice(bIdx, 1);
-          else if (fIdx >= 0) forwards.splice(fIdx, 1);
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, off, on).lineup;
         }
         if (on && openStint[on] === undefined) {
           const vest = on === vestWearer.fr || on === vestWearer.dh;

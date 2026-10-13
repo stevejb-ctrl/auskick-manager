@@ -626,6 +626,28 @@ describe("suggestLeagueLineup — chip-aware zone distribution", () => {
   });
 });
 
+// Round 5 (Stagehand whole-game-league, sideline-chaos-league): a sub
+// put the incoming kid at the end of the line, so every kid after the
+// outgoing one shifted a spot on the field (and the last back is drawn
+// as fullback). The sub takes the outgoing kid's spot, like AFL.
+describe("replayLeagueGame — a rolling sub takes the outgoing kid's spot", () => {
+  it("keeps everyone else where they were", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("lineup_set", {
+        lineup: { forwards: ["f1", "f2", "f3"], backs: ["b1", "b2", "b3", "b4"], bench: ["x", "y"] },
+        sport: "rugby_league",
+      }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+      ev("swap", { quarter: 1, elapsed_ms: 60_000, off_player_id: "b2", on_player_id: "x", sport: "rugby_league" }),
+      ev("swap", { quarter: 1, elapsed_ms: 90_000, off_player_id: "f1", on_player_id: "y", sport: "rugby_league" }),
+    ]);
+    expect(state.lineup?.backs).toEqual(["b1", "x", "b3", "b4"]);
+    expect(state.lineup?.forwards).toEqual(["y", "f2", "f3"]);
+    expect(state.lineup?.bench).toEqual(["b2", "f1"]);
+  });
+});
+
 describe("suggestLeagueSubs — whole-bench rotation (AFL parity)", () => {
   it("returns one swap PER bench player, longest-on-bench first (Steve 2026-05-19)", () => {
     reset();
