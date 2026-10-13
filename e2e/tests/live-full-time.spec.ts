@@ -16,9 +16,15 @@ import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-test("ending Q4 completes the game and renders the summary card", async ({
-  page,
-}) => {
+type Seeded = Awaited<ReturnType<typeof seedGameAtQ4Hooter>>;
+
+/** A U10 game three quarters in, with Q4 already past the hooter. */
+async function seedGameAtQ4Hooter(
+  scores: (
+    players: Array<{ id: string }>,
+    quarterAt: (q: number) => string,
+  ) => Array<Record<string, unknown>> = () => [],
+) {
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -84,8 +90,21 @@ test("ending Q4 completes the game and renders the summary card", async ({
       });
     }
   }
+  // Scores land a minute into their quarter.
+  const quarterAt = (q: number) =>
+    new Date(now - (5 - q) * QUARTER_DURATION + 60_000).toISOString();
+  for (const e of scores(players, quarterAt)) {
+    events.push({ game_id: game.id, created_by: ownerId, ...e });
+  }
   await admin.from("game_events").insert(events);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  return { admin, team, players, game };
+}
+
+test("ending Q4 completes the game and renders the summary card", async ({
+  page,
+}) => {
+  const { admin, team, game }: Seeded = await seedGameAtQ4Hooter();
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
@@ -141,4 +160,74 @@ test("ending Q4 completes the game and renders the summary card", async ({
     .eq("game_id", game.id)
     .eq("type", "game_finalised");
   expect(finalised?.length ?? 0).toBeGreaterThanOrEqual(1);
+});
+
+// Round 5 (Stagehand whole-game-afl): a behind deleted in the full-time
+// Fix scores panel came off the scoreline but stayed in the summary's
+// scorers line ("Ava 0.1" with only three behinds on the board). The
+// panel moved the team total in the live store but never the player's
+// own tally, and the store doesn't re-hydrate on router.refresh().
+test("Fix scores at full time keeps the summary's scorers in step", async ({
+  page,
+}) => {
+  const { admin, team, players, game } = await seedGameAtQ4Hooter(
+    (p, at) => [
+      { type: "goal", player_id: p[0].id, metadata: { quarter: 1 }, created_at: at(1) },
+      { type: "behind", player_id: p[1].id, metadata: { quarter: 2 }, created_at: at(2) },
+    ],
+  );
+  // Track scoring on so the full-time review shows Fix scores.
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const [kicker, wrongBehind, missedGoal] = players as Array<{
+    id: string;
+    full_name: string;
+    jersey_number: number;
+  }>;
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^end game$/i }).click();
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // Delete the behind that was never kicked.
+  const row = page.getByRole("listitem").filter({ hasText: wrongBehind.full_name });
+  await row.getByRole("button", { name: "Delete this score" }).click();
+  await page.getByRole("button", { name: /^delete$/i }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("id")
+        .eq("game_id", game.id)
+        .eq("type", "score_undo");
+      return data?.length ?? 0;
+    })
+    .toBe(1);
+
+  // Add the goal nobody tapped.
+  await page.getByRole("button", { name: /\+ add a missed score/i }).click();
+  await page.getByLabel("Type").selectOption("goal");
+  await page.getByLabel("Player").selectOption(missedGoal.id);
+  await page.getByRole("button", { name: /^add$/i }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("id")
+        .eq("game_id", game.id)
+        .eq("type", "goal")
+        .eq("player_id", missedGoal.id);
+      return data?.length ?? 0;
+    })
+    .toBe(1);
+
+  await page.getByRole("button", { name: /finish game/i }).click();
+  const summary = page.locator("#game-summary-text");
+  await expect(summary).toContainText(/def|drew/, { timeout: 10_000 });
+  const text = (await summary.textContent()) ?? "";
+  const scorers = text.split("Scorers:")[1]?.split("\n")[0] ?? "";
+  expect(scorers).toContain(`${kicker.full_name} (#${kicker.jersey_number}) 1.0`);
+  expect(scorers).toContain(`${missedGoal.full_name} (#${missedGoal.jersey_number}) 1.0`);
+  expect(scorers).not.toContain(wrongBehind.full_name);
 });

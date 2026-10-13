@@ -48,6 +48,11 @@ export function ScoreReviewPanel({
   const incOpponent = useLiveGame((s) => s.incOpponent);
   const undoTeamScore = useLiveGame((s) => s.undoTeamScore);
   const undoOpponentScore = useLiveGame((s) => s.undoOpponentScore);
+  // The scorer’s own tally moves with the team total — the live store
+  // doesn’t re-hydrate on router.refresh(), so without these the full-
+  // time summary kept a deleted behind against the kid who “kicked” it.
+  const incPlayerScore = useLiveGame((s) => s.incPlayerScore);
+  const undoPlayerScore = useLiveGame((s) => s.undoPlayerScore);
 
   const playersById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -100,14 +105,17 @@ export function ScoreReviewPanel({
       entry.type === "goal" || entry.type === "opponent_goal"
         ? "goals"
         : "behinds";
+    const scorer = isOurs ? entry.player_id : null;
     if (isOurs) undoTeamScore(kind, q);
     else undoOpponentScore(kind, q);
+    if (scorer) undoPlayerScore(scorer, kind);
 
     startTransitionFn(async () => {
       const result = await deleteScore(auth, gameId, entry.id);
       if (!result.success) {
         if (isOurs) incTeam(kind, q);
         else incOpponent(kind, q);
+        if (scorer) incPlayerScore(scorer, kind);
         setScoreLogError(result.error);
         return;
       }
@@ -127,6 +135,7 @@ export function ScoreReviewPanel({
       addKind === "goal" || addKind === "opponent_goal" ? "goals" : "behinds";
     if (isOurs) incTeam(kind, addQuarter);
     else incOpponent(kind, addQuarter);
+    if (isOurs) incPlayerScore(addPlayerId, kind);
 
     startTransitionFn(async () => {
       const result = await addRetroScore(auth, gameId, {
@@ -137,6 +146,7 @@ export function ScoreReviewPanel({
       if (!result.success) {
         if (isOurs) undoTeamScore(kind, addQuarter);
         else undoOpponentScore(kind, addQuarter);
+        if (isOurs) undoPlayerScore(addPlayerId, kind);
         setScoreLogError(result.error);
         return;
       }
