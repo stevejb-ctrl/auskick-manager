@@ -39,6 +39,29 @@ import { isNative } from "@/lib/platform";
 export type ActionResult = { success: boolean; error?: string };
 
 /**
+ * Scores and their undos share one lane, so an undo can never overtake
+ * the score it takes back (Stagehand round 2: a netball undo ran before
+ * its goal was saved, found nothing to undo, and paused). Every other
+ * kind is its own lane.
+ */
+const SCORE_LANE = new Set([
+  "recordGoal",
+  "recordBehind",
+  "recordOpponentScore",
+  "recordNetballGoal",
+  "recordNetballOpponentGoal",
+  "undoNetballScore",
+  "recordTry",
+  "recordOpponentTry",
+  "recordConversionAttempt",
+  "recordOpponentConversion",
+  "undoLeagueScore",
+]);
+export function laneOf(kind: string): string {
+  return SCORE_LANE.has(kind) ? "score" : kind;
+}
+
+/**
  * Handler signature: receives the caller's positional args plus
  * the queue-generated idempotency key as the final argument.
  */
@@ -129,9 +152,9 @@ export function registerActionHandler(
   // queued before the handler loaded should now proceed. Clear
   // any pause on this kind and kick a drain.
   const store = useWriteQueue.getState();
-  if (store.pausedKinds.includes(kind)) {
+  if (store.pausedKinds.includes(laneOf(kind))) {
     useWriteQueue.setState((s) => ({
-      pausedKinds: s.pausedKinds.filter((k) => k !== kind),
+      pausedKinds: s.pausedKinds.filter((k) => k !== laneOf(kind)),
     }));
     void store.drain();
   }
@@ -202,8 +225,8 @@ export const useWriteQueue = create<WriteQueueState>()(
           const scheduledKinds = new Set<string>(state.inFlightKinds);
           const batch: QueueOp[] = [];
           for (const op of state.queue) {
-            if (scheduledKinds.has(op.kind)) continue;
-            if (state.pausedKinds.includes(op.kind)) continue;
+            if (scheduledKinds.has(laneOf(op.kind))) continue;
+            if (state.pausedKinds.includes(laneOf(op.kind))) continue;
             const handler = handlers[op.kind];
             if (!handler) {
               // Missing handler ⇒ pause this kind. Other kinds
@@ -213,15 +236,15 @@ export const useWriteQueue = create<WriteQueueState>()(
                 `[writeQueue] no handler for kind=${op.kind} — pausing lane at op id=${op.id}`,
               );
               set((s) => ({
-                pausedKinds: s.pausedKinds.includes(op.kind)
+                pausedKinds: s.pausedKinds.includes(laneOf(op.kind))
                   ? s.pausedKinds
-                  : [...s.pausedKinds, op.kind],
+                  : [...s.pausedKinds, laneOf(op.kind)],
               }));
-              scheduledKinds.add(op.kind); // skip subsequent same-kind ops this pass
+              scheduledKinds.add(laneOf(op.kind)); // skip subsequent same-lane ops this pass
               continue;
             }
             batch.push(op);
-            scheduledKinds.add(op.kind);
+            scheduledKinds.add(laneOf(op.kind));
           }
           if (batch.length === 0) break;
 
@@ -229,7 +252,7 @@ export const useWriteQueue = create<WriteQueueState>()(
           // yielding to await — protects against a concurrent
           // drain() picking up the same op.
           set((s) => ({
-            inFlightKinds: [...s.inFlightKinds, ...batch.map((o) => o.kind)],
+            inFlightKinds: [...s.inFlightKinds, ...batch.map((o) => laneOf(o.kind))],
           }));
 
           await Promise.all(batch.map((op) => dispatchOp(op)));
@@ -299,7 +322,7 @@ async function dispatchOp(op: QueueOp): Promise<void> {
 
   // Always remove from in-flight.
   useWriteQueue.setState((s) => {
-    const idx = s.inFlightKinds.indexOf(op.kind);
+    const idx = s.inFlightKinds.indexOf(laneOf(op.kind));
     if (idx === -1) return s;
     const next = s.inFlightKinds.slice();
     next.splice(idx, 1);
@@ -344,7 +367,7 @@ async function dispatchOp(op: QueueOp): Promise<void> {
         // Don't keep the kind paused — other ops of the same kind
         // should still get a chance. The next op's success will
         // clear any lingering state.
-        pausedKinds: s.pausedKinds.filter((k) => k !== op.kind),
+        pausedKinds: s.pausedKinds.filter((k) => k !== laneOf(op.kind)),
       }));
     } else {
       // Transient failure: bump attemptCount, pause this kind. The
@@ -360,9 +383,9 @@ async function dispatchOp(op: QueueOp): Promise<void> {
               }
             : q,
         ),
-        pausedKinds: s.pausedKinds.includes(op.kind)
+        pausedKinds: s.pausedKinds.includes(laneOf(op.kind))
           ? s.pausedKinds
-          : [...s.pausedKinds, op.kind],
+          : [...s.pausedKinds, laneOf(op.kind)],
       }));
     }
   }

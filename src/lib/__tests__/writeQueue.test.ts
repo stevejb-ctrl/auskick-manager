@@ -146,6 +146,33 @@ describe("writeQueue", () => {
 
   // ─── Phase 4b: per-kind lane semantics ───────────────────────
 
+  it("a score and its undo share a lane, so the undo never overtakes the score", async () => {
+    // Stagehand round 2: a netball undo ran before its goal was saved,
+    // found nothing to take back, and paused its lane.
+    const calls: string[] = [];
+    let goalResolve!: () => void;
+    const goalGate = new Promise<void>((r) => (goalResolve = r));
+    registerActionHandler("recordNetballGoal", async (): Promise<ActionResult> => {
+      calls.push("goal-start");
+      await goalGate;
+      calls.push("goal-end");
+      return { success: true };
+    });
+    registerActionHandler("undoNetballScore", async (): Promise<ActionResult> => {
+      calls.push("undo");
+      return { success: true };
+    });
+
+    useWriteQueue.getState().enqueue("recordNetballGoal", []);
+    useWriteQueue.getState().enqueue("undoNetballScore", []);
+    await flushMicrotasks();
+    expect(calls).toEqual(["goal-start"]);
+
+    goalResolve();
+    await flushMicrotasks();
+    expect(calls).toEqual(["goal-start", "goal-end", "undo"]);
+  });
+
   it("runs ops of DIFFERENT kinds in parallel (lane independence)", async () => {
     // Old behaviour serialized everything — a slow score-goal would
     // delay a set-availability flip behind it. New behaviour
