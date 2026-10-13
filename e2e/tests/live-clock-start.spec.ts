@@ -113,12 +113,15 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
   await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Modal disappears, clock pill flips to running ("Clock — Q1, running").
+  // No second tap. The modal waits (spinner) for the one save + the
+  // redirect into the live game, which on a busy production build ran
+  // past the old 3 s window (failing 1 run in 2, round 5).
   await expect(
     page.getByRole("heading", { name: /^start q1$/i }),
-  ).toBeHidden({ timeout: 3_000 });
+  ).toBeHidden({ timeout: 10_000 });
   await expect(
     page.getByRole("button", { name: /^clock — q1, running$/i }),
-  ).toBeVisible({ timeout: 5_000 });
+  ).toBeVisible({ timeout: 10_000 });
 
   // Server has exactly one quarter_start event — proving the single
   // tap persisted, not just updated the optimistic in-memory store.
