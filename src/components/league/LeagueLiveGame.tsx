@@ -200,6 +200,8 @@ export function LeagueLiveGame({
    * player tile.
    */
   const [scorerPickerOpen, setScorerPickerOpen] = useState(false);
+  // U13+: the kicker picker for a penalty / field goal (null = closed).
+  const [goalPicker, setGoalPicker] = useState<"penalty_goal" | "field_goal" | null>(null);
   /**
    * Long-press action sheet target. Null when closed; otherwise the
    * player_id whose tile was long-pressed. Driven by both field and
@@ -903,6 +905,7 @@ export function LeagueLiveGame({
           (ageGroup.vestRequirements?.fr ?? false)
           || (ageGroup.vestRequirements?.dh ?? false),
         kickingAllowed: ageGroup.kickingAllowed === true,
+        internationalLaws: ageGroup.internationalLaws === true,
         trackZoneTime,
         enforceUnbrokenPeriods,
       }),
@@ -911,6 +914,7 @@ export function LeagueLiveGame({
       ageGroup.periodLabel,
       ageGroup.vestRequirements,
       ageGroup.kickingAllowed,
+      ageGroup.internationalLaws,
       trackZoneTime,
       enforceUnbrokenPeriods,
     ],
@@ -1100,6 +1104,32 @@ export function LeagueLiveGame({
     ]);
     await flushed;
     setPending(false);
+    router.refresh();
+  }
+
+  // U13+ (international laws): penalty goal 2, field goal 1. Ours name
+  // the kicker (from the picker or the dock); theirs record directly.
+  async function recordLeagueGoalKind(
+    kind: "penalty_goal" | "field_goal" | "opponent_penalty_goal" | "opponent_field_goal",
+    kickerId: string | null,
+  ) {
+    setPending(true);
+    const { flushed } = enqueueLiveAction("recordLeagueGoal", [
+      auth,
+      game.id,
+      kind,
+      kickerId,
+      state.currentQuarter,
+      elapsedMs,
+    ]);
+    try {
+      await flushed;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't record that goal.");
+    } finally {
+      setPending(false);
+    }
+    handleClearSelection();
     router.refresh();
   }
 
@@ -2118,6 +2148,10 @@ export function LeagueLiveGame({
           onOpponentConversion={
             kickingAllowed ? handleRecordOpponentConversion : undefined
           }
+          onTeamPenaltyGoal={internationalLaws ? () => setGoalPicker("penalty_goal") : undefined}
+          onTeamFieldGoal={internationalLaws ? () => setGoalPicker("field_goal") : undefined}
+          onOpponentPenaltyGoal={internationalLaws ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+          onOpponentFieldGoal={internationalLaws ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined}
           onUndo={
             state.teamScore.points > 0 || state.opponentScore.points > 0
               ? handleUndoScore
@@ -2219,6 +2253,26 @@ export function LeagueLiveGame({
               >
                 + Try
               </button>
+              {internationalLaws && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void recordLeagueGoalKind("penalty_goal", selectedPlayer.id)}
+                    disabled={pending}
+                    className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
+                  >
+                    + Penalty goal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void recordLeagueGoalKind("field_goal", selectedPlayer.id)}
+                    disabled={pending}
+                    className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
+                  >
+                    + Field goal
+                  </button>
+                </div>
+              )}
               <p className="text-center text-[11px] text-ink-mute">
                 Or tap a bench player to swap{" "}
                 <strong>{selectedPlayer.full_name}</strong> off.
@@ -2276,6 +2330,14 @@ export function LeagueLiveGame({
                   : undefined
               }
               kickingAllowed={kickingAllowed}
+              onTeamPenaltyGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => setGoalPicker("penalty_goal") : undefined}
+              onTeamFieldGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => setGoalPicker("field_goal") : undefined}
+              onOpponentPenaltyGoal={
+                (isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined
+              }
+              onOpponentFieldGoal={
+                (isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined
+              }
               pending={pending}
               running={running}
               onClockTap={isPeriodActive ? handleClockTap : undefined}
@@ -2527,6 +2589,21 @@ export function LeagueLiveGame({
               onDone={() => setForceVestReplaceOpen(false)}
             />
           </Modal>
+      )}
+
+      {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
+      {goalPicker && (
+        <LeagueScorerPicker
+          score={goalPicker}
+          onFieldPlayers={fieldPlayers}
+          pending={pending}
+          onCancel={() => setGoalPicker(null)}
+          onPick={(pid) => {
+            const kind = goalPicker;
+            setGoalPicker(null);
+            void recordLeagueGoalKind(kind, pid);
+          }}
+        />
       )}
 
       {/* Own-team scorer picker — invoked by scorebug +T. */}

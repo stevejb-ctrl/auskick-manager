@@ -24,6 +24,7 @@ import { hapticSiren } from "@/lib/haptics";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import {
   leagueScoreByPeriod,
+  leagueScoreLine,
   type LeagueScoreByPeriod,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -68,6 +69,11 @@ interface LeagueFullTimeReviewProps {
   onTeamConversion?: () => void;
   onOpponentTry?: () => void;
   onOpponentConversion?: () => void;
+  /** U13+ (international laws): penalty and field goals. */
+  onTeamPenaltyGoal?: () => void;
+  onTeamFieldGoal?: () => void;
+  onOpponentPenaltyGoal?: () => void;
+  onOpponentFieldGoal?: () => void;
   onUndo?: () => void;
   /** Pending guard — disables chips while a write is in flight. */
   scorePending?: boolean;
@@ -88,6 +94,10 @@ export function LeagueFullTimeReview({
   onTeamConversion,
   onOpponentTry,
   onOpponentConversion,
+  onTeamPenaltyGoal,
+  onTeamFieldGoal,
+  onOpponentPenaltyGoal,
+  onOpponentFieldGoal,
   onUndo,
   scorePending = false,
 }: LeagueFullTimeReviewProps) {
@@ -133,7 +143,7 @@ export function LeagueFullTimeReview({
               {state.teamScore.points}
             </p>
             <p className="text-[11px] text-ink-mute">
-              {state.teamScore.tries}T · {state.teamScore.conversions}C
+              {leagueScoreLine(state.teamScore)}
             </p>
           </div>
           <div className="rounded-md border border-hairline bg-surface-alt p-3">
@@ -144,7 +154,7 @@ export function LeagueFullTimeReview({
               {state.opponentScore.points}
             </p>
             <p className="text-[11px] text-ink-mute">
-              {state.opponentScore.tries}T · {state.opponentScore.conversions}C
+              {leagueScoreLine(state.opponentScore)}
             </p>
           </div>
         </div>
@@ -184,7 +194,7 @@ export function LeagueFullTimeReview({
                         {row.team.points}
                       </span>{" "}
                       <span className="text-[10px] text-ink-mute">
-                        ({row.team.tries}T · {row.team.conversions}C)
+                        ({leagueScoreLine(row.team)})
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
@@ -192,7 +202,7 @@ export function LeagueFullTimeReview({
                         {row.opponent.points}
                       </span>{" "}
                       <span className="text-[10px] text-ink-mute">
-                        ({row.opponent.tries}T · {row.opponent.conversions}C)
+                        ({leagueScoreLine(row.opponent)})
                       </span>
                     </td>
                   </tr>
@@ -212,13 +222,14 @@ export function LeagueFullTimeReview({
           there's no scorer to attribute. Undo pops the most
           recent surviving scoring event (LIFO). Hidden entirely
           when scoring is off. Steve 2026-05-23. */}
-      {trackScoring && (onTeamTry || onTeamConversion || onOpponentTry || onOpponentConversion || onUndo) && (
+      {trackScoring && (onTeamTry || onTeamConversion || onOpponentTry || onOpponentConversion || onTeamPenaltyGoal || onOpponentPenaltyGoal || onUndo) && (
         <section className="mt-3 rounded-md border border-hairline bg-surface-alt p-3">
           <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
             Score adjustments
           </p>
           <p className="mt-0.5 text-[11px] text-ink-mute">
-            Spotted a miscount? Add a missed score with +T / +C, or
+            Spotted a miscount? Add a missed score with +T / +C
+            {onTeamPenaltyGoal || onOpponentPenaltyGoal ? " / +PG / +FG" : ""}, or
             undo the most recent one.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -248,6 +259,20 @@ export function LeagueFullTimeReview({
                   </button>
                 )}
               </div>
+              {(onTeamPenaltyGoal || onTeamFieldGoal) && (
+                <div className="flex gap-1.5">
+                  {onTeamPenaltyGoal && (
+                    <button type="button" onClick={onTeamPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
+                      + PG
+                    </button>
+                  )}
+                  {onTeamFieldGoal && (
+                    <button type="button" onClick={onTeamFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
+                      + FG
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2">
               <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">
@@ -275,6 +300,20 @@ export function LeagueFullTimeReview({
                   </button>
                 )}
               </div>
+              {(onOpponentPenaltyGoal || onOpponentFieldGoal) && (
+                <div className="flex gap-1.5">
+                  {onOpponentPenaltyGoal && (
+                    <button type="button" onClick={onOpponentPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
+                      + PG
+                    </button>
+                  )}
+                  {onOpponentFieldGoal && (
+                    <button type="button" onClick={onOpponentFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
+                      + FG
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           {onUndo

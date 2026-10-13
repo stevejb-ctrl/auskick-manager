@@ -1,7 +1,8 @@
 "use client";
 
 // ─── LeagueScorerPicker ──────────────────────────────────────
-// Tiny bottom-sheet picker invoked by the scorebug's `+T` button.
+// Tiny bottom-sheet picker invoked by the scorebug's `+T` button
+// (and, U13+, `+PG` / `+FG` to name the kicker).
 // Lists on-field players so the coach can attribute the try
 // without first having to tap the player tile. Sibling of AFL's
 // `ScorerPickerSheet` pattern (inlined in LiveGame.tsx).
@@ -17,23 +18,33 @@ interface LeagueScorerPickerProps {
   onPick: (playerId: string) => void;
   onCancel: () => void;
   pending: boolean;
+  /** What was scored. Defaults to a try. */
+  score?: "try" | "penalty_goal" | "field_goal";
 }
+
+const COPY = {
+  try: { label: "Who scored the try?", heading: "Who scored?", prompt: "Pick the player who scored the try." },
+  penalty_goal: { label: "Who kicked the penalty goal?", heading: "Who kicked?", prompt: "Pick the player who kicked the penalty goal." },
+  field_goal: { label: "Who kicked the field goal?", heading: "Who kicked?", prompt: "Pick the player who kicked the field goal." },
+} as const;
 
 export function LeagueScorerPicker({
   onFieldPlayers,
   onPick,
   onCancel,
   pending,
+  score = "try",
 }: LeagueScorerPickerProps) {
+  const copy = COPY[score];
   return (
-    <Modal size="md" placement="sheet" label="Who scored the try?" onClose={onCancel} padding="p-4">
+    <Modal size="md" placement="sheet" label={copy.label} onClose={onCancel} padding="p-4">
         <header className="mb-2 flex items-start justify-between">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
-              Who scored?
+              {copy.heading}
             </h2>
             <p className="text-xs text-ink-mute">
-              Pick the player who scored the try.
+              {copy.prompt}
             </p>
           </div>
           <button

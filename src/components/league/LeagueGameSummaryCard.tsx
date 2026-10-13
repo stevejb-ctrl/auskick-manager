@@ -17,7 +17,7 @@
 
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
-import { playerMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { leagueScoreLine, playerMsOnField } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
@@ -59,10 +59,8 @@ function buildSummary(
   if (trackScoring) {
     const us = state.teamScore.points;
     const them = state.opponentScore.points;
-    const usFmt
-      = `${us} (${state.teamScore.tries}T · ${state.teamScore.conversions}C)`;
-    const themFmt
-      = `${them} (${state.opponentScore.tries}T · ${state.opponentScore.conversions}C)`;
+    const usFmt = `${us} (${leagueScoreLine(state.teamScore)})`;
+    const themFmt = `${them} (${leagueScoreLine(state.opponentScore)})`;
     if (us > them) {
       lines.push(`${teamName} ${usFmt} def ${opponentName} ${themFmt}`);
     } else if (them > us) {
@@ -101,6 +99,22 @@ function buildSummary(
       });
     if (kickers.length > 0) {
       lines.push(`🥾 Conversions: ${kickers.join(", ")}`);
+    }
+
+    // U13+ penalty and field goals, by kicker.
+    const goalKickers = Object.entries(state.playerGoals ?? {})
+      .filter(([, g]) => g.penalty + g.field > 0)
+      .sort((a, b) => b[1].penalty * 2 + b[1].field - (a[1].penalty * 2 + a[1].field))
+      .map(([id, g]) => {
+        const p = playersById.get(id);
+        const name = p ? firstName(p.full_name) : "Unknown";
+        const jersey
+          = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
+        const bits = [g.penalty > 0 ? `${g.penalty} PG` : null, g.field > 0 ? `${g.field} FG` : null].filter(Boolean);
+        return `${name}${jersey} ${bits.join(", ")}`;
+      });
+    if (goalKickers.length > 0) {
+      lines.push(`🎯 Goals: ${goalKickers.join(", ")}`);
     }
   }
 

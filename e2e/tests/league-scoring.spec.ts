@@ -102,6 +102,10 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
 
+  // Junior laws (U6–U12): no penalty or field goals to record.
+  await expect(page.getByRole("button", { name: "Record a penalty goal for our team" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record opponent field goal" })).toHaveCount(0);
+
   // No try yet: +C still opens the picker (Force needs a way in), but
   // it says why it can't record a kick, and Made / Missed are off.
   await page.getByRole("button", { name: "Record a conversion for our team" }).click();
@@ -176,4 +180,71 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
   }
   const kicks = await eventsOfType(admin, game.id, "conversion_attempt");
   expect(kicks.map((k) => k.player_id)).toEqual([kicker.id, kicker.id]);
+});
+
+test("U13 records penalty and field goals for both sides, and Undo takes one back", async ({ page }) => {
+  // International laws: penalty goal 2, field goal 1.
+  test.setTimeout(120_000);
+  const { admin, team, players, game } = await seedLeagueGame("U13");
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+
+  // Ours from the scorebug: +PG asks who kicked it.
+  await page.getByRole("button", { name: "Record a penalty goal for our team" }).click();
+  const picker = page.getByRole("dialog", { name: /who kicked the penalty goal/i });
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: new RegExp(players[1].full_name) }).click();
+  await expect.poll(async () => (await eventsOfType(admin, game.id, "penalty_goal")).length).toBe(1);
+  expect((await eventsOfType(admin, game.id, "penalty_goal"))[0].player_id).toBe(players[1].id);
+
+  // Ours from the player dock: the kicker is the selected player.
+  await page.getByTestId(`league-player-tile-${players[2].id}`).click();
+  await page.getByRole("button", { name: /^\+ field goal$/i }).click();
+  await expect.poll(async () => (await eventsOfType(admin, game.id, "field_goal")).length).toBe(1);
+  expect((await eventsOfType(admin, game.id, "field_goal"))[0].player_id).toBe(players[2].id);
+
+  // Theirs straight from the scorebug.
+  await page.getByRole("button", { name: "Record opponent penalty goal" }).click();
+  await expect.poll(async () => (await eventsOfType(admin, game.id, "opponent_penalty_goal")).length).toBe(1);
+  await page.getByRole("button", { name: "Record opponent field goal" }).click();
+  await expect.poll(async () => (await eventsOfType(admin, game.id, "opponent_field_goal")).length).toBe(1);
+
+  const us = page.getByTestId("league-score-line-team");
+  const them = page.getByTestId("league-score-line-opponent");
+  await expect(us).toHaveText("0T·0C·1PG·1FG");
+  await expect(them).toHaveText("0T·0C·1PG·1FG");
+  await expect(page.getByTestId("league-points-team")).toHaveText("3");
+
+  // Undo takes back the latest score: their field goal.
+  await page.getByRole("button", { name: /^undo$/i }).click();
+  await expect.poll(async () => (await eventsOfType(admin, game.id, "score_undo")).length).toBe(1);
+  const [undo] = await eventsOfType(admin, game.id, "score_undo");
+  const [theirFieldGoal] = await eventsOfType(admin, game.id, "opponent_field_goal");
+  expect((undo.metadata as { target_event_id?: string }).target_event_id).toBe(theirFieldGoal.id);
+  await expect(them).toHaveText("0T·0C·1PG");
+  await expect(page.getByTestId("league-points-opponent")).toHaveText("2");
+
+  // Full time: the review shows the goals and offers them as fixes too.
+  for (const half of [1, 2]) {
+    await page.getByRole("button", { name: new RegExp(`^clock — h${half}, running$`, "i") }).click();
+    await page.getByRole("button", { name: new RegExp(`^end h${half} now$`, "i") }).click();
+    await page.getByRole("button", { name: new RegExp(`^end\\s*[qh]\\s*${half}$`, "i") }).click();
+    if (half === 1) await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 10_000 });
+  }
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("0T · 0C · 1PG · 1FG").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^\+ PG$/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^\+ FG$/ })).toHaveCount(2);
+
+  // The share text carries the goals and who kicked them.
+  await page.getByRole("button", { name: /finish game/i }).click();
+  await expect(page.getByText(/3 \(0T · 0C · 1PG · 1FG\)/).first()).toBeVisible({ timeout: 15_000 });
+  const kicker = (p: { full_name: string }) => p.full_name.split(" ")[0];
+  await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[1])}.*1 PG`)).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[2])}.*1 FG`)).first()).toBeVisible();
 });

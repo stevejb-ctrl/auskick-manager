@@ -503,6 +503,7 @@ export default async function LivePage({ params }: LivePageProps) {
                     (ageCfgL.vestRequirements?.dh ?? false)
                   }
                   kickingAllowed={ageCfgL.kickingAllowed === true}
+                  internationalLaws={ageCfgL.internationalLaws === true}
                   trackZoneTime={leagueTrackZoneTime}
                   enforceUnbrokenPeriods={leagueEnforceUnbroken}
                 />

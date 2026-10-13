@@ -1,12 +1,15 @@
 "use client";
 
+import type { LeagueScore } from "@/lib/sports/rugby_league/fairness";
+
 // ─── LeagueScoreBug ──────────────────────────────────────────
 // Rugby-league scoreboard contents rendered inside the shared
 // LiveStickyScoreBar. Mirrors AFL `GameHeader` (broadcast scorebug)
 // layout precisely:
 //
 //   Left  : team name + total points (big) + small T·C breakdown
-//           + +T / +C action chips (own-team scoring)
+//           + +T / +C action chips (own-team scoring); U13+
+//           (international laws) adds PG·FG and a +PG / +FG row
 //   Centre: dark clock pill — period chip on top, clock readout
 //           big and bold below.
 //   Right : opponent mirror — +T / +C, total points, T·C.
@@ -18,8 +21,8 @@
 interface LeagueScoreBugProps {
   teamName: string;
   opponentName: string;
-  teamScore: { tries: number; conversions: number; points: number };
-  opponentScore: { tries: number; conversions: number; points: number };
+  teamScore: LeagueScore;
+  opponentScore: LeagueScore;
   periodLabel: string;
   periodLabelPlural: string;
   currentPeriod: number;
@@ -36,6 +39,14 @@ interface LeagueScoreBugProps {
   onOpponentConversion?: () => void;
   /** Whether conversion buttons should render (false for U6/U7). */
   kickingAllowed: boolean;
+  /**
+   * U13+ (international laws): penalty goals and field goals. Own-team
+   * chips open the kicker picker; opponent chips record directly.
+   */
+  onTeamPenaltyGoal?: () => void;
+  onTeamFieldGoal?: () => void;
+  onOpponentPenaltyGoal?: () => void;
+  onOpponentFieldGoal?: () => void;
   /** Track-scoring gate — hides every chip when false (U6 / U7 / scoring off). */
   trackScoring: boolean;
   /** Action in flight — disables tap targets. */
@@ -45,6 +56,23 @@ interface LeagueScoreBugProps {
   /** Tap on the dark clock pill — toggle pause/resume. */
   onClockTap?: () => void;
   /** End-period-early — surfaces below the clock when paused (AFL parity). */
+}
+
+/** "2T·1C·1PG" — penalty / field goals only once there are some. */
+function ScoreLine({ score, testId }: { score: LeagueScore; testId: string }) {
+  const parts = [`${score.tries}T`, `${score.conversions}C`];
+  if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}PG`);
+  if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}FG`);
+  return (
+    <span className="text-sm font-semibold text-ink-dim" data-testid={testId}>
+      {parts.map((p, i) => (
+        <span key={p}>
+          {i > 0 && <span className="text-ink-mute">·</span>}
+          {p}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 // Mirrors AFL's `SCORE_CHIP` token shape so the buttons read the
@@ -73,6 +101,10 @@ export function LeagueScoreBug({
   onOpponentTry,
   onOpponentConversion,
   kickingAllowed,
+  onTeamPenaltyGoal,
+  onTeamFieldGoal,
+  onOpponentPenaltyGoal,
+  onOpponentFieldGoal,
   trackScoring,
   pending,
   running = true,
@@ -88,18 +120,14 @@ export function LeagueScoreBug({
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {teamName}
         </p>
-        <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
-          <span className="text-[36px] font-bold tracking-tightest">
+        <p className="nums mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono leading-none text-ink">
+          <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-team">
             {teamScore.points}
           </span>
-          <span className="text-sm font-semibold text-ink-dim">
-            {teamScore.tries}T
-            <span className="text-ink-mute">·</span>
-            {teamScore.conversions}C
-          </span>
+          <ScoreLine score={teamScore} testId="league-score-line-team" />
         </p>
-        {trackScoring && (onTeamTry || onTeamConversion) && (
-          <div className="mt-1 flex gap-2">
+        {trackScoring && (onTeamTry || onTeamConversion || onTeamPenaltyGoal || onTeamFieldGoal) && (
+          <div className="mt-1 flex flex-wrap gap-2">
             {onTeamTry && (
               <button
                 type="button"
@@ -120,6 +148,28 @@ export function LeagueScoreBug({
                 aria-label="Record a conversion for our team"
               >
                 +C
+              </button>
+            )}
+            {onTeamPenaltyGoal && (
+              <button
+                type="button"
+                onClick={onTeamPenaltyGoal}
+                disabled={pending}
+                className={SCORE_CHIP}
+                aria-label="Record a penalty goal for our team"
+              >
+                +PG
+              </button>
+            )}
+            {onTeamFieldGoal && (
+              <button
+                type="button"
+                onClick={onTeamFieldGoal}
+                disabled={pending}
+                className={SCORE_CHIP}
+                aria-label="Record a field goal for our team"
+              >
+                +FG
               </button>
             )}
           </div>
@@ -166,18 +216,14 @@ export function LeagueScoreBug({
         <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           {opponentName}
         </p>
-        <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-          <span className="text-sm font-semibold text-ink-dim">
-            {opponentScore.tries}T
-            <span className="text-ink-mute">·</span>
-            {opponentScore.conversions}C
-          </span>
-          <span className="text-[36px] font-bold tracking-tightest">
+        <p className="nums mt-0.5 flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono leading-none text-ink">
+          <ScoreLine score={opponentScore} testId="league-score-line-opponent" />
+          <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-opponent">
             {opponentScore.points}
           </span>
         </p>
-        {trackScoring && (onOpponentTry || onOpponentConversion) && (
-          <div className="mt-1 flex justify-end gap-2">
+        {trackScoring && (onOpponentTry || onOpponentConversion || onOpponentPenaltyGoal || onOpponentFieldGoal) && (
+          <div className="mt-1 flex flex-wrap justify-end gap-2">
             {onOpponentTry && (
               <button
                 type="button"
@@ -198,6 +244,28 @@ export function LeagueScoreBug({
                 aria-label="Record opponent conversion"
               >
                 +C
+              </button>
+            )}
+            {onOpponentPenaltyGoal && (
+              <button
+                type="button"
+                onClick={onOpponentPenaltyGoal}
+                disabled={pending}
+                className={SCORE_CHIP}
+                aria-label="Record opponent penalty goal"
+              >
+                +PG
+              </button>
+            )}
+            {onOpponentFieldGoal && (
+              <button
+                type="button"
+                onClick={onOpponentFieldGoal}
+                disabled={pending}
+                className={SCORE_CHIP}
+                aria-label="Record opponent field goal"
+              >
+                +FG
               </button>
             )}
           </div>

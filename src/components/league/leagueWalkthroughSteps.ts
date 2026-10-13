@@ -40,6 +40,8 @@ export function buildLeagueWalkthroughSteps(opts: {
   trackZoneTime: boolean;
   /** Whether this team / game has the §6 unbroken-period rule on. */
   enforceUnbrokenPeriods: boolean;
+  /** U13+: international laws — goals from play, no kick rotations, no §6. */
+  internationalLaws?: boolean;
 }): WalkthroughStep[] {
   const abbr = opts.periodLabel.charAt(0).toUpperCase();
   const periodWord = opts.periodLabel === "half" ? "half" : "quarter";
@@ -87,8 +89,10 @@ export function buildLeagueWalkthroughSteps(opts: {
   if (opts.trackScoring) {
     steps.push({
       emoji: "🏆",
-      title: "Recording tries & conversions",
-      body: opts.kickingAllowed
+      title: opts.internationalLaws ? "Recording tries & goals" : "Recording tries & conversions",
+      body: opts.internationalLaws
+        ? "Tap a field player, then Try, Penalty goal (2) or Field goal (1) at the bottom. After a try the conversion picker opens — pick the kicker; there's no kicking rotation at this age. +PG and +FG beside our score ask who kicked. For an opponent score, tap +T, +C, +PG or +FG beside their score. Undo takes back the latest score."
+        : opts.kickingAllowed
         ? "Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker. The app enforces the goal-kick rotation: every on-field player must attempt a conversion before anyone gets a second. For an opponent score, tap +T or +C beside their score in the header. Undo chip appears for 8 seconds after every score."
         : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo chip appears for 8 seconds after every score.",
     });
@@ -102,7 +106,7 @@ export function buildLeagueWalkthroughSteps(opts: {
     });
   }
 
-  if (opts.enforceUnbrokenPeriods) {
+  if (opts.enforceUnbrokenPeriods && !opts.internationalLaws) {
     steps.push({
       emoji: "📏",
       title: "Unbroken-period rule",
