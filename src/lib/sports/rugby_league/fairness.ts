@@ -1698,12 +1698,24 @@ export function playerMsOnField(
   // hooter. Both members typed up-front so the in-place .filter +
   // .push update on swap doesn't trip the "implicit any" inference.
   let snapshot: LeagueLineup | null = null;
+  // Sidelined kids don't accrue: an injured kid stays in their field slot
+  // (league treats injury as a flag) but isn't playing; a lent kid is
+  // benched (as the replay does).
+  const injured = new Set<string>();
+  const lent = new Set<string>();
 
   const closeStint = (playerId: string, endElapsed: number) => {
     const start = stintStart[playerId];
     if (start === undefined) return;
     total[playerId] = (total[playerId] ?? 0) + Math.max(0, endElapsed - start);
     delete stintStart[playerId];
+  };
+  const onFieldNow = (playerId: string) =>
+    !!snapshot && (snapshot.forwards.includes(playerId) || snapshot.backs.includes(playerId));
+  const openIfPlaying = (playerId: string, at: number) => {
+    if (activeQuarter === null || stintStart[playerId] !== undefined) return;
+    if (!onFieldNow(playerId) || injured.has(playerId) || lent.has(playerId)) return;
+    stintStart[playerId] = at;
   };
 
   for (const ev of sorted) {
@@ -1718,6 +1730,13 @@ export function playerMsOnField(
       case "lineup_set": {
         if (meta.lineup) {
           snapshot = normalizeLeagueLineup(meta.lineup);
+          // Mid-period (filling a spot, moving kids): who left stops,
+          // who came on starts (sideline combos: they got no time).
+          if (activeQuarter !== null) {
+            const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+            for (const id of Object.keys(stintStart)) if (!onFieldNow(id)) closeStint(id, at);
+            for (const id of leagueOnField(snapshot)) openIfPlaying(id, at);
+          }
         }
         break;
       }
@@ -1731,9 +1750,7 @@ export function playerMsOnField(
             ? meta.quarter
             : (activeQuarter ?? 0) + 1;
         if (snapshot) {
-          for (const id of leagueOnField(snapshot)) {
-            stintStart[id] = 0;
-          }
+          for (const id of leagueOnField(snapshot)) openIfPlaying(id, 0);
         }
         break;
       }
@@ -1815,10 +1832,49 @@ export function playerMsOnField(
         }
         break;
       }
-      case "injury":
+      case "injury": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        const pid = ev.player_id;
+        if (!pid) break;
+        if ((ev.metadata as { injured?: boolean }).injured ?? true) {
+          injured.add(pid);
+          closeStint(pid, at);
+        } else {
+          // Recovered: still on the field, so back to accruing
+          // (sideline combos: their clock never restarted).
+          injured.delete(pid);
+          openIfPlaying(pid, at);
+        }
+        break;
+      }
       case "player_loan": {
         const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        if (ev.player_id) closeStint(ev.player_id, at);
+        const pid = ev.player_id;
+        if (!pid) break;
+        if ((ev.metadata as { loaned?: boolean }).loaned ?? true) {
+          lent.add(pid);
+          closeStint(pid, at);
+        } else {
+          lent.delete(pid);
+        }
+        // Lent or back, they're on the bench (as the replay has it): a
+        // kid lent mid-period used to stay on the next period's field.
+        const snap = snapshot as LeagueLineup | null;
+        if (snap) {
+          snapshot = {
+            forwards: snap.forwards.filter((p) => p !== pid),
+            backs: snap.backs.filter((p) => p !== pid),
+            bench: snap.bench.includes(pid) ? snap.bench : [...snap.bench, pid],
+            slots: snap.slots,
+          };
+        }
+        break;
+      }
+      case "player_arrived": {
+        const snap = snapshot as LeagueLineup | null;
+        if (snap && ev.player_id && !snap.bench.includes(ev.player_id) && !onFieldNow(ev.player_id)) {
+          snapshot = { forwards: snap.forwards, backs: snap.backs, bench: [...snap.bench, ev.player_id], slots: snap.slots };
+        }
         break;
       }
       default:

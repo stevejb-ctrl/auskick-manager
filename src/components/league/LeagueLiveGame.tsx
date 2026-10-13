@@ -986,6 +986,7 @@ export function LeagueLiveGame({
             },
             leaguePlaybook,
           ),
+          undefined,
         ]);
         await lineupFlushed;
         // This period's plan is used; later planned periods stay.
@@ -1017,6 +1018,7 @@ export function LeagueLiveGame({
             },
             leaguePlaybook,
           ),
+          undefined,
         ]);
         await reconcileFlushed;
       }
@@ -1252,6 +1254,7 @@ export function LeagueLiveGame({
           },
           leaguePlaybook,
         ),
+        { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
       ]);
       await flushed;
       setPending(false);
@@ -1331,6 +1334,7 @@ export function LeagueLiveGame({
         game.id,
         // Named positions: record each kid's slot (UX plan 5.7).
         withLeagueSlots({ forwards: nextForwards, backs: nextBacks, bench: nextBench }, leaguePlaybook),
+        { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
       ]);
       await flushed;
       setPending(false);

@@ -562,13 +562,19 @@ export async function recordLeagueLineupSet(
   auth: LiveAuth,
   gameId: string,
   lineup: LeagueLineup,
+  /**
+   * When it happened, for a change mid-period (filling an empty spot,
+   * moving kids between lines). Without it a kid who came on mid-period
+   * was credited no time (sideline combos). Omitted at a break.
+   */
+  at: { quarter: number; elapsed_ms: number } | undefined,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   return insertEvent(
     auth,
     gameId,
     "lineup_set",
-    { metadata: { lineup, sport: "rugby_league" } },
+    { metadata: { lineup, ...(at ?? {}), sport: "rugby_league" } },
     idempotencyKey,
   );
 }

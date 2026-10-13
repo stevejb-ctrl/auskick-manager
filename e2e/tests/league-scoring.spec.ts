@@ -16,6 +16,10 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 
 test.describe.configure({ mode: "serial" });
 
+// Writes go through the game's write queue; on a loaded dev server one
+// can take several seconds, so poll for them generously.
+const expectWrite = expect.configure({ timeout: 15_000 });
+
 /** U10 (junior laws, 11 a side) by default; U13 plays international laws (13 a side). */
 async function seedLeagueGame(age: "U10" | "U13" = "U10") {
   const size = age === "U13" ? 13 : 11;
@@ -122,12 +126,12 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   // A try opens the picker with its try named on the kick.
   await page.getByTestId(`league-player-tile-${players[0].id}`).click();
   await page.getByRole("button", { name: /^\+\s*try$/i }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(1);
   const [tryEvent] = await eventsOfType(admin, game.id, "try");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
   await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(1);
   const [conversion] = await eventsOfType(admin, game.id, "conversion_attempt");
   expect((conversion.metadata as { try_event_id?: string }).try_event_id).toBe(tryEvent.id);
 
@@ -138,7 +142,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
 
   // Undo takes back the conversion (the latest score), not nothing.
   await page.getByRole("button", { name: /^undo$/i }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "score_undo")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "score_undo")).length).toBe(1);
   const [undo] = await eventsOfType(admin, game.id, "score_undo");
   expect((undo.metadata as { target_event_id?: string }).target_event_id).toBe(conversion.id);
 
@@ -169,13 +173,13 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
   for (let n = 1; n <= 2; n++) {
     await page.getByTestId(`league-player-tile-${players[0].id}`).click();
     await page.getByRole("button", { name: /^\+\s*try$/i }).click();
-    await expect.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(n);
+    await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(n);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("Pick the kicker.")).toBeVisible();
     // No rotation, so no Force carve-out either.
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
     await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
-    await expect.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(n);
+    await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(n);
     await expect(dialog).toBeHidden();
   }
   const kicks = await eventsOfType(admin, game.id, "conversion_attempt");
@@ -199,20 +203,20 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   const picker = page.getByRole("dialog", { name: /who kicked the penalty goal/i });
   await expect(picker).toBeVisible();
   await picker.getByRole("button", { name: new RegExp(players[1].full_name) }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "penalty_goal")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "penalty_goal")).length).toBe(1);
   expect((await eventsOfType(admin, game.id, "penalty_goal"))[0].player_id).toBe(players[1].id);
 
   // Ours from the player dock: the kicker is the selected player.
   await page.getByTestId(`league-player-tile-${players[2].id}`).click();
   await page.getByRole("button", { name: /^\+ field goal$/i }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "field_goal")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "field_goal")).length).toBe(1);
   expect((await eventsOfType(admin, game.id, "field_goal"))[0].player_id).toBe(players[2].id);
 
   // Theirs straight from the scorebug.
   await page.getByRole("button", { name: "Record opponent penalty goal" }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "opponent_penalty_goal")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "opponent_penalty_goal")).length).toBe(1);
   await page.getByRole("button", { name: "Record opponent field goal" }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "opponent_field_goal")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "opponent_field_goal")).length).toBe(1);
 
   const us = page.getByTestId("league-score-line-team");
   const them = page.getByTestId("league-score-line-opponent");
@@ -222,7 +226,7 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
 
   // Undo takes back the latest score: their field goal.
   await page.getByRole("button", { name: /^undo$/i }).click();
-  await expect.poll(async () => (await eventsOfType(admin, game.id, "score_undo")).length).toBe(1);
+  await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "score_undo")).length).toBe(1);
   const [undo] = await eventsOfType(admin, game.id, "score_undo");
   const [theirFieldGoal] = await eventsOfType(admin, game.id, "opponent_field_goal");
   expect((undo.metadata as { target_event_id?: string }).target_event_id).toBe(theirFieldGoal.id);
@@ -241,11 +245,13 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   await expect(page.getByRole("button", { name: /^\+ PG$/ })).toHaveCount(2);
   await expect(page.getByRole("button", { name: /^\+ FG$/ })).toHaveCount(2);
 
-  // The share text carries the goals and who kicked them.
+  // The share text carries the goals and who kicked them. It appears once
+  // Finish game has saved (the review's table shows the same score line,
+  // so wait for the share text itself).
   await page.getByRole("button", { name: /finish game/i }).click();
-  await expect(page.getByText(/3 \(0T · 0C · 1PG · 1FG\)/).first()).toBeVisible({ timeout: 15_000 });
   const kicker = (p: { full_name: string }) => p.full_name.split(" ")[0];
-  await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[1])}.*1 PG`)).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[1])}.*1 PG`)).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/3 \(0T · 0C · 1PG · 1FG\)/).first()).toBeVisible();
   await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[2])}.*1 FG`)).first()).toBeVisible();
   // The two bench kids never got on: still in the game-time list.
   for (const p of [players[13], players[14]]) {
