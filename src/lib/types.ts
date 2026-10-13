@@ -309,6 +309,12 @@ export type GameEventType =
   | "opponent_try"
   | "conversion_attempt"
   | "opponent_conversion"
+  // Rugby league goals from play, U13+ international laws only
+  // (penalty goal = 2, field goal = 1). player_id = kicker on ours.
+  | "penalty_goal"
+  | "field_goal"
+  | "opponent_penalty_goal"
+  | "opponent_field_goal"
   // Rugby league rotations. Junior Laws §15 (goal-kick) and §16 (kickoff)
   // both rotate per-team; junior Laws §12 vests rotate per-period with
   // a "no vest worn twice in one match" rule. All three are derived by

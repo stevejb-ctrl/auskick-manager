@@ -61,6 +61,7 @@ const SCORE_LANE = new Set([
   "recordOpponentTry",
   "recordConversionAttempt",
   "recordOpponentConversion",
+  "recordLeagueGoal",
   "undoLeagueScore",
 ]);
 export function laneOf(kind: string): string {

@@ -39,14 +39,40 @@ import type { GameEvent, LeagueLineup, LeagueZone } from "@/lib/types";
 import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
 import { chipZone } from "./positions";
 
+/**
+ * One side's league score. `points` = tries × 4 + conversions × 2 +
+ * penalty goals × 2 + field goals × 1. Penalty and field goals are
+ * U13+ (international laws) only.
+ */
+export interface LeagueScore {
+  tries: number;
+  conversions: number;
+  penaltyGoals: number;
+  fieldGoals: number;
+  points: number;
+}
+
+const emptyLeagueScore = (): LeagueScore => ({ tries: 0, conversions: 0, penaltyGoals: 0, fieldGoals: 0, points: 0 });
+
+/** Points per goal from play (international laws). */
+const GOAL_POINTS = { penalty: 2, field: 1 } as const;
+
+/** "2T · 1C · 1PG" — penalty and field goals only when there are some. */
+export function leagueScoreLine(s: LeagueScore): string {
+  const parts = [`${s.tries}T`, `${s.conversions}C`];
+  if (s.penaltyGoals > 0) parts.push(`${s.penaltyGoals}PG`);
+  if (s.fieldGoals > 0) parts.push(`${s.fieldGoals}FG`);
+  return parts.join(" · ");
+}
+
 export interface LeagueGameState {
   lineup: LeagueLineup | null;
   currentQuarter: number;
   quarterEnded: boolean;
   quarterElapsedMs: number;
-  /** Per-team scoring tally. `points` = tries * 4 + conversions * 2. */
-  teamScore: { tries: number; conversions: number; points: number };
-  opponentScore: { tries: number; conversions: number; points: number };
+  /** Per-team scoring tally (see LeagueScore). */
+  teamScore: LeagueScore;
+  opponentScore: LeagueScore;
   /** Tries credited per player. The scorer's player_id on the try event. */
   playerTries: Record<string, number>;
   /**
@@ -55,6 +81,8 @@ export interface LeagueGameState {
    * UI in Phase 5; `made` counts successful kicks.
    */
   playerConversions: Record<string, { attempts: number; made: number }>;
+  /** Penalty and field goals credited per kicker (U13+). */
+  playerGoals: Record<string, { penalty: number; field: number }>;
   finalised: boolean;
   /** ISO timestamp of the current quarter_start event; null when quarter ended. */
   quarterStartedAt: string | null;
@@ -76,10 +104,11 @@ export function emptyLeagueGameState(): LeagueGameState {
     currentQuarter: 0,
     quarterEnded: false,
     quarterElapsedMs: 0,
-    teamScore: { tries: 0, conversions: 0, points: 0 },
-    opponentScore: { tries: 0, conversions: 0, points: 0 },
+    teamScore: emptyLeagueScore(),
+    opponentScore: emptyLeagueScore(),
     playerTries: {},
     playerConversions: {},
+    playerGoals: {},
     finalised: false,
     quarterStartedAt: null,
     lastSubbedOnMs: {},
@@ -107,7 +136,8 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
     | { kind: "try"; player: string | null }
     | { kind: "opp_try" }
     | { kind: "conversion"; player: string; made: boolean }
-    | { kind: "opp_conversion" };
+    | { kind: "opp_conversion" }
+    | { kind: "goal"; side: "team" | "opponent"; goal: "penalty" | "field"; player: string | null };
   const undoStack: UndoOp[] = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
@@ -307,6 +337,25 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         break;
       }
 
+      case "penalty_goal":
+      case "field_goal":
+      case "opponent_penalty_goal":
+      case "opponent_field_goal": {
+        const side = ev.type.startsWith("opponent_") ? "opponent" : "team";
+        const goal = ev.type.endsWith("penalty_goal") ? "penalty" : "field";
+        const score = side === "team" ? state.teamScore : state.opponentScore;
+        if (goal === "penalty") score.penaltyGoals++;
+        else score.fieldGoals++;
+        score.points += GOAL_POINTS[goal];
+        const player = side === "team" ? ev.player_id : null;
+        if (player) {
+          state.playerGoals[player] ??= { penalty: 0, field: 0 };
+          state.playerGoals[player][goal]++;
+        }
+        undoStack.push({ kind: "goal", side, goal, player });
+        break;
+      }
+
       case "score_undo": {
         const op = undoStack.pop();
         if (!op) break;
@@ -357,6 +406,15 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
               0,
               state.opponentScore.points - 2,
             );
+            break;
+          }
+          case "goal": {
+            const score = op.side === "team" ? state.teamScore : state.opponentScore;
+            if (op.goal === "penalty") score.penaltyGoals = Math.max(0, score.penaltyGoals - 1);
+            else score.fieldGoals = Math.max(0, score.fieldGoals - 1);
+            score.points = Math.max(0, score.points - GOAL_POINTS[op.goal]);
+            const tally = op.player ? state.playerGoals[op.player] : undefined;
+            if (tally) tally[op.goal] = Math.max(0, tally[op.goal] - 1);
             break;
           }
         }
@@ -1379,8 +1437,8 @@ export function suggestLeagueLineup(
 export interface LeagueScoreByPeriod {
   /** 1-indexed period number → tries / conversions / points scored in it. */
   [period: number]: {
-    team: { tries: number; conversions: number; points: number };
-    opponent: { tries: number; conversions: number; points: number };
+    team: LeagueScore;
+    opponent: LeagueScore;
   };
 }
 
@@ -1394,10 +1452,7 @@ export function leagueScoreByPeriod(
   // Pre-seed every period so the table always has entries to render.
   const out: LeagueScoreByPeriod = {};
   for (let p = 1; p <= periodCount; p++) {
-    out[p] = {
-      team: { tries: 0, conversions: 0, points: 0 },
-      opponent: { tries: 0, conversions: 0, points: 0 },
-    };
+    out[p] = { team: emptyLeagueScore(), opponent: emptyLeagueScore() };
   }
 
   // Active-period fallback for events that didn't ship metadata.quarter.
@@ -1407,7 +1462,8 @@ export function leagueScoreByPeriod(
     = | { kind: "try"; period: number }
       | { kind: "opp_try"; period: number }
       | { kind: "conv"; period: number; made: boolean }
-      | { kind: "opp_conv"; period: number };
+      | { kind: "opp_conv"; period: number }
+      | { kind: "goal"; period: number; side: "team" | "opponent"; goal: "penalty" | "field" };
   const stack: Op[] = [];
 
   for (const ev of sorted) {
@@ -1425,10 +1481,7 @@ export function leagueScoreByPeriod(
         : active;
     if (period < 1) continue;
     if (!out[period]) {
-      out[period] = {
-        team: { tries: 0, conversions: 0, points: 0 },
-        opponent: { tries: 0, conversions: 0, points: 0 },
-      };
+      out[period] = { team: emptyLeagueScore(), opponent: emptyLeagueScore() };
     }
     if (ev.type === "try") {
       out[period].team.tries += 1;
@@ -1449,9 +1502,29 @@ export function leagueScoreByPeriod(
       out[period].opponent.conversions += 1;
       out[period].opponent.points += 2;
       stack.push({ kind: "opp_conv", period });
+    } else if (
+      ev.type === "penalty_goal"
+      || ev.type === "field_goal"
+      || ev.type === "opponent_penalty_goal"
+      || ev.type === "opponent_field_goal"
+    ) {
+      const side = ev.type.startsWith("opponent_") ? "opponent" : "team";
+      const goal = ev.type.endsWith("penalty_goal") ? "penalty" : "field";
+      const slot = out[period][side];
+      if (goal === "penalty") slot.penaltyGoals += 1;
+      else slot.fieldGoals += 1;
+      slot.points += GOAL_POINTS[goal];
+      stack.push({ kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
       const op = stack.pop();
       if (!op) continue;
+      if (op.kind === "goal") {
+        const slot = out[op.period][op.side];
+        if (op.goal === "penalty") slot.penaltyGoals = Math.max(0, slot.penaltyGoals - 1);
+        else slot.fieldGoals = Math.max(0, slot.fieldGoals - 1);
+        slot.points = Math.max(0, slot.points - GOAL_POINTS[op.goal]);
+        continue;
+      }
       const bucket
         = op.kind === "try" || op.kind === "conv" ? "team" : "opponent";
       const slot = out[op.period][bucket];

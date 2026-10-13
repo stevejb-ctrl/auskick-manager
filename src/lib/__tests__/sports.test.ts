@@ -485,8 +485,12 @@ describe("rugby league sport config", () => {
     expect(rugbyLeagueSport.fairnessModel).toBe("unbroken-period");
   });
 
-  it("scoring: try=4, conversion=2 (us + opponent)", () => {
-    expect(rugbyLeagueSport.scoreTypes).toHaveLength(4);
+  it("scoring: try=4, conversion=2, penalty goal=2, field goal=1 (us + opponent)", () => {
+    expect(rugbyLeagueSport.scoreTypes).toHaveLength(8);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "penalty_goal")?.points).toBe(2);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "field_goal")?.points).toBe(1);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_penalty_goal")?.opponent).toBe(true);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_field_goal")?.points).toBe(1);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "try")?.points).toBe(4);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "conversion")?.points).toBe(2);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_try")?.opponent).toBe(true);

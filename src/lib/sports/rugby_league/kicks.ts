@@ -28,6 +28,10 @@
 import type { GameEvent } from "@/lib/types";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 
+/** U13+ penalty and field goals (ours and theirs) — scores, not kicks. */
+export const LEAGUE_GOAL_TYPES = ["penalty_goal", "field_goal", "opponent_penalty_goal", "opponent_field_goal"] as const;
+const LEAGUE_GOALS_FROM_PLAY: ReadonlySet<string> = new Set(LEAGUE_GOAL_TYPES);
+
 // ─── Conversion attempts ─────────────────────────────────────
 
 interface ConversionEvent {
@@ -90,6 +94,7 @@ function survivingConversionEvents(events: GameEvent[]): ConversionEvent[] {
       ev.type === "try"
       || ev.type === "opponent_try"
       || ev.type === "opponent_conversion"
+      || LEAGUE_GOALS_FROM_PLAY.has(ev.type)
     ) {
       stack.push({ kind: "other", index: -1, kept: true });
     } else if (ev.type === "conversion_attempt" && ev.player_id) {
@@ -143,7 +148,7 @@ export function unconvertedTryIds(events: GameEvent[]): string[] {
   const undone = new Set(
     pairScoreUndos(
       sorted,
-      new Set(["try", "opponent_try", "conversion_attempt", "opponent_conversion"]),
+      new Set<string>(["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES]),
     ).values(),
   );
   const waiting: string[] = [];

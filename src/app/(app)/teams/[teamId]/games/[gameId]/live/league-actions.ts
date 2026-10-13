@@ -37,6 +37,7 @@ import {
   conversionCycle,
   kickoffCycle,
   unconvertedTryIds,
+  LEAGUE_GOAL_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
@@ -836,6 +837,43 @@ export async function recordOpponentConversion(
   return revalidateAfterMutation(auth, gameId);
 }
 
+// ─── recordLeagueGoal ────────────────────────────────────────
+// A penalty goal (2) or field goal (1), ours or theirs. International
+// laws only (U13+): the national 6–12 junior laws allow neither (Law
+// 17), so the server refuses them for those grades. kickerId credits
+// our kicker (null when the coach skips the name).
+export async function recordLeagueGoal(
+  auth: LiveAuth,
+  gameId: string,
+  kind: "penalty_goal" | "field_goal" | "opponent_penalty_goal" | "opponent_field_goal",
+  kickerId: string | null,
+  quarter: number,
+  elapsedMs: number,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  if (!(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+    return {
+      success: false,
+      rejected: true,
+      error: "Penalty and field goals don't count under the junior laws (U6–U12).",
+    };
+  }
+  const result = await insertEvent(
+    auth,
+    gameId,
+    kind,
+    {
+      player_id: kind.startsWith("opponent_") ? null : kickerId,
+      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+    },
+    idempotencyKey,
+  );
+  if (!result.success) return result;
+  return revalidateAfterMutation(auth, gameId);
+}
+
 // ─── undoLeagueScore ─────────────────────────────────────────
 // LIFO undo. Mirrors AFL `undoLastScore` / netball `undoNetballScore`
 // — takes back the latest score still standing and names it, which is
@@ -855,7 +893,7 @@ export async function undoLeagueScore(
     .from("game_events")
     .select("id, type, metadata, player_id")
     .eq("game_id", gameId)
-    .in("type", ["try", "opponent_try", "conversion_attempt", "opponent_conversion", "score_undo"])
+    .in("type", ["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES, "score_undo"])
     .order("created_at", { ascending: true });
   type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
   const standing: ScoreRow[] = [];

@@ -465,6 +465,23 @@ describe("unconvertedTryIds", () => {
     expect(unconvertedTryIds([t, ev("score_undo", { target_event_id: t.id })])).toEqual([]);
   });
 
+  it("goals from play neither convert a try nor get undone in its place", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    const pg = ev("penalty_goal", {}, "p2");
+    // The penalty goal is the latest score: the undo takes it, not the try.
+    expect(unconvertedTryIds([t, pg])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, pg, ev("score_undo")])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, ev("field_goal", {}, "p2"), ev("opponent_penalty_goal")])).toEqual([t.id]);
+  });
+
+  it("an undo of a goal from play leaves the conversion standing", () => {
+    reset();
+    const onField = ["p1", "p2", "p3"];
+    const events = [ev("try", {}, "p1"), conversion("p2", true), ev("field_goal", {}, "p3"), ev("score_undo")];
+    expect(conversionCycle(events, onField).attempted.has("p2")).toBe(true);
+  });
+
   it("two tries in a row: the earlier waits first", () => {
     reset();
     const t1 = ev("try", {}, "p1");

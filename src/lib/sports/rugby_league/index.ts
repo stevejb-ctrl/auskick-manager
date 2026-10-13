@@ -61,7 +61,8 @@ const RL_POSITIONS: PositionDef[] = [
 ];
 
 // ─── Score types ─────────────────────────────────────────────
-// try = 4, conversion = 2. Opponent variants for both. U6/U7 have
+// try = 4, conversion = 2; U13+ adds penalty goal = 2, field goal = 1.
+// Opponent variants for each. U6/U7 have
 // `tracksScoreDefault: false` on the age-group so the score UI
 // hides itself — no separate "no-score" config needed.
 const RL_SCORE_TYPES: ScoreTypeDef[] = [
@@ -69,6 +70,11 @@ const RL_SCORE_TYPES: ScoreTypeDef[] = [
   { id: "conversion", label: "Conversion", shortLabel: "C", points: 2 },
   { id: "opponent_try", label: "Opponent Try", shortLabel: "+T", points: 4, opponent: true },
   { id: "opponent_conversion", label: "Opp. Conversion", shortLabel: "+C", points: 2, opponent: true },
+  // U13+ (international laws) only: AgeGroupConfig.internationalLaws.
+  { id: "penalty_goal", label: "Penalty goal", shortLabel: "PG", points: 2 },
+  { id: "field_goal", label: "Field goal", shortLabel: "FG", points: 1 },
+  { id: "opponent_penalty_goal", label: "Opp. Penalty goal", shortLabel: "+PG", points: 2, opponent: true },
+  { id: "opponent_field_goal", label: "Opp. Field goal", shortLabel: "+FG", points: 1, opponent: true },
 ];
 
 // ─── Age group templates ─────────────────────────────────────

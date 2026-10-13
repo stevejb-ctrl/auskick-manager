@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  leagueScoreByPeriod,
   replayLeagueGame,
   suggestLeagueLineup,
   suggestLeagueSubs,
@@ -36,8 +37,9 @@ describe("replayLeagueGame — empty + lineup_set", () => {
     const state = replayLeagueGame([]);
     expect(state.lineup).toBeNull();
     expect(state.currentQuarter).toBe(0);
-    expect(state.teamScore).toEqual({ tries: 0, conversions: 0, points: 0 });
-    expect(state.opponentScore).toEqual({ tries: 0, conversions: 0, points: 0 });
+    const nil = { tries: 0, conversions: 0, penaltyGoals: 0, fieldGoals: 0, points: 0 };
+    expect(state.teamScore).toEqual(nil);
+    expect(state.opponentScore).toEqual(nil);
     expect(state.finalised).toBe(false);
   });
 
@@ -200,6 +202,57 @@ const onField = (state: ReturnType<typeof replayLeagueGame>): string[] =>
   state.lineup
     ? [...state.lineup.forwards, ...state.lineup.backs]
     : [];
+
+// U13+ international laws: penalty goal 2, field goal 1.
+describe("replayLeagueGame — penalty and field goals", () => {
+  it("scores them for us (credited to the kicker) and the opposition", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("try", { quarter: 1 }, "p1"),
+      ev("penalty_goal", { quarter: 1 }, "p2"),
+      ev("field_goal", { quarter: 2 }, "p2"),
+      ev("opponent_penalty_goal", { quarter: 2 }),
+      ev("opponent_field_goal", { quarter: 2 }),
+      ev("opponent_field_goal", { quarter: 2 }),
+    ]);
+    expect(state.teamScore).toEqual({ tries: 1, conversions: 0, penaltyGoals: 1, fieldGoals: 1, points: 7 });
+    expect(state.opponentScore).toEqual({ tries: 0, conversions: 0, penaltyGoals: 1, fieldGoals: 2, points: 4 });
+    expect(state.playerGoals).toEqual({ p2: { penalty: 1, field: 1 } });
+  });
+
+  it("undo takes them back like any score", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("penalty_goal", {}, "p2"),
+      ev("field_goal", {}, "p3"),
+      ev("score_undo"),
+      ev("opponent_penalty_goal"),
+      ev("score_undo"),
+    ]);
+    expect(state.teamScore).toMatchObject({ penaltyGoals: 1, fieldGoals: 0, points: 2 });
+    expect(state.opponentScore).toMatchObject({ penaltyGoals: 0, points: 0 });
+    expect(state.playerGoals).toEqual({ p2: { penalty: 1, field: 0 }, p3: { penalty: 0, field: 0 } });
+  });
+
+  it("counts them per period", () => {
+    reset();
+    const byPeriod = leagueScoreByPeriod(
+      [
+        ev("quarter_start", { quarter: 1 }),
+        ev("penalty_goal", { quarter: 1 }, "p2"),
+        ev("opponent_field_goal", { quarter: 1 }),
+        ev("quarter_start", { quarter: 2 }),
+        ev("field_goal", { quarter: 2 }, "p2"),
+        ev("field_goal", { quarter: 2 }, "p2"),
+        ev("score_undo"),
+      ],
+      2,
+    );
+    expect(byPeriod[1].team).toMatchObject({ penaltyGoals: 1, points: 2 });
+    expect(byPeriod[1].opponent).toMatchObject({ fieldGoals: 1, points: 1 });
+    expect(byPeriod[2].team).toMatchObject({ fieldGoals: 1, points: 1 });
+  });
+});
 
 describe("replayLeagueGame — swap", () => {
   it("swap moves off→bench and on→field", () => {
