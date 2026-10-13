@@ -708,11 +708,6 @@ export function LeagueLiveGame({
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const [planNextOpen, setPlanNextOpen] = useState(false);
-  // Available squad for the planner = everyone not injured / loaned.
-  const gamePlanPlayers = useMemo(
-    () => squad.filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id)),
-    [squad, injuredSet, loanedSet],
-  );
   // Final-rotation window (D-11), league clock frame: `elapsedMs` is
   // wall-clock game-time (no multiplier), `periodSeconds * 1000` the
   // full period, `subIntervalMs` the rotation cadence. The coach can
@@ -956,7 +951,16 @@ export function LeagueLiveGame({
     // (the period that just ended is P; its next, P+1, has index P).
     let lineupRecorded = false;
     if (hasPinnedPeriod(pinForThisGame, state.currentQuarter) && state.lineup) {
-      const availableIds = gamePlanPlayers.map((p) => p.id);
+      // The kids in this game (the planner's rule): the squad also holds
+      // kids who never turned up, and the bench used to take them all.
+      const inGameIds = new Set<string>([
+        ...state.lineup.forwards,
+        ...state.lineup.backs,
+        ...state.lineup.bench,
+      ]);
+      const availableIds = availablePlayersForPlan(squad, inGameIds, injuredSet, loanedSet).map(
+        (p) => p.id,
+      );
       const seed = seedNextPeriodLineup({
         pin: pinForThisGame,
         periodIndex: state.currentQuarter,
@@ -974,6 +978,12 @@ export function LeagueLiveGame({
         for (const id of availableIds) {
           if (!placed.has(id)) benchSet.add(id);
         }
+        // Hurt and lent kids stay in the game, parked on the bench (AFL
+        // parity). They used to be dropped, so a kid marked recovered
+        // later came back nowhere.
+        inGameIds.forEach((id) => {
+          if ((injuredSet.has(id) || loanedSet.has(id)) && !placed.has(id)) benchSet.add(id);
+        });
         const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
           auth,
           game.id,

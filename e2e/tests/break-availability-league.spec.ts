@@ -280,3 +280,122 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
     )
     .toBe(true);
 });
+
+// ─── Pinned plan meets the sideline (rugby league) ────────────────────
+// The coach planned the second half before it started; a forward got
+// hurt in the first. Starting the half applies the plan. Pre-fix it put
+// every squad kid who isn't hurt or lent on the bench (including the two
+// who never turned up), and dropped the hurt kid from the lineup
+// altogether, so marking them recovered later brought them back nowhere.
+test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and leaves absent kids out", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-PIN-SIDELINE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 5), backs: ids.slice(5, 11), bench: ids.slice(11, 13) };
+  const hurt = players[0];
+  const absent = [players[13], players[14]];
+
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" }, created_at: t(800) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_at: t(799) },
+      {
+        type: "injury",
+        player_id: hurt.id,
+        metadata: { injured: true, quarter: 1, elapsed_ms: 300_000, sport: "rugby_league" },
+        created_at: t(500),
+      },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 12 * 60_000, sport: "rugby_league" }, created_at: t(60) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("game_availability").upsert(
+    players
+      .filter((p) => !absent.includes(p))
+      .map((p) => ({ game_id: game.id, player_id: p.id, status: "available", updated_by: ownerId, updated_at: new Date().toISOString() })),
+    { onConflict: "game_id,player_id" },
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  // The second half's plan, pinned before it started: a bench kid on for
+  // the hurt forward.
+  const pin = {
+    gameId: game.id,
+    laterPeriods: {
+      1: { groups: { forwards: [...ids.slice(1, 5), ids[11]], backs: ids.slice(5, 11) }, bench: [ids[12]] },
+    },
+  };
+  await page.addInitScript(
+    ([gameId, plannedRotation]) => {
+      try {
+        localStorage.setItem("gm-walkthrough-seen", "1");
+        localStorage.setItem(
+          "siren-live-game-v1",
+          JSON.stringify({
+            state: {
+              activeGameId: gameId,
+              lockedIds: [],
+              zoneLockedPlayers: {},
+              swapCount: 0,
+              lastStintMs: {},
+              lastStintZone: {},
+              plannedRotation,
+            },
+            version: 1,
+          }),
+        );
+      } catch {}
+    },
+    [game.id, pin] as const,
+  );
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // The break pops the start modal; start the second half.
+  await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 15_000 });
+
+  let started: { forwards: string[]; backs: string[]; bench: string[] } | null = null;
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("type, metadata, created_at")
+          .eq("game_id", game.id)
+          .in("type", ["lineup_set", "quarter_start"])
+          .order("created_at", { ascending: true });
+        const rows = data ?? [];
+        const h2 = rows.findIndex((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2);
+        if (h2 < 0) return false;
+        const set = rows.slice(0, h2).reverse().find((e) => e.type === "lineup_set");
+        started = (set?.metadata as { lineup: typeof started }).lineup;
+        return true;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+
+  // The plan was applied...
+  expect(started!.forwards).toContain(ids[11]);
+  expect(started!.forwards).not.toContain(hurt.id);
+  // ...the hurt kid is parked on the bench, still in the game...
+  expect(started!.bench).toContain(hurt.id);
+  // ...and the kids who never turned up stay out of it.
+  const inGame = [...started!.forwards, ...started!.backs, ...started!.bench];
+  for (const p of absent) expect(inGame).not.toContain(p.id);
+});
