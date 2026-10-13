@@ -195,6 +195,17 @@ on the local stack, so dev-server lag was gone: the whole round took about
 - **Runner** (runner-parent-scoring, completed): a first-time parent ran
   Q1 from the share link, including scoring, Cancel, Undo and a swap.
 
+## Status: round 2 all fixed (13 Oct 2026)
+
+| # | Fix | Commit |
+|---|-----|--------|
+| 1 | One undo rule (named score, else the latest standing) for the netball replay, the score log and the netball tallies. The netball undo names its score. Scores and their undos share one queue lane, so an undo can't overtake its score. | 5e0be28, ddbcd6e |
+| 2 | A league kick needs a try waiting for its conversion; only Force (the extra kick) skips that. The picker says "No try to convert". Found on the way: league Undo did nothing, because the queue key landed in an optional `kind` argument. That's fixed, and enqueue arguments are now typed so it can't recur. Rule refusals drop their op instead of stalling the score lane. | a5902be, a32db57, 82610f5 |
+| 3 | How we played judges the 50 % floor on how long each quarter ran (its hooter). | d30a2d2 |
+| 4 | Reopening Game plan mid-game shows the pinned next period (all three sports). | 00a6b60 |
+| 5 | Game plan from the lineup uses the lineup's field size and sub interval. Game detail and the live page pass the game's period length and sub interval. | 030cabd |
+| 6 | A KEEP badge marks kids with a season keep-on role on lineup tiles, in every sport. | 489043a |
+
 ## New, confirmed
 
 1. **The netball score review still counts an undone goal.** Netball's undo
