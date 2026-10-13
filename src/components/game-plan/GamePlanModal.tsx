@@ -24,6 +24,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
 import {
+  periodPositionLabels,
   formatGamePlan,
   projectGamePlan,
   projectUpcomingRotation,
@@ -251,14 +252,23 @@ export function GamePlanModal({
     [playerById],
   );
 
+  // Set / named positions: each kid's position in each planned period,
+  // worked out as the lineup screen does (Stagehand round 3: a ruck sat
+  // under "Centre" with no position, and parents couldn't read it).
+  const positionsByPeriod = useMemo(
+    () => plan.periods.map((p) => periodPositionLabels(sport, p, { aflPlaybook, leaguePlaybook })),
+    [plan, sport, aflPlaybook, leaguePlaybook],
+  );
+
   const text = useMemo(
     () =>
       formatGamePlan(plan, {
         teamName,
         opponentName,
         playerName: displayName,
+        positionLabel: (i, id) => positionsByPeriod[i]?.[id],
       }),
-    [plan, teamName, opponentName, displayName],
+    [plan, teamName, opponentName, displayName, positionsByPeriod],
   );
 
   function handleReshuffle() {
@@ -327,8 +337,18 @@ export function GamePlanModal({
         >
           <Guernsey num={p?.jersey_number ?? ""} size={32} />
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate font-medium text-ink">
-              {p?.full_name ?? pid}
+            <span className="flex min-w-0 items-center gap-1.5">
+              {positionsByPeriod[activePeriod]?.[pid] && (
+                <span
+                  data-testid="game-plan-position"
+                  className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim"
+                >
+                  {positionsByPeriod[activePeriod][pid]}
+                </span>
+              )}
+              <span className="truncate font-medium text-ink">
+                {p?.full_name ?? pid}
+              </span>
             </span>
             {/* Game context (issue: plan the next period with break-level
                 info) — total minutes + per-zone breakdown this game. */}

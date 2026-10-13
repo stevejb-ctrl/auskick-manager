@@ -380,3 +380,29 @@ test("Rugby league game-detail: the shared planner is driven by the RL projectio
   await expect(page.locator("#game-plan-text")).toContainText("Game plan —");
   await expect(page.locator("#game-plan-text")).toContainText(team.name);
 });
+
+test("set positions: Game plan names each kid's position, on screen and in the chat text", async ({ page }) => {
+  // Stagehand round 3: the plan listed kids under Back / Centre / Forward
+  // only, so a ruck sat under "Centre" and parents couldn't read it.
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U13" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U13", opponent: "Eagles" });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
+  const ruck = players[3];
+  const fullForward = players[0];
+  await admin.from("player_position_prefs").insert([
+    { team_id: team.id, player_id: ruck.id, position_key: "r", kind: "home" },
+    { team_id: team.id, player_id: fullForward.id, position_key: "ff", kind: "home" },
+  ]);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  await page.getByRole("button", { name: /^game plan$/i }).click({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+
+  const row = (id: string) => page.locator(`[data-testid="game-plan-player"][data-player-id="${id}"]`);
+  await expect(row(ruck.id).getByTestId("game-plan-position")).toHaveText("R");
+  await expect(row(fullForward.id).getByTestId("game-plan-position")).toHaveText("FF");
+  await expect(page.locator("#game-plan-text")).toContainText(`${ruck.full_name} (R)`);
+});
