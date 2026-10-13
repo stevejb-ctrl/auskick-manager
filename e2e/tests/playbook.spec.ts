@@ -719,6 +719,43 @@ test("league named positions: a home position shows on the tile", async ({ page 
   await expect(tile.getByLabel("Position HK")).toBeVisible({ timeout: 15_000 });
 });
 
+test("a season keep-on role shows on the lineup in every sport", async ({ page }) => {
+  // Stagehand rounds 1 and 2: a coach set "Keep on, every game" and
+  // nothing on the lineup showed it. One shared marker, all three sports.
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const MARK = "Keep on, every game";
+  await page.addInitScript(() => {
+    try {
+      for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
+    } catch {}
+  });
+  const sports = [
+    { sport: "afl" as const, teamAge: "U12", playerAge: "U12", count: 15, strategy: "preferred-lines" },
+    { sport: "netball" as const, teamAge: "go", playerAge: "U10", count: 9, strategy: null },
+    { sport: "rugby_league" as const, teamAge: "U10", playerAge: "U10", count: 13, strategy: "named-positions" },
+  ];
+  for (const s of sports) {
+    const team = await makeTeam(admin, { ownerId, ageGroup: s.teamAge, sport: s.sport });
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: s.count, ageGroup: s.playerAge });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: s.playerAge });
+    if (s.sport === "rugby_league") await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+    await admin.from("game_availability").insert(
+      players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+    );
+    if (s.strategy) await admin.from("team_playbooks").insert({ team_id: team.id, strategy: s.strategy });
+    const kept = players[2];
+    await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: kept.id, kind: "keep_on" });
+
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    const marks = page.getByLabel(MARK);
+    await expect(marks, s.sport).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.getByRole("button").filter({ has: page.getByLabel(MARK) }), s.sport).toContainText(
+      kept.full_name.split(" ")[0],
+    );
+  }
+});
+
 test("chips are retired: no chip card or picker, carried-over rules are labelled", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);

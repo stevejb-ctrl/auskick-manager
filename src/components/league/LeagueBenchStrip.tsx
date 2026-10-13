@@ -23,6 +23,8 @@ interface LeagueBenchStripProps {
    *  at the bottom of each tile. Pass undefined to hide. */
   zoneMsByPlayer?: Record<string, import("@/lib/sports/rugby_league/fairness").LeagueZoneMs>;
   vestByPlayer?: Record<string, VestType>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
   injuredIds?: Set<string>;
@@ -54,6 +56,7 @@ export function LeagueBenchStrip({
   totalMsByPlayer,
   zoneMsByPlayer,
   vestByPlayer,
+  keepOnIds,
   conversionByPlayer,
   kickoffTakerIds,
   injuredIds,
@@ -88,6 +91,7 @@ export function LeagueBenchStrip({
               kickedOff={kickoffTakerIds?.has(p.id) ?? false}
               injured={injuredIds?.has(p.id) ?? false}
               loaned={loanedIds?.has(p.id) ?? false}
+              keepOn={keepOnIds?.has(p.id) ?? false}
               selected={selectedPlayerId === p.id}
               swap={
                 swapOns?.has(p.id)

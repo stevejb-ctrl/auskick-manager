@@ -22,10 +22,15 @@ export function useRoleSheet(
   config: RoleSheetConfig | undefined,
   teamId: string | null,
   nameOf: (playerId: string) => string | undefined,
-): { open: ((playerId: string) => void) | undefined; sheet: ReactNode } {
+): {
+  open: ((playerId: string) => void) | undefined;
+  sheet: ReactNode;
+  /** Saved roles, updated as the sheet saves (tiles show keep-on). */
+  roles: Record<string, PlayerRole>;
+} {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [roles, setRoles] = useState<Record<string, PlayerRole>>(config?.roles ?? {});
-  if (!config || !teamId) return { open: undefined, sheet: null };
+  if (!config || !teamId) return { open: undefined, sheet: null, roles: config?.roles ?? {} };
 
   const sheet = playerId ? (
     <PlayerRoleSheet
@@ -40,5 +45,5 @@ export function useRoleSheet(
       onClose={() => setPlayerId(null)}
     />
   ) : null;
-  return { open: setPlayerId, sheet };
+  return { open: setPlayerId, sheet, roles };
 }

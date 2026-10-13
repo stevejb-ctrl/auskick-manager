@@ -21,6 +21,7 @@ import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness"
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 interface PositionTokenProps {
   positionId: string;
@@ -60,6 +61,8 @@ interface PositionTokenProps {
   pulseKey?: string | number | null;
   /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
   caption?: { text: string; tone: "move" | "stay" } | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
 }
 
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
@@ -95,6 +98,7 @@ export function PositionToken({
   goalCount,
   pulseKey,
   caption,
+  keepOn = false,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -222,6 +226,8 @@ export function PositionToken({
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
+      {keepOn && !injured && !loaned && !(goalCount !== undefined && goalCount > 0) && <KeepOnMarker />}
+
       {/* Goal-count chip — floats above top-right corner so it never
           eats tile height. Mirrors AFL's score chip at PlayerTile.tsx:179.
           Hidden when zero so brand-new tokens stay clean. */}

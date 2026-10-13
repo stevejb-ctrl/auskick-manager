@@ -30,6 +30,7 @@ import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import type { LeagueZoneMs } from "@/lib/sports/rugby_league/fairness";
 import { PlayerVestBadge } from "./PlayerVestBadge";
 import { PlayerKickBadge } from "./PlayerKickBadge";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 interface LeaguePlayerTileProps {
   player: Player;
@@ -92,6 +93,8 @@ interface LeaguePlayerTileProps {
   disabled?: boolean;
   /** Named positions (Mod League): the kid's position, e.g. "HK". */
   positionLabel?: string | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
 }
 
 function formatMinSec(ms: number): string {
@@ -120,6 +123,7 @@ function LeaguePlayerTileImpl({
   onLongPress,
   disabled = false,
   positionLabel = null,
+  keepOn = false,
 }: LeaguePlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,6 +237,8 @@ function LeaguePlayerTileImpl({
           {isOff ? "↓" : "↑"}
         </span>
       )}
+
+      {keepOn && !injured && !loaned && !(tries > 0) && <KeepOnMarker />}
 
       {/* Tries chip — floats above top-right corner. Mirrors AFL's
           score chip placement so the visual hierarchy reads the same
@@ -369,6 +375,7 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
   if (a.injured !== b.injured) return false;
   if (a.loaned !== b.loaned) return false;
   if (a.positionLabel !== b.positionLabel) return false;
+  if (a.keepOn !== b.keepOn) return false;
   // `swap` is an object — shallow compare the fields. Without this
   // the memo would never invalidate when the next-sub suggestion
   // moves on or off this tile.

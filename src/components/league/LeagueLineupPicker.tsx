@@ -69,6 +69,7 @@ import { LeagueBenchStrip } from "./LeagueBenchStrip";
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -1246,6 +1247,7 @@ export function LeagueLineupPicker({
               { forwards: forwardIds, backs: backIds },
               leaguePlaybook,
             )}
+            keepOnIds={keepOnIds(playerRoles.roles)}
             selectedPlayerId={selectedPlayerId}
             chipModes={chipModes}
             onPlayerClick={handleTileTap}
@@ -1267,6 +1269,7 @@ export function LeagueLineupPicker({
       <LeagueBenchStrip
         players={benchPlayers}
         vestByPlayer={vestByPlayer}
+        keepOnIds={keepOnIds(playerRoles.roles)}
         selectedPlayerId={selectedPlayerId}
         chipModes={chipModes}
         onPlayerClick={handleTileTap}

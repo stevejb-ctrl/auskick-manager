@@ -40,6 +40,7 @@ import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -1103,6 +1104,7 @@ export function LineupPicker({
           positionModel={positionModel}
           chipModeByKey={chipModeByKey}
           positionLabels={assignPositionLabels(lineup, aflPlaybook)}
+          keepOnIds={keepOnIds(roles.roles)}
         />
         <Bench
           playersById={playerById}
@@ -1115,6 +1117,7 @@ export function LineupPicker({
           zoneLockedPlayers={holds.zoneLockedPlayers}
           zoneMsByPlayer={seasonMsByPlayer}
           chipModeByKey={chipModeByKey}
+          keepOnIds={keepOnIds(roles.roles)}
         />
         {holdPlayerId && playerById.get(holdPlayerId) && (() => {
           // The same long-press menu as in the game (UX: one "Keep on"):

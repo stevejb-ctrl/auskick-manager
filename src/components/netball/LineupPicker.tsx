@@ -45,6 +45,7 @@ import type { GameEvent } from "@/lib/types";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { KeepOnMarker, keepOnIds } from "@/components/playbook/KeepOnMarker";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -794,6 +795,7 @@ export function NetballLineupPicker({
             else handleTapEmpty(positionId);
           }}
           onLongPress={occupantId && playerRoles.open ? () => playerRoles.open?.(occupantId) : undefined}
+          keepOn={!!occupantId && keepOnIds(playerRoles.roles).has(occupantId)}
         />
       </div>
     );
@@ -1131,6 +1133,7 @@ export function NetballLineupPicker({
         selectedId={selected}
         onTapPlayer={handleTapPlayer}
         onLongPressPlayer={playerRoles.open}
+        keepOnIds={keepOnIds(playerRoles.roles)}
       />
       {playerRoles.sheet}
 
@@ -1254,6 +1257,7 @@ function BenchStrip({
   selectedId,
   onTapPlayer,
   onLongPressPlayer,
+  keepOnIds: keepOn,
 }: {
   bench: string[];
   onCourtIds: string[];
@@ -1263,6 +1267,7 @@ function BenchStrip({
   selectedId: string | null;
   onTapPlayer: (playerId: string) => void;
   onLongPressPlayer?: (playerId: string) => void;
+  keepOnIds?: Set<string>;
 }) {
   // "Bench + unassigned" = available players who aren't currently in a
   // position. That's the explicit bench list plus anyone in availableIds
@@ -1306,6 +1311,7 @@ function BenchStrip({
                 selected={selectedId === pid}
                 onTap={() => onTapPlayer(pid)}
                 onLongPress={onLongPressPlayer ? () => onLongPressPlayer(pid) : undefined}
+                keepOn={keepOn?.has(pid) ?? false}
               />
             );
           })
@@ -1321,11 +1327,13 @@ function BenchChip({
   selected,
   onTap,
   onLongPress,
+  keepOn = false,
 }: {
   player: Player;
   selected: boolean;
   onTap: () => void;
   onLongPress?: () => void;
+  keepOn?: boolean;
 }) {
   const lp = useLongPress({ onLongPress });
   return (
@@ -1346,6 +1354,7 @@ function BenchChip({
       }`}
     >
       {player.full_name}
+      {keepOn && <KeepOnMarker corner={false} />}
     </button>
   );
 }

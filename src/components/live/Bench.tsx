@@ -27,6 +27,8 @@ interface BenchProps {
   dimUnselected?: boolean;
   captions?: Record<string, TileCaption>;
   chipModeByKey?: Partial<Record<ChipKey, ChipMode>>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
 }
 
 export function Bench({
@@ -47,6 +49,7 @@ export function Bench({
   dimUnselected = true,
   captions,
   chipModeByKey,
+  keepOnIds,
 }: BenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
@@ -107,6 +110,7 @@ export function Bench({
                 score={playerScores?.[pid]}
                 caption={captions?.[pid]}
                 chipModes={chipModeByKey}
+                keepOn={keepOnIds?.has(pid)}
               />
             );
           })}

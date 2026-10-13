@@ -66,6 +66,8 @@ interface FieldProps {
   captions?: Record<string, TileCaption>;
   /** Set positions: playerId → position label shown on the tile. */
   positionLabels?: Record<string, string>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -107,6 +109,7 @@ export function Field({
   dimUnselected = true,
   captions,
   positionLabels,
+  keepOnIds,
 }: FieldProps) {
   // displayCaps drives the rendered slot count; zoneCaps drives the
   // suggester / placement rules. They diverge only when on-field
@@ -301,6 +304,7 @@ export function Field({
                       player={player}
                       currentZone={key}
                       positionLabel={positionLabels?.[pid]}
+                      keepOn={keepOnIds?.has(pid)}
                       onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
                       onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                       selected={isSelected}

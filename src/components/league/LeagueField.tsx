@@ -190,6 +190,8 @@ interface LeagueFieldProps {
   vestByPlayer?: Record<string, VestType>;
   /** Named positions: playerId → position label on the tile. */
   positionLabels?: Record<string, string>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
   injuredIds?: Set<string>;
@@ -257,6 +259,7 @@ export function LeagueField({
   zoneMsByPlayer,
   vestByPlayer,
   positionLabels,
+  keepOnIds,
   conversionByPlayer,
   kickoffTakerIds,
   injuredIds,
@@ -422,6 +425,7 @@ export function LeagueField({
                       zoneMs={zoneMsByPlayer?.[player.id]}
                       vest={vestByPlayer?.[player.id] ?? null}
                       positionLabel={positionLabels?.[player.id] ?? null}
+                      keepOn={keepOnIds?.has(player.id) ?? false}
                       conversion={conversionByPlayer?.[player.id] ?? null}
                       kickedOff={kickoffTakerIds?.has(player.id) ?? false}
                       injured={injuredIds?.has(player.id) ?? false}

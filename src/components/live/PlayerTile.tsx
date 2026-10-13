@@ -7,6 +7,7 @@ import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -54,6 +55,8 @@ interface PlayerTileProps {
   caption?: TileCaption | null;
   /** Set positions: the named position shown instead of the zone ("CHB"). */
   positionLabel?: string | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
 }
 
 export interface TileCaption {
@@ -86,6 +89,7 @@ function PlayerTileImpl({
   chipModes,
   caption,
   positionLabel,
+  keepOn,
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -231,6 +235,8 @@ function PlayerTileImpl({
           {caption.text}
         </div>
       )}
+
+      {keepOn && !injured && !loaned && !(score && (score.goals > 0 || score.behinds > 0)) && <KeepOnMarker />}
 
       {/* Score chip — floats above top-right corner so it never eats tile height */}
       {score && (score.goals > 0 || score.behinds > 0) && (
@@ -378,6 +384,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.chipModes !== b.chipModes) return false;
   if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
   if (a.positionLabel !== b.positionLabel) return false;
+  if (a.keepOn !== b.keepOn) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.
