@@ -180,6 +180,12 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // — see PositionToken.tsx:84+157 (uses pos.label, the FULL name,
   // not the shortLabel).
   const scorer = players[0];
+  // Wait for Q1 to be on screen: until the quarter_start lands the court
+  // isn't live yet, and a tap on the GS doesn't open the goal dock (the
+  // test used to race it, failing about half the time).
+  await expect(
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
+  ).toBeVisible({ timeout: 15_000 });
   await page
     .getByRole("button", {
       name: new RegExp(`^Goal Shooter,\\s*${scorer.full_name}`, "i"),
