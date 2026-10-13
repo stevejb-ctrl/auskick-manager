@@ -705,6 +705,19 @@ export function suggestStartingLineup(
       inGameTotal(a.id) - inGameTotal(b.id) ||
       homeFirst(a.id) - homeFirst(b.id),
   );
+  // Set positions: the order above decides WHO plays; WHERE goes kids with
+  // a home first, then those with backup spots, so a kid with no home
+  // can't fill a home kid's line before their turn (Stagehand round 4:
+  // the full back played centre in Q4).
+  let placementOrder = sortedPlayers;
+  if (playbook?.strategy === "set-positions") {
+    const capacity = zones.reduce((n, z) => n + Math.max(0, zoneCaps[z] - zoneFill[z]), 0);
+    const homeRank = (pid: string) => (roles[pid]?.home ? 0 : roles[pid]?.also.length ? 1 : 2);
+    placementOrder = [
+      ...sortedPlayers.slice(0, capacity).sort((a, b) => homeRank(a.id) - homeRank(b.id)),
+      ...sortedPlayers.slice(capacity),
+    ];
+  }
   // "Never plays" is a hard filter; a player with no allowed zone open
   // waits, and only fills a gap nobody else can.
   const deferred: string[] = [];
@@ -713,7 +726,7 @@ export function suggestStartingLineup(
     return !!never && (never.includes(z) || never.includes(lineOf(z)));
   };
 
-  for (const p of sortedPlayers) {
+  for (const p of placementOrder) {
     const anyOpen = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
     if (anyOpen.length === 0) {
       lineup.bench.push(p.id);

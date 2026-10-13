@@ -122,6 +122,31 @@ describe("set positions", () => {
     }
   });
 
+  // Stagehand round 4 (gameplan-night-before): with a bench and only some
+  // kids given homes, the full back played centre in Q4. Kids are placed
+  // least-played first, so by the time a home kid's turn came the kids
+  // without a home could have filled their line.
+  it("a kid with a home plays in it whenever they're on, with a bench and kids without homes", () => {
+    const squad = players(16);
+    const roles: Record<string, AflLineRole> = {
+      p1: role({ home: "fwd" }),
+      p2: role({ home: "back" }),
+      p3: role({ home: "mid" }),
+      p4: role({ home: "mid" }),
+    };
+    const offHome: string[] = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      const game = playGame(squad, base("set-positions", roles), {}, seed);
+      game.forEach((lineup, q) => {
+        for (const [pid, r] of Object.entries(roles)) {
+          const z = zoneOf(lineup, pid);
+          if (z !== "bench" && z !== r.home) offHome.push(`seed ${seed} Q${q + 1}: ${pid} at ${z}`);
+        }
+      });
+    }
+    expect(offHome).toEqual([]);
+  });
+
   it("labels each player with a position in their line, home first", () => {
     const lineup: Lineup = { back: ["a", "b"], hback: [], mid: ["c"], hfwd: [], fwd: ["d"], bench: ["e"] };
     const labels = assignPositionLabels(lineup, {
