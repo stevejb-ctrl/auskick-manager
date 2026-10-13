@@ -340,3 +340,59 @@ below was checked against the code or the game's event log.
 - **Game plan 12 vs lineup 15 on field (AFL U15)**: the seed doesn't set
   the game's on-field size; real games do (game-create e2e).
 - **Tuesday vs Saturday, fast clocks** come from the seeds.
+
+---
+
+# Sideline combos: in-game actions across all sports (13 Oct 2026)
+
+Steve: this season's match-day bugs came from combinations, "we lent a
+kid, then a kid got injured, and we needed to swap some kids in the
+break". So every in-game action was tested in combination, three ways:
+
+- **Random walks** (`src/lib/__tests__/sideline/`): seeded games mixing
+  everything a coach can do mid-period and at the breaks, written as
+  the app writes them. An independent model of the field, bench, injuries,
+  loans and each kid's time is checked against the replay after every
+  action:
+  - AFL: 600 games, half of them with events landing out of order;
+  - league: 400 games;
+  - netball: 500 games.
+
+  A failure prints the seed and the actions, so it replays exactly.
+- **Break combos, end to end**: lend, mark out (with and without a
+  replacement), recover and recall at the break, then Start; for each
+  sport.
+- **The story, end to end** (`sideline-combos-afl/league.spec.ts`,
+  netball in `netball-live-flow.spec.ts`): lend a kid, a kid is hurt
+  and replaced, the lent kid comes back at the break. The replayed game
+  must agree on who's on, nobody lost or doubled up, and the minutes
+  split at each action.
+
+## Found and fixed
+
+| # | Bug | Commit |
+|---|-----|--------|
+| 1 | AFL replay: injury and its replacement swap landing in the other order lost the replacement and benched the hurt kid twice; a swap after the hooter credited the quarter twice; a recall after a pre-game loan, and an arrival already on the field, went wrong. | 3afa951 |
+| 2 | Live writes went down per-action lanes, so a swap could land before the injury it followed. Now one lane per game; AFL undo goes through it too; rule failures are dropped, not retried. | cba41f7 |
+| 3 | League time: a hurt kid who recovered on the field never accrued again; a kid lent without a swap was credited the next period; a mid-period fill got no time. | dee95cf |
+| 4 | Netball: mid-quarter subs lived only in memory, so a reload put the injured GS back on court; a cancelled replacement left the kid accruing; Q4's subs were never saved (the replacement got no Q4 time). | a5ecb6b |
+| 5 | AFL break: a kid lent or marked out at the break started the next quarter on the field; a mark-out replacement was added beside the out kid (5 in a 4-spot zone). | fd6b483 |
+| 6 | Netball break: lending at the break left the kid on court; a kid brought back landed nowhere (gone from the game); recovering from the sidelined strip wiped the coach's edits. | 0c81df5 |
+| 7 | League §7: a kid replaced while hurt and recovered on the bench kept the unbroken period (stats, live warning). | f7687f5 |
+| 8 | League pinned plan at the break: kids who never turned up joined the bench; hurt kids were dropped from the game. | b555ee1 |
+| 9 | AFL season zone time (season balance, suggester) used an older second replay: missed zone switches, double-credited injuries. | 18d5f6b |
+| 10 | League field: any size without its own layout got the 11-spot one, so 12 a side hid a kid on the field. Found playing the story. | fe8c49e |
+
+## Checked, not bugs
+
+- League break events are stamped with the period just ended; time and
+  §7 handle it.
+- AFL can't record an injury before kickoff (only a loan), so the
+  replay ignoring one isn't reachable.
+- Netball credits a quarter ended early at full length on purpose:
+  "end early" is used when the clock was paused for stoppages.
+
+## Worth a look
+
+- Netball's sub recency (who came on last, a suggester tiebreak) is
+  stamped at the break, not when the kid came on mid-quarter.
