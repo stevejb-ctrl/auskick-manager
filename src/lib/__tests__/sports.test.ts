@@ -2,7 +2,7 @@
 //
 // Covers:
 //   - registry lookup + defaulting
-//   - AFL config reflects the existing AGE_GROUPS data (non-regression)
+//   - AFL age groups: on-field sizes, legacy ids, position model
 //   - Netball rules-of-play eligibility
 //   - Netball validateLineup catches common mistakes
 
@@ -56,9 +56,9 @@ describe("AFL sport config", () => {
   it("has 14 age groups (U8-U15 + U16/U17/U18 each split Boys/Girls)", () => {
     // Steve 2026-05-20: U16+ now splits by gender — Boys play
     // 18-a-side, Girls play 16-a-side per AFL Junior Match
-    // Policy. The legacy unsplit U16 / U17 IDs are still in
-    // AGE_GROUPS for back-compat with existing teams but are
-    // excluded from AGE_GROUP_ORDER (= aflSport.ageGroups).
+    // Policy. The legacy unsplit U16 / U17 IDs live in
+    // aflSport.legacyAgeGroups for existing teams, outside the
+    // picker list.
     expect(aflSport.ageGroups).toHaveLength(14);
     expect(aflSport.ageGroups[0].id).toBe("U8");
     expect(aflSport.ageGroups[8].id).toBe("U16_boys");
