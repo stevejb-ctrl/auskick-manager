@@ -9,6 +9,7 @@ import {
   type PlayHQTeamMeta,
 } from "@/lib/playhq";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { importedGameDefaults } from "@/lib/games/importedGameDefaults";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -131,8 +132,7 @@ export async function importPlayhqFixtures(
     .select("age_group")
     .eq("id", teamId)
     .single();
-  const { AGE_GROUPS, ageGroupOf } = await import("@/lib/ageGroups");
-  const cfg = AGE_GROUPS[ageGroupOf(team?.age_group)];
+  const defaults = importedGameDefaults(team?.age_group);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
@@ -177,8 +177,7 @@ export async function importPlayhqFixtures(
           location: f.venue,
           round_number: f.round,
           notes: null,
-          on_field_size: cfg.defaultOnFieldSize,
-          sub_interval_seconds: cfg.subIntervalSeconds,
+          ...defaults,
           external_source: "playhq",
           external_id: f.externalId,
           created_by: user.id,

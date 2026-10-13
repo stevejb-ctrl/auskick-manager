@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPlayhqTeamPage, parsePlayhqUrl } from "@/lib/playhq";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { importedGameDefaults } from "@/lib/games/importedGameDefaults";
 
 // Allow up to 60 s — one PlayHQ fetch per team, sequential.
 export const maxDuration = 60;
@@ -92,7 +92,7 @@ async function syncTeam(
   );
 
   // Resolve team config for defaults on new games.
-  const cfg = AGE_GROUPS[ageGroupOf(team.age_group ?? undefined)];
+  const defaults = importedGameDefaults(team.age_group);
 
   // Active-player lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
@@ -145,8 +145,7 @@ async function syncTeam(
           location: f.venue,
           round_number: f.round,
           notes: null,
-          on_field_size: cfg.defaultOnFieldSize,
-          sub_interval_seconds: cfg.subIntervalSeconds,
+          ...defaults,
           external_source: "playhq",
           external_id: f.externalId,
           created_by: adminRow.user_id,
