@@ -9,7 +9,7 @@ import {
   type PlayHQTeamMeta,
 } from "@/lib/playhq";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
-import { importedGameDefaults } from "@/lib/games/importedGameDefaults";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -132,7 +132,7 @@ export async function importPlayhqFixtures(
     .select("sport, age_group")
     .eq("id", teamId)
     .single();
-  const defaults = importedGameDefaults(team?.sport, team?.age_group);
+  const defaults = newGameDefaults(team?.sport, team?.age_group);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the

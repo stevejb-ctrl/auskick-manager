@@ -3,9 +3,8 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
-import { AGE_GROUPS } from "@/lib/ageGroups";
 import { netballSport } from "@/lib/sports";
-import { getSportConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
@@ -212,10 +211,8 @@ function buildDemoGamePayload({
     };
   }
 
-  // AFL — legacy AGE_GROUPS table (still the source of truth for
-  // AFL's on_field_size + sub_interval since AFL hasn't moved to
-  // the per-sport registry yet for these fields).
-  const cfg = AGE_GROUPS["U10"];
+  // AFL — the demo always plays U10.
+  const cfg = getAgeGroupConfig("afl", "U10");
   return {
     ...base,
     on_field_size: cfg.defaultOnFieldSize,

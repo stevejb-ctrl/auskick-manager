@@ -1,14 +1,14 @@
 // Regression guard for the U8/U10/U13 on_field_size fix shipped on
 // 2026-04-21: newly-created games must inherit on_field_size from
-// the team's age-group config (AGE_GROUPS[ag].defaultOnFieldSize),
-// not the old hard-coded default of 12.
+// the team's age-group config (getAgeGroupConfig(sport, ag)), not the
+// old hard-coded default of 12.
+//
+// Since 2026-10-13 createGame also writes sub_interval_seconds from
+// the same config. Before, manual games took the DB default of 180s
+// while PlayHQ and demo games used the age group's value. AFL's is
+// derived from quarter length (smallest clean split of at least 4 min).
 //
 // Covers: src/app/(app)/teams/[teamId]/games/actions.ts:createGame
-//
-// Expected values (per AFL Junior Match Policy, see src/lib/ageGroups.ts):
-//   U8   → 6
-//   U10  → 12
-//   U13  → 18
 
 import { test, expect } from "@playwright/test";
 import {
@@ -17,26 +17,34 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
-import type { AgeGroup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
-const cases: Array<{ ageGroup: AgeGroup; expectedSize: number }> = [
-  { ageGroup: "U8", expectedSize: 6 },
-  { ageGroup: "U10", expectedSize: 12 },
+const cases: Array<{
+  sport?: "afl" | "rugby_league";
+  ageGroup: string;
+  expectedSize: number;
+  expectedSubSeconds: number;
+}> = [
+  // AFL U8: 10-min quarters, two 5-min stints.
+  { ageGroup: "U8", expectedSize: 6, expectedSubSeconds: 300 },
+  // AFL U10: 12-min quarters, three 4-min stints.
+  { ageGroup: "U10", expectedSize: 12, expectedSubSeconds: 240 },
   // U13 dropped from 18 (5-position) to 15 (3-zone 5-5-5) when commit
   // 108ffd0 flipped every AFL age group onto the 3-zone model.
-  { ageGroup: "U13", expectedSize: 15 },
+  { ageGroup: "U13", expectedSize: 15, expectedSubSeconds: 240 },
+  // League U13: 13-a-side, 25-min halves, six 250s stints.
+  { sport: "rugby_league", ageGroup: "U13", expectedSize: 13, expectedSubSeconds: 250 },
 ];
 
-for (const { ageGroup, expectedSize } of cases) {
-  test(`createGame on a ${ageGroup} team stores on_field_size=${expectedSize}`, async ({
+for (const { sport = "afl", ageGroup, expectedSize, expectedSubSeconds } of cases) {
+  test(`createGame on a ${sport} ${ageGroup} team stores on_field_size=${expectedSize}, sub_interval_seconds=${expectedSubSeconds}`, async ({
     browser,
   }) => {
     const admin = createAdminClient();
     const stamp = Date.now();
     const user = await createTestUser(admin, {
-      email: `gc-${ageGroup}-${stamp}@siren.test`,
+      email: `gc-${sport}-${ageGroup}-${stamp}@siren.test`.toLowerCase(),
       password: "gc-test-pw-1234",
       fullName: `GC ${ageGroup}`,
     });
@@ -45,7 +53,8 @@ for (const { ageGroup, expectedSize } of cases) {
       const team = await makeTeam(admin, {
         ownerId: user.id,
         ageGroup,
-        name: `GC ${ageGroup} ${stamp}`,
+        sport,
+        name: `GC ${sport} ${ageGroup} ${stamp}`,
       });
 
       // Sign in as this user (not the super-admin) so the create-game
@@ -88,13 +97,14 @@ for (const { ageGroup, expectedSize } of cases) {
 
       const { data: games } = await admin
         .from("games")
-        .select("id, on_field_size, opponent")
+        .select("id, on_field_size, sub_interval_seconds, opponent")
         .eq("team_id", team.id)
         .eq("opponent", opponent);
 
       expect(games).not.toBeNull();
       expect(games).toHaveLength(1);
       expect(games![0].on_field_size).toBe(expectedSize);
+      expect(games![0].sub_interval_seconds).toBe(expectedSubSeconds);
 
       await context.close();
     } finally {

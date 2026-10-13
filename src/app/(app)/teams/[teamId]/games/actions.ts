@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -66,6 +67,12 @@ export async function createGame(
   // `createTeam` (dashboard/actions.ts) and `submitFeedback`
   // (feedback/actions.ts). See 0002_games_availability.sql for
   // the historical comment that flagged this.
+  const { data: team } = await supabase
+    .from("teams")
+    .select("sport, age_group")
+    .eq("id", teamId)
+    .single();
+  const defaults = newGameDefaults(team?.sport, team?.age_group);
   const gameId = crypto.randomUUID();
   const { error: insertError } = await supabase
     .from("games")
@@ -77,7 +84,8 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
-      on_field_size: input.on_field_size ?? 12,
+      on_field_size: input.on_field_size ?? defaults.on_field_size,
+      sub_interval_seconds: defaults.sub_interval_seconds,
       created_by: user.id,
     });
 

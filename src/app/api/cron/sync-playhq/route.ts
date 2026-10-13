@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPlayhqTeamPage, parsePlayhqUrl } from "@/lib/playhq";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
-import { importedGameDefaults } from "@/lib/games/importedGameDefaults";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
 
 // Allow up to 60 s — one PlayHQ fetch per team, sequential.
 export const maxDuration = 60;
@@ -97,7 +97,7 @@ async function syncTeam(
   );
 
   // Resolve team config for defaults on new games.
-  const defaults = importedGameDefaults(team.sport, team.age_group);
+  const defaults = newGameDefaults(team.sport, team.age_group);
 
   // Active-player lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
