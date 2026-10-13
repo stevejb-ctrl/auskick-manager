@@ -108,6 +108,35 @@ export async function deleteTestUser(
 }
 
 /**
+ * Whether `email` can sign in with `password` right now. The probe's
+ * own session is revoked straight after, and only that one: a bare
+ * `signOut()` defaults to scope "global" and would sign the user out
+ * everywhere, which is the thing this check exists to avoid.
+ */
+async function passwordSignsIn(email: string, password: string): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+        "Run tests via `npm run e2e` so scripts/e2e-setup.mjs loads .env.test."
+    );
+  }
+  const probe = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await probe.auth.signInWithPassword({ email, password });
+  if (!error) {
+    await probe.auth.signOut({ scope: "local" });
+    return true;
+  }
+  if (error.code === "invalid_credentials") return false;
+  // Anything else (rate limit, GoTrue down) isn't a wrong password.
+  // Resetting it anyway would sign out every run in flight, so stop.
+  throw new Error(`signing in as ${email} failed: ${error.message}`);
+}
+
+/**
  * Idempotent version of createTestUser — returns the existing user if
  * one with this email already exists. Used in global setup for the
  * super-admin, who should persist across test re-runs on the same
@@ -123,15 +152,22 @@ export async function ensureTestUser(
   if (error) throw new Error(`listUsers failed: ${error.message}`);
   const existing = data.users.find((u) => u.email === opts.email);
   if (existing) {
-    // Resync the password every run. `supabase db reset` does NOT
-    // wipe auth.users in current Supabase CLI versions, so a user
-    // created with a previous password (e.g. from a stale session
-    // or a stale .env.test) survives across resets and breaks login
-    // with the cryptic "Invalid login credentials" alert. Forcing
-    // the password match here keeps the auth setup deterministic.
-    await admin.auth.admin.updateUserById(existing.id, {
-      password: opts.password,
-    });
+    // Resync the password, but only when it has drifted. `supabase db
+    // reset` does NOT wipe auth.users in current Supabase CLI versions,
+    // so a user created with a previous password (e.g. from a stale
+    // .env.test) survives across resets and breaks login with the
+    // cryptic "Invalid login credentials" alert.
+    //
+    // Don't reset it every run, though. GoTrue deletes every session
+    // a user has when their password changes, so a second run's setup
+    // would sign out a run already in flight, and that run's specs
+    // land on /login across the suite.
+    if (!(await passwordSignsIn(opts.email, opts.password))) {
+      const { error: pwError } = await admin.auth.admin.updateUserById(existing.id, {
+        password: opts.password,
+      });
+      if (pwError) throw new Error(`resetting password failed: ${pwError.message}`);
+    }
     if (opts.superAdmin) {
       await admin
         .from("profiles")
