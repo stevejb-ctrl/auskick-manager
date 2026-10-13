@@ -419,13 +419,16 @@ export function LeagueLiveGame({
     return [...state.lineup.forwards, ...state.lineup.backs];
   }, [state.lineup]);
   const onFieldSet = useMemo(() => new Set(onFieldIds), [onFieldIds]);
+  // International laws (U13+): no goal-kick or kickoff rotation, so no
+  // rotation badges and no kickoff picker.
+  const internationalLaws = ageGroup.internationalLaws === true;
   const conversionByPlayer = useMemo(
-    () => playerConversionStatusInCycle(thisGameEvents, onFieldIds),
-    [thisGameEvents, onFieldIds],
+    () => (internationalLaws ? {} : playerConversionStatusInCycle(thisGameEvents, onFieldIds)),
+    [thisGameEvents, onFieldIds, internationalLaws],
   );
   const kickoffTakerIds = useMemo(
-    () => kickoffTakers(thisGameEvents),
-    [thisGameEvents],
+    () => (internationalLaws ? new Set<string>() : kickoffTakers(thisGameEvents)),
+    [thisGameEvents, internationalLaws],
   );
 
   // ── Per-player time on field ─────────────────────────────────
@@ -559,6 +562,7 @@ export function LeagueLiveGame({
   const kickingAllowed = ageGroup.kickingAllowed === true;
   const kickoffNeededForPeriod
     = kickingAllowed
+    && !internationalLaws
     && state.currentQuarter >= 1
     && !state.quarterEnded
     && !state.finalised
@@ -2159,6 +2163,7 @@ export function LeagueLiveGame({
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
               enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+              unbrokenRule={(ageGroup.minUnbrokenPeriods ?? 0) > 0}
               trackZoneTime={trackZoneTime}
               currentQuarter={state.currentQuarter}
               elapsedMs={elapsedMs}
@@ -2480,6 +2485,7 @@ export function LeagueLiveGame({
           quarter={state.currentQuarter}
           elapsedMs={elapsedMs}
           afterTry={conversionAfterTry}
+          rotation={!internationalLaws}
           onClose={() => setConversionDialogOpen(false)}
         />
       )}

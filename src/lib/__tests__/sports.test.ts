@@ -449,11 +449,35 @@ describe("getEffectiveQuarterSeconds", () => {
 });
 
 describe("rugby league sport config", () => {
-  it("has 7 age groups (U6-U12)", () => {
-    expect(rugbyLeagueSport.ageGroups).toHaveLength(7);
+  it("has 12 age groups (U6-U12 junior laws, U13-U17 international)", () => {
+    expect(rugbyLeagueSport.ageGroups).toHaveLength(12);
     expect(rugbyLeagueSport.ageGroups.map((a) => a.id)).toEqual([
-      "U6", "U7", "U8", "U9", "U10", "U11", "U12",
+      "U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17",
     ]);
+  });
+
+  it("U13-U17 play international laws: 13-a-side halves, goals from play, no junior laws", () => {
+    const byId = (id: string) => rugbyLeagueSport.ageGroups.find((a) => a.id === id)!;
+    for (const id of ["U13", "U14", "U15", "U16", "U17"]) {
+      const ag = byId(id);
+      expect(ag.internationalLaws, id).toBe(true);
+      expect(ag.defaultOnFieldSize, id).toBe(13);
+      expect(ag.maxOnFieldSize, id).toBe(13);
+      expect(ag.periodCount, id).toBe(2);
+      expect(ag.periodLabel, id).toBe("half");
+      expect(ag.kickingAllowed, id).toBe(true);
+      expect(ag.tracksScoreDefault, id).toBe(true);
+      // No vests, no unbroken-period law (both junior laws only).
+      expect(ag.vestRequirements, id).toBeUndefined();
+      expect(ag.minUnbrokenPeriods, id).toBe(0);
+    }
+    // CRRL 2026: 25-minute halves to U15, 30 from U16.
+    expect(byId("U13").periodSeconds).toBe(25 * 60);
+    expect(byId("U15").periodSeconds).toBe(25 * 60);
+    expect(byId("U16").periodSeconds).toBe(30 * 60);
+    expect(byId("U17").periodSeconds).toBe(30 * 60);
+    // The junior grades keep the junior laws.
+    for (const id of ["U6", "U8", "U10", "U12"]) expect(byId(id).internationalLaws, id).toBeFalsy();
   });
 
   it("uses rolling subs (like AFL) and the unbroken-period fairness model", () => {

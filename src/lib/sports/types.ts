@@ -130,6 +130,13 @@ export interface AgeGroupConfig {
    * forwards and the rest backs.
    */
   forwardCount?: number;
+  /**
+   * Rugby league only — the grade plays international (open-age) laws
+   * rather than the national 6–12 junior laws: no goal-kick (§15) or
+   * kickoff (§16) rotations, and penalty goals (2) and field goals (1)
+   * count. U13 and up.
+   */
+  internationalLaws?: boolean;
 }
 
 // ─── Brand (domain) config ───────────────────────────────────

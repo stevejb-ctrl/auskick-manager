@@ -347,11 +347,12 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
   }
 });
 
-test("rugby league supports the full U6-U12 age range", async ({
+test("rugby league supports the full U6-U17 age range", async ({
   browser,
 }) => {
   // Junior RL splits into three game models by age (U6/U7 tag, U8/U9
-  // quarters with FR/DH vests at U9, U10-U12 halves). The wizard must
+  // quarters with FR/DH vests at U9, U10-U12 halves), and U13-U17
+  // play international laws. The wizard must
   // expose every option from the SportConfig.ageGroups list once
   // Rugby League is selected. Pre-migration, the CHECK on teams.sport
   // would reject the insert; pre-config, the select would be empty.
@@ -384,13 +385,13 @@ test("rugby league supports the full U6-U12 age range", async ({
 
     await page.getByRole("button", { name: "Rugby League" }).click();
 
-    // The Age group <select> should expose all 7 RL age groups once
+    // The Age group <select> should expose all 12 RL age groups once
     // the Rugby League pill is active. Read the option values directly.
     const ageSelect = page.getByLabel(/age group/i);
     const values = await ageSelect.evaluate((el) =>
       Array.from((el as HTMLSelectElement).options).map((o) => o.value),
     );
-    expect(values).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12"]);
+    expect(values).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17"]);
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();

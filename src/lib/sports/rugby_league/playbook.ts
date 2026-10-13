@@ -20,6 +20,8 @@ import { sidedPositions } from "@/lib/playbook/sides";
 
 const NRL_LAWS = "NRL Junior League Laws";
 const MOD_LEAGUE = new Set(["U10", "U11", "U12"]);
+// Named positions: Mod League and the international-laws grades.
+const NAMED_POSITION_AGES = new Set(["U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17"]);
 
 export const LEAGUE_LINES: LineDef[] = [
   { id: "forwards", label: "Forwards", colorToken: "zone-f" },
@@ -91,7 +93,7 @@ const NAMED_POSITIONS: StrategyDef = {
   id: "named-positions",
   label: "Named positions",
   blurb: "Kids get home positions from the standard list (prop, hooker, halfback…).",
-  fit: "Mod League (U10–U12)",
+  fit: "Mod League (U10–U12) and up",
   usesPositions: true,
   balanceUnit: "position",
   balanceByDefault: true,
@@ -116,7 +118,7 @@ export const leaguePlaybook: SportPlaybook = {
   },
 
   positionModel(policy: EffectivePolicy, onFieldSize: number): PositionModel {
-    if (!MOD_LEAGUE.has(policy.ageGroup)) {
+    if (!NAMED_POSITION_AGES.has(policy.ageGroup)) {
       return { kind: "none", lines: LEAGUE_LINES, defaults: [], canRename: false, canAddRemove: false };
     }
     const cfg = getAgeGroupConfig("rugby_league", policy.ageGroup);
@@ -130,10 +132,12 @@ export const leaguePlaybook: SportPlaybook = {
   },
 
   strategies(policy: EffectivePolicy): StrategyDef[] {
-    return MOD_LEAGUE.has(policy.ageGroup) ? [...BASE_STRATEGIES, NAMED_POSITIONS] : BASE_STRATEGIES;
+    return NAMED_POSITION_AGES.has(policy.ageGroup) ? [...BASE_STRATEGIES, NAMED_POSITIONS] : BASE_STRATEGIES;
   },
 
   recommendedStrategy(policy: EffectivePolicy): string {
+    // Past Mod League kids play set positions (international laws).
+    if (getAgeGroupConfig("rugby_league", policy.ageGroup).internationalLaws) return "named-positions";
     return MOD_LEAGUE.has(policy.ageGroup) ? "preferred-line" : "both-lines";
   },
 

@@ -56,6 +56,8 @@ interface LeagueGameSettingsButtonProps {
   onFieldPlayers: Player[];
   /** Whether §6 unbroken-period enforcement is currently on. */
   enforceUnbrokenPeriods: boolean;
+  /** The grade has a §6 rule at all (junior laws; not U13+). Defaults on. */
+  unbrokenRule?: boolean;
   /** Whether the F/C/B zone-time bar renders on every player tile. */
   trackZoneTime: boolean;
   /** Current period — needed for the roster_shrink event metadata. */
@@ -73,6 +75,7 @@ export function LeagueGameSettingsButton({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
+  unbrokenRule = true,
   trackZoneTime,
   currentQuarter,
   elapsedMs,
@@ -102,6 +105,7 @@ export function LeagueGameSettingsButton({
           maxOnFieldSize={maxOnFieldSize}
           onFieldPlayers={onFieldPlayers}
           enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+          unbrokenRule={unbrokenRule}
           trackZoneTime={trackZoneTime}
           currentQuarter={currentQuarter}
           elapsedMs={elapsedMs}
@@ -130,6 +134,7 @@ function LeagueGameSettingsModal({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
+  unbrokenRule = true,
   trackZoneTime,
   currentQuarter,
   elapsedMs,
@@ -324,7 +329,8 @@ function LeagueGameSettingsModal({
           </div>
         </div>
 
-        {/* Enforce unbroken periods */}
+        {/* Enforce unbroken periods (junior laws only) */}
+        {unbrokenRule && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-ink">
@@ -342,6 +348,7 @@ function LeagueGameSettingsModal({
             label="Enforce unbroken periods"
           />
         </div>
+        )}
 
         {/* Track forward and back time */}
         <div className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-surface-alt px-3 py-2.5">

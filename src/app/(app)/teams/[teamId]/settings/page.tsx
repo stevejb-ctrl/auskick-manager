@@ -172,8 +172,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         />
         {/* Rugby league §6 Junior Laws: each player plays two full
             unbroken quarters (U6–U9) or one full half (U10–U12). Off by
-            default for casual comps. */}
-        {sport === "rugby_league" && (
+            default for casual comps. U13+ plays international laws:
+            no such rule, so no toggle. */}
+        {sport === "rugby_league" && (ageGroupCfg.minUnbrokenPeriods ?? 0) > 0 && (
           <UnbrokenPeriodsToggle
             teamId={params.teamId}
             initialEnabled={

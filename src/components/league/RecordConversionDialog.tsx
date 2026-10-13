@@ -53,6 +53,11 @@ interface RecordConversionDialogProps {
    * not hold that try until the refresh lands, so trust the caller.
    */
   afterTry?: boolean;
+  /**
+   * The junior goal-kick rotation (§15). Off under international laws
+   * (U13+): any on-field player may kick, and there's no Force.
+   */
+  rotation?: boolean;
 }
 
 export function RecordConversionDialog({
@@ -66,6 +71,7 @@ export function RecordConversionDialog({
   onClose,
   tryEventId,
   afterTry = false,
+  rotation = true,
 }: RecordConversionDialogProps) {
   const router = useRouter();
   const [pendingKickerId, setPendingKickerId] = useState<string | null>(null);
@@ -74,7 +80,7 @@ export function RecordConversionDialog({
 
   const cycle = conversionCycle(events, onFieldPlayerIds);
   const eligible = new Set(
-    nextEligibleConversionKickers(events, onFieldPlayerIds),
+    rotation ? nextEligibleConversionKickers(events, onFieldPlayerIds) : onFieldPlayerIds,
   );
   const totalAttempts = totalConversionAttemptsByPlayer(events);
   // A kick converts a try (Stagehand round 2: a game held a conversion
@@ -100,10 +106,12 @@ export function RecordConversionDialog({
   //      cycle).
   //   3. Otherwise → no banner.
   const showFreshBanner
-    = neverKickedOnField.length > 0
+    = rotation
+    && neverKickedOnField.length > 0
     && events.some((e) => e.type === "conversion_attempt");
   const showResetBanner
-    = !showFreshBanner
+    = rotation
+    && !showFreshBanner
     && cycle.attempted.size === 0
     && onFieldPlayerIds.length > 0
     && events.some((e) => e.type === "conversion_attempt");
@@ -142,7 +150,7 @@ export function RecordConversionDialog({
               Record conversion
             </h2>
             <p className="text-xs text-ink-mute">
-              Pick the kicker — laws §15 rotation enforced.
+              {rotation ? "Pick the kicker — laws §15 rotation enforced." : "Pick the kicker."}
             </p>
           </div>
           <button
@@ -159,8 +167,9 @@ export function RecordConversionDialog({
           {error && <InlineAlert kind="danger">{error}</InlineAlert>}
           {!hasTryToConvert && (
             <InlineAlert kind="warn">
-              No try to convert. Record the try first. Force is only for the
-              extra kick when the try-scorer was fouled.
+              {rotation
+                ? "No try to convert. Record the try first. Force is only for the extra kick when the try-scorer was fouled."
+                : "No try to convert. Record the try first. A kick from a penalty is a penalty goal."}
             </InlineAlert>
           )}
           {showFreshBanner && (
@@ -247,7 +256,10 @@ export function RecordConversionDialog({
           </div>
         </div>
 
-        {/* Force-toggle footer — pinned, never scrolls out of view */}
+        {/* Force-toggle footer — pinned, never scrolls out of view.
+            Junior laws only: international laws have no rotation, and a
+            kick from a penalty is a penalty goal. */}
+        {rotation && (
         <div className="flex-shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-0">
           <label className="mt-3 flex items-center gap-2 rounded-md bg-surface-alt px-3 py-2 text-xs text-ink-dim">
             <input
@@ -262,6 +274,8 @@ export function RecordConversionDialog({
             </span>
           </label>
         </div>
+        )}
+        {!rotation && <div className="pb-[calc(1rem+env(safe-area-inset-bottom))]" />}
       </Modal>
   );
 }

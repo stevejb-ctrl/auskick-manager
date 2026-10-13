@@ -16,7 +16,10 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 
 test.describe.configure({ mode: "serial" });
 
-async function seedLeagueGame() {
+/** U10 (junior laws, 11 a side) by default; U13 plays international laws (13 a side). */
+async function seedLeagueGame(age: "U10" | "U13" = "U10") {
+  const size = age === "U13" ? 13 : 11;
+  const forwards = age === "U13" ? 6 : 5;
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -24,7 +27,7 @@ async function seedLeagueGame() {
   )!.id;
   const team = await makeTeam(admin, {
     ownerId,
-    ageGroup: "U10",
+    ageGroup: age,
     sport: "rugby_league",
     name: `RL-Score-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
@@ -32,11 +35,11 @@ async function seedLeagueGame() {
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 13,
+    count: size + 2,
     ageGroup: "U10",
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
-  await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
+  await admin.from("games").update({ on_field_size: size }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,
@@ -51,9 +54,9 @@ async function seedLeagueGame() {
       type: "lineup_set",
       metadata: {
         lineup: {
-          forwards: players.slice(0, 5).map((p) => p.id),
-          backs: players.slice(5, 11).map((p) => p.id),
-          bench: players.slice(11).map((p) => p.id),
+          forwards: players.slice(0, forwards).map((p) => p.id),
+          backs: players.slice(forwards, size).map((p) => p.id),
+          bench: players.slice(size).map((p) => p.id),
         },
         sport: "rugby_league",
       },
@@ -141,4 +144,36 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
   await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeEnabled();
+});
+
+test("U13 plays international laws: anyone may kick, and there's no kickoff rotation", async ({ page }) => {
+  // The junior goal-kick (§15) and kickoff (§16) rotations are 6-12
+  // laws. From U13 the team's goal-kicker takes every kick.
+  test.setTimeout(120_000);
+  const { admin, team, players, game } = await seedLeagueGame("U13");
+  const kicker = players[1];
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^kickoff$/i })).toHaveCount(0);
+
+  const dialog = page.getByRole("dialog", { name: /record conversion/i });
+  for (let n = 1; n <= 2; n++) {
+    await page.getByTestId(`league-player-tile-${players[0].id}`).click();
+    await page.getByRole("button", { name: /^\+\s*try$/i }).click();
+    await expect.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(n);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("Pick the kicker.")).toBeVisible();
+    // No rotation, so no Force carve-out either.
+    await expect(dialog.getByRole("checkbox")).toHaveCount(0);
+    await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
+    await expect.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(n);
+    await expect(dialog).toBeHidden();
+  }
+  const kicks = await eventsOfType(admin, game.id, "conversion_attempt");
+  expect(kicks.map((k) => k.player_id)).toEqual([kicker.id, kicker.id]);
 });

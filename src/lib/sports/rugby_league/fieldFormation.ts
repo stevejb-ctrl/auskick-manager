@@ -10,6 +10,7 @@
 //   U9        →  8 on field, FR + DH            (4 fwd + 2 vest + 2 back)
 //   U10 / U11 → 11 on field, FR + DH            (5 fwd + 2 vest + 4 back)
 //   U12       → 13 on field, FR + DH            (6 fwd + 2 vest + 5 back)
+//   U13+      → 13 on field, no vests           (6 fwd + 7 back)
 //
 // One slot per on-field player; no extras. Steve flagged on
 // 2026-05-19 that the old hard-coded 11-slot array rendered 5
@@ -112,6 +113,16 @@ const FIELD_SLOTS_13_FR_DH: FieldSlot[] = [
   { id: "fullback", role: "fullback", x: 50, y: 90 },
 ];
 
+// U13+ (international laws): the same 13-a-side shape, the two vest
+// spots played by backs (dummy half / first receiver become halves).
+const FIELD_SLOTS_13_NO_VESTS: FieldSlot[] = FIELD_SLOTS_13_FR_DH.map((s) =>
+  s.role === "dh"
+    ? { ...s, id: "back-5", role: "back" }
+    : s.role === "fr"
+      ? { ...s, id: "back-6", role: "back" }
+      : s,
+);
+
 /**
  * Resolve the formation slot array for the given on-field size +
  * vest requirements. Defaults to the 11-player FR+DH layout
@@ -129,7 +140,7 @@ export function getFieldSlots(
   if (onFieldSize === 8 && fr && !dh) return FIELD_SLOTS_8_FR_ONLY;
   if (onFieldSize === 8 && fr && dh) return FIELD_SLOTS_8_FR_DH;
   if (onFieldSize === 11) return FIELD_SLOTS_11_FR_DH;
-  if (onFieldSize === 13) return FIELD_SLOTS_13_FR_DH;
+  if (onFieldSize === 13) return fr || dh ? FIELD_SLOTS_13_FR_DH : FIELD_SLOTS_13_NO_VESTS;
   return FIELD_SLOTS_11_FR_DH;
 }
 

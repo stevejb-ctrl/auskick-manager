@@ -122,7 +122,7 @@ export function TeamBasicsForm({
               onClick={() => handleSportChange("rugby_league")}
               disabled={isPending}
               title="Junior Rugby League"
-              subtitle="U6–U12. Manage subs, vest + kick rotations, scoring and more."
+              subtitle="U6–U17. Manage subs, vest + kick rotations, scoring and more."
             />
           </div>
         </div>

@@ -19,6 +19,8 @@
 //   * vest no-twice rule        — assignLeagueVest
 //   * conversion-kick rotation  — recordConversionAttempt (bypass with force: true)
 //   * kickoff rotation          — recordKickoff (full squad pool)
+// Both rotations are junior laws (U6–U12); U13+ plays international
+// laws without them (AgeGroupConfig.internationalLaws).
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -91,6 +93,15 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
     return { supabase, userId, teamId: auth.teamId, error: "Not authorised." };
   }
   return { supabase, userId, teamId: auth.teamId, error: null };
+}
+
+/**
+ * The team's league age config. U13+ plays international laws, where
+ * the junior goal-kick (§15) and kickoff (§16) rotations don't apply.
+ */
+async function leagueAgeConfig(supabase: SupabaseClient, teamId: string) {
+  const { data } = await supabase.from("teams").select("age_group").eq("id", teamId).maybeSingle();
+  return getAgeGroupConfig("rugby_league", (data as { age_group?: string | null } | null)?.age_group ?? null);
 }
 
 async function insertEvent(
@@ -715,9 +726,10 @@ export async function recordConversionAttempt(
 
     // No-twice rule: kicker already attempted in the current
     // cycle. Use the subset semantics from `conversionCycle` so
-    // mid-cycle substitutions resolve correctly.
+    // mid-cycle substitutions resolve correctly. Junior laws only:
+    // under international laws (U13+) any player may kick.
     const cycle = conversionCycle(priorEvents, onField);
-    if (cycle.attempted.has(kickerId)) {
+    if (cycle.attempted.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
       return {
         success: false,
         rejected: true,
@@ -781,7 +793,8 @@ export async function recordKickoff(
   const priorEvents = (priorEventsRaw ?? []) as GameEvent[];
   const cycle = kickoffCycle(priorEvents, squadIds);
 
-  if (cycle.taken.has(kickerId)) {
+  // The rotation is a junior law; international laws (U13+) have none.
+  if (cycle.taken.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
     return {
       success: false,
       error:

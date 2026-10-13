@@ -179,6 +179,18 @@ describe("rugby league", () => {
     expect(u12.defaults.find((p) => p.label === "LPR")?.name).toBe("Left prop");
   });
 
+  it("U13 and up (international laws) get named positions too, and lean to them", () => {
+    const league = getSportPlaybook("rugby_league");
+    const u15 = effectivePolicy("rugby_league", "U15");
+    expect(league.positionModel(u15, 13).kind).toBe("catalogue");
+    expect(league.positionModel(u15, 13).defaults).toHaveLength(13);
+    expect(league.strategies(u15).map((s) => s.id)).toContain("named-positions");
+    expect(league.recommendedStrategy(u15)).toBe("named-positions");
+    // No vests and no unbroken-period law past the junior laws.
+    expect(u15.vests).toEqual({ fr: false, dh: false });
+    expect(u15.minUnbrokenPeriods).toBe(0);
+  });
+
   it("carries vests and §6 unbroken periods from the age config", () => {
     const u9 = effectivePolicy("rugby_league", "U9");
     expect(u9.vests).toEqual({ fr: true, dh: true });

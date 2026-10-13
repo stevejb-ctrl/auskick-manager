@@ -2,6 +2,9 @@
 // Sources:
 //   - 2026 National Junior Rugby League Laws (6–12 years).
 //     https://www.playrugbyleague.com/media/18199/2026-national-6-12-junior-league-laws.pdf
+//   - U13 and up play international laws (penalty goals, field goals;
+//     none of the junior laws below). Halves per CRRL 2026 junior
+//     competition rules.
 //
 // Junior rugby league is positionless from a roster-management point
 // of view: the coach has 6–13 kids on the field at any moment, plus a
@@ -84,6 +87,10 @@ const HALF_PERIOD_SECONDS = 20 * 60;
 // (1200/240 = 5) rather than the old hand-set 600.
 const QUARTER_SUB_INTERVAL = deriveSubIntervalSeconds(QUARTER_PERIOD_SECONDS, 240);
 const HALF_SUB_INTERVAL = deriveSubIntervalSeconds(HALF_PERIOD_SECONDS, 240);
+const INTL_SHORT_HALF_SECONDS = 25 * 60;
+const INTL_LONG_HALF_SECONDS = 30 * 60;
+const INTL_SHORT_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_SHORT_HALF_SECONDS, 240);
+const INTL_LONG_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_LONG_HALF_SECONDS, 240);
 
 const RL_AGE_GROUPS: AgeGroupConfig[] = [
   {
@@ -252,6 +259,128 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 1,
     // 13 on field — front-row pack of 6, back-line of 7.
     forwardCount: 6,
+  },
+  // U13 and up play international laws (CRRL 2026 junior competition
+  // rules: 2 × 25-min halves to U15, 2 × 30 from U16).
+  {
+    id: "U13",
+    label: "Under 13",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+  },
+  {
+    id: "U14",
+    label: "Under 14",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+  },
+  {
+    id: "U15",
+    label: "Under 15",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+  },
+  {
+    id: "U16",
+    label: "Under 16",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_LONG_HALF_SECONDS,
+    subIntervalSeconds: INTL_LONG_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 30-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+  },
+  {
+    id: "U17",
+    label: "Under 17",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_LONG_HALF_SECONDS,
+    subIntervalSeconds: INTL_LONG_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 30-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
   },
 ];
 

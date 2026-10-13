@@ -9,6 +9,7 @@
 //   U9       →  8  (FR + DH)
 //   U10 / U11 → 11 (FR + DH)
 //   U12      → 13  (FR + DH)
+//   U13+     → 13  (no vests, international laws)
 //
 // Each formation must have:
 //   * EXACTLY onFieldSize slots — no surplus, no shortfall.
@@ -37,6 +38,8 @@ const AGE_CASES: AgeCase[] = [
   { age: "U10", onFieldSize: 11, vestRequirements: { fr: true, dh: true } },
   { age: "U11", onFieldSize: 11, vestRequirements: { fr: true, dh: true } },
   { age: "U12", onFieldSize: 13, vestRequirements: { fr: true, dh: true } },
+  // U13+ international laws: 13-a-side, no vests (6 forwards, 7 backs).
+  { age: "U13", onFieldSize: 13, vestRequirements: { fr: false, dh: false } },
 ];
 
 describe("getFieldSlots — per-age-group formations", () => {
