@@ -168,3 +168,78 @@ lineup's Save plan does.
   came from the seed (8× clock, default sub interval, game today, scoring off).
   The seed now turns scoring on and pushes the sub interval past the quarter.
 - **"Start game day" didn't navigate at first.** Dev-mode compile delay.
+
+---
+
+# Round 2, 13 Oct 2026 (after the fixes)
+
+Twelve missions: the six above again, plus six new ones (a parent running
+scoring from the share link, Game plan the night before, keep on today vs
+every game, league U11 game day, netball carnival day, a returning coach
+reading season stats). This time they ran against a **production build**
+on the local stack, so dev-server lag was gone: the whole round took about
+8 minutes. Reports are in `e2e/explore/reports/` (not committed).
+
+## Fixes that held up
+
+- **Holds** (holds-keep-on, completed): Keep on field from the lineup
+  showed a lock through Q1, the break ("STAYS") and Q2, and "Let them rotate
+  again" cleared it. "Keep on, every game" stuck on the role.
+- **Game plan** (gameplan-night-before): "Use for Q1" made the lineup
+  match the plan, and the plan was still saved when the game reopened.
+- **Home kids start** (gameday-afl-u15): all five home-position kids
+  started in their spots.
+- **Rule check** (gameday-afl-u12): it now says "season balance starts after
+  your first game" rather than a bare "All rules kept".
+- **Suggested strategy** (setup-afl-u15): Set positions was pre-selected.
+- **Runner** (runner-parent-scoring, completed): a first-time parent ran
+  Q1 from the share link, including scoring, Cancel, Undo and a swap.
+
+## New, confirmed
+
+1. **The netball score review still counts an undone goal.** Netball's undo
+   writes `{ target }` (often empty), but the score log reads
+   `target_event_id`. The header pairs undos newest-first and shows 2–0;
+   the break's per-quarter review shows 2–1. AFL and league look the
+   target up on the server; netball should too, and the score log should
+   pair old markers newest-first so existing games read right.
+2. **League allows a conversion with no try.** The game holds a made
+   conversion and no try. A separate "+C" opens the conversion dialog at
+   any time, and `recordConversionAttempt` doesn't check for an
+   unconverted try (only `force` should allow that).
+3. **"How we played" flags kids under 50 % against the nominal quarter
+   length.** The floor check uses `periodsPlayed × periodMs`, not the time
+   actually played, so short quarters flag kids who played exactly half.
+4. **Reopening Game plan mid-game ignores the plan you pinned** (AFL and
+   netball). It always projects afresh, so the coach's pinned next quarter
+   looks lost.
+5. **Game plan from the lineup uses the game's field size, not the
+   lineup's**, and its sub cadence can disagree with the game's sub
+   interval ("every 4 min" vs "every 10m").
+6. **A season keep-on role still isn't shown on the lineup** (the
+   every-game half of finding 2 in round 1).
+
+## Worth a look (unconfirmed or design)
+
+- **Taps during the score sheet's slide-in can land on the wrong scorer**
+  (runner, carnival, league: "first tap credited Ruby", "first goal
+  silently failed"). Not reproduced by hand.
+- **Carnival rule visibility**: the "still to play every third today" line
+  sits under a collapsed "All rules kept". There's no way to see who has
+  played which third today, so a parent's question can't be answered.
+- **Jargon on the live screen for first-timers**: OFF NEXT, pairs,
+  CEN/BCK/FWD, Q-BY-Q (runner).
+- **Undo only takes back the last score**; undoing an earlier one means
+  Fix scores at the break (game day AFL U12).
+- **Game plan text for set positions** lists names without positions,
+  which parents find hard to read.
+
+## Noise
+
+- **Dropped first letters in player names** (all three setup runs):
+  typing works by hand on both the wizard's squad step and the Squad tab.
+  It's Stagehand's typing tool.
+- **Cancel not closing a sheet**: the role sheet's Cancel closes it.
+- **The wizard's "Back to Team basics"** is a working link (onboarding
+  e2e covers it).
+- **Saturday vs Tuesday dates and fast clocks** come from the seeds.
