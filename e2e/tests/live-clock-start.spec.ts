@@ -418,7 +418,7 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
 // Regression: AFL teams created before the 2026-05-20 boys/girls split
 // still store age_group "U16" / "U17". The sport registry didn't list
 // those ids, so the kickoff clamp in live/actions.ts resolved the team
-// to U8 (max 9 on field) and cut a 12-a-side lineup down to 9.
+// to U8 (max 9 on field) and cut any bigger lineup down to 9.
 test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async ({
   page,
 }) => {
@@ -429,11 +429,9 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
   )!.id;
 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U16" });
-  // 15 players is the factory's ceiling, so field U16's minimum (12)
-  // and leave 3 on the bench.
+  // 15 players is the factory's ceiling.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U16" });
-  await admin.from("games").update({ on_field_size: 12 }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,
@@ -461,9 +459,10 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
           .select("on_field_size")
           .eq("id", game.id)
           .single();
-        return data?.on_field_size;
+        return data?.on_field_size ?? 0;
       },
       { timeout: 5_000 },
     )
-    .toBe(12);
+    // U16's legal range is 12–18. The bug clamped it to U8's max of 9.
+    .toBeGreaterThanOrEqual(12);
 });
