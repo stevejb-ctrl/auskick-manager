@@ -744,6 +744,8 @@ export const useLiveGame = create<LiveGameState>()(
         stintStartMs,
         stintZone,
         swapCount: prev.swapCount + 1,
+        // A hurt kid can't stay selected: the next tap would swap them.
+        selected: prev.selected?.playerId === playerId ? null : prev.selected,
       };
     }),
 
@@ -805,6 +807,9 @@ export const useLiveGame = create<LiveGameState>()(
         stintStartMs,
         stintZone,
         swapCount: prev.swapCount + 1,
+        // A lent kid can't stay selected: the next tap would swap them on
+        // (Stagehand round 4, sideline-chaos-netball).
+        selected: prev.selected?.playerId === playerId ? null : prev.selected,
       };
     }),
 

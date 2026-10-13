@@ -270,6 +270,11 @@ export function QuarterBreak({
   }, [basePlayedZoneMs]);
 
   const [selected, setSelected] = useState<string | null>(null);
+  // A kid lent, hurt or marked out stops being selected (the next tap
+  // would swap them on).
+  useEffect(() => {
+    if (selected && sidelinedSet.has(selected)) setSelected(null);
+  }, [selected, sidelinedSet]);
   // Slot the coach is filling via the SlotFillSheet. Set when they
   // tap an empty zone slot; cleared when they pick or cancel. Null
   // means the sheet is closed.
@@ -433,15 +438,18 @@ export function QuarterBreak({
     // Injured / loaned players are parked on the bench; tapping them is
     // a no-op so a coach can't manually drag them onto the field.
     if (sidelinedSet.has(pid)) return;
-    if (!selected) {
+    // Nor can a kid selected before they were lent, hurt or marked out
+    // (they'd swap on with this tap): this tap starts a new selection.
+    const current = selected && !sidelinedSet.has(selected) ? selected : null;
+    if (!current) {
       setSelected(pid);
       return;
     }
-    if (selected === pid) {
+    if (current === pid) {
       setSelected(null);
       return;
     }
-    const a = selected;
+    const a = current;
     const b = pid;
     setDraft((prev) => {
       const sa = slotOf(a, prev);
@@ -2027,7 +2035,7 @@ export function QuarterBreak({
               handleTap(pid);
               return;
             }
-            if (selected) {
+            if (selected && !sidelinedSet.has(selected)) {
               placeInZone(selected, zone);
               setSelected(null);
               return;

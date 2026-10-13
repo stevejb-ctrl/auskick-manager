@@ -398,3 +398,75 @@ test("netball: lending at the break takes the kid off court, and a kid brought b
   const inGame = new Set([...court, ...q2!.bench]);
   for (const p of players.slice(1)) expect(inGame.has(p.id)).toBe(true);
 });
+
+// Stagehand round 4 (sideline-chaos-netball): the coach had a bench kid
+// selected (a long-press selects too), then lent her. The next tap on a
+// court kid swapped the lent kid onto court.
+test("netball: a kid selected and then lent at the break doesn't swap on with the next tap", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "go",
+    sport: "netball",
+    name: `NB-STALE-SEL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const teamQS = 480;
+  await admin
+    .from("teams")
+    .update({ track_scoring: false, quarter_length_seconds: teamQS })
+    .eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" })),
+  );
+  const positions: Record<string, string[]> = Object.fromEntries(
+    NETBALL_LINEUP_KEYS.map((k, i) => [k, [players[i].id]]),
+  );
+  const lineup = { positions, bench: [players[7].id, players[8].id] };
+  const startedAt = new Date(Date.now() - (teamQS + 60) * 1000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: startedAt },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: startedAt },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+  await expandGameSettings(page);
+  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+
+  const lent = players[7];
+  const gs = players[0];
+  const token = (position: string, name: string) =>
+    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+
+  // Select the bench kid, then lend her.
+  await page.getByRole("button", { name: new RegExp(`^B ${lent.full_name}`) }).first().click();
+  await expandGameSettings(page);
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  const lendSheet = page.getByRole("dialog", { name: /lend/i });
+  await lendSheet.getByRole("button", { name: new RegExp(lent.full_name, "i") }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+      return (data ?? []).length;
+    }, { timeout: 15_000 })
+    .toBe(1);
+  // The lend lands; then the coach taps the GS.
+  await expect(page.getByRole("button", { name: `Bring ${lent.full_name} back` })).toBeVisible({ timeout: 15_000 });
+  await token("Goal Shooter", gs.full_name).click();
+
+  // No swap: the GS is still on, the lent kid isn't on court.
+  await expect(token("Goal Shooter", gs.full_name)).toBeVisible();
+  // (Court tokens are named "<Position>, <name>"; bench tiles aren't.)
+  await expect(page.getByRole("button", { name: new RegExp(`,\\s*${lent.full_name}`, "i") })).toHaveCount(0);
+});

@@ -459,3 +459,83 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
     expect.arrayContaining([lent.id, outWithReplacement.id, outAlone.id]),
   );
 });
+
+// Stagehand round 4: a kid selected at the break and then lent stayed
+// selected, so the next tap on a field kid swapped the lent kid on.
+test("AFL: a kid selected at the break and then lent doesn't swap on with the next tap", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const onField = players.slice(0, game.on_field_size);
+  const bench = players.slice(game.on_field_size);
+  const third = Math.floor(game.on_field_size / 3);
+  const lineup = {
+    back: onField.slice(0, third).map((p) => p.id),
+    hback: [],
+    mid: onField.slice(third, third * 2).map((p) => p.id),
+    hfwd: [],
+    fwd: onField.slice(third * 2).map((p) => p.id),
+    bench: bench.map((p) => p.id),
+  };
+  const aMomentAgo = new Date(Date.now() - 13 * 60_000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: aMomentAgo },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: aMomentAgo },
+    {
+      game_id: game.id,
+      type: "quarter_end",
+      metadata: { quarter: 1, elapsed_ms: 12 * 60_000 },
+      created_by: ownerId,
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    },
+  ]);
+  await admin.from("game_availability").upsert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available",
+      updated_by: ownerId,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: "game_id,player_id" },
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const selectTeamBtn = page.getByRole("button", { name: /select team for q2/i });
+  if (await selectTeamBtn.isVisible().catch(() => false)) {
+    await selectTeamBtn.click({ timeout: 10_000 });
+  }
+  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 15_000 });
+  const adjustments = page.getByRole("button", { name: /game settings/i });
+  if ((await adjustments.getAttribute("aria-expanded")) !== "true") await adjustments.click();
+  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+
+  const lent = bench[0];
+  // Select the bench kid, then lend them from Game settings.
+  await page.getByTestId(`player-tile-${lent.id}`).click();
+  if ((await adjustments.getAttribute("aria-expanded")) !== "true") await adjustments.click();
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  await page.getByRole("dialog", { name: /lend/i }).getByRole("button", { name: new RegExp(lent.full_name, "i") }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+      return (data ?? []).length;
+    }, { timeout: 15_000 })
+    .toBe(1);
+
+  // Tap a back: no swap, the lent kid stays off the field.
+  await page.getByTestId(`player-tile-${onField[0].id}`).click();
+  for (const zone of ["Back", "Centre", "Forward"]) {
+    await expect(page.getByRole("group", { name: zone }).getByTestId(`player-tile-${lent.id}`)).toHaveCount(0);
+  }
+  await expect(page.getByRole("group", { name: "Back" }).getByTestId(`player-tile-${onField[0].id}`)).toBeVisible();
+});

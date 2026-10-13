@@ -1276,6 +1276,9 @@ export function LeagueLiveGame({
     if (firstOnField !== secondOnField) {
       const off = firstOnField ? selectedPlayer.id : secondId;
       const on = firstOnField ? secondId : selectedPlayer.id;
+      // Never bring a hurt or lent kid on, e.g. one selected before they
+      // were lent (Stagehand round 4): this tap starts a new selection.
+      if (injuredSet.has(on) || loanedSet.has(on)) return false;
       await applySwap(off, on);
       return true;
     }
@@ -1321,6 +1324,8 @@ export function LeagueLiveGame({
   async function handleVacantSpotTap(slotZone: "forward" | "back") {
     if (!selectedPlayer || !state.lineup) return;
     const isBench = state.lineup.bench.includes(selectedPlayer.id);
+    // A hurt or lent kid on the bench can't fill a spot.
+    if (isBench && (injuredSet.has(selectedPlayer.id) || loanedSet.has(selectedPlayer.id))) return;
     const isField
       = state.lineup.forwards.includes(selectedPlayer.id)
       || state.lineup.backs.includes(selectedPlayer.id);
@@ -1412,6 +1417,7 @@ export function LeagueLiveGame({
   }
 
   async function handleToggleInjury(playerId: string, injured: boolean) {
+    if (injured) setSelectedPlayerId((s) => (s === playerId ? null : s));
     // Marking a FIELD player injured: prompt for a replacement before
     // firing anything — mirrors AFL's InjuryReplacementModal flow.
     // The modal fires both markInjury + recordLeagueSwap so the swap
@@ -1565,6 +1571,7 @@ export function LeagueLiveGame({
   // from a genuine injury; leaves the field slot vacant.
   async function handleMarkOutDirect(playerId: string) {
     setMarkOutReplacement(null);
+    setSelectedPlayerId((s) => (s === playerId ? null : s));
     setPending(true);
     const { flushed } = enqueueLiveAction("markInjury", [
       auth,
@@ -1647,6 +1654,9 @@ export function LeagueLiveGame({
   }
 
   async function handleToggleLoan(playerId: string, loaned: boolean) {
+    // A lent kid stops being selected now, before the refresh flags them:
+    // the next tap would swap them on (Stagehand round 4).
+    if (loaned) setSelectedPlayerId((s) => (s === playerId ? null : s));
     setPending(true);
     const { flushed } = enqueueLiveAction("markLoan", [
       auth,

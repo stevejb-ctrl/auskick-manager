@@ -137,3 +137,54 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   near(total(replacement.id), q1End - at("swap", replacement.id));
   near(total(onField[1].id), q1End);
 });
+
+// Stagehand round 4: a kid selected for a swap and then lent stayed
+// selected, so the next tap offered to sub the lent kid on.
+test("AFL: a bench kid selected and then lent isn't offered as a sub with the next tap", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ sub_interval_seconds: 900 }).eq("id", game.id);
+  const onField = players.slice(0, game.on_field_size);
+  const bench = players.slice(game.on_field_size);
+  const third = Math.floor(game.on_field_size / 3);
+  const lineup = {
+    back: onField.slice(0, third).map((p) => p.id),
+    hback: [],
+    mid: onField.slice(third, third * 2).map((p) => p.id),
+    hfwd: [],
+    fwd: onField.slice(third * 2).map((p) => p.id),
+    bench: bench.map((p) => p.id),
+  };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const lent = bench[0];
+  // Select the bench kid, then long-press them and lend them.
+  await page.getByTestId(`player-tile-${lent.id}`).click();
+  await page.getByTestId(`player-tile-${lent.id}`).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition/i }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+      return (data ?? []).length;
+    }, { timeout: 15_000 })
+    .toBe(1);
+
+  // Tapping a field kid starts a new selection; it doesn't offer the lent kid.
+  await page.getByTestId(`player-tile-${onField[0].id}`).click();
+  await page.waitForTimeout(500);
+  await expect(page.getByRole("dialog", { name: new RegExp(`manually sub ${lent.full_name}`, "i") })).toHaveCount(0);
+});

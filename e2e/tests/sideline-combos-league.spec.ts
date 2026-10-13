@@ -171,3 +171,54 @@ test("rugby league: a 12-a-side field draws all twelve kids", async ({ page }) =
   for (const id of ids.slice(0, 12)) await expect(field.getByTestId(`league-player-tile-${id}`)).toBeVisible();
   await expect(field.locator(`[data-testid^="league-player-tile-"]`)).toHaveCount(12);
 });
+
+// Stagehand round 4: a kid selected for a swap and then lent stayed
+// selected, so the next tap on a field kid swapped the lent kid on.
+test("rugby league: a bench kid selected and then lent doesn't swap on with the next tap", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U13",
+    sport: "rugby_league",
+    name: `RL-STALE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const { error } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 6), backs: ids.slice(6, 13), bench: ids.slice(13) };
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" } },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" } },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const lent = players[13];
+  const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
+  // Select the bench kid, then long-press them and lend them.
+  await tile(lent.id).click();
+  await tile(lent.id).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition/i }).click();
+  const events = async (type: string) => {
+    const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", type);
+    return (data ?? []).length;
+  };
+  await expect.poll(() => events("player_loan"), { timeout: 15_000 }).toBe(1);
+
+  // Tap a forward: no swap, the lent kid stays off.
+  await tile(players[0].id).click();
+  await page.waitForTimeout(2_000);
+  expect(await events("swap")).toBe(0);
+  await expect(page.getByRole("region", { name: "On field" }).getByTestId(`league-player-tile-${lent.id}`)).toHaveCount(0);
+});

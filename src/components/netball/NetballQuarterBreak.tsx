@@ -474,6 +474,11 @@ export function NetballQuarterBreak({
     });
   }, [netballPlaybook, squad, draft, previousLineup, thirdMs, nextQuarter, periodSeconds, ageGroup.periodCount]);
   const [selected, setSelected] = useState<string | null>(null);
+  // A kid lent, hurt or marked out stops being selected (the next tap
+  // would swap them on court: Stagehand round 4, sideline-chaos-netball).
+  useEffect(() => {
+    if (selected && sidelinedSet.has(selected)) setSelected(null);
+  }, [selected, sidelinedSet]);
   // Initial value defers to the live store's rotationMode (set by
   // the pre-game LineupPicker or by a prior Q-break) so a coach who
   // picked "Set manually" sees Manual at every QB instead of having
@@ -742,15 +747,18 @@ export function NetballQuarterBreak({
 
   function handleTap(pid: string) {
     if (sidelinedSet.has(pid)) return;
-    if (!selected) {
+    // Nor can a kid selected before they were lent, hurt or marked out:
+    // this tap starts a new selection.
+    const current = selected && !sidelinedSet.has(selected) ? selected : null;
+    if (!current) {
       setSelected(pid);
       return;
     }
-    if (selected === pid) {
+    if (current === pid) {
       setSelected(null);
       return;
     }
-    const a = selected;
+    const a = current;
     const b = pid;
     setDraft((prev) => {
       const aPos = positionOfPlayer(a, prev);
@@ -837,6 +845,7 @@ export function NetballQuarterBreak({
       return next;
     });
     setDraft((prev) => benchPlayerInPositionLineup(prev, playerId));
+    setSelected((s) => (s === playerId ? null : s));
   }
   function handleUnInjury() {
     if (!actionsTarget) return;
@@ -1203,6 +1212,7 @@ export function NetballQuarterBreak({
   function handleOutDirect(playerId: string) {
     setOutReplacement(null);
     setAdjustError(null);
+    setSelected((s) => (s === playerId ? null : s));
     // Stage the player off court → bench so the draft reflects the out.
     setDraft((prev) => {
       const next: GenericLineup = {
@@ -1241,6 +1251,7 @@ export function NetballQuarterBreak({
   ) {
     setOutReplacement(null);
     setAdjustError(null);
+    setSelected((s) => (s === outId ? null : s));
     setDraft((prev) => {
       const next: GenericLineup = {
         positions: Object.fromEntries(
