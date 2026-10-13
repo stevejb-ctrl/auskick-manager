@@ -276,3 +276,125 @@ test("netball: at the break a coach can add an arrived player, mark a player out
     )
     .toBe(true);
 });
+
+// ─── Sideline combo at the break (netball) ───────────────────────────
+// A bench kid was lent during Q1. At the break the coach lends the GS,
+// brings the Q1 loaner back, and puts them in at GS. Pre-fix the lent
+// GS stayed on court in the staged lineup (and started Q2 there), and
+// the kid brought back landed nowhere: not on the bench, not pickable,
+// gone from the game.
+test("netball: lending at the break takes the kid off court, and a kid brought back lands on the bench", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "go",
+    sport: "netball",
+    name: `NB-BRK-COMBO-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const teamQS = 480;
+  await admin
+    .from("teams")
+    .update({ track_scoring: false, quarter_length_seconds: teamQS })
+    .eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" })),
+  );
+
+  const positions: Record<string, string[]> = Object.fromEntries(
+    NETBALL_LINEUP_KEYS.map((k, i) => [k, [players[i].id]]),
+  );
+  const lineup = { positions, bench: [players[7].id, players[8].id, players[9].id] };
+  const gs = players[0];
+  const q1Loaner = players[8];
+
+  const startedAt = new Date(Date.now() - (teamQS + 60) * 1000).toISOString();
+  const lentAt = new Date(Date.now() - (teamQS - 60) * 1000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: startedAt },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: startedAt },
+    {
+      game_id: game.id,
+      type: "player_loan",
+      player_id: q1Loaner.id,
+      metadata: { loaned: true, quarter: 1, elapsed_ms: 120_000 },
+      created_by: ownerId,
+      created_at: lentAt,
+    },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+  await expandGameSettings(page);
+  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+
+  const token = (position: string, name: string) =>
+    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+  const loanEvents = async (pid: string) => {
+    const { data } = await admin
+      .from("game_events")
+      .select("metadata")
+      .eq("game_id", game.id)
+      .eq("type", "player_loan")
+      .eq("player_id", pid)
+      .order("created_at", { ascending: true });
+    return (data ?? []).map((e) => (e.metadata as { loaned?: boolean }).loaned);
+  };
+
+  // Lend the GS: they come off court, leaving GS to fill.
+  await expect(token("Goal Shooter", gs.full_name)).toBeVisible();
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  const lendSheet = page.getByRole("dialog", { name: /lend/i });
+  await expect(lendSheet).toBeVisible({ timeout: 5_000 });
+  await lendSheet.getByRole("button", { name: new RegExp(gs.full_name, "i") }).click();
+  await expect.poll(() => loanEvents(gs.id), { timeout: 15_000 }).toEqual([true]);
+  await expect(token("Goal Shooter", gs.full_name)).toHaveCount(0);
+  await expect(token("Goal Shooter", "empty")).toBeVisible();
+
+  // Bring the Q1 loaner back, then put them in at GS.
+  await expandGameSettings(page);
+  await page.getByRole("button", { name: `Bring ${q1Loaner.full_name} back` }).click();
+  await expect.poll(() => loanEvents(q1Loaner.id), { timeout: 15_000 }).toEqual([true, false]);
+  await token("Goal Shooter", "empty").click();
+  const fillSheet = page.getByRole("dialog", { name: /fill/i });
+  await expect(fillSheet).toBeVisible({ timeout: 5_000 });
+  await fillSheet.getByRole("button", { name: new RegExp(q1Loaner.full_name, "i") }).click();
+  await expect(token("Goal Shooter", q1Loaner.full_name)).toBeVisible();
+
+  // Start Q2: the committed lineup has the recalled kid at GS and
+  // nobody lost (everyone but the lent GS is on court or the bench).
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  let q2: { positions: Record<string, string[]>; bench: string[] } | null = null;
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("metadata")
+          .eq("game_id", game.id)
+          .eq("type", "period_break_swap");
+        const ev = (data ?? []).find((e) => (e.metadata as { quarter?: number }).quarter === 2);
+        q2 = ev ? (ev.metadata as { lineup: typeof q2 }).lineup : null;
+        return q2 !== null;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  const court = Object.values(q2!.positions).flat();
+  expect(q2!.positions.gs).toEqual([q1Loaner.id]);
+  expect(court).not.toContain(gs.id);
+  const inGame = new Set([...court, ...q2!.bench]);
+  for (const p of players.slice(1)) expect(inGame.has(p.id)).toBe(true);
+});

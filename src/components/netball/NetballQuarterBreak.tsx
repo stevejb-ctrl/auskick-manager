@@ -537,16 +537,16 @@ export function NetballQuarterBreak({
   // bench, so the slot stays filled and the recovered player lands on
   // bench by default. Coach can manually swap them back into a slot
   // if they want to.
-  // Only re-derive `draft` when the user explicitly changes
-  // lineup mode OR when forcedBenchIds shifts (un-injuring a
-  // player on the Q-break should push them onto bench by default).
+  // Only re-derive `draft` when the user explicitly changes lineup
+  // mode. (A recovery at the break used to re-derive it too, wiping the
+  // coach's edits; the recovered kid is now put on the bench directly,
+  // see restoreToBench.)
   // Without this guard, ambient prop changes (suggestedLineup
   // recomputing as thisGameEvents updates) cause the user's
   // committed draft to be overwritten with a fresh suggestion —
   // visible as a "lineup flickers a few seconds after Q-break
   // mounts" bug Steve reported 2026-05-09.
   const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
-  const lastForcedBenchSizeRef = useRef(0);
   // F2 pre-seed: when the coach pinned this upcoming period's lineup,
   // open the break ON that plan instead of the fresh suggestion. Runs
   // BEFORE the mode effect below (declaration order = mount run order)
@@ -564,11 +564,8 @@ export function NetballQuarterBreak({
     lastAppliedModeRef.current = lineupMode;
   }, [seededDraft, lineupMode]);
   useEffect(() => {
-    const modeChanged = lastAppliedModeRef.current !== lineupMode;
-    const forcedChanged = lastForcedBenchSizeRef.current !== forcedBenchIds.size;
-    if (!modeChanged && !forcedChanged) return;
+    if (lastAppliedModeRef.current === lineupMode) return;
     lastAppliedModeRef.current = lineupMode;
-    lastForcedBenchSizeRef.current = forcedBenchIds.size;
     const base =
       lineupMode === "suggested"
         ? suggestedLineup
@@ -610,10 +607,9 @@ export function NetballQuarterBreak({
         // than create an empty slot. Edge case (full court, no bench
         // space).
       } else if (!next.bench.includes(pid)) {
-        // Not on court; ensure they're on bench if the lineup knows
-        // about them at all (post-revalidation).
-        const lineupHasPid = Object.values(base.positions).some((v) => v.includes(pid)) || base.bench.includes(pid);
-        if (lineupHasPid) next.bench.push(pid);
+        // Not on court: on the bench, even before the refresh brings
+        // them back into the suggestion (they'd otherwise vanish).
+        next.bench.push(pid);
       }
     });
     setDraft(next);
@@ -817,15 +813,36 @@ export function NetballQuarterBreak({
   function handleSidelinedLongPress(playerId: string) {
     setActionsTarget(playerId);
   }
+  // A kid brought back at the break (recovered, or back from a loan)
+  // joins the staged bench now, keeping the coach's edits, and is
+  // stamped bench-default so a later mode change doesn't put them
+  // straight on court. They used to land nowhere: missing from the
+  // bench and the pickers until the next quarter (sideline combos).
+  function restoreToBench(playerId: string) {
+    setForcedBenchIds((prev) => new Set(prev).add(playerId));
+    setDraft((prev) =>
+      prev.bench.includes(playerId) ||
+      Object.values(prev.positions).some((ids) => ids.includes(playerId))
+        ? prev
+        : { ...prev, bench: [...prev.bench, playerId] },
+    );
+  }
+  // Sidelined again at the break: off the staged court, and no longer
+  // bench-default (that's for kids brought back).
+  function sidelineInDraft(playerId: string) {
+    setForcedBenchIds((prev) => {
+      if (!prev.has(playerId)) return prev;
+      const next = new Set(prev);
+      next.delete(playerId);
+      return next;
+    });
+    setDraft((prev) => benchPlayerInPositionLineup(prev, playerId));
+  }
   function handleUnInjury() {
     if (!actionsTarget) return;
     const playerId = actionsTarget;
     setActionsTarget(null);
-    // Stamp the recovered player as bench-default so the suggester
-    // doesn't put them straight back into a court position when the
-    // events refresh. The draft useEffect post-processes this set
-    // every time it rebuilds.
-    setForcedBenchIds((prev) => new Set(prev).add(playerId));
+    restoreToBench(playerId);
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
@@ -841,9 +858,7 @@ export function NetballQuarterBreak({
     if (!actionsTarget) return;
     const playerId = actionsTarget;
     setActionsTarget(null);
-    // Same bench-default rationale as handleUnInjury — coach decides
-    // when (and if) to slot them in.
-    setForcedBenchIds((prev) => new Set(prev).add(playerId));
+    restoreToBench(playerId);
     enqueueLiveAction("markLoan", [
       auth,
       gameId,
@@ -858,6 +873,16 @@ export function NetballQuarterBreak({
 
   function handleStart() {
     setError(null);
+    // Nobody injured, lent or out starts on court, however the draft
+    // got there ("Keep last quarter" picked after a lend, say). Kids
+    // brought back at this break count as available even before the
+    // refresh clears their flag. A vacated position then fails the
+    // check below, so the coach fills it.
+    let staged = draft;
+    sidelinedSet.forEach((pid) => {
+      if (!forcedBenchIds.has(pid)) staged = benchPlayerInPositionLineup(staged, pid);
+    });
+    if (staged !== draft) setDraft(staged);
     // Validate before opening the modal. The pre-game picker already
     // runs the same gate (NetballLineupPicker:206) — without it here,
     // an empty slot + a benched player slip through (the suggester
@@ -866,7 +891,7 @@ export function NetballQuarterBreak({
     // shapes: empty position, doubled-up position, dup across
     // position+bench. Surfaces the first issue inline.
     const validation = netballSport.validateLineup?.(
-      draft,
+      staged,
       ageGroup,
       effectiveOnFieldSize,
     );
@@ -1034,6 +1059,11 @@ export function NetballQuarterBreak({
   // QuarterBreak does the same.)
   function handleLendToggleAtBreak(pid: string, nextLoaned: boolean) {
     setAdjustError(null);
+    // A kid lent at the break sits out from the next quarter: off the
+    // staged court (they used to start it there). Brought back: onto
+    // the bench.
+    if (nextLoaned) sidelineInDraft(pid);
+    else restoreToBench(pid);
     enqueueLiveAction("markLoan", [
       auth,
       gameId,
@@ -1055,9 +1085,8 @@ export function NetballQuarterBreak({
     // positions filled). Without this they started the next quarter on
     // court, still accruing minutes despite the INJ badge (Steve
     // 2026-06-15, AFL parity).
-    if (nextInjured) {
-      setDraft((prev) => benchPlayerInPositionLineup(prev, pid));
-    }
+    if (nextInjured) sidelineInDraft(pid);
+    else restoreToBench(pid);
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
