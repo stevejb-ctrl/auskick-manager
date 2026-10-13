@@ -266,7 +266,7 @@ export default async function RunPage({ params }: RunPageProps) {
         : null;
 
       return (
-        <div className="space-y-3 p-3">
+        <div className="space-y-3 px-4 py-3">
           <RunnerWelcomeBanner
             teamName={teamName}
             trackScoring={trackScoring}
@@ -318,8 +318,12 @@ export default async function RunPage({ params }: RunPageProps) {
       );
     }
 
+    // px-4 on every sport's wrapper, as the team live page's <main>: the
+    // live top bar bleeds edge to edge with -mx-4, so less padding made
+    // the page scroll sideways on a 375px phone (league had none: 16px;
+    // round 5 route crawl).
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 px-4 py-3">
         <LeagueLiveGame
           auth={auth}
           game={g}
@@ -455,7 +459,7 @@ export default async function RunPage({ params }: RunPageProps) {
       isPreKickoff && availableIds.length < ageCfgN.positions.length;
     void hasStarted;
     return (
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
             sticky top bar (Steve 2026-05-13) — the (app) header is
             hidden on /live routes so this info lives in the
@@ -586,7 +590,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
 
     return (
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE LiveGame's sticky
             top bar (Steve 2026-05-13) — keep the spacer here so the
             availability section above LiveGame doesn't bleed into
