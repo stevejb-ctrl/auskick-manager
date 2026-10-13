@@ -99,7 +99,9 @@ export function LeagueDashboardShell({
         <TotalCard
           label="Conv. made"
           value={aggregate.totals.conversionsMade}
-          sub={`${aggregate.totals.conversionsAttempted} attempts`}
+          sub={`${aggregate.totals.conversionsAttempted} ${
+            aggregate.totals.conversionsAttempted === 1 ? "attempt" : "attempts"
+          }`}
         />
         {internationalLaws && (
           <>

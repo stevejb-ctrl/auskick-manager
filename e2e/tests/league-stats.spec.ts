@@ -102,6 +102,10 @@ test("U13 stats count penalty and field goals and drop the junior-law columns", 
   await expect(page.getByRole("group", { name: "Field goals" })).toContainText("1");
   await expect(page.getByRole("group", { name: "Tries" })).toContainText("11 pts");
   await expect(page.getByRole("group", { name: "Conceded" })).toContainText("2");
+  // One kick: "1 attempt", not "1 attempts".
+  await expect(
+    page.getByRole("group", { name: "Conv. made" }).getByText("1 attempt", { exact: true }),
+  ).toBeVisible();
 
   // Player, GP, Tries, Conv (M/A), PG, FG.
   await expect(statsTable(page).getByRole("columnheader")).toHaveText([
