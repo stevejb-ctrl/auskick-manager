@@ -1134,15 +1134,6 @@ export interface QuarterSub {
   atMs: number;
 }
 
-/**
- * Split a closed quarter into the time segments its mid-quarter subs
- * imply: each sub turns the quarter into more segments, each with a
- * different lineup. Returns `{ lineup, durationMs }` slices whose
- * durations sum to `periodMs`. Shared by `playerThirdMs` (whole-game
- * per-third) and `playedZoneMsByPeriod` (per-period per-third) so both
- * credit IDENTICAL segments — the per-period map is a finer split of
- * the same ms, never a divergent second accumulator.
- */
 /** One mid-quarter sub applied to the court: the out player to the bench, the in player to the position. */
 function applyQuarterSub(current: GenericLineup, sub: QuarterSub): GenericLineup {
   const next: GenericLineup = {
@@ -1175,7 +1166,17 @@ export function lineupAfterSubs(lineup: GenericLineup, subs: readonly QuarterSub
   return subs.reduce(applyQuarterSub, lineup);
 }
 
-function splitQuarterSegments(
+/**
+ * Split a closed quarter into the time segments its mid-quarter subs
+ * imply: each sub turns the quarter into more segments, each with a
+ * different lineup. Returns `{ lineup, durationMs }` slices whose
+ * durations sum to `periodMs`. Shared by `playerThirdMs` (whole-game
+ * per-third) and `playedZoneMsByPeriod` (per-period per-third), and by the live screen for the quarter still running
+ * (periodMs = the clock so far), so all three
+ * credit IDENTICAL segments — the per-period map is a finer split of
+ * the same ms, never a divergent second accumulator.
+ */
+export function splitQuarterSegments(
   lineup: GenericLineup,
   periodMs: number,
   subs: QuarterSub[],

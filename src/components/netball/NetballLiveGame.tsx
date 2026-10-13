@@ -82,6 +82,7 @@ import {
   replayNetballGame,
   seasonPositionCounts,
   lineupAfterSubs,
+  splitQuarterSegments,
 } from "@/lib/sports/netball/fairness";
 import { computeNetballClockMs } from "@/lib/sports/netball/clock";
 import {
@@ -1103,39 +1104,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const startLineup =
       initialLineup ?? emptyGenericLineup(ageGroup.positions);
     const totalElapsed = quarterEnded ? quarterLengthMs : clockMs;
-    const segments: InProgressSegment[] = [];
-    let current = startLineup;
-    let prevMs = 0;
-    for (const sub of midQuarterSubs) {
-      const dur = Math.max(0, Math.min(sub.atMs, totalElapsed) - prevMs);
-      if (dur > 0) segments.push({ lineup: current, durationMs: dur });
-      // Apply the sub: outPlayer leaves position, inPlayer takes it.
-      // outPlayerId may be null when the slot was already empty
-      // (coach lent a player + cancelled the picker, then later
-      // tapped the empty token to fill it). inPlayerId may be null
-      // when the sub VACATES the position (short-squad "Move to
-      // empty position" emits a paired vacate + fill at the same
-      // atMs). Skip the matching step in either case.
-      const next: GenericLineup = {
-        positions: { ...current.positions },
-        bench:
-          sub.inPlayerId != null
-            ? current.bench.filter((id) => id !== sub.inPlayerId)
-            : [...current.bench],
-      };
-      const remaining = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
-      next.positions[sub.positionId] =
-        sub.inPlayerId != null ? remaining.concat([sub.inPlayerId]) : remaining;
-      if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
-        next.bench = [...next.bench, sub.outPlayerId];
-      }
-      current = next;
-      prevMs = Math.min(sub.atMs, totalElapsed);
-    }
-    const finalDur = Math.max(0, totalElapsed - prevMs);
-    if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
-    return { segments };
+    // The replay's own split, so the live clock and the replay agree.
+    return { segments: splitQuarterSegments(startLineup, totalElapsed, midQuarterSubs) };
   }, [
     clockMs,
     quarterEnded,
