@@ -25,6 +25,32 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 
+/** Player ids of the tiles in a lineup's bench, sorted. */
+async function benchIds(scope: import("@playwright/test").Locator, prefix: string): Promise<string[]> {
+  const ids = await scope
+    .locator(`[data-testid^="${prefix}"]`)
+    .evaluateAll((els, p) => els.map((e) => (e.getAttribute("data-testid") ?? "").slice((p as string).length)), prefix);
+  return Array.from(new Set(ids)).sort();
+}
+
+/** Player ids listed in a Game plan card, sorted. */
+async function planIds(card: import("@playwright/test").Locator): Promise<string[]> {
+  const ids = await card.locator("[data-player-id]").evaluateAll((els) => els.map((e) => e.getAttribute("data-player-id") ?? ""));
+  return ids.sort();
+}
+
+/** In the open Game plan, swap the first on-field kid with the first one resting. */
+async function swapInPlan(page: import("@playwright/test").Page) {
+  const fieldRow = page.locator('[data-testid^="game-plan-group-"] [data-player-id]').first();
+  const benchRow = page.locator('[data-testid="game-plan-bench"] [data-player-id]').first();
+  const fieldKid = (await fieldRow.getAttribute("data-player-id"))!;
+  const benchKid = (await benchRow.getAttribute("data-player-id"))!;
+  await fieldRow.click();
+  await benchRow.click();
+  await expect(page.locator(`[data-testid="game-plan-bench"] [data-player-id="${fieldKid}"]`)).toBeVisible();
+  return { fieldKid, benchKid };
+}
+
 test.describe.configure({ mode: "parallel" });
 
 function ownerIdFinder() {
@@ -155,6 +181,10 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
     page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
+  // Usability run: Game plan's Q1 disagreed with the lineup, and changes
+  // made in it went nowhere. Before kickoff its Q1 IS the lineup, and
+  // "Use for Q1" puts changes back.
+  const lineupBench = await benchIds(page.getByRole("group", { name: "Bench", exact: true }), "player-tile-");
   await page.getByRole("button", { name: /^game plan$/i }).click();
 
   await expect(
@@ -162,6 +192,75 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   ).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("game-plan-player").first()).toBeVisible();
   await expect(page.locator("#game-plan-text")).toContainText("Game plan —");
+  expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
+
+  const { fieldKid, benchKid } = await swapInPlan(page);
+  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toHaveCount(0);
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
+  await expect(bench.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
+});
+
+test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use for Q1 applies changes", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.locator('[data-testid^="bench-chip-"]').first()).toBeVisible({ timeout: 15_000 });
+  const lineupBench = await benchIds(page.locator("body"), "bench-chip-");
+
+  await page.getByRole("button", { name: /^game plan$/i }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+  expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
+
+  const { fieldKid, benchKid } = await swapInPlan(page);
+  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await expect(page.getByTestId(`bench-chip-${fieldKid}`)).toBeVisible();
+  await expect(page.getByTestId(`bench-chip-${benchKid}`)).toHaveCount(0);
+});
+
+test("league pre-kickoff: Game plan's first half is the lineup, and Use for Q1 applies changes", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 11, ageGroup: "U9" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U9" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const benchGroup = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(benchGroup.locator('[data-testid^="league-player-tile-"]').first()).toBeVisible({ timeout: 15_000 });
+  const lineupBench = await benchIds(benchGroup, "league-player-tile-");
+
+  await page.getByRole("button", { name: /^game plan$/i }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+  expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
+
+  const { fieldKid, benchKid } = await swapInPlan(page);
+  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await expect(benchGroup.getByTestId(`league-player-tile-${fieldKid}`)).toBeVisible();
+  await expect(benchGroup.getByTestId(`league-player-tile-${benchKid}`)).toHaveCount(0);
 });
 
 test("Netball game-detail: the shared planner is driven by the netball projection", async ({
@@ -204,6 +303,8 @@ test("Netball game-detail: the shared planner is driven by the netball projectio
   // Netball subs only at the break → whole-quarter bench, so no rolling-sub
   // interchange queue (the AFL-only treatment must not leak across sports).
   await expect(page.locator("#game-plan-text")).toContainText("Bench:");
+  // From the game page it's a preview to share; the lineup is set on game day.
+  await expect(page.getByText(/A preview to share/)).toBeVisible();
   await expect(page.locator("#game-plan-text")).not.toContainText(
     "Interchange",
   );

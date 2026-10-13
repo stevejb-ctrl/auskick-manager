@@ -26,6 +26,7 @@ import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
 import {
   formatGamePlan,
   projectGamePlan,
+  projectUpcomingRotation,
   swapPlayersInPeriod,
   type GamePlan,
 } from "@/lib/game-plan";
@@ -71,6 +72,16 @@ export interface GamePlanModalProps {
   aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** How we play for league: lines from roles, keep-on, home positions. */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
+  /**
+   * Before kickoff, from a lineup screen: the lineup on screen, so the
+   * plan's first period IS that lineup and later ones follow from it
+   * (usability run: the two disagreed). groupId -> player ids, + bench.
+   */
+  anchor?: { groups: Record<string, string[]>; bench: string[] };
+  /** A line under the title, e.g. that this is a preview to share. */
+  note?: string;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
   /**
@@ -138,6 +149,9 @@ export function GamePlanModal({
   chipModeByKey = {},
   aflPlaybook,
   netballPlaybook,
+  leaguePlaybook,
+  anchor,
+  note,
   initialSeed = 7,
   initialPlan,
   initialPeriodIndex = 0,
@@ -161,15 +175,34 @@ export function GamePlanModal({
         chipModeByKey,
         aflPlaybook,
         netballPlaybook,
+        leaguePlaybook,
       }),
-    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook],
+    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook, leaguePlaybook],
   );
 
   const [seed, setSeed] = useState(initialSeed);
   // Seed from the handed-over plan-ahead projection when present, else a
   // fresh from-scratch projection (pre-game).
   const [plan, setPlan] = useState<GamePlan>(
-    () => initialPlan ?? project(initialSeed),
+    () =>
+      initialPlan ??
+      (anchor
+        ? projectUpcomingRotation({
+            sport,
+            ageGroup,
+            players,
+            onFieldSize,
+            seasonEvents,
+            seed: initialSeed,
+            chipModeByKey,
+            aflPlaybook,
+            netballPlaybook,
+            leaguePlaybook,
+            fromPeriodIndex: 0,
+            currentGroups: anchor.groups,
+            currentBench: anchor.bench,
+          })
+        : project(initialSeed)),
   );
   const [activePeriod, setActivePeriod] = useState(initialPeriodIndex);
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
@@ -271,6 +304,7 @@ export function GamePlanModal({
           type="button"
           onClick={() => tapPlayer(pid)}
           data-testid="game-plan-player"
+          data-player-id={pid}
           className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
             isSelected
               ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
@@ -329,6 +363,7 @@ export function GamePlanModal({
             {plan.periods.length} {periodNoun} · ~{mins} min each{cadence} ·
             auto-suggested, tap to tweak
           </p>
+          {note && <p className="mt-1 text-xs text-ink-dim">{note}</p>}
         </div>
         <button
           type="button"
@@ -414,7 +449,7 @@ export function GamePlanModal({
                 {g.playerIds.length === 0 ? (
                   <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
                 ) : (
-                  <ul className="divide-y divide-hairline">
+                  <ul className="divide-y divide-hairline" data-testid={`game-plan-group-${g.groupId}`}>
                     {g.playerIds.map(renderRow)}
                   </ul>
                 )}
@@ -443,7 +478,7 @@ export function GamePlanModal({
                   No one resting this {plan.periodLabel}.
                 </p>
               ) : (
-                <ul className="divide-y divide-hairline">
+                <ul className="divide-y divide-hairline" data-testid="game-plan-bench">
                   {period.bench.map((pid) => renderRow(pid))}
                 </ul>
               )}

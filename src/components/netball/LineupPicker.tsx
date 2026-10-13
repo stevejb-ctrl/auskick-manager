@@ -44,6 +44,7 @@ import {
 import type { GameEvent } from "@/lib/types";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -95,12 +96,13 @@ interface LineupPickerProps {
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
   availabilityPanel?: React.ReactNode;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. Built by the server page (via
-   * NetballLiveGame) so the planner sits in the same spot across all
-   * three sports. Omit on surfaces without a planner.
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use for Q1" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
    */
-  gamePlanButton?: import("react").ReactNode;
+  gamePlan?: GamePlanButtonProps;
   /**
    * Optional draft-save callback — when provided, the sticky footer
    * grows to a two-row layout with a "Save plan & exit" ghost button
@@ -208,7 +210,7 @@ export function NetballLineupPicker({
   availabilityHref,
   walkthroughOffer,
   availabilityPanel,
-  gamePlanButton,
+  gamePlan,
   onSavePlan,
   initialSavedAt = null,
   auth,
@@ -553,6 +555,20 @@ export function NetballLineupPicker({
     auth?.kind === "team" ? auth.teamId : null,
     (pid) => squadById.get(pid)?.full_name,
   );
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      anchor={{ groups: lineup.positions, bench: lineup.bench }}
+      pinLabel="Use for Q1"
+      onPin={(plan) => {
+        const q1 = plan.periods[0];
+        if (!q1) return;
+        const positions: Record<string, string[]> = Object.fromEntries(Object.keys(lineup.positions).map((k) => [k, []]));
+        for (const g of q1.groups) positions[g.groupId] = [...g.playerIds];
+        setLineup({ positions, bench: [...q1.bench] });
+      }}
+    />
+  ) : null;
 
   // Which player is currently in which position/bench. Used to find
   // where the selected player lives so a swap can put the displaced

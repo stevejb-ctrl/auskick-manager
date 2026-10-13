@@ -68,6 +68,7 @@ import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -112,12 +113,13 @@ interface LeagueLineupPickerProps {
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
   availabilityPanel?: React.ReactNode;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. Built by the server page (which
-   * has team name / opponent / season events) and threaded down so
-   * the planner sits in the same spot across all three sports.
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use for Q1" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
    */
-  gamePlanButton?: import("react").ReactNode;
+  gamePlan?: GamePlanButtonProps;
   seasonEvents: GameEvent[];
   initialLoanedIds?: string[];
   chipLabels?: {
@@ -159,7 +161,7 @@ export function LeagueLineupPicker({
   enforceUnbrokenPeriods = false,
   walkthroughOffer,
   availabilityPanel,
-  gamePlanButton,
+  gamePlan,
   seasonEvents,
   initialLoanedIds = [],
   chipLabels,
@@ -396,6 +398,20 @@ export function LeagueLineupPicker({
     auth.kind === "team" ? auth.teamId : null,
     (pid) => playerById.get(pid)?.full_name,
   );
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      anchor={{ groups: { forwards: forwardIds, backs: backIds }, bench: benchIds }}
+      pinLabel="Use for Q1"
+      onPin={(plan) => {
+        const first = plan.periods[0];
+        if (!first) return;
+        setForwardIds([...(first.groups.find((g) => g.groupId === "forwards")?.playerIds ?? [])]);
+        setBackIds([...(first.groups.find((g) => g.groupId === "backs")?.playerIds ?? [])]);
+        setBenchIds([...first.bench]);
+      }}
+    />
+  ) : null;
 
   // Clear selection if the selected player gets benched / loaned
   // away by an upstream change.

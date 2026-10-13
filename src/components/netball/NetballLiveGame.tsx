@@ -247,7 +247,7 @@ interface NetballLiveGameProps {
    * same spot it does for AFL / RL. Built by the server page (which
    * has team name / opponent / season events). Only shown pre-kickoff.
    */
-  gamePlanButton?: import("react").ReactNode;
+  gamePlan?: import("@/components/game-plan/GamePlanButton").GamePlanButtonProps;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -284,7 +284,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     songUrl = null,
     songStartSeconds = 0,
     songDurationSeconds = 15,
-    gamePlanButton,
+    gamePlan,
     availabilityPanel,
   } = props;
 
@@ -1738,7 +1738,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
           availabilityPanel={availabilityPanel}
-          gamePlanButton={gamePlanButton}
+          gamePlan={gamePlan}
           walkthroughOffer={
             <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
           }

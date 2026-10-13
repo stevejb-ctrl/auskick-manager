@@ -11,7 +11,9 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
+import { getSeasonEvents } from "@/lib/season";
+import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { replayGame } from "@/lib/fairness";
 import {
   playerThirdMs,
@@ -70,7 +72,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .in("type", ["goal", "behind"]),
     supabase
       .from("players")
-      .select("id, full_name, jersey_number, chip")
+      .select("id, full_name, jersey_number, chip, is_active")
       .eq("team_id", params.teamId),
   ]);
 
@@ -133,6 +135,38 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     g.status === "upcoming" &&
     Date.now() >= new Date(g.scheduled_at).getTime() - 6 * 60 * 60 * 1000;
   const isUp = g.status === "upcoming";
+
+  // Game plan from here is a preview to share: the active kids marked
+  // available (everyone active until someone's marked), the game's own
+  // field size, season history and How we play, as the lineup uses.
+  const planInput = isUp
+    ? await (async () => {
+        const [{ data: avail }, seasonAll] = await Promise.all([
+          supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),
+          getSeasonEvents(params.teamId),
+        ]);
+        const active = (players ?? []).filter((p) => (p as { is_active?: boolean }).is_active !== false);
+        const available = new Set((avail ?? []).filter((a) => a.status === "available").map((a) => a.player_id as string));
+        const seasonEvents = seasonAll.filter((e) => e.game_id !== params.gameId);
+        const periodSeconds = getEffectiveQuarterSeconds(
+          { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+          planAgeCfg,
+          { quarter_length_seconds: g.quarter_length_seconds },
+        );
+        return {
+          players: available.size > 0 ? active.filter((p) => available.has(p.id)) : active,
+          seasonEvents,
+          playbooks: await gamePlanPlaybooks(
+            supabase,
+            params.teamId,
+            sport,
+            (team as { age_group?: string } | null)?.age_group ?? null,
+            seasonEvents,
+            periodSeconds,
+          ),
+        };
+      })()
+    : null;
 
   // Full event log for the post-completion summary card. Fetched
   // for both AFL and netball when the game is final — both sports
@@ -355,14 +389,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {/* Pre-game rotation planner — auto-suggests a fair
                     full-game rotation the coach can tweak and copy into
                     the team chat. Pure client compute; no DB write. */}
-                {isUp && (
+                {isUp && planInput && (
                   <GamePlanButton
                     sport={sport}
                     ageGroup={planAgeCfg}
-                    players={players ?? []}
-                    onFieldSize={planAgeCfg.defaultOnFieldSize}
+                    players={planInput.players}
+                    onFieldSize={g.on_field_size ?? planAgeCfg.defaultOnFieldSize}
                     teamName={teamName}
                     opponentName={g.opponent}
+                    seasonEvents={planInput.seasonEvents}
+                    {...planInput.playbooks}
+                    note="A preview to share. Set the lineup on game day."
                     variant="ghost"
                     size="md"
                     className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"

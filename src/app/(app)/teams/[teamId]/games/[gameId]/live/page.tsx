@@ -15,7 +15,6 @@ import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
-import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
@@ -478,18 +477,17 @@ export default async function LivePage({ params }: LivePageProps) {
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               defaultSubMinutes={g.sub_interval_seconds / 60}
-              gamePlanButton={
-                <GamePlanButton
-                  sport={sport}
-                  ageGroup={ageCfgL}
-                  players={availablePlayers}
-                  onFieldSize={g.on_field_size}
-                  teamName={teamName}
-                  opponentName={g.opponent}
-                  seasonEvents={leagueSeasonEvents as GameEvent[]}
-                  chipModeByKey={teamChipModes}
-                />
-              }
+              gamePlan={{
+                sport,
+                ageGroup: ageCfgL,
+                players: availablePlayers,
+                onFieldSize: g.on_field_size,
+                teamName,
+                opponentName: g.opponent,
+                seasonEvents: leagueSeasonEvents as GameEvent[],
+                chipModeByKey: teamChipModes,
+                leaguePlaybook,
+              }}
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
@@ -787,19 +785,20 @@ export default async function LivePage({ params }: LivePageProps) {
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
-          gamePlanButton={
-            isPreKickoff ? (
-              <GamePlanButton
-                sport={sport}
-                ageGroup={ageCfgN}
-                players={squad.filter((p) => availableIds.includes(p.id))}
-                onFieldSize={g.on_field_size}
-                teamName={teamName}
-                opponentName={g.opponent}
-                seasonEvents={seasonEvents as GameEvent[]}
-                chipModeByKey={teamChipModes}
-              />
-            ) : undefined
+          gamePlan={
+            isPreKickoff
+              ? {
+                  sport,
+                  ageGroup: ageCfgN,
+                  players: squad.filter((p) => availableIds.includes(p.id)),
+                  onFieldSize: g.on_field_size,
+                  teamName,
+                  opponentName: g.opponent,
+                  seasonEvents: seasonEvents as GameEvent[],
+                  chipModeByKey: teamChipModes,
+                  netballPlaybook,
+                }
+              : undefined
           }
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
@@ -1127,19 +1126,17 @@ export default async function LivePage({ params }: LivePageProps) {
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
-          gamePlanButton={
-            <GamePlanButton
-              sport={sport}
-              ageGroup={ageCfgSport}
-              players={availablePlayers}
-              onFieldSize={g.on_field_size}
-              teamName={teamName}
-              opponentName={g.opponent}
-              seasonEvents={(seasonEvents ?? []) as GameEvent[]}
-              chipModeByKey={teamChipModes}
-              aflPlaybook={aflPlaybook}
-            />
-          }
+          gamePlan={{
+            sport,
+            ageGroup: ageCfgSport,
+            players: availablePlayers,
+            onFieldSize: g.on_field_size,
+            teamName,
+            opponentName: g.opponent,
+            seasonEvents: (seasonEvents ?? []) as GameEvent[],
+            chipModeByKey: teamChipModes,
+            aflPlaybook,
+          }}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}

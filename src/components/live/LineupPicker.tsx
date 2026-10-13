@@ -39,6 +39,7 @@ import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -85,12 +86,13 @@ interface LineupPickerProps {
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
   availabilityPanel?: React.ReactNode;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. The server page builds it (it
-   * has the team name / opponent / season events) and passes it down
-   * so the planner sits in the same spot across all three sports.
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use for Q1" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
    */
-  gamePlanButton?: ReactNode;
+  gamePlan?: GamePlanButtonProps;
   /**
    * Pre-game saved lineup. When present, the picker pre-populates
    * with the saved lineup + size + sub-interval instead of running
@@ -184,7 +186,7 @@ export function LineupPicker({
   availabilityHref,
   walkthroughOffer,
   availabilityPanel,
-  gamePlanButton,
+  gamePlan,
   initialDraft,
   chipModeByKey = {},
   aflPlaybook,
@@ -433,6 +435,27 @@ export function LineupPicker({
     auth.kind === "team" ? auth.teamId : null,
     (pid) => playerById.get(pid)?.full_name,
   );
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      anchor={{
+        groups: Object.fromEntries(
+          (["back", "hback", "mid", "hfwd", "fwd"] as Zone[])
+            .filter((z) => displayZoneCaps[z] > 0)
+            .map((z) => [z, lineup[z]]),
+        ),
+        bench: lineup.bench,
+      }}
+      pinLabel="Use for Q1"
+      onPin={(plan) => {
+        const q1 = plan.periods[0];
+        if (!q1) return;
+        const next: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [...q1.bench] };
+        for (const g of q1.groups) if (g.groupId in next) next[g.groupId as Zone] = [...g.playerIds];
+        setLineup(next);
+      }}
+    />
+  ) : null;
   const holds = aflStoreLocks(locks);
   // Saved as a player_lock event so it carries into the game (LiveGame
   // reads holds back from the events) and shows on a co-manager's phone.
