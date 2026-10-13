@@ -103,7 +103,17 @@ export function LeagueBenchStrip({
                   : null
               }
               chipModes={chipModes}
-              onClick={onPlayerClick ? () => onPlayerClick(p.id) : undefined}
+              onClick={
+                injuredIds?.has(p.id) || loanedIds?.has(p.id)
+                  ? // Can't be subbed on, so a tap opens the actions
+                    // ("Back on" / "Bring back") — as on AFL's Bench.
+                    onPlayerLongPress
+                    ? () => onPlayerLongPress(p.id)
+                    : undefined
+                  : onPlayerClick
+                    ? () => onPlayerClick(p.id)
+                    : undefined
+              }
               onLongPress={
                 onPlayerLongPress
                   ? () => onPlayerLongPress(p.id)

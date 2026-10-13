@@ -157,7 +157,7 @@ export function VestAssignmentCard({
             <PlayerVestBadge vest={vest} />
             <span className="text-sm font-semibold text-ink">
               {isReplacing
-                ? `Replace ${label} (injury, this ${ageGroup.periodLabel ?? "period"} only)`
+                ? `Replace ${label} (this ${ageGroup.periodLabel ?? "period"} only)`
                 : `Assign ${label} for ${ageGroup.periodLabel ?? "period"} ${period}`}
             </span>
           </div>

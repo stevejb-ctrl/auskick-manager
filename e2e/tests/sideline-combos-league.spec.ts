@@ -398,3 +398,94 @@ test("rugby league: after a lend, tapping the empty spot brings a bench kid on t
   await sheet.getByRole("button", { name: new RegExp(onKid.full_name, "i") }).click();
   await expect.poll(async () => (await lineupSets()).at(-1)?.forwards.includes(onKid.id) ?? false, { timeout: 15_000 }).toBe(true);
 });
+
+// Round 5 (Stagehand league-u8-vests): the First Receiver was hurt and
+// the "Replace vest wearer" sheet closed (a tap on the backdrop, or
+// "Later"). Nothing could bring it back, so nobody wore the vest for the
+// rest of the half. The sheet now says who is missing and why, and while
+// the vest has no wearer a banner offers to pick one. And the injured
+// kid on the bench opens her actions on a tap — she can't be "selected
+// from bench" to swap on, as on AFL's bench.
+async function seedFirstReceiverGame(page: import("@playwright/test").Page) {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-VEST-LATER-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 5), backs: ids.slice(5, 11), bench: ids.slice(11) };
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" }, created_at: t(20) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_at: t(19) },
+      { type: "vest_assigned", player_id: ids[0], metadata: { vest: "fr", period: 1, replacement: false, sport: "rugby_league" }, created_at: t(18) },
+      { type: "vest_assigned", player_id: ids[1], metadata: { vest: "dh", period: 1, replacement: false, sport: "rugby_league" }, created_at: t(18) },
+      { type: "kickoff_taken", player_id: ids[2], metadata: { period: 1, sport: "rugby_league" }, created_at: t(17) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // The FR is hurt; a bench kid comes on.
+  const [fr, replacement] = [players[0], players[11]];
+  await page.getByTestId(`league-player-tile-${fr.id}`).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  await page
+    .getByRole("dialog", { name: /who comes on at/i })
+    .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
+    .click();
+  return { admin, game, fr, replacement };
+}
+
+test("rugby league: a closed vest prompt can be reopened, and says who is missing", async ({ page }) => {
+  const { admin, game, fr, replacement } = await seedFirstReceiverGame(page);
+  const sheet = page.getByRole("dialog", { name: /replace vest wearer/i });
+  await expect(sheet).toBeVisible({ timeout: 15_000 });
+  await expect(sheet.getByText(`${fr.full_name} is injured`)).toBeVisible();
+
+  await sheet.getByRole("button", { name: /^later$/i }).click();
+  await expect(sheet).toBeHidden();
+  const banner = page.getByRole("status").filter({ hasText: /first receiver/i });
+  await expect(banner).toBeVisible();
+  await banner.getByRole("button", { name: /^pick$/i }).click();
+
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: new RegExp(replacement.full_name, "i") }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("player_id, metadata")
+        .eq("game_id", game.id)
+        .eq("type", "vest_assigned");
+      return (data ?? []).some(
+        (e) => e.player_id === replacement.id && (e.metadata as { vest?: string }).vest === "fr",
+      );
+    }, { timeout: 15_000 })
+    .toBe(true);
+  await expect(banner).toHaveCount(0);
+});
+
+test("rugby league: tapping an injured kid on the bench opens her actions, not a swap", async ({ page }) => {
+  const { fr } = await seedFirstReceiverGame(page);
+  const sheet = page.getByRole("dialog", { name: /replace vest wearer/i });
+  await expect(sheet).toBeVisible({ timeout: 15_000 });
+  await sheet.getByRole("button", { name: /^later$/i }).click();
+
+  await page.getByTestId(`league-player-tile-${fr.id}`).click();
+  await expect(page.getByText(/selected from bench/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /back on/i })).toBeVisible();
+});

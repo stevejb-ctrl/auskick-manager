@@ -1732,6 +1732,19 @@ export function LeagueLiveGame({
     router.refresh();
   }
 
+  // Who is missing from the vest, and why, for the replace sheet.
+  const missingVestNote = useMemo(() => {
+    const id = missingVestWearer ? activeVests[missingVestWearer] : null;
+    const name = id ? squad.find((p) => p.id === id)?.full_name : null;
+    if (!id || !name) return null;
+    const why = injuredSet.has(id)
+      ? "is injured"
+      : loanedSet.has(id)
+        ? "is lent to the other team"
+        : "is on the bench";
+    return `${name} ${why}`;
+  }, [missingVestWearer, activeVests, squad, injuredSet, loanedSet]);
+
   function handleForceVestDismiss() {
     setForceVestReplaceOpen(false);
     if (missingVestWearer != null) {
@@ -1832,6 +1845,25 @@ export function LeagueLiveGame({
       )}
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+
+      {/* The replace sheet was closed ("Later", backdrop, Escape) while
+          the vest still has no wearer on the field. Keep a way back to
+          it — otherwise nobody wears the vest for the rest of the
+          period (round 5, league-u8-vests). */}
+      {missingVestWearer && !forceVestReplaceOpen && isPeriodActive && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+        >
+          <span>
+            Nobody on the field is wearing the{" "}
+            {missingVestWearer === "fr" ? "First Receiver" : "Dummy Half"} vest.
+          </span>
+          <SFButton size="sm" variant="subtle" onClick={() => setForceVestReplaceOpen(true)}>
+            Pick
+          </SFButton>
+        </div>
+      )}
 
       {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
           full bench rotation (one swap per bench player) with
@@ -2601,8 +2633,9 @@ export function LeagueLiveGame({
                   Replace {missingVestWearer === "fr" ? "First Receiver" : missingVestWearer === "dh" ? "Dummy Half" : "vest"}
                 </h2>
                 <p className="text-xs text-ink-mute">
-                  The vest wearer is no longer on the field. Pick a
-                  replacement to continue.
+                  {missingVestNote
+                    ? `${missingVestNote}. Pick who wears the vest now.`
+                    : "The vest wearer is no longer on the field. Pick a replacement to continue."}
                 </p>
               </div>
               <button
