@@ -78,7 +78,7 @@ async function seedFinalisedLeagueGame(age: "U10" | "U13") {
   if (error) throw new Error(`seedFinalisedLeagueGame events: ${error.message}`);
   await admin.from("games").update({ status: "completed" }).eq("id", game.id);
 
-  return { team, scorer, kicker, fieldGoalKicker };
+  return { team, game, players, lineup, ts, ownerId, admin, scorer, kicker, fieldGoalKicker };
 }
 
 function statsTable(page: Page) {
@@ -160,4 +160,33 @@ test("U10 stats keep the junior-law columns and show no goal columns", async ({ 
   await expect(playerRow(page, kicker.full_name)).toBeVisible();
   await expect(page.getByRole("group", { name: "Pen. goals" })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Field goals" })).toHaveCount(0);
+});
+
+// Sideline combo: a kid hurt in the first half, replaced from the bench,
+// then marked recovered while sitting on the bench never went back on,
+// so the half is broken for them and they don't start the second. The
+// recovery used to count as a return to the field: credited both halves.
+test("a kid replaced while hurt and recovered on the bench isn't credited an unbroken period", async ({
+  page,
+}) => {
+  const { team, game, players, lineup, ts, ownerId, admin } = await seedFinalisedLeagueGame("U10");
+  const hurt = players.find((p) => p.id === lineup.forwards[2])!;
+  const replacement = players.find((p) => p.id === lineup.bench[0])!;
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "injury", player_id: hurt.id, metadata: { injured: true, quarter: 1, elapsed_ms: 300_000 }, created_at: ts(10) },
+      {
+        type: "swap",
+        metadata: { off_player_id: hurt.id, on_player_id: replacement.id, quarter: 1, elapsed_ms: 300_000 },
+        created_at: ts(10.1),
+      },
+      { type: "injury", player_id: hurt.id, metadata: { injured: false, quarter: 1, elapsed_ms: 360_000 }, created_at: ts(11) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(error.message);
+
+  await page.goto(`/teams/${team.id}/stats`);
+  // Unbroken = games meeting the U10 requirement (1 unbroken half) / games.
+  await expect(playerRow(page, hurt.full_name).getByRole("cell").last()).toHaveText("0/1");
+  await expect(playerRow(page, replacement.full_name).getByRole("cell").last()).toHaveText("1/1");
 });

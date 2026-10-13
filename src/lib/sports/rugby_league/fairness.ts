@@ -578,39 +578,53 @@ export interface UnbrokenPeriodCompliance {
   compliant: boolean;
 }
 
+type UnbrokenPeriodTracker = {
+  /** Players on the field at quarter_start. */
+  starters: Set<string>;
+  /**
+   * Players whose period stint was broken: swapped or lent off, an
+   * injury past the §7 carve-out, or an injury they never came back
+   * on from before quarter_end.
+   */
+  removed: Set<string>;
+  /** In-flight injuries: player id → elapsed_ms when it started. */
+  pendingInjury: Map<string, number>;
+  closed: boolean;
+};
+
 /**
- * Compute per-player unbroken-period compliance for a single
- * game. Walks events once; per-period state is reset on
- * `quarter_start` and finalised on `quarter_end`. Players who
- * never appear in any lineup are omitted (the dashboard's caller
- * unions with the full squad list to flag bench-only players).
+ * One walk of the events for both compliance views (closed game and
+ * live). A kid is on the field when they hold a field slot and aren't
+ * hurt: an injured kid keeps their slot until they're replaced, and a
+ * recovery only puts them back on if they still hold it. (A kid
+ * replaced while hurt and marked recovered on the bench used to be
+ * counted back on, keeping the period: sideline combos.)
  */
-export function unbrokenPeriodCompliance(
-  events: GameEvent[],
-  required: number,
-): Record<string, UnbrokenPeriodCompliance> {
+function walkUnbrokenPeriods(events: GameEvent[]): {
+  periods: Map<number, UnbrokenPeriodTracker>;
+  currentPeriod: number | null;
+  allPlayers: Set<string>;
+} {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
-
-  // Per-period bookkeeping. starters = set of players on field at
-  // quarter_start; removed = set of players whose period stint was
-  // broken (swap off, loan, injury that exceeded the §7 carve-out,
-  // or injury that never closed before quarter_end). pendingInjury
-  // tracks in-flight injuries keyed by player id → elapsed_ms when
-  // the injury started, so the closing event can compute the gap.
-  type PeriodTracker = {
-    starters: Set<string>;
-    removed: Set<string>;
-    pendingInjury: Map<string, number>;
-  };
-  const periods = new Map<number, PeriodTracker>();
-
-  // Tracks the current on-field set so a quarter_start can
-  // snapshot it. Updated by lineup_set, swap, and injury events.
-  let currentField = new Set<string>();
+  const periods = new Map<number, UnbrokenPeriodTracker>();
+  let slots = new Set<string>();
+  const hurt = new Set<string>();
+  const onField = (pid: string) => slots.has(pid) && !hurt.has(pid);
   let currentPeriod: number | null = null;
   const allPlayers = new Set<string>();
+  const tracker = () =>
+    currentPeriod !== null ? periods.get(currentPeriod) : undefined;
+  // An incident closes when the kid is back on the field; the gap
+  // decides §7.
+  const closeIncident = (pid: string, elapsed: number) => {
+    const t = tracker();
+    const startedAt = t?.pendingInjury.get(pid);
+    if (!t || startedAt === undefined) return;
+    t.pendingInjury.delete(pid);
+    if (elapsed - startedAt > INJURY_CARVEOUT_MS) t.removed.add(pid);
+  };
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -620,15 +634,22 @@ export function unbrokenPeriodCompliance(
       off_player_id?: string;
       on_player_id?: string;
       injured?: boolean;
+      loaned?: boolean;
     };
+    const elapsed = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
 
     switch (ev.type) {
       case "lineup_set": {
         if (meta.lineup) {
           const lineup = normalizeLeagueLineup(meta.lineup);
-          const onField = leagueOnField(lineup);
-          currentField = new Set(onField);
-          for (const id of onField) allPlayers.add(id);
+          const next = new Set(leagueOnField(lineup));
+          // Mid-period, anyone the new lineup takes off the field has
+          // left it.
+          slots.forEach((pid) => {
+            if (onField(pid) && !next.has(pid)) tracker()?.removed.add(pid);
+          });
+          slots = next;
+          next.forEach((id) => allPlayers.add(id));
           for (const id of lineup.bench) allPlayers.add(id);
         }
         break;
@@ -639,24 +660,21 @@ export function unbrokenPeriodCompliance(
             ? meta.quarter
             : (currentPeriod ?? 0) + 1;
         periods.set(currentPeriod, {
-          starters: new Set(currentField),
+          starters: new Set(Array.from(slots).filter((pid) => !hurt.has(pid))),
           removed: new Set(),
           pendingInjury: new Map(),
+          closed: false,
         });
         break;
       }
       case "quarter_end": {
-        // Any injuries still open at the hooter → the player never
-        // returned, so they're broken for this period regardless of
-        // duration.
-        if (currentPeriod !== null) {
-          const tracker = periods.get(currentPeriod);
-          if (tracker) {
-            tracker.pendingInjury.forEach((_startedAt, pid) => {
-              tracker.removed.add(pid);
-            });
-            tracker.pendingInjury.clear();
-          }
+        // Any injury still open at the hooter: the player never came
+        // back on, so the period is broken regardless of duration.
+        const t = tracker();
+        if (t) {
+          t.pendingInjury.forEach((_startedAt, pid) => t.removed.add(pid));
+          t.pendingInjury.clear();
+          t.closed = true;
         }
         currentPeriod = null;
         break;
@@ -664,19 +682,17 @@ export function unbrokenPeriodCompliance(
       case "swap": {
         const off = meta.off_player_id;
         const on = meta.on_player_id;
-        // Swap-off is unconditionally a break for the off-player
-        // (no §7 carve-out — that's injury-only). Done BEFORE
-        // mutating currentField so a stale-state swap with an
-        // off-player no longer on field is a no-op.
-        if (off && currentField.has(off)) {
-          currentField.delete(off);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(off);
-          }
+        // Swap-off is unconditionally a break (no §7 carve-out; that's
+        // injury-only). A hurt kid being replaced keeps their incident
+        // open: it closes if they come back on in time.
+        if (off && slots.has(off)) {
+          if (onField(off)) tracker()?.removed.add(off);
+          slots.delete(off);
         }
         if (on) {
-          currentField.add(on);
+          slots.add(on);
           allPlayers.add(on);
+          if (onField(on)) closeIncident(on, elapsed);
         }
         break;
       }
@@ -685,46 +701,25 @@ export function unbrokenPeriodCompliance(
         if (!pid) break;
         allPlayers.add(pid);
         // injured: true (default when missing) opens an incident.
-        // injured: false closes it; the gap decides §7.
-        const isInjured = meta.injured !== false;
-        const elapsed
-          = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        const tracker
-          = currentPeriod !== null ? periods.get(currentPeriod) : null;
-        if (isInjured) {
-          if (currentField.has(pid)) {
-            currentField.delete(pid);
-            // Don't add to `removed` yet — wait to see if they
-            // return within the §7 window. If currentPeriod is
-            // null (between quarters), this still removes them
-            // from the field but no tracker exists to record the
-            // pending incident — they're effectively just absent.
-            if (tracker) tracker.pendingInjury.set(pid, elapsed);
+        if (meta.injured !== false) {
+          const t = tracker();
+          if (onField(pid) && t && !t.pendingInjury.has(pid)) {
+            t.pendingInjury.set(pid, elapsed);
           }
-        } else if (tracker?.pendingInjury.has(pid)) {
-          const startedAt = tracker.pendingInjury.get(pid) as number;
-          tracker.pendingInjury.delete(pid);
-          const duration = elapsed - startedAt;
-          if (duration > INJURY_CARVEOUT_MS) {
-            tracker.removed.add(pid);
-          }
-          currentField.add(pid);
+          hurt.add(pid);
         } else {
-          // "Recovered" event without a matching open incident —
-          // most likely the injury happened pre-game or between
-          // periods. Re-add to field so subsequent quarter_starts
-          // see them.
-          currentField.add(pid);
+          hurt.delete(pid);
+          // Back on only if they still hold their slot; replaced and
+          // recovered on the bench, the incident stays open.
+          if (onField(pid)) closeIncident(pid, elapsed);
         }
         break;
       }
       case "player_loan": {
         const pid = ev.player_id;
-        if (pid && currentField.has(pid)) {
-          currentField.delete(pid);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(pid);
-          }
+        if (pid && meta.loaned !== false && slots.has(pid)) {
+          if (onField(pid)) tracker()?.removed.add(pid);
+          slots.delete(pid);
         }
         break;
       }
@@ -739,7 +734,21 @@ export function unbrokenPeriodCompliance(
         break;
     }
   }
+  return { periods, currentPeriod, allPlayers };
+}
 
+/**
+ * Compute per-player unbroken-period compliance for a single
+ * game. Walks events once; per-period state is reset on
+ * `quarter_start` and finalised on `quarter_end`. Players who
+ * never appear in any lineup are omitted (the dashboard's caller
+ * unions with the full squad list to flag bench-only players).
+ */
+export function unbrokenPeriodCompliance(
+  events: GameEvent[],
+  required: number,
+): Record<string, UnbrokenPeriodCompliance> {
+  const { periods, allPlayers } = walkUnbrokenPeriods(events);
   const result: Record<string, UnbrokenPeriodCompliance> = {};
   allPlayers.forEach((playerId) => {
     const unbroken: number[] = [];
@@ -796,128 +805,7 @@ export function unbrokenPeriodLiveStatus(
    */
   currentElapsedMs: number = 0,
 ): Record<string, UnbrokenPeriodLiveStatus> {
-  const sorted = [...events].sort((a, b) =>
-    a.created_at.localeCompare(b.created_at),
-  );
-
-  type PeriodTracker = {
-    starters: Set<string>;
-    removed: Set<string>;
-    pendingInjury: Map<string, number>;
-    closed: boolean;
-  };
-  const periods = new Map<number, PeriodTracker>();
-  let currentField = new Set<string>();
-  let currentPeriod: number | null = null;
-  const allPlayers = new Set<string>();
-
-  for (const ev of sorted) {
-    const meta = ev.metadata as {
-      lineup?: Partial<LeagueLineup>;
-      quarter?: number;
-      elapsed_ms?: number;
-      off_player_id?: string;
-      on_player_id?: string;
-      injured?: boolean;
-    };
-    switch (ev.type) {
-      case "lineup_set": {
-        if (meta.lineup) {
-          const lineup = normalizeLeagueLineup(meta.lineup);
-          const onField = leagueOnField(lineup);
-          currentField = new Set(onField);
-          for (const id of onField) allPlayers.add(id);
-          for (const id of lineup.bench) allPlayers.add(id);
-        }
-        break;
-      }
-      case "quarter_start": {
-        currentPeriod
-          = typeof meta.quarter === "number"
-            ? meta.quarter
-            : (currentPeriod ?? 0) + 1;
-        periods.set(currentPeriod, {
-          starters: new Set(currentField),
-          removed: new Set(),
-          pendingInjury: new Map(),
-          closed: false,
-        });
-        break;
-      }
-      case "quarter_end": {
-        if (currentPeriod !== null) {
-          const t = periods.get(currentPeriod);
-          if (t) {
-            t.pendingInjury.forEach((_startedAt, pid) => {
-              t.removed.add(pid);
-            });
-            t.pendingInjury.clear();
-            t.closed = true;
-          }
-        }
-        currentPeriod = null;
-        break;
-      }
-      case "swap": {
-        const off = meta.off_player_id;
-        const on = meta.on_player_id;
-        if (off && currentField.has(off)) {
-          currentField.delete(off);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(off);
-          }
-        }
-        if (on) {
-          currentField.add(on);
-          allPlayers.add(on);
-        }
-        break;
-      }
-      case "injury": {
-        const pid = ev.player_id;
-        if (!pid) break;
-        allPlayers.add(pid);
-        const isInjured = meta.injured !== false;
-        const elapsed
-          = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        const tracker
-          = currentPeriod !== null ? periods.get(currentPeriod) : null;
-        if (isInjured) {
-          if (currentField.has(pid)) {
-            currentField.delete(pid);
-            if (tracker) tracker.pendingInjury.set(pid, elapsed);
-          }
-        } else if (tracker?.pendingInjury.has(pid)) {
-          const startedAt = tracker.pendingInjury.get(pid) as number;
-          tracker.pendingInjury.delete(pid);
-          const duration = elapsed - startedAt;
-          if (duration > INJURY_CARVEOUT_MS) {
-            tracker.removed.add(pid);
-          }
-          currentField.add(pid);
-        } else {
-          currentField.add(pid);
-        }
-        break;
-      }
-      case "player_loan": {
-        const pid = ev.player_id;
-        if (pid && currentField.has(pid)) {
-          currentField.delete(pid);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(pid);
-          }
-        }
-        break;
-      }
-      case "player_arrived": {
-        if (ev.player_id) allPlayers.add(ev.player_id);
-        break;
-      }
-      default:
-        break;
-    }
-  }
+  const { periods, currentPeriod, allPlayers } = walkUnbrokenPeriods(events);
 
   // Live-side §7 enforcement on the open period: if an injury is
   // still pending and the current playing-time elapsed exceeds the

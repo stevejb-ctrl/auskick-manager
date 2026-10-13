@@ -402,3 +402,53 @@ describe("unbrokenPeriodLiveStatus — provisional credit", () => {
     expect(result.p1.provisionallyCompliant).toBe(true); // 1 + 1 in-progress = 2
   });
 });
+
+// ─── Sideline combos ─────────────────────────────────────────
+// Hurt, replaced from the bench, then marked recovered while sitting on
+// the bench: the kid never went back on, so the period is broken (and
+// they don't start the next one either). The recovery used to count as
+// a return to the field inside the §7 window.
+describe("unbroken periods through sideline combinations", () => {
+  const hurtReplacedRecovered = () => [
+    lineupSet(["p1", "p2"], ["p3"]),
+    qStart(1),
+    ev("injury", { injured: true, quarter: 1, elapsed_ms: 300_000 }, "p1"),
+    ev("swap", { off_player_id: "p1", on_player_id: "p3", quarter: 1, elapsed_ms: 300_000 }),
+    ev("injury", { injured: false, quarter: 1, elapsed_ms: 360_000 }, "p1"),
+  ];
+
+  it("a kid replaced while hurt and recovered on the bench loses the period", () => {
+    reset();
+    const result = unbrokenPeriodCompliance([...hurtReplacedRecovered(), qEnd(1), qStart(2), qEnd(2)], 1);
+    expect(result.p1.unbrokenPeriods).toEqual([]);
+    expect(result.p2.unbrokenPeriods).toEqual([1, 2]);
+    expect(result.p3.unbrokenPeriods).toEqual([2]);
+  });
+
+  it("the live view: on track while they could still come back on, then not", () => {
+    reset();
+    // Within 3 min of the injury they can still return to keep it.
+    expect(unbrokenPeriodLiveStatus(hurtReplacedRecovered(), 1, 400_000).p1.inProgressPeriods).toEqual([1]);
+    // Still on the bench past the carve-out: broken.
+    reset();
+    expect(unbrokenPeriodLiveStatus(hurtReplacedRecovered(), 1, 500_000).p1.inProgressPeriods).toEqual([]);
+  });
+
+  it("a kid hurt and back on within 3 min (swapped back on) keeps the period", () => {
+    reset();
+    const result = unbrokenPeriodCompliance(
+      [
+        lineupSet(["p1", "p2"], ["p3"]),
+        qStart(1),
+        ev("injury", { injured: true, quarter: 1, elapsed_ms: 300_000 }, "p1"),
+        ev("swap", { off_player_id: "p1", on_player_id: "p3", quarter: 1, elapsed_ms: 300_000 }),
+        ev("injury", { injured: false, quarter: 1, elapsed_ms: 360_000 }, "p1"),
+        ev("swap", { off_player_id: "p3", on_player_id: "p1", quarter: 1, elapsed_ms: 400_000 }),
+        qEnd(1),
+      ],
+      1,
+    );
+    expect(result.p1.unbrokenPeriods).toEqual([1]);
+    expect(result.p3.unbrokenPeriods).toEqual([]);
+  });
+});
