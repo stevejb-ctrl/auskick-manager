@@ -123,12 +123,32 @@ const FIELD_SLOTS_13_NO_VESTS: FieldSlot[] = FIELD_SLOTS_13_FR_DH.map((s) =>
       : s,
 );
 
+/** The hand-made layouts, by vest shape, smallest first. */
+function layoutsFor(fr: boolean, dh: boolean): FieldSlot[][] {
+  if (fr && dh) return [FIELD_SLOTS_8_FR_DH, FIELD_SLOTS_11_FR_DH, FIELD_SLOTS_13_FR_DH];
+  if (fr) {
+    // FR only past 8 a side: the 13 shape with the DH spot played by a forward.
+    return [
+      FIELD_SLOTS_8_FR_ONLY,
+      FIELD_SLOTS_13_FR_DH.map((s) => (s.role === "dh" ? { ...s, id: "fwd-7", role: "forward" as const } : s)),
+    ];
+  }
+  if (dh) {
+    return [FIELD_SLOTS_13_FR_DH.map((s) => (s.role === "fr" ? { ...s, id: "back-5", role: "back" as const } : s))];
+  }
+  return [FIELD_SLOTS_6_NO_VESTS, FIELD_SLOTS_13_NO_VESTS];
+}
+
 /**
  * Resolve the formation slot array for the given on-field size +
- * vest requirements. Defaults to the 11-player FR+DH layout
- * (closest to canonical RL) when the size/vest combo isn't
- * explicitly defined — keeps the component robust to future
- * age-group tweaks.
+ * vest requirements: EXACTLY one slot per on-field player, the vest
+ * slots iff the grade wears vests, one fullback. Each age group's
+ * usual size has a hand-made layout; a coach can also play short
+ * ("Players on field", a short squad, a kid lent so both sides play
+ * one down), so any other size starts from the closest larger layout
+ * and gives up plain forward / back spots, from whichever line has
+ * more, until it fits. (Those sizes used to get the 11-slot layout:
+ * 12 a side drew 11 spots and hid a kid on the field.)
  */
 export function getFieldSlots(
   onFieldSize: number,
@@ -136,12 +156,19 @@ export function getFieldSlots(
 ): FieldSlot[] {
   const fr = vestRequirements?.fr === true;
   const dh = vestRequirements?.dh === true;
-  if (onFieldSize <= 6) return FIELD_SLOTS_6_NO_VESTS;
-  if (onFieldSize === 8 && fr && !dh) return FIELD_SLOTS_8_FR_ONLY;
-  if (onFieldSize === 8 && fr && dh) return FIELD_SLOTS_8_FR_DH;
-  if (onFieldSize === 11) return FIELD_SLOTS_11_FR_DH;
-  if (onFieldSize === 13) return fr || dh ? FIELD_SLOTS_13_FR_DH : FIELD_SLOTS_13_NO_VESTS;
-  return FIELD_SLOTS_11_FR_DH;
+  const layouts = layoutsFor(fr, dh);
+  const base = layouts.find((l) => l.length >= onFieldSize) ?? layouts[layouts.length - 1];
+  const slots = [...base];
+  while (slots.length > Math.max(onFieldSize, 1)) {
+    const forwards = slots.filter((s) => s.role === "forward").length;
+    const backs = slots.filter((s) => s.role === "back").length;
+    if (forwards === 0 && backs === 0) break;
+    const drop: FieldSlotRole = forwards > backs ? "forward" : "back";
+    let i = slots.length - 1;
+    while (slots[i].role !== drop) i--;
+    slots.splice(i, 1);
+  }
+  return slots;
 }
 
 // ─── Chip-aware overflow placement ───────────────────────────

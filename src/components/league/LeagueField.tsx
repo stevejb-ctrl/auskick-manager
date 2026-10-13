@@ -387,8 +387,11 @@ export function LeagueField({
               positions in lineup order. Unfilled slots render vacant
               placeholders so the gap is visible. */}
           {(() => {
+            // Never fewer spots than kids on the field: a lineup over
+            // the size (the size dropped after kickoff) still shows
+            // every kid rather than hiding one.
             const slots = getFieldSlots(
-              typeof onFieldSize === "number" ? onFieldSize : 11,
+              Math.max(typeof onFieldSize === "number" ? onFieldSize : 11, players.length),
               vestRequirements,
             );
             const arrangement = arrangeFieldSlots(
