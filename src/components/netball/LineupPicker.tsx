@@ -558,6 +558,8 @@ export function NetballLineupPicker({
   const gamePlanButton = gamePlan ? (
     <GamePlanButton
       {...gamePlan}
+      // Plan what's on screen: this lineup's size (Stagehand round 2).
+      onFieldSize={onFieldSize}
       anchor={{ groups: lineup.positions, bench: lineup.bench }}
       pinLabel="Use for Q1"
       onPin={(plan) => {

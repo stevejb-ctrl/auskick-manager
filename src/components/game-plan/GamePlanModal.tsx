@@ -56,6 +56,14 @@ export interface GamePlanModalProps {
   players: GamePlanPlayer[];
   /** Players on field for this game (clamped to the age-group bounds). */
   onFieldSize: number;
+  /** This game's period length, when it isn't the age-group default. */
+  periodMinutes?: number;
+  /**
+   * This game's sub interval (rolling subs). Without it the plan's cadence
+   * is the age-group default and can disagree with the game's ("every
+   * 4 min" vs the lineup's "every 10m", Stagehand round 2).
+   */
+  subIntervalSeconds?: number;
   /** Coach's team name for the header + copy text. */
   teamName: string;
   /** Opponent name when known — drops the "v …" half when absent. */
@@ -143,6 +151,8 @@ export function GamePlanModal({
   ageGroup,
   players,
   onFieldSize,
+  periodMinutes,
+  subIntervalSeconds,
   teamName,
   opponentName,
   seasonEvents,
@@ -170,6 +180,8 @@ export function GamePlanModal({
         ageGroup,
         players,
         onFieldSize,
+        periodMinutes,
+        subIntervalSeconds,
         seasonEvents,
         seed,
         chipModeByKey,
@@ -177,7 +189,7 @@ export function GamePlanModal({
         netballPlaybook,
         leaguePlaybook,
       }),
-    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook, leaguePlaybook],
+    [sport, ageGroup, players, onFieldSize, periodMinutes, subIntervalSeconds, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook, leaguePlaybook],
   );
 
   const [seed, setSeed] = useState(initialSeed);
@@ -192,6 +204,8 @@ export function GamePlanModal({
             ageGroup,
             players,
             onFieldSize,
+            periodMinutes,
+            subIntervalSeconds,
             seasonEvents,
             seed: initialSeed,
             chipModeByKey,

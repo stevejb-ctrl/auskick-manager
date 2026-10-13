@@ -156,6 +156,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         return {
           players: available.size > 0 ? active.filter((p) => available.has(p.id)) : active,
           seasonEvents,
+          periodMinutes: periodSeconds / 60,
           playbooks: await gamePlanPlaybooks(
             supabase,
             params.teamId,
@@ -395,6 +396,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     ageGroup={planAgeCfg}
                     players={planInput.players}
                     onFieldSize={g.on_field_size ?? planAgeCfg.defaultOnFieldSize}
+                    periodMinutes={planInput.periodMinutes}
+                    subIntervalSeconds={g.sub_interval_seconds}
                     teamName={teamName}
                     opponentName={g.opponent}
                     seasonEvents={planInput.seasonEvents}

@@ -202,6 +202,38 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   await expect(bench.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
 });
 
+test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interval", async ({ page }) => {
+  // Stagehand round 2: the plan used the game's stored field size and
+  // the age-group sub cadence ("every 4 min") while the lineup said 11
+  // on field and "Sub every 10m".
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: /game settings/i }).click();
+  const size = page.locator("#on-field-size");
+  const fewer = Number(await size.inputValue()) - 1;
+  await size.selectOption(String(fewer));
+  await page.locator("#sub-minutes").fill("10");
+  await expect(page.getByText("Sub every 10m")).toBeVisible();
+
+  await page.getByRole("button", { name: /^game plan$/i }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("#game-plan-text")).toContainText("subs ~every 10 min");
+  // Q1 is the lineup itself; Q2 on is projected, at the lineup's size.
+  const onField = page.locator('[data-testid^="game-plan-group-"] [data-player-id]');
+  await expect(onField).toHaveCount(fewer);
+  await page.getByRole("tab", { name: "Q2" }).click();
+  await expect(onField).toHaveCount(fewer);
+});
+
 test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use for Q1 applies changes", async ({
   page,
 }) => {

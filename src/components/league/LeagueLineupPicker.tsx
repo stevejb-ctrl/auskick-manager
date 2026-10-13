@@ -401,6 +401,10 @@ export function LeagueLineupPicker({
   const gamePlanButton = gamePlan ? (
     <GamePlanButton
       {...gamePlan}
+      // Plan what's on screen: this lineup's size and sub interval, not
+      // the game's stored ones (Stagehand round 2).
+      onFieldSize={onFieldSize}
+      subIntervalSeconds={subIntervalSeconds}
       anchor={{ groups: { forwards: forwardIds, backs: backIds }, bench: benchIds }}
       pinLabel="Use for Q1"
       onPin={(plan) => {

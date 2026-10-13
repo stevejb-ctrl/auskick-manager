@@ -435,27 +435,6 @@ export function LineupPicker({
     auth.kind === "team" ? auth.teamId : null,
     (pid) => playerById.get(pid)?.full_name,
   );
-  const gamePlanButton = gamePlan ? (
-    <GamePlanButton
-      {...gamePlan}
-      anchor={{
-        groups: Object.fromEntries(
-          (["back", "hback", "mid", "hfwd", "fwd"] as Zone[])
-            .filter((z) => displayZoneCaps[z] > 0)
-            .map((z) => [z, lineup[z]]),
-        ),
-        bench: lineup.bench,
-      }}
-      pinLabel="Use for Q1"
-      onPin={(plan) => {
-        const q1 = plan.periods[0];
-        if (!q1) return;
-        const next: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [...q1.bench] };
-        for (const g of q1.groups) if (g.groupId in next) next[g.groupId as Zone] = [...g.playerIds];
-        setLineup(next);
-      }}
-    />
-  ) : null;
   const holds = aflStoreLocks(locks);
   // Saved as a player_lock event so it carries into the game (LiveGame
   // reads holds back from the events) and shows on a co-manager's phone.
@@ -625,6 +604,31 @@ export function LineupPicker({
     subMinInput === null
       ? suggestedMin
       : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      // Plan what's on screen: this lineup's size and sub interval, not
+      // the game's stored ones (Stagehand round 2).
+      onFieldSize={onFieldSize}
+      subIntervalSeconds={Math.round(effectiveSubMin * 60)}
+      anchor={{
+        groups: Object.fromEntries(
+          (["back", "hback", "mid", "hfwd", "fwd"] as Zone[])
+            .filter((z) => displayZoneCaps[z] > 0)
+            .map((z) => [z, lineup[z]]),
+        ),
+        bench: lineup.bench,
+      }}
+      pinLabel="Use for Q1"
+      onPin={(plan) => {
+        const q1 = plan.periods[0];
+        if (!q1) return;
+        const next: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [...q1.bench] };
+        for (const g of q1.groups) if (g.groupId in next) next[g.groupId as Zone] = [...g.playerIds];
+        setLineup(next);
+      }}
+    />
+  ) : null;
 
   // Two-step kickoff (Steve 2026-05-13): tapping "Ready for Q1" used
   // to fire startGame immediately, writing lineup_set + flipping
