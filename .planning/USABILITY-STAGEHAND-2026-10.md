@@ -279,6 +279,15 @@ below was checked against the code or the game's event log.
   "STAYS" at the break and cleared with "Let them rotate again".
 - **Named positions suggested for U14** (setup-league-u14).
 
+## Status: round 3 all fixed (13 Oct 2026)
+
+| # | Fix | Commit |
+|---|-----|--------|
+| 1 | Before kickoff the button is "Use this plan". Q1 becomes the lineup; Q2 on ride on the pinned plan, so reopening shows them and each break opens on them. The pin is now consumed a period at a time, not wiped. | c64cf7c, 92d74e3 |
+| 2 | U13+ league scoring copy says international laws, with penalty and field goals; the track-scoring help too. | 359b586 |
+| 3 | Game-time lists (all sports, live and game page) keep kids who never got on, as "0:00 (didn't get on)". Found on the way: How we played counted a league lineup's position slots as kids. | 22537e5 |
+| 4 | Game plan names each kid's position for set- and named-position teams, on screen and in the chat text. | f6e0a8a |
+
 ## New, confirmed
 
 1. **Game plan's "Use for Q1" silently drops edits to later quarters**
