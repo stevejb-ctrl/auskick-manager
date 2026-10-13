@@ -565,6 +565,59 @@ test("stats show season balance, backfilled, with since-reset", async ({ page })
   await expect(page.getByTestId("season-balance-summary")).toContainText("of 12 kids");
 });
 
+// Sideline combos in season zone time (the season balance rollup): a
+// mid-quarter zone switch counts in both zones, and a kid injured then
+// replaced is counted once. Pre-fix the rollup's replay ignored the
+// switch and credited the injured kid's stint twice.
+test("season zone time follows a zone switch and an injury replacement", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const MIN = 60_000;
+  const [switchBack, hurt, switchFwd, replacement] = [ids[0], ids[4], ids[8], ids[12]];
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup }, created_at: t(70) },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: t(69) },
+      { type: "injury", player_id: hurt, metadata: { injured: true, quarter: 1, elapsed_ms: 5 * MIN }, created_at: t(64) },
+      { type: "swap", metadata: { off_player_id: hurt, on_player_id: replacement, zone: "mid", quarter: 1, elapsed_ms: 5 * MIN }, created_at: t(63.9) },
+      {
+        type: "field_zone_swap",
+        metadata: { player_a_id: switchBack, zone_a: "back", player_b_id: switchFwd, zone_b: "fwd", quarter: 1, elapsed_ms: 6 * MIN },
+        created_at: t(63),
+      },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 15 * MIN }, created_at: t(54) },
+      { type: "game_finalised", metadata: { quarter: 4 }, created_at: t(50) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("games").update({ status: "completed", scheduled_at: t(80) }).eq("id", game.id);
+
+  // Stats backfill the rollup for the finished game.
+  await page.goto(`/teams/${team.id}/stats`);
+  await expect(page.getByRole("region", { name: "Season balance" })).toBeVisible({ timeout: 15_000 });
+  const zoneMs = async () => {
+    const { data } = await admin
+      .from("player_game_time")
+      .select("player_id, unit_key, ms")
+      .eq("game_id", game.id)
+      .eq("unit_kind", "zone");
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of data ?? []) (out[r.player_id] ??= {})[r.unit_key] = r.ms;
+    return out;
+  };
+  await expect.poll(async () => Object.keys(await zoneMs()).length, { timeout: 15_000 }).toBeGreaterThan(0);
+  const ms = await zoneMs();
+  expect(ms[switchBack]).toMatchObject({ back: 6 * MIN, fwd: 9 * MIN });
+  expect(ms[switchFwd]).toMatchObject({ fwd: 6 * MIN, back: 9 * MIN });
+  expect(ms[hurt]).toEqual({ mid: 5 * MIN });
+  expect(ms[replacement]).toEqual({ mid: 10 * MIN });
+});
+
 test("a finished game says how we played against the rules", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);

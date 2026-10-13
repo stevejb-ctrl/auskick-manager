@@ -178,122 +178,20 @@ function activeZones(caps: ZoneCaps): Zone[] {
   return ALL_ZONES.filter((z) => caps[z] > 0);
 }
 
-// ─── Replay one game's events → per-player zone minutes ──────
+// ─── One game's events → per-player zone minutes ─────────────
+// Read from replayGame (closed stints only): the one replay the live
+// game uses, so season zone time follows the same sideline rules (a
+// mid-quarter zone switch, an injury then its replacement, a swap that
+// lands after the hooter). It used to be a second, older walker that
+// missed all three.
 export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
-  const sorted = [...events].sort((a, b) =>
-    a.created_at.localeCompare(b.created_at)
-  );
   const result: PlayerZoneMinutes = {};
-  const add = (pid: string, zone: Zone, ms: number) => {
-    if (ms <= 0) return;
-    result[pid] ??= emptyZM();
-    result[pid][zone] += ms / 60000;
-  };
-
-  let lineup: Lineup | null = null;
-  let stintStart: Record<string, number> = {};
-  let stintZ: Record<string, Zone> = {};
-
-  for (const ev of sorted) {
-    const meta = ev.metadata as {
-      elapsed_ms?: number;
-      quarter?: number;
-      lineup?: Partial<Lineup>;
-      off_player_id?: string;
-      on_player_id?: string;
-      zone?: Zone;
-    };
-    const elapsed = meta.elapsed_ms ?? 0;
-
-    if (ev.type === "lineup_set" && meta.lineup) {
-      lineup = normalizeLineup(meta.lineup);
-    } else if (ev.type === "quarter_start") {
-      stintStart = {};
-      stintZ = {};
-      if (lineup) {
-        for (const z of ALL_ZONES) {
-          for (const p of lineup[z]) {
-            stintStart[p] = 0;
-            stintZ[p] = z;
-          }
-        }
-      }
-    } else if (ev.type === "swap" && lineup && meta.on_player_id && meta.zone) {
-      const off = meta.off_player_id ?? "";
-      const on = meta.on_player_id;
-      const z = meta.zone;
-      if (off) {
-        const sz = stintZ[off] ?? z;
-        add(off, sz, elapsed - (stintStart[off] ?? 0));
-        delete stintStart[off];
-        delete stintZ[off];
-        lineup[z] = lineup[z].map((p) => (p === off ? on : p));
-        lineup.bench = [...lineup.bench.filter((p) => p !== on), off];
-      } else {
-        lineup[z] = [...lineup[z], on];
-        lineup.bench = lineup.bench.filter((p) => p !== on);
-      }
-      stintStart[on] = elapsed;
-      stintZ[on] = z;
-    } else if (ev.type === "quarter_end" && lineup) {
-      for (const [pid, start] of Object.entries(stintStart)) {
-        const z = stintZ[pid];
-        if (z) add(pid, z, elapsed - start);
-      }
-      stintStart = {};
-      stintZ = {};
-    } else if (ev.type === "player_arrived" && lineup && ev.player_id) {
-      if (!lineup.bench.includes(ev.player_id)) lineup.bench.push(ev.player_id);
-    } else if (ev.type === "injury" && lineup && ev.player_id) {
-      const pid = ev.player_id;
-      const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
-      if (injured) {
-        const z = zoneOf(lineup, pid);
-        if (z) {
-          const sz = stintZ[pid] ?? z;
-          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-          delete stintStart[pid];
-          delete stintZ[pid];
-          lineup[z] = lineup[z].filter((p) => p !== pid);
-          if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-        }
-      }
-    } else if (ev.type === "player_loan" && lineup && ev.player_id) {
-      const pid = ev.player_id;
-      const loaned = (ev.metadata as { loaned?: boolean }).loaned ?? true;
-      if (loaned) {
-        // Starting a loan — if on-field, close zone stint and move to bench.
-        const z = zoneOf(lineup, pid);
-        if (z) {
-          const sz = stintZ[pid] ?? z;
-          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-          delete stintStart[pid];
-          delete stintZ[pid];
-          lineup[z] = lineup[z].filter((p) => p !== pid);
-          if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-        }
-      }
-    } else if (ev.type === "roster_shrink" && lineup) {
-      // Mid-quarter on-field-size reduction. Metadata carries the
-      // list of players to drop from their zones; for each one we
-      // close the open stint and push them to bench. Mirrors the
-      // injury / player_loan handlers but acts on multiple players
-      // in one event. Steve 2026-05-20.
-      const ids = ((ev.metadata as { remove_player_ids?: string[] })
-        .remove_player_ids ?? []) as string[];
-      for (const pid of ids) {
-        const z = zoneOf(lineup, pid);
-        if (!z) continue;
-        const sz = stintZ[pid] ?? z;
-        add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-        delete stintStart[pid];
-        delete stintZ[pid];
-        lineup[z] = lineup[z].filter((p) => p !== pid);
-        if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-      }
-    }
+  for (const [pid, zm] of Object.entries(replayGame(events).basePlayedZoneMs)) {
+    if (!ALL_ZONES.some((z) => zm[z] > 0)) continue;
+    const minutes = emptyZM();
+    for (const z of ALL_ZONES) minutes[z] = zm[z] / 60000;
+    result[pid] = minutes;
   }
-
   return result;
 }
 
