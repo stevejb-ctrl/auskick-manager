@@ -23,6 +23,9 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { playerThirdMs, type ThirdLookup } from "../../src/lib/sports/netball/fairness";
+import { primaryThirdFor } from "../../src/lib/sports/netball";
+import type { GameEvent } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -1127,4 +1130,95 @@ test("a Q4 replacement is saved when the game is finished", async ({ page }) => 
     const subs = ((data?.[0]?.metadata ?? {}) as { midQuarterSubs?: { inPlayerId: string | null }[] }).midQuarterSubs ?? [];
     return subs.some((s) => s.inPlayerId === players[7].id);
   }, { timeout: 20_000 }).toBe(true);
+});
+
+test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the break", async ({ page }) => {
+  // The combination behind this year's match-day bugs, through the real
+  // screens on a fast clock. Q1: GA is lent and a bench kid comes on;
+  // then GS is hurt and the last bench kid comes on. At the hooter the
+  // lent GA is brought back and goes in at GS. The saved game must
+  // agree: Q2's court, nobody lost, and Q1's minutes split at the subs.
+  test.setTimeout(150_000);
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id), quarterStartOffsetSec: 1 });
+  // 20× clock: the 10-minute quarter runs in ~30 s.
+  await admin.from("games").update({ clock_multiplier: 20 }).eq("id", game.id);
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const [gs, ga] = [players[0], players[1]];
+  const [bench1, bench2] = [players[7], players[8]];
+  const token = (position: string, name: string) =>
+    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+  const replaceDialog = page.getByRole("dialog");
+
+  // Q1: lend GA; a bench kid comes on.
+  await token("Goal Attack", ga.full_name).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition|^lend/i }).click();
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench1.full_name}$`, "i") }).click();
+  await expect(token("Goal Attack", bench1.full_name)).toBeVisible();
+  // Then GS is hurt; the last bench kid comes on.
+  await token("Goal Shooter", gs.full_name).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench2.full_name}$`, "i") }).click();
+  await expect(token("Goal Shooter", bench2.full_name)).toBeVisible();
+
+  // The hooter → the break.
+  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 60_000 });
+  const settings = page.getByRole("button", { name: /game settings/i });
+  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
+  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+  // Bring GA back: onto the bench, then in at GS (swapping the GS off).
+  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
+  await page.getByRole("button", { name: `Bring ${ga.full_name} back` }).click();
+  // Once the recall lands they leave the Sidelined strip: one bench tile.
+  const gaOnBench = page.getByRole("button", { name: new RegExp(`^B ${ga.full_name}`) });
+  await expect(gaOnBench).toHaveCount(1, { timeout: 15_000 });
+  await expect(gaOnBench).toBeEnabled();
+  await gaOnBench.click();
+  await token("Goal Shooter", bench2.full_name).click();
+  await expect(token("Goal Shooter", ga.full_name)).toBeVisible();
+
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  const events = async () => {
+    const { data } = await admin.from("game_events").select("*").eq("game_id", game.id).order("created_at", { ascending: true });
+    return (data ?? []) as GameEvent[];
+  };
+  await expect
+    .poll(async () => (await events()).some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2), { timeout: 20_000 })
+    .toBe(true);
+  const evs = await events();
+  const swap = evs.find((e) => e.type === "period_break_swap")!;
+  const meta = swap.metadata as {
+    lineup: { positions: Record<string, string[]>; bench: string[] };
+    midQuarterSubs: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[];
+  };
+  // Q2's court: GA back at GS, the hurt GS off, the first sub still at GA.
+  expect(meta.lineup.positions.gs).toEqual([ga.id]);
+  expect(meta.lineup.positions.ga).toEqual([bench1.id]);
+  const court = Object.values(meta.lineup.positions).flat();
+  expect(court).not.toContain(gs.id);
+  // Nobody lost or doubled up.
+  const everyone = [...court, ...meta.lineup.bench];
+  expect(new Set(everyone).size).toBe(everyone.length);
+  for (const p of players) expect(everyone).toContain(p.id);
+
+  // Q1's minutes split at the subs (Q2 has only just started: credit it 0).
+  const atOf = (pred: (s: (typeof meta.midQuarterSubs)[number]) => boolean) => meta.midQuarterSubs.find(pred)!.atMs;
+  const gaOff = atOf((s) => s.outPlayerId === ga.id);
+  const bench1On = atOf((s) => s.inPlayerId === bench1.id);
+  const gsOff = atOf((s) => s.outPlayerId === gs.id);
+  const bench2On = atOf((s) => s.inPlayerId === bench2.id);
+  const ms = playerThirdMs(evs, 0, 600, primaryThirdFor as ThirdLookup);
+  const total = (pid: string) => {
+    const t = ms.get(pid) ?? { attack: 0, centre: 0, defence: 0 };
+    return t.attack + t.centre + t.defence;
+  };
+  expect(total(ga.id)).toBe(gaOff);
+  expect(total(bench1.id)).toBe(600_000 - bench1On);
+  expect(total(gs.id)).toBe(gsOff);
+  expect(total(bench2.id)).toBe(600_000 - bench2On);
+  expect(total(players[2].id)).toBe(600_000);
 });
