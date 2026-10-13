@@ -27,15 +27,16 @@
 //      the alreadyFilled preservation contract.
 
 import { describe, expect, it } from "vitest";
-import { AGE_GROUPS } from "@/lib/ageGroups";
 import {
   deriveEffectiveZoneCaps,
   effectiveDisplayZoneCaps,
   zoneCapsFor,
   type ZoneCaps,
 } from "@/lib/fairness";
-import { netballSport, pickNetballPositionsToFill } from "@/lib/sports";
-import type { Lineup, PositionModel } from "@/lib/types";
+import { aflPositionModel, aflSport, netballSport, pickNetballPositionsToFill } from "@/lib/sports";
+import type { Lineup } from "@/lib/types";
+
+const ALL_AFL = [...aflSport.ageGroups, ...(aflSport.legacyAgeGroups ?? [])];
 
 // ──────────────────────────────────────────────────────────────
 // SECTION 1: AFL zoneCapsFor × age group × short-squad sizes
@@ -181,12 +182,12 @@ describe("AFL zoneCapsFor — short-squad fill priority across age groups", () =
     });
   });
 
-  // Cross-cutting: every AGE_GROUPS entry's defaultOnFieldSize
+  // Cross-cutting: every AFL age group's defaultOnFieldSize
   // must produce a cap distribution that exactly sums to the
   // default. Catches a future age group that's mis-configured.
   it("default on-field-size matches the cap distribution sum for every age group", () => {
-    for (const ag of Object.values(AGE_GROUPS)) {
-      const caps = zoneCapsFor(ag.defaultOnFieldSize, ag.positionModel as PositionModel);
+    for (const ag of ALL_AFL) {
+      const caps = zoneCapsFor(ag.defaultOnFieldSize, aflPositionModel(ag));
       const sum = caps.back + caps.hback + caps.mid + caps.hfwd + caps.fwd;
       expect(`${ag.id}:${sum}`).toBe(`${ag.id}:${ag.defaultOnFieldSize}`);
     }
@@ -197,8 +198,8 @@ describe("AFL zoneCapsFor — short-squad fill priority across age groups", () =
   // that sums to the requested size (within the 18-player hard
   // max, which clamps anything higher).
   it("min/max on-field-size always sums correctly", () => {
-    for (const ag of Object.values(AGE_GROUPS)) {
-      const model = ag.positionModel as PositionModel;
+    for (const ag of ALL_AFL) {
+      const model = aflPositionModel(ag);
       for (const size of [ag.minOnFieldSize, ag.maxOnFieldSize]) {
         const caps = zoneCapsFor(size, model);
         const sum = caps.back + caps.hback + caps.mid + caps.hfwd + caps.fwd;

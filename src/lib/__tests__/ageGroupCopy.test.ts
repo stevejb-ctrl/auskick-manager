@@ -3,14 +3,14 @@
 // default (UX plan §7.2), so the copy mustn't promise them later.
 
 import { describe, expect, it } from "vitest";
-import { AGE_GROUPS } from "@/lib/ageGroups";
+import { aflSport } from "@/lib/sports";
 import { effectivePolicy } from "@/lib/playbook";
 
 describe("AFL age-group notes", () => {
   it("only mention zones where zones are on by default", () => {
-    for (const [id, cfg] of Object.entries(AGE_GROUPS)) {
-      if (effectivePolicy("afl", id).zonesEnforced) continue;
-      expect(cfg.notes.replace(/no zones/i, ""), `${id}: ${cfg.notes}`).not.toMatch(/zone/i);
+    for (const cfg of [...aflSport.ageGroups, ...(aflSport.legacyAgeGroups ?? [])]) {
+      if (effectivePolicy("afl", cfg.id).zonesEnforced) continue;
+      expect(cfg.notes.replace(/no zones/i, ""), `${cfg.id}: ${cfg.notes}`).not.toMatch(/zone/i);
     }
   });
 });

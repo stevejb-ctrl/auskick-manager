@@ -2,7 +2,7 @@
 // the "create team → populate squad → start game" flow at the pure-
 // function layer. No Supabase, no React — we exercise the same
 // building blocks the server actions use:
-//   - createGame()      → AGE_GROUPS[ageGroupOf(team.age_group)].defaultOnFieldSize
+//   - createGame()      → newGameDefaults(team.sport, team.age_group)
 //   - live/page.tsx     → zoneCapsFor(onFieldSize, positionModel)
 //   - LineupPicker      → suggestStartingLineup(players, {}, 0, zoneCaps)
 //   - startGame()       → writes the lineup + on_field_size back
@@ -12,15 +12,15 @@
 // suite fails.
 
 import { describe, expect, it } from "vitest";
-import {
-  AGE_GROUPS,
-  AGE_GROUP_ORDER,
-  ageGroupOf,
-  positionsFor,
-} from "@/lib/ageGroups";
+import { positionsFor } from "@/lib/ageGroups";
 import { suggestStartingLineup, zoneCapsFor } from "@/lib/fairness";
 import { ALL_ZONES } from "@/lib/fairness";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
+import { aflPositionModel, aflSport } from "@/lib/sports";
 import type { AgeGroup, Player } from "@/lib/types";
+
+const PICKER_IDS = aflSport.ageGroups.map((a) => a.id as AgeGroup);
+const ALL_AFL = [...aflSport.ageGroups, ...(aflSport.legacyAgeGroups ?? [])];
 
 function makePlayer(i: number, teamId: string): Player {
   return {
@@ -53,11 +53,8 @@ const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
   U13: 15,
   U14: 15,
   U15: 15,
-  // Legacy unsplit entries — kept in AGE_GROUPS for old-team
-  // compatibility but no longer surface in AGE_GROUP_ORDER, so
-  // the iterating test below skips them. Pin the expected
-  // values anyway so a future accidental change in the legacy
-  // record still fails the type check.
+  // Legacy unsplit entries — still resolvable for pre-split teams
+  // (aflSport.legacyAgeGroups) but never offered in the picker.
   U16: 18,
   U17: 18,
   // Split entries — Boys 18, Girls 16.
@@ -70,17 +67,17 @@ const EXPECTED_DEFAULT_ON_FIELD: Record<AgeGroup, number> = {
 };
 
 describe("Age group defaults match AFL Junior Match Policy", () => {
-  for (const age of AGE_GROUP_ORDER) {
+  for (const cfg of ALL_AFL) {
+    const age = cfg.id as AgeGroup;
     it(`${age} defaults to ${EXPECTED_DEFAULT_ON_FIELD[age]}-a-side`, () => {
-      expect(AGE_GROUPS[age].defaultOnFieldSize).toBe(
-        EXPECTED_DEFAULT_ON_FIELD[age]
-      );
+      expect(cfg.defaultOnFieldSize).toBe(EXPECTED_DEFAULT_ON_FIELD[age]);
     });
   }
 });
 
-describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
-  const cfg = AGE_GROUPS[age];
+describe.each(PICKER_IDS)("%s — full game-start flow", (age) => {
+  const cfg = aflSport.ageGroups.find((a) => a.id === age)!;
+  const positionModel = aflPositionModel(cfg);
   const teamId = `team-${age.toLowerCase()}`;
   // Squad = on-field + 4 bench. Realistic junior squad shape.
   const squadSize = cfg.defaultOnFieldSize + 4;
@@ -89,16 +86,15 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
   );
 
   it("createGame() derives the right on-field default from team.age_group", () => {
-    // Mirrors the server-action lookup:
-    //   const ageCfg = AGE_GROUPS[ageGroupOf(team?.age_group)];
-    //   on_field_size: input.on_field_size ?? ageCfg.defaultOnFieldSize
-    const derived = AGE_GROUPS[ageGroupOf(age)].defaultOnFieldSize;
+    // Same lookup the server action uses:
+    //   on_field_size: input.on_field_size ?? newGameDefaults(sport, age).on_field_size
+    const derived = newGameDefaults("afl", age).on_field_size;
     expect(derived).toBe(EXPECTED_DEFAULT_ON_FIELD[age]);
   });
 
   it("zoneCapsFor() sums to the default on-field size", () => {
-    const caps = zoneCapsFor(cfg.defaultOnFieldSize, cfg.positionModel);
-    const total = positionsFor(cfg.positionModel).reduce(
+    const caps = zoneCapsFor(cfg.defaultOnFieldSize, positionModel);
+    const total = positionsFor(positionModel).reduce(
       (sum, z) => sum + caps[z],
       0
     );
@@ -106,8 +102,8 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
   });
 
   it("zoneCapsFor() uses the correct position model", () => {
-    const caps = zoneCapsFor(cfg.defaultOnFieldSize, cfg.positionModel);
-    if (cfg.positionModel === "zones3") {
+    const caps = zoneCapsFor(cfg.defaultOnFieldSize, positionModel);
+    if (positionModel === "zones3") {
       // 3-zone model should never populate the half-lines.
       expect(caps.hback).toBe(0);
       expect(caps.hfwd).toBe(0);
@@ -124,7 +120,7 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
   });
 
   it(`starts a game: fills exactly ${cfg.defaultOnFieldSize} on-field + ${squadSize - cfg.defaultOnFieldSize} on bench`, () => {
-    const caps = zoneCapsFor(cfg.defaultOnFieldSize, cfg.positionModel);
+    const caps = zoneCapsFor(cfg.defaultOnFieldSize, positionModel);
     const lineup = suggestStartingLineup(squad, {}, 0, caps);
 
     // On-field count matches the default
@@ -154,7 +150,7 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
 
   it("handles a skeleton squad (exactly default on-field, zero bench)", () => {
     const minSquad = squad.slice(0, cfg.defaultOnFieldSize);
-    const caps = zoneCapsFor(cfg.defaultOnFieldSize, cfg.positionModel);
+    const caps = zoneCapsFor(cfg.defaultOnFieldSize, positionModel);
     const lineup = suggestStartingLineup(minSquad, {}, 0, caps);
 
     const onField = ALL_ZONES.reduce((sum, z) => sum + lineup[z].length, 0);
@@ -163,8 +159,8 @@ describe.each(AGE_GROUP_ORDER)("%s — full game-start flow", (age) => {
   });
 
   it("respects short-handed play (min on-field size still fills correctly)", () => {
-    const caps = zoneCapsFor(cfg.minOnFieldSize, cfg.positionModel);
-    const onFieldSize = positionsFor(cfg.positionModel).reduce(
+    const caps = zoneCapsFor(cfg.minOnFieldSize, positionModel);
+    const onFieldSize = positionsFor(positionModel).reduce(
       (sum, z) => sum + caps[z],
       0
     );

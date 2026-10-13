@@ -9,7 +9,7 @@
 // (e.g. "given a started game, a swap updates zone minutes").
 
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { AGE_GROUPS } from "../../src/lib/ageGroups";
+import { getAgeGroupConfig } from "../../src/lib/sports";
 import type { AgeGroup } from "../../src/lib/types";
 
 export interface MakeTeamOpts {
@@ -86,7 +86,7 @@ export async function makePlayers(
     opts.count
     ?? Math.min(
       PLAYER_FIRST_NAMES.length,
-      AGE_GROUPS[ageGroup].defaultOnFieldSize + 4,
+      getAgeGroupConfig("afl", ageGroup).defaultOnFieldSize + 4,
     );
   if (count > PLAYER_FIRST_NAMES.length) {
     throw new Error(
@@ -125,7 +125,9 @@ export async function makeGame(
   opts: MakeGameOpts
 ): Promise<{ id: string; on_field_size: number; share_token: string }> {
   const ageGroup = opts.ageGroup ?? "U10";
-  const cfg = AGE_GROUPS[ageGroup];
+  // AFL sizes even for netball / league teams: those specs pass an
+  // AFL id here and patch on_field_size themselves.
+  const cfg = getAgeGroupConfig("afl", ageGroup);
   const { data, error } = await admin
     .from("games")
     .insert({
