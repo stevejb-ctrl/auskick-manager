@@ -91,6 +91,11 @@ export interface GamePlanModalProps {
   anchor?: { groups: Record<string, string[]>; bench: string[] };
   /** A line under the title, e.g. that this is a preview to share. */
   note?: string;
+  /**
+   * Adjust the opening plan before it shows (a lineup screen lays over
+   * the later quarters the coach planned last time).
+   */
+  adjustInitialPlan?: (plan: GamePlan) => GamePlan;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
   /**
@@ -163,6 +168,7 @@ export function GamePlanModal({
   leaguePlaybook,
   anchor,
   note,
+  adjustInitialPlan,
   initialSeed = 7,
   initialPlan,
   initialPeriodIndex = 0,
@@ -196,8 +202,8 @@ export function GamePlanModal({
   const [seed, setSeed] = useState(initialSeed);
   // Seed from the handed-over plan-ahead projection when present, else a
   // fresh from-scratch projection (pre-game).
-  const [plan, setPlan] = useState<GamePlan>(
-    () =>
+  const [plan, setPlan] = useState<GamePlan>(() => {
+    const opening =
       initialPlan ??
       (anchor
         ? projectUpcomingRotation({
@@ -217,8 +223,9 @@ export function GamePlanModal({
             currentGroups: anchor.groups,
             currentBench: anchor.bench,
           })
-        : project(initialSeed)),
-  );
+        : project(initialSeed));
+    return adjustInitialPlan ? adjustInitialPlan(opening) : opening;
+  });
   const [activePeriod, setActivePeriod] = useState(initialPeriodIndex);
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
   const [selected, setSelected] = useState<string | null>(null);

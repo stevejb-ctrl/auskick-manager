@@ -41,6 +41,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -90,7 +91,7 @@ interface LineupPickerProps {
    * The pre-game "Game plan" opener's settings (team, opponent, season,
    * How we play), from the server page. The picker renders the button
    * in the shared breadcrumb row, anchored on its own lineup: the plan's
-   * first period IS the lineup, and "Use for Q1" puts changes back
+   * first period IS the lineup, and "Use this plan" puts changes back
    * (usability run: the two disagreed, and edits went nowhere).
    */
   gamePlan?: GamePlanButtonProps;
@@ -605,9 +606,21 @@ export function LineupPicker({
     subMinInput === null
       ? suggestedMin
       : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const gamePlanButton = gamePlan ? (
     <GamePlanButton
       {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
       // Plan what's on screen: this lineup's size and sub interval, not
       // the game's stored ones (Stagehand round 2).
       onFieldSize={onFieldSize}
@@ -620,10 +633,11 @@ export function LineupPicker({
         ),
         bench: lineup.bench,
       }}
-      pinLabel="Use for Q1"
+      pinLabel="Use this plan"
       onPin={(plan) => {
         const q1 = plan.periods[0];
         if (!q1) return;
+        setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
         const next: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [...q1.bench] };
         for (const g of q1.groups) if (g.groupId in next) next[g.groupId as Zone] = [...g.playerIds];
         setLineup(next);

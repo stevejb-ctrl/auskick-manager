@@ -183,7 +183,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
 
   // Usability run: Game plan's Q1 disagreed with the lineup, and changes
   // made in it went nowhere. Before kickoff its Q1 IS the lineup, and
-  // "Use for Q1" puts changes back.
+  // "Use this plan" puts changes back.
   const lineupBench = await benchIds(page.getByRole("group", { name: "Bench", exact: true }), "player-tile-");
   await page.getByRole("button", { name: /^game plan$/i }).click();
 
@@ -195,7 +195,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
 
   const { fieldKid, benchKid } = await swapInPlan(page);
-  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: /^game plan$/i })).toHaveCount(0);
   const bench = page.getByRole("group", { name: "Bench", exact: true });
   await expect(bench.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
@@ -234,7 +234,7 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   await expect(onField).toHaveCount(fewer);
 });
 
-test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use for Q1 applies changes", async ({
+test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this plan applies changes", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -259,12 +259,12 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use for 
   expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
 
   const { fieldKid, benchKid } = await swapInPlan(page);
-  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByTestId(`bench-chip-${fieldKid}`)).toBeVisible();
   await expect(page.getByTestId(`bench-chip-${benchKid}`)).toHaveCount(0);
 });
 
-test("league pre-kickoff: Game plan's first half is the lineup, and Use for Q1 applies changes", async ({
+test("league pre-kickoff: Game plan's first half is the lineup, and Use this plan applies changes", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -290,7 +290,7 @@ test("league pre-kickoff: Game plan's first half is the lineup, and Use for Q1 a
   expect(await planIds(page.getByTestId("game-plan-bench"))).toEqual(lineupBench);
 
   const { fieldKid, benchKid } = await swapInPlan(page);
-  await page.getByRole("button", { name: "Use for Q1" }).click();
+  await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(benchGroup.getByTestId(`league-player-tile-${fieldKid}`)).toBeVisible();
   await expect(benchGroup.getByTestId(`league-player-tile-${benchKid}`)).toHaveCount(0);
 });
@@ -405,4 +405,52 @@ test("set positions: Game plan names each kid's position, on screen and in the c
   await expect(row(ruck.id).getByTestId("game-plan-position")).toHaveText("R");
   await expect(row(fullForward.id).getByTestId("game-plan-position")).toHaveText("FF");
   await expect(page.locator("#game-plan-text")).toContainText(`${ruck.full_name} (R)`);
+});
+
+test("before kickoff, Game plan keeps the later quarters and the break opens on them", async ({ page }) => {
+  // Stagehand round 3: edits to Q2–Q4 in the pre-kickoff Game plan
+  // vanished — "Use for Q1" kept only Q1.
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+
+  // Plan Q2: put the first kid resting in Q2 onto the field.
+  await page.getByRole("button", { name: /^game plan$/i }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("tab", { name: "Q2" }).click();
+  const { fieldKid, benchKid } = await swapInPlan(page);
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: /^game plan$/i })).toHaveCount(0);
+
+  // Reopening keeps the Q2 change.
+  await page.getByRole("button", { name: /^game plan$/i }).click();
+  await page.getByRole("tab", { name: "Q2" }).click();
+  await expect(page.locator(`[data-testid="game-plan-bench"] [data-player-id="${fieldKid}"]`)).toBeVisible();
+  await expect(page.locator(`[data-testid^="game-plan-group-"] [data-player-id="${benchKid}"]`)).toBeVisible();
+  await page.getByRole("button", { name: "Use this plan" }).click();
+
+  // Play Q1, end it: the break opens on the planned Q2.
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^clock — q1, running$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^end q1 now$/i }).click();
+  await page.getByRole("button", { name: /^end\s*q\s*1$/i }).click();
+  const selectQ2 = page.getByRole("button", { name: /select team for q2/i });
+  if (await selectQ2.isVisible({ timeout: 5_000 }).catch(() => false)) await selectQ2.click();
+  await expect(page.getByTestId("planned-seed-banner")).toBeVisible({ timeout: 15_000 });
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
+  await expect(bench.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
 });

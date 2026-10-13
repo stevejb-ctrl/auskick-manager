@@ -46,6 +46,8 @@ import { useLongPress } from "@/lib/live/useLongPress";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 import { KeepOnMarker, keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -100,7 +102,7 @@ interface LineupPickerProps {
    * The pre-game "Game plan" opener's settings (team, opponent, season,
    * How we play), from the server page. The picker renders the button
    * in the shared breadcrumb row, anchored on its own lineup: the plan's
-   * first period IS the lineup, and "Use for Q1" puts changes back
+   * first period IS the lineup, and "Use this plan" puts changes back
    * (usability run: the two disagreed, and edits went nowhere).
    */
   gamePlan?: GamePlanButtonProps;
@@ -556,16 +558,29 @@ export function NetballLineupPicker({
     auth?.kind === "team" ? auth.teamId : null,
     (pid) => squadById.get(pid)?.full_name,
   );
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const gamePlanButton = gamePlan ? (
     <GamePlanButton
       {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
       // Plan what's on screen: this lineup's size (Stagehand round 2).
       onFieldSize={onFieldSize}
       anchor={{ groups: lineup.positions, bench: lineup.bench }}
-      pinLabel="Use for Q1"
+      pinLabel="Use this plan"
       onPin={(plan) => {
         const q1 = plan.periods[0];
         if (!q1) return;
+        if (gameId) setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
         const positions: Record<string, string[]> = Object.fromEntries(Object.keys(lineup.positions).map((k) => [k, []]));
         for (const g of q1.groups) positions[g.groupId] = [...g.playerIds];
         setLineup({ positions, bench: [...q1.bench] });

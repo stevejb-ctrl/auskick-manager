@@ -70,6 +70,8 @@ import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -117,7 +119,7 @@ interface LeagueLineupPickerProps {
    * The pre-game "Game plan" opener's settings (team, opponent, season,
    * How we play), from the server page. The picker renders the button
    * in the shared breadcrumb row, anchored on its own lineup: the plan's
-   * first period IS the lineup, and "Use for Q1" puts changes back
+   * first period IS the lineup, and "Use this plan" puts changes back
    * (usability run: the two disagreed, and edits went nowhere).
    */
   gamePlan?: GamePlanButtonProps;
@@ -399,18 +401,31 @@ export function LeagueLineupPicker({
     auth.kind === "team" ? auth.teamId : null,
     (pid) => playerById.get(pid)?.full_name,
   );
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const gamePlanButton = gamePlan ? (
     <GamePlanButton
       {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
       // Plan what's on screen: this lineup's size and sub interval, not
       // the game's stored ones (Stagehand round 2).
       onFieldSize={onFieldSize}
       subIntervalSeconds={subIntervalSeconds}
       anchor={{ groups: { forwards: forwardIds, backs: backIds }, bench: benchIds }}
-      pinLabel="Use for Q1"
+      pinLabel="Use this plan"
       onPin={(plan) => {
         const first = plan.periods[0];
         if (!first) return;
+        setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
         setForwardIds([...(first.groups.find((g) => g.groupId === "forwards")?.playerIds ?? [])]);
         setBackIds([...(first.groups.find((g) => g.groupId === "backs")?.playerIds ?? [])]);
         setBenchIds([...first.bench]);
