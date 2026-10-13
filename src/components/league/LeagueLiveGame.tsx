@@ -160,6 +160,8 @@ export function LeagueLiveGame({
 }: LeagueLiveGameProps) {
   const router = useRouter();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  // Empty spot tapped with nobody selected: the bench picker is open.
+  const [fillSpotZone, setFillSpotZone] = useState<"forward" | "back" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [endQConfirmOpen, setEndQConfirmOpen] = useState(false);
   /**
@@ -1330,8 +1332,41 @@ export function LeagueLiveGame({
    * target zone is a no-op (avoids a no-effect position_change
    * round-trip). Nothing-selected is also a no-op.
    */
+  // Bench → field into an empty spot: the tapped zone wins over chip
+  // preference.
+  async function fillVacantSpot(playerId: string, slotZone: "forward" | "back") {
+    if (!state.lineup) return;
+    setPending(true);
+    const nextForwards
+      = slotZone === "forward"
+        ? [...state.lineup.forwards, playerId]
+        : state.lineup.forwards;
+    const nextBacks
+      = slotZone === "back"
+        ? [...state.lineup.backs, playerId]
+        : state.lineup.backs;
+    const nextBench = state.lineup.bench.filter((id) => id !== playerId);
+    const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
+      auth,
+      game.id,
+      // Named positions: record each kid's slot (UX plan 5.7).
+      withLeagueSlots({ forwards: nextForwards, backs: nextBacks, bench: nextBench }, leaguePlaybook),
+      { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
+    ]);
+    await flushed;
+    setPending(false);
+    handleClearSelection();
+    router.refresh();
+  }
+
   async function handleVacantSpotTap(slotZone: "forward" | "back") {
-    if (!selectedPlayer || !state.lineup) return;
+    if (!state.lineup) return;
+    // Nobody selected: pick who comes on (the spot says "tap to bring a
+    // bench player on"; it used to do nothing: Stagehand round 4).
+    if (!selectedPlayer) {
+      setFillSpotZone(slotZone);
+      return;
+    }
     const isBench = state.lineup.bench.includes(selectedPlayer.id);
     // A hurt or lent kid on the bench can't fill a spot.
     if (isBench && (injuredSet.has(selectedPlayer.id) || loanedSet.has(selectedPlayer.id))) return;
@@ -1340,30 +1375,7 @@ export function LeagueLiveGame({
       || state.lineup.backs.includes(selectedPlayer.id);
 
     if (isBench) {
-      // Bench → field: tap-target zone wins over chip preference.
-      setPending(true);
-      const nextForwards
-        = slotZone === "forward"
-          ? [...state.lineup.forwards, selectedPlayer.id]
-          : state.lineup.forwards;
-      const nextBacks
-        = slotZone === "back"
-          ? [...state.lineup.backs, selectedPlayer.id]
-          : state.lineup.backs;
-      const nextBench = state.lineup.bench.filter(
-        (id) => id !== selectedPlayer.id,
-      );
-      const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
-        auth,
-        game.id,
-        // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots({ forwards: nextForwards, backs: nextBacks, bench: nextBench }, leaguePlaybook),
-        { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
-      ]);
-      await flushed;
-      setPending(false);
-      handleClearSelection();
-      router.refresh();
+      await fillVacantSpot(selectedPlayer.id, slotZone);
       return;
     }
 
@@ -1942,15 +1954,14 @@ export function LeagueLiveGame({
             chipModes={chipModes}
             onPlayerClick={handlePlayerTapMaybeSwap}
             onPlayerLongPress={handlePlayerLongPress}
-            onVacantSpotTap={
-              // Wire the empty-slot tap whenever ANY player is
-              // selected — bench OR field. The handler routes:
-              //   bench-selected → lineup_set into the tapped zone
-              //   field-selected → position_change to the tapped
-              //                    zone (no-op if same zone)
-              // Steve 2026-05-23 short-squad fix.
-              selectedPlayer ? handleVacantSpotTap : undefined
-            }
+            // The empty-slot tap routes by what's selected:
+            //   bench-selected → lineup_set into the tapped zone
+            //   field-selected → position_change to the tapped
+            //                    zone (no-op if same zone)
+            //   nothing        → the bench picker (Stagehand round 4:
+            //                    the spot used to be inert then)
+            // Steve 2026-05-23 short-squad fix.
+            onVacantSpotTap={handleVacantSpotTap}
             vacantSpotPrimed={Boolean(selectedPlayer)}
             disabled={pending}
           />
@@ -2697,6 +2708,20 @@ export function LeagueLiveGame({
           // menu (Steve 2026-05-19) — coaches handle forward/back
           // re-ratios manually via tap-to-swap.
           onClose={() => setActionSheetPlayerId(null)}
+        />
+      )}
+
+      {fillSpotZone && (
+        <SlotFillSheet
+          slotLabel={fillSpotZone === "forward" ? "forward spot" : "back spot"}
+          candidates={swappableBench.map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+          emptyMessage="Nobody on the bench can come on."
+          onPick={(pid) => {
+            const zone = fillSpotZone;
+            setFillSpotZone(null);
+            void fillVacantSpot(pid, zone);
+          }}
+          onCancel={() => setFillSpotZone(null)}
         />
       )}
 

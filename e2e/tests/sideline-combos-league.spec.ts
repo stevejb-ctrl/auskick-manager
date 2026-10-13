@@ -338,3 +338,63 @@ test("rugby league: when the First Receiver is hurt and replaced, the prompt is 
     }, { timeout: 15_000 })
     .toBe(true);
 });
+
+// Stagehand round 4 (sideline-chaos-league): an empty spot says "tap to
+// bring a bench player on", but with nobody selected the tap did
+// nothing. It now opens the bench picker, as the AFL break does.
+test("rugby league: after a lend, tapping the empty spot brings a bench kid on there", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U13",
+    sport: "rugby_league",
+    name: `RL-FILL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const { error } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 6), backs: ids.slice(6, 13), bench: ids.slice(13) };
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" } },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" } },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const [lent, onKid] = [players[0], players[13]];
+  await page.getByTestId(`league-player-tile-${lent.id}`).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition/i }).click();
+  const lineupSets = async () => {
+    const { data } = await admin
+      .from("game_events")
+      .select("metadata")
+      .eq("game_id", game.id)
+      .eq("type", "lineup_set")
+      .order("created_at", { ascending: true });
+    return (data ?? []).map((e) => (e.metadata as { lineup: { forwards: string[] } }).lineup);
+  };
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+      return (data ?? []).length;
+    }, { timeout: 15_000 })
+    .toBe(1);
+
+  await page.getByRole("button", { name: /empty slot — tap to bring a bench player on/i }).first().click();
+  const sheet = page.getByRole("dialog", { name: /fill/i });
+  await expect(sheet).toBeVisible({ timeout: 5_000 });
+  await expect(sheet.getByRole("button", { name: new RegExp(lent.full_name, "i") })).toHaveCount(0);
+  await sheet.getByRole("button", { name: new RegExp(onKid.full_name, "i") }).click();
+  await expect.poll(async () => (await lineupSets()).at(-1)?.forwards.includes(onKid.id) ?? false, { timeout: 15_000 }).toBe(true);
+});

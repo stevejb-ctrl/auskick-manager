@@ -188,3 +188,63 @@ test("AFL: a bench kid selected and then lent isn't offered as a sub with the ne
   await page.waitForTimeout(500);
   await expect(page.getByRole("dialog", { name: new RegExp(`manually sub ${lent.full_name}`, "i") })).toHaveCount(0);
 });
+
+// Stagehand round 4 (sideline-chaos-afl): lending a kid mid-quarter
+// leaves their spot empty, and tapping the empty spot did nothing (at
+// the break the same tap opens the bench picker). It now does here too.
+test("AFL: after a lend, tapping the empty spot brings a bench kid on there", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ sub_interval_seconds: 900 }).eq("id", game.id);
+  const onField = players.slice(0, game.on_field_size);
+  const bench = players.slice(game.on_field_size);
+  const third = Math.floor(game.on_field_size / 3);
+  const lineup = {
+    back: onField.slice(0, third).map((p) => p.id),
+    hback: [],
+    mid: onField.slice(third, third * 2).map((p) => p.id),
+    hfwd: [],
+    fwd: onField.slice(third * 2).map((p) => p.id),
+    bench: bench.map((p) => p.id),
+  };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const lent = onField[third * 2]; // a forward
+  await page.getByTestId(`player-tile-${lent.id}`).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition/i }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+      return (data ?? []).length;
+    }, { timeout: 15_000 })
+    .toBe(1);
+
+  await page.getByRole("button", { name: "Empty FWD spot" }).first().click();
+  const sheet = page.getByRole("dialog", { name: /fill/i });
+  await expect(sheet).toBeVisible({ timeout: 5_000 });
+  await expect(sheet.getByRole("button", { name: new RegExp(lent.full_name, "i") })).toHaveCount(0);
+  await sheet.getByRole("button", { name: new RegExp(bench[0].full_name, "i") }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
+      return (data ?? []).some((e) => {
+        const m = e.metadata as { on_player_id?: string; zone?: string };
+        return m.on_player_id === bench[0].id && m.zone === "fwd";
+      });
+    }, { timeout: 15_000 })
+    .toBe(true);
+});

@@ -414,6 +414,11 @@ export function LiveGame({
   const [error, setError] = useState<string | null>(null);
   const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
   const [pendingSwap, setPendingSwap] = useState<{ off: string; on: string; zone: Zone } | null>(null);
+  // An empty spot tapped with nobody selected: pick who comes on there
+  // (the break does the same). It used to do nothing, so after lending a
+  // kid mid-quarter the gap couldn't be filled from the spot (Stagehand
+  // round 4).
+  const [fillZone, setFillZone] = useState<Zone | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
   const [subModalOpen, setSubModalOpen] = useState(false);
@@ -704,7 +709,9 @@ export function LiveGame({
             elapsed_ms,
           },
         ]);
+        return;
       }
+      if (!selected) setFillZone(zone);
       return;
     }
     if (!selected) {
@@ -1947,6 +1954,26 @@ export function LiveGame({
         );
       })()}
 
+
+      {fillZone && (
+        <SlotFillSheet
+          slotLabel={ZONE_LABELS[fillZone]}
+          candidates={lineup.bench
+            .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
+            .map((id) => playersById.get(id))
+            .filter((p): p is Player => !!p)
+            .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+          emptyMessage="Nobody on the bench can come on."
+          onPick={(pid) => {
+            const zone = fillZone;
+            setFillZone(null);
+            // A deliberate pick, off the sub cadence (as a tap-tap sub).
+            persistSwap("", pid, zone, false);
+            showSwapToast(`${shortName(pid)} on`);
+          }}
+          onCancel={() => setFillZone(null)}
+        />
+      )}
 
       {pendingSwap && (
         <SwapConfirmDialog
