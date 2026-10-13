@@ -1739,21 +1739,13 @@ export function NetballQuarterBreak({
                 opponentName="Them"
               />
               <div className="border-t border-hairline pt-4">
-                <p className="text-xs font-semibold text-ink">
-                  Per-player events
-                </p>
-                <p className="mt-0.5 text-xs text-ink-mute">
-                  Delete a wrong score with ×, or add one that was missed.
-                </p>
-                <div className="mt-3">
-                  <ScoreReviewPanel
-                    auth={auth}
-                    gameId={gameId}
-                    players={squad}
-                    includeBehinds={false}
-                    defaultQuarter={currentQuarter}
-                  />
-                </div>
+                <ScoreReviewPanel
+                  auth={auth}
+                  gameId={gameId}
+                  players={squad}
+                  includeBehinds={false}
+                  defaultQuarter={currentQuarter}
+                />
               </div>
             </div>
           )}
