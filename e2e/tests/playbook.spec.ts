@@ -601,6 +601,39 @@ test("a finished game says how we played against the rules", async ({ page }) =>
   await expect(card).not.toContainText("Season balance");
 });
 
+test("how we played judges game time on the quarters as they ran", async ({ page }) => {
+  // Stagehand round 2: quarters ended early and kids who played exactly
+  // half the time played were flagged under 50% (measured against the
+  // full quarter length).
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  // Q1: kids 0-11 on, 12-13 bench. Q2: 12-13 on for 10-11. Each of the
+  // four swapped kids plays one of two 8-minute quarters: exactly half.
+  const q1 = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const q2 = { ...q1, fwd: [...ids.slice(8, 10), ...ids.slice(12)], bench: ids.slice(10, 12) };
+  const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const ran = 8 * 60_000;
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup: q1 }, created_by: ownerId, created_at: t(40) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(39) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: ran }, created_by: ownerId, created_at: t(31) },
+    { game_id: game.id, type: "lineup_set", metadata: { lineup: q2 }, created_by: ownerId, created_at: t(30) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 2 }, created_by: ownerId, created_at: t(29) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 2, elapsed_ms: ran }, created_by: ownerId, created_at: t(21) },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 2 }, created_by: ownerId, created_at: t(20) },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const card = page.getByTestId("how-we-played");
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toContainText("Everyone played at least 50%");
+});
+
 test("league: lines from roles, and vests in a fixed order", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);

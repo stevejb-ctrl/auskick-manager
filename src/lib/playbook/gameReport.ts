@@ -20,6 +20,8 @@ export interface GameReportInput {
   periodLabel: (n: number) => string;
   periodCount: number;
   periodMs: number;
+  /** How long each period actually ran (its quarter_end), when known. */
+  periodPlayedMs?: Record<number, number>;
   minGameTimePct: number;
   rules: RuleInstance[];
   name: (playerId: string) => string;
@@ -64,7 +66,13 @@ export function gameReport(input: GameReportInput): GameReport {
     Object.values(input.byPeriod[pid]?.[period] ?? {}).some((ms) => ms > 0);
   const sev = (r: RuleInstance) => (r.strength === "must" ? "fail" : "warn");
 
-  const gameMs = periodsPlayed * input.periodMs;
+  // The time actually played: a quarter ended early is judged on its
+  // own length (Stagehand round 2 flagged a kid who played exactly half).
+  let gameMs = 0;
+  for (let p = 1; p <= periodsPlayed; p++) {
+    const ran = input.periodPlayedMs?.[p];
+    gameMs += ran && ran > 0 ? ran : input.periodMs;
+  }
   const short = players.filter((pid) => gameMs > 0 && total(pid) / gameMs < input.minGameTimePct / 100);
   items.push(
     short.length === 0

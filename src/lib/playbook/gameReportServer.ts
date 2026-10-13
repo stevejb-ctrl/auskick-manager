@@ -116,9 +116,18 @@ export async function buildGameReport(
     if (e.type === "player_arrived" && e.player_id) present.add(e.player_id);
   }
 
+  // How long each period ran, from its hooter (the latest, if re-ended).
+  const periodPlayedMs: Record<number, number> = {};
+  for (const e of [...events].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    if (e.type !== "quarter_end") continue;
+    const m = e.metadata as { quarter?: number; elapsed_ms?: number };
+    if (typeof m.quarter === "number" && typeof m.elapsed_ms === "number") periodPlayedMs[m.quarter] = m.elapsed_ms;
+  }
+
   return gameReport({
     byPeriod,
     present: Array.from(present),
+    periodPlayedMs,
     lines,
     lineLabel: (k) => LABELS[k] ?? k,
     lineWord: sport === "netball" ? "third" : "line",

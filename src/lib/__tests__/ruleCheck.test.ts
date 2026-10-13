@@ -181,4 +181,20 @@ describe("game report (How we played)", () => {
     expect(report.items.map((i) => i.text)).toEqual(["Zoe played under 50%", "Zoe sat out 2 in a row"]);
     expect(report.seasonLine).toBeNull();
   });
+
+  it("judges game time against how long each period ran, not its nominal length", () => {
+    // Stagehand round 2: quarters ended at 8 of 12 minutes, and a kid
+    // who played exactly half the time played was flagged under 50%.
+    const ran = 8 * 60_000;
+    const report = gameReport({
+      ...base,
+      byPeriod: {
+        mia: { 1: { fwd: ran }, 2: { mid: ran }, 3: { back: ran }, 4: { fwd: ran } },
+        zoe: { 1: { back: ran }, 3: { mid: ran } },
+      },
+      periodPlayedMs: { 1: ran, 2: ran, 3: ran, 4: ran },
+      rules: [],
+    });
+    expect(report.items[0]).toMatchObject({ status: "ok", text: "Everyone played at least 50%" });
+  });
 });
