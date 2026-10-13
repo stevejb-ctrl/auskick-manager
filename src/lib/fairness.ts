@@ -1341,6 +1341,25 @@ export function replayGame(events: GameEvent[]): GameState {
     if (ms <= 0) return;
     state.basePlayedLoanMs[pid] = (state.basePlayedLoanMs[pid] ?? 0) + ms;
   };
+  // A player's open stint is credited once. Events can land out of
+  // order (each action kind had its own queue lane), so an "off" that
+  // arrives after the hooter, or after an injury already took the
+  // player off, has no stint left — it must not credit the quarter again
+  // (sideline combos: double-credited time).
+  const closeStint = (pid: string, fallbackZone: Zone, elapsed: number) => {
+    const start = state.stintStartMs[pid];
+    if (start === undefined) return;
+    addPlayed(pid, state.stintZone[pid] ?? fallbackZone, elapsed - start);
+    delete state.stintStartMs[pid];
+    delete state.stintZone[pid];
+  };
+  const openStint = (pid: string, zone: Zone, elapsed: number) => {
+    if (state.quarterEnded || state.currentQuarter < 1) return;
+    state.stintStartMs[pid] = elapsed;
+    state.stintZone[pid] = zone;
+  };
+  const inLineup = (pid: string) =>
+    !!state.lineup && (state.lineup.bench.includes(pid) || zoneOf(state.lineup, pid) != null);
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -1433,15 +1452,17 @@ export function replayGame(events: GameEvent[]): GameState {
     ) {
       const off = meta.off_player_id ?? "";
       const on = meta.on_player_id;
-      const z = meta.zone;
-      if (off) {
-        const offZone = state.stintZone[off] ?? z;
-        addPlayed(off, offZone, elapsed - (state.stintStartMs[off] ?? 0));
-        delete state.stintStartMs[off];
-        delete state.stintZone[off];
-        state.lineup[z] = state.lineup[z].map((p) => (p === off ? on : p));
+      // The zone the off player is actually in (a zone swap may have
+      // moved them since the event's zone was read).
+      const offZone = off ? zoneOf(state.lineup, off) : null;
+      const z = offZone ?? meta.zone;
+      if (zoneOf(state.lineup, on)) {
+        // Already on (a replayed duplicate): nothing to do.
+      } else if (off && offZone) {
+        closeStint(off, offZone, elapsed);
+        state.lineup[offZone] = state.lineup[offZone].map((p) => (p === off ? on : p));
         state.lineup.bench = [
-          ...state.lineup.bench.filter((p) => p !== on),
+          ...state.lineup.bench.filter((p) => p !== on && p !== off),
           off,
         ];
         // Recency (issue: a just-benched player came back on ~1 min
@@ -1451,11 +1472,14 @@ export function replayGame(events: GameEvent[]): GameState {
         // them.
         state.lastSubbedOffMs[off] = state.completedQuarterMs + elapsed;
       } else {
+        // Fill: an empty slot, or the off player already left the field
+        // (their injury or loan landed first — sideline combos: the
+        // replacement used to vanish and the injured kid sat on the bench
+        // twice).
         state.lineup[z] = [...state.lineup[z], on];
         state.lineup.bench = state.lineup.bench.filter((p) => p !== on);
       }
-      state.stintStartMs[on] = elapsed;
-      state.stintZone[on] = z;
+      openStint(on, zoneOf(state.lineup, on) ?? z, elapsed);
       // B4 recency: a mid-quarter sub-on is a bench->field transition.
       // Stamp the absolute frame so it survives the next quarter_start
       // reset (which only zeroes the per-quarter stintStartMs).
@@ -1489,8 +1513,7 @@ export function replayGame(events: GameEvent[]): GameState {
           [pidA, zoneA],
           [pidB, zoneB],
         ] as [string, Zone][]) {
-          const fromZ = state.stintZone[pid] ?? fromZone;
-          addPlayed(pid, fromZ, elapsed - (state.stintStartMs[pid] ?? 0));
+          closeStint(pid, fromZone, elapsed);
         }
         // Swap the two players in the lineup arrays.
         state.lineup[zoneA] = state.lineup[zoneA].map((p) =>
@@ -1500,27 +1523,23 @@ export function replayGame(events: GameEvent[]): GameState {
           p === pidB ? pidA : p,
         );
         // Open new stints at the swapped zones.
-        state.stintStartMs[pidA] = elapsed;
-        state.stintZone[pidA] = zoneB;
-        state.stintStartMs[pidB] = elapsed;
-        state.stintZone[pidB] = zoneA;
+        openStint(pidA, zoneB, elapsed);
+        openStint(pidB, zoneA, elapsed);
       } else if (pidA && zoneA && zoneB && !pidB) {
         // Move-into-empty (short-squad blank-slot reshuffle). pidA
         // leaves zoneA, lands in zoneB; the blank slot moves the
         // other way. Mirror the store's applyFieldZoneSwap empty
         // branch so a cold replay rebuilds the same lineup the live
         // store has been tracking client-side.
-        const fromZ = state.stintZone[pidA] ?? zoneA;
-        addPlayed(pidA, fromZ, elapsed - (state.stintStartMs[pidA] ?? 0));
+        closeStint(pidA, zoneA, elapsed);
         state.lineup[zoneA] = state.lineup[zoneA].filter((p) => p !== pidA);
         state.lineup[zoneB] = [...state.lineup[zoneB], pidA];
-        state.stintStartMs[pidA] = elapsed;
-        state.stintZone[pidA] = zoneB;
+        openStint(pidA, zoneB, elapsed);
       }
     } else if (ev.type === "player_arrived" && state.lineup && ev.player_id) {
-      if (!state.lineup.bench.includes(ev.player_id)) {
-        state.lineup.bench.push(ev.player_id);
-      }
+      // Not if they're already in the lineup — on the field included (an
+      // arrival can land after the break lineup that fielded them).
+      if (!inLineup(ev.player_id)) state.lineup.bench.push(ev.player_id);
     } else if (ev.type === "injury" && state.lineup && ev.player_id) {
       const pid = ev.player_id;
       const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
@@ -1528,10 +1547,7 @@ export function replayGame(events: GameEvent[]): GameState {
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
         const z = zoneOf(state.lineup, pid);
         if (z) {
-          const sz = state.stintZone[pid] ?? z;
-          addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-          delete state.stintStartMs[pid];
-          delete state.stintZone[pid];
+          closeStint(pid, z, elapsed);
           state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
           if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
         }
@@ -1552,16 +1568,16 @@ export function replayGame(events: GameEvent[]): GameState {
         if (state.lineup) {
           const z = zoneOf(state.lineup, pid);
           if (z) {
-            const sz = state.stintZone[pid] ?? z;
-            addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-            delete state.stintStartMs[pid];
-            delete state.stintZone[pid];
+            closeStint(pid, z, elapsed);
             state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
             if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
           }
         }
       } else {
         state.loanedIds = state.loanedIds.filter((p) => p !== pid);
+        // Back from the other team: on the bench, as the live store does
+        // (a kid lent before kickoff isn't in the lineup yet).
+        if (state.lineup && !inLineup(pid)) state.lineup.bench.push(pid);
         const start = state.loanStartMs[pid];
         if (start !== undefined) {
           addLoan(pid, elapsed - start);
@@ -1578,10 +1594,7 @@ export function replayGame(events: GameEvent[]): GameState {
       for (const pid of ids) {
         const z = zoneOf(state.lineup, pid);
         if (!z) continue;
-        const sz = state.stintZone[pid] ?? z;
-        addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-        delete state.stintStartMs[pid];
-        delete state.stintZone[pid];
+        closeStint(pid, z, elapsed);
         state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
         if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
       }
