@@ -20,9 +20,16 @@ export function createAdminClient(): SupabaseClient {
         "Run tests via `npm run e2e` so scripts/e2e-setup.mjs loads .env.test."
     );
   }
-  return createClient(url, serviceKey, {
+  const client = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  // Specs find the super-admin with listUsers(), which returns one page
+  // of 50, newest first. Stagehand runs add a fresh coach account each,
+  // so past 50 accounts the super-admin fell off the page and the whole
+  // suite failed to find its owner. List them all by default.
+  const listUsers = client.auth.admin.listUsers.bind(client.auth.admin);
+  client.auth.admin.listUsers = (params) => listUsers({ perPage: 1000, ...params });
+  return client;
 }
 
 export interface TestUser {
