@@ -741,13 +741,17 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   const firstByJersey = players
     .filter((p) => onField.includes(p.id))
     .sort((a, b) => a.jersey_number - b.jersey_number)[0];
-  const { data: vests } = await admin
-    .from("game_events")
-    .select("player_id, metadata")
-    .eq("game_id", game.id)
-    .eq("type", "vest_assigned");
-  const fr = (vests ?? []).find((v) => (v.metadata as { vest?: string; period?: number }).vest === "fr" && (v.metadata as { period?: number }).period === 1);
-  expect(fr?.player_id).toBe(firstByJersey.id);
+  // The vest lands after the lineup; wait for it rather than read once.
+  const frWearer = async () => {
+    const { data: vests } = await admin
+      .from("game_events")
+      .select("player_id, metadata")
+      .eq("game_id", game.id)
+      .eq("type", "vest_assigned");
+    const fr = (vests ?? []).find((v) => (v.metadata as { vest?: string; period?: number }).vest === "fr" && (v.metadata as { period?: number }).period === 1);
+    return fr?.player_id;
+  };
+  await expect.poll(frWearer, { timeout: 15_000 }).toBe(firstByJersey.id);
 });
 
 test("league named positions: a home position shows on the tile", async ({ page }) => {
