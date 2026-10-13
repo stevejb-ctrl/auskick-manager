@@ -322,6 +322,12 @@ async function seedTeam(admin, email, name, origin) {
   //   morning    netball: a game already played this morning (carnival)
   //   prefs      [squad index, { position_key | line, kind }]
   //   onField    the game's on-field size (else the column default)
+  //   live       AFL only: the game is already under way —
+  //              { quarter, atBreak, late, multiplier, us, them }:
+  //              quarter in play (or just ended, with atBreak), how
+  //              many kids weren't marked available (late arrivals),
+  //              the clock speed (default 8), and goals/behinds per
+  //              side as [[quarter, "goal" | "behind"], ...]
   const SEEDS = {
     "afl-u12-gameday": {
       team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
@@ -432,6 +438,29 @@ async function seedTeam(admin, email, name, origin) {
       playbook: null,
       squad: 15,
       gameIn: 4 * 24 * 60,
+    },
+    // Q1 already ticking, two kids not marked available (they turn up
+    // late). Clock at 2x so the quarter lasts long enough to work in.
+    "afl-u10-runner-q1": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: { quarter: 1, late: 2, multiplier: 2 },
+    },
+    // Half-time: two goals down. The phone has the opposition on 3.3 —
+    // one behind short of what their coach says (3.4), to reconcile.
+    "afl-u10-runner-half": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: {
+        quarter: 2,
+        atBreak: true,
+        us: [[1, "goal"], [1, "behind"], [2, "goal"]],
+        them: [[1, "goal"], [1, "behind"], [1, "goal"], [2, "behind"], [2, "goal"], [2, "behind"]],
+      },
     },
     "league-u8-gameday": {
       team: { name: "Werribee Wolves", age_group: "U8", sport: "rugby_league" },
@@ -558,7 +587,7 @@ async function seedTeam(admin, email, name, origin) {
       scheduled_at: new Date(Date.now() + (s.gameIn ?? 30) * 60_000).toISOString(),
       round_number: (s.pastGames ?? 0) + 4,
       created_by: ownerId,
-      clock_multiplier: 8,
+      clock_multiplier: s.live?.multiplier ?? 8,
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
       ...(s.onField ? { on_field_size: s.onField } : {}),
@@ -566,9 +595,46 @@ async function seedTeam(admin, email, name, origin) {
     .select("id, share_token")
     .single();
   if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
+  const lateIds = new Set(s.live?.late ? ids.slice(-s.live.late) : []);
   await admin.from("game_availability").insert(
-    ids.map((pid) => ({ game_id: game.id, player_id: pid, status: "available", updated_by: ownerId })),
+    ids.map((pid) => ({
+      game_id: game.id,
+      player_id: pid,
+      status: lateIds.has(pid) ? "unavailable" : "available",
+      updated_by: ownerId,
+    })),
   );
+  if (s.live) {
+    // Under way: the starting lineup, the quarters played so far (12
+    // game minutes each, a few real minutes ago), the scores, and the
+    // current quarter just started — or just ended, at a break.
+    const here = ids.filter((pid) => !lateIds.has(pid));
+    const lineup = { back: here.slice(0, 4), hback: [], mid: here.slice(4, 8), hfwd: [], fwd: here.slice(8, 12), bench: here.slice(12) };
+    const secsAgo = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+    const quarterMs = 12 * 60_000;
+    const events = [{ type: "lineup_set", metadata: { lineup }, created_at: secsAgo(60 * s.live.quarter + 30) }];
+    for (let q = 1; q <= s.live.quarter; q++) {
+      const startedSecsAgo = q === s.live.quarter && !s.live.atBreak ? 15 : 60 * (s.live.quarter - q + 1);
+      events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: secsAgo(startedSecsAgo) });
+      const scored = (side, kind) => (side === "us" ? kind : `opponent_${kind}`);
+      for (const side of ["us", "them"]) {
+        (s.live[side] ?? []).forEach(([sq, kind], n) => {
+          if (sq !== q) return;
+          events.push({
+            type: scored(side, kind),
+            player_id: side === "us" ? lineup.fwd[n % 4] : null,
+            metadata: { quarter: q },
+            created_at: secsAgo(startedSecsAgo - 5 - n),
+          });
+        });
+      }
+      if (q < s.live.quarter || s.live.atBreak) {
+        events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: quarterMs }, created_at: secsAgo(startedSecsAgo - 40) });
+      }
+    }
+    await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+    await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  }
   console.log(`▶ Seeded ${s.team.name} (${name})`);
   if (s.start === "runner") return `${origin}/run/${game.share_token}`;
   if (s.start === "report" && lastPastShareToken) return `${origin}/run/${lastPastShareToken}`;

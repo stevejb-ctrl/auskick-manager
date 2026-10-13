@@ -64,6 +64,14 @@ Older missions (some still mention player chips, which How we play replaced):
 | `game-day-flow`     | Use a runner link to start a game and score goals     |
 | `fix-scores-flow`   | Reach a Q-break and use the Fix-scores panel          |
 
+Missions that start part-way through a game need a seed that puts the
+game there (`--as=coach --seed=…`):
+
+| Mission                       | Seed                  | Starts at                                   |
+|-------------------------------|-----------------------|---------------------------------------------|
+| `chaotic-substitution-coach`  | `afl-u10-runner-q1`   | Q1 ticking, two kids not marked available   |
+| `rushed-coach`                | `afl-u10-runner-half` | Half-time, two goals down, a behind missing |
+
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real
 tester.
