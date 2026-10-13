@@ -185,10 +185,12 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
 
         <section className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink">Keep on</p>
-            <p className="text-xs text-ink-mute">Plays as much as the rules allow.</p>
+            <p className="text-sm font-semibold text-ink">Keep on, every game</p>
+            <p className="text-xs text-ink-mute">
+              Plays as much as the rules allow, all season. For one game, long-press them on the lineup.
+            </p>
           </div>
-          <Toggle label="Keep on" checked={role.keepOn} onChange={(keepOn) => setRole((r) => ({ ...r, keepOn }))} />
+          <Toggle label="Keep on, every game" checked={role.keepOn} onChange={(keepOn) => setRole((r) => ({ ...r, keepOn }))} />
         </section>
       </div>
 

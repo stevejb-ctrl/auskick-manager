@@ -1427,8 +1427,6 @@ export function LeagueLineupPicker({
           seasonLoanMins={0}
           squadLoanMins={0}
           onUnlock={() => setActionSheetPlayerId(null)}
-          onToggleInjury={() => setActionSheetPlayerId(null)}
-          onToggleLoan={() => setActionSheetPlayerId(null)}
           onSwitch={handleActionSwitch}
           // "Move to {Forwards/Backs}" hidden from the long-press
           // menu (Steve 2026-05-19) — coaches handle forward/back

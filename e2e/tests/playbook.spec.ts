@@ -736,11 +736,19 @@ test("a coach sets a role from the game-day lineup with a long-press", async ({ 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   const tile = page.getByTestId(`player-tile-${players[0].id}`);
   await expect(tile).toBeVisible({ timeout: 15_000 });
-  // PlayerTile fires onLongPress after a 500ms hold.
+  // PlayerTile fires onLongPress after a 500ms hold. Before kickoff it
+  // opens the same hold menu as in the game, with Player role in it
+  // (usability run: "Keep on" meant two things).
   await tile.click({ delay: 600 });
+  await expect(page.getByRole("button", { name: /^Switch player/ })).toBeVisible();
+  // Nothing to injure or lend before the game.
+  await expect(page.getByRole("button", { name: /Mark injured/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /Player role/ }).click();
 
   const sheet = page.getByRole("dialog", { name: `Role for ${players[0].full_name}` });
   await expect(sheet).toBeVisible();
+  // The season role says it's all season, not this game.
+  await expect(sheet.getByRole("switch", { name: "Keep on, every game" })).toBeVisible();
   await sheet.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Back" }).click();
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
@@ -813,6 +821,10 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   const tile = page.getByTestId(`league-player-tile-${target.id}`).first();
   await expect(tile).toBeVisible({ timeout: 15_000 });
   await tile.click({ delay: 600 });
+  await expect(page.getByRole("button", { name: /Player role/ })).toBeVisible();
+  // Nothing to injure or lend before the game (the buttons did nothing).
+  await expect(page.getByRole("button", { name: /Mark injured/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Lend to opposition/ })).toHaveCount(0);
   await page.getByRole("button", { name: /Player role/ }).click();
   const lgSheet = page.getByRole("dialog", { name: `Role for ${target.full_name}` });
   await expect(lgSheet).toBeVisible();
@@ -975,4 +987,43 @@ test("the wizard's squad step sets players' positions too", async ({ page }) => 
       return data?.[0]?.position_key;
     })
     .toBe("ff");
+});
+
+test("AFL: keep a kid on the field from the lineup, and it carries into the game", async ({ page }) => {
+  // Usability run: the U12 coach wanted one kid on all game, long-pressed
+  // on the lineup, and set a season-long role instead, with nothing on
+  // the tile to show it.
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const fieldTile = page.getByRole("group", { name: "Forward", exact: true }).locator('[data-testid^="player-tile-"]').first();
+  await expect(fieldTile).toBeVisible({ timeout: 15_000 });
+  const pid = (await fieldTile.getAttribute("data-testid"))!.replace("player-tile-", "");
+  await fieldTile.click({ delay: 600 });
+  await page.getByRole("button", { name: /^Keep on field/ }).click();
+  await expect(page.getByTestId(`player-tile-${pid}`).getByLabel("Field locked")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "player_lock");
+      return (data ?? []).map((e) => [e.player_id, (e.metadata as { lock: unknown }).lock]);
+    })
+    .toEqual([[pid, { kind: "field" }]]);
+
+  // Start the game: the hold is still there on the live field.
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await expect(page.getByTestId(`player-tile-${pid}`).getByLabel("Field locked")).toBeVisible({ timeout: 15_000 });
 });

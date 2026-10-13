@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   markLoan,
+  recordPlayerLock,
   saveLineupDraft,
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { LockModal } from "@/components/live/LockModal";
+import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import { Field } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
@@ -114,6 +117,12 @@ interface LineupPickerProps {
    */
   roleSheet?: RoleSheetConfig;
   /**
+   * Holds already set for this game (player_lock events): Keep on field
+   * / Keep in {line}, set from the long-press menu before kickoff and
+   * carried into the game.
+   */
+  initialLocks?: Record<string, PlayerLock>;
+  /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
    * chip survives a page reload. Empty by default for a fresh game.
@@ -180,6 +189,7 @@ export function LineupPicker({
   chipModeByKey = {},
   aflPlaybook,
   roleSheet,
+  initialLocks,
   initialLoanedIds = [],
   defaultSubMinutes,
 }: LineupPickerProps) {
@@ -304,6 +314,12 @@ export function LineupPicker({
   // run the fairness suggester. Manual → all players on bench.
   // Uses `playersForLineup` (excludes loaned players) so a lent
   // player won't get auto-placed or appear on the bench grid.
+  // Holds (Keep on field / Keep in {line}) from the long-press menu.
+  // A ref too, so a rebuilt suggestion keeps them: field holds as
+  // keep-on, line holds pinned to their line.
+  const [locks, setLocks] = useState<Record<string, PlayerLock>>(initialLocks ?? {});
+  const locksRef = useRef<Record<string, PlayerLock>>(initialLocks ?? {});
+  const [holdPlayerId, setHoldPlayerId] = useState<string | null>(null);
   const buildLineup = (mode: "suggested" | "manual", size: number): Lineup => {
     if (mode === "manual") {
       return {
@@ -319,20 +335,29 @@ export function LineupPicker({
     // up by the suggester's chip-spread / chip-group penalty (Phase D).
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
     // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    const pinned: Record<string, Zone> = {};
+    let playbook = aflPlaybook;
+    for (const [pid, hold] of Object.entries(locksRef.current)) {
+      if (hold.kind === "zone") pinned[pid] = hold.zone as Zone;
+      if (hold.kind === "field" && playbook) {
+        const role = playbook.roles[pid] ?? { home: null, also: [], never: [], keepOn: false };
+        playbook = { ...playbook, roles: { ...playbook.roles, [pid]: { ...role, keepOn: true } } };
+      }
+    }
     return suggestStartingLineup(
       playersForLineup,
       season,
       0,
       zoneCapsFor(size, positionModel),
       {},
-      {},
+      pinned,
       {},
       {},
       {},
       chipByPlayerId,
       chipModeByKey,
       fullPeriodMs,
-      aflPlaybook,
+      playbook,
     );
   };
 
@@ -408,6 +433,19 @@ export function LineupPicker({
     auth.kind === "team" ? auth.teamId : null,
     (pid) => playerById.get(pid)?.full_name,
   );
+  const holds = aflStoreLocks(locks);
+  // Saved as a player_lock event so it carries into the game (LiveGame
+  // reads holds back from the events) and shows on a co-manager's phone.
+  function saveHold(pid: string, hold: PlayerLock | null) {
+    const next = { ...locksRef.current };
+    if (hold) next[pid] = hold;
+    else delete next[pid];
+    locksRef.current = next;
+    setLocks(next);
+    void recordPlayerLock(auth, gameId, { player_id: pid, lock: hold, quarter: 0, elapsed_ms: 0 }).then((res) => {
+      if (!res.success) setServerError(res.error);
+    });
+  }
 
   const ruleCheck = useMemo(() => {
     if (!aflPlaybook) return null;
@@ -1029,7 +1067,9 @@ export function LineupPicker({
           primedEmptyZone={selected?.kind === "empty" ? selected.zone : null}
           dimUnselected={false}
           onTapField={(pid, zone) => (pid ? tapPlayer(pid) : tapEmpty(zone))}
-          onLongPress={roles.open}
+          onLongPress={setHoldPlayerId}
+          lockedIds={holds.lockedIds}
+          zoneLockedPlayers={holds.zoneLockedPlayers}
           zoneMsByPlayer={seasonMsByPlayer}
           zoneCaps={displayZoneCaps}
           displayZoneCaps={displayZoneCaps}
@@ -1043,10 +1083,37 @@ export function LineupPicker({
           selectedPlayerId={selected?.kind === "player" ? selected.id : null}
           dimUnselected={false}
           onTapBench={tapPlayer}
-          onLongPress={roles.open}
+          onLongPress={setHoldPlayerId}
+          lockedIds={holds.lockedIds}
+          zoneLockedPlayers={holds.zoneLockedPlayers}
           zoneMsByPlayer={seasonMsByPlayer}
           chipModeByKey={chipModeByKey}
         />
+        {holdPlayerId && playerById.get(holdPlayerId) && (() => {
+          // The same long-press menu as in the game (UX: one "Keep on"):
+          // holds for this game, Switch, and the season role inside it.
+          const pid = holdPlayerId;
+          const zone = (["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).find((z) => lineup[z].includes(pid)) ?? null;
+          const hold = locks[pid];
+          const close = () => setHoldPlayerId(null);
+          return (
+            <LockModal
+              player={playerById.get(pid)!}
+              currentLock={hold?.kind === "field" ? "field" : hold?.kind === "zone" ? "zone" : null}
+              currentZone={hold?.kind === "zone" ? (hold.zone as Zone) : zone}
+              isInjured={false}
+              isLoaned={false}
+              seasonLoanMins={0}
+              squadLoanMins={0}
+              onLockField={zone ? () => { saveHold(pid, { kind: "field" }); close(); } : undefined}
+              onLockZone={zone ? () => { saveHold(pid, { kind: "zone", zone }); close(); } : undefined}
+              onUnlock={() => { saveHold(pid, null); close(); }}
+              onSwitch={() => { close(); tapPlayer(pid); }}
+              onEditRole={roles.open ? () => { close(); roles.open?.(pid); } : undefined}
+              onClose={close}
+            />
+          );
+        })()}
         {roles.sheet}
       </div>
 

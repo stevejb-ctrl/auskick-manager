@@ -31,8 +31,9 @@ interface LockModalProps {
    */
   onLockZone?: () => void;
   onUnlock: () => void;
-  onToggleInjury: () => void;
-  onToggleLoan: () => void;
+  /** Omitted before kickoff: there's nothing to injure or lend yet. */
+  onToggleInjury?: () => void;
+  onToggleLoan?: () => void;
   /**
    * Enter "switch" mode — closes the modal and selects this player so
    * the next tap on another field tile or bench tile completes the
@@ -98,6 +99,16 @@ interface LockModalProps {
    */
   insight?: ReactNode;
   onClose: () => void;
+}
+
+/** The intro line, naming only the actions on offer. */
+function lockModalIntro(can: { lock: boolean; injure: boolean; lend: boolean }): string {
+  const parts = ["switch them out"];
+  if (can.lock) parts.push("lock them in place");
+  if (can.injure) parts.push("flag an injury");
+  if (can.lend) parts.push("lend them to the opposition");
+  const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
 export function LockModal({
@@ -230,9 +241,11 @@ export function LockModal({
           /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              {onLockField || onLockZone
-                ? "Switch them out, lock them in place, flag an injury, or lend them to the opposition."
-                : "Switch them out, flag an injury, or lend them to the opposition."}
+              {lockModalIntro({
+                lock: !!(onLockField || onLockZone),
+                injure: !!onToggleInjury,
+                lend: !!onToggleLoan,
+              })}
             </p>
             <div className="flex flex-col gap-2">
               {/* Switch — most common quick action, lives at the top.
@@ -379,29 +392,33 @@ export function LockModal({
                   </span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onToggleInjury}
-                className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
-              >
-                <span className="text-sm font-bold">Mark injured</span>
-                <span className="mt-0.5 text-xs opacity-90">
-                  Moves to the bench and skips the sub rotation
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={onToggleLoan}
-                className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-              >
-                <span className="text-sm font-bold">Lend to opposition</span>
-                <span className="mt-0.5 text-center text-xs text-ink-dim">
-                  Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
-                  {squadLabel > 0 && (
-                    <> · squad avg {squadLabel}m</>
-                  )}
-                </span>
-              </button>
+              {onToggleInjury && (
+                <button
+                  type="button"
+                  onClick={onToggleInjury}
+                  className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
+                >
+                  <span className="text-sm font-bold">Mark injured</span>
+                  <span className="mt-0.5 text-xs opacity-90">
+                    Moves to the bench and skips the sub rotation
+                  </span>
+                </button>
+                )}
+              {onToggleLoan && (
+                <button
+                  type="button"
+                  onClick={onToggleLoan}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Lend to opposition</span>
+                  <span className="mt-0.5 text-center text-xs text-ink-dim">
+                    Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
+                    {squadLabel > 0 && (
+                      <> · squad avg {squadLabel}m</>
+                    )}
+                  </span>
+                </button>
+                )}
               <button
                 type="button"
                 onClick={onClose}

@@ -4,6 +4,7 @@ import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
+import { replayLocks } from "@/lib/live/locks";
 import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
@@ -1144,6 +1145,7 @@ export default async function LivePage({ params }: LivePageProps) {
           aflPlaybook={aflPlaybook}
           roleSheet={coachRoleSheet(isAdmin, playbook, playbookPrefs)}
           initialLoanedIds={initialLoanedIds}
+          initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
         />
       )}
     </div>
