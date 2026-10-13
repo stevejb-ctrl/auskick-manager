@@ -19,6 +19,7 @@ import type { Player } from "@/lib/types";
 import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
+import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
 
 // Permissive subset — buildPlayerTimes only reads id + full_name.
 // Lets the game-detail page pass the slim projection it loads
@@ -48,6 +49,8 @@ interface Props {
    * (`teamRow?.track_scoring ?? false` at every call site).
    */
   trackScoring?: boolean;
+  /** Everyone at the game (presentPlayerIds), so kids who never got on show at 0:00. */
+  presentIds?: readonly string[];
 }
 
 const THIRD_LABEL: Record<keyof PlayerThirdMs, string> = {
@@ -96,6 +99,7 @@ function buildSummary(
   playerStats: Map<string, PlayerThirdMs>,
   squad: PlayerLike[],
   trackScoring: boolean,
+  presentIds: readonly string[],
 ): string {
   const lines: string[] = [];
 
@@ -156,7 +160,11 @@ function buildSummary(
   lines.push(
     `\n👟 ${playedCount} player${playedCount !== 1 ? "s" : ""}`,
   );
-  if (rows.length > 0) {
+  // Kids who were there but never got on stay in the list (Stagehand
+  // round 3: the one How we played flagged was missing).
+  const nameOf = new Map(squad.map((p) => [p.id, p.full_name.split(/\s+/)[0]]));
+  const satOut = didntGetOn(presentIds, rows.map((r) => r.id)).filter((id) => nameOf.has(id));
+  if (rows.length > 0 || satOut.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const r of rows) {
       const thirdStr = r.thirds.map((t) => `${t.label} ${t.pct}%`).join(" · ");
@@ -164,6 +172,7 @@ function buildSummary(
         `${r.name} — ${formatMinSec(r.totalMs)}${thirdStr ? `  (${thirdStr})` : ""}`,
       );
     }
+    for (const id of satOut) lines.push(`${nameOf.get(id)} — ${DIDNT_GET_ON}`);
   }
 
   return lines.join("\n");
@@ -178,6 +187,7 @@ export function NetballGameSummaryCard({
   playerStats,
   squad,
   trackScoring = false,
+  presentIds = [],
 }: Props) {
   const summary = buildSummary(
     teamName,
@@ -188,6 +198,7 @@ export function NetballGameSummaryCard({
     playerStats,
     squad,
     trackScoring,
+    presentIds,
   );
 
   // The card only mounts at FT — wrapping it in SirenPulseHalo

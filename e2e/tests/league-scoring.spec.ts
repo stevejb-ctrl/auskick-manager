@@ -247,4 +247,8 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   const kicker = (p: { full_name: string }) => p.full_name.split(" ")[0];
   await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[1])}.*1 PG`)).first()).toBeVisible();
   await expect(page.getByText(new RegExp(`🎯 Goals: .*${kicker(players[2])}.*1 FG`)).first()).toBeVisible();
+  // The two bench kids never got on: still in the game-time list.
+  for (const p of [players[13], players[14]]) {
+    await expect(page.getByText(new RegExp(`${kicker(p)} — 0:00 \\(didn't get on\\)`)).first()).toBeVisible();
+  }
 });

@@ -103,6 +103,7 @@ import {
 } from "@/lib/game-plan";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -1834,6 +1835,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerStats={playerStats}
           squad={squad}
           trackScoring={trackScoring}
+          presentIds={presentPlayerIds(thisGameEvents)}
         />
         {/* Sticky-bottom "Finish game" CTA — locks to the viewport
             so the user has a big, unmissable exit. Team-auth coach

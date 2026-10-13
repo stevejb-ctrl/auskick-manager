@@ -27,6 +27,7 @@ import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
 import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -532,6 +533,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               playersById={playerById}
               swapCount={swapCount}
               basePlayedZoneMs={replay.basePlayedZoneMs}
+              presentIds={presentPlayerIds(summaryEvents)}
             />
           </SFCard>
         );
@@ -586,6 +588,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 (players ?? []) as { id: string; full_name: string }[]
               }
               trackScoring={teamRow?.track_scoring ?? false}
+              presentIds={presentPlayerIds(summaryEvents)}
             />
           </SFCard>
         );

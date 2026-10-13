@@ -20,6 +20,7 @@ import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { leagueScoreLine, playerMsOnField } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
+import { DIDNT_GET_ON, didntGetOn, presentPlayerIds } from "@/lib/live/presentPlayers";
 
 interface LeagueGameSummaryCardProps {
   state: LeagueGameState;
@@ -138,6 +139,16 @@ function buildSummary(
         = p?.jersey_number != null ? `#${p.jersey_number} ` : "";
       return `${jersey}${name} — ${fmtMs(ms)}`;
     });
+
+  // Kids who were there but never got on stay in the list (Stagehand
+  // round 3: the one How we played flagged was missing).
+  const played = Object.entries(totalMs).filter(([, ms]) => ms >= 1000).map(([id]) => id);
+  for (const id of didntGetOn(presentPlayerIds(events), played)) {
+    const p = playersById.get(id);
+    if (!p) continue;
+    const jersey = p.jersey_number != null ? `#${p.jersey_number} ` : "";
+    playerRows.push(`${jersey}${firstName(p.full_name)} — ${DIDNT_GET_ON}`);
+  }
 
   if (playerRows.length > 0) {
     lines.push(`\n⏱ Game time`);

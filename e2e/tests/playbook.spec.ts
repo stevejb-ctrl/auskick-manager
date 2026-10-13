@@ -599,6 +599,12 @@ test("a finished game says how we played against the rules", async ({ page }) =>
   await expect(card).toContainText("2 rules missed");
   // A team's first game has no season to compare with.
   await expect(card).not.toContainText("Season balance");
+  // Stagehand round 3: the game-time list left out the kids How we played
+  // flagged. They're listed at 0:00.
+  const summary = page.locator("#summary");
+  for (const p of [players[12], players[13]]) {
+    await expect(summary).toContainText(`${p.full_name.split(" ")[0]} — 0:00 (didn't get on)`);
+  }
 });
 
 test("how we played judges game time on the quarters as they ran", async ({ page }) => {

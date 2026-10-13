@@ -18,6 +18,7 @@ import { gameReport, type GameReport } from "@/lib/playbook/gameReport";
 import type { RuleInstance } from "@/lib/playbook/rules";
 import type { ThirdLookup } from "@/lib/sports/netball/fairness";
 import type { Game, GameEvent, Sport } from "@/lib/types";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
 
 const AFL_LINE: Record<string, string> = { back: "back", hback: "back", mid: "mid", hfwd: "fwd", fwd: "fwd" };
 const LABELS: Record<string, string> = {
@@ -105,16 +106,8 @@ export async function buildGameReport(
   for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "line"))) homeLine[pid] = r.home;
 
   // Everyone at the game: every lineup (any sport's shape) and arrival.
-  const present = new Set<string>();
-  const collect = (v: unknown) => {
-    if (typeof v === "string") present.add(v);
-    else if (Array.isArray(v)) v.forEach(collect);
-    else if (v && typeof v === "object") Object.values(v).forEach(collect);
-  };
-  for (const e of events) {
-    if (e.type === "lineup_set" || e.type === "period_break_swap") collect((e.metadata as { lineup?: unknown }).lineup);
-    if (e.type === "player_arrived" && e.player_id) present.add(e.player_id);
-  }
+  // League position slots are keys, not kids (presentPlayerIds).
+  const present = presentPlayerIds(events);
 
   // How long each period ran, from its hooter (the latest, if re-ended).
   const periodPlayedMs: Record<number, number> = {};
@@ -126,7 +119,7 @@ export async function buildGameReport(
 
   return gameReport({
     byPeriod,
-    present: Array.from(present),
+    present,
     periodPlayedMs,
     lines,
     lineLabel: (k) => LABELS[k] ?? k,

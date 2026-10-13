@@ -2625,6 +2625,12 @@ export function LiveGame({
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
+          presentIds={[
+            ...(["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).flatMap((z) => lineup[z]),
+            ...lineup.bench,
+            ...injuredIds,
+            ...loanedIds,
+          ]}
         />
       )}
 
