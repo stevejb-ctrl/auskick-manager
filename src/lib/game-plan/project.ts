@@ -38,6 +38,7 @@ import type {
   GamePlanPlayerTotal,
   ProjectGamePlanInput,
 } from "./types";
+import { assignLeagueLines } from "@/lib/sports/rugby_league/engine";
 
 // ─── Small deterministic shuffle (local; engine ones aren't exported) ──
 function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
@@ -443,19 +444,30 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   while (p <= periodCount) {
     const periodsInBlock = Math.min(blockSize, periodCount - p + 1);
 
-    // Choose this block's on-field set: fewest periods banked first,
-    // seeded shuffle to break ties deterministically.
+    // Choose this block's on-field set: keep-on kids first (How we
+    // play), then fewest periods banked, and at kickoff kids with a home
+    // position (as the lineup does); seeded shuffle breaks ties.
+    const pb = input.leaguePlaybook;
+    const keepOn = (id: string) => (pb?.roles[id]?.keepOn ? 0 : 1);
+    const homeFirst = (id: string) => (blockIndex === 0 && pb?.positionRoles?.[id]?.home ? 0 : 1);
     const ordered = seededShuffle(ids, seed + 101 + blockIndex).sort(
-      (a, b) => periodsPlayed[a] - periodsPlayed[b],
+      (a, b) => keepOn(a) - keepOn(b) || periodsPlayed[a] - periodsPlayed[b] || homeFirst(a) - homeFirst(b),
     );
     const onFieldIds = ordered.slice(0, onFieldSize);
     const benchIds = ordered.slice(onFieldSize);
 
-    // Split forwards / backs; re-shuffle per block so the same kids
+    // Split forwards / backs: by the kids' roles with How we play (the
+    // same as the lineup), else re-shuffled per block so the same kids
     // aren't always forwards.
-    const splitShuffled = seededShuffle(onFieldIds, seed + 211 + blockIndex);
-    const forwards = splitShuffled.slice(0, fwdCount);
-    const backs = splitShuffled.slice(fwdCount);
+    let forwards: string[];
+    let backs: string[];
+    if (pb) {
+      ({ forwards, backs } = assignLeagueLines(onFieldIds, fwdCount, onFieldIds.length - fwdCount, pb));
+    } else {
+      const splitShuffled = seededShuffle(onFieldIds, seed + 211 + blockIndex);
+      forwards = splitShuffled.slice(0, fwdCount);
+      backs = splitShuffled.slice(fwdCount);
+    }
 
     for (let k = 0; k < periodsInBlock; k++) {
       periods.push({

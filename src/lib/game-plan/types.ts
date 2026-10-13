@@ -125,6 +125,8 @@ export interface ProjectGamePlanInput {
   aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** How we play for league: lines from roles, keep-on, home positions. */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   /**
    * The coach's CURRENT on-field shape (groupId -> player ids), when the
    * plan is projected mid-game from live reality (see
