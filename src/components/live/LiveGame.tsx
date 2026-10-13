@@ -1087,7 +1087,13 @@ export function LiveGame({
     // clock paused at the start of the quarter, forgot to resume,
     // game continued anyway) credits on-field players the full
     // quarter — what they actually played, not what the clock saw.
-    const elapsed_ms = opts?.creditFullQuarter ? quarterMs : scaledElapsedMs();
+    // Capped at the quarter length, as the store caps it: a quarter the
+    // phone wasn't watching when the siren went (asleep, reloaded) would
+    // otherwise save the whole overrun and credit every kid on the field
+    // minutes they never played.
+    const elapsed_ms = opts?.creditFullQuarter
+      ? quarterMs
+      : Math.min(scaledElapsedMs(), quarterMs);
     endCurrentQuarter(quarterMs, opts);
     const { flushed } = enqueueLiveAction("endQuarter", [
       auth,
