@@ -98,7 +98,10 @@ import {
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
-  withPinnedNextPeriod,
+  withPinnedPeriods,
+  hasPinnedPeriod,
+  consumePeriodPin,
+  withoutSubPin,
   resolveDisplaySuggestions,
   swapsEqual,
   availablePlayersForPlan,
@@ -387,7 +390,6 @@ export function LiveGame({
   // its setter/clearer. Persisted by the store, keyed to this game.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
 
   const walkthroughSteps = useMemo(() => buildWalkthroughSteps(trackScoring), [trackScoring]);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
@@ -1488,10 +1490,7 @@ export function LiveGame({
   // The upcoming period's 0-based index equals currentQuarter (planning
   // during period P=currentQuarter pins P+1, whose 0-based index is P).
   // Drives the entry label + "planned" badge (D-15).
-  const hasPinnedNextPeriod =
-    pinForThisGame != null &&
-    pinForThisGame.nextPeriodIndex === currentQuarter &&
-    pinForThisGame.nextPeriodGroups != null;
+  const hasPinnedNextPeriod = hasPinnedPeriod(pinForThisGame, currentQuarter);
 
   const canScore = trackScoring && !isPreGame && !isFinished && selected?.kind === "field";
 
@@ -1687,7 +1686,7 @@ export function LiveGame({
                   // edited array, preserving any F2 next-period plan on
                   // the shared slice.
                   if (swapsEqual(nextSwaps, rawSuggestions)) {
-                    clearPlannedRotation();
+                    setPlannedRotation(withoutSubPin(pinForThisGame));
                     return;
                   }
                   setPlannedRotation({
@@ -1711,7 +1710,8 @@ export function LiveGame({
                   }
                   // The pinned plan-ahead sub (if any) has now been
                   // applied — consume it so it can't re-fire next window.
-                  clearPlannedRotation();
+                  // Planned periods stay.
+                  setPlannedRotation(withoutSubPin(pinForThisGame));
                   handleSubModalAcknowledge();
                 }}
                 onApplyOne={(s) => {
@@ -1809,7 +1809,7 @@ export function LiveGame({
                   <button
                     type="button"
                     data-testid="plan-next-clear"
-                    onClick={() => clearPlannedRotation()}
+                    onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
                     className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
                   >
                     Clear
@@ -2168,9 +2168,9 @@ export function LiveGame({
             aflPlaybook={aflPlaybook}
             // Reopened after a pin: show the pinned Q{n+1}, not a fresh
             // projection ("Suggested" still reverts to the projection).
-            initialPlan={withPinnedNextPeriod(initialPlan, {
+            initialPlan={withPinnedPeriods(initialPlan, {
               pin: pinForThisGame,
-              periodIndex: currentQuarter,
+              fromPeriodIndex: currentQuarter,
               availableIds: playersForPlan.map((p) => p.id),
             })}
             initialPeriodIndex={1}

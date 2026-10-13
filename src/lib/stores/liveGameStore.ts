@@ -37,7 +37,7 @@ import {
   type Zone,
 } from "@/lib/types";
 import { ALL_ZONES } from "@/lib/fairness";
-import type { PlannedRotation } from "@/lib/game-plan";
+import { withoutSubPin, type PlannedRotation } from "@/lib/game-plan";
 
 export type ZoneMs = Record<Zone, number>;
 const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
@@ -188,8 +188,8 @@ export interface LiveGameState {
   setLocked: (playerId: string, locked: boolean) => void;
   /** Lock player to a specific zone (they can sub on/off but only to this zone). Pass null to clear. */
   setZoneLocked: (playerId: string, zone: Zone | null) => void;
-  /** Pin a plan-ahead rotation for this game (F1 override / F2 next period). */
-  setPlannedRotation: (plan: PlannedRotation) => void;
+  /** Pin a plan-ahead rotation for this game (F1 override / F2 next period / planned periods); null clears. */
+  setPlannedRotation: (plan: PlannedRotation | null) => void;
   /** Clear the pinned plan (after it's applied, or when it's no longer valid). */
   clearPlannedRotation: () => void;
 }
@@ -313,6 +313,17 @@ export const useLiveGame = create<LiveGameState>()(
               plannedRotation: prev.plannedRotation,
             }
           : {};
+      // A pin made for THIS game before the live screen tracked it (the
+      // lineup's Game plan, before kickoff) carries in too. Stagehand
+      // round 3: it was wiped at kickoff. Another game's pin never does.
+      if (
+        !isRestart
+        && carryOver.plannedRotation == null
+        && prev.plannedRotation != null
+        && prev.plannedRotation.gameId === state.activeGameId
+      ) {
+        carryOver.plannedRotation = prev.plannedRotation;
+      }
       return { ...prev, ...DEFAULT_LIVE_STATE_DATA, ...carryOver, ...state };
     }),
 
@@ -553,7 +564,8 @@ export const useLiveGame = create<LiveGameState>()(
         swapCount: prev.swapCount + 1,
         lastStintMs: {},
         lastStintZone: {},
-        plannedRotation: keepPin ? prev.plannedRotation : null,
+        // A stale pinned sub goes; planned periods stay for their breaks.
+        plannedRotation: keepPin ? prev.plannedRotation : withoutSubPin(prev.plannedRotation),
       };
     }),
 

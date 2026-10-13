@@ -243,3 +243,34 @@ describe("liveGameStore.init persistence carve-out", () => {
     expect(s.swapCount).toBe(0);
   });
 });
+
+// Stagehand round 3: a plan made on the lineup screen before kickoff
+// (Game plan's later quarters) must survive the live game's first init,
+// and a quarter change that drops a stale pinned sub must keep it.
+describe("liveGameStore: a pre-kickoff plan survives kickoff and quarter changes", () => {
+  const later = { 1: { groups: { back: ["a"] }, bench: ["b"] } };
+
+  it("init keeps a pin made for this game before the live screen tracked it", () => {
+    useLiveGame.setState({
+      activeGameId: null,
+      plannedRotation: { gameId: "g-new", laterPeriods: later },
+    });
+    useLiveGame.getState().init({ activeGameId: "g-new", currentQuarter: 1 });
+    expect(useLiveGame.getState().plannedRotation).toEqual({ gameId: "g-new", laterPeriods: later });
+
+    // Another game's pin is still dropped.
+    useLiveGame.setState({ activeGameId: null, plannedRotation: { gameId: "g-old", laterPeriods: later } });
+    useLiveGame.getState().init({ activeGameId: "g-new", currentQuarter: 1 });
+    expect(useLiveGame.getState().plannedRotation).toBeNull();
+  });
+
+  it("a new quarter drops a stale pinned sub but keeps the planned periods", () => {
+    useLiveGame.setState({
+      activeGameId: "g1",
+      currentQuarter: 1,
+      plannedRotation: { gameId: "g1", pinnedForPeriod: 1, pinnedSwaps: [], laterPeriods: later },
+    });
+    useLiveGame.getState().beginNextQuarter();
+    expect(useLiveGame.getState().plannedRotation).toEqual({ gameId: "g1", laterPeriods: later });
+  });
+});

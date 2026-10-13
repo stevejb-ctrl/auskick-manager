@@ -50,7 +50,7 @@ import {
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import { seedNextPeriodLineup } from "@/lib/game-plan";
+import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
 import { benchPlayerInLineup } from "@/lib/live/lineupOps";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -195,7 +195,7 @@ export function QuarterBreak({
   // pin so the break can open PRE-SEEDED on it (D-12), and the clearer
   // so we can consume it once the next period starts (D-14).
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -1218,12 +1218,10 @@ export function QuarterBreak({
       // leak into a later period. Only clear a pin that targeted THIS
       // upcoming period — an unrelated/F1 pin is left to the store's own
       // quarter-transition logic.
-      if (
-        plannedRotation &&
-        plannedRotation.gameId === gameId &&
-        plannedRotation.nextPeriodIndex === upcomingPeriodIndex
-      ) {
-        clearPlannedRotation();
+      // This period's plan (pinned mid-game or before kickoff) is used;
+      // later planned periods stay for their own breaks.
+      if (plannedRotation && plannedRotation.gameId === gameId) {
+        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
       }
       // Start the local clock right away — the modal commit is the
       // umpire's whistle, no further user action needed. Without

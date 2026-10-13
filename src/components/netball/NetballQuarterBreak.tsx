@@ -59,7 +59,7 @@ import {
   suggestNetballLineup,
 } from "@/lib/sports/netball/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import { seedNextPeriodLineup } from "@/lib/game-plan";
+import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
 import { benchPlayerInPositionLineup } from "@/lib/live/lineupOps";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -212,7 +212,7 @@ export function NetballQuarterBreak({
   // the SAME shared `plannedRotation` slice AFL uses — netball positions
   // are the opaque `groupIds`, so the seed contract is identical.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
 
   // Short-squad target for this break — clamped to the age group's
   // min/max so a stale on_field_size column doesn't corrupt the
@@ -907,12 +907,10 @@ export function NetballQuarterBreak({
     // break's draft, which we've just committed). Clear it so it can't
     // leak into a later period. Only clear a pin that targeted THIS
     // upcoming period — an unrelated/F1 pin is left alone.
-    if (
-      plannedRotation &&
-      plannedRotation.gameId === gameId &&
-      plannedRotation.nextPeriodIndex === upcomingPeriodIndex
-    ) {
-      clearPlannedRotation();
+    // This period's plan (pinned mid-game or before kickoff) is used;
+    // later planned periods stay for their own breaks.
+    if (plannedRotation && plannedRotation.gameId === gameId) {
+      setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
     }
     // Medium haptic — the "go!" tap that kicks off the quarter,
     // aligned to the umpire's whistle. Distinct from the light

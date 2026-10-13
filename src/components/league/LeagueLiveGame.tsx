@@ -75,7 +75,9 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
-  withPinnedNextPeriod,
+  withPinnedPeriods,
+  hasPinnedPeriod,
+  consumePeriodPin,
   seedNextPeriodLineup,
   availablePlayersForPlan,
   clearPeriodToBench,
@@ -705,7 +707,6 @@ export function LeagueLiveGame({
   //      auto-commit (threat model T-11-02-B).
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
   const [planNextOpen, setPlanNextOpen] = useState(false);
   // Available squad for the planner = everyone not injured / loaned.
   const gamePlanPlayers = useMemo(
@@ -730,10 +731,7 @@ export function LeagueLiveGame({
     plannedRotation && plannedRotation.gameId === game.id
       ? plannedRotation
       : null;
-  const hasPinnedNextPeriod =
-    pinForThisGame != null
-    && pinForThisGame.nextPeriodIndex === state.currentQuarter
-    && pinForThisGame.nextPeriodGroups != null;
+  const hasPinnedNextPeriod = hasPinnedPeriod(pinForThisGame, state.currentQuarter);
 
   // ── Force-vest-replacement detection ─────────────────────────
   // Triggered when an FR/DH wearer is no longer on the field.
@@ -957,12 +955,7 @@ export function LeagueLiveGame({
     // `state.currentQuarter` is the upcoming period's 0-based index
     // (the period that just ended is P; its next, P+1, has index P).
     let lineupRecorded = false;
-    if (
-      pinForThisGame != null
-      && pinForThisGame.nextPeriodIndex === state.currentQuarter
-      && pinForThisGame.nextPeriodGroups != null
-      && state.lineup
-    ) {
+    if (hasPinnedPeriod(pinForThisGame, state.currentQuarter) && state.lineup) {
       const availableIds = gamePlanPlayers.map((p) => p.id);
       const seed = seedNextPeriodLineup({
         pin: pinForThisGame,
@@ -995,7 +988,8 @@ export function LeagueLiveGame({
           ),
         ]);
         await lineupFlushed;
-        clearPlannedRotation();
+        // This period's plan is used; later planned periods stay.
+        setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter));
         lineupRecorded = true;
       }
     }
@@ -1980,7 +1974,7 @@ export function LeagueLiveGame({
               <button
                 type="button"
                 data-testid="plan-next-clear"
-                onClick={() => clearPlannedRotation()}
+                onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter))}
                 className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
               >
                 Clear
@@ -2421,9 +2415,9 @@ export function LeagueLiveGame({
             chipModeByKey={chipModes}
             // Reopened after a pin: show the pinned next period, not a
             // fresh projection ("Suggested" still reverts to the projection).
-            initialPlan={withPinnedNextPeriod(initialPlan, {
+            initialPlan={withPinnedPeriods(initialPlan, {
               pin: pinForThisGame,
-              periodIndex: state.currentQuarter,
+              fromPeriodIndex: state.currentQuarter,
               availableIds: playersForPlan.map((p) => p.id),
             })}
             initialPeriodIndex={1}

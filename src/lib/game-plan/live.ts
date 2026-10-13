@@ -114,6 +114,79 @@ export interface PlannedRotation {
   nextPeriodGroups?: Record<string, string[]>;
   /** Planned interchange / bench for the next period. */
   nextPeriodBench?: string[];
+
+  // ── Planned before kickoff: Q2 on, from the lineup's Game plan ──
+  /**
+   * 0-based period index -> that period's planned groups + bench. Set by
+   * "Use this plan" before kickoff so edits to later quarters aren't lost
+   * (Stagehand round 3). A period pinned mid-game (nextPeriod*) wins.
+   */
+  laterPeriods?: Record<number, { groups: Record<string, string[]>; bench: string[] }>;
+}
+
+/** Whether a period (0-based) has a planned lineup on this pin. */
+export function hasPinnedPeriod(pin: PlannedRotation | null | undefined, periodIndex: number): boolean {
+  if (!pin) return false;
+  if (pin.nextPeriodIndex === periodIndex && pin.nextPeriodGroups != null) return true;
+  return pin.laterPeriods?.[periodIndex] != null;
+}
+
+/** True when a pin carries nothing but its game id. */
+function emptyPin(pin: PlannedRotation): boolean {
+  return (
+    pin.pinnedForPeriod == null
+    && (pin.pinnedSwaps == null || pin.pinnedSwaps.length === 0)
+    && pin.nextPeriodGroups == null
+    && Object.keys(pin.laterPeriods ?? {}).length === 0
+  );
+}
+
+/**
+ * The pin once a period has started on its plan: that period's plan is
+ * used up, everything else (later periods, a pinned sub) stays. Null when
+ * nothing is left.
+ */
+export function consumePeriodPin(pin: PlannedRotation | null | undefined, periodIndex: number): PlannedRotation | null {
+  if (!pin) return null;
+  const next: PlannedRotation = { ...pin };
+  if (next.nextPeriodIndex === periodIndex) {
+    delete next.nextPeriodIndex;
+    delete next.nextPeriodGroups;
+    delete next.nextPeriodBench;
+  }
+  if (next.laterPeriods?.[periodIndex]) {
+    const rest = { ...next.laterPeriods };
+    delete rest[periodIndex];
+    next.laterPeriods = rest;
+  }
+  return emptyPin(next) ? null : next;
+}
+
+/**
+ * "Use this plan" before kickoff: Q1 becomes the lineup, and Q2 on ride
+ * on the pin as `laterPeriods` (replacing any earlier plan), so each break
+ * opens on them. A pinned sub on this game's pin is kept.
+ */
+export function pinLaterPeriods(prior: PlannedRotation | null | undefined, gameId: string, plan: GamePlan): PlannedRotation {
+  const laterPeriods: NonNullable<PlannedRotation["laterPeriods"]> = {};
+  plan.periods.forEach((p) => {
+    const index = p.period - 1;
+    if (index < 1) return;
+    const groups: Record<string, string[]> = {};
+    for (const g of p.groups) groups[g.groupId] = [...g.playerIds];
+    laterPeriods[index] = { groups, bench: [...p.bench] };
+  });
+  const kept = prior && prior.gameId === gameId ? prior : null;
+  return { ...(kept ?? {}), gameId, laterPeriods };
+}
+
+/** The pin once its pinned sub is applied or dropped; planned periods stay. */
+export function withoutSubPin(pin: PlannedRotation | null | undefined): PlannedRotation | null {
+  if (!pin) return null;
+  const next: PlannedRotation = { ...pin };
+  delete next.pinnedForPeriod;
+  delete next.pinnedSwaps;
+  return emptyPin(next) ? null : next;
 }
 
 export interface ResolveHonouredSwapsInput {
@@ -220,46 +293,55 @@ export function seedNextPeriodLineup(
 ): SeededLineup | null {
   const { pin, periodIndex, availableIds, groupIds } = input;
   if (!pin) return null;
-  if (pin.nextPeriodIndex !== periodIndex) return null;
-  if (!pin.nextPeriodGroups) return null;
+  // A period pinned mid-game wins; else the plan made before kickoff.
+  const planned
+    = pin.nextPeriodIndex === periodIndex && pin.nextPeriodGroups
+      ? { groups: pin.nextPeriodGroups, bench: pin.nextPeriodBench ?? [] }
+      : pin.laterPeriods?.[periodIndex];
+  if (!planned) return null;
 
   const available = new Set(availableIds);
 
   const groups: Record<string, string[]> = {};
   for (const groupId of groupIds) {
-    const pinned = pin.nextPeriodGroups[groupId] ?? [];
+    const pinned = planned.groups[groupId] ?? [];
     groups[groupId] = pinned.filter((id) => available.has(id));
   }
 
-  const bench = (pin.nextPeriodBench ?? []).filter((id) => available.has(id));
+  const bench = planned.bench.filter((id) => available.has(id));
 
   return { groups, bench };
 }
 
 /**
- * The planner reopened mid-game shows what the coach pinned for the next
- * period, not a fresh projection (Stagehand round 2: the pinned quarter
- * looked lost). The pin is reconciled the way the break reconciles it
- * (`seedNextPeriodLineup`); anyone available it didn't place goes to the
- * bench. Other periods stay as projected. Returns `plan` itself when
- * there's no pin for that period.
+ * The planner reopened shows what the coach planned, not a fresh
+ * projection: the period pinned mid-game (Stagehand round 2: it looked
+ * lost) and the later periods planned before kickoff (round 3). Each is
+ * reconciled the way its break reconciles it (`seedNextPeriodLineup`);
+ * anyone available it didn't place goes to the bench. Periods before
+ * `fromPeriodIndex` and unplanned ones stay as projected. Returns `plan`
+ * itself when nothing applies.
  */
-export function withPinnedNextPeriod(
+export function withPinnedPeriods(
   plan: GamePlan,
-  input: { pin: PlannedRotation | null | undefined; periodIndex: number; availableIds: readonly string[] },
+  input: { pin: PlannedRotation | null | undefined; fromPeriodIndex: number; availableIds: readonly string[] },
 ): GamePlan {
-  const at = plan.periods.findIndex((p) => p.period === input.periodIndex + 1);
-  if (at < 0) return plan;
-  const seed = seedNextPeriodLineup({
-    pin: input.pin,
-    periodIndex: input.periodIndex,
-    availableIds: input.availableIds,
-    groupIds: plan.periods[at].groups.map((g) => g.groupId),
+  let out = plan;
+  plan.periods.forEach((p, at) => {
+    const periodIndex = p.period - 1;
+    if (periodIndex < input.fromPeriodIndex) return;
+    const seed = seedNextPeriodLineup({
+      pin: input.pin,
+      periodIndex,
+      availableIds: input.availableIds,
+      groupIds: p.groups.map((g) => g.groupId),
+    });
+    if (!seed) return;
+    const placed = new Set([...Object.values(seed.groups).flat(), ...seed.bench]);
+    const bench = [...seed.bench, ...input.availableIds.filter((id) => !placed.has(id))];
+    out = setPeriodGroups(out, at, seed.groups, bench);
   });
-  if (!seed) return plan;
-  const placed = new Set([...Object.values(seed.groups).flat(), ...seed.bench]);
-  const bench = [...seed.bench, ...input.availableIds.filter((id) => !placed.has(id))];
-  return setPeriodGroups(plan, at, seed.groups, bench);
+  return out;
 }
 
 export interface DiffPlanToSwapsInput {

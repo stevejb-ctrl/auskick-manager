@@ -96,7 +96,9 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
-  withPinnedNextPeriod,
+  withPinnedPeriods,
+  hasPinnedPeriod,
+  consumePeriodPin,
   availablePlayersForPlan,
   clearPeriodToBench,
   type GamePlan,
@@ -430,7 +432,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // pre-seeded from it (NetballQuarterBreak reads the pin directly).
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
   const [planNextOpen, setPlanNextOpen] = useState(false);
   // Final-rotation window, in GAME time. Netball's clockMs already has
   // the demo multiplier applied, so we compare against a game-time sub
@@ -445,10 +446,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     plannedRotation && plannedRotation.gameId === game.id
       ? plannedRotation
       : null;
-  const hasPinnedNextPeriod =
-    pinForThisGame != null &&
-    pinForThisGame.nextPeriodIndex === currentQuarter &&
-    pinForThisGame.nextPeriodGroups != null;
+  const hasPinnedNextPeriod = hasPinnedPeriod(pinForThisGame, currentQuarter);
 
   // ─── Pulse triggers ─────────────────────────────────────────
   // The Siren brand pulse fires at moments that ARE a siren going
@@ -2218,7 +2216,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               <button
                 type="button"
                 data-testid="plan-next-clear"
-                onClick={() => clearPlannedRotation()}
+                onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
                 className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
               >
                 Clear
@@ -2301,9 +2299,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             netballPlaybook={netballPlaybook}
             // Reopened after a pin: show the pinned next period, not a
             // fresh projection ("Suggested" still reverts to the projection).
-            initialPlan={withPinnedNextPeriod(initialPlan, {
+            initialPlan={withPinnedPeriods(initialPlan, {
               pin: pinForThisGame,
-              periodIndex: currentQuarter,
+              fromPeriodIndex: currentQuarter,
               availableIds: playersForPlan.map((p) => p.id),
             })}
             initialPeriodIndex={1}
