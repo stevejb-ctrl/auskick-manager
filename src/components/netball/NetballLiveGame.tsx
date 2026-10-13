@@ -81,6 +81,7 @@ import {
   playerThirdMs,
   replayNetballGame,
   seasonPositionCounts,
+  lineupAfterSubs,
 } from "@/lib/sports/netball/fairness";
 import { computeNetballClockMs } from "@/lib/sports/netball/clock";
 import {
@@ -862,13 +863,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>(() =>
     netballPositionLocks(replayLocks(thisGameEvents)),
   );
-  // Mid-quarter substitution overlay. Coach injuries a court player and
-  // picks a bench replacement; the change is reflected here client-side
-  // until the next quarter break makes it durable via period_break_swap.
-  // Refreshing the page mid-quarter loses the overlay (the replayed
-  // lineup_set / period_break_swap events are the authoritative state).
-  // Coach can re-do the sub if that happens.
-  const [localOverlay, setLocalOverlay] = useState<GenericLineup | null>(null);
   // Mid-quarter sub log for the CURRENT quarter only. Each entry
   // records the exact clockMs at which a player vacated a position
   // and another took it. Drives accurate per-player time accounting:
@@ -895,10 +889,51 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     inPlayerId: string | null;
     atMs: number;
   };
+  // The quarter's sub log is the one source of truth for the court
+  // (onCourt below), and it's saved on the phone until the break writes
+  // it: a reload (phone locked, app switched) used to lose every
+  // mid-quarter sub, putting an injured or lent kid back on court
+  // (sideline combos).
+  const subsKey = `siren-netball-subs:${game.id}`;
   const [midQuarterSubs, setMidQuarterSubs] = useState<MidQuarterSub[]>([]);
+  // Restore after hydration (the server can't see the phone's storage,
+  // so restoring in the initial state would mismatch the server render).
+  const subsRestoredRef = useRef(false);
   useEffect(() => {
-    setMidQuarterSubs([]);
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(subsKey) ?? "null") as
+        | { quarter: number; subs: MidQuarterSub[] }
+        | null;
+      if (saved && saved.quarter === currentQuarter && Array.isArray(saved.subs) && saved.subs.length) {
+        setMidQuarterSubs(saved.subs);
+      }
+    } catch {
+      // Storage unavailable: nothing to restore.
+    }
+    subsRestoredRef.current = true;
+    // Mount only: later quarters start empty (below).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const subsQuarterRef = useRef(currentQuarter);
+  useEffect(() => {
+    // A new quarter starts with no subs (the last quarter's are written
+    // by its break). Only on an actual change, not on mount, so a
+    // restored log survives.
+    if (subsQuarterRef.current !== currentQuarter) {
+      subsQuarterRef.current = currentQuarter;
+      setMidQuarterSubs([]);
+    }
   }, [currentQuarter]);
+  useEffect(() => {
+    // Not before the restore has read what's saved.
+    if (!subsRestoredRef.current) return;
+    try {
+      if (midQuarterSubs.length === 0 || finalised) window.localStorage.removeItem(subsKey);
+      else window.localStorage.setItem(subsKey, JSON.stringify({ quarter: currentQuarter, subs: midQuarterSubs }));
+    } catch {
+      // Storage unavailable: the subs still live in memory.
+    }
+  }, [midQuarterSubs, currentQuarter, finalised, subsKey]);
   // Per-position pulse keys for the brand halo on PositionToken.
   // Each entry maps a positionId to the atMs of the most recent
   // mid-quarter sub at that position. When a new sub commits the
@@ -1018,7 +1053,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // localOverlay wins if present (mid-quarter substitution); otherwise
   // we fall back to the replayed lineup. When quarterEnded + !finalised,
   // we show the LineupPicker instead of this lineup.
-  const onCourt = localOverlay ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
+  const onCourt = lineupAfterSubs(
+    initialLineup ?? emptyGenericLineup(ageGroup.positions),
+    midQuarterSubs,
+  );
 
   // Set of positionIds whose tokens get a "tap to score" affordance.
   // In netball only GS and GA can legally shoot — other tokens are
@@ -1348,17 +1386,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // skip both: there's no slot to vacate.
   const vacateAndPromptReplacement = (playerId: string, positionId: string | null) => {
     if (!positionId) return;
-    setLocalOverlay((prev) => {
-      const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-      const next: GenericLineup = {
-        positions: { ...base.positions },
-        bench: [...base.bench],
-      };
-      next.positions[positionId] = (next.positions[positionId] ?? []).filter(
-        (id) => id !== playerId,
-      );
-      return next;
-    });
+    // Recorded as a vacate at this moment, so a cancelled replacement
+    // still stops their clock (it used to leave them accruing).
+    setMidQuarterSubs((prev) => [
+      ...prev,
+      { positionId, outPlayerId: playerId, inPlayerId: null, atMs: clockMs },
+    ]);
     setReplacingTarget({ positionId, vacatingPlayerId: playerId });
   };
 
@@ -1502,21 +1535,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // useMemo re-derives, and the matching PositionToken gets a
     // fresh pulseKey on its next render. No extra trigger
     // needed here.
-    const { positionId, vacatingPlayerId } = replacingTarget;
-    setLocalOverlay((prev) => {
-      const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-      const next: GenericLineup = {
-        positions: { ...base.positions },
-        bench: base.bench.filter((id) => id !== replacementId),
-      };
-      next.positions[positionId] = [replacementId];
-      return next;
-    });
+    // The vacate is already logged; this fills the position.
+    const { positionId } = replacingTarget;
     setMidQuarterSubs((prev) => [
       ...prev,
       {
         positionId,
-        outPlayerId: vacatingPlayerId,
+        outPlayerId: null,
         inPlayerId: replacementId,
         atMs: clockMs,
       },
@@ -1896,6 +1921,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           scoreByQuarter={scoreByQuarter}
           players={squad}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
+          midQuarterSubs={midQuarterSubs}
           opponentName={game.opponent}
         />
       </div>
@@ -1960,9 +1986,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           netballPlaybook={netballPlaybook}
           trackScoring={trackScoring}
           onStarted={() => {
-            // Local overlay is durable now via the period_break_swap
-            // event the component just wrote.
-            setLocalOverlay(null);
             // nextBreakLocks INTENTIONALLY persist across the
             // transition: the coach's "🔒 Keep at GS next break" is
             // a sticky preference, not a one-shot. Each subsequent
@@ -2439,24 +2462,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   if (sourcePositionId === targetPositionId) return;
                   closeActions();
                   const atMs = clockMs;
-                  setLocalOverlay((prev) => {
-                    const base =
-                      prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-                    const next: GenericLineup = {
-                      positions: { ...base.positions },
-                      bench: [...base.bench],
-                    };
-                    next.positions[sourcePositionId] = (
-                      next.positions[sourcePositionId] ?? []
-                    ).filter((id) => id !== playerId);
-                    next.positions[targetPositionId] = [
-                      ...(next.positions[targetPositionId] ?? []).filter(
-                        (id) => id !== playerId,
-                      ),
-                      playerId,
-                    ];
-                    return next;
-                  });
                   setMidQuarterSubs((prev) => [
                     ...prev,
                     {

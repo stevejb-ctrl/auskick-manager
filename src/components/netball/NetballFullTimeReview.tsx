@@ -36,6 +36,11 @@ interface NetballFullTimeReviewProps {
   players: Player[];
   /** ms elapsed at full time — passed to game_finalised event. */
   finalisedElapsedMs: number;
+  /**
+   * Q4's mid-quarter subs. There's no break after Q4 to write them, so
+   * finalise does (they were lost: a Q4 replacement got no time).
+   */
+  midQuarterSubs?: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[];
   /** Display names for the per-quarter table headers. */
   teamName?: string;
   opponentName?: string;
@@ -50,6 +55,7 @@ export function NetballFullTimeReview({
   scoreByQuarter,
   players,
   finalisedElapsedMs,
+  midQuarterSubs = [],
   teamName = "Us",
   opponentName = "Them",
 }: NetballFullTimeReviewProps) {
@@ -60,7 +66,7 @@ export function NetballFullTimeReview({
   function handleFinalise() {
     setFinaliseError(null);
     startFinaliseTransition(async () => {
-      const result = await finaliseNetballGame(auth, gameId, finalisedElapsedMs);
+      const result = await finaliseNetballGame(auth, gameId, finalisedElapsedMs, midQuarterSubs);
       if (!result.success) {
         setFinaliseError(result.error);
         return;

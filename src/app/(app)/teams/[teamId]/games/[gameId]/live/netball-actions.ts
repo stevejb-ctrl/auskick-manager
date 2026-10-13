@@ -464,9 +464,11 @@ export async function finaliseNetballGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** Q4's mid-quarter subs: no break follows Q4 to write them. */
+  midQuarterSubs: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[] = [],
 ): Promise<ActionResult> {
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: 4, elapsed_ms: elapsedMs, sport: "netball" },
+    metadata: { quarter: 4, elapsed_ms: elapsedMs, sport: "netball", midQuarterSubs },
   });
   if (!finalise.success) return finalise;
 

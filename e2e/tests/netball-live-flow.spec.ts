@@ -1058,3 +1058,73 @@ test("netball undo names the score it takes back, and the break's review agrees 
   await expect(q1.getByRole("cell").nth(1)).toHaveText(/^1/);
   await expect(q1.getByRole("cell").nth(2)).toHaveText(/^0/);
 });
+
+test("a mid-quarter replacement survives a reload, and a cancelled one leaves no ghost", async ({ page }) => {
+  // Sideline combos: netball holds mid-quarter subs on the phone until
+  // the break. A reload (phone locked, app switched) dropped them, so the
+  // injured GS was back on court and the replacement gone.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const token = (position: string, name: string) =>
+    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+
+  // GS injured, replaced from the bench.
+  await token("Goal Shooter", players[0].full_name).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  const replaceDialog = page.getByRole("dialog");
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${players[7].full_name}$`, "i") }).click();
+  await expect(token("Goal Shooter", players[7].full_name)).toBeVisible();
+
+  // GA lent, and the replacement picker cancelled: GA stays empty.
+  await token("Goal Attack", players[1].full_name).click({ delay: 600 });
+  await page.getByRole("button", { name: /lend to opposition|^lend/i }).click();
+  await expect(replaceDialog).toBeVisible();
+  await replaceDialog.getByRole("button", { name: /cancel|skip|not now/i }).first().click();
+  await expect(token("Goal Attack", players[1].full_name)).toHaveCount(0);
+  await expect.poll(async () => {
+    const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
+    return (data ?? []).length;
+  }, { timeout: 15_000 }).toBe(1);
+
+  // Reload: the court is as the coach left it.
+  await page.reload();
+  await expect(token("Goal Shooter", players[7].full_name)).toBeVisible({ timeout: 15_000 });
+  await expect(token("Goal Shooter", players[0].full_name)).toHaveCount(0);
+  await expect(token("Goal Attack", players[1].full_name)).toHaveCount(0);
+});
+
+test("a Q4 replacement is saved when the game is finished", async ({ page }) => {
+  // No break follows Q4, and finishing the game wrote none of Q4's
+  // mid-quarter subs, so a Q4 replacement got no time at all.
+  test.setTimeout(150_000);
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id), quarterStartOffsetSec: 4000 });
+  // Q1–Q3 played; Q4 just started, on a fast clock so it ends in the test.
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const rows: { type: string; metadata: Record<string, unknown>; created_at: string }[] = [];
+  for (let q = 1; q <= 3; q++) {
+    rows.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: 600_000 }, created_at: t(3900 - (q - 1) * 1000) });
+    rows.push({ type: "quarter_start", metadata: { quarter: q + 1 }, created_at: q === 3 ? t(1) : t(3800 - (q - 1) * 1000) });
+  }
+  await admin.from("game_events").insert(rows.map((r) => ({ ...r, game_id: game.id, created_by: ownerId })));
+  await admin.from("games").update({ clock_multiplier: 20 }).eq("id", game.id);
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const gs = (name: string) => page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${name}`, "i") });
+  await gs(players[0].full_name).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  await page.getByRole("dialog").getByRole("button", { name: new RegExp(`^${players[7].full_name}$`, "i") }).click();
+  await expect(gs(players[7].full_name)).toBeVisible();
+
+  // Q4's hooter (10 min at 20× ≈ 30s), then finish.
+  await page.getByRole("button", { name: /finish game/i }).click({ timeout: 90_000 });
+  await expect.poll(async () => {
+    const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "game_finalised");
+    const subs = ((data?.[0]?.metadata ?? {}) as { midQuarterSubs?: { inPlayerId: string | null }[] }).midQuarterSubs ?? [];
+    return subs.some((s) => s.inPlayerId === players[7].id);
+  }, { timeout: 20_000 }).toBe(true);
+});

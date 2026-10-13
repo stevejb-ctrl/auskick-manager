@@ -1143,6 +1143,38 @@ export interface QuarterSub {
  * credit IDENTICAL segments — the per-period map is a finer split of
  * the same ms, never a divergent second accumulator.
  */
+/** One mid-quarter sub applied to the court: the out player to the bench, the in player to the position. */
+function applyQuarterSub(current: GenericLineup, sub: QuarterSub): GenericLineup {
+  const next: GenericLineup = {
+    positions: { ...current.positions },
+    bench:
+      sub.inPlayerId != null
+        ? current.bench.filter((id) => id !== sub.inPlayerId)
+        : [...current.bench],
+  };
+  const remainAtPosition = (next.positions[sub.positionId] ?? []).filter(
+    (id) => sub.outPlayerId == null || id !== sub.outPlayerId,
+  );
+  next.positions[sub.positionId] =
+    sub.inPlayerId != null
+      ? remainAtPosition.concat([sub.inPlayerId])
+      : remainAtPosition;
+  if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
+    next.bench = [...next.bench, sub.outPlayerId];
+  }
+  return next;
+}
+
+/**
+ * The court now: the quarter's starting lineup with its mid-quarter subs
+ * applied, by the same rule the time replay uses. The live screen derives
+ * its court from this (one source of truth), so a reload rebuilds it from
+ * the saved subs and a cancelled replacement can't leave a ghost on court.
+ */
+export function lineupAfterSubs(lineup: GenericLineup, subs: readonly QuarterSub[]): GenericLineup {
+  return subs.reduce(applyQuarterSub, lineup);
+}
+
 function splitQuarterSegments(
   lineup: GenericLineup,
   periodMs: number,
@@ -1155,24 +1187,7 @@ function splitQuarterSegments(
   for (const sub of subs) {
     const dur = Math.max(0, Math.min(sub.atMs, periodMs) - prevMs);
     if (dur > 0) segments.push({ lineup: current, durationMs: dur });
-    const next: GenericLineup = {
-      positions: { ...current.positions },
-      bench:
-        sub.inPlayerId != null
-          ? current.bench.filter((id) => id !== sub.inPlayerId)
-          : [...current.bench],
-    };
-    const remainAtPosition = (next.positions[sub.positionId] ?? []).filter(
-      (id) => sub.outPlayerId == null || id !== sub.outPlayerId,
-    );
-    next.positions[sub.positionId] =
-      sub.inPlayerId != null
-        ? remainAtPosition.concat([sub.inPlayerId])
-        : remainAtPosition;
-    if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
-      next.bench = [...next.bench, sub.outPlayerId];
-    }
-    current = next;
+    current = applyQuarterSub(current, sub);
     prevMs = Math.min(sub.atMs, periodMs);
   }
   const finalDur = Math.max(0, periodMs - prevMs);
