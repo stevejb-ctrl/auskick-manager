@@ -129,10 +129,10 @@ export async function importPlayhqFixtures(
 
   const { data: team } = await supabase
     .from("teams")
-    .select("age_group")
+    .select("sport, age_group")
     .eq("id", teamId)
     .single();
-  const defaults = importedGameDefaults(team?.age_group);
+  const defaults = importedGameDefaults(team?.sport, team?.age_group);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the

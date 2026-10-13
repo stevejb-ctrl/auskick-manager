@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const { data: teams, error: teamsError } = await supabase
     .from("teams")
-    .select("id, age_group, playhq_url")
+    .select("id, sport, age_group, playhq_url")
     .not("playhq_url", "is", null);
 
   if (teamsError) {
@@ -57,7 +57,12 @@ export async function GET(req: NextRequest) {
 
 async function syncTeam(
   supabase: ReturnType<typeof createAdminClient>,
-  team: { id: string; age_group: string | null; playhq_url: string | null },
+  team: {
+    id: string;
+    sport: string | null;
+    age_group: string | null;
+    playhq_url: string | null;
+  },
   now: number
 ): Promise<TeamSyncResult> {
   const base = { teamId: team.id, imported: 0, updated: 0, skipped: 0 };
@@ -92,7 +97,7 @@ async function syncTeam(
   );
 
   // Resolve team config for defaults on new games.
-  const defaults = importedGameDefaults(team.age_group);
+  const defaults = importedGameDefaults(team.sport, team.age_group);
 
   // Active-player lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
