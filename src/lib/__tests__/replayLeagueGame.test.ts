@@ -684,6 +684,58 @@ describe("suggestLeagueSubs — whole-bench rotation (AFL parity)", () => {
     expect(offIds.has("dh")).toBe(false);
   });
 
+  // Round 5 (Stagehand league-u8-vests): with no line preference the
+  // suggester always took off forwards first, so the backs played the
+  // whole period while a forward who'd just come on was pulled straight
+  // back off (Zara, 7s after her sub).
+  for (const withPlaybook of [false, true]) {
+    it(`a kid with no line preference rotates whoever has been on longest, forward or back${withPlaybook ? " (with a playbook)" : ""}`, () => {
+      reset();
+      const start = {
+        forwards: ["ava", "lachlan", "mia", "oliver"],
+        backs: ["isla", "noah", "ruby", "jack"],
+        bench: ["zara", "leo", "chloe"],
+      };
+      const events: GameEvent[] = [
+        ev("lineup_set", { lineup: start, sport: "rugby_league" }),
+        ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+        ev("swap", { quarter: 1, elapsed_ms: 42_415, off_player_id: "lachlan", on_player_id: "zara", sport: "rugby_league" }),
+      ];
+      const now = {
+        forwards: ["ava", "zara", "mia", "oliver"],
+        backs: ["isla", "noah", "ruby", "jack"],
+        bench: ["leo", "chloe", "lachlan"],
+      };
+      const playbook = withPlaybook
+        ? { strategy: "both-lines", seasonWeight: 0, periodMs: 20 * 60_000, roles: {}, vestStrategy: "rotate" as never }
+        : undefined;
+      const offs = suggestLeagueSubs(events, 1, now, ["ava"], 49_000, undefined, playbook).map((s) => s.off.playerId);
+      expect(offs).toHaveLength(3);
+      expect(offs).not.toContain("zara");
+      expect(offs.some((id) => now.backs.includes(id))).toBe(true);
+    });
+  }
+
+  it("doesn't take straight back off the kids who just came on while the backs have played all half", () => {
+    reset();
+    const start = {
+      forwards: ["f1", "f2", "f3", "f4", "f5"],
+      backs: ["b1", "b2", "b3", "b4", "b5", "b6"],
+      bench: ["x1", "x2", "x3"],
+    };
+    const events: GameEvent[] = [
+      ev("lineup_set", { lineup: start, sport: "rugby_league" }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+      ...(["3", "4", "5"] as const).map((n, i) =>
+        ev("swap", { quarter: 1, elapsed_ms: 300_000, off_player_id: `f${n}`, on_player_id: `x${i + 1}`, sport: "rugby_league" }),
+      ),
+    ];
+    const now = { forwards: ["f1", "f2", "x1", "x2", "x3"], backs: start.backs, bench: ["f3", "f4", "f5"] };
+    const offs = suggestLeagueSubs(events, 1, now, ["f1", "f2"], 330_000).map((s) => s.off.playerId);
+    expect(offs).toHaveLength(3);
+    expect(offs.filter((id) => id.startsWith("x"))).toEqual([]);
+  });
+
   it("returns empty when there are no bench players", () => {
     reset();
     const lineup = {

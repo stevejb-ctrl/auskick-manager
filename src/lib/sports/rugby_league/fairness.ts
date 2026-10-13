@@ -2449,19 +2449,26 @@ export function suggestLeagueSubs(
     let preferredZone: LeagueZone | null
       = chip === "a" ? "forward" : chip === "b" ? "back" : null;
     let zoneOrder: LeagueZone[];
+    let noPreference: boolean;
     if (playbook) {
       // Lines the incoming kid wants (role, season balance), never-plays out.
       const s = leagueLineScores(playbook, benchId);
       preferredZone = s.backs > s.forwards ? "back" : "forward";
       zoneOrder = (preferredZone === "back" ? (["back", "forward"] as LeagueZone[]) : (["forward", "back"] as LeagueZone[]))
         .filter((z) => Number.isFinite(z === "forward" ? s.forwards : s.backs));
+      noPreference = s.backs === s.forwards;
     } else {
-      zoneOrder
-        = preferredZone === "forward"
-          ? ["forward", "back"]
-          : preferredZone === "back"
-            ? ["back", "forward"]
-            : ["forward", "back"];
+      zoneOrder = preferredZone === "back" ? ["back", "forward"] : ["forward", "back"];
+      noPreference = preferredZone === null;
+    }
+    // No preference between two open lines: rule 2 above — whoever has
+    // been on longest, either line. Defaulting to forwards-first meant the
+    // backs never came off and a just-subbed forward was pulled straight
+    // back (round 5, league-u8-vests).
+    if (noPreference && zoneOrder.length === 2) {
+      const fwd = fieldByZone.forward[cursor.forward];
+      const back = fieldByZone.back[cursor.back];
+      if (back && (!fwd || msAt(back) > msAt(fwd))) zoneOrder = ["back", "forward"];
     }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
