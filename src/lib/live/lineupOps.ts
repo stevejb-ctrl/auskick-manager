@@ -29,6 +29,48 @@ export function benchPlayerInLineup(lineup: Lineup, pid: string): Lineup {
 }
 
 /**
+ * Bench every sidelined (injured / lent / out) player who is on the field.
+ * The AFL break commits this at the Start tap, so however the draft got
+ * there ("Keep last quarter" picked after a kid was lent, say) a sidelined
+ * kid never starts the next quarter on the field. Returns the SAME object
+ * when nobody sidelined is on the field.
+ */
+export function benchSidelinedInLineup(
+  lineup: Lineup,
+  sidelined: ReadonlySet<string>,
+): Lineup {
+  let next = lineup;
+  for (const z of ALL_ZONES) {
+    for (const pid of lineup[z]) {
+      if (sidelined.has(pid)) next = benchPlayerInLineup(next, pid);
+    }
+  }
+  return next;
+}
+
+/**
+ * A bench player replaces an on-field one in `zone`, taking their spot;
+ * the player coming off goes to the bench. The AFL break's mark-out
+ * replacement used to ADD the replacement beside the out player, leaving
+ * both on (sideline combos).
+ */
+export function replaceInLineup(
+  lineup: Lineup,
+  outId: string,
+  inId: string,
+  zone: (typeof ALL_ZONES)[number],
+): Lineup {
+  const benched = benchPlayerInLineup(lineup, outId);
+  const next: Lineup = { ...benched, bench: benched.bench.filter((id) => id !== inId) };
+  for (const z of ALL_ZONES) next[z] = benched[z].filter((id) => id !== inId);
+  const at = lineup[zone].indexOf(outId);
+  const spot = [...next[zone]];
+  spot.splice(at < 0 ? spot.length : at, 0, inId);
+  next[zone] = spot;
+  return next;
+}
+
+/**
  * Netball/positions analog of `benchPlayerInLineup`: move a player out of
  * their named court position onto the bench. The vacated position is left
  * empty — netball needs all positions filled to start, so this forces the

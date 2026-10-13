@@ -51,7 +51,11 @@ import {
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
-import { benchPlayerInLineup } from "@/lib/live/lineupOps";
+import {
+  benchPlayerInLineup,
+  benchSidelinedInLineup,
+  replaceInLineup,
+} from "@/lib/live/lineupOps";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
@@ -734,6 +738,11 @@ export function QuarterBreak({
     if (addedToDraft) {
       setDraft((d) => ({ ...d, bench: [...d.bench, pid] }));
     }
+    // A kid lent at the break sits out from the next quarter, so they
+    // come off the staged field now (they used to start it on the field).
+    if (nextLoaned) {
+      setDraft((prev) => benchPlayerInLineup(prev, pid));
+    }
     startLoanTransition(async () => {
       const result = await markLoan(auth, gameId, {
         player_id: pid,
@@ -836,6 +845,8 @@ export function QuarterBreak({
     setOutReplacement(null);
     setLoanError(null);
     setInjured(playerId, true);
+    // Off the staged field: they used to start the next quarter on it.
+    setDraft((prev) => benchPlayerInLineup(prev, playerId));
     startLoanTransition(async () => {
       const result = await markInjury(auth, gameId, {
         player_id: playerId,
@@ -864,8 +875,9 @@ export function QuarterBreak({
     setLoanError(null);
     setInjured(outId, true);
     // Reflect the swap in the staged next-quarter draft so the coach
-    // sees the replacement take the spot before the refresh.
-    placeInZone(replacementId, zone);
+    // sees the replacement take the spot before the refresh. The out
+    // player comes off (the replacement used to be added beside them).
+    setDraft((prev) => replaceInLineup(prev, outId, replacementId, zone));
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
@@ -1195,7 +1207,12 @@ export function QuarterBreak({
     // (issue 1).
     onPrimeAudio?.();
     // Normalise draft shape before sending (defensive — always full-zones).
-    const full: Lineup = { ...emptyLineup(), ...draft };
+    // Nobody injured, lent or out starts the quarter on the field, however
+    // the draft got there (e.g. "Keep last quarter" picked after a lend).
+    const full: Lineup = benchSidelinedInLineup(
+      { ...emptyLineup(), ...draft },
+      sidelinedSet,
+    );
     startTransition(async () => {
       if (!lineupsEqual(lineup, full)) {
         const r = await recordLineupSet(auth, gameId, full);

@@ -7,6 +7,8 @@ import {
   benchPlayerInLineup,
   benchPlayerInPositionLineup,
   benchSidelinedInLeagueLineup,
+  benchSidelinedInLineup,
+  replaceInLineup,
 } from "@/lib/live/lineupOps";
 import type { Lineup } from "@/lib/types";
 
@@ -91,5 +93,37 @@ describe("benchSidelinedInLeagueLineup", () => {
     const l = lineup();
     expect(benchSidelinedInLeagueLineup(l, new Set(["X1"]))).toBe(l); // benched already
     expect(benchSidelinedInLeagueLineup(l, new Set())).toBe(l);
+  });
+});
+
+// AFL break combos: a kid lent or marked out at the break must not start
+// the next quarter on the field, however the draft got there ("Keep last
+// quarter" picked after the change, a replacement added beside them).
+describe("benchSidelinedInLineup (AFL)", () => {
+  it("benches every sidelined kid on the field", () => {
+    const next = benchSidelinedInLineup(makeLineup(), new Set(["P1", "P7", "P9"]));
+    expect(next.back).toEqual(["P2"]);
+    expect(next.fwd).toEqual(["P8"]);
+    expect(next.bench).toEqual(["P9", "P1", "P7"]);
+  });
+
+  it("returns the same lineup when nobody sidelined is on the field", () => {
+    const lineup = makeLineup();
+    expect(benchSidelinedInLineup(lineup, new Set(["P9"]))).toBe(lineup);
+  });
+});
+
+describe("replaceInLineup (AFL)", () => {
+  it("the replacement takes the out kid's spot; the out kid goes to the bench", () => {
+    const next = replaceInLineup(makeLineup(), "P5", "P9", "mid");
+    expect(next.mid).toEqual(["P4", "P9"]);
+    expect(next.bench).toEqual(["P5"]);
+  });
+
+  it("never leaves the out kid on the field beside the replacement", () => {
+    const next = replaceInLineup(makeLineup(), "P5", "P9", "mid");
+    const field = (["back", "hback", "mid", "hfwd", "fwd"] as const).flatMap((z) => next[z]);
+    expect(field).not.toContain("P5");
+    expect(field.filter((p) => p === "P9")).toHaveLength(1);
   });
 });
