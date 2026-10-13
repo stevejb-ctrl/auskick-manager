@@ -184,9 +184,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // ─── Rugby league branch ──────────────────────────────────
   // Junior RL stats are shaped by the laws: tries (4) + conversions
   // (2), FR/DH vest history, kickoff rotation, and §6 unbroken-
-  // period compliance. The shared aggregator pipes through the
-  // same replay engines the live UI uses so live ↔ post-game
-  // numbers stay consistent.
+  // period compliance. U13+ (international laws) adds penalty and
+  // field goals and drops the junior laws. The shared aggregator
+  // pipes through the same replay engines the live UI uses so
+  // live ↔ post-game numbers stay consistent.
   if (sport === "rugby_league") {
     const eventsByGameRecord: Record<string, GameEvent[]> = {};
     eventsByGame.forEach((evs, gid) => {
@@ -209,6 +210,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         aggregate={aggregate}
         totalGames={seasonGames.length}
         seasonBalance={seasonBalance}
+        internationalLaws={balanceAgeCfg.internationalLaws === true}
       />
     );
   }

@@ -5,6 +5,12 @@
 // equity (FR / DH), kickoff equity, and Junior Laws §6
 // unbroken-period compliance.
 //
+// U13+ grades play international laws (`internationalLaws`): they
+// score penalty and field goals, and none of the junior laws apply,
+// so the goal counts replace the FR / DH / kickoff / unbroken
+// columns and the §6 panel goes. Junior grades never show goals
+// (Law 17 forbids both kicks).
+//
 // Same DashboardShell visual ladder as AFL + netball — coaches
 // landing on this page from a different sport should feel
 // continuity rather than a fresh design. The data shape is the
@@ -27,6 +33,8 @@ interface LeagueDashboardShellProps {
   totalGames: number;
   /** Stats › Season balance (UX plan 4.4). */
   seasonBalance?: SeasonBalanceSectionProps;
+  /** The team's grade plays international laws (U13+). */
+  internationalLaws?: boolean;
 }
 
 export function LeagueDashboardShell({
@@ -36,6 +44,7 @@ export function LeagueDashboardShell({
   aggregate,
   totalGames,
   seasonBalance,
+  internationalLaws = false,
 }: LeagueDashboardShellProps) {
   if (totalGames === 0) {
     return (
@@ -64,7 +73,9 @@ export function LeagueDashboardShell({
       );
     });
 
-  const shortfallPlayers = rows.filter((r) => r.unbrokenShortfallGames > 0);
+  const shortfallPlayers = internationalLaws
+    ? []
+    : rows.filter((r) => r.unbrokenShortfallGames > 0);
 
   return (
     <div className="space-y-6">
@@ -76,7 +87,9 @@ export function LeagueDashboardShell({
       </header>
 
       {/* Team totals strip */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section
+        className={`grid grid-cols-2 gap-3 ${internationalLaws ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}
+      >
         <TotalCard label="Games" value={aggregate.totals.games} />
         <TotalCard
           label="Tries"
@@ -88,6 +101,12 @@ export function LeagueDashboardShell({
           value={aggregate.totals.conversionsMade}
           sub={`${aggregate.totals.conversionsAttempted} attempts`}
         />
+        {internationalLaws && (
+          <>
+            <TotalCard label="Pen. goals" value={aggregate.totals.penaltyGoals} />
+            <TotalCard label="Field goals" value={aggregate.totals.fieldGoals} />
+          </>
+        )}
         <TotalCard
           label="Conceded"
           value={aggregate.totals.opponentPoints}
@@ -126,17 +145,26 @@ export function LeagueDashboardShell({
 
       {/* Per-player table */}
       <section className="overflow-x-auto rounded-xl border border-hairline bg-surface shadow-card">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Player stats">
           <thead className="bg-surface-alt text-xs uppercase tracking-wide text-ink-dim">
             <tr>
               <Th className="text-left">Player</Th>
               <Th>GP</Th>
               <Th>Tries</Th>
               <Th>Conv (M/A)</Th>
-              <Th>FR</Th>
-              <Th>DH</Th>
-              <Th>Kickoffs</Th>
-              <Th>Unbroken</Th>
+              {internationalLaws ? (
+                <>
+                  <Th>PG</Th>
+                  <Th>FG</Th>
+                </>
+              ) : (
+                <>
+                  <Th>FR</Th>
+                  <Th>DH</Th>
+                  <Th>Kickoffs</Th>
+                  <Th>Unbroken</Th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -155,16 +183,25 @@ export function LeagueDashboardShell({
                     ? `${r.conversionsMade}/${r.conversionsAttempted}`
                     : "—"}
                 </Td>
-                <Td>{r.vestFr || "—"}</Td>
-                <Td>{r.vestDh || "—"}</Td>
-                <Td>{r.kickoffs || "—"}</Td>
-                <Td
-                  className={
-                    r.unbrokenShortfallGames > 0 ? "text-warn" : "text-ok"
-                  }
-                >
-                  {r.unbrokenCompliantGames}/{r.gamesPlayed}
-                </Td>
+                {internationalLaws ? (
+                  <>
+                    <Td>{r.penaltyGoals || "—"}</Td>
+                    <Td>{r.fieldGoals || "—"}</Td>
+                  </>
+                ) : (
+                  <>
+                    <Td>{r.vestFr || "—"}</Td>
+                    <Td>{r.vestDh || "—"}</Td>
+                    <Td>{r.kickoffs || "—"}</Td>
+                    <Td
+                      className={
+                        r.unbrokenShortfallGames > 0 ? "text-warn" : "text-ok"
+                      }
+                    >
+                      {r.unbrokenCompliantGames}/{r.gamesPlayed}
+                    </Td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -184,7 +221,11 @@ function TotalCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface p-3 shadow-card">
+    <div
+      role="group"
+      aria-label={label}
+      className="rounded-xl border border-hairline bg-surface p-3 shadow-card"
+    >
       <p className="text-xs font-bold uppercase tracking-wide text-ink-dim">
         {label}
       </p>
