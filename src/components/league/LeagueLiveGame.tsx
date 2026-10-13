@@ -423,6 +423,15 @@ export function LeagueLiveGame({
     return [...state.lineup.forwards, ...state.lineup.backs];
   }, [state.lineup]);
   const onFieldSet = useMemo(() => new Set(onFieldIds), [onFieldIds]);
+  // Who can kick off: kids on the field who can play. The picker and its
+  // rotation (which the server re-checks) used the whole squad, so they
+  // offered hurt, lent and absent kids, and once every kid on the field
+  // had kicked the ones who couldn't left everyone else "Done"
+  // (Stagehand round 4).
+  const kickoffSquad = useMemo(
+    () => squad.filter((p) => onFieldSet.has(p.id) && !injuredSet.has(p.id) && !loanedSet.has(p.id)),
+    [squad, onFieldSet, injuredSet, loanedSet],
+  );
   // International laws (U13+): no goal-kick or kickoff rotation, so no
   // rotation badges and no kickoff picker.
   const internationalLaws = ageGroup.internationalLaws === true;
@@ -2014,7 +2023,7 @@ export function LeagueLiveGame({
           <KickoffPicker
             auth={auth}
             gameId={game.id}
-            squad={squad}
+            squad={kickoffSquad}
             events={thisGameEvents}
             seasonEvents={seasonEvents}
             period={state.currentQuarter}

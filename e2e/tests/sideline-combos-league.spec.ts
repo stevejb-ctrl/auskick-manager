@@ -222,3 +222,50 @@ test("rugby league: a bench kid selected and then lent doesn't swap on with the 
   expect(await events("swap")).toBe(0);
   await expect(page.getByRole("region", { name: "On field" }).getByTestId(`league-player-tile-${lent.id}`)).toHaveCount(0);
 });
+
+// Stagehand round 4 (sideline-chaos-league): the kickoff picker listed
+// the whole squad: a hurt kid, a lent kid, and kids who weren't there.
+// Only a kid on the field can kick off. (The rotation also ran over the
+// whole squad, so once every kid on the field had kicked, the absent or
+// sidelined ones left everyone else "Done".)
+test("rugby league: the kickoff picker offers only kids on the field who can play", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-KICKOFF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const ids = players.map((p) => p.id);
+  // 11 on, 3 on the bench (one lent), one squad kid not here at all.
+  const lineup = { forwards: ids.slice(0, 5), backs: ids.slice(5, 11), bench: ids.slice(11, 14) };
+  const [hurt, lent, benchKid, absent] = [players[0], players[11], players[12], players[14]];
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" } },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" } },
+      { type: "injury", player_id: hurt.id, metadata: { injured: true, quarter: 1, elapsed_ms: 0, sport: "rugby_league" } },
+      { type: "player_loan", player_id: lent.id, metadata: { loaned: true, quarter: 1, elapsed_ms: 0, sport: "rugby_league" } },
+    ].map((e, i) => ({ ...e, game_id: game.id, created_by: ownerId, created_at: new Date(Date.now() - (10 - i) * 1000).toISOString() })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const picker = page.locator("section").filter({ has: page.getByRole("heading", { name: /^kickoff$/i }) });
+  await expect(picker).toBeVisible({ timeout: 15_000 });
+  await expect(picker.getByRole("button", { name: new RegExp(players[1].full_name) })).toBeVisible();
+  for (const p of [hurt, lent, benchKid, absent]) {
+    await expect(picker.getByRole("button", { name: new RegExp(p.full_name) })).toHaveCount(0);
+  }
+});
