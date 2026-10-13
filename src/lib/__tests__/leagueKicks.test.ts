@@ -8,6 +8,7 @@ import {
   kickoffRecordedForPeriod,
   kickoffTakers,
   seasonKickoffCountsByPlayer,
+  unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, GameEventType } from "@/lib/types";
 
@@ -421,5 +422,54 @@ describe("seasonKickoffCountsByPlayer", () => {
       ev("conversion_attempt", { made: true, force: false }, "p1"),
     ];
     expect(seasonKickoffCountsByPlayer(events)).toEqual({ p1: 1 });
+  });
+});
+
+// ─── unconvertedTryIds ───────────────────────────────────────
+// Stagehand round 2: a game held a made conversion and no try. A kick
+// (bar a forced one) needs a try still waiting for its conversion.
+
+describe("unconvertedTryIds", () => {
+  it("a try waits for its conversion; the kick takes it", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    expect(unconvertedTryIds([t])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, conversion("p2", true)])).toEqual([]);
+  });
+
+  it("no try means nothing to convert", () => {
+    reset();
+    expect(unconvertedTryIds([])).toEqual([]);
+    expect(unconvertedTryIds([conversion("p2", true)])).toEqual([]);
+  });
+
+  it("a forced extra kick after the conversion doesn't eat the next try", () => {
+    reset();
+    const t1 = ev("try", {}, "p1");
+    const events = [t1, conversion("p2", true), conversion("p1", true, { force: true })];
+    expect(unconvertedTryIds(events)).toEqual([]);
+    const t2 = ev("try", {}, "p3");
+    expect(unconvertedTryIds([...events, t2])).toEqual([t2.id]);
+  });
+
+  it("opponent tries aren't ours to convert", () => {
+    reset();
+    expect(unconvertedTryIds([ev("opponent_try")])).toEqual([]);
+  });
+
+  it("undoing the kick leaves the try waiting; undoing the try leaves nothing", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    const k = conversion("p2", true);
+    expect(unconvertedTryIds([t, k, ev("score_undo", { target_event_id: k.id })])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, ev("score_undo", { target_event_id: t.id })])).toEqual([]);
+  });
+
+  it("two tries in a row: the earlier waits first", () => {
+    reset();
+    const t1 = ev("try", {}, "p1");
+    const t2 = ev("try", {}, "p3");
+    expect(unconvertedTryIds([t1, t2])).toEqual([t1.id, t2.id]);
+    expect(unconvertedTryIds([t1, t2, conversion("p2", false)])).toEqual([t2.id]);
   });
 });

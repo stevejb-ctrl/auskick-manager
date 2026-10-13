@@ -23,6 +23,7 @@ import {
   conversionCycle,
   nextEligibleConversionKickers,
   totalConversionAttemptsByPlayer,
+  unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
@@ -47,6 +48,11 @@ interface RecordConversionDialogProps {
    * each conversion attempt with its try.
    */
   tryEventId?: string;
+  /**
+   * Opened by a try just recorded. `events` are server props and may
+   * not hold that try until the refresh lands, so trust the caller.
+   */
+  afterTry?: boolean;
 }
 
 export function RecordConversionDialog({
@@ -59,6 +65,7 @@ export function RecordConversionDialog({
   elapsedMs,
   onClose,
   tryEventId,
+  afterTry = false,
 }: RecordConversionDialogProps) {
   const router = useRouter();
   const [pendingKickerId, setPendingKickerId] = useState<string | null>(null);
@@ -70,6 +77,11 @@ export function RecordConversionDialog({
     nextEligibleConversionKickers(events, onFieldPlayerIds),
   );
   const totalAttempts = totalConversionAttemptsByPlayer(events);
+  // A kick converts a try (Stagehand round 2: a game held a conversion
+  // and no try). With none waiting, only Force (the extra kick) can
+  // record one. The server checks the same rule.
+  const waitingTries = unconvertedTryIds(events);
+  const hasTryToConvert = afterTry || waitingTries.length > 0;
   const neverKickedOnField = onFieldPlayerIds.filter(
     (id) => (totalAttempts[id] ?? 0) === 0,
   );
@@ -106,15 +118,17 @@ export function RecordConversionDialog({
       made,
       quarter,
       elapsedMs,
-      { force, tryEventId },
+      { force, tryEventId: tryEventId ?? waitingTries[0] },
     ]);
-    await flushed;
+    try {
+      await flushed;
+    } catch (e) {
+      // Refused under a rule (no try, already kicked): say why.
+      setPendingKickerId(null);
+      setError(e instanceof Error ? e.message : "Couldn't record that kick.");
+      return;
+    }
     setPendingKickerId(null);
-    // The write queue swallows errors and retries. Surface a soft
-    // hint that the action is in flight — a true error would only
-    // show up if the queue's lastError gets surfaced; for Phase 5
-    // MVP we trust the queue to retry and close the dialog
-    // optimistically.
     router.refresh();
     onClose();
   }
@@ -143,6 +157,12 @@ export function RecordConversionDialog({
         {/* Alerts + scrollable player list */}
         <div className="flex-1 overflow-y-auto px-4">
           {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+          {!hasTryToConvert && (
+            <InlineAlert kind="warn">
+              No try to convert. Record the try first. Force is only for the
+              extra kick when the try-scorer was fouled.
+            </InlineAlert>
+          )}
           {showFreshBanner && (
             <InlineAlert kind="warn">
               {neverKickedOnField.length === 1
@@ -159,7 +179,7 @@ export function RecordConversionDialog({
 
           <div className="mt-2 space-y-1.5 pb-1">
             {onFieldPlayers.map((p) => {
-              const canPick = force || eligible.has(p.id);
+              const canPick = force || (hasTryToConvert && eligible.has(p.id));
               const alreadyKickedInCycle = cycle.attempted.has(p.id);
               const totalAttemptsForPlayer = totalAttempts[p.id] ?? 0;
               const everKicked = totalAttemptsForPlayer > 0;
@@ -171,7 +191,9 @@ export function RecordConversionDialog({
               //     but a never-kicker on field jumps the queue, so
               //     this player isn't eligible right now.
               //   * Nothing — they're an eligible pick.
-              const statusLabel = !canPick && alreadyKickedInCycle
+              const statusLabel = !hasTryToConvert
+                ? null
+                : !canPick && alreadyKickedInCycle
                 ? "Already kicked this cycle"
                 : !canPick && everKicked
                   ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`

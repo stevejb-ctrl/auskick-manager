@@ -34,7 +34,9 @@ import { vestHistory } from "@/lib/sports/rugby_league/vests";
 import {
   conversionCycle,
   kickoffCycle,
+  unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
@@ -673,6 +675,7 @@ export async function recordConversionAttempt(
   if (w.error) return { success: false, error: w.error };
 
   const force = options.force === true;
+  let tryEventId = options.tryEventId;
   if (!force) {
     // Re-derive state from the event log so the check survives
     // offline-queue replays and out-of-order arrivals. Same data
@@ -683,6 +686,19 @@ export async function recordConversionAttempt(
       .eq("game_id", gameId)
       .order("created_at", { ascending: true });
     const priorEvents = (priorEventsRaw ?? []) as GameEvent[];
+
+    // A kick converts a try. Stagehand round 2: a game held a made
+    // conversion and no try. Only Force (the extra kick) skips this.
+    const waiting = unconvertedTryIds(priorEvents);
+    if (waiting.length === 0) {
+      return {
+        success: false,
+        rejected: true,
+        error: "There's no try to convert. Record the try first.",
+      };
+    }
+    tryEventId ??= waiting[0];
+
     const state = replayLeagueGame(priorEvents);
     const onField = state.lineup
       ? [...state.lineup.forwards, ...state.lineup.backs]
@@ -692,6 +708,7 @@ export async function recordConversionAttempt(
     if (onField.length > 0 && !onField.includes(kickerId)) {
       return {
         success: false,
+        rejected: true,
         error: "That player is not on the field — they can't take this kick.",
       };
     }
@@ -703,6 +720,7 @@ export async function recordConversionAttempt(
     if (cycle.attempted.has(kickerId)) {
       return {
         success: false,
+        rejected: true,
         error:
           "That player has already kicked in this rotation — pick a teammate or use Force for the fouled-in-act-of-scoring carve-out.",
       };
@@ -720,7 +738,7 @@ export async function recordConversionAttempt(
         elapsed_ms: elapsedMs,
         made,
         force,
-        try_event_id: options.tryEventId,
+        try_event_id: tryEventId,
         sport: "rugby_league",
       },
     },
@@ -807,51 +825,45 @@ export async function recordOpponentConversion(
 
 // ─── undoLeagueScore ─────────────────────────────────────────
 // LIFO undo. Mirrors AFL `undoLastScore` / netball `undoNetballScore`
-// — emits a marker event; replay pairs score / score_undo from its
-// own stack. The optional `kind` filter lets the UI undo a specific
-// score type (e.g. only the last conversion attempt) rather than
-// the unrestricted "latest of any kind".
+// — takes back the latest score still standing and names it, which is
+// the one the replay's stack pops. There used to be an optional `kind`
+// filter before the key; the write queue appends its idempotency key as
+// the last argument, so the key landed in `kind` and every live undo
+// looked for a score of type "<uuid>" and failed (Stagehand round 2).
 export async function undoLeagueScore(
   auth: LiveAuth,
   gameId: string,
-  kind?: "try" | "opponent_try" | "conversion_attempt" | "opponent_conversion",
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  let targetQuery = w.supabase
+  const { data: rows } = await w.supabase
     .from("game_events")
     .select("id, type, metadata, player_id")
     .eq("game_id", gameId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  if (kind) {
-    targetQuery = targetQuery.eq("type", kind);
-  } else {
-    targetQuery = targetQuery.in("type", [
-      "try",
-      "opponent_try",
-      "conversion_attempt",
-      "opponent_conversion",
-    ]);
+    .in("type", ["try", "opponent_try", "conversion_attempt", "opponent_conversion", "score_undo"])
+    .order("created_at", { ascending: true });
+  type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
+  const standing: ScoreRow[] = [];
+  for (const row of (rows ?? []) as ScoreRow[]) {
+    if (row.type === "score_undo") takeUndoTarget(standing, row.metadata);
+    else standing.push(row);
   }
-
-  const { data: latest } = await targetQuery.maybeSingle();
-  if (!latest) {
-    return { success: false, error: "No score event found to undo." };
-  }
+  const latest = standing[standing.length - 1];
+  // Nothing standing: nothing to take back (and a retry won't change that).
+  if (!latest) return { success: true };
 
   const result = await insertEvent(
     auth,
     gameId,
     "score_undo",
     {
-      player_id: (latest as { player_id?: string | null }).player_id ?? null,
+      player_id: latest.player_id ?? null,
       metadata: {
-        target_event_id: (latest as { id: string }).id,
-        original_type: (latest as { type: string }).type,
+        target_event_id: latest.id,
+        original_type: latest.type,
+        quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
         sport: "rugby_league",
       },
     },

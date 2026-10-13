@@ -26,6 +26,7 @@
 // events. No DB columns. Pure functions, fully unit-tested.
 
 import type { GameEvent } from "@/lib/types";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
 
 // ─── Conversion attempts ─────────────────────────────────────
 
@@ -126,6 +127,32 @@ function survivingConversionEvents(events: GameEvent[]): ConversionEvent[] {
     }
   }
   return survivors;
+}
+
+/**
+ * Our tries still waiting for a conversion, oldest first. Each kick
+ * (made or missed) takes the oldest waiting try; a kick with nothing
+ * waiting is a forced extra kick (laws §15, fouled try-scorer) and
+ * takes nothing. Undone scores don't count. Stagehand round 2: a game
+ * held a made conversion and no try.
+ */
+export function unconvertedTryIds(events: GameEvent[]): string[] {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const undone = new Set(
+    pairScoreUndos(
+      sorted,
+      new Set(["try", "opponent_try", "conversion_attempt", "opponent_conversion"]),
+    ).values(),
+  );
+  const waiting: string[] = [];
+  for (const ev of sorted) {
+    if (undone.has(ev.id)) continue;
+    if (ev.type === "try") waiting.push(ev.id);
+    else if (ev.type === "conversion_attempt") waiting.shift();
+  }
+  return waiting;
 }
 
 export interface ConversionCycleInfo {

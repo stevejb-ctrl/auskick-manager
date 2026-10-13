@@ -190,6 +190,8 @@ export function LeagueLiveGame({
   );
   const [pending, setPending] = useState(false);
   const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
+  // True when a try just recorded opened the picker (see afterTry).
+  const [conversionAfterTry, setConversionAfterTry] = useState(false);
   /**
    * Own-team scorer picker — invoked by the scorebug's `+T` chip.
    * The chip itself doesn't mutate state; it opens this picker so
@@ -1050,6 +1052,7 @@ export function LeagueLiveGame({
     setPending(false);
     handleClearSelection();
     if (kickingAllowed) {
+      setConversionAfterTry(true);
       setConversionDialogOpen(true);
     }
     router.refresh();
@@ -1078,6 +1081,7 @@ export function LeagueLiveGame({
 
   function handleOpenConversionDialog() {
     setError(null);
+    setConversionAfterTry(false);
     setConversionDialogOpen(true);
   }
 
@@ -2468,6 +2472,7 @@ export function LeagueLiveGame({
           events={thisGameEvents}
           quarter={state.currentQuarter}
           elapsedMs={elapsedMs}
+          afterTry={conversionAfterTry}
           onClose={() => setConversionDialogOpen(false)}
         />
       )}
