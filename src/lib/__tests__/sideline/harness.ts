@@ -72,7 +72,10 @@ export function runWalks(
   walk: (r: Rng, trace: string[]) => void,
   { firstSeed = 1 }: { firstSeed?: number } = {},
 ): void {
-  for (let seed = firstSeed; seed < firstSeed + seeds; seed++) {
+  // SIDELINE_SCALE=20 runs twenty times the seeds, for a deep test round
+  // (the default keeps npm test quick).
+  const scale = Math.max(1, Number(process.env.SIDELINE_SCALE ?? 1) || 1);
+  for (let seed = firstSeed; seed < firstSeed + seeds * scale; seed++) {
     const trace: string[] = [];
     try {
       walk(rng(seed), trace);

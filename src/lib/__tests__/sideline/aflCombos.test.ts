@@ -101,8 +101,10 @@ function playStep(ctx: Ctx) {
     add(ctx, "swap", { off_player_id: off, on_player_id: on, zone, ...at }, on);
   } else if (choice === 3 && fieldFit.length >= 2) {
     const a = r.pick(fieldFit);
-    const b = r.pick(fieldFit.filter((p) => zoneOf(l, p) !== zoneOf(l, a)).concat([""]).filter(Boolean));
-    if (!b) return;
+    // A partner in another zone (none when everyone fit is in a's zone).
+    const partners = fieldFit.filter((p) => zoneOf(l, p) !== zoneOf(l, a));
+    if (!partners.length) return;
+    const b = r.pick(partners);
     ctx.trace.push(`zoneSwap ${a}↔${b}`);
     add(ctx, "field_zone_swap", { player_a_id: a, zone_a: zoneOf(l, a), player_b_id: b, zone_b: zoneOf(l, b), ...at }, a);
   } else if (choice === 4 && fieldFit.length) {
