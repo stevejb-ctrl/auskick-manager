@@ -11,6 +11,31 @@ No mission finished: the agents lost many steps to input lag on the dev
 server. Each finding below was checked against the code or in the browser
 before it went on this list. Agent noise is listed separately at the end.
 
+## Status: all fixed (13 Oct 2026)
+
+Steve's calls: pre-select the suggestion, and home kids start.
+
+| # | Fix | Commit |
+|---|---|---|
+| 1 | Before kickoff, Game plan starts from the lineup on screen in every sport, and "Use for Q1" applies changes. From the game page it's a labelled preview with How we play. League plans follow roles. | 971874b, d94534d |
+| 2 | One "Keep on". The lineup long-press is the hold menu (this game), with Player role inside it. Holds carry into the game. The role toggle reads "Keep on, every game". | 54f773b |
+| 3 | Kids with a home position start, in all three sports (league after §6). | d4e9c65 |
+| 4 | Age-group notes past U10 don't promise zones. | 4327bd8 |
+| 5 | A new team starts on its age group's suggested strategy. | 1bf03ab |
+| 6 | The rule check says where season balance stands. One check isn't "All rules kept". | 9897dd6 |
+| 7 | The netball starting bench says why kids sit. | ad57c2d |
+| 8 | Renaming a position replaces the label. | 0aad44a |
+| 9 | The role sheet spells out what's picked. | 8945b65 |
+| 10 | The Vests control explains each choice (fixed order = jersey order). | d663c5f |
+| 11 | With scoring off, the score bar says so, with "Turn it on" for coaches. | 35ddc93 |
+| 12 | "Positions saved." after saving. | 0aad44a |
+| 13 | League age groups read "Under 10". The colour key is named in the sport's words. The lineup reads "Suggested lineup". | c9eb63a |
+
+Found while fixing these: the netball live court threw its server HTML
+away on a slow phone (the clock's text didn't match), so the first tap
+was lost. Fixed in f62efb7, with slow-phone hydration tests for all three
+sports.
+
 ## Confirmed issues
 
 ### 1. Game plan disagrees with the lineup, and its edits go nowhere
