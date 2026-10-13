@@ -312,6 +312,14 @@ await stagehand.close();
  * agent reaches a break. Returns the team's Today tab URL.
  */
 async function seedTeam(admin, email, name, origin) {
+  // Each seed: the team, its How we play, a squad, and the game the
+  // mission plays. Options:
+  //   start      today (Today tab) | runner (share link) | game (game page)
+  //   gameIn     minutes until the game (default 30; a day = 1440)
+  //   pastGames  finished games with events, so stats and season balance
+  //              have something to show
+  //   morning    netball: a game already played this morning (carnival)
+  //   prefs      [squad index, { position_key | line, kind }]
   const SEEDS = {
     "afl-u12-gameday": {
       team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
@@ -327,6 +335,52 @@ async function seedTeam(admin, email, name, origin) {
       team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
       playbook: { strategy: "position-by-position" },
       squad: 9,
+    },
+    "afl-u10-runner": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+    },
+    "afl-u13-tomorrow": {
+      team: { name: "Kew Kookaburras", age_group: "U13", sport: "afl" },
+      playbook: { strategy: "set-positions" },
+      squad: 18,
+      gameIn: 20 * 60,
+      prefs: [
+        [0, { position_key: "ff", kind: "home" }],
+        [1, { position_key: "fb", kind: "home" }],
+        [2, { position_key: "c", kind: "home" }],
+        [3, { position_key: "r", kind: "home" }],
+      ],
+    },
+    "afl-u12-season": {
+      team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
+      playbook: { strategy: "preferred-lines", season_balance: "balanced" },
+      squad: 16,
+      pastGames: 3,
+      gameIn: 3 * 24 * 60,
+      prefs: [[4, { line: "fwd", kind: "home" }]],
+    },
+    "league-u11-gameday": {
+      team: { name: "Werribee Wolves", age_group: "U11", sport: "rugby_league" },
+      playbook: { strategy: "named-positions", vest_strategy: "fixed-order" },
+      squad: 15,
+      prefs: [
+        [2, { position_key: "hk", kind: "home" }],
+        [6, { position_key: "fb", kind: "home" }],
+      ],
+    },
+    "netball-11u-carnival": {
+      team: { name: "Preston Panthers", age_group: "11u", sport: "netball" },
+      playbook: {
+        strategy: "by-thirds",
+        season_balance: "off",
+        rules: [{ id: "carnival", kind: "every-line-per-day", params: {}, strength: "prefer", enabled: true, source: "pack:netball-carnival-day" }],
+      },
+      squad: 10,
+      morning: true,
+      gameIn: 10,
     },
   };
   const s = SEEDS[name];
@@ -348,7 +402,7 @@ async function seedTeam(admin, email, name, origin) {
   const { error: teamErr } = await admin.from("teams").insert({ ...s.team, track_scoring: true, created_by: ownerId });
   if (teamErr) throw new Error(`seed team: ${teamErr.message}`);
   const { data: team } = await admin.from("teams").select("id").eq("created_by", ownerId).single();
-  await admin.from("team_playbooks").insert({ team_id: team.id, ...s.playbook });
+  if (s.playbook) await admin.from("team_playbooks").insert({ team_id: team.id, ...s.playbook });
   const { data: players } = await admin
     .from("players")
     .insert(
@@ -360,26 +414,87 @@ async function seedTeam(admin, email, name, origin) {
         created_by: ownerId,
       })),
     )
-    .select("id");
+    .select("id, jersey_number")
+    .order("jersey_number");
+  const ids = players.map((p) => p.id);
+  for (const [i, pref] of s.prefs ?? []) {
+    await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: ids[i], ...pref });
+  }
+
+  // Finished games: one lineup per quarter, rotating who sits, a goal or two.
+  const minsAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  async function playedGame(opponent, startMinsAgo, quarters, lineupFor) {
+    const { data: past, error } = await admin
+      .from("games")
+      .insert({
+        team_id: team.id,
+        opponent,
+        scheduled_at: minsAgo(startMinsAgo + 10),
+        created_by: ownerId,
+        status: "completed",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`seed past game: ${error.message}`);
+    const events = [];
+    let t = startMinsAgo;
+    for (let q = 1; q <= quarters; q++) {
+      const { lineup, type } = lineupFor(q);
+      events.push({ game_id: past.id, type, metadata: q === 1 || type === "lineup_set" ? { lineup } : { quarter: q, lineup, sport: "netball", midQuarterSubs: [] }, created_by: ownerId, created_at: minsAgo(t + 0.05) });
+      events.push({ game_id: past.id, type: "quarter_start", metadata: { quarter: q }, created_by: ownerId, created_at: minsAgo(t) });
+      events.push({ game_id: past.id, type: "quarter_end", metadata: { quarter: q, elapsed_ms: 10 * 60_000 }, created_by: ownerId, created_at: minsAgo(t - 10) });
+      t -= 12;
+    }
+    events.push({ game_id: past.id, type: "game_finalised", metadata: { quarter: quarters }, created_by: ownerId, created_at: minsAgo(t) });
+    await admin.from("game_events").insert(events);
+  }
+  if (s.pastGames) {
+    // AFL, 12 on: three lines of four, the rest on the bench, rotating.
+    for (let gNo = 0; gNo < s.pastGames; gNo++) {
+      await playedGame(["Elwood Eels", "Hampton Hawks", "Mentone Magpies"][gNo % 3], (s.pastGames - gNo) * 7 * 24 * 60, 4, (q) => {
+        const shift = (gNo * 4 + q) % ids.length;
+        const order = [...ids.slice(shift), ...ids.slice(0, shift)];
+        return {
+          type: "lineup_set",
+          lineup: { back: order.slice(0, 4), hback: [], mid: order.slice(4, 8), hfwd: [], fwd: order.slice(8, 12), bench: order.slice(12) },
+        };
+      });
+    }
+  }
+  if (s.morning) {
+    // Netball carnival: this morning's game, two quarters. Everyone has a
+    // turn in attack except the first kid (centre, then defence).
+    const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+    const lineupOf = (order) => ({ positions: Object.fromEntries(keys.map((k, i) => [k, [order[i]]])), bench: order.slice(7) });
+    const [a, b, c, d, e, f, g, h, i2, j] = ids;
+    await playedGame("Thornbury Thunder", 150, 2, (q) =>
+      q === 1
+        ? { type: "lineup_set", lineup: lineupOf([b, c, d, a, e, f, g, h, i2, j]) }
+        : { type: "period_break_swap", lineup: lineupOf([h, i2, j, b, c, d, a, e, f, g]) },
+    );
+  }
+
   const { data: game, error: gameErr } = await admin
     .from("games")
     .insert({
       team_id: team.id,
       opponent: "Sandringham Sharks",
-      scheduled_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-      round_number: 4,
+      scheduled_at: new Date(Date.now() + (s.gameIn ?? 30) * 60_000).toISOString(),
+      round_number: (s.pastGames ?? 0) + 4,
       created_by: ownerId,
       clock_multiplier: 8,
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
     })
-    .select("id")
+    .select("id, share_token")
     .single();
   if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
   await admin.from("game_availability").insert(
-    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available", updated_by: ownerId })),
+    ids.map((pid) => ({ game_id: game.id, player_id: pid, status: "available", updated_by: ownerId })),
   );
   console.log(`▶ Seeded ${s.team.name} (${name})`);
+  if (s.start === "runner") return `${origin}/run/${game.share_token}`;
+  if (s.start === "game") return `${origin}/teams/${team.id}/games/${game.id}`;
   return `${origin}/teams/${team.id}`;
 }
 function listMissions() {
