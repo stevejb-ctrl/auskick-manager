@@ -110,14 +110,16 @@ test("injuring an on-field player prompts for a bench replacement and persists b
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
 
-  // Both server actions (markInjury + recordSwap) run in parallel
-  // inside startTransition; poll until both events have landed.
+  // Both writes (markInjury, then recordSwap) go down the game's one
+  // write-queue lane, so they land in that order (sideline combos: in
+  // separate lanes the swap could overtake the injury, and the replay
+  // lost the replacement). Poll until both have landed, in order.
   await expect
     .poll(
       async () => {
         const { data } = await admin
           .from("game_events")
-          .select("type, player_id, metadata")
+          .select("type, player_id, metadata, created_at")
           .eq("game_id", game.id)
           .in("type", ["injury", "swap"]);
         const inj = (data ?? []).find(
@@ -135,9 +137,9 @@ test("injuring an on-field player prompts for a bench replacement and persists b
               replacement.id &&
             (e.metadata as { zone?: string })?.zone === "mid",
         );
-        return Boolean(inj) && Boolean(sw);
+        return Boolean(inj) && Boolean(sw) && inj!.created_at < sw!.created_at;
       },
-      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+      { timeout: 10_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe(true);
 });

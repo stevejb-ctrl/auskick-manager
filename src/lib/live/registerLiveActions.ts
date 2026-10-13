@@ -14,6 +14,7 @@ import {
   recordGoal,
   recordBehind,
   recordOpponentScore,
+  undoLastScore,
   markInjury,
   markLoan,
   recordLineupSet,
@@ -81,6 +82,7 @@ const actions = {
   recordGoal,
   recordBehind,
   recordOpponentScore,
+  undoLastScore,
   markInjury,
   markLoan,
   // Saved holds; netball uses it too (Keep in {position}).

@@ -45,27 +45,52 @@ import { isNative } from "@/lib/platform";
 export type ActionResult = { success: boolean; error?: string; rejected?: boolean };
 
 /**
- * Scores and their undos share one lane, so an undo can never overtake
- * the score it takes back (Stagehand round 2: a netball undo ran before
- * its goal was saved, found nothing to undo, and paused). Every other
- * kind is its own lane.
+ * Every live-game action shares one lane, so a game's events land in the
+ * order the coach acted. Separate lanes let a replacement swap overtake
+ * its injury, a swap land after the hooter, or an undo beat its score,
+ * and the replay then showed a different game (Stagehand round 2;
+ * sideline-combos walks). Anything else (pre-game availability) keeps
+ * its own lane.
  */
-const SCORE_LANE = new Set([
+const GAME_LANE = new Set([
+  // AFL (several shared by netball and league)
+  "startQuarter",
+  "endQuarter",
+  "addLateArrival",
   "recordGoal",
   "recordBehind",
   "recordOpponentScore",
+  "undoLastScore",
+  "markInjury",
+  "markLoan",
+  "recordPlayerLock",
+  "recordLineupSet",
+  "recordSwap",
+  "recordFieldZoneSwap",
+  // Netball
+  "periodBreakSwap",
+  "startNetballQuarter",
+  "endNetballQuarter",
   "recordNetballGoal",
   "recordNetballOpponentGoal",
   "undoNetballScore",
+  // Rugby league
+  "startLeagueQuarter",
+  "endLeagueQuarter",
+  "recordLeagueSwap",
+  "recordLeagueLineupSet",
+  "recordLeaguePositionChange",
   "recordTry",
   "recordOpponentTry",
   "recordConversionAttempt",
   "recordOpponentConversion",
   "recordLeagueGoal",
   "undoLeagueScore",
+  "assignLeagueVest",
+  "recordKickoff",
 ]);
 export function laneOf(kind: string): string {
-  return SCORE_LANE.has(kind) ? "score" : kind;
+  return GAME_LANE.has(kind) ? "game" : kind;
 }
 
 /**
@@ -276,6 +301,8 @@ export const useWriteQueue = create<WriteQueueState>()(
         // Drop any flushed-promise resolvers too, otherwise they'd
         // leak (their ops are gone, no one ever resolves them).
         flushedResolvers.clear();
+        retryTimers.forEach((t) => clearTimeout(t));
+        retryTimers.clear();
         set({ queue: [], inFlightKinds: [], pausedKinds: [] });
       },
     }),
@@ -291,6 +318,23 @@ export const useWriteQueue = create<WriteQueueState>()(
     },
   ),
 );
+
+// ─── Backoff retry for a paused lane ──────────────────────────
+// 1s, 2s, 4s, … (capped at 30s) after each failed attempt; the op is
+// dropped at MAX_OP_ATTEMPTS as before. One timer per lane.
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function scheduleLaneRetry(lane: string, attempt: number): void {
+  if (retryTimers.has(lane)) return;
+  const delay = Math.min(30_000, 1000 * 2 ** Math.max(0, attempt - 1));
+  retryTimers.set(
+    lane,
+    setTimeout(() => {
+      retryTimers.delete(lane);
+      useWriteQueue.setState((s) => ({ pausedKinds: s.pausedKinds.filter((k) => k !== lane) }));
+      void useWriteQueue.getState().drain();
+    }, delay),
+  );
+}
 
 // Helper used by drain(). Runs a handler, post-processes the
 // queue + lane state, and returns when the dispatch is fully
@@ -379,7 +423,11 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     } else {
       // Transient failure: bump attemptCount, pause this kind. The
       // op stays at its position so when resume() clears the
-      // pause, drain picks it up again from the same place.
+      // pause, drain picks it up again from the same place. The lane
+      // also retries itself after a backoff: with one game lane, a
+      // single hiccup used to hold every later sideline action until
+      // the phone went offline and back, or reloaded.
+      scheduleLaneRetry(laneOf(op.kind), nextAttempt);
       useWriteQueue.setState((s) => ({
         queue: s.queue.map((q) =>
           q.id === op.id

@@ -798,6 +798,8 @@ export async function recordKickoff(
   if (cycle.taken.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
     return {
       success: false,
+      // A rule refusal: dropped, not retried (it would hold the game lane).
+      rejected: true,
       error:
         "That player has already taken a kickoff in this rotation — pick a teammate who hasn't yet.",
     };
@@ -977,6 +979,8 @@ export async function assignLeagueVest(
     if (used.has(playerId)) {
       return {
         success: false,
+        // A rule refusal: dropped, not retried (it would hold the game lane).
+        rejected: true,
         error: `That player has already worn the ${vest.toUpperCase()} vest this game.`,
       };
     }

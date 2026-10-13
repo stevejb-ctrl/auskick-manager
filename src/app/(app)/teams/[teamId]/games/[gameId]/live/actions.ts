@@ -905,6 +905,10 @@ export async function recordSwap(
   );
 }
 
+// Takes back the latest score of this kind still standing. It runs on
+// the game's write-queue lane (it used to bypass the queue, so it could
+// land before its goal), and a second undo no longer re-targets a score
+// already undone. Nothing standing: nothing to do (a retry won't help).
 export async function undoLastScore(
   auth: LiveAuth,
   gameId: string,
@@ -912,30 +916,38 @@ export async function undoLastScore(
     kind: "goal" | "behind" | "opponent_goal" | "opponent_behind";
     quarter: number;
     playerId: string | null;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { data: latest } = await w.supabase
+  const scoreTypes = ["goal", "behind", "opponent_goal", "opponent_behind"];
+  const { data: rows } = await w.supabase
     .from("game_events")
-    .select("id")
+    .select("id, type, metadata")
     .eq("game_id", gameId)
-    .eq("type", input.kind)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in("type", [...scoreTypes, "score_undo"])
+    .order("created_at", { ascending: true });
+  const events = (rows ?? []) as { id: string; type: string; metadata: unknown }[];
+  const undone = new Set(pairScoreUndos(events, new Set(scoreTypes)).values());
+  const latest = [...events].reverse().find((e) => e.type === input.kind && !undone.has(e.id));
+  if (!latest) return { success: true };
 
-  if (!latest) return { success: false, error: "No score event found to undo." };
-
-  return insertEvent(auth, gameId, "score_undo", {
-    player_id: input.playerId,
-    metadata: {
-      target_event_id: latest.id,
-      original_type: input.kind,
-      quarter: input.quarter,
+  return insertEvent(
+    auth,
+    gameId,
+    "score_undo",
+    {
+      player_id: input.playerId,
+      metadata: {
+        target_event_id: latest.id,
+        original_type: input.kind,
+        quarter: input.quarter,
+      },
     },
-  });
+    idempotencyKey,
+  );
 }
 
 // ─── Score-log fetch / delete-any / retro-add ────────────────

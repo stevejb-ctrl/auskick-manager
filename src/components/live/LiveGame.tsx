@@ -8,9 +8,6 @@ import {
   clockElapsedMs,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
-import {
-  undoLastScore,
-} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
@@ -1009,14 +1006,13 @@ export function LiveGame({
         ? kind
         : kind === "goal" ? "opponent_goal" : "opponent_behind";
 
-    startTransition(async () => {
-      const result = await undoLastScore(auth, gameId, {
-        kind: serverKind,
-        quarter,
-        playerId: playerId ?? null,
-      });
-      if (!result.success) setError(result.error);
-    });
+    // On the game's write-queue lane, so it can't overtake its score.
+    const { flushed } = enqueueLiveAction("undoLastScore", [
+      auth,
+      gameId,
+      { kind: serverKind, quarter, playerId: playerId ?? null },
+    ]);
+    flushed.catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't undo that score."));
   }
 
   // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled
