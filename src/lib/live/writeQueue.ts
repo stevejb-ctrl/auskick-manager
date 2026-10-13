@@ -36,7 +36,13 @@ import { isNative } from "@/lib/platform";
 // has the unflushed ops on relaunch. Lane state (inFlightKinds /
 // pausedKinds) is runtime-only.
 
-export type ActionResult = { success: boolean; error?: string };
+/**
+ * `rejected`: the server refused the write under a game rule (e.g. a
+ * conversion with no try). Retrying can't help, so the op is dropped
+ * straight away and its `flushed` rejects with the error, rather than
+ * pausing the lane (which would stall every score behind it).
+ */
+export type ActionResult = { success: boolean; error?: string; rejected?: boolean };
 
 /**
  * Scores and their undos share one lane, so an undo can never overtake
@@ -345,8 +351,8 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     }));
   } else {
     const nextAttempt = op.attemptCount + 1;
-    if (nextAttempt >= MAX_OP_ATTEMPTS) {
-      // Hit the cap — give up on this op so the caller can roll
+    if (result.rejected || nextAttempt >= MAX_OP_ATTEMPTS) {
+      // Refused under a rule, or hit the cap — give up on this op so the caller can roll
       // back any optimistic UI. Without this, a permanent failure
       // (auth rejected, validation error) leaves the optimistic
       // flip spinning forever. Reject BEFORE popping the queue so

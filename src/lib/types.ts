@@ -606,6 +606,8 @@ export type Database = {
 // inserted row so the client can replace its temp-id placeholder) get
 // proper type narrowing on `.data`. Defaults to `unknown` for the bulk
 // of actions that just signal success/failure.
+// `rejected`: refused under a game rule, so the write queue drops the op
+// instead of retrying it (see writeQueue's ActionResult).
 export type ActionResult<T = unknown> =
   | { success: true; data?: T }
-  | { success: false; error: string };
+  | { success: false; error: string; rejected?: true };

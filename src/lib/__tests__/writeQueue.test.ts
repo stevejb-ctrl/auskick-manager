@@ -173,6 +173,31 @@ describe("writeQueue", () => {
     expect(calls).toEqual(["goal-start", "goal-end", "undo"]);
   });
 
+  it("a rule rejection drops its op at once and doesn't hold up the lane", async () => {
+    // A conversion with no try is refused under a game rule. Retrying
+    // can't help, and pausing would stall every score queued behind it
+    // (scores share a lane), so the op is dropped and its caller told.
+    const calls: string[] = [];
+    registerActionHandler("recordConversionAttempt", async (): Promise<ActionResult> => {
+      calls.push("kick");
+      return { success: false, error: "There's no try to convert.", rejected: true };
+    });
+    registerActionHandler("recordTry", async (): Promise<ActionResult> => {
+      calls.push("try");
+      return { success: true };
+    });
+
+    const kick = useWriteQueue.getState().enqueue("recordConversionAttempt", []);
+    const kickOutcome = kick.flushed.then(() => "flushed", (e: Error) => e.message);
+    useWriteQueue.getState().enqueue("recordTry", []);
+    await flushMicrotasks();
+
+    expect(calls).toEqual(["kick", "try"]);
+    expect(await kickOutcome).toBe("There's no try to convert.");
+    expect(useWriteQueue.getState().queue).toEqual([]);
+    expect(useWriteQueue.getState().pausedKinds).toEqual([]);
+  });
+
   it("runs ops of DIFFERENT kinds in parallel (lane independence)", async () => {
     // Old behaviour serialized everything — a slow score-goal would
     // delay a set-availability flip behind it. New behaviour
