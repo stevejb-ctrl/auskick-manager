@@ -59,6 +59,21 @@ export async function setAvailability(
   playerId: string,
   status: AvailabilityStatus
 ): Promise<ActionResult> {
+  return setAvailabilityMany(auth, gameId, [playerId], status);
+}
+
+/**
+ * The same, for several players in one write: "Mark all in". It used to
+ * send one setAvailability per kid, one after another (12 round trips;
+ * over 10 s on a slow line, round 5).
+ */
+export async function setAvailabilityMany(
+  auth: LiveAuth,
+  gameId: string,
+  playerIds: string[],
+  status: AvailabilityStatus
+): Promise<ActionResult> {
+  if (playerIds.length === 0) return { success: true };
   if (auth.kind === "token") {
     const admin = createAdminClient();
     const { data: game } = await admin
@@ -69,13 +84,14 @@ export async function setAvailability(
     if (!game || game.share_token !== auth.token) {
       return { success: false, error: "Invalid share link." };
     }
+    const now = new Date().toISOString();
     const { error } = await admin.from("game_availability").upsert(
-      {
+      playerIds.map((playerId) => ({
         game_id: gameId,
         player_id: playerId,
         status,
-        updated_at: new Date().toISOString(),
-      },
+        updated_at: now,
+      })),
       { onConflict: "game_id,player_id" }
     );
     if (error) return { success: false, error: error.message };
@@ -117,14 +133,15 @@ export async function setAvailability(
   // to bypass RLS when the caller is super-admin — auth was
   // verified server-side above, so the admin escape is safe.
   const writer = membership ? supabase : createAdminClient();
+  const now = new Date().toISOString();
   const { error } = await writer.from("game_availability").upsert(
-    {
+    playerIds.map((playerId) => ({
       game_id: gameId,
       player_id: playerId,
       status,
       updated_by: userId,
-      updated_at: new Date().toISOString(),
-    },
+      updated_at: now,
+    })),
     { onConflict: "game_id,player_id" }
   );
 

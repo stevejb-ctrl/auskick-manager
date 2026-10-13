@@ -89,8 +89,11 @@ const GAME_LANE = new Set([
   "assignLeagueVest",
   "recordKickoff",
 ]);
+// The bulk availability write shares the per-row lane, so a row tap and
+// "Mark all in" land in the order the coach made them.
+const SHARED_LANE: Record<string, string> = { setAvailabilityMany: "setAvailability" };
 export function laneOf(kind: string): string {
-  return GAME_LANE.has(kind) ? "game" : kind;
+  return GAME_LANE.has(kind) ? "game" : SHARED_LANE[kind] ?? kind;
 }
 
 /**

@@ -52,7 +52,7 @@ import {
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
 // to the live-game actions so it slots in here.
-import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { setAvailability, setAvailabilityMany } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 
 // ─── Wire live-game server actions into the write queue ───────
 //
@@ -122,6 +122,7 @@ const actions = {
 
   // ── Availability (pre-game RSVP) ────────────────────────────
   setAvailability,
+  setAvailabilityMany,
 };
 
 const handlers = actions as unknown as Record<string, ActionHandler>;

@@ -17,8 +17,9 @@ interface MarkAllInButtonProps {
  * Bulk "everyone's here" action for the pre-game availability step.
  * The common Saturday case is the whole squad showing up — marking 13
  * kids in was 13 individual taps (UX review #1/#11, Steve 2026-07-08).
- * One tap enqueues a setAvailability write per not-yet-in player via
- * the same write queue the row toggles use (idempotent, offline-safe),
+ * One tap enqueues a single setAvailabilityMany write for every
+ * not-yet-in player, on the same write-queue lane the row toggles use
+ * (idempotent, offline-safe),
  * then refreshes so the RSC re-renders with everyone In. The coach
  * then just taps Out on the one or two absentees.
  *
@@ -33,19 +34,17 @@ export function MarkAllInButton({ auth, gameId, notInIds }: MarkAllInButtonProps
   function handleMarkAll() {
     if (pending) return;
     setPending(true);
-    const flushes = notInIds.map(
-      (playerId) =>
-        enqueueLiveAction("setAvailability", [auth, gameId, playerId, "available"])
-          .flushed,
-    );
-    Promise.allSettled(flushes).then(() => {
-      // Refresh regardless — the write queue retries transient
-      // failures forever, so by the time these settle the rows are
-      // either confirmed or queued; the RSC re-render shows the
-      // server truth.
-      router.refresh();
-      setPending(false);
-    });
+    // One write for everyone (it was one per kid, one after another:
+    // 12 round trips, over 10 s on a slow line).
+    const { flushed } = enqueueLiveAction("setAvailabilityMany", [auth, gameId, notInIds, "available"]);
+    flushed
+      .catch(() => {
+        // Dropped after its retries; the refresh shows the server truth.
+      })
+      .finally(() => {
+        router.refresh();
+        setPending(false);
+      });
   }
 
   return (

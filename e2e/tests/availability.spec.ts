@@ -91,6 +91,12 @@ test("Mark all in marks the whole squad available in one tap", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
 
+  // One save for the whole squad (round 5: it was one per kid, 12 round
+  // trips one after another, and on a slow line it took over 10 s).
+  const saves: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.headers()["next-action"]) saves.push(r.url());
+  });
   await page.getByRole("button", { name: /^mark all 12 in$/i }).click();
 
   // Every squad player ends up available…
@@ -107,6 +113,7 @@ test("Mark all in marks the whole squad available in one tap", async ({
       { timeout: 10_000, intervals: [300, 500, 500, 1000, 1000, 2000] },
     )
     .toBe(players.length);
+  expect(saves).toHaveLength(1);
 
   // …and the bulk button disappears (nothing left to mark).
   await expect(

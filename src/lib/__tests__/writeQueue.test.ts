@@ -248,8 +248,13 @@ describe("writeQueue", () => {
     const kinds = Array.from(block.matchAll(/^\s+([a-zA-Z]+),\s*$/gm)).map((m) => m[1]);
     expect(kinds.length).toBeGreaterThan(20);
     for (const kind of kinds) {
-      expect(laneOf(kind), kind).toBe(kind === "setAvailability" ? "setAvailability" : "game");
+      expect(laneOf(kind), kind).toBe(kind.startsWith("setAvailability") ? "setAvailability" : "game");
     }
+    // "Mark all in" is one bulk write now (it was one per kid, 12 round
+    // trips, round 5); it shares the per-row lane so a row tap and the
+    // bulk write land in the order the coach made them.
+    expect(kinds).toContain("setAvailabilityMany");
+    expect(laneOf("setAvailabilityMany")).toBe(laneOf("setAvailability"));
   });
 
   it("a rule rejection drops its op at once and doesn't hold up the lane", async () => {
