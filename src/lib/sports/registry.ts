@@ -29,8 +29,9 @@ export function isSportId(value: unknown): value is SportId {
 
 /**
  * Resolve an age group config for a team. Given a sport + age-group id,
- * returns the matching AgeGroupConfig. Falls back to the sport's first
- * age group on a miss (safe default).
+ * returns the matching AgeGroupConfig, including retired ids existing
+ * teams still store. Falls back to the sport's first age group on a
+ * miss (safe default).
  */
 export function getAgeGroupConfig(
   sport: SportId | string | null | undefined,
@@ -38,7 +39,9 @@ export function getAgeGroupConfig(
 ): AgeGroupConfig {
   const cfg = getSportConfig(sport);
   if (ageGroupId) {
-    const hit = cfg.ageGroups.find((a) => a.id === ageGroupId);
+    const hit =
+      cfg.ageGroups.find((a) => a.id === ageGroupId) ??
+      cfg.legacyAgeGroups?.find((a) => a.id === ageGroupId);
     if (hit) return hit;
   }
   return cfg.ageGroups[0];

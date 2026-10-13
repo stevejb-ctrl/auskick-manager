@@ -184,7 +184,14 @@ export interface SportConfig {
   zones: ZoneDef[];
   allPositions: PositionDef[];
   scoreTypes: ScoreTypeDef[];
+  /** Age groups a new or edited team can pick, in picker order. */
   ageGroups: AgeGroupConfig[];
+  /**
+   * Retired ids that existing teams may still store (e.g. AFL's unsplit
+   * "U16" / "U17"). `getAgeGroupConfig` resolves them; pickers never
+   * offer them.
+   */
+  legacyAgeGroups?: AgeGroupConfig[];
   substitutionRule: "rolling" | "period-break-only";
   periodLabel: "quarter" | "half" | "period";
   periodLabelPlural: "quarters" | "halves" | "periods";

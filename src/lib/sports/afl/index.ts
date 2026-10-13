@@ -7,6 +7,7 @@
 import { AGE_GROUPS, AGE_GROUP_ORDER, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import type { SportConfig, ZoneDef, PositionDef, ScoreTypeDef, AgeGroupConfig } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
+import type { AgeGroup } from "@/lib/types";
 
 const AFL_ZONES_FULL: ZoneDef[] = [
   { id: "back", label: ZONE_LABELS.back, shortLabel: ZONE_SHORT_LABELS.back },
@@ -31,8 +32,8 @@ const AFL_SCORE_TYPES: ScoreTypeDef[] = [
   { id: "opponent_behind", label: "Opponent Behind", shortLabel: "+B", points: 1, opponent: true },
 ];
 
-function aflAgeGroups(): AgeGroupConfig[] {
-  return AGE_GROUP_ORDER.map((id) => {
+function aflAgeGroups(ids: AgeGroup[]): AgeGroupConfig[] {
+  return ids.map((id) => {
     const cfg = AGE_GROUPS[id];
     const zones =
       cfg.positionModel === "positions5"
@@ -74,7 +75,10 @@ export const aflSport: SportConfig = {
   zones: AFL_ZONES_FULL,
   allPositions: AFL_POSITIONS,
   scoreTypes: AFL_SCORE_TYPES,
-  ageGroups: aflAgeGroups(),
+  ageGroups: aflAgeGroups(AGE_GROUP_ORDER),
+  // Pre-split "U16" / "U17" teams (before 2026-05-20). Without these
+  // they fell back to U8 everywhere the registry is read.
+  legacyAgeGroups: aflAgeGroups(["U16", "U17"]),
   substitutionRule: "rolling",
   periodLabel: "quarter",
   periodLabelPlural: "quarters",

@@ -414,3 +414,56 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
   await page.getByRole("button", { name: /^end q1$/i }).click();
   await expect(page.getByText(/lineup for q2/i)).toBeVisible({ timeout: 10_000 });
 });
+
+// Regression: AFL teams created before the 2026-05-20 boys/girls split
+// still store age_group "U16" / "U17". The sport registry didn't list
+// those ids, so the kickoff clamp in live/actions.ts resolved the team
+// to U8 (max 9 on field) and cut a 12-a-side lineup down to 9.
+test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U16" });
+  // 15 players is the factory's ceiling, so field U16's minimum (12)
+  // and leave 3 on the bench.
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U16" });
+  await admin.from("games").update({ on_field_size: 12 }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await expect(
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
+  ).toBeVisible({ timeout: 10_000 });
+
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("games")
+          .select("on_field_size")
+          .eq("id", game.id)
+          .single();
+        return data?.on_field_size;
+      },
+      { timeout: 5_000 },
+    )
+    .toBe(12);
+});

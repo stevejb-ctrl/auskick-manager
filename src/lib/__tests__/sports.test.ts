@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSportConfig,
+  getAgeGroupConfig,
   getBrandForHost,
   getEffectiveQuarterSeconds,
   ALL_SPORT_IDS,
@@ -83,6 +84,25 @@ describe("AFL sport config", () => {
     for (const ag of aflSport.ageGroups) {
       expect(ag.positions).toEqual(["back", "mid", "fwd"]);
     }
+  });
+
+  // Regression: teams created before the 2026-05-20 boys/girls split
+  // still read "U16" / "U17". The registry only listed the split ids,
+  // so these teams fell back to U8 (6-a-side, 4–9 on field) and
+  // kickoff clamped an 18-player lineup down to 9.
+  it.each(["U16", "U17"])("legacy %s teams resolve to their own 18-a-side config", (id) => {
+    const cfg = getAgeGroupConfig("afl", id);
+    expect(cfg.id).toBe(id);
+    expect(cfg.defaultOnFieldSize).toBe(18);
+    expect(cfg.minOnFieldSize).toBe(12);
+    expect(cfg.maxOnFieldSize).toBe(18);
+    expect(cfg.maxSquadSize).toBe(25);
+  });
+
+  it("legacy U16 / U17 stay out of the new-team age list", () => {
+    const ids = aflSport.ageGroups.map((a) => a.id);
+    expect(ids).not.toContain("U16");
+    expect(ids).not.toContain("U17");
   });
 });
 
