@@ -47,20 +47,19 @@ test.describe.configure({ mode: "parallel" });
 
 // ─── Inline SwapCard override (F1 inline) ─────────────────────────
 // The same override the planner does, but WITHOUT leaving the field:
-// the coach taps the incoming chip on the SwapCard, picks a different
-// bench player from the inline picker, and that choice is pinned via
-// the SAME plannedRotation slice — the SwapCard shows it "Edited" and
-// "Do all" applies the coach's pick, not the engine's.
+// the coach taps a chip on the SwapCard, picks a different player from
+// the inline picker, and that choice is pinned via the SAME
+// plannedRotation slice — the SwapCard shows it "Edited" and "Do all"
+// applies the coach's pick, not the engine's.
 //
 //   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
 //   2. Reach the sub-due moment, dismiss the SubDueModal once.
-//   3. Expand the SwapCard, tap pair 0's incoming chip, and pick a
-//      bench option the engine did NOT already have coming on there.
-//   4. Assert: the pair shows the "Edited" badge + the "Planned sub
-//      ready" badge surfaces (the inline edit pinned, same as the
-//      planner's "Pin this sub").
-//   5. "Do all", then assert a `swap` event landed bringing the
-//      coach-picked player on — proving the inline override was
+//   3. Expand the SwapCard, tap pair 0's outgoing chip, and pick a
+//      teammate the engine did NOT already have coming off there.
+//   4. Assert: the pair shows the "Edited" badge (the inline edit
+//      pinned, same as the planner's "Pin this sub").
+//   5. "Do all", then assert a `swap` event landed taking the
+//      coach-picked player off — proving the inline override was
 //      honoured end-to-end.
 test("F1-inline: overriding the incoming player on the SwapCard pins it and is honoured", async ({
   page,
@@ -145,17 +144,20 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
   const toggle = page.getByTestId("swapcard-toggle");
   await expect(toggle).toBeVisible({ timeout: 5_000 });
   await toggle.click();
-  await page.getByTestId("swap-pair-0-on").click();
+  // Override who comes OFF. (The incoming side has no spare: with three
+  // on the bench the suggester brings all three on, so pair 0's only
+  // "bring on instead" option is its own pick.)
+  await page.getByTestId("swap-pair-0-off").click();
 
-  // Pick a bench option the engine did NOT already have coming on here
-  // (the picker marks the current pick with bg-brand-600, so a
+  // Pick a teammate in that zone the engine did NOT already have coming
+  // off (the picker marks the current pick with bg-brand-600, so a
   // :not(.bg-brand-600) option is guaranteed to be a real change).
   const freshOption = page
     .locator('[data-testid^="swap-option-"]:not(.bg-brand-600)')
     .first();
   await expect(freshOption).toBeVisible({ timeout: 5_000 });
   const optionTestId = await freshOption.getAttribute("data-testid");
-  const chosenOnId = optionTestId!.replace("swap-option-", "");
+  const chosenOffId = optionTestId!.replace("swap-option-", "");
   await freshOption.click();
 
   // The edit pinned: the pair now wears the inline "Edited" badge. (The
@@ -166,7 +168,7 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     timeout: 5_000,
   });
 
-  // Apply everything and confirm the coach-picked player came on.
+  // Apply everything and confirm the coach-picked player came off.
   await page.getByTestId("swapcard-apply-all").click();
   await expect
     .poll(
@@ -178,8 +180,8 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
           .eq("type", "swap");
         return (data ?? []).some(
           (e) =>
-            ((e.metadata ?? {}) as { on_player_id?: string }).on_player_id ===
-            chosenOnId,
+            ((e.metadata ?? {}) as { off_player_id?: string }).off_player_id ===
+            chosenOffId,
         );
       },
       { timeout: 7_000, intervals: [200, 200, 500, 500, 1000] },
