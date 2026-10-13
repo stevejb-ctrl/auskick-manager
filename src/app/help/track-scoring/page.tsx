@@ -23,7 +23,8 @@ export default function TrackScoringPage() {
       <p className="mt-2 text-sm text-ink-dim">
         Football games record both goals and behinds; netball games record
         goals only; rugby league games record tries (4 points) and
-        conversions (2 points). The toggle behaves the same way across all
+        conversions (2 points), plus penalty goals (2) and field goals (1)
+        from Under 13, where the international laws apply. The toggle behaves the same way across all
         three — flip it on per game, and the live screen reveals the right
         scoring controls for your sport. Junior rugby league at U6 and U7 is
         tag-only with no scoreboard, so the toggle is off by default at
@@ -69,7 +70,8 @@ export default function TrackScoringPage() {
             For netball, only the GS and GA shooter positions are tappable for
             attribution. For rugby league, any on-field player can be tagged
             as the try-scorer; conversions open the kicker picker so the
-            §15 rotation can be honoured.
+            §15 rotation can be honoured (to Under 12 — from Under 13 there&apos;s
+            no rotation, and Penalty goal and Field goal sit beside Try).
           </li>
           <li>
             Each player&apos;s tile shows a small chip with their tally for
@@ -84,7 +86,8 @@ export default function TrackScoringPage() {
             The scoreboard in the header updates in real time. Football
             displays the standard goals·behinds with total points; netball
             shows a single goals tally; rugby league shows the points total
-            with a &ldquo;tries · conversions&rdquo; breakdown underneath.
+            with a &ldquo;tries · conversions&rdquo; breakdown underneath
+            (and penalty and field goals once there are some).
           </li>
           <li>
             An <strong className="text-ink">Undo</strong> toast appears for

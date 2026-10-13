@@ -39,8 +39,9 @@ export function ScoringStep({
   positions = [],
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
-  // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
-  // with tries + conversions tracked. createTeam pre-flips
+  // U6/U7 are tag (no scoreboard, ever), U8–U12 play modified tackle
+  // with tries + conversions tracked, and U13+ plays international laws
+  // (penalty and field goals too). createTeam pre-flips
   // track_scoring to match, so this step has nothing to toggle —
   // we just explain what's happening and move on. AFL and netball
   // keep the explicit toggle below.
@@ -59,7 +60,17 @@ export function ScoringStep({
         .
       </>
     ) : isRugbyLeague ? (
-      rlScoringOn ? (
+      rlScoringOn && ageGroup.internationalLaws ? (
+        // U13+ (Stagehand round 3: an Under 14 coach was told "modified
+        // tackle, tries and conversions").
+        <>
+          {ageGroup.label} plays international laws, so tries (4 points),
+          conversions (2 points), penalty goals (2 points) and field goals
+          (1 point) are tracked automatically. The live screen will surface
+          the score buttons and the post-game summary will include the
+          result.
+        </>
+      ) : rlScoringOn ? (
         <>
           {ageGroup.label} plays modified tackle, so tries (4 points) and
           conversions (2 points) are tracked automatically. The live screen

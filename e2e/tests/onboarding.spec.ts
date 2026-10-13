@@ -200,6 +200,24 @@ test("a new team starts on the age group's suggested way to play", async ({ page
   expect(playbook?.strategy).toBe("set-positions");
 });
 
+test("league scoring copy matches the grade's laws (junior vs international)", async ({ page }) => {
+  // Stagehand round 3: an Under 14 coach was told the team "plays
+  // modified tackle, so tries and conversions are tracked". U13+ plays
+  // international laws, where penalty and field goals count too.
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const u14 = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "rugby_league" });
+  await page.goto(`/teams/${u14.id}/setup?step=config`);
+  await expect(page.getByText(/plays international laws/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/penalty goals \(2 points\) and field goals \(1 point\)/i)).toBeVisible();
+  await expect(page.getByText(/modified tackle/i)).toHaveCount(0);
+
+  const u10 = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  await page.goto(`/teams/${u10.id}/setup?step=config`);
+  await expect(page.getByText(/plays modified tackle/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/penalty goals/i)).toHaveCount(0);
+});
+
 // UX plan 2.1 / M2: on a phone the wizard ran inside full team chrome
 // and its stepper truncated to "B…", "P…". It's now a focused shell: a
 // readable "Step n of 5" stepper and no team switcher.
