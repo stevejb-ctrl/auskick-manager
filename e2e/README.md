@@ -28,6 +28,21 @@ npm run e2e:ui       # Playwright inspector — best for debugging
 npm run e2e -- path/to.spec.ts    # single spec
 ```
 
+### Two runs against one local Supabase
+
+`auth.setup.ts` only resets the super-admin's password when sign-in
+with the `.env.test` one fails. GoTrue deletes every session a user
+has when the password changes, so a reset on every run signed out
+any other run already in flight on the same DB.
+`ensure-test-user.spec.ts` guards this.
+
+`npm run e2e` still resets the DB before it starts, which wipes the
+data under any run in flight. For overlapping runs, export the
+`.env.test` values and call `npx playwright test` directly. To give a
+run its own super-admin, set `TEST_SUPER_ADMIN_EMAIL`. That works
+with `npm run e2e` too, because `scripts/e2e-setup.mjs` keeps values
+already in the environment.
+
 ## When to add a test
 
 The tests earn their keep only if they evolve with the app. Treat
