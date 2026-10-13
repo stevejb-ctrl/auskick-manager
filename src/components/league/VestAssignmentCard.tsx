@@ -49,6 +49,12 @@ interface VestAssignmentCardProps {
   period: number;
   /** Optional dismiss handler when the card is rendered as a modal/overlay. */
   onDone?: () => void;
+  /**
+   * Just this vest, with its replacement picker open: the "a vest
+   * wearer left the field" prompt. Showing both rows there read as the
+   * other wearer being off too (Stagehand round 4).
+   */
+  vest?: VestType;
 }
 
 export function VestAssignmentCard({
@@ -60,11 +66,12 @@ export function VestAssignmentCard({
   ageGroup,
   period,
   onDone,
+  vest: onlyVest,
 }: VestAssignmentCardProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pendingVest, setPendingVest] = useState<VestType | null>(null);
-  const [replacingVest, setReplacingVest] = useState<VestType | null>(null);
+  const [replacingVest, setReplacingVest] = useState<VestType | null>(onlyVest ?? null);
 
   const reqs = ageGroup.vestRequirements;
   // U6/U7 have no vest requirement — render nothing.
@@ -211,8 +218,8 @@ export function VestAssignmentCard({
         </p>
       </header>
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-      {reqs.fr && renderRow("fr", "First Receiver")}
-      {reqs.dh && renderRow("dh", "Dummy Half")}
+      {reqs.fr && (!onlyVest || onlyVest === "fr") && renderRow("fr", "First Receiver")}
+      {reqs.dh && (!onlyVest || onlyVest === "dh") && renderRow("dh", "Dummy Half")}
     </section>
   );
 }

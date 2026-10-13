@@ -2613,6 +2613,7 @@ export function LeagueLiveGame({
               events={thisGameEvents}
               ageGroup={ageGroup}
               period={state.currentQuarter || 1}
+              vest={missingVestWearer ?? undefined}
               onDone={() => setForceVestReplaceOpen(false)}
             />
           </Modal>
