@@ -396,3 +396,95 @@ break". So every in-game action was tested in combination, three ways:
 
 - Netball's sub recency (who came on last, a suggester tiebreak) is
   stamped at the break, not when the kid came on mid-quarter.
+
+---
+
+# Round 4 (13–14 Oct 2026): Stagehand plus the full Playwright suite
+
+All 17 missions, three of them the new sideline-chaos missions (one per
+sport), against a production build of the branch on :3200 (local
+Supabase, a fresh coach account per mission). The build server stopped
+part-way through, so the 8 missions that never reached the app and the 3
+it cut short were run again. Then the whole Playwright suite ran, twice,
+on the same kind of build, each failure re-run on its own.
+
+## Found and fixed
+
+| # | Finding | Fix | Commit |
+|---|---------|-----|--------|
+| 1 | Set positions (gameplan-night-before): the full back played centre half-forward in Q4. Kids are placed least-played first, so kids with no home could fill a home kid's line first. The breaks use the same suggester. | Who plays is unchanged; where they play goes home kids first. | 3de99d8 |
+| 2 | Sideline-chaos netball: a kid selected (a long-press selects too), then lent, swapped onto court with the next tap. Confirmed on every tap-to-swap screen: AFL live, AFL and netball breaks, league live. | Lending or hurting the selected kid clears the selection; swaps and fills refuse a sidelined selected kid. | 75547e7 |
+| 3 | Sideline-chaos league: the kickoff picker listed the whole squad (hurt, lent, absent), and its rotation over the whole squad could leave every kid on the field "Done". | Kids on the field who can play. | 5d313cc |
+| 4 | Sideline-chaos league: "Replace First Receiver: the vest wearer is no longer on the field" also listed the Dummy Half, who was on the field. | The prompt shows that vest only, picker open. | d4fa91f |
+| 5 | Sideline-chaos AFL and league: after lending a kid mid-game, tapping the empty spot did nothing (at the break it opens the bench picker). League's spot even says "tap to bring a bench player on". | The live empty spot opens the same bench picker. | f45af31 |
+| 6 | Returning-coach stats: the summary said "15 players" over 16 rows, the 16th a kid at 0:00 (didn't get on). | "15 players · 1 didn't get on". | 4aee88d |
+
+Found by the full Playwright run (test setup, not the app):
+
+- The e2e admin client listed only the first 50 accounts, and Stagehand
+  had brought the local DB to 46 (5074508).
+- The F1-inline test could no longer find a different incoming kid,
+  because the suggester now brings the whole bench on. It now overrides
+  who comes off (ce40093).
+- The netball playthrough tapped the GS before Q1 was live (30dae43).
+- The league vest-order test read the vest before it landed (869cfc0).
+
+## Full Playwright suite
+
+- Run 1 (at 5074508): 213 passed, 8 failed, 3 skipped. I first misread
+  this as clean: my summary grep missed the line.
+- Run 2 (at d4fa91f): 222 passed, 5 failed, 3 skipped.
+- Run 3 (final, at 4aee88d): 226 passed, 3 failed, 3 skipped. The
+  three: Kotara (below); the quarter-break rotation test (its 3-second
+  Start window; passes alone); and Mark all in.
+
+Each failure, re-run on its own:
+
+- **Load flakes** (pass alone, twice): Mark all in, the feedback FAB,
+  two live-clock-start tests, AFL U14 positions, the quarter-break
+  rotation.
+- **My build only**: the two full playthroughs logged a console error
+  because the worktree lacked public/capacitor.js (gitignored, made by
+  postinstall). They pass once it's served.
+- **Kotara** (netball quarter break): it drives the shared seed team,
+  which only the default super-admin can write to. My runs use their
+  own super-admin so they can't sign out another session's run. It
+  passes with the default super-admin.
+- **Tests fixed**: F1-inline and the netball playthrough, above.
+
+## Worth a look (confirmed, not fixed)
+
+- **Mark all in** sends one write per player, one after another (12
+  round trips for 12 kids). Everything lands, but under load it took
+  over 10 s and the test missed its window in all three full runs. On a
+  weak sideline signal the coach would watch "Marking…" for a while. One
+  bulk write would fix it.
+- **The public demo's 8× clock**: live player times mix real and game
+  time, so tiles, "This game" and "By period" disagree by about 8× (Mia
+  0:50 vs 6:41). Real games run at 1× and are unaffected; prospects
+  trying the demo see it.
+- **Netball break**: a lent or hurt kid on the staged bench shows twice
+  (bench and Sidelined), and the bench count includes them.
+- **Netball break**: "All rules kept" shows while a position is empty
+  (Start still blocks it).
+- **Netball**: a kid marked out shows INJ.
+
+## Noise
+
+- **Scorer picker "misfires"** (three runs): the agent tapped by the
+  coordinates of a screenshot taken while the sheet slid up. Each time
+  the kid credited was directly below the one intended.
+- **Garbled typing and native dropdowns** in setup: Stagehand's tools,
+  as in round 3. Two "Preston Panthers" teams came from the agent
+  pressing Enter early.
+- **AFL U15 "placed in LFP instead of centre"**: the agent's tap hit an
+  empty forward spot. The picker said "Fill Fwd".
+- **Netball "lent kid on court at WA"**: the stale selection, #2 above.
+  Start then benched her ("2 positions empty"), so Q2 never started with
+  her on.
+- **"Bench hidden under the Start bar"**: measured at phone size, the
+  last bench tile scrolls clear of the bar.
+- **Wednesday vs Saturday, clock jumps**: the seeds (fixed dates, 8×
+  clock).
+- **Connection refused / Failed to fetch** (holds-keep-on, two others):
+  the build server stopping. All three were re-run.
