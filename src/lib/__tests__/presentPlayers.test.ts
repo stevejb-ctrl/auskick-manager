@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { playersHeadline, presentPlayerIds } from "@/lib/live/presentPlayers";
 import type { GameEvent, GameEventType } from "@/lib/types";
 
 let n = 0;
@@ -32,5 +32,18 @@ describe("presentPlayerIds", () => {
       ev("lineup_set", { lineup: { forwards: ["l1"], backs: ["l2"], bench: ["l3"], slots: { l1: "hk", l2: "fb" } } }),
     ]);
     expect(ids.sort()).toEqual(["l1", "l2", "l3"]);
+  });
+});
+
+// Stagehand round 4 (returning-coach-stats): the summary said "15
+// players" over a list of 16, the 16th a kid at 0:00 (didn't get on).
+describe("playersHeadline", () => {
+  it("counts who played, and says who didn't get on", () => {
+    expect(playersHeadline(15, 1)).toBe("15 players · 1 didn't get on");
+    expect(playersHeadline(12, 2)).toBe("12 players · 2 didn't get on");
+  });
+  it("everyone got on: just the count", () => {
+    expect(playersHeadline(15, 0)).toBe("15 players");
+    expect(playersHeadline(1, 0)).toBe("1 player");
   });
 });

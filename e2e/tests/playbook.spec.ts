@@ -658,6 +658,9 @@ test("a finished game says how we played against the rules", async ({ page }) =>
   for (const p of [players[12], players[13]]) {
     await expect(summary).toContainText(`${p.full_name.split(" ")[0]} — 0:00 (didn't get on)`);
   }
+  // Round 4: and the headline counts them, so it matches the list
+  // (it said "12 players" over 14 rows).
+  await expect(summary).toContainText("12 players · 2 didn't get on");
 });
 
 test("how we played judges game time on the quarters as they ran", async ({ page }) => {

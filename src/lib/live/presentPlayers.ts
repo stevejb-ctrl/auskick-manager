@@ -38,3 +38,13 @@ export function didntGetOn(presentIds: readonly string[], playedIds: Iterable<st
 }
 
 export const DIDNT_GET_ON = "0:00 (didn't get on)";
+
+/**
+ * The summary's headline count: kids who played, plus kids who were
+ * there but didn't get on, so it matches the game-time list below it
+ * (which shows those kids at 0:00).
+ */
+export function playersHeadline(played: number, didntGetOnCount: number): string {
+  const base = `${played} player${played !== 1 ? "s" : ""}`;
+  return didntGetOnCount > 0 ? `${base} · ${didntGetOnCount} didn't get on` : base;
+}

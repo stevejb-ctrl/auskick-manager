@@ -5,7 +5,7 @@ import { ALL_ZONES } from "@/lib/fairness";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
-import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
 
 const ZONE_ABBREV: Record<string, string> = {
   back: "BCK",
@@ -133,16 +133,15 @@ function buildSummary(
   // came on (e.g. lent to opp before kickoff, or set up but not played).
   const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
   const playedCount = playerStats.length;
+  // Kids who were there but never got on stay in the list (Stagehand
+  // round 3: the one How we played flagged was missing), and in the
+  // headline, so it matches the list (round 4).
+  const satOut = didntGetOn(presentIds, playerStats.map((ps) => ps.id)).filter((id) => playersById.has(id));
 
-  const stats: string[] = [
-    `${playedCount} player${playedCount !== 1 ? "s" : ""}`,
-  ];
+  const stats: string[] = [playersHeadline(playedCount, satOut.length)];
   if (swapCount > 0) stats.push(`${swapCount} subs`);
   lines.push(`\n👟 ${stats.join(" · ")}`);
 
-  // Kids who were there but never got on stay in the list (Stagehand
-  // round 3: the one How we played flagged was missing).
-  const satOut = didntGetOn(presentIds, playerStats.map((ps) => ps.id)).filter((id) => playersById.has(id));
   if (playerStats.length > 0 || satOut.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const ps of playerStats) {
