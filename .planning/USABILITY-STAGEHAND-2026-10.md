@@ -254,3 +254,80 @@ on the local stack, so dev-server lag was gone: the whole round took about
 - **The wizard's "Back to Team basics"** is a working link (onboarding
   e2e covers it).
 - **Saturday vs Tuesday dates and fast clocks** come from the seeds.
+
+# Round 3, 13 Oct 2026 (after round 2's fixes, plus league U13+)
+
+Fourteen missions: round 2's twelve again, plus two for the new league
+U13+ grades (gameday-league-u13-goals, setup-league-u14). They ran against
+a production build of b58907b, served from a separate worktree on :3100,
+so the dev server other sessions were using stayed untouched. Every claim
+below was checked against the code or the game's event log.
+
+## Fixes that held up
+
+- **League U13+, new** (gameday-league-u13-goals):
+  - A 13-a-side lineup with named positions, and the same halfback
+    converted both tries.
+  - Penalty and field goals for both sides, with the kicker named.
+  - Undo took back the Sharks' field goal, and the break read 15–2
+    (right).
+- **Netball undo** (gameday-netball-11u): the undo names the Sharks goal
+  it takes back.
+- **League conversion** (gameday-league-u11): a try, then its conversion.
+- **Keep-on badge** (holds-keep-on): Lachlan's "Keep on, every game"
+  showed on his lineup tile. Mia's today-only lock showed, carried to
+  "STAYS" at the break and cleared with "Let them rotate again".
+- **Named positions suggested for U14** (setup-league-u14).
+
+## New, confirmed
+
+1. **Game plan's "Use for Q1" silently drops edits to later quarters**
+   (gameday-netball-11u twice, carnival-day-netball). Before kickoff the
+   planner lets you edit Q2–Q4, but its button only applies Q1.
+   Reopening shows a fresh projection, so the coach's later-quarter
+   changes vanish.
+2. **The setup wizard tells a U13+ league coach their team "plays
+   modified tackle, so tries and conversions are tracked"**
+   (setup-league-u14). U13+ plays international laws: tries,
+   conversions, penalty goals and field goals.
+   (`ScoringStep.tsx`; the track-scoring help copy says the same.)
+3. **The game summary's game-time list leaves out a kid who never got
+   on** (returning-coach-stats). How we played rightly flags Zara under
+   50 % (benched all four quarters), but the list drops anyone under
+   a second. She's the kid a parent will ask about.
+4. **Game plan shows lines, not positions, for set-position teams**
+   (gameplan-night-before, gameday-afl-u15-positions; noted in round 2
+   too). Oliver is R on the lineup but sits in "Centre" in the plan,
+   and there's no ruck. Parents can't read who plays where.
+
+## Worth a look (unconfirmed or design)
+
+- **The score briefly flickers back after a tap** (three runs: "6 and
+  5", "Matilda appeared, disappeared, reappeared"). It looks like a
+  refresh returning the pre-write state. The clock "jumps" are mostly
+  the seeds' 8× clock (7 game-seconds ≈ 1 real second).
+- **Break-screen captions** ("BCK → CEN") read as from → to. Swapping
+  two kids headed to the same line changes nothing visible, so two runs
+  couldn't tell whether a swap worked.
+- **U13+ suggests rolling swaps freely** ("Suggested — 4 swaps"), but
+  NSWRL limits U13+ to 10 interchanges a game. The app doesn't count
+  them.
+- **The keep-on badge shows on lineup screens only**, not on the live
+  game's tiles.
+- **A league bench kid's new home position doesn't show** on the bench
+  tile (gameday-league-u11).
+- **"Suggested lineup" stays as the label** after "Use for Q1" applied a
+  plan (gameplan-night-before).
+
+## Noise
+
+- **Dropped or garbled typing in the setup forms and paste box** (all
+  setup runs). Checked by hand last round: it's Stagehand's typing tool.
+- **The native age dropdown "not sticking"**: an agent click problem.
+- **"Start Q2 never started" (AFL U12) and "Start clock stuck on
+  Loading" (carnival)**: both quarter_starts are in the event log; the
+  agents looked too soon.
+- **"Plan lineup rendered blank"**: a screenshot taken mid-navigation.
+- **Game plan 12 vs lineup 15 on field (AFL U15)**: the seed doesn't set
+  the game's on-field size; real games do (game-create e2e).
+- **Tuesday vs Saturday, fast clocks** come from the seeds.
