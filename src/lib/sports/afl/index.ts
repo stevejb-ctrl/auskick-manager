@@ -7,7 +7,7 @@
 import { AGE_GROUPS, AGE_GROUP_ORDER, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import type { SportConfig, ZoneDef, PositionDef, ScoreTypeDef, AgeGroupConfig } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
-import type { AgeGroup } from "@/lib/types";
+import type { AgeGroup, PositionModel } from "@/lib/types";
 
 const AFL_ZONES_FULL: ZoneDef[] = [
   { id: "back", label: ZONE_LABELS.back, shortLabel: ZONE_SHORT_LABELS.back },
@@ -58,6 +58,14 @@ function aflAgeGroups(ids: AgeGroup[]): AgeGroupConfig[] {
       notes: cfg.notes,
     };
   });
+}
+
+/**
+ * The live components' position model for an AFL age group: 5 zones is
+ * the retired senior layout, anything else the 3-zone lines.
+ */
+export function aflPositionModel(ageGroup: AgeGroupConfig): PositionModel {
+  return ageGroup.zones.length === 5 ? "positions5" : "zones3";
 }
 
 export const aflSport: SportConfig = {

@@ -13,7 +13,7 @@ export {
   getSportByBrand,
   isSportId,
 } from "@/lib/sports/registry";
-export { aflSport } from "@/lib/sports/afl";
+export { aflSport, aflPositionModel } from "@/lib/sports/afl";
 export {
   netballSport,
   isPositionAllowedInZone,

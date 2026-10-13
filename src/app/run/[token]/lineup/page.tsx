@@ -5,7 +5,7 @@ import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
@@ -43,9 +43,8 @@ export default async function LineupPage({ params }: LineupPageProps) {
     redirect(`/run/${params.token}`);
   }
 
-  const ageGroup = ageGroupOf((teamRow as { age_group?: string } | null)?.age_group);
-  const ageCfg = AGE_GROUPS[ageGroup];
-  const positionModel = ageCfg.positionModel;
+  const ageCfg = getAgeGroupConfig("afl", (teamRow as { age_group?: string } | null)?.age_group ?? null);
+  const positionModel = aflPositionModel(ageCfg);
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -131,14 +130,12 @@ export default async function LineupPage({ params }: LineupPageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.quarterSeconds * 4) / 60}
-          // Legacy share-token page runs on the @/lib/ageGroups shape
-          // (quarterSeconds only — no periodSeconds/periodCount, no
-          // getEffectiveQuarterSeconds). Feed the age-group DEFAULT for the
-          // season-diversity threshold; the per-game/per-team override is
-          // unavailable here (accepted D-03 divergence, see 08-04 SUMMARY).
-          // gameMinutes keeps `* 4` for the same reason (no periodCount).
-          fullPeriodMs={ageCfg.quarterSeconds * 1000}
+          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
+          // The share-token page feeds the age-group DEFAULT period for the
+          // season-diversity threshold, not getEffectiveQuarterSeconds'
+          // per-game/per-team override (accepted D-03 divergence, see
+          // 08-04 SUMMARY).
+          fullPeriodMs={ageCfg.periodSeconds * 1000}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}

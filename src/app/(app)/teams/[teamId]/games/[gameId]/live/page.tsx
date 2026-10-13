@@ -26,8 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -818,29 +817,25 @@ export default async function LivePage({ params }: LivePageProps) {
   // (`trackScoring` is hoisted above the netball branch so both
   // sports share the same source — see the const at the top of
   // this function.)
-  const ageGroup = ageGroupOf(teamRow?.age_group);
   const songEnabled = teamRow?.song_enabled ?? true;
   const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
-  const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  const ageCfg = getAgeGroupConfig("afl", teamRow?.age_group ?? null);
+  const positionModel = aflPositionModel(ageCfg);
   void getSportConfig; // exported for future use; keep import alive.
 
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
-  const ageCfg = AGE_GROUPS[ageGroup];
   // D-26 / D-27: compute the effective quarter length (seconds → ms) so
   // LiveGame's countdown cap and hooter trigger respect per-team and
   // per-game overrides instead of a hardcoded constant. Mirrors the
   // netball branch's call above. Three-level resolution, most specific
   // wins: game.quarter_length_seconds → team.quarter_length_seconds →
-  // ageGroup.periodSeconds (= 12 min for AFL U10). Uses the sport-config
-  // AgeGroupConfig (not the legacy AGE_GROUPS record) because
-  // getEffectiveQuarterSeconds expects the sport-config shape.
-  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
+  // ageGroup.periodSeconds (= 12 min for AFL U10).
   const quarterMs = getEffectiveQuarterSeconds(
     { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
-    ageCfgSport,
+    ageCfg,
     { quarter_length_seconds: g.quarter_length_seconds },
   ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
@@ -907,7 +902,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const isAtQbreak =
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
-      state.currentQuarter < ageCfgSport.periodCount;
+      state.currentQuarter < ageCfg.periodCount;
     const isLivePlay =
       state.currentQuarter >= 1 &&
       !state.quarterEnded &&
@@ -957,9 +952,9 @@ export default async function LivePage({ params }: LivePageProps) {
           zoneCaps={zoneCaps}
           positionModel={positionModel}
           currentOnFieldSize={g.on_field_size}
-          minOnFieldSize={ageCfgSport.minOnFieldSize}
-          maxOnFieldSize={ageCfgSport.maxOnFieldSize}
-          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          minOnFieldSize={ageCfg.minOnFieldSize}
+          maxOnFieldSize={ageCfg.maxOnFieldSize}
+          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
@@ -968,7 +963,7 @@ export default async function LivePage({ params }: LivePageProps) {
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
-          ageGroup={ageCfgSport}
+          ageGroup={ageCfg}
           clockMultiplier={g.clock_multiplier ?? 1}
         />
         {/* ResetGameButton is now rendered INSIDE LiveGame's
@@ -1125,14 +1120,14 @@ export default async function LivePage({ params }: LivePageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.quarterSeconds * ageCfgSport.periodCount) / 60}
+          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
           walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
           gamePlan={{
             sport,
-            ageGroup: ageCfgSport,
+            ageGroup: ageCfg,
             players: availablePlayers,
             onFieldSize: g.on_field_size,
             periodMinutes: quarterMs / 60_000,

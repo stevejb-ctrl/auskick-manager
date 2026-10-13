@@ -14,6 +14,7 @@ import {
   getEffectiveQuarterSeconds,
   ALL_SPORT_IDS,
   aflSport,
+  aflPositionModel,
   netballSport,
   rugbyLeagueSport,
   isPositionAllowedInZone,
@@ -97,6 +98,12 @@ describe("AFL sport config", () => {
     expect(cfg.minOnFieldSize).toBe(12);
     expect(cfg.maxOnFieldSize).toBe(18);
     expect(cfg.maxSquadSize).toBe(25);
+  });
+
+  it("aflPositionModel reads the 3-zone model off every AFL age group", () => {
+    for (const ag of [...aflSport.ageGroups, ...(aflSport.legacyAgeGroups ?? [])]) {
+      expect(aflPositionModel(ag)).toBe("zones3");
+    }
   });
 
   it("legacy U16 / U17 stay out of the new-team age list", () => {

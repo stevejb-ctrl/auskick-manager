@@ -17,8 +17,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/lib/sports";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -529,14 +528,13 @@ export default async function RunPage({ params }: RunPageProps) {
   }
 
   // ─── AFL branch (existing behaviour) ────────────────────────
-  const ageGroup = ageGroupOf(teamRow?.age_group);
-  const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  const ageCfgSport = getAgeGroupConfig("afl", teamRow?.age_group ?? null);
+  const positionModel = aflPositionModel(ageCfgSport);
   // D-26 / D-27: same wiring as the team-coach branch in
   // (app)/teams/[teamId]/games/[gameId]/live/page.tsx. The runner-token
   // page renders the same <LiveGame> component for AFL games, so the
   // hooter and countdown surfaces need the same per-game/per-team-aware
   // duration. Three-level resolution: game → team → ageGroup default.
-  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
   const quarterMs = getEffectiveQuarterSeconds(
     { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
     ageCfgSport,
