@@ -43,6 +43,7 @@ export function NotesList({ profileId, notes }: NotesListProps) {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
+          aria-label="Note"
           placeholder="Add a note…"
           className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
         />

@@ -101,10 +101,11 @@ export function TagManager({ initialTags }: TagManagerProps) {
         <h3 className="text-sm font-semibold text-ink">New tag</h3>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-name" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
               Name
             </label>
             <input
+              id="new-tag-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
@@ -112,10 +113,10 @@ export function TagManager({ initialTags }: TagManagerProps) {
             />
           </div>
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-colour" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
               Colour
             </label>
-            <ColorSelect value={color} onChange={setColor} />
+            <ColorSelect id="new-tag-colour" value={color} onChange={setColor} />
           </div>
           <Button
             size="sm"
@@ -142,6 +143,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
                   {editing ? (
                     <div className="flex flex-1 items-center gap-2">
                       <input
+                        aria-label="Tag name"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         maxLength={40}
@@ -188,14 +190,18 @@ export function TagManager({ initialTags }: TagManagerProps) {
 }
 
 function ColorSelect({
+  id,
   value,
   onChange,
 }: {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
     <select
+      id={id}
+      aria-label={id ? undefined : "Colour"}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="mt-1 rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"

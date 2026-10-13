@@ -46,6 +46,7 @@ export function TeamNameSettings({ teamId, currentName, isAdmin }: TeamNameSetti
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Input
           type="text"
+          aria-label="Team name"
           value={name}
           onChange={(e) => {
             setName(e.target.value);
