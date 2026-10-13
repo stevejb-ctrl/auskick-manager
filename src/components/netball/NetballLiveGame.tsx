@@ -101,6 +101,7 @@ import {
   type GamePlan,
 } from "@/lib/game-plan";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -807,13 +808,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
       { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
     ];
-    const undoneTargets = new Set<string>();
-    for (const ev of thisGameEvents) {
-      if (ev.type !== "score_undo") continue;
-      const target = (ev.metadata as { target_event_id?: string } | null)
-        ?.target_event_id;
-      if (target) undoneTargets.add(target);
-    }
+    // Undos pair the way the replay pairs them (named target, else the
+    // latest standing score), so this matches the header.
+    const undoneTargets = new Set(
+      pairScoreUndos(
+        [...thisGameEvents].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        new Set(["goal", "opponent_goal"]),
+      ).values(),
+    );
     for (const ev of thisGameEvents) {
       if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
       if (undoneTargets.has(ev.id)) continue;

@@ -1015,3 +1015,46 @@ test("a NetSetGO Set team can kick off four-a-side", async ({ page }) => {
     )
     .toMatchObject({ on_field_size: 4, status: "in_progress" });
 });
+
+test("netball undo names the score it takes back, and the break's review agrees with the header", async ({
+  page,
+}) => {
+  // Stagehand round 2: after undoing a Sharks goal the header said 2-0
+  // but the break's review still counted it (2-1). Netball's undo didn't
+  // name its target, and the review only honoured named ones.
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Live: a goal, then Undo. The undo names that goal.
+  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i }).click({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^undo$/i }).click({ timeout: 5_000 });
+  const scoring = async () => {
+    const { data } = await admin
+      .from("game_events")
+      .select("id, type, metadata")
+      .eq("game_id", game.id)
+      .in("type", ["goal", "score_undo"])
+      .order("created_at");
+    return data ?? [];
+  };
+  await expect.poll(async () => (await scoring()).length).toBe(2);
+  const [goal, undo] = await scoring();
+  expect((undo.metadata as { target_event_id?: string }).target_event_id).toBe(goal.id);
+
+  // An older undo with no target (as before this fix), then the hooter.
+  const t = (s: number) => new Date(Date.now() + s * 1000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "goal", player_id: players[1].id, metadata: { quarter: 1 }, created_by: ownerId, created_at: t(1) },
+    { game_id: game.id, type: "opponent_goal", metadata: { quarter: 1 }, created_by: ownerId, created_at: t(2) },
+    { game_id: game.id, type: "score_undo", metadata: { sport: "netball" }, created_by: ownerId, created_at: t(3) },
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 120_000 }, created_by: ownerId, created_at: t(4) },
+  ]);
+  await page.reload();
+  await page.getByRole("button", { name: /review and update scores/i }).click({ timeout: 15_000 });
+  const q1 = page.getByRole("row").filter({ hasText: /^Q1/ });
+  await expect(q1.getByRole("cell").nth(1)).toHaveText(/^1/);
+  await expect(q1.getByRole("cell").nth(2)).toHaveText(/^0/);
+});

@@ -67,6 +67,7 @@ import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
 import { netballRuleCheck } from "@/lib/sports/netball/engine";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
 // Slot identifiers used to bucket the lineup display. "bench" is a
 // pseudo-third for the strip below the three on-court bands.
 type Slot = "attack-third" | "centre-third" | "defence-third" | "bench";
@@ -928,7 +929,7 @@ export function NetballQuarterBreak({
   // ─── Per-quarter score recap (driven by thisGameEvents) ────
   // Counts goal / opponent_goal events per quarter so the coach
   // can reconcile each break's scoreline with the opposition.
-  // score_undo events with target_event_id cancel a paired score.
+  // score_undo events cancel a paired score (pairScoreUndos).
   // Mirrors AFL replayGame's scoreByQuarter computation but lives
   // here to avoid coupling NetballQuarterBreak to the AFL store.
   const scoreByQuarter = useMemo(() => {
@@ -938,13 +939,14 @@ export function NetballQuarterBreak({
       { ours: 0, theirs: 0 },
       { ours: 0, theirs: 0 },
     ];
-    const undoneTargets = new Set<string>();
-    for (const ev of thisGameEvents) {
-      if (ev.type !== "score_undo") continue;
-      const target = (ev.metadata as { target_event_id?: string } | null)
-        ?.target_event_id;
-      if (target) undoneTargets.add(target);
-    }
+    // Undos pair the way the replay pairs them (named target, else the
+    // latest standing score), so this matches the header.
+    const undoneTargets = new Set(
+      pairScoreUndos(
+        [...thisGameEvents].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        new Set(["goal", "opponent_goal"]),
+      ).values(),
+    );
     for (const ev of thisGameEvents) {
       if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
       if (undoneTargets.has(ev.id)) continue;

@@ -29,6 +29,7 @@ import {
 import { ruleScore } from "@/lib/playbook/ruleScore";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import type { GameEvent } from "@/lib/types";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 
 /** Generic map lineup shape used by netball game_events. */
 export interface GenericLineup {
@@ -991,8 +992,9 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
     lastSubbedOnMs: {},
   };
 
-  // score_undo: stack the last-N score events to revert.
-  const undoStack: Array<"team" | "opp" | { player: string }> = [];
+  // Scores still standing, for score_undo: an undo that names its target
+  // (Fix scores' delete) removes that one, else the latest (takeUndoTarget).
+  const standing: Array<{ id: string; side: "team" | "opp"; player: string | null }> = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
   // Netball subs only at breaks, so a bench->court transition is a
@@ -1048,23 +1050,19 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
       state.teamScore.goals++;
       if (ev.player_id) {
         state.playerGoals[ev.player_id] = (state.playerGoals[ev.player_id] ?? 0) + 1;
-        undoStack.push({ player: ev.player_id });
-      } else {
-        undoStack.push("team");
       }
+      standing.push({ id: ev.id, side: "team", player: ev.player_id ?? null });
     } else if (ev.type === "opponent_goal") {
       state.opponentScore.goals++;
-      undoStack.push("opp");
-    } else if (ev.type === "score_undo" && undoStack.length > 0) {
-      const last = undoStack.pop()!;
-      if (last === "opp") {
+      standing.push({ id: ev.id, side: "opp", player: null });
+    } else if (ev.type === "score_undo") {
+      const undone = takeUndoTarget(standing, ev.metadata);
+      if (undone?.side === "opp") {
         state.opponentScore.goals = Math.max(0, state.opponentScore.goals - 1);
-      } else if (last === "team") {
+      } else if (undone) {
         state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
-      } else {
-        state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
-        if (last.player && state.playerGoals[last.player]) {
-          state.playerGoals[last.player] = Math.max(0, state.playerGoals[last.player] - 1);
+        if (undone.player && state.playerGoals[undone.player]) {
+          state.playerGoals[undone.player] = Math.max(0, state.playerGoals[undone.player] - 1);
         }
       }
     }

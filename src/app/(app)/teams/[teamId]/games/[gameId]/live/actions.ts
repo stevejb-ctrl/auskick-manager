@@ -11,6 +11,7 @@ import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
@@ -990,6 +991,15 @@ export async function getGameScoreLog(
       created_at: row.created_at as string,
     };
   });
+  // Older netball undos don't name their target; pair them the way the
+  // replay does (pairScoreUndos), so the review matches the header.
+  const pairs = pairScoreUndos(
+    (data ?? []).map((row) => ({ id: row.id as string, type: row.type as string, metadata: row.metadata })),
+    new Set(["goal", "behind", "opponent_goal", "opponent_behind"]),
+  );
+  for (const e of entries) {
+    if (e.type === "score_undo" && !e.target_event_id) e.target_event_id = pairs.get(e.id) ?? null;
+  }
   return { success: true, entries };
 }
 
