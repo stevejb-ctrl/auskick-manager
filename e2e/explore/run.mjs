@@ -315,6 +315,7 @@ async function seedTeam(admin, email, name, origin) {
   // Each seed: the team, its How we play, a squad, and the game the
   // mission plays. Options:
   //   start      today (Today tab) | runner (share link) | game (game page)
+  //              | report (last finished game's share link; needs pastGames)
   //   gameIn     minutes until the game (default 30; a day = 1440)
   //   pastGames  finished games with events, so stats and season balance
   //              have something to show
@@ -395,8 +396,68 @@ async function seedTeam(admin, email, name, origin) {
       morning: true,
       gameIn: 10,
     },
+    // Round 5: the older missions' starting points.
+    "afl-u10-gameday": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      gameIn: 10,
+    },
+    "afl-u10-season": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      pastGames: 3,
+      gameIn: 3 * 24 * 60,
+    },
+    // The share link of last week's finished game (a parent's "match report").
+    "afl-u10-report": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      pastGames: 3,
+      gameIn: 3 * 24 * 60,
+      start: "report",
+    },
+    "netball-go-runner": {
+      team: { name: "Brunswick Bluebirds", age_group: "go", sport: "netball" },
+      playbook: null,
+      squad: 9,
+      start: "runner",
+    },
+    // Junior laws at U8: 8 a side, the First Receiver vest only.
+    // Set up, nothing played yet, the first game on Saturday.
+    "afl-u10-new": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      gameIn: 4 * 24 * 60,
+    },
+    "league-u8-gameday": {
+      team: { name: "Werribee Wolves", age_group: "U8", sport: "rugby_league" },
+      playbook: null,
+      squad: 11,
+      onField: 8,
+    },
   };
-  const s = SEEDS[name];
+  // runner-<sport>-<age> (e.g. runner-afl-U13, runner-netball-set): the
+  // runner link to a game for that age group, at its usual size, for the
+  // age-group missions.
+  const RUNNER_ON_FIELD = {
+    afl: { U8: 6, U9: 9, U10: 12, U11: 12, U12: 12, U13: 15, U14: 15, U15: 15, U16: 18, U17: 18 },
+    netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
+  };
+  const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
+  const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
+  const s = SEEDS[name] ?? (onFieldFor
+    ? {
+        team: { name: runner[1] === "afl" ? "Coburg Cubs" : "Brunswick Bluebirds", age_group: runner[2], sport: runner[1] },
+        playbook: null,
+        squad: Math.min(22, onFieldFor + 3),
+        onField: onFieldFor,
+        start: "runner",
+      }
+    : undefined);
   if (!s) {
     console.error(`Unknown --seed=${name}. Seeds: ${Object.keys(SEEDS).join(", ")}`);
     process.exit(1);
@@ -436,6 +497,7 @@ async function seedTeam(admin, email, name, origin) {
 
   // Finished games: one lineup per quarter, rotating who sits, a goal or two.
   const minsAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  let lastPastShareToken = null;
   async function playedGame(opponent, startMinsAgo, quarters, lineupFor) {
     const { data: past, error } = await admin
       .from("games")
@@ -446,9 +508,10 @@ async function seedTeam(admin, email, name, origin) {
         created_by: ownerId,
         status: "completed",
       })
-      .select("id")
+      .select("id, share_token")
       .single();
     if (error) throw new Error(`seed past game: ${error.message}`);
+    lastPastShareToken = past.share_token;
     const events = [];
     let t = startMinsAgo;
     for (let q = 1; q <= quarters; q++) {
@@ -508,6 +571,7 @@ async function seedTeam(admin, email, name, origin) {
   );
   console.log(`▶ Seeded ${s.team.name} (${name})`);
   if (s.start === "runner") return `${origin}/run/${game.share_token}`;
+  if (s.start === "report" && lastPastShareToken) return `${origin}/run/${lastPastShareToken}`;
   if (s.start === "game") return `${origin}/teams/${team.id}/games/${game.id}`;
   return `${origin}/teams/${team.id}`;
 }
