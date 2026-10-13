@@ -320,6 +320,7 @@ async function seedTeam(admin, email, name, origin) {
   //              have something to show
   //   morning    netball: a game already played this morning (carnival)
   //   prefs      [squad index, { position_key | line, kind }]
+  //   onField    the game's on-field size (else the column default)
   const SEEDS = {
     "afl-u12-gameday": {
       team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
@@ -369,6 +370,18 @@ async function seedTeam(admin, email, name, origin) {
       prefs: [
         [2, { position_key: "hk", kind: "home" }],
         [6, { position_key: "fb", kind: "home" }],
+      ],
+    },
+    // International laws: 13-a-side, penalty and field goals, no vests
+    // or kicking rotations.
+    "league-u13-gameday": {
+      team: { name: "Werribee Wolves", age_group: "U13", sport: "rugby_league" },
+      playbook: { strategy: "named-positions" },
+      squad: 17,
+      onField: 13,
+      prefs: [
+        [1, { position_key: "hk", kind: "home" }],
+        [8, { position_key: "hb", kind: "home" }],
       ],
     },
     "netball-11u-carnival": {
@@ -485,6 +498,7 @@ async function seedTeam(admin, email, name, origin) {
       clock_multiplier: 8,
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
+      ...(s.onField ? { on_field_size: s.onField } : {}),
     })
     .select("id, share_token")
     .single();
