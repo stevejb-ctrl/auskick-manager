@@ -98,6 +98,7 @@ import {
 import type { Game, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
+  withPinnedNextPeriod,
   resolveDisplaySuggestions,
   swapsEqual,
   availablePlayersForPlan,
@@ -2165,7 +2166,13 @@ export function LiveGame({
             opponentName={opponentName}
             chipModeByKey={chipModeByKey}
             aflPlaybook={aflPlaybook}
-            initialPlan={initialPlan}
+            // Reopened after a pin: show the pinned Q{n+1}, not a fresh
+            // projection ("Suggested" still reverts to the projection).
+            initialPlan={withPinnedNextPeriod(initialPlan, {
+              pin: pinForThisGame,
+              periodIndex: currentQuarter,
+              availableIds: playersForPlan.map((p) => p.id),
+            })}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
             planActions={planActions}

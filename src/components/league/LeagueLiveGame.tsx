@@ -75,6 +75,7 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
+  withPinnedNextPeriod,
   seedNextPeriodLineup,
   availablePlayersForPlan,
   clearPeriodToBench,
@@ -2351,7 +2352,13 @@ export function LeagueLiveGame({
             opponentName={game.opponent}
             seasonEvents={seasonEvents}
             chipModeByKey={chipModes}
-            initialPlan={initialPlan}
+            // Reopened after a pin: show the pinned next period, not a
+            // fresh projection ("Suggested" still reverts to the projection).
+            initialPlan={withPinnedNextPeriod(initialPlan, {
+              pin: pinForThisGame,
+              periodIndex: state.currentQuarter,
+              availableIds: playersForPlan.map((p) => p.id),
+            })}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
             planActions={[

@@ -20,6 +20,7 @@
 // to call from a client component on every tweak.
 
 import { projectGamePlan, computeTotals } from "./project";
+import { setPeriodGroups } from "./edit";
 import type { GamePlan, GamePlanPeriod, ProjectGamePlanInput } from "./types";
 import type { Lineup, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
@@ -233,6 +234,32 @@ export function seedNextPeriodLineup(
   const bench = (pin.nextPeriodBench ?? []).filter((id) => available.has(id));
 
   return { groups, bench };
+}
+
+/**
+ * The planner reopened mid-game shows what the coach pinned for the next
+ * period, not a fresh projection (Stagehand round 2: the pinned quarter
+ * looked lost). The pin is reconciled the way the break reconciles it
+ * (`seedNextPeriodLineup`); anyone available it didn't place goes to the
+ * bench. Other periods stay as projected. Returns `plan` itself when
+ * there's no pin for that period.
+ */
+export function withPinnedNextPeriod(
+  plan: GamePlan,
+  input: { pin: PlannedRotation | null | undefined; periodIndex: number; availableIds: readonly string[] },
+): GamePlan {
+  const at = plan.periods.findIndex((p) => p.period === input.periodIndex + 1);
+  if (at < 0) return plan;
+  const seed = seedNextPeriodLineup({
+    pin: input.pin,
+    periodIndex: input.periodIndex,
+    availableIds: input.availableIds,
+    groupIds: plan.periods[at].groups.map((g) => g.groupId),
+  });
+  if (!seed) return plan;
+  const placed = new Set([...Object.values(seed.groups).flat(), ...seed.bench]);
+  const bench = [...seed.bench, ...input.availableIds.filter((id) => !placed.has(id))];
+  return setPeriodGroups(plan, at, seed.groups, bench);
 }
 
 export interface DiffPlanToSwapsInput {

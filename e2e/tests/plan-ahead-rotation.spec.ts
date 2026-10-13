@@ -322,14 +322,31 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     page.getByRole("heading", { name: /^game plan$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // Pin the projected Q2 lineup straight back to the live game (the
-  // "build next period" action). Closes the planner.
+  // Edit Q2 before pinning: swap the first back with the first player
+  // on the bench, so the pinned plan differs from the projection.
+  const backList = page.getByTestId("game-plan-group-back");
+  const benchList = page.getByTestId("game-plan-bench");
+  const movedOff = await backList.getByTestId("game-plan-player").first().getAttribute("data-player-id");
+  const movedOn = await benchList.getByTestId("game-plan-player").first().getAttribute("data-player-id");
+  await backList.locator(`[data-player-id="${movedOff}"]`).click();
+  await benchList.locator(`[data-player-id="${movedOn}"]`).click();
+  await expect(backList.locator(`[data-player-id="${movedOn}"]`)).toBeVisible();
+
+  // Pin the edited Q2 lineup to the live game (the "build next period"
+  // action). Closes the planner.
   await page.getByTestId("game-plan-pin").click();
 
   // Pin registered: the "Next period ready" badge surfaces (D-15).
   await expect(page.getByTestId("planned-next-period-badge")).toBeVisible({
     timeout: 5_000,
   });
+
+  // Reopening shows the pinned Q2, not a fresh projection (Stagehand
+  // round 2: the pinned quarter looked lost).
+  await planNextEntry.click();
+  await expect(page.getByTestId("game-plan-group-back").locator(`[data-player-id="${movedOn}"]`)).toBeVisible();
+  await expect(page.getByTestId("game-plan-bench").locator(`[data-player-id="${movedOff}"]`)).toBeVisible();
+  await page.getByTestId("game-plan-pin").click();
 
   // ─── Reach the break: hooter → confirm → QuarterBreak ───────────
   // The auto-hooter fires at ~38s and opens the QuarterEndModal; its

@@ -22,8 +22,8 @@
 // forwards/backs. This spec pins that contract before the helper exists.
 
 import { describe, it, expect } from "vitest";
-import { seedNextPeriodLineup } from "@/lib/game-plan";
-import type { PlannedRotation } from "@/lib/game-plan";
+import { seedNextPeriodLineup, withPinnedNextPeriod } from "@/lib/game-plan";
+import type { GamePlan, PlannedRotation } from "@/lib/game-plan";
 
 // ─── Cross-sport fixtures ──────────────────────────────────────────
 // Each sport: its expected groupIds, a fully-pinned next-period lineup,
@@ -188,5 +188,51 @@ describe("seedNextPeriodLineup — purity", () => {
 
     expect(a).toEqual(b);
     expect(JSON.stringify(pin)).toBe(snapshot);
+  });
+});
+
+// ─── withPinnedNextPeriod ──────────────────────────────────────────
+// Stagehand round 2: reopening Game plan mid-game always projected
+// afresh, so the next quarter the coach had pinned looked lost.
+
+describe("withPinnedNextPeriod", () => {
+  const plan: GamePlan = {
+    sport: "netball",
+    periods: [
+      { period: 2, label: "Q2", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["a"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["b"] }], bench: ["c", "d"] },
+      { period: 3, label: "Q3", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["c"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["d"] }], bench: ["a", "b"] },
+      { period: 4, label: "Q4", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["a"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["b"] }], bench: ["c", "d"] },
+    ],
+    totals: [],
+    periodLabel: "quarter",
+    periodLabelPlural: "quarters",
+    periodMinutes: 10,
+    rotatesWithinPeriod: false,
+  };
+  const pin: PlannedRotation = {
+    gameId: "g1",
+    nextPeriodIndex: 2,
+    nextPeriodGroups: { gs: ["d"], gk: ["a"] },
+    nextPeriodBench: ["b"],
+  };
+
+  it("shows the pinned next quarter, leaving the others as projected", () => {
+    const shown = withPinnedNextPeriod(plan, { pin, periodIndex: 2, availableIds: ["a", "b", "c", "d"] });
+    expect(shown.periods[1].groups.map((g) => g.playerIds)).toEqual([["d"], ["a"]]);
+    // c wasn't placed by the pin but is still here: on the bench.
+    expect(shown.periods[1].bench).toEqual(["b", "c"]);
+    expect(shown.periods[0]).toEqual(plan.periods[0]);
+    expect(shown.periods[2]).toEqual(plan.periods[2]);
+  });
+
+  it("drops a pinned kid who's no longer available", () => {
+    const shown = withPinnedNextPeriod(plan, { pin, periodIndex: 2, availableIds: ["b", "c", "d"] });
+    expect(shown.periods[1].groups.map((g) => g.playerIds)).toEqual([["d"], []]);
+    expect(shown.periods[1].bench).toEqual(["b", "c"]);
+  });
+
+  it("leaves the projection alone with no pin, or one for another quarter", () => {
+    expect(withPinnedNextPeriod(plan, { pin: null, periodIndex: 2, availableIds: ["a"] })).toBe(plan);
+    expect(withPinnedNextPeriod(plan, { pin: { ...pin, nextPeriodIndex: 3 }, periodIndex: 2, availableIds: ["a"] })).toBe(plan);
   });
 });

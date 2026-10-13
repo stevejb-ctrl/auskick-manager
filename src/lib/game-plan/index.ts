@@ -9,6 +9,7 @@ export {
   resolveHonouredSwaps,
   diffPlanToSwaps,
   seedNextPeriodLineup,
+  withPinnedNextPeriod,
   eligibleOnReplacements,
   eligibleOffReplacements,
   applyInlineSwapOverride,
