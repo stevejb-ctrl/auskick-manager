@@ -224,7 +224,7 @@ export function HowWePlayCard({
       )}
 
       <RulesEditor
-        locked={lockedRules(resolved, words, sport === "afl" ? "AFL" : sport === "netball" ? "Netball" : "NRL")}
+        locked={lockedRules(resolved)}
         catalogue={ruleCatalogue(resolved)}
         words={words}
         players={players}

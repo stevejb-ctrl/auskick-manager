@@ -16,15 +16,18 @@ import type {
 export * from "@/lib/playbook/types";
 export { resolvePolicy } from "@/lib/playbook/resolve";
 
+// One entry per sport: a new sport fails to compile until it has its own
+// How we play, rather than silently getting AFL's.
+const PLAYBOOKS: Record<Sport, SportPlaybook> = {
+  afl: aflPlaybook,
+  netball: netballPlaybook,
+  rugby_league: leaguePlaybook,
+};
+
 export function getSportPlaybook(sport: Sport): SportPlaybook {
-  switch (sport) {
-    case "netball":
-      return netballPlaybook;
-    case "rugby_league":
-      return leaguePlaybook;
-    default:
-      return aflPlaybook;
-  }
+  const playbook = PLAYBOOKS[sport];
+  if (!playbook) throw new Error(`No How we play for sport "${sport}"`);
+  return playbook;
 }
 
 /** The age group's policy with the team's overrides applied. */

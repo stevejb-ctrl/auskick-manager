@@ -11,12 +11,14 @@ import type {
   AgePolicy,
   EffectivePolicy,
   LineDef,
+  LockedRule,
   PositionDef,
   PositionModel,
   SportPlaybook,
   StrategyDef,
 } from "@/lib/playbook/types";
 import { sidedPositions } from "@/lib/playbook/sides";
+import type { RuleKind } from "@/lib/playbook/rules";
 
 const AFL_RULES = "AFL Junior Rules (May 2024)";
 /** Ages the AFL junior rules list zone splits for. */
@@ -237,6 +239,32 @@ const OPEN_STRATEGIES: StrategyDef[] = [
 
 export const aflPlaybook: SportPlaybook = {
   sport: "afl",
+  unitWord: "line",
+  // Rolling subs: "nobody sits out twice" counts stints on the bench.
+  benchPeriodWord: () => "stint",
+
+  // Every rule the AFL engine acts on (fairness.ts suggestStartingLineup
+  // and suggestSwaps).
+  ruleKinds(strategy, policy) {
+    // Zoned ages already rotate every kid through every zone by rule.
+    const kinds: RuleKind[] = policy.zonesEnforced ? [] : ["every-line-per-game", "distinct-lines"];
+    kinds.push("keep-apart", "keep-together", "max-bench-in-row");
+    // Home only means something where kids have a home spot.
+    if (strategy.usesPositions || strategy.id === "preferred-lines") kinds.push("stays-home", "like-for-like");
+    kinds.push("subs-at-breaks");
+    return kinds;
+  },
+
+  lawRules(policy, agePolicy): LockedRule[] {
+    if (!policy.zonesEnforced) return [];
+    return [
+      {
+        id: "zones",
+        text: "Every player rotates through every zone",
+        source: policy.overridden.includes("zonesEnforced") ? "Your league" : agePolicy.zonesEnforced.source ?? AFL_RULES,
+      },
+    ];
+  },
 
   agePolicy(ageGroup: string): AgePolicy {
     const cfg = getAgeGroupConfig("afl", ageGroup);

@@ -9,7 +9,8 @@
 // and vests.
 
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
-import type { BalanceUnit } from "@/lib/playbook/types";
+import type { BalanceUnit, LockedRule } from "@/lib/playbook/types";
+import { getSportPlaybook } from "@/lib/playbook/index";
 import type { Sport } from "@/lib/types";
 
 export type RuleStrength = "must" | "prefer";
@@ -147,14 +148,16 @@ export interface RuleWords {
   home: string;
 }
 
+/** The team's own sport's words — never another sport's. */
 export function ruleWords(sport: Sport, periodWord: string, usesPositions: boolean): RuleWords {
-  const line = sport === "netball" ? "third" : "line";
-  const period = periodWord === "half" ? "half" : "quarter";
+  const playbook = getSportPlaybook(sport);
+  const line = playbook.unitWord;
+  const period = playbook.benchPeriodWord(periodWord);
   return {
     line,
     lines: `${line}s`,
-    period: sport === "afl" || sport === "rugby_league" ? "stint" : period,
-    periods: sport === "afl" || sport === "rugby_league" ? "stints" : `${period}s`,
+    period,
+    periods: `${period}s`,
     home: usesPositions ? "home position" : `home ${line}`,
   };
 }
@@ -164,22 +167,22 @@ export function ruleTitle(def: RuleDef, words: RuleWords): string {
   return def.title.replace(/\blines\b/g, words.lines).replace(/\bline\b/g, words.line);
 }
 
-/** Which catalogue rules this team can add (some depend on sport / strategy). */
-export function ruleCatalogue(resolved: ResolvedPlaybook): RuleDef[] {
-  const kinds: RuleKind[] = ["every-line-per-game", "distinct-lines", "keep-apart", "keep-together", "max-bench-in-row"];
-  // Home only means something where kids have a home spot.
-  if (resolved.strategy.usesPositions || ["preferred-lines", "preferred-line", "partners"].includes(resolved.strategy.id)) {
-    kinds.push("stays-home", "like-for-like");
-  }
-  // AFL and league sub on the run; netball's breaks-only is its default.
-  if (resolved.sport !== "netball") kinds.push("subs-at-breaks");
-  // Netball carnivals play several games in a day.
-  if (resolved.sport === "netball") kinds.splice(1, 0, "every-line-per-day");
-  // Zoned AFL already rotates every kid through every zone by rule.
-  if (resolved.sport === "afl" && resolved.policy.zonesEnforced) {
-    return kinds.filter((k) => k !== "every-line-per-game" && k !== "distinct-lines").map(ruleDef);
-  }
-  return kinds.map(ruleDef);
+/**
+ * Which catalogue rules this team can add: only those its own sport's
+ * engine acts on (each sport's playbook lists them), so a coach is never
+ * offered a rule that does nothing for their sport.
+ */
+export function ruleCatalogue(resolved: Pick<ResolvedPlaybook, "sport" | "strategy" | "policy">): RuleDef[] {
+  return getSportPlaybook(resolved.sport).ruleKinds(resolved.strategy, resolved.policy).map(ruleDef);
+}
+
+/** The team's rules, keeping only kinds its sport offers (saved data from before, or another sport, is dropped). */
+export function rulesForSport(
+  rules: RuleInstance[],
+  resolved: Pick<ResolvedPlaybook, "sport" | "strategy" | "policy">,
+): RuleInstance[] {
+  const allowed = new Set(getSportPlaybook(resolved.sport).ruleKinds(resolved.strategy, resolved.policy));
+  return rules.filter((r) => allowed.has(r.kind));
 }
 
 /** The rule as the coach reads it. Player names are filled in by the caller. */
@@ -215,32 +218,26 @@ const UNIT_WORD: Record<BalanceUnit, string> = {
   position: "position",
 };
 
-/** A locked rule: shown with its source, changed elsewhere (or not at all). */
-export interface LockedRule {
-  id: string;
-  text: string;
-  source: string;
-}
+export type { LockedRule } from "@/lib/playbook/types";
 
-export function lockedRules(resolved: ResolvedPlaybook, words: RuleWords, sportName: string): LockedRule[] {
+/**
+ * The rules a coach sees locked: the game-time floor, season balance,
+ * and the team's own sport's laws, each with its own source.
+ */
+export function lockedRules(resolved: ResolvedPlaybook): LockedRule[] {
   const out: LockedRule[] = [];
   const { policy } = resolved;
+  const playbook = getSportPlaybook(resolved.sport);
+  const agePolicy = playbook.agePolicy(policy.ageGroup);
   out.push({
     id: "min-game-time",
     text: `Everyone plays at least ${policy.minGameTimePct}% of the game`,
     source: policy.overridden.includes("minGameTimePct")
       ? "Your league"
-      : resolved.sport === "afl"
-        ? `${sportName} junior rules`
-        : "Siren default",
+      : agePolicy.minGameTimePct.source ?? "Siren default",
   });
-  if (resolved.sport === "afl" && policy.zonesEnforced) {
-    out.push({
-      id: "zones",
-      text: "Every player rotates through every zone",
-      source: policy.overridden.includes("zonesEnforced") ? "Your league" : "AFL junior rules",
-    });
-  }
+  // The sport's own laws (AFL zones; league unbroken periods and vests).
+  out.push(...playbook.lawRules(policy, agePolicy));
   if (resolved.seasonBalance !== "off" && resolved.strategy.balanceUnit) {
     const label = resolved.seasonBalance.charAt(0).toUpperCase() + resolved.seasonBalance.slice(1);
     out.push({
@@ -248,16 +245,6 @@ export function lockedRules(resolved: ResolvedPlaybook, words: RuleWords, sportN
       text: `Even out each player's time in each ${UNIT_WORD[resolved.strategy.balanceUnit]} across the season (${label})`,
       source: "Season balance",
     });
-  }
-  if (resolved.sport === "rugby_league" && policy.minUnbrokenPeriods > 0) {
-    out.push({
-      id: "unbroken",
-      text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? "period" : "periods"} each`,
-      source: "NRL junior laws",
-    });
-  }
-  if (resolved.sport === "rugby_league" && (policy.vests.fr || policy.vests.dh)) {
-    out.push({ id: "vests", text: "Each vest is worn by a different player each half", source: "NRL junior laws" });
   }
   return out;
 }

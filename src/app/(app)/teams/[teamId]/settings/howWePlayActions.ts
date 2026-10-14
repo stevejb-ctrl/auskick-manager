@@ -8,9 +8,10 @@ import { createClient } from "@/lib/supabase/server";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 import { normaliseRole, prefsFromRole, roleModelFor, type PlayerRole } from "@/lib/playbook/roles";
-import { sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
+import { rulesForSport, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { applyPackRules, rulePacksFor } from "@/lib/playbook/rulePacks";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { PolicyOverrides, SeasonBalanceSetting } from "@/lib/playbook/types";
 import type { ActionResult, Sport } from "@/lib/types";
 
@@ -58,7 +59,7 @@ export async function saveHowWePlay(teamId: string, patch: HowWePlayPatch): Prom
       .maybeSingle(),
   ]);
   if (!team) return { success: false, error: "Team not found." };
-  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const ageGroup = team.age_group as string;
 
   const overrides = sanitizeOverrides(
@@ -153,7 +154,7 @@ export async function saveTeamPositions(
     supabase.from("team_playbooks").select("policy_overrides").eq("team_id", teamId).maybeSingle(),
   ]);
   if (!team) return { success: false, error: "Team not found." };
-  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const ageGroup = team.age_group as string;
   const policy = effectivePolicy(sport, ageGroup, (row?.policy_overrides ?? {}) as PolicyOverrides);
   const ageCfg = getAgeGroupConfig(sport, ageGroup);
@@ -267,7 +268,7 @@ export async function savePlayerRole(
   ]);
   if (!team) return { success: false, error: "Team not found." };
   if (!player) return { success: false, error: "Player not found." };
-  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const ageCfg = getAgeGroupConfig(sport, team.age_group as string);
   const resolved = resolveTeamPlaybook({
     sport,
@@ -306,8 +307,14 @@ export async function savePlayerRole(
 export async function saveRules(teamId: string, rules: RuleInstance[]): Promise<ActionResult> {
   const { supabase, user, error } = await authedCoach(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
-  const { data: squad } = await supabase.from("players").select("id").eq("team_id", teamId);
-  const clean = sanitizeRules(rules, (squad ?? []).map((p) => p.id as string));
+  const [{ data: squad }, { data: team }] = await Promise.all([
+    supabase.from("players").select("id").eq("team_id", teamId),
+    supabase.from("teams").select("sport, age_group").eq("id", teamId).single(),
+  ]);
+  if (!team) return { success: false, error: "Team not found." };
+  // Only rules the team's own sport acts on: anything else is dropped.
+  const { resolved } = await loadTeamPlaybook(supabase, teamId, teamSport(team.sport), team.age_group as string);
+  const clean = rulesForSport(sanitizeRules(rules, (squad ?? []).map((p) => p.id as string)), resolved);
   const { error: upsertError } = await supabase.from("team_playbooks").upsert(
     { team_id: teamId, rules: clean, updated_by: user.id, updated_at: new Date().toISOString() },
     { onConflict: "team_id" },
@@ -334,13 +341,14 @@ export async function addRulePack(
     supabase.from("players").select("id").eq("team_id", teamId),
   ]);
   if (!team) return { success: false, error: "Team not found." };
-  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const ageGroup = team.age_group as string;
   const pack = rulePacksFor(sport, ageGroup).find((p) => p.id === packId);
   if (!pack) return { success: false, error: "That rule pack isn't available for this team." };
 
   const squadIds = (squad ?? []).map((p) => p.id as string);
-  const rules = sanitizeRules(applyPackRules(sanitizeRules(row?.rules ?? [], squadIds), pack), squadIds);
+  const { resolved } = await loadTeamPlaybook(supabase, teamId, sport, ageGroup);
+  const rules = rulesForSport(sanitizeRules(applyPackRules(sanitizeRules(row?.rules ?? [], squadIds), pack), squadIds), resolved);
   const policyOverrides = sanitizeOverrides(sport, ageGroup, {
     ...((row?.policy_overrides ?? {}) as PolicyOverrides),
     ...(pack.policy ?? {}),

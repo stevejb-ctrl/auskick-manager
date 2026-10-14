@@ -7,8 +7,10 @@ import {
   ruleCatalogue,
   ruleSentence,
   ruleWords,
+  rulesForSport,
   sanitizeRules,
 } from "@/lib/playbook/rules";
+import { getSportPlaybook } from "@/lib/playbook";
 import { RULE_PACKS, applyPackRules, rulePacksFor } from "@/lib/playbook/rulePacks";
 
 const resolve = (sport: "afl" | "netball" | "rugby_league", ageGroup: string, strategy: string | null) =>
@@ -51,14 +53,62 @@ describe("rule catalogue (UX plan §7.4)", () => {
   });
 
   it("shows policy rules locked, with their source", () => {
-    const zoned = lockedRules(resolve("afl", "U9", null), ruleWords("afl", "quarter", false), "AFL");
+    const zoned = lockedRules(resolve("afl", "U9", null));
     expect(zoned.map((r) => r.text)).toEqual([
       "Everyone plays at least 50% of the game",
       "Every player rotates through every zone",
       "Even out each player's time in each zone across the season (Balanced)",
     ]);
-    const league = lockedRules(resolve("rugby_league", "U8", null), ruleWords("rugby_league", "quarter", false), "NRL");
+    const league = lockedRules(resolve("rugby_league", "U8", null));
     expect(league.some((r) => r.id === "unbroken")).toBe(true);
+  });
+});
+
+// Sports are independent (14 Oct 2026): every rule, word and source
+// comes from the team's own sport, and a sport is offered only the
+// rules its own engine acts on.
+describe("each sport owns its rules", () => {
+  it("offers league only what the league engine does (subs at the breaks)", () => {
+    for (const strategy of [null, "preferred-line", "named-positions"]) {
+      expect(ruleCatalogue(resolve("rugby_league", "U11", strategy)).map((d) => d.kind)).toEqual(["subs-at-breaks"]);
+    }
+  });
+
+  it("offers netball no like-for-like or breaks-only rule, and AFL no carnival rule", () => {
+    for (const strategy of ["position-by-position", "partners", "set-positions"]) {
+      const netball = ruleCatalogue(resolve("netball", "11u", strategy)).map((d) => d.kind);
+      expect(netball).not.toContain("like-for-like");
+      expect(netball).not.toContain("subs-at-breaks");
+    }
+    for (const strategy of ["free", "preferred-lines", "set-positions"]) {
+      expect(ruleCatalogue(resolve("afl", "U14", strategy)).map((d) => d.kind)).not.toContain("every-line-per-day");
+    }
+  });
+
+  it("drops saved rules the sport doesn't act on", () => {
+    const resolved = resolve("rugby_league", "U11", null);
+    const kept = rulesForSport([newRule("every-line-per-game"), newRule("subs-at-breaks"), newRule("max-bench-in-row")], resolved);
+    expect(kept.map((r) => r.kind)).toEqual(["subs-at-breaks"]);
+  });
+
+  it("takes each locked rule's source from the sport, not from a name check", () => {
+    const floor = (sport: "afl" | "netball" | "rugby_league", age: string) =>
+      lockedRules(resolve(sport, age, null)).find((r) => r.id === "min-game-time")!.source;
+    expect(floor("afl", "U12")).toBe("AFL Junior Rules (May 2024)");
+    expect(floor("netball", "11u")).toBe("Siren default");
+    expect(floor("rugby_league", "U11")).toBe("Siren default");
+    const unbroken = lockedRules(resolve("rugby_league", "U8", null)).find((r) => r.id === "unbroken")!;
+    expect(unbroken.source).toBe("NRL Junior League Laws §6");
+  });
+
+  it("uses the sport's own words", () => {
+    expect(ruleWords("netball", "half", false)).toMatchObject({ line: "third", period: "half" });
+    expect(ruleWords("rugby_league", "half", false)).toMatchObject({ line: "line", period: "stint" });
+    expect(ruleWords("afl", "quarter", true)).toMatchObject({ line: "line", period: "stint", home: "home position" });
+  });
+
+  it("has no fallback sport", () => {
+    expect(() => getSportPlaybook("rugby_union" as never)).toThrow(/rugby_union/);
   });
 });
 

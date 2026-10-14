@@ -15,6 +15,7 @@ import type {
   SportPlaybook,
   StrategyDef,
 } from "@/lib/playbook/types";
+import type { RuleKind } from "@/lib/playbook/rules";
 
 export const NETBALL_LINES: LineDef[] = [
   { id: "attack-third", label: "Attack", colorToken: "zone-f" },
@@ -99,6 +100,30 @@ const STRATEGIES: StrategyDef[] = [
 
 export const netballPlaybook: SportPlaybook = {
   sport: "netball",
+  unitWord: "third",
+  // Netball subs at the breaks: kids sit out whole periods.
+  benchPeriodWord: (periodWord) => (periodWord === "half" ? "half" : "quarter"),
+
+  // The rules the netball engine acts on (fairness.ts ruleScore,
+  // max-bench-in-row and Carnival day). No like-for-like or
+  // subs-at-breaks: the positions fix the first, and netball subs at the
+  // breaks already.
+  ruleKinds(strategy) {
+    const kinds: RuleKind[] = [
+      "every-line-per-game",
+      "every-line-per-day",
+      "distinct-lines",
+      "keep-apart",
+      "keep-together",
+      "max-bench-in-row",
+    ];
+    if (strategy.usesPositions || strategy.id === "partners") kinds.push("stays-home");
+    return kinds;
+  },
+
+  lawRules() {
+    return [];
+  },
 
   agePolicy(ageGroup: string): AgePolicy {
     const cfg = getAgeGroupConfig("netball", ageGroup);

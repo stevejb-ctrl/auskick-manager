@@ -2273,6 +2273,9 @@ export function suggestLeagueSubs(
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
     return [];
   }
+  // "Subs only at the breaks": no rolling-sub suggestions (the one
+  // catalogue rule league offers).
+  if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const excludeSet = new Set(excludeOffPlayers);
   type Stint = { startedAt: number; location: "field" | "bench" };
   const stint = new Map<string, Stint>();

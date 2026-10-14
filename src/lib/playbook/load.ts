@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgeGroupConfig } from "@/lib/sports";
 import { resolveTeamPlaybook, type ResolvedPlaybook } from "@/lib/playbook/team";
-import { activeRules, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
+import { activeRules, rulesForSport, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
 import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
 import { roleModelFor, rolesFromPrefs, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
@@ -60,7 +60,9 @@ export async function loadTeamPlaybook(
   return {
     resolved,
     prefs: (prefs ?? []) as PrefRow[],
-    rules: activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)),
+    // Only rules this team's own sport acts on: anything else saved
+    // (before the sport's list was its own) is ignored, not applied.
+    rules: rulesForSport(activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)), resolved),
     vestStrategy: (row as { vest_strategy?: "auto" | "fixed-order" | "coach" } | null)?.vest_strategy ?? "auto",
   };
 }

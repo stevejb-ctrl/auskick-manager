@@ -58,17 +58,9 @@ export const RULE_PACKS: RulePack[] = [
     blurb: "Every player plays every third across the day's games",
     rules: [{ kind: "every-line-per-day", strength: "prefer" }],
   },
-  {
-    id: "league-mod-club",
-    sport: "rugby_league",
-    title: "Mod League club rules",
-    blurb: "At least half the game · both lines each game · nobody sits out twice running",
-    policy: { minGameTimePct: 50 },
-    rules: [
-      { kind: "every-line-per-game", strength: "must" },
-      { kind: "max-bench-in-row", params: { count: 2 }, strength: "must" },
-    ],
-  },
+  // No league pack: "both lines each game" and "nobody sits out twice
+  // running" are Mod League club rules, but the league engine doesn't act
+  // on them yet, so a pack would promise Musts that do nothing.
 ];
 
 export function rulePacksFor(sport: Sport, ageGroup: string): RulePack[] {

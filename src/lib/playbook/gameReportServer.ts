@@ -7,15 +7,15 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, periodLabels, teamSport } from "@/lib/sports";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
-import { effectiveStrategy } from "@/lib/playbook";
+import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
 import { rolesFromPrefs } from "@/lib/playbook/roles";
 import { gridUnits } from "@/lib/playbook/seasonGrid";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { gameReport, type GameReport } from "@/lib/playbook/gameReport";
-import type { RuleInstance } from "@/lib/playbook/rules";
+import { rulesForSport, type RuleInstance } from "@/lib/playbook/rules";
 import type { ThirdLookup } from "@/lib/sports/netball/fairness";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
@@ -30,6 +30,9 @@ const LABELS: Record<string, string> = {
   "defence-third": "Defence",
 };
 
+/** Whether the after-game report compares season balance, per sport. */
+const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false };
+
 export async function buildGameReport(
   supabase: SupabaseClient<any, any, any>,
   team: { id: string; sport: Sport | null; age_group: string | null; quarter_length_seconds: number | null },
@@ -38,8 +41,9 @@ export async function buildGameReport(
   playerNames: Record<string, string>,
 ): Promise<GameReport | null> {
   if (events.length === 0) return null;
-  const sport = (team.sport ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const ageCfg = getAgeGroupConfig(sport, team.age_group);
+  const periods = periodLabels(sport, ageCfg);
   const periodSeconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team.quarter_length_seconds },
     ageCfg,
@@ -47,7 +51,8 @@ export async function buildGameReport(
   );
   const { resolved, prefs, rules: currentRules } = await loadTeamPlaybook(supabase, team.id, sport, team.age_group);
   const snapshot = game.playbook_snapshot ?? null;
-  let rules: RuleInstance[] = snapshot?.rules ?? currentRules;
+  // Only rules this sport acts on (a snapshot from before may hold others).
+  const rules: RuleInstance[] = rulesForSport(snapshot?.rules ?? currentRules, resolved);
 
   // ms per player → period → line.
   const byPeriod: Record<string, Record<number, Record<string, number>>> = {};
@@ -68,18 +73,21 @@ export async function buildGameReport(
   } else if (sport === "netball") {
     lines = ["attack-third", "centre-third", "defence-third"];
     Object.assign(byPeriod, netballByPeriod(events, periodSeconds, primaryThirdFor as ThirdLookup));
-  } else {
-    // League time per period has no lines yet (Phase 5.6): report the
-    // game-time floor and the sit-out rule only.
+  } else if (sport === "rugby_league") {
+    // League time per period has no lines yet (Phase 5.6): the report
+    // shows the game-time floor. League's one catalogue rule (subs at
+    // the breaks) has nothing to report after the game.
     lines = ["field"];
     Object.assign(byPeriod, leagueByPeriod(events));
-    rules = rules.filter((r) => r.kind === "max-bench-in-row");
+  } else {
+    const unknown: never = sport;
+    throw new Error(`No game report for sport "${String(unknown)}"`);
   }
 
   // Season balance, when it was on: the season before this game vs after.
   const balance = snapshot?.seasonBalance ?? resolved.seasonBalance;
   let season: { before: ReturnType<typeof seasonTimeByUnit>; after: ReturnType<typeof seasonTimeByUnit>; units: string[] } | undefined;
-  if (balance !== "off" && sport !== "rugby_league") {
+  if (balance !== "off" && SEASON_IN_REPORT[sport]) {
     const all = await getSeasonEvents(team.id);
     const finalised = new Set(all.filter((e) => e.type === "game_finalised").map((e) => e.game_id));
     const start = events.reduce((m, e) => (e.created_at < m ? e.created_at : m), events[0].created_at);
@@ -123,8 +131,8 @@ export async function buildGameReport(
     periodPlayedMs,
     lines,
     lineLabel: (k) => LABELS[k] ?? k,
-    lineWord: sport === "netball" ? "third" : "line",
-    periodLabel: (n) => (ageCfg.periodLabel === "half" ? `half ${n}` : `Q${n}`),
+    lineWord: getSportPlaybook(sport).unitWord,
+    periodLabel: (n) => (periods.label === "quarter" ? `Q${n}` : `${periods.label} ${n}`),
     periodCount: ageCfg.periodCount,
     periodMs: periodSeconds * 1000,
     minGameTimePct: snapshot?.policy.minGameTimePct ?? resolved.policy.minGameTimePct,

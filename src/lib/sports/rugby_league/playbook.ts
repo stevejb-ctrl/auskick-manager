@@ -11,12 +11,14 @@ import type {
   AgePolicy,
   EffectivePolicy,
   LineDef,
+  LockedRule,
   PositionDef,
   PositionModel,
   SportPlaybook,
   StrategyDef,
 } from "@/lib/playbook/types";
 import { sidedPositions } from "@/lib/playbook/sides";
+import type { RuleKind } from "@/lib/playbook/rules";
 
 const NRL_LAWS = "NRL Junior League Laws";
 const MOD_LEAGUE = new Set(["U10", "U11", "U12"]);
@@ -101,6 +103,33 @@ const NAMED_POSITIONS: StrategyDef = {
 
 export const leaguePlaybook: SportPlaybook = {
   sport: "rugby_league",
+  unitWord: "line",
+  // Rolling subs: "nobody sits out twice" would count stints.
+  benchPeriodWord: () => "stint",
+
+  // The league engine acts on no catalogue rule except subs at the
+  // breaks (suggestLeagueSubs). Every-line, apart/together, stays-home
+  // and bench rules aren't offered until it does: they'd do nothing.
+  ruleKinds(): RuleKind[] {
+    return ["subs-at-breaks"];
+  },
+
+  lawRules(policy, agePolicy): LockedRule[] {
+    const out: LockedRule[] = [];
+    if (policy.minUnbrokenPeriods > 0) {
+      out.push({
+        id: "unbroken",
+        text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? "period" : "periods"} each`,
+        source: policy.overridden.includes("minUnbrokenPeriods")
+          ? "Your league"
+          : agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
+      });
+    }
+    if (policy.vests.fr || policy.vests.dh) {
+      out.push({ id: "vests", text: "Each vest is worn by a different player each half", source: NRL_LAWS });
+    }
+    return out;
+  },
 
   agePolicy(ageGroup: string): AgePolicy {
     const cfg = getAgeGroupConfig("rugby_league", ageGroup);

@@ -112,8 +112,31 @@ export interface StrategyDef {
   balanceByDefault: boolean;
 }
 
+/** A locked rule: shown with its source, changed elsewhere (or not at all). */
+export interface LockedRule {
+  id: string;
+  text: string;
+  source: string;
+}
+
+/**
+ * Everything How we play knows about one sport. Each sport owns its own
+ * rules, words and laws — nothing here is shared between sports or
+ * falls back to another one (sports are independent, 14 Oct 2026).
+ */
 export interface SportPlaybook {
   sport: Sport;
+  /** What a kid moves between: "line" (AFL, league) or "third" (netball). */
+  unitWord: string;
+  /**
+   * What "nobody sits out N … in a row" counts. Sports that sub on the
+   * run count stints; netball sits kids out for whole periods.
+   */
+  benchPeriodWord(periodWord: string): string;
+  /** The catalogue rules this sport's engine acts on, for the team's strategy and policy. */
+  ruleKinds(strategy: StrategyDef, policy: EffectivePolicy): import("@/lib/playbook/rules").RuleKind[];
+  /** This sport's own laws shown as locked rules (zones, unbroken periods, vests). */
+  lawRules(policy: EffectivePolicy, agePolicy: AgePolicy): LockedRule[];
   agePolicy(ageGroup: string): AgePolicy;
   positionModel(policy: EffectivePolicy, onFieldSize: number): PositionModel;
   strategies(policy: EffectivePolicy): StrategyDef[];
