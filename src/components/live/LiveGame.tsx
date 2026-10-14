@@ -13,7 +13,7 @@ import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/live/Field";
+import { Field, ZONE_SHORT } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
@@ -2458,9 +2458,8 @@ export function LiveGame({
               id,
               name: p.full_name,
               jerseyNumber: p.jersey_number,
-              subLabel: onFieldZone
-                ? onFieldZone.toUpperCase()
-                : "Bench",
+              // The tile's own short label (CEN, not MID).
+              subLabel: onFieldZone ? ZONE_SHORT[onFieldZone] : "Bench",
             };
           })
           .filter((c): c is NonNullable<typeof c> => !!c);

@@ -167,6 +167,13 @@ test("record an unattributed goal via 'Didn't see who'", async ({
   // Our team's +G chip on the scorebug (first of the two) opens the
   // who-scored picker.
   await page.getByRole("button", { name: /^\+G$/ }).first().click();
+  // Round 5 (afl-u13, afl-u14): the picker labelled centre kids "MID"
+  // while their tiles say "CEN". Same short labels as the field.
+  const centreKid = page
+    .getByRole("dialog", { name: /who scored/i })
+    .getByRole("button", { name: new RegExp(players[4].full_name) });
+  await expect(centreKid).toContainText("CEN");
+  await expect(centreKid).not.toContainText("MID");
   await page
     .getByRole("button", { name: /didn't see who/i })
     .click();
