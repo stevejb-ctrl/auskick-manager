@@ -56,8 +56,11 @@ interface LeagueGameSettingsButtonProps {
   onFieldPlayers: Player[];
   /** Whether §6 unbroken-period enforcement is currently on. */
   enforceUnbrokenPeriods: boolean;
-  /** The grade has a §6 rule at all (junior laws; not U13+). Defaults on. */
-  unbrokenRule?: boolean;
+  /**
+   * The grade's §6 rule in its own words ("2 unbroken quarters"), or
+   * null where there's none (U13+ international laws).
+   */
+  unbrokenRule: string | null;
   /** Whether the F/C/B zone-time bar renders on every player tile. */
   trackZoneTime: boolean;
   /** Current period — needed for the roster_shrink event metadata. */
@@ -75,7 +78,7 @@ export function LeagueGameSettingsButton({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
-  unbrokenRule = true,
+  unbrokenRule,
   trackZoneTime,
   currentQuarter,
   elapsedMs,
@@ -134,7 +137,7 @@ function LeagueGameSettingsModal({
   maxOnFieldSize,
   onFieldPlayers,
   enforceUnbrokenPeriods,
-  unbrokenRule = true,
+  unbrokenRule,
   trackZoneTime,
   currentQuarter,
   elapsedMs,
@@ -337,8 +340,8 @@ function LeagueGameSettingsModal({
               Enforce unbroken periods
             </p>
             <p className="text-[11px] text-ink-mute">
-              §6: each player must play an unbroken quarter/half. Off =
-              rule ignored when planning rotations.
+              §6: each player must play {unbrokenRule}. Off = rule
+              ignored when planning rotations.
             </p>
           </div>
           <Toggle

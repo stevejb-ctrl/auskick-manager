@@ -2267,7 +2267,11 @@ export function LeagueLiveGame({
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
               enforceUnbrokenPeriods={enforceUnbrokenPeriods}
-              unbrokenRule={(ageGroup.minUnbrokenPeriods ?? 0) > 0}
+              unbrokenRule={
+                (ageGroup.minUnbrokenPeriods ?? 0) > 0
+                  ? `${ageGroup.minUnbrokenPeriods} unbroken ${ageGroup.minUnbrokenPeriods === 1 ? periodLabel : periodLabelPlural}`
+                  : null
+              }
               trackZoneTime={trackZoneTime}
               currentQuarter={state.currentQuarter}
               elapsedMs={elapsedMs}
