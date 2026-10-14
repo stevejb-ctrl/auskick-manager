@@ -29,7 +29,7 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   const { team, game } = await leagueGame("Words live");
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("rl-walkthrough-seen", "1");
+      for (const k of ["league-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
@@ -43,6 +43,13 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   await expect(menu).not.toContainText(/ball-up/i);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+
+  // Game settings states U11's own §6 rule (one unbroken half), not
+  // "an unbroken quarter/half".
+  await page.getByRole("button", { name: /^game settings$/i }).click();
+  await expect(page.getByText(/§6: each player must play 1 unbroken half\./)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/quarter\/half/)).toHaveCount(0);
+  await page.getByRole("button", { name: /^cancel$/i }).click();
 
   await page.getByRole("button", { name: /^restart game$/i }).click();
   const restart = page.getByRole("dialog").filter({ hasText: /restart this game\?/i });
