@@ -35,6 +35,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { gameDefaults } from "./lib/game-defaults.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -223,7 +224,7 @@ async function ensureGames() {
         scheduled_at: scheduled.toISOString(),
         round_number: i + 1,
         status,
-        on_field_size: 11,
+        ...gameDefaults("rugby_league", "U10"),
         created_by: OWNER_ID,
       },
       { onConflict: "id" },

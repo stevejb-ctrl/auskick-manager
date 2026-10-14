@@ -33,6 +33,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { gameDefaults } from "./lib/game-defaults.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const envPath = join(here, "..", ".env.local");
@@ -184,6 +185,7 @@ async function createTeam(ownerId) {
   const { error: insErr } = await admin.from("teams").insert({
     name: TEAM_NAME,
     age_group: AGE_GROUP,
+    sport: "afl",
     created_by: ownerId,
     track_scoring: true,
   });
@@ -220,6 +222,7 @@ async function createGame(teamId, ownerId, opts) {
       scheduled_at: opts.scheduledAt,
       round_number: opts.round,
       on_field_size: ON_FIELD_SIZE,
+      sub_interval_seconds: gameDefaults("afl", AGE_GROUP).sub_interval_seconds,
       status: opts.status,
       notes: opts.notes ?? null,
       created_by: ownerId,

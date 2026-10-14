@@ -35,6 +35,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { gameDefaults } from "./lib/game-defaults.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -275,6 +276,7 @@ async function ensureGames(ownerId) {
         scheduled_at: g.scheduledAt.toISOString(),
         round_number: g.round,
         status: g.status,
+        ...gameDefaults("netball", "go"),
         created_by: ownerId,
       },
       { onConflict: "id" },
