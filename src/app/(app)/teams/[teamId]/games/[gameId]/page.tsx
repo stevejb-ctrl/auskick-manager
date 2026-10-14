@@ -11,7 +11,8 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, teamSport } from "@/lib/sports";
+import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { replayGame } from "@/lib/fairness";
@@ -32,6 +33,13 @@ import { presentPlayerIds } from "@/lib/live/presentPlayers";
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
 }
+
+/** The scorer card's words, per sport. */
+const SCORER_WORDS: Record<Sport, { eyebrow: string; heading: string }> = {
+  afl: { eyebrow: "Goal kickers", heading: "Who put it through" },
+  netball: { eyebrow: "Goal shooters", heading: "Who put it in" },
+  rugby_league: { eyebrow: "Scorers", heading: "Who put points on the board" },
+};
 
 export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const supabase = createClient();
@@ -66,11 +74,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .select("age_group, sport, name, track_scoring, quarter_length_seconds")
       .eq("id", params.teamId)
       .single(),
+    // Every event: each sport's replay tallies the scorers, honouring
+    // score_undo (a raw goal / behind count kept undone scores).
     supabase
       .from("game_events")
-      .select("type, player_id")
+      .select("*")
       .eq("game_id", params.gameId)
-      .in("type", ["goal", "behind"]),
+      .order("created_at", { ascending: true }),
     supabase
       .from("players")
       .select("id, full_name, jersey_number, chip, is_active")
@@ -108,23 +118,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     (team as { age_group?: string } | null)?.age_group,
   );
 
-  const tallies = new Map<string, { goals: number; behinds: number }>();
-  for (const ev of (scoringEvents ?? []) as { type: string; player_id: string | null }[]) {
-    if (!ev.player_id) continue;
-    const cur = tallies.get(ev.player_id) ?? { goals: 0, behinds: 0 };
-    if (ev.type === "goal") cur.goals++;
-    else if (ev.type === "behind") cur.behinds++;
-    tallies.set(ev.player_id, cur);
-  }
   const playerById = new Map(
     ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map(
       (p) => [p.id, p],
     ),
   );
-  const scorerRows = Array.from(tallies.entries())
-    .map(([pid, t]) => ({ player: playerById.get(pid), ...t }))
-    .filter((r) => r.player)
-    .sort((a, b) => b.goals - a.goals || b.behinds - a.behinds);
+  const scorerRows = scorersFromEvents(sport, (scoringEvents ?? []) as GameEvent[])
+    .map((t) => ({ player: playerById.get(t.playerId), ...t }))
+    .filter((r) => r.player);
+  const scorerWords = SCORER_WORDS[sport];
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
@@ -443,17 +445,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         </SFCard>
       )}
 
-      {/* ── Scorers (sport-aware: AFL = goal kickers w/ behinds + Guernsey;
-            netball = goal shooters, goals only, no jersey numbers) ─────── */}
+      {/* ── Scorers, in each sport's words (AFL goals + behinds, netball
+            goals, league tries + kicks); numbers where the sport has them ── */}
       {scorerRows.length > 0 && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Eyebrow>
-                {sport === "netball" ? "Goal shooters" : "Goal kickers"}
-              </Eyebrow>
+              <Eyebrow>{scorerWords.eyebrow}</Eyebrow>
               <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">
-                {sport === "netball" ? "Who put it in" : "Who put it through"}
+                {scorerWords.heading}
               </h3>
             </div>
             <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
@@ -474,7 +474,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  {sport !== "netball" && (
+                  {getSportConfig(sport).jerseyNumbers && (
                     <Guernsey num={r.player!.jersey_number} size={32} />
                   )}
                   <span className="font-semibold text-ink">
@@ -482,20 +482,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
-                  {sport === "netball" ? (
+                  <span className="font-bold text-ink">{r.detail}</span>
+                  {r.showPoints && (
                     <>
-                      <span className="font-bold text-ink">{r.goals}</span>
-                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
-                        {r.goals === 1 ? "goal" : "goals"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold text-ink">{r.goals}</span> g ·{" "}
-                      <span className="font-bold text-ink">{r.behinds}</span> b
-                      <span className="ml-2 font-bold text-ink">
-                        {r.goals * 6 + r.behinds}
-                      </span>
+                      <span className="ml-2 font-bold text-ink">{r.points}</span>
                       <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
                         pts
                       </span>

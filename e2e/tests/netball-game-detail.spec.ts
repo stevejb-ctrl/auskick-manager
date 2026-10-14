@@ -7,7 +7,7 @@
 // with just goals.
 //
 // Covers: src/app/(app)/teams/[teamId]/games/[gameId]/page.tsx
-//         scorers-card sport branch (~L243).
+//         scorers card (scorersFromEvents, per sport).
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -41,10 +41,8 @@ test("netball game-detail scorers card uses 'Goal shooters / Who put it in', omi
   const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
 
   // Seed scoring events directly: 3 goals for players[0] (GS), 1
-  // goal for players[1] (GA). Tally aggregator on the detail page
-  // reads `goal` events keyed by player_id (page.tsx:84-91), so
-  // we don't need any wrapping lineup_set / quarter_start scaffolding
-  // for the scorers card to render.
+  // goal for players[1] (GA). The netball replay credits `goal`
+  // events to their player_id without any lineup scaffolding.
   await admin.from("game_events").insert([
     { game_id: game.id, type: "goal", player_id: players[0].id, metadata: { sport: "netball" }, created_by: ownerId },
     { game_id: game.id, type: "goal", player_id: players[0].id, metadata: { sport: "netball" }, created_by: ownerId },
@@ -69,16 +67,10 @@ test("netball game-detail scorers card uses 'Goal shooters / Who put it in', omi
   await expect(page.getByText(/who put it through/i)).toHaveCount(0);
   await expect(page.getByText(/^pts$/i)).toHaveCount(0);
 
-  // Top scorer is players[0] with 3 goals; players[1] has 1.
-  // The netball renderer puts the count and "goal(s)" suffix in
-  // adjacent spans (no whitespace text node between them), so we
-  // anchor on the singular/plural suffix and the count separately.
-  // Plural "goals" appears once (top scorer with 3); singular
-  // "goal" appears once (players[1] with 1) — together they prove
-  // the netball branch is rendering, since the AFL branch would
-  // show "g" / "b" / "pts" instead.
-  await expect(page.getByText(/^goals$/i)).toBeVisible();
-  await expect(page.getByText(/^goal$/i)).toBeVisible();
+  // Top scorer is players[0] with 3 goals; players[1] has 1 — in
+  // netball words (the AFL card would show "g" / "b" / "pts").
+  await expect(page.getByText(/^3 goals$/i)).toBeVisible();
+  await expect(page.getByText(/^1 goal$/i)).toBeVisible();
 
   // Scorer count chip: 2 distinct scorers.
   await expect(page.getByText(/^2 scorers$/i)).toBeVisible();
