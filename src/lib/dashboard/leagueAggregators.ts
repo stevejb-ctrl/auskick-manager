@@ -12,8 +12,10 @@
 // power the live game UI AND the post-game dashboard.
 
 import {
-  replayLeagueGame,
+  replayRugbyGame,
+  rugbyPoints,
   unbrokenPeriodCompliance,
+  type RugbyPoints,
   type LeagueScore,
   type UnbrokenPeriodCompliance,
 } from "@/lib/sports/rugby_league/fairness";
@@ -23,7 +25,7 @@ import {
 import {
   kickoffTakers,
 } from "@/lib/sports/rugby_league/kicks";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, isRugby, teamSport as checkedSport } from "@/lib/sports/registry";
 import type { Game, GameEvent } from "@/lib/types";
 
 // ─── Per-game snapshot ───────────────────────────────────────
@@ -52,17 +54,27 @@ export interface LeagueGameSnapshot {
   playerIds: string[];
 }
 
-/**
- * Derive a single game's RL snapshot from its event log + the
- * team's age-group config (drives the unbroken-period required
- * count: 2 for U6–U9, 1 for U10–U12).
- */
+/** A league game's snapshot, with league's own points. */
 export function snapshotLeagueGame(
   gameId: string,
   events: GameEvent[],
   required: number,
 ): LeagueGameSnapshot {
-  const state = replayLeagueGame(events);
+  return snapshotRugbyGame(gameId, events, required, rugbyPoints("rugby_league"));
+}
+
+/**
+ * Derive a single game's rugby snapshot from its event log + the
+ * team's age-group config (drives the unbroken-period required
+ * count: 2 for U6–U9, 1 for U10–U12) and its sport's points.
+ */
+export function snapshotRugbyGame(
+  gameId: string,
+  events: GameEvent[],
+  required: number,
+  points: RugbyPoints,
+): LeagueGameSnapshot {
+  const state = replayRugbyGame(events, points);
   const vests = vestHistoryByPlayer(events);
   const kickoffs = kickoffTakers(events);
   const unbroken = unbrokenPeriodCompliance(events, required);
@@ -230,10 +242,13 @@ export function aggregateLeagueSeasonFromGames(
   teamSport: string | null | undefined,
   teamAgeGroup: string | null | undefined,
 ): LeagueSeasonAggregate {
-  const ageCfg = getAgeGroupConfig(teamSport, teamAgeGroup);
+  const sport = checkedSport(teamSport);
+  if (!isRugby(sport)) throw new Error(`League stats for a ${sport} team`);
+  const ageCfg = getAgeGroupConfig(sport, teamAgeGroup);
   const required = ageCfg.minUnbrokenPeriods ?? 1;
+  const points = rugbyPoints(sport);
   const snaps = games.map((g) =>
-    snapshotLeagueGame(g.id, eventsByGame[g.id] ?? [], required),
+    snapshotRugbyGame(g.id, eventsByGame[g.id] ?? [], required, points),
   );
   return aggregateLeagueSeason(snaps);
 }

@@ -46,7 +46,7 @@ import {
   LEAGUE_GOAL_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
@@ -733,7 +733,7 @@ export async function recordConversionAttempt(
     }
     tryEventId ??= waiting[0];
 
-    const state = replayLeagueGame(priorEvents);
+    const state = replayRugbyGame(priorEvents, rugbyPoints((await rugbyTeamOf(auth, w)).sport));
     const onField = state.lineup
       ? [...state.lineup.forwards, ...state.lineup.backs]
       : [];

@@ -2199,6 +2199,7 @@ export function LeagueLiveGame({
       {isAtFinalQ && (
         <LeagueFullTimeReview
           auth={auth}
+          sport={sport}
           gameId={game.id}
           state={state}
           events={thisGameEvents}

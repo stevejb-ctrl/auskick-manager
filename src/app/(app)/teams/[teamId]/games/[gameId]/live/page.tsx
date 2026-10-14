@@ -28,7 +28,7 @@ import {
 } from "@/lib/fairness";
 import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -357,7 +357,7 @@ export default async function LivePage({ params }: LivePageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStarted = replay.lineup !== null;
 
     // Season events (this-game-excluded) — drives the lineup-picker's

@@ -4,7 +4,7 @@
 
 import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
 import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
@@ -25,7 +25,7 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
     return { us: r.teamScore.goals, them: r.opponentScore.goals };
   }
   if (isRugby(sport)) {
-    const r = replayLeagueGame(events);
+    const r = replayRugbyGame(events, rugbyPoints(sport));
     return { us: r.teamScore.points, them: r.opponentScore.points };
   }
   if (sport === "afl") {

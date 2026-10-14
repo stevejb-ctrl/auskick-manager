@@ -16,7 +16,7 @@ import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -191,7 +191,7 @@ export default async function RunPage({ params }: RunPageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStartedL = replay.lineup !== null;
 
     // Season events for the suggester + kickoff badges. Fetched the

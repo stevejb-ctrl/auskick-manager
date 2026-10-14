@@ -37,12 +37,15 @@ import {
 } from "@/lib/sports/rugby_league/engine";
 import type { GameEvent, LeagueLineup, LeagueZone } from "@/lib/types";
 import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
+import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
+import type { ScoreTypeDef } from "@/lib/sports/types";
 import { chipZone } from "./positions";
 
 /**
- * One side's league score. `points` = tries × 4 + conversions × 2 +
- * penalty goals × 2 + field goals × 1. Penalty and field goals are
- * U13+ (international laws) only.
+ * One side's rugby score. `points` = each score times the sport's
+ * points for it (RugbyPoints; league: tries × 4 + conversions × 2 +
+ * penalty goals × 2 + field goals × 1). League's penalty and field
+ * goals are U13+ (international laws) only.
  */
 export interface LeagueScore {
   tries: number;
@@ -54,8 +57,41 @@ export interface LeagueScore {
 
 const emptyLeagueScore = (): LeagueScore => ({ tries: 0, conversions: 0, penaltyGoals: 0, fieldGoals: 0, points: 0 });
 
-/** Points per goal from play (international laws). */
-const GOAL_POINTS = { penalty: 2, field: 1 } as const;
+/**
+ * Points per score for a rugby sport, from its own score types (league:
+ * try 4, conversion 2, penalty goal 2, field goal 1). The opposition
+ * scores the same (a test checks every rugby sport's opponent types).
+ */
+export interface RugbyPoints {
+  try: number;
+  conversion: number;
+  penaltyGoal: number;
+  fieldGoal: number;
+}
+
+/** The points table from a sport's score types; a missing one is an error. */
+export function rugbyPointsFromScoreTypes(scoreTypes: ScoreTypeDef[]): RugbyPoints {
+  const points = (id: string) => {
+    const type = scoreTypes.find((t) => t.id === id && !t.opponent);
+    if (!type) throw new Error(`No "${id}" score type`);
+    return type.points;
+  };
+  return {
+    try: points("try"),
+    conversion: points("conversion"),
+    penaltyGoal: points("penalty_goal"),
+    fieldGoal: points("field_goal"),
+  };
+}
+
+/** The sport's own points table. */
+export function rugbyPoints(sport: RugbySport): RugbyPoints {
+  return rugbyPointsFromScoreTypes(getSportConfig(sport).scoreTypes);
+}
+
+function goalPoints(points: RugbyPoints, goal: "penalty" | "field"): number {
+  return goal === "penalty" ? points.penaltyGoal : points.fieldGoal;
+}
 
 /** "2T · 1C · 1PG" — penalty and field goals only when there are some. */
 export function leagueScoreLine(s: LeagueScore): string {
@@ -142,7 +178,16 @@ export function swapInLeagueLineup<T extends { forwards: string[]; backs: string
 }
 
 /**
- * Replay a rugby-league game's events into a `LeagueGameState`.
+ * League's replay, with league's own points. Code shared with rugby
+ * union calls replayRugbyGame with the team's sport's points.
+ */
+export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
+  return replayRugbyGame(events, rugbyPoints("rugby_league"));
+}
+
+/**
+ * Replay a rugby game's events into a `LeagueGameState`, scoring with
+ * the sport's own `points` (see rugbyPoints).
  *
  * Pure function — input must already include `created_at` for stable
  * ordering. Sorts defensively in case the caller hands events in
@@ -150,7 +195,7 @@ export function swapInLeagueLineup<T extends { forwards: string[]; backs: string
  * offline burst can land out of order if `created_at` precision is
  * tight).
  */
-export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
+export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): LeagueGameState {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -288,7 +333,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "try": {
         state.teamScore.tries++;
-        state.teamScore.points += 4;
+        state.teamScore.points += points.try;
         if (ev.player_id) {
           state.playerTries[ev.player_id] =
             (state.playerTries[ev.player_id] ?? 0) + 1;
@@ -299,7 +344,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "opponent_try": {
         state.opponentScore.tries++;
-        state.opponentScore.points += 4;
+        state.opponentScore.points += points.try;
         undoStack.push({ kind: "opp_try" });
         break;
       }
@@ -314,7 +359,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         }
         if (made) {
           state.teamScore.conversions++;
-          state.teamScore.points += 2;
+          state.teamScore.points += points.conversion;
         }
         // Push the undo entry even for missed attempts so an undo
         // pops the attempt record alongside any points; the kicker
@@ -330,7 +375,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "opponent_conversion": {
         state.opponentScore.conversions++;
-        state.opponentScore.points += 2;
+        state.opponentScore.points += points.conversion;
         undoStack.push({ kind: "opp_conversion" });
         break;
       }
@@ -344,7 +389,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         const score = side === "team" ? state.teamScore : state.opponentScore;
         if (goal === "penalty") score.penaltyGoals++;
         else score.fieldGoals++;
-        score.points += GOAL_POINTS[goal];
+        score.points += goalPoints(points, goal);
         const player = side === "team" ? ev.player_id : null;
         if (player) {
           state.playerGoals[player] ??= { penalty: 0, field: 0 };
@@ -360,7 +405,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         switch (op.kind) {
           case "try": {
             state.teamScore.tries = Math.max(0, state.teamScore.tries - 1);
-            state.teamScore.points = Math.max(0, state.teamScore.points - 4);
+            state.teamScore.points = Math.max(0, state.teamScore.points - points.try);
             if (op.player && state.playerTries[op.player]) {
               state.playerTries[op.player] = Math.max(
                 0,
@@ -376,7 +421,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
             );
             state.opponentScore.points = Math.max(
               0,
-              state.opponentScore.points - 4,
+              state.opponentScore.points - points.try,
             );
             break;
           }
@@ -391,7 +436,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
                 0,
                 state.teamScore.conversions - 1,
               );
-              state.teamScore.points = Math.max(0, state.teamScore.points - 2);
+              state.teamScore.points = Math.max(0, state.teamScore.points - points.conversion);
             }
             break;
           }
@@ -402,7 +447,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
             );
             state.opponentScore.points = Math.max(
               0,
-              state.opponentScore.points - 2,
+              state.opponentScore.points - points.conversion,
             );
             break;
           }
@@ -410,7 +455,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
             const score = op.side === "team" ? state.teamScore : state.opponentScore;
             if (op.goal === "penalty") score.penaltyGoals = Math.max(0, score.penaltyGoals - 1);
             else score.fieldGoals = Math.max(0, score.fieldGoals - 1);
-            score.points = Math.max(0, score.points - GOAL_POINTS[op.goal]);
+            score.points = Math.max(0, score.points - goalPoints(points, op.goal));
             const tally = op.player ? state.playerGoals[op.player] : undefined;
             if (tally) tally[op.goal] = Math.max(0, tally[op.goal] - 1);
             break;
@@ -1328,9 +1373,15 @@ export interface LeagueScoreByPeriod {
   };
 }
 
-export function leagueScoreByPeriod(
+/** League's per-period table, with league's own points. */
+export function leagueScoreByPeriod(events: GameEvent[], periodCount: number): LeagueScoreByPeriod {
+  return rugbyScoreByPeriod(events, periodCount, rugbyPoints("rugby_league"));
+}
+
+export function rugbyScoreByPeriod(
   events: GameEvent[],
   periodCount: number,
+  points: RugbyPoints,
 ): LeagueScoreByPeriod {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
@@ -1371,22 +1422,22 @@ export function leagueScoreByPeriod(
     }
     if (ev.type === "try") {
       out[period].team.tries += 1;
-      out[period].team.points += 4;
+      out[period].team.points += points.try;
       stack.push({ kind: "try", period });
     } else if (ev.type === "opponent_try") {
       out[period].opponent.tries += 1;
-      out[period].opponent.points += 4;
+      out[period].opponent.points += points.try;
       stack.push({ kind: "opp_try", period });
     } else if (ev.type === "conversion_attempt") {
       const made = meta.made === true;
       if (made) {
         out[period].team.conversions += 1;
-        out[period].team.points += 2;
+        out[period].team.points += points.conversion;
       }
       stack.push({ kind: "conv", period, made });
     } else if (ev.type === "opponent_conversion") {
       out[period].opponent.conversions += 1;
-      out[period].opponent.points += 2;
+      out[period].opponent.points += points.conversion;
       stack.push({ kind: "opp_conv", period });
     } else if (
       ev.type === "penalty_goal"
@@ -1399,7 +1450,7 @@ export function leagueScoreByPeriod(
       const slot = out[period][side];
       if (goal === "penalty") slot.penaltyGoals += 1;
       else slot.fieldGoals += 1;
-      slot.points += GOAL_POINTS[goal];
+      slot.points += goalPoints(points, goal);
       stack.push({ kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
       const op = stack.pop();
@@ -1408,7 +1459,7 @@ export function leagueScoreByPeriod(
         const slot = out[op.period][op.side];
         if (op.goal === "penalty") slot.penaltyGoals = Math.max(0, slot.penaltyGoals - 1);
         else slot.fieldGoals = Math.max(0, slot.fieldGoals - 1);
-        slot.points = Math.max(0, slot.points - GOAL_POINTS[op.goal]);
+        slot.points = Math.max(0, slot.points - goalPoints(points, op.goal));
         continue;
       }
       const bucket
@@ -1416,15 +1467,15 @@ export function leagueScoreByPeriod(
       const slot = out[op.period][bucket];
       if (op.kind === "try" || op.kind === "opp_try") {
         slot.tries = Math.max(0, slot.tries - 1);
-        slot.points = Math.max(0, slot.points - 4);
+        slot.points = Math.max(0, slot.points - points.try);
       } else if (op.kind === "conv") {
         if (op.made) {
           slot.conversions = Math.max(0, slot.conversions - 1);
-          slot.points = Math.max(0, slot.points - 2);
+          slot.points = Math.max(0, slot.points - points.conversion);
         }
       } else if (op.kind === "opp_conv") {
         slot.conversions = Math.max(0, slot.conversions - 1);
-        slot.points = Math.max(0, slot.points - 2);
+        slot.points = Math.max(0, slot.points - points.conversion);
       }
     }
   }
