@@ -148,7 +148,11 @@ test("non-super-admin hitting /admin routes gets a 404", async ({
     await page.getByTestId("login-email").fill(regular.email);
     await page.getByTestId("login-password").fill(regular.password);
     await page.getByTestId("login-submit").click();
-    await page.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
+    // A user with no teams goes on from the dashboard to /welcome. Wait
+    // for that redirect to land: opening /admin while it's in flight
+    // tears the page down mid-transition (WebKit showed "Application
+    // error" instead of the not-found page).
+    await page.waitForURL(/\/welcome/, { timeout: 15_000 });
     await waitForHydration(page);
 
     // Navigate to an admin route. The app's route guard

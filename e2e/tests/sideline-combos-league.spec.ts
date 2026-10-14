@@ -541,6 +541,13 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   await expect(page.getByText(new RegExp(`${plannedDh.full_name} isn.t on the field`))).toBeVisible({ timeout: 15_000 });
+  // League auto-opens "Start H2" on entering the break, over the vest
+  // card. Dismiss it first; racing it only passed where the tap landed
+  // before the dialog (Chromium), not on WebKit.
+  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
+  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
+  await backToLineup.click();
+  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
   await page
     .getByRole("region", { name: "Vest assignment" })
     .getByRole("button", { name: new RegExp(pick.full_name) })
