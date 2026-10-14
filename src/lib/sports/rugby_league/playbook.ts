@@ -87,6 +87,7 @@ const BASE_STRATEGIES: StrategyDef[] = [
     label: "Preferred line",
     blurb: "Kids lean to forwards or backs, with time on the other line too.",
     usesPositions: false,
+    roleHome: "line",
     balanceUnit: "line",
     balanceByDefault: true,
   },

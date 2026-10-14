@@ -106,6 +106,12 @@ export interface StrategyDef {
   fit?: string;
   /** Kids have home positions (shows the positions + roles steps). */
   usesPositions: boolean;
+  /**
+   * Without set positions, where a kid's home is on the role sheet: a
+   * line they lean to (preferred lines) or a position they keep
+   * (netball partners). Each sport tags its own strategies.
+   */
+  roleHome?: "line" | "position";
   /** What season balance evens out, or null when it doesn't apply. */
   balanceUnit: BalanceUnit | null;
   /** Season balance on by default for this strategy (off for set positions). */

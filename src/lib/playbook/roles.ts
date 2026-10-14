@@ -31,10 +31,6 @@ export interface PlayerRole {
 
 export const EMPTY_ROLE: PlayerRole = { home: null, also: [], never: [], keepOn: false };
 
-/** Strategies where a kid leans to a line rather than a named spot. */
-const LINE_HOME = new Set(["preferred-lines", "preferred-line"]);
-/** Strategies where a kid's home is a position even without set positions. */
-const POSITION_HOME = new Set(["partners"]);
 
 /**
  * The role sheet for a team, or null where roles don't apply: AFL zoned
@@ -44,7 +40,7 @@ export function roleModelFor(resolved: ResolvedPlaybook): RoleModel | null {
   if (resolved.sport === "afl" && resolved.policy.zonesEnforced) return null;
   const { strategy, positionModel } = resolved;
   const byPosition =
-    (strategy.usesPositions || POSITION_HOME.has(strategy.id)) && resolved.positions.length > 0;
+    (strategy.usesPositions || strategy.roleHome === "position") && resolved.positions.length > 0;
   if (byPosition) {
     return {
       unit: "position",
@@ -54,7 +50,7 @@ export function roleModelFor(resolved: ResolvedPlaybook): RoleModel | null {
   }
   return {
     unit: "line",
-    home: LINE_HOME.has(strategy.id),
+    home: strategy.roleHome === "line",
     options: positionModel.lines.map((l) => ({ key: l.id, label: l.label, name: l.label })),
   };
 }
