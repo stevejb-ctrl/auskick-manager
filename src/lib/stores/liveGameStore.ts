@@ -12,7 +12,7 @@
 // demo), the same frame as saved events' elapsed_ms and replayGame's
 // stint stamps, so a stint opened here and one rebuilt by the replay
 // can be compared directly. Netball keeps the same single game-time
-// clock (computeNetballClockMs). The only thing the wall-clock approach
+// clock (computePeriodClockMs). The only thing the wall-clock approach
 // can't recover is in-quarter pause time — pauses aren't event-
 // persisted, so a reload silently includes paused seconds in
 // accumulatedMs. For a quarter without pauses (the common case)

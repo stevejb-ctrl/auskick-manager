@@ -1,9 +1,11 @@
-// Netball quarter-clock calculation — pure function extracted from
-// NetballLiveGame's inline IIFE so the freeze invariant can be unit-
-// tested (and so the auto-hooter freeze behaviour has a documented
-// contract, not just inline state and useEffect side effects).
+// Period-clock calculation shared by netball and rugby league — pure
+// function first extracted from NetballLiveGame's inline IIFE so the
+// freeze invariant can be unit-tested (and so the auto-hooter freeze
+// behaviour has a documented contract, not just inline state and
+// useEffect side effects). AFL keeps its own clock in the live store
+// (liveGameStore.ts `clockElapsedMs`) with the same rules.
 //
-// The freeze invariant — Steve 2026-05-15 bug report:
+// The freeze invariant — Steve 2026-05-15 bug report (netball):
 //   "At the end of a quarter the player time continues to accrue,
 //    rather than pausing with the clock."
 //
@@ -22,10 +24,10 @@
 //      pause moment" (which it already did before the fix — the
 //      logic is unchanged here; the fix is in the call site).
 //
-// Tests below cover the freeze states this helper must respect.
+// __tests__/periodClock.test.ts covers the freeze states this helper must respect.
 
-export interface NetballClockOpts {
-  /** Current quarter number (0 = pre-Q1, 1-4 = quarters). */
+export interface PeriodClockOpts {
+  /** Current period number (0 = before the first, then 1..n quarters or halves). */
   currentQuarter: number;
   /** Server-confirmed quarter-ended flag. When true, clockMs falls
    *  back to `fallbackElapsedMs` (the server's quarter_end metadata). */
@@ -53,7 +55,7 @@ export interface NetballClockOpts {
 }
 
 /**
- * Compute the displayed quarter-elapsed ms for a netball game.
+ * Compute the displayed period-elapsed ms for a netball or league game.
  * Pure function — same inputs always produce the same output.
  *
  * Pre-Q1 (currentQuarter < 1) → 0.
@@ -63,7 +65,7 @@ export interface NetballClockOpts {
  * Live → nowMs delta from quarterStartedAt, minus accumulated
  *   pauses, scaled by clockMultiplier.
  */
-export function computeNetballClockMs(opts: NetballClockOpts): number {
+export function computePeriodClockMs(opts: PeriodClockOpts): number {
   const {
     currentQuarter,
     quarterEnded,

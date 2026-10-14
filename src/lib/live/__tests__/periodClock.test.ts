@@ -1,5 +1,5 @@
-// Coverage for the netball quarter-clock calculation. Pinned here
-// after Steve's 2026-05-15 bug report: "at the end of a quarter
+// Coverage for the period-clock calculation netball and rugby league
+// share. Pinned here after Steve's 2026-05-15 netball bug report: "at the end of a quarter
 // the player time continues to accrue, rather than pausing with
 // the clock". Player time on each tile is derived from clockMs;
 // the freeze invariant tested here is what stops the accrual.
@@ -17,12 +17,12 @@
 // through to the paused branch.
 
 import { describe, expect, test } from "vitest";
-import { computeNetballClockMs } from "../sports/netball/clock";
+import { computePeriodClockMs } from "../periodClock";
 
-describe("computeNetballClockMs — base states", () => {
+describe("computePeriodClockMs — base states", () => {
   test("pre-Q1 returns 0 regardless of other state", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 0,
         quarterEnded: false,
         finalised: false,
@@ -38,7 +38,7 @@ describe("computeNetballClockMs — base states", () => {
 
   test("quarterEnded falls back to server metadata", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 2,
         quarterEnded: true,
         finalised: false,
@@ -54,7 +54,7 @@ describe("computeNetballClockMs — base states", () => {
 
   test("finalised falls back to server metadata", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 4,
         quarterEnded: false,
         finalised: true,
@@ -70,7 +70,7 @@ describe("computeNetballClockMs — base states", () => {
 
   test("null quarterStartedAtMs falls back to server metadata", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -85,13 +85,13 @@ describe("computeNetballClockMs — base states", () => {
   });
 });
 
-describe("computeNetballClockMs — live tick", () => {
+describe("computePeriodClockMs — live tick", () => {
   test("running clock returns nowMs - startedAt", () => {
     const startedAt = 1000;
     const nowMs = 61_000;
     // 60-second elapsed, no multiplier
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -107,7 +107,7 @@ describe("computeNetballClockMs — live tick", () => {
 
   test("running clock subtracts accumulated pauses", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -123,7 +123,7 @@ describe("computeNetballClockMs — live tick", () => {
 
   test("clockMultiplier scales the elapsed value", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -139,7 +139,7 @@ describe("computeNetballClockMs — live tick", () => {
 
   test("clamps at 0 when nowMs < startedAt (clock skew defense)", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -154,7 +154,7 @@ describe("computeNetballClockMs — live tick", () => {
   });
 });
 
-describe("computeNetballClockMs — freeze invariant", () => {
+describe("computePeriodClockMs — freeze invariant", () => {
   // THE LOAD-BEARING TESTS for the 2026-05-15 player-time-accrues
   // bug fix. If `pausedAtMs` is set, the helper MUST freeze at
   // that moment regardless of how far nowMs has advanced.
@@ -170,7 +170,7 @@ describe("computeNetballClockMs — freeze invariant", () => {
     const startedAt = 1000;
     const pausedAt = 61_000; // 60s in
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -198,10 +198,10 @@ describe("computeNetballClockMs — freeze invariant", () => {
       fallbackElapsedMs: 0,
       clockMultiplier: 1,
     };
-    const t0 = computeNetballClockMs({ ...opts, nowMs: 600_001 });
-    const t1 = computeNetballClockMs({ ...opts, nowMs: 601_000 });
-    const t2 = computeNetballClockMs({ ...opts, nowMs: 610_000 });
-    const t3 = computeNetballClockMs({ ...opts, nowMs: 999_999 });
+    const t0 = computePeriodClockMs({ ...opts, nowMs: 600_001 });
+    const t1 = computePeriodClockMs({ ...opts, nowMs: 601_000 });
+    const t2 = computePeriodClockMs({ ...opts, nowMs: 610_000 });
+    const t3 = computePeriodClockMs({ ...opts, nowMs: 999_999 });
     expect(t0).toBe(t1);
     expect(t1).toBe(t2);
     expect(t2).toBe(t3);
@@ -213,7 +213,7 @@ describe("computeNetballClockMs — freeze invariant", () => {
     // accumulated), then the hooter fires at the 11-min mark
     // (10min of effective game time).
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,
@@ -229,7 +229,7 @@ describe("computeNetballClockMs — freeze invariant", () => {
 
   test("freeze respects clockMultiplier", () => {
     expect(
-      computeNetballClockMs({
+      computePeriodClockMs({
         currentQuarter: 1,
         quarterEnded: false,
         finalised: false,

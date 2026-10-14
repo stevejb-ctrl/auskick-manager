@@ -103,7 +103,7 @@ interface LeagueLiveGameProps {
    * Game seconds per real second (games.clock_multiplier): 1 for a real
    * game, 8 for the demo. Scales the half clock, so the hooter, sub
    * timer and every saved elapsed_ms run on game time — the same rule
-   * as AFL's LiveGame and netball's computeNetballClockMs.
+   * as AFL's LiveGame and netball (computePeriodClockMs).
    */
   clockMultiplier?: number;
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */

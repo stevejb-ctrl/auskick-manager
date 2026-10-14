@@ -1,5 +1,5 @@
 // Parity coverage for AFL's `clockElapsedMs` — mirrors the
-// `computeNetballClockMs` tests in netballClock.test.ts so the
+// `computePeriodClockMs` tests in live/__tests__/periodClock.test.ts so the
 // freeze invariant is documented at the unit level for BOTH
 // sports. Steve 2026-05-15 directive: apply the rules globally,
 // don't diverge sport implementations where the contract is

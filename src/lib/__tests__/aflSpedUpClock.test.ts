@@ -8,7 +8,7 @@
 // 0:00 after a reload (real-ms clock 0:30 minus game-ms stint start
 // 2:40), and tiles ran at 1/8 of the header clock (Stagehand rounds 4
 // and 5). The store now keeps one game-time clock, like netball's
-// computeNetballClockMs.
+// computePeriodClockMs.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clockElapsedMs, useLiveGame } from "@/lib/stores/liveGameStore";

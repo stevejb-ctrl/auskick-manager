@@ -84,7 +84,7 @@ import {
   lineupAfterSubs,
   splitQuarterSegments,
 } from "@/lib/sports/netball/fairness";
-import { computeNetballClockMs } from "@/lib/sports/netball/clock";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
 import {
   saveNetballLineupDraft,
   startNetballGame,
@@ -372,7 +372,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return () => window.clearInterval(id);
   }, [currentQuarter, quarterEnded, finalised, quarterStartedAt, pausedAtMs]);
   // Quarter-clock calculation extracted to a pure helper so the
-  // freeze invariant is unit-testable (src/lib/sports/netball/clock.ts).
+  // freeze invariant is unit-testable (src/lib/live/periodClock.ts).
   // Steve 2026-05-15: the freeze branch is load-bearing for the
   // auto-hooter bug fix — between hooter and the server-confirmed
   // quarter_end refresh, the helper MUST return the value captured
@@ -392,7 +392,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const ms = Date.parse(quarterStartedAt);
     return Number.isNaN(ms) ? null : ms;
   })();
-  const clockMs = computeNetballClockMs({
+  const clockMs = computePeriodClockMs({
     currentQuarter,
     quarterEnded,
     finalised,
@@ -616,7 +616,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Freeze the local clock at the hooter so per-player tile time
     // doesn't keep ticking up while we wait for the server-confirmed
     // quarter_end refresh to land. Without this setPausedAtMs call,
-    // computeNetballClockMs(...) returns the live `Date.now()` delta
+    // computePeriodClockMs(...) returns the live `Date.now()` delta
     // and player times accrue during the ~100-500ms (often longer
     // on slow networks) between hooter and refresh — the bug Steve
     // reported 2026-05-15. Idempotent guard: if the coach manually
