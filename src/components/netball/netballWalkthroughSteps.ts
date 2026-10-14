@@ -58,7 +58,7 @@ export function buildNetballWalkthroughSteps(opts: {
     {
       emoji: "👋",
       title: "Late arrivals & fill-ins",
-      body: "If a regular squad member shows up after the umpire's first whistle, tap + Add late arrival under the bench strip to slot them in. Fill-ins (someone who isn't on the permanent squad but joins for the day) are added on the game-detail page before kick-off.",
+      body: "If a regular squad member shows up after the umpire's first whistle, tap + Add late arrival under the bench strip to slot them in. Fill-ins (someone who isn't on the permanent squad but joins for the day) are added on the game-detail page before the game starts.",
     },
   ];
 
