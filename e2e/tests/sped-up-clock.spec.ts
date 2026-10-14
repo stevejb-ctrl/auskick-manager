@@ -1,7 +1,7 @@
 // Sped-up clock (games.clock_multiplier) — the public demo runs at 8×
 // and test / explore seeds run faster still. Real games run at 1×, so
-// this only ever showed to demo prospects (Stagehand rounds 4 and 5,
-// Oct 2026).
+// these bugs only ever showed to demo prospects (Stagehand rounds 4
+// and 5, Oct 2026).
 //
 // AFL: saved events and the replay are in GAME ms (elapsed_ms = real
 // ms × multiplier) but the live store ran in real ms. After a reload a
@@ -109,3 +109,65 @@ test("AFL at 8×: tiles count game time after a reload, like the replay", async 
   expect(onLater - onSecs).toBeGreaterThanOrEqual(10);
 });
 
+/** The league scorebug's countdown (m:ss left in the half), in seconds. */
+async function leagueClockSecondsLeft(page: Page): Promise<number> {
+  const text = await page
+    .locator('button[aria-label^="Clock"] [aria-live="polite"]')
+    .first()
+    .textContent();
+  const m = (text ?? "").match(/(\d+):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+}
+
+// League never read the multiplier, so the "8×" league demo ran at
+// real speed: a 20-minute half took 20 real minutes (round 5).
+test("rugby league at 8×: the half clock runs at game speed", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-8X-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const ids = players.map((p) => p.id);
+  const onFieldCount = 8;
+
+  // The half kicked off 5 s ago in real time = 0:40 of game time at 8×.
+  const startAt = new Date(Date.now() - 5_000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      {
+        type: "lineup_set",
+        metadata: {
+          lineup: { forwards: ids.slice(0, 4), backs: ids.slice(4, onFieldCount), bench: ids.slice(onFieldCount) },
+          sport: "rugby_league",
+        },
+      },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" } },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId, created_at: startAt })),
+  );
+  await admin
+    .from("games")
+    .update({ status: "in_progress", on_field_size: onFieldCount, clock_multiplier: 8 })
+    .eq("id", game.id);
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.locator('button[aria-label^="Clock"]').first()).toBeVisible({ timeout: 15_000 });
+
+  // A 20:00 half, 0:40 of it gone before the page even loaded.
+  const before = await leagueClockSecondsLeft(page);
+  expect(before).toBeLessThanOrEqual(20 * 60 - 40);
+
+  // Three real seconds take about 24 s off the clock, not 3.
+  await page.waitForTimeout(3_000);
+  const after = await leagueClockSecondsLeft(page);
+  expect(before - after).toBeGreaterThanOrEqual(16);
+  expect(before - after).toBeLessThanOrEqual(40);
+});

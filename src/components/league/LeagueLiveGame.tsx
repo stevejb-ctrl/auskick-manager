@@ -99,6 +99,13 @@ interface LeagueLiveGameProps {
   ageGroup: AgeGroupConfig;
   periodSeconds: number;
   subIntervalSeconds: number | null;
+  /**
+   * Game seconds per real second (games.clock_multiplier): 1 for a real
+   * game, 8 for the demo. Scales the half clock, so the hooter, sub
+   * timer and every saved elapsed_ms run on game time — the same rule
+   * as AFL's LiveGame and netball's computeNetballClockMs.
+   */
+  clockMultiplier?: number;
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */
   trackScoring: boolean;
   /**
@@ -147,6 +154,7 @@ export function LeagueLiveGame({
   ageGroup,
   periodSeconds,
   subIntervalSeconds,
+  clockMultiplier = 1,
   trackScoring,
   enforceUnbrokenPeriods,
   trackZoneTime,
@@ -264,8 +272,8 @@ export function LeagueLiveGame({
   const [kickoffSkippedTick, setKickoffSkippedTick] = useState(0);
 
   // ── Local clock tick + pause ─────────────────────────────────
-  // The clock derives `elapsedMs` from wall-clock time anchored at
-  // `state.quarterStartedAt`. Pause is currently CLIENT-ONLY: while
+  // The clock derives `elapsedMs` (game ms) from wall-clock time
+  // anchored at `state.quarterStartedAt`, scaled by clockMultiplier. Pause is currently CLIENT-ONLY: while
   // `pausedAtElapsedMs` is non-null the elapsed value is frozen at
   // that point. Pause doesn't persist across reloads yet — needs a
   // `quarter_pause` / `quarter_resume` event pair to lock in server-
@@ -289,8 +297,10 @@ export function LeagueLiveGame({
     if (pausedAtElapsedMs != null) return pausedAtElapsedMs;
     if (state.quarterStartedAt == null) return state.quarterElapsedMs ?? 0;
     if (nowMs == null) return state.quarterElapsedMs ?? 0;
-    return Math.max(0, nowMs - new Date(state.quarterStartedAt).getTime());
-  }, [nowMs, state.quarterStartedAt, state.quarterElapsedMs, pausedAtElapsedMs]);
+    return (
+      Math.max(0, nowMs - new Date(state.quarterStartedAt).getTime()) * clockMultiplier
+    );
+  }, [nowMs, state.quarterStartedAt, state.quarterElapsedMs, pausedAtElapsedMs, clockMultiplier]);
 
   // Reset pause when the period flips — a fresh quarter starts
   // running by default.

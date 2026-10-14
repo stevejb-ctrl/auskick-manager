@@ -4,9 +4,11 @@
 // end-to-end so the regression net catches any drift across the
 // LeagueLiveGame orchestrator + server actions + replay engine.
 //
-// Junior RL at U10 plays 2 × 20-min halves. With
-// `clock_multiplier=60`, each half ticks down in ~20s of wall
-// clock so the spec fits comfortably under a 180s timeout.
+// Junior RL at U10 plays 2 × 20-min halves. The spec ends each half
+// by hand, so it runs at real speed: at a sped-up clock (which league
+// now honours) the siren and the sub-due prompt would race the try and
+// conversion steps. The sped-up clock has its own spec
+// (sped-up-clock.spec.ts).
 //
 // Flow exercised:
 //   1. Seed lineup_set + status=in_progress directly (skips the
@@ -14,9 +16,8 @@
 //   2. Start H1 via the "Ready for half 1" page-level button.
 //   3. Record a try via the on-field player tile + score buttons,
 //      then walk through the conversion dialog (laws §15 rotation).
-//   4. Auto-hooter at the 20-min mark fires endLeagueQuarter →
-//      Q-break shell renders.
-//   5. Start H2 ("Ready for half 2"), let the clock run, hooter.
+//   4. End H1 from the clock menu → Q-break shell renders.
+//   5. Start H2 ("Ready for half 2"), end it from the clock menu.
 //   6. Tap "Finalise game" → game_finalised lands + status=completed.
 //   7. Server-side assertions confirm the event log matches.
 
@@ -94,10 +95,10 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   });
   // makeGame uses AFL's AGE_GROUPS (defaultOnFieldSize=12 for U10).
   // Override to RL's 11 so the lineup we seed matches the legal
-  // window. clock_multiplier=60 ticks a 20-min half down in ~20s.
+  // window.
   await admin
     .from("games")
-    .update({ on_field_size: 11, clock_multiplier: 60 })
+    .update({ on_field_size: 11 })
     .eq("id", game.id);
 
   // Mark every player available.
@@ -232,8 +233,8 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .toBeGreaterThanOrEqual(1);
 
   // ─── Phase 4: End H1 via manual hooter ────────────────────
-  // The auto-hooter in LeagueLiveGame uses real wall-clock time, so
-  // we end the period deterministically via the manual affordance.
+  // The half runs at real speed, so we end the period
+  // deterministically via the manual affordance.
   // Tapping the scorebug clock pill opens the clock menu; "End H1 now"
   // opens ManualEndQuarterConfirm (UX plan H5 — no pause needed).
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
