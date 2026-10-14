@@ -53,7 +53,7 @@ function vestHelp(strategy: "auto" | "fixed-order" | "coach", periodWord: string
 export type HowWePlayRow = Pick<
   TeamPlaybookRow,
   "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"
-> & { rules?: unknown; vest_strategy?: "auto" | "fixed-order" | "coach" };
+> & { rules?: unknown; vest_strategy?: "auto" | "fixed-order" | "coach" | null };
 
 export type HowWePlayPosition = Pick<
   TeamPositionRow,

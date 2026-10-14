@@ -3,10 +3,11 @@
 //   0061 sport_event_types   a game takes only its own sport's events
 //   0062 sport_lines         positions and prefs sit on their sport's lines
 //   0063 no AFL defaults     a team or game says its sport and size
+//   0064 vest_strategy       vests are a league rule
 // The live-game specs cover the other side of 0061: every event the
 // three live screens write still lands.
 //
-// Covers: supabase/migrations/0061-0063, e2e/fixtures/factories.ts
+// Covers: supabase/migrations/0061-0064, e2e/fixtures/factories.ts
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -152,4 +153,46 @@ test("0063: a team and a game say their own sport and size", async () => {
     expect({ on_field_size: game.on_field_size, sub_interval_seconds: game.sub_interval_seconds }, `${sport} ${ageGroup}`)
       .toEqual({ on_field_size: onField, sub_interval_seconds: interval });
   }
+});
+
+test("0064: AFL and netball keep no vest strategy", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+
+  // How we play saved on the Team tab carries no vests.
+  await page.goto(`/teams/${team.id}/settings`);
+  const preferred = page.getByRole("radiogroup", { name: "How kids rotate" }).getByRole("radio", { name: /Preferred lines/ });
+  await preferred.click({ timeout: 15_000 });
+  await expect(page.getByText("Saved.")).toBeVisible();
+  const row = async () =>
+    (await admin.from("team_playbooks").select("strategy, vest_strategy").eq("team_id", team.id).maybeSingle()).data;
+  await expect.poll(row).toEqual({ strategy: "preferred-lines", vest_strategy: null });
+
+  const { error: aflVests } = await admin.from("team_playbooks").update({ vest_strategy: "auto" }).eq("team_id", team.id);
+  expect(aflVests?.message).toMatch(/Vests are a rugby league rule; afl teams/);
+
+  const netball = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "go" });
+  const { error: netballVests } = await admin
+    .from("team_playbooks")
+    .insert({ team_id: netball.id, strategy: "by-thirds", vest_strategy: "fixed-order" });
+  expect(netballVests?.message).toMatch(/Vests are a rugby league rule; netball teams/);
+});
+
+test("0064: a league team's vests start on Auto-fair and keep the coach's pick", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "rugby_league", ageGroup: "U10" });
+  const row = async () =>
+    (await admin.from("team_playbooks").select("vest_strategy").eq("team_id", team.id).maybeSingle()).data;
+
+  // Written without one, a league playbook gets the fairness pick.
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-line" });
+  expect(await row()).toEqual({ vest_strategy: "auto" });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  const vests = page.getByRole("radiogroup", { name: "Vests" });
+  await expect(vests.getByRole("radio", { name: "Auto-fair" })).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
+  await vests.getByRole("radio", { name: "Fixed order" }).click();
+  await expect.poll(row).toEqual({ vest_strategy: "fixed-order" });
 });

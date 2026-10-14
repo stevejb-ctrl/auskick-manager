@@ -63,7 +63,7 @@ export async function loadTeamPlaybook(
     // Only rules this team's own sport acts on: anything else saved
     // (before the sport's list was its own) is ignored, not applied.
     rules: rulesForSport(activeRules(sanitizeRules((row as { rules?: unknown } | null)?.rules ?? [], null)), resolved),
-    vestStrategy: (row as { vest_strategy?: "auto" | "fixed-order" | "coach" } | null)?.vest_strategy ?? "auto",
+    vestStrategy: (row as { vest_strategy?: "auto" | "fixed-order" | "coach" | null } | null)?.vest_strategy ?? "auto",
   };
 }
 
