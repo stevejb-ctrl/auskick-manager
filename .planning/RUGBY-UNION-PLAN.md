@@ -85,29 +85,66 @@ Done when every league unit and e2e test passes unchanged and
 - `brands/union.json`, plus union copy in `brand-copy.ts`,
   `marketing-copy.ts` and `manifest.ts`.
 
-**Age table.** Team sizes from U10 up are confirmed: U10–U11 play 12 a
-side, U12 and up 15 a side. The rest is a draft from Sydney Junior
-Rugby Union's pathway page and needs confirming:
+**Age table: the national pathway by default, the team can override.**
+Each age defaults to Rugby Australia's Kids Pathway (NSW and WA play it
+as is). The allowed range covers what other states play, so a coach
+picks their competition's size when setting up the team:
 
-| Age | Players | Format | Halves | Kicking | Conversions |
-|-----|---------|--------|--------|---------|-------------|
-| U6  | 5 (draft) | TriTag | 2×10 min (skills) | No | No |
-| U7  | 6 (draft) | TriTag | 2×15 min | No | Optional, in front |
-| U8  | 7 (draft) | Tackle | 2×15 min | Yes | Yes, inside the 15 m line |
-| U9  | 10 (draft) | Tackle | 2×20 min | Yes | Yes |
-| U10–U11 | **12** | Tackle | 2×20–25 min (TBC) | Yes | Yes |
-| U12+ | **15** | Tackle; Australian U19 law variations from U13 | TBC | Yes | Yes |
+| Age | Default players | Range (who plays the variant) | Format | Default halves | Scores by default |
+|-----|-----------------|-------------------------------|--------|----------------|-------------------|
+| U6  | 7 | 5–7 (Sydney TriTag 5) | Tag | 2×10 min | No |
+| U7  | 7 | 6–7 (Sydney TriTag 6) | Tag | 2×15 min | No |
+| U8  | 7 | 6–7 | Tackle | 2×15 min | No |
+| U9  | 10 | 7–10 | Tackle | 2×20 min | No |
+| U10 | 12 | 10–15 (Victoria 10, Brisbane 15) | Tackle | 2×20 min | No |
+| U11 | 12 | 10–15 (Brisbane 15, Victoria 12 or 15) | Tackle | 2×20 min | No |
+| U12 | 15 | 12–15 (Victoria 12 or 15) | Tackle | 2×25 min | Yes |
+| U13–U14 | 15 | 12–15 | U19 law variations | 2×25 min | Yes |
+| U15–U16 | 15 | 12–15 | U19 law variations | 2×30 min | Yes |
+| U17–U18 | 15 | 12–15 | U19 law variations | 2×35 min | Yes |
 
-The column alignment on that page was ambiguous, and Brisbane runs
-U6–U7 as 7-a-side non-contact, so U6–U9 and the half lengths still need
-confirming before they're coded.
+The minimums follow WA's (10 at U10–U11, 12 from U12), so short squads
+can still start. Half lengths are Hunter's (NSW, 2025) from U10 up and
+Sydney's below. The national pathway bars ladders up to U12, and WA
+keeps none before U12, so scores default off to U11 (the team's Track
+scoring switch still turns them on). Sources and the state-by-state
+comparison are in the chat of 14 Oct 2026. The 2026 national junior law
+pilot (U8–U15) changes how tackles, scrums and lineouts are refereed,
+none of which Siren records.
+
+**The team-level override (all sports, not just union).** Half length
+already has one: `teams.quarter_length_seconds`, where NULL means the
+age default, set in team settings. On-field size doesn't. Every new
+game takes the age default from `newGameDefaults`, and only that game
+can change it. Add the same pattern:
+
+- Migration: `teams.on_field_size integer null`. NULL means the age
+  default. No CHECK, so the range lives in config, as with quarter
+  length.
+- `newGameDefaults(sport, ageGroup, team)` uses the team's override
+  when set. All three game-creation paths (coach form, PlayHQ import,
+  nightly sync) go through it.
+- **Setup wizard:** the Basics step shows "Players on the field" and
+  "Half length", prefilled with the national defaults, with a line
+  explaining that competitions differ by state. Team settings gets the
+  same two fields (half length is already there).
+- Clamp to the age's min–max, and re-clamp if the coach changes the
+  age group.
+- A game can still go up or down on the day, as now (the per-game
+  setting is untouched).
+- Tests: the wizard saves the override, a new game picks it up, and
+  changing the age re-clamps it.
+
+This lands in phase 2, but it works for every sport. An AFL or netball
+coach whose league plays a different size gets it too.
 
 ### 3. The field and positions for 15
 
 - `fieldFormation.ts` `getFieldSlots` tops out at 13. A 15-a-side union
-  team (U12 and up) would hide two kids. Add union layouts for 15 and
-  12 a side (U10–U11) first, then the smaller junior sizes. Forwards
-  and backs per size: 8/7 at 15; 12 a side to confirm (6/6 likely).
+  team (U12 and up) would hide two kids. Add union layouts for every
+  size in the ranges above (5 to 15). Forwards and backs per size,
+  from Hunter's by-laws: 10 is 5/5, 11 is 5/6, 12 is 6/6, 13 is 6/7,
+  14 is 8/6, 15 is 8/7. Smaller sizes are to confirm (7 is likely 3/4).
 - `LeagueField` draws league markings. Give it a sport prop, or a small
   `RugbyField` wrapper, for union's 22 m and 10 m lines. Keep one
   component.
@@ -163,20 +200,25 @@ Mostly configuration once phase 1 is in:
 - **Stagehand:** union versions of the gameday, sideline-chaos and
   whole-game missions, with seeds.
 
-## Open questions
+## Decided
 
-1. **Whose junior laws?** NSW (SJRU), Queensland (BJRU), or Rugby
-   Australia's national pathway? The formats differ by state, mainly at
-   U6–U9.
-2. **U6–U7 TriTag:** keep score? League U6–U7 doesn't.
-3. **Brand:** its own domain like `sirenleague.com.au`, or under the
+- **Laws:** Rugby Australia's national pathway by default; the coach
+  can override players on the field and half length when setting up
+  the team (14 Oct 2026).
+- **Scores:** off by default to U11, as the pathway has no ladders up
+  to U12. The team's Track scoring switch turns them on.
+- **Interchange:** unlimited rolling subs at every junior age (Hunter
+  2025, WA 2023): Siren's rolling-sub model as is.
+
+## Still open
+
+1. **Brand:** its own domain like `sirenleague.com.au`, or under the
    main Siren brand?
-4. **Kicking fairness:** do junior union laws rotate kick-offs or
+2. **Kicking fairness:** do junior union laws rotate kick-offs or
    conversion kickers? If not, union has no kick cycles.
-5. **Game-time rules:** does the union have a minimum-game-time policy
+3. **Game-time rules:** does the union have a minimum-game-time policy
    (league's is the unbroken-period rule)? Siren's default 50 % floor
    would apply otherwise.
-6. **Interchange:** rolling and unlimited at every junior age?
 
 ## Size and order
 
