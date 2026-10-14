@@ -85,28 +85,29 @@ Done when every league unit and e2e test passes unchanged and
 - `brands/union.json`, plus union copy in `brand-copy.ts`,
   `marketing-copy.ts` and `manifest.ts`.
 
-**Draft age table, to confirm with the state union.** Sydney Junior
-Rugby Union's pathway, from its site:
+**Age table.** Team sizes from U10 up are confirmed: U10–U11 play 12 a
+side, U12 and up 15 a side. The rest is a draft from Sydney Junior
+Rugby Union's pathway page and needs confirming:
 
-| Age | Format | Halves | Kicking | Conversions |
-|-----|--------|--------|---------|-------------|
-| U6  | 5-a-side TriTag | 2×10 min (skills) | No | No |
-| U7  | 6-a-side TriTag | 2×15 min | No | Optional, in front |
-| U8  | 7-a-side tackle | 2×15 min | Yes | Yes, inside the 15 m line |
-| U9  | 10-a-side tackle | 2×20 min | Yes | Yes |
-| U10 | 12-a-side tackle | 2×20 min | Yes | Yes |
-| U11–U12 | 15-a-side tackle | 2×25 min | Yes | Yes |
-| U13–U18 | 15 a side, Australian U19 law variations | TBC | Yes | Yes |
+| Age | Players | Format | Halves | Kicking | Conversions |
+|-----|---------|--------|--------|---------|-------------|
+| U6  | 5 (draft) | TriTag | 2×10 min (skills) | No | No |
+| U7  | 6 (draft) | TriTag | 2×15 min | No | Optional, in front |
+| U8  | 7 (draft) | Tackle | 2×15 min | Yes | Yes, inside the 15 m line |
+| U9  | 10 (draft) | Tackle | 2×20 min | Yes | Yes |
+| U10–U11 | **12** | Tackle | 2×20–25 min (TBC) | Yes | Yes |
+| U12+ | **15** | Tackle; Australian U19 law variations from U13 | TBC | Yes | Yes |
 
-The column alignment on that page was ambiguous. Brisbane runs U6–U7 as
-7-a-side non-contact, so the table has to be confirmed per state before
-it's coded.
+The column alignment on that page was ambiguous, and Brisbane runs
+U6–U7 as 7-a-side non-contact, so U6–U9 and the half lengths still need
+confirming before they're coded.
 
 ### 3. The field and positions for 15
 
 - `fieldFormation.ts` `getFieldSlots` tops out at 13. A 15-a-side union
-  team would hide two kids. Add 7-, 10-, 12- and 15-a-side union layouts
-  (forwards 3/5/6/8, backs 4/5/6/7, to confirm).
+  team (U12 and up) would hide two kids. Add union layouts for 15 and
+  12 a side (U10–U11) first, then the smaller junior sizes. Forwards
+  and backs per size: 8/7 at 15; 12 a side to confirm (6/6 likely).
 - `LeagueField` draws league markings. Give it a sport prop, or a small
   `RugbyField` wrapper, for union's 22 m and 10 m lines. Keep one
   component.
