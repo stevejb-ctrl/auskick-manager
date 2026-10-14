@@ -407,3 +407,25 @@ test("rugby league supports the full U6-U17 age range", async ({
     await context.close();
   }
 });
+
+// A team's sport never changes (cross-sport audit, 14 Oct 2026): its
+// games, events and How we play are that sport's, so the database
+// refuses a change (migration 0060) and the team keeps playing its own
+// sport.
+test("a team's sport can't be changed after it's created", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+
+  const { error } = await admin.from("teams").update({ sport: "afl", age_group: "U10" }).eq("id", team.id);
+  expect(error?.message).toMatch(/sport can't change/i);
+
+  // A change that leaves the sport alone still saves.
+  const { error: renameError } = await admin.from("teams").update({ name: `${team.name} renamed` }).eq("id", team.id);
+  expect(renameError).toBeNull();
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
+  await expect(page.getByText(/^track goals$/i)).toBeVisible();
+});
