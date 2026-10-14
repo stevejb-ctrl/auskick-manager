@@ -17,7 +17,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport, teamSport } from "@/lib/sports";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -84,7 +84,7 @@ export default async function RunPage({ params }: RunPageProps) {
     gameAllowMidQuarterSubs ?? teamAllowMidQuarterSubs;
   // Netball has no jersey numbers — hide the # input on AddFillInForm
   // (and feed the right live-game component below).
-  const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
+  const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 

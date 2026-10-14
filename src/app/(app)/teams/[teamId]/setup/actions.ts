@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { defaultTrackScoring, getSportConfig } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
 
 /**
@@ -46,7 +46,7 @@ export async function updateTeamBasics(
     .single();
   if (!team) return { success: false, error: "Team not found." };
 
-  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const cfg = getSportConfig(sport);
   if (!cfg.ageGroups.some((a) => a.id === ageGroup)) {
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };

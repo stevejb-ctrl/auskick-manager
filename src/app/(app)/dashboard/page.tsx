@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { ROLE_LABEL } from "@/lib/roles";
-import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport, Team, TeamRole } from "@/lib/types";
 
 interface DashboardPageProps {
@@ -107,7 +107,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         // coach with two teams can tell them apart at a glance (UX plan M1).
         <ul className="space-y-2">
           {teams.map((team) => {
-            const sport = (team.sport ?? "afl") as Sport;
+            const sport = teamSport(team.sport);
             const sportName = sport === "afl" ? "AFL" : getSportConfig(sport).name;
             const ageLabel = getAgeGroupConfig(sport, team.age_group).label;
             const next = nextByTeam.get(team.id);

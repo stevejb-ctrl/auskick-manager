@@ -8,7 +8,7 @@ import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { TeamSwitcher, type SwitcherTeam } from "@/components/layout/TeamSwitcher";
-import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
 import { FeedbackFab } from "@/components/feedback/FeedbackFab";
@@ -49,7 +49,7 @@ export default async function AppLayout({
   const switcherTeams: SwitcherTeam[] = (memberships ?? [])
     .flatMap((m) => (m.teams ? [m.teams] : []))
     .map((t) => {
-      const sport = (t.sport ?? "afl") as Sport;
+      const sport = teamSport(t.sport);
       const sportName = sport === "afl" ? "AFL" : getSportConfig(sport).name;
       return {
         id: t.id,

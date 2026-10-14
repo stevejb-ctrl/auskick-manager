@@ -5,7 +5,7 @@ import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
-import { aflPositionModel, getAgeGroupConfig } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
@@ -33,7 +33,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
     .eq("id", g.team_id)
     .single();
   const teamName = teamRow?.name ?? "Team";
-  const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
+  const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
 
   // Netball runner-token flow doesn't use this separate /lineup step —
   // NetballLiveGame has a built-in pre-kickoff lineup picker that

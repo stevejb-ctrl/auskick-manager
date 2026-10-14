@@ -8,6 +8,7 @@ import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { playbookSnapshot } from "@/lib/playbook/team";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import type { Sport } from "@/lib/types";
+import { teamSport } from "@/lib/sports";
 
 export async function kickoffSnapshot(
   supabase: SupabaseClient<any, any, any>,
@@ -19,7 +20,7 @@ export async function kickoffSnapshot(
     .eq("id", teamId)
     .maybeSingle();
   if (!team) return null;
-  const sport = ((team.sport as Sport | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   const { resolved, rules } = await loadTeamPlaybook(supabase, teamId, sport, team.age_group as string | null);
   return { ...playbookSnapshot(resolved), rules };
 }

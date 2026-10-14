@@ -20,7 +20,7 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -73,7 +73,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   const isAdmin = membership?.role === "admin";
-  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
 
   // Members: joined to profiles so we can show names/emails.
   // team_memberships has two FKs to profiles (user_id, invited_by), so

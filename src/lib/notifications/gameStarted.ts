@@ -3,6 +3,7 @@ import {
   formatGameStartedMessage,
   sendTelegramNotification,
 } from "@/lib/notifications/telegram";
+import { teamSport } from "@/lib/sports";
 
 /**
  * Looks up the team/game/starter triplet needed to format a
@@ -59,7 +60,7 @@ export async function notifyGameStarted(
     const text = formatGameStartedMessage({
       teamName: team.name ?? "Unknown team",
       opponent: game?.opponent ?? "Unknown opponent",
-      sport: (team.sport as string | null) ?? "afl",
+      sport: teamSport(team.sport),
       startedBy:
         profile?.full_name?.trim() ||
         profile?.email ||

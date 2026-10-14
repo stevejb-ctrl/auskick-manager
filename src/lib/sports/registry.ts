@@ -1,7 +1,8 @@
 // ─── Sport registry ──────────────────────────────────────────
-// Central lookup from a `SportId` to its `SportConfig`. Callers use
-// `getSportConfig(team.sport)` — if `team.sport` is missing (legacy
-// rows) it defaults to AFL.
+// Central lookup from a `SportId` to its `SportConfig`. Sports are
+// independent (14 Oct 2026): a missing or unknown sport is an error,
+// never AFL. Every team row has a sport (teams.sport is NOT NULL and
+// checked), so a miss means the code lost it.
 
 import type { AgeGroupConfig, SportConfig, SportId } from "@/lib/sports/types";
 import { aflSport } from "@/lib/sports/afl";
@@ -18,20 +19,29 @@ export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSpo
 
 export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league"];
 
-export function getSportConfig(sport: SportId | string | null | undefined): SportConfig {
-  if (sport && sport in REGISTRY) return REGISTRY[sport as SportId];
-  return aflSport;
-}
-
 export function isSportId(value: unknown): value is SportId {
   return typeof value === "string" && value in REGISTRY;
 }
 
 /**
+ * A team's sport, checked. Use this instead of `team.sport ?? "afl"`
+ * or an `as Sport` cast: an unknown sport fails here rather than being
+ * run under another sport's rules.
+ */
+export function teamSport(value: unknown): SportId {
+  if (isSportId(value)) return value;
+  throw new Error(`Unknown sport "${String(value)}"`);
+}
+
+export function getSportConfig(sport: SportId | string | null | undefined): SportConfig {
+  return REGISTRY[teamSport(sport)];
+}
+
+/**
  * Resolve an age group config for a team. Given a sport + age-group id,
  * returns the matching AgeGroupConfig, including retired ids existing
- * teams still store. Falls back to the sport's first age group on a
- * miss (safe default).
+ * teams still store. The sport must be known (it throws otherwise); an
+ * unknown age group falls back to that same sport's first age group.
  */
 export function getAgeGroupConfig(
   sport: SportId | string | null | undefined,

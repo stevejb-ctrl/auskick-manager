@@ -19,14 +19,19 @@ import {
   rugbyLeagueSport,
   isPositionAllowedInZone,
   pickNetballPositionsToFill,
+  teamSport,
 } from "@/lib/sports";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 describe("sport registry", () => {
-  it("returns AFL by default for unknown / missing sport", () => {
-    expect(getSportConfig(null)).toBe(aflSport);
-    expect(getSportConfig(undefined)).toBe(aflSport);
-    expect(getSportConfig("unknown")).toBe(aflSport);
+  // Sports are independent (14 Oct 2026): a missing or unknown sport is
+  // an error, never run as AFL.
+  it("throws for an unknown or missing sport instead of falling back to AFL", () => {
+    expect(() => getSportConfig(null)).toThrow(/Unknown sport/);
+    expect(() => getSportConfig(undefined)).toThrow(/Unknown sport/);
+    expect(() => getSportConfig("rugby_union")).toThrow(/rugby_union/);
+    expect(() => teamSport("unknown")).toThrow(/Unknown sport/);
+    expect(teamSport("netball")).toBe("netball");
   });
 
   it("returns the correct config for each registered sport", () => {

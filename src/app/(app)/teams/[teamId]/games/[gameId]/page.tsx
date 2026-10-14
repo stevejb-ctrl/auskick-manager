@@ -11,7 +11,7 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, teamSport } from "@/lib/sports";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { replayGame } from "@/lib/fairness";
@@ -97,7 +97,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
-  const sport: Sport = ((team as { sport?: Sport } | null)?.sport) ?? "afl";
+  const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
   const teamName = (team as { name?: string } | null)?.name ?? "Us";
   // Sport-config age-group shape (label, on-field size, positions,
   // zones, period count). Always the team's own sport — never the

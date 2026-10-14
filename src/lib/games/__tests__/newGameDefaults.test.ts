@@ -54,7 +54,7 @@ describe("newGameDefaults", () => {
     });
   });
 
-  it("a team with no sport set is treated as AFL", () => {
-    expect(newGameDefaults(null, "U10")).toEqual(newGameDefaults("afl", "U10"));
+  it("a team with no sport is an error, not AFL", () => {
+    expect(() => newGameDefaults(null, "U10")).toThrow(/Unknown sport/);
   });
 });

@@ -4,7 +4,7 @@ import { AddGameSection } from "@/components/games/AddGameSection";
 import { GameList } from "@/components/games/GameList";
 import { GamesFilter, type GamesFilterValue } from "@/components/games/GamesFilter";
 import { Spinner } from "@/components/ui/Spinner";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow } from "@/components/sf";
 
@@ -47,7 +47,7 @@ export default async function GamesPage({
 
   const isAdmin = membershipResult.data?.role === "admin";
   const team = teamResult.data;
-  const sport = ((team as { sport?: string | null } | null)?.sport ?? "afl") as Sport;
+  const sport = teamSport((team as { sport?: string | null } | null)?.sport);
   const ageGroupCfg = getAgeGroupConfig(sport, team?.age_group as string | null);
 
   let existingExternalIds: string[] = [];

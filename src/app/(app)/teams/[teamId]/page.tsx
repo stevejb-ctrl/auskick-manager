@@ -14,6 +14,7 @@ import {
 import { getSeasonEvents } from "@/lib/season";
 import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
+import { teamSport } from "@/lib/sports";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -93,7 +94,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .eq("team_id", params.teamId),
   ]);
 
-  const sport = ((teamRow?.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(teamRow?.sport);
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,

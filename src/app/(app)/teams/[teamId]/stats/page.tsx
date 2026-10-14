@@ -23,7 +23,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig } from "@/lib/sports";
+import { netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -48,7 +48,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     .single();
 
   if (!team) notFound();
-  const sport: Sport = (team as { sport?: Sport } | null)?.sport ?? "afl";
+  const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =

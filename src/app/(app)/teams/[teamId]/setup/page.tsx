@@ -7,7 +7,7 @@ import { GamesStep } from "@/components/setup/GamesStep";
 import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import { loadSquadRoles } from "@/lib/playbook/load";
 import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { Player, Sport } from "@/lib/types";
@@ -102,7 +102,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   }
 
   const teamName = team.name as string;
-  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   // Resolve the age-group config against the team's sport so netball
   // teams get their NetSetGO/Modified config here (not U8-U17).
   const ageGroupCfg = getAgeGroupConfig(sport, team.age_group as string | null);

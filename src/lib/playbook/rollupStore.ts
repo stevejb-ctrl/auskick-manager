@@ -1,7 +1,7 @@
 // Reading and writing player_game_time (migration 0054). Server only.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, teamSport } from "@/lib/sports";
 import type { GameEvent, Sport } from "@/lib/types";
 import { gameRollupRows, type PlayerGameTimeRow } from "@/lib/playbook/rollup";
 
@@ -18,7 +18,7 @@ async function periodSecondsFor(client: Client, gameId: string): Promise<{ sport
   const team = (game as unknown as {
     teams: { sport: Sport | null; age_group: string | null; quarter_length_seconds: number | null } | null;
   }).teams;
-  const sport = (team?.sport ?? "afl") as Sport;
+  const sport = teamSport(team?.sport);
   const seconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team?.quarter_length_seconds ?? null },
     getAgeGroupConfig(sport, team?.age_group ?? null),

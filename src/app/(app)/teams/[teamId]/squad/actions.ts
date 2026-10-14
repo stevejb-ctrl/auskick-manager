@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { ParsedPlayer } from "@/lib/squadPaste";
 import type { ActionResult, Sport } from "@/lib/types";
 
@@ -40,7 +40,7 @@ async function squadCapFor(
     .eq("id", teamId)
     .single();
   const row = team as { sport?: Sport | null; age_group?: string | null } | null;
-  return getAgeGroupConfig(row?.sport ?? "afl", row?.age_group).maxSquadSize;
+  return getAgeGroupConfig(teamSport(row?.sport), row?.age_group).maxSquadSize;
 }
 
 /**

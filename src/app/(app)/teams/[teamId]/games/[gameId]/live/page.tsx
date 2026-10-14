@@ -26,7 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -190,7 +190,7 @@ export default async function LivePage({ params }: LivePageProps) {
   if (!game) notFound();
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
-  const sport: Sport = (teamRow?.sport as Sport | undefined) ?? "afl";
+  const sport: Sport = teamSport(teamRow?.sport);
   // track_scoring is sport-agnostic — both AFL and netball flows
   // honour it. Hoisted ABOVE the netball branch (was nested inside
   // the AFL branch) so plan 04-04's NetballLiveGame can consume it.

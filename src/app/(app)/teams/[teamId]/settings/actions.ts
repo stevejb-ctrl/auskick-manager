@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeChipMode } from "@/lib/chips";
-import { getSportConfig } from "@/lib/sports";
+import { getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
 
 const BUCKET = "team-songs";
@@ -311,7 +311,7 @@ export async function setTeamAgeGroup(
   if (error) return { success: false, error };
 
   const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
-  const sport = ((team as { sport?: Sport | null } | null)?.sport ?? "afl") as Sport;
+  const sport = teamSport((team as { sport?: Sport | null } | null)?.sport);
   const cfg = getSportConfig(sport);
   if (!cfg.ageGroups.some((a) => a.id === ageGroup)) {
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
