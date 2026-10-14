@@ -20,7 +20,7 @@
 //   * conversion-kick rotation  — recordConversionAttempt (bypass with force: true)
 //   * kickoff rotation          — recordKickoff (full squad pool)
 // Both rotations are junior laws (U6–U12); U13+ plays international
-// laws without them (AgeGroupConfig.internationalLaws).
+// laws without them (AgeGroupConfig.kickRotations).
 //
 // Rugby league and union share these actions: every rule is read from
 // the team's own sport and age group (rugbyTeam), and every event is
@@ -749,10 +749,11 @@ export async function recordConversionAttempt(
 
     // No-twice rule: kicker already attempted in the current
     // cycle. Use the subset semantics from `conversionCycle` so
-    // mid-cycle substitutions resolve correctly. Junior laws only:
-    // under international laws (U13+) any player may kick.
+    // mid-cycle substitutions resolve correctly. Only where the age
+    // has the junior kick rotations: under international laws (U13+)
+    // any player may kick.
     const cycle = conversionCycle(priorEvents, onField);
-    if (cycle.attempted.has(kickerId) && !(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
+    if (cycle.attempted.has(kickerId) && (await rugbyTeamOf(auth, w)).ageCfg.kickRotations === true) {
       return {
         success: false,
         rejected: true,
@@ -816,7 +817,7 @@ export async function recordKickoff(
   const cycle = kickoffCycle(priorEvents, squadIds);
 
   // The rotation is a junior law; international laws (U13+) have none.
-  if (cycle.taken.has(kickerId) && !(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
+  if (cycle.taken.has(kickerId) && (await rugbyTeamOf(auth, w)).ageCfg.kickRotations === true) {
     return {
       success: false,
       // A rule refusal: dropped, not retried (it would hold the game lane).
@@ -876,7 +877,7 @@ export async function recordLeagueGoal(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  if (!(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
+  if ((await rugbyTeamOf(auth, w)).ageCfg.goalsFromPlay !== true) {
     return {
       success: false,
       rejected: true,

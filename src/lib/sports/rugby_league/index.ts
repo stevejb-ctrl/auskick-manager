@@ -37,6 +37,7 @@ import type {
   PositionDef,
   ScoreTypeDef,
   AgeGroupConfig,
+  RugbyAgeGroupConfig,
   ValidationResult,
   ValidationIssue,
 } from "@/lib/sports/types";
@@ -70,7 +71,7 @@ const RL_SCORE_TYPES: ScoreTypeDef[] = [
   { id: "conversion", label: "Conversion", shortLabel: "C", points: 2 },
   { id: "opponent_try", label: "Opponent Try", shortLabel: "+T", points: 4, opponent: true },
   { id: "opponent_conversion", label: "Opp. Conversion", shortLabel: "+C", points: 2, opponent: true },
-  // U13+ (international laws) only: AgeGroupConfig.internationalLaws.
+  // U13+ (international laws) only: AgeGroupConfig.goalsFromPlay.
   { id: "penalty_goal", label: "Penalty goal", shortLabel: "PG", points: 2 },
   { id: "field_goal", label: "Field goal", shortLabel: "FG", points: 1 },
   { id: "opponent_penalty_goal", label: "Opp. Penalty goal", shortLabel: "+PG", points: 2, opponent: true },
@@ -98,7 +99,10 @@ const INTL_LONG_HALF_SECONDS = 30 * 60;
 const INTL_SHORT_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_SHORT_HALF_SECONDS, 240);
 const INTL_LONG_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_LONG_HALF_SECONDS, 240);
 
-const RL_AGE_GROUPS: AgeGroupConfig[] = [
+// Each age states every law itself (RugbyAgeGroupConfig). The junior
+// laws (U6–U12): kick rotations (§15–16) and unbroken periods (§6), no
+// goals from play (§17). International laws (U13+): the reverse.
+const RL_AGE_GROUPS: RugbyAgeGroupConfig[] = [
   {
     id: "U6",
     label: "Under 6 (Tag)",
@@ -122,6 +126,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     // Tag is positionless in spirit; 3F/3B is a balanced default the
     // coach can rebalance per game.
     forwardCount: 3,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U7",
@@ -143,6 +151,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     kickingAllowed: false,
     minUnbrokenPeriods: 2,
     forwardCount: 3,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U8",
@@ -166,6 +178,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 2,
     // 8 on field, 4F/4B.
     forwardCount: 4,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U9",
@@ -188,6 +204,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     vestRequirements: { fr: true, dh: true },
     minUnbrokenPeriods: 2,
     forwardCount: 4,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U10",
@@ -217,6 +237,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     // (4F/5B) scaled up — backs carry the extra body because RL adds
     // a fullback to the back line, not the forward pack.
     forwardCount: 5,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
   },
   {
     id: "U11",
@@ -239,6 +263,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     vestRequirements: { fr: true, dh: true },
     minUnbrokenPeriods: 1,
     forwardCount: 5,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
   },
   {
     id: "U12",
@@ -265,6 +293,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 1,
     // 13 on field — front-row pack of 6, back-line of 7.
     forwardCount: 6,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
   },
   // U13 and up play international laws (CRRL 2026 junior competition
   // rules: 2 × 25-min halves to U15, 2 × 30 from U16).
@@ -291,6 +323,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 0,
     forwardCount: 6,
     internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
   {
     id: "U14",
@@ -315,6 +351,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 0,
     forwardCount: 6,
     internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
   {
     id: "U15",
@@ -339,6 +379,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 0,
     forwardCount: 6,
     internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
   {
     id: "U16",
@@ -363,6 +407,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 0,
     forwardCount: 6,
     internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
   {
     id: "U17",
@@ -387,6 +435,10 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 0,
     forwardCount: 6,
     internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
 ];
 

@@ -21,7 +21,6 @@ import { sidedPositions } from "@/lib/playbook/sides";
 import type { RuleKind } from "@/lib/playbook/rules";
 
 const NRL_LAWS = "NRL Junior League Laws";
-const MOD_LEAGUE = new Set(["U10", "U11", "U12"]);
 // Named positions: Mod League and the international-laws grades.
 const NAMED_POSITION_AGES = new Set(["U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17"]);
 
@@ -172,9 +171,11 @@ function rugbyPlaybook(sport: RugbySport): SportPlaybook {
     },
 
     recommendedStrategy(policy: EffectivePolicy): string {
-      // Past Mod League kids play set positions (international laws).
-      if (getAgeGroupConfig(sport, policy.ageGroup).internationalLaws) return "named-positions";
-      return MOD_LEAGUE.has(policy.ageGroup) ? "preferred-line" : "both-lines";
+      // The age group's own: league's is both lines in Mini Footy,
+      // preferred line in Mod League and named positions past it.
+      const id = getAgeGroupConfig(sport, policy.ageGroup).recommendedStrategy;
+      if (!id) throw new Error(`${sport} ${policy.ageGroup} has no recommended strategy`);
+      return id;
     },
 
     fallbackStrategy(): string {

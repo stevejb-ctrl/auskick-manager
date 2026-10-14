@@ -61,7 +61,7 @@ export function ScoringStep({
         .
       </>
     ) : isRugbyLeague ? (
-      rlScoringOn && ageGroup.internationalLaws ? (
+      rlScoringOn && ageGroup.goalsFromPlay ? (
         // U13+ (Stagehand round 3: an Under 14 coach was told "modified
         // tackle, tries and conversions").
         <>

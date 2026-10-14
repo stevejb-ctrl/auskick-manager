@@ -437,16 +437,18 @@ export function LeagueLiveGame({
     () => squad.filter((p) => onFieldSet.has(p.id) && !injuredSet.has(p.id) && !loanedSet.has(p.id)),
     [squad, onFieldSet, injuredSet, loanedSet],
   );
-  // International laws (U13+): no goal-kick or kickoff rotation, so no
-  // rotation badges and no kickoff picker.
-  const internationalLaws = ageGroup.internationalLaws === true;
+  // Each law is its own knob. Without the junior kick rotations (league
+  // U13+) there are no rotation badges and no kickoff picker; with goals
+  // from play the score bug and the scorer sheet offer PG and FG.
+  const kickRotations = ageGroup.kickRotations === true;
+  const goalsFromPlay = ageGroup.goalsFromPlay === true;
   const conversionByPlayer = useMemo(
-    () => (internationalLaws ? {} : playerConversionStatusInCycle(thisGameEvents, onFieldIds)),
-    [thisGameEvents, onFieldIds, internationalLaws],
+    () => (kickRotations ? playerConversionStatusInCycle(thisGameEvents, onFieldIds) : {}),
+    [thisGameEvents, onFieldIds, kickRotations],
   );
   const kickoffTakerIds = useMemo(
-    () => (internationalLaws ? new Set<string>() : kickoffTakers(thisGameEvents)),
-    [thisGameEvents, internationalLaws],
+    () => (kickRotations ? kickoffTakers(thisGameEvents) : new Set<string>()),
+    [thisGameEvents, kickRotations],
   );
 
   // ── Per-player time on field ─────────────────────────────────
@@ -580,7 +582,7 @@ export function LeagueLiveGame({
   const kickingAllowed = ageGroup.kickingAllowed === true;
   const kickoffNeededForPeriod
     = kickingAllowed
-    && !internationalLaws
+    && kickRotations
     && state.currentQuarter >= 1
     && !state.quarterEnded
     && !state.finalised
@@ -912,7 +914,9 @@ export function LeagueLiveGame({
           (ageGroup.vestRequirements?.fr ?? false)
           || (ageGroup.vestRequirements?.dh ?? false),
         kickingAllowed: ageGroup.kickingAllowed === true,
-        internationalLaws: ageGroup.internationalLaws === true,
+        goalsFromPlay: ageGroup.goalsFromPlay === true,
+        kickRotations: ageGroup.kickRotations === true,
+        unbrokenPeriods: ageGroup.unbrokenPeriods === true,
         trackZoneTime,
         enforceUnbrokenPeriods,
       }),
@@ -921,7 +925,9 @@ export function LeagueLiveGame({
       ageGroup.periodLabel,
       ageGroup.vestRequirements,
       ageGroup.kickingAllowed,
-      ageGroup.internationalLaws,
+      ageGroup.goalsFromPlay,
+      ageGroup.kickRotations,
+      ageGroup.unbrokenPeriods,
       trackZoneTime,
       enforceUnbrokenPeriods,
     ],
@@ -2222,10 +2228,10 @@ export function LeagueLiveGame({
           onOpponentConversion={
             kickingAllowed ? handleRecordOpponentConversion : undefined
           }
-          onTeamPenaltyGoal={internationalLaws ? () => setGoalPicker("penalty_goal") : undefined}
-          onTeamFieldGoal={internationalLaws ? () => setGoalPicker("field_goal") : undefined}
-          onOpponentPenaltyGoal={internationalLaws ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
-          onOpponentFieldGoal={internationalLaws ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined}
+          onTeamPenaltyGoal={goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
+          onTeamFieldGoal={goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
+          onOpponentPenaltyGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+          onOpponentFieldGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined}
           onUndo={
             state.teamScore.points > 0 || state.opponentScore.points > 0
               ? handleUndoScore
@@ -2328,7 +2334,7 @@ export function LeagueLiveGame({
               >
                 + Try
               </button>
-              {internationalLaws && (
+              {goalsFromPlay && (
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -2405,13 +2411,13 @@ export function LeagueLiveGame({
                   : undefined
               }
               kickingAllowed={kickingAllowed}
-              onTeamPenaltyGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => setGoalPicker("penalty_goal") : undefined}
-              onTeamFieldGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => setGoalPicker("field_goal") : undefined}
+              onTeamPenaltyGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
+              onTeamFieldGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
               onOpponentPenaltyGoal={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined
+                (isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined
               }
               onOpponentFieldGoal={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && internationalLaws ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined
+                (isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined
               }
               pending={pending}
               running={running}
@@ -2622,7 +2628,7 @@ export function LeagueLiveGame({
           quarter={state.currentQuarter}
           elapsedMs={elapsedMs}
           afterTry={conversionAfterTry}
-          rotation={!internationalLaws}
+          rotation={kickRotations}
           onClose={() => setConversionDialogOpen(false)}
         />
       )}
