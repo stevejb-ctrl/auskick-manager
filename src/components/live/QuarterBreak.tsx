@@ -103,13 +103,6 @@ interface QuarterBreakProps {
    * roles for the AFL suggesters. Omitted = today's behaviour.
    */
   aflPlaybook?: AflPlaybookInput;
-  /**
-   * Demo-clock speed multiplier (default 1). Used to scale real-time
-   * stint durations into game-time when checking the "recent arrival"
-   * pin threshold, so the demo's 8× quarters don't treat every field
-   * player's whole-quarter stint as a recent sub.
-   */
-  clockMultiplier?: number;
   onStarted: () => void;
   /**
    * Fired SYNCHRONOUSLY when the coach taps Start (issue 1) — before the
@@ -142,7 +135,6 @@ export function QuarterBreak({
   chipModeByKey = {},
   aflPlaybook,
   periodCount = 4,
-  clockMultiplier = 1,
   onStarted,
   onPrimeAudio,
 }: QuarterBreakProps) {
@@ -514,14 +506,12 @@ export function QuarterBreak({
 
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
-    // Recent arrivals: short last stint. Compare in GAME time, not
-    // real time — the demo's 8× clock would otherwise treat every
-    // full-quarter stint (~90s real = 12 min game) as a recent sub
-    // and pin every field player to their previous zone, blocking
-    // the auto-rotation the UI promises. Steve 2026-05-20.
+    // Recent arrivals: short last stint. Stints are in GAME time (the
+    // live store's clock), so the demo's 8× quarters don't read every
+    // full-quarter stint as a recent sub. Steve 2026-05-20.
     for (const [pid, dur] of Object.entries(lastStintMs)) {
       const z = lastStintZone[pid];
-      if (z && dur * clockMultiplier < RECENT_ARRIVAL_MS) pins[pid] = z;
+      if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
     }
     // Field-locked: always stay in their last zone (never go to bench)
     for (const pid of lockedIds) {
@@ -533,7 +523,7 @@ export function QuarterBreak({
       pins[pid] = z;
     }
     return pins;
-  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers, clockMultiplier]);
+  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
 
   // Q-just-ended teammate cohorts, keyed by player id. Built from
   // the END-of-quarter lineup (already in the live store) so it
