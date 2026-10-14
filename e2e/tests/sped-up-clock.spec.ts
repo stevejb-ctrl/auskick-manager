@@ -161,9 +161,12 @@ test("rugby league at 8×: the half clock runs at game speed", async ({ page }) 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.locator('button[aria-label^="Clock"]').first()).toBeVisible({ timeout: 15_000 });
 
-  // A 20:00 half, 0:40 of it gone before the page even loaded.
+  // A 20:00 half, 0:40 of it gone before the page even loaded. (The
+  // server render shows the full half until the clock's first tick.)
+  await expect
+    .poll(() => leagueClockSecondsLeft(page), { timeout: 5_000 })
+    .toBeLessThanOrEqual(20 * 60 - 40);
   const before = await leagueClockSecondsLeft(page);
-  expect(before).toBeLessThanOrEqual(20 * 60 - 40);
 
   // Three real seconds take about 24 s off the clock, not 3.
   await page.waitForTimeout(3_000);
