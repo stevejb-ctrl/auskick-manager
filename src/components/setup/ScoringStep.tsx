@@ -7,6 +7,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
+import { noSportBranch, periodLabels } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -14,13 +15,8 @@ interface ScoringStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   initialEnabled: boolean;
-  /**
-   * Sport-aware copy around scoring. AFL and rugby_league use the
-   * "track goals & behinds / track tries" framing in the default
-   * branch; netball gets its own copy below. Rugby-league-specific
-   * blurb lands in the team-setup phase (Phase 2 of the RL plan).
-   */
-  sportId?: Sport;
+  /** The team's sport: each has its own scoring copy below. */
+  sportId: Sport;
   /** Current quarter-length override in seconds, or null to use age-group default. */
   initialQuarterLengthSeconds?: number | null;
   /** Saved How we play, or null for a new team (age-group defaults). */
@@ -33,7 +29,7 @@ export function ScoringStep({
   teamId,
   ageGroup,
   initialEnabled,
-  sportId = "afl",
+  sportId,
   initialQuarterLengthSeconds = null,
   playbookRow = null,
   positions = [],
@@ -85,7 +81,7 @@ export function ScoringStep({
           switch to modified tackle.
         </>
       )
-    ) : (
+    ) : sportId === "afl" ? (
       <>
         Most AFL juniors don&apos;t keep score up to U10, then scoring comes in
         around U11. Flip this on if your league keeps a scoreboard —{" "}
@@ -94,6 +90,8 @@ export function ScoringStep({
         </strong>
         .
       </>
+    ) : (
+      noSportBranch(sportId, "ScoringStep")
     );
 
   return (
@@ -115,7 +113,7 @@ export function ScoringStep({
         ageLabel={ageGroup.label}
         onFieldSize={ageGroup.defaultOnFieldSize}
         maxOnFieldSize={ageGroup.maxOnFieldSize}
-        periodWord={ageGroup.periodLabel === "half" ? "half" : "quarter"}
+        periodWord={periodLabels(sportId, ageGroup).label}
         row={playbookRow}
         positions={positions}
         isAdmin

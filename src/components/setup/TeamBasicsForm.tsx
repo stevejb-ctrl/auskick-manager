@@ -13,7 +13,7 @@ import type { Sport } from "@/lib/types";
 interface TeamBasicsFormProps {
   userId: string;
   /** Sport selected by default based on the brand the user arrived from. */
-  defaultSport?: Sport;
+  defaultSport: Sport;
   /**
    * If true, hide the sport picker and lock to `defaultSport`. Used on
    * brand-specific domains where only one sport makes sense.
@@ -28,9 +28,15 @@ interface TeamBasicsFormProps {
   existingTeam?: { id: string; name: string; ageGroup: string };
 }
 
+const NAME_EXAMPLE: Record<Sport, string> = {
+  afl: "e.g. Kingsway Roos",
+  netball: "e.g. Kingsway Flyers",
+  rugby_league: "e.g. Kingsway Tigers",
+};
+
 export function TeamBasicsForm({
   userId,
-  defaultSport = "afl",
+  defaultSport,
   lockSport = false,
   existingTeam,
 }: TeamBasicsFormProps) {
@@ -143,13 +149,7 @@ export function TeamBasicsForm({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={
-            sport === "afl"
-              ? "e.g. Kingsway Roos"
-              : sport === "netball"
-              ? "e.g. Kingsway Flyers"
-              : "e.g. Kingsway Tigers"
-          }
+          placeholder={NAME_EXAMPLE[sport]}
           error={error ?? undefined}
           disabled={isPending}
           autoFocus

@@ -46,7 +46,7 @@ export default async function NewTeamPage() {
           {isFirstTeam ? "Tell us about your team" : "Create your team"}
         </h1>
         <p className="text-sm text-ink-dim">
-          Your age group sets the default on-field size, quarter length, and
+          Your age group sets the default on-field size, game length, and
           rotation rules for this team (you can fine-tune on-field numbers per
           game later). The team name is easy to change anytime from Settings.
         </p>
