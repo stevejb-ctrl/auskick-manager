@@ -9,6 +9,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 async function runnerContext(browser: Browser) {
   const context = await browser.newContext({ storageState: undefined });
@@ -42,6 +43,8 @@ for (const sport of ["afl", "rugby_league"] as const) {
 
     const { context, page } = await runnerContext(browser);
     await page.goto(sport === "afl" ? `/run/${game.share_token}/lineup` : `/run/${game.share_token}`);
+    // A tap on Start before hydration does nothing (WebKit).
+    await waitForHydration(page);
     if (sport === "rugby_league") {
       const cont = page.getByRole("link", { name: /continue to starting lineup/i });
       if (await cont.isVisible({ timeout: 5_000 }).catch(() => false)) await cont.click();
