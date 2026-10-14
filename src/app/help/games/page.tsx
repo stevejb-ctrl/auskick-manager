@@ -78,7 +78,8 @@ export default function GamesPage() {
           <li>
             <strong className="text-ink">Final</strong>: the game is finished.
             Tap <strong className="text-ink">Summary</strong> for the result and the
-            group-chat summary; stats are in the Stats tab.
+            group-chat summary (league opens its full-time screen); stats are in
+            the Stats tab.
           </li>
         </ul>
       </section>
@@ -90,7 +91,10 @@ export default function GamesPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>See the final or current score</li>
-          <li>View top scorers (if scoring was tracked)</li>
+          <li>
+            See who scored, if scoring was tracked: AFL goal kickers,
+            netball goal shooters, and league try scorers and kickers
+          </li>
           <li>Start or re-enter the live game view</li>
           <li>
             Under <strong className="text-ink">More</strong>: the game-day link, edit
@@ -105,8 +109,11 @@ export default function GamesPage() {
         />
 
         <HelpCallout type="tip">
-          The <strong>Track scoring</strong> toggle on the game detail page
-          controls whether per-player goal tallies appear during the live game.
+          Scoring is switched on for the whole team under Team › Game-day
+          extras (<strong>Track goals &amp; behinds</strong> for AFL,{" "}
+          <strong>Track goals</strong> for netball,{" "}
+          <strong>Track points</strong> for league). It controls whether
+          scoring buttons and per-player tallies appear during the live game.
           See{" "}
           <Link href="/help/track-scoring" className="font-medium underline">
             Track Scoring
@@ -133,7 +140,8 @@ export default function GamesPage() {
         </p>
         <HelpCallout type="warning">
           Deleting a game removes all recorded rotations, scores, and stats for
-          it. Season fairness scores will be recalculated without that game.
+          it. Season stats and season balance will be recalculated without
+          that game.
         </HelpCallout>
       </section>
     </HelpPage>

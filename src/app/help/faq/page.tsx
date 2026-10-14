@@ -35,10 +35,13 @@ const FAQ: FAQItem[] = [
     q: "How do I undo a score?",
     a: (
       <>
-        After tapping a scoring action, an <strong>Undo</strong> toast appears
-        at the bottom of the screen for 8 seconds. Tap it immediately to
-        reverse the score. If you miss the toast, the score is saved. Contact
-        your admin to manually correct the game data.
+        Tap <strong>Undo</strong> on the strip just above the scoreboard to
+        take back the latest score. In AFL and netball the strip flashes the
+        score you just recorded for 8 seconds. To fix an older score, use{" "}
+        <strong>Fix scores</strong> at the next quarter break or in the
+        full-time review (AFL and netball); league&apos;s full-time review
+        has the score buttons and Undo, so you can correct the result before
+        you tap <strong>Finish game</strong>.
       </>
     ),
   },
@@ -46,13 +49,15 @@ const FAQ: FAQItem[] = [
     q: "Why isn't a stat showing up?",
     a: (
       <>
-        Stats only populate for <strong>completed</strong> games (all four
-        quarters ended properly). Stats that depend on scoring (winning
-        combinations, position fit, quarter scoring) also require the{" "}
+        Stats only populate for <strong>finished</strong> games: every
+        quarter or half played out, then <strong>Finish game</strong> tapped
+        in the full-time review. Stats that depend on scoring (AFL position
+        fit and quarter-by-quarter scoring, head-to-head, and every
+        sport&apos;s scoring columns) also require{" "}
         <Link href="/help/track-scoring" className="font-medium underline">
           Track scoring
         </Link>{" "}
-        toggle to have been on for those games.
+        to have been on for those games.
       </>
     ),
   },
@@ -62,7 +67,7 @@ const FAQ: FAQItem[] = [
       <>
         The app needs an internet connection to save game events to the server.
         The UI will load from the browser cache if you&apos;ve visited before, but
-        any actions you take (scoring, subs, ending quarters) require connectivity
+        any actions you take (scoring, subs, ending quarters or halves) require connectivity
         to persist. If you lose connection during a game, actions may fail silently.
         Reconnect and refresh to check the current saved state.
       </>
@@ -72,14 +77,17 @@ const FAQ: FAQItem[] = [
     q: "Why isn't the Sub Due alert firing?",
     a: (
       <>
-        Sub Due alerts apply to football&apos;s rolling-sub model only — netball
-        teams sub at the quarter break instead, so the alert never appears.
-        For football: the sub timer only runs while a quarter is{" "}
-        <strong>active</strong> (not paused and not in a quarter break). Make
-        sure you&apos;ve tapped <strong>Start Q{"{n}"}</strong> on the quarter
-        break screen. If the clock isn&apos;t running, the timer doesn&apos;t
-        count. Also check the sub interval in the lineup screen&apos;s Game
-        settings (a value of 0 disables the timer).
+        Sub Due alerts apply to rolling subs, so AFL and league only —
+        netball teams sub at the quarter break instead, so the alert never
+        appears. For AFL and league: the sub timer only runs while a quarter
+        or half is <strong>active</strong> (not paused and not at a break).
+        Make sure you&apos;ve tapped <strong>Start Q{"{n}"}</strong> (league
+        from Under 10: <strong>Start H{"{n}"}</strong>) after the break. If
+        the clock isn&apos;t running, the timer doesn&apos;t count. Also
+        check the sub interval (1 to 10 minutes) under Game settings, on the
+        lineup screen or below the field during the game. If your team uses
+        the <strong>Subs only at the breaks</strong> rule, Siren won&apos;t
+        suggest rolling subs.
       </>
     ),
   },
@@ -87,10 +95,11 @@ const FAQ: FAQItem[] = [
     q: "How do I add a player who arrived late?",
     a: (
       <>
-        During a live game, look for the <strong>Late arrival</strong> option in
-        the live game view. It lets you add a player from your squad to the bench
-        mid-game. They&apos;ll then be available for rotations and the quarter-break
-        lineup picker.
+        During a live game, tap <strong>+ Add late arrival</strong> below the
+        field or court. It lets you add a player from your squad to the bench
+        mid-game. They&apos;ll then be available for rotations and the next
+        break&apos;s lineup. At a league break you can also use{" "}
+        <strong>Add arrived player</strong>.
       </>
     ),
   },
@@ -104,14 +113,15 @@ const FAQ: FAQItem[] = [
     ),
   },
   {
-    q: "What does the fairness score mean?",
+    q: "How do I check playing time is fair?",
     a: (
       <>
-        It&apos;s a 0–100 index that measures how evenly time is distributed
-        across the whole squad. 100 is perfectly equal; lower scores mean some
-        players have had significantly more or less time in certain positions.
-        Aim for a high score by the end of the season. Individual games often
-        sit lower, which is normal. See{" "}
+        Open the <strong>Season balance</strong> card on the Stats tab. It
+        shows each player&apos;s minutes in each line or position this
+        season, tints any spot where a kid is owed at least a quarter (a
+        half, for league from Under 10), and counts how many kids are within
+        a quarter (or half) of even. Aim for an even season. Individual games
+        often sit uneven, which is normal. See{" "}
         <Link href="/help/rotations" className="font-medium underline">
           Rotations
         </Link>{" "}
@@ -134,9 +144,12 @@ const FAQ: FAQItem[] = [
     a: (
       <>
         After you tap <strong>Mark injured</strong> in the player actions
-        sheet, the player moves to the bench immediately. If their tile is
-        still visible on the playing area, try refreshing the page. If the
-        issue persists, see{" "}
+        sheet, the player comes out of the rotation straight away. If
+        they&apos;re on the field, AFL and league ask who comes on in their
+        place, and netball asks who fills their position. If you skip the
+        replacement, their spot is left short. If their tile still shows on
+        the playing area without an <strong>INJ</strong> badge, try
+        refreshing the page. If the issue persists, see{" "}
         <Link href="/help/troubleshooting" className="font-medium underline">
           Troubleshooting
         </Link>

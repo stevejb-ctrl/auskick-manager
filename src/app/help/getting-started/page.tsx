@@ -63,9 +63,10 @@ export default function GettingStartedPage() {
             On the dashboard, tap <strong className="text-ink">New team</strong>.
           </li>
           <li>
-            Give your team a name (e.g. <em>Brunswick U10s</em>), pick a sport,
-            and select the age group. The age group controls how many positions
-            appear during a live game and how rotation suggestions are
+            Give your team a name (e.g. <em>Brunswick U10s</em>), pick a sport
+            (AFL, netball or rugby league), and select the age group. The age
+            group controls how many positions appear during a live game, how
+            long each quarter or half runs, and how rotation suggestions are
             generated.
           </li>
           <li>
@@ -96,10 +97,11 @@ export default function GettingStartedPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Add player</strong>. Enter the
-            player&apos;s full name and (optionally) a jersey number, then tap{" "}
-            <strong className="text-ink">Save</strong>. Football teams typically
-            assign numbers; netball teams usually leave them blank.
+            Under <strong className="text-ink">Add player</strong>, enter the
+            player&apos;s full name and, for AFL and league, an optional
+            jersey number (netball squads don&apos;t use numbers, so
+            there&apos;s no number field). Then tap{" "}
+            <strong className="text-ink">Add player</strong>.
           </li>
           <li>Repeat for every player in your squad.</li>
         </ol>
@@ -113,7 +115,7 @@ export default function GettingStartedPage() {
 
         <HelpFigure
           src="/help-screenshots/getting-started-add-players.png"
-          alt="The squad page with the Add player form open, showing name and jersey number fields"
+          alt="An AFL squad page with the Add player form open, showing name and jersey number fields"
           caption="The squad page. Tap Add player to build out your roster."
         />
       </section>
@@ -141,7 +143,8 @@ export default function GettingStartedPage() {
 
         <HelpCallout type="tip">
           On game day, tap <strong>Start game day</strong> on the Today tab: mark
-          who&apos;s here, check the lineup, then <strong>Start Q1</strong>. See{" "}
+          who&apos;s here, check the lineup, then <strong>Start Q1</strong>{" "}
+          (league from Under 10: <strong>Start H1</strong>). See{" "}
           <Link href="/help/live-game" className="font-medium underline">
             Live Game
           </Link>{" "}
@@ -157,7 +160,8 @@ export default function GettingStartedPage() {
             <Link href="/help/live-game" className="font-medium text-brand-600 hover:underline">
               Live Game →
             </Link>{" "}
-            Running a game on the day: lineups, scoring, subs, quarter breaks.
+            Running a game on the day: lineups, scoring, subs, and the breaks
+            between quarters or halves.
           </li>
           <li>
             <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">
