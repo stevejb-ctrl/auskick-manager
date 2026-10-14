@@ -102,7 +102,10 @@ test("a netball team can't import an AFL club's fixtures", async ({ page }) => {
     .getByLabel(/playhq team url/i)
     .fill("https://www.playhq.com/afl/org/kotara-jfc/1a2b3c4d/u10-2026/teams/kotara-u10/9f8e7d6c");
   await page.getByRole("button", { name: /preview fixtures/i }).click();
-  await expect(page.getByRole("alert")).toContainText(/that's an afl team page/i);
+  // Scoped to the import dialog: the page has other alert regions.
+  await expect(
+    page.getByRole("dialog", { name: /import fixtures from playhq/i }).getByRole("alert"),
+  ).toContainText(/that's an afl team page/i);
 });
 
 test("a league team isn't offered a PlayHQ import", async ({ page }) => {
