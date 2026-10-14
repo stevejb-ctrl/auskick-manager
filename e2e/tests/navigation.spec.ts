@@ -7,6 +7,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makeGame } from "../fixtures/factories";
+import { gotoStable } from "../helpers/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 test.describe.configure({ mode: "parallel" });
@@ -37,7 +38,9 @@ test("phones get a bottom tab bar that hides on the game-day screen", async ({ p
   await bar.getByRole("link", { name: "Team", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/settings$`));
 
-  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // The tab bar's client navigation can still be landing (WebKit), so a
+  // plain goto here is interrupted by it.
+  await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByRole("button", { name: /^start q1$/i }).or(page.getByText(/who's here/i)).first()).toBeVisible({
     timeout: 10_000,
   });
