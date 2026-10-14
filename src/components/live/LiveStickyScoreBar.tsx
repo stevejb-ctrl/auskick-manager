@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 // ─── LiveStickyScoreBar ──────────────────────────────────────
 // Shared sticky-bottom wrapper that hosts the in-play scorebug +
@@ -55,25 +56,44 @@ export function LiveStickyScoreBar({
   undoStrip,
   scoringOff,
 }: LiveStickyScoreBarProps) {
+  // On phones the bar is fixed over the page, so an in-flow spacer of
+  // the bar's own height lets the page's last row scroll clear of it.
+  // Without it "+ Add late arrival" (and Restart) sat under the bar and
+  // the page wouldn't scroll further (round 5). From md the bar is
+  // sticky — already in flow — so the spacer hides.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    setBarHeight(el.offsetHeight);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setBarHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto">
-      <div className="mx-auto max-w-4xl">
-        {scoringOff && (
-          <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
-            Scoring is off
-            {scoringOff.settingsHref && (
-              <>
-                {" · "}
-                <Link href={scoringOff.settingsHref} className="font-semibold text-brand-700 underline-offset-2 hover:underline">
-                  Turn it on
-                </Link>
-              </>
-            )}
-          </p>
-        )}
-        {scorebug}
-        {undoStrip}
+    <>
+      <div aria-hidden className="md:hidden" style={{ height: barHeight }} />
+      <div ref={barRef} className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto">
+        <div className="mx-auto max-w-4xl">
+          {scoringOff && (
+            <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
+              Scoring is off
+              {scoringOff.settingsHref && (
+                <>
+                  {" · "}
+                  <Link href={scoringOff.settingsHref} className="font-semibold text-brand-700 underline-offset-2 hover:underline">
+                    Turn it on
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
+          {scorebug}
+          {undoStrip}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
