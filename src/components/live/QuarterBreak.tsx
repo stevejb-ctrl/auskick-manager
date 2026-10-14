@@ -191,6 +191,7 @@ export function QuarterBreak({
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
   const setInjured = useLiveGame((s) => s.setInjured);
+  const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   // F2 plan-ahead (ROTPLAN-02): the coach may have pinned THIS upcoming
   // period's lineup during the dying minutes of the last one. Read the
   // pin so the break can open PRE-SEEDED on it (D-12), and the clearer
@@ -855,6 +856,11 @@ export function QuarterBreak({
         ? prev
         : { ...prev, bench: [...prev.bench, playerId] },
     );
+    // And in the store's lineup, as an in-game arrival is (LiveGame's
+    // handleLateArrival): the refresh doesn't re-init the store, so the
+    // break would otherwise forget them on a mode change, or when its
+    // staged draft is restored after the team page and back.
+    addBenchPlayer(playerId);
     startLoanTransition(async () => {
       const { flushed } = enqueueLiveAction("addLateArrival", [
         auth,

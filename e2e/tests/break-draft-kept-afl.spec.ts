@@ -68,8 +68,13 @@ async function stagedLineup(page: Page): Promise<Record<string, string[]>> {
   return out;
 }
 
-// A full 15-kid squad: 12 on the field, 3 on the bench.
-async function seedQ1Break(admin: ReturnType<typeof createAdminClient>, label: string) {
+// A full 15-kid squad: 12 on the field, the rest on the bench, except the
+// last `absent`, who weren't available before kickoff.
+async function seedQ1Break(
+  admin: ReturnType<typeof createAdminClient>,
+  label: string,
+  absent = 0,
+) {
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
@@ -79,7 +84,9 @@ async function seedQ1Break(admin: ReturnType<typeof createAdminClient>, label: s
     ageGroup: "U10",
     name: `AFL-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
-  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const squad = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const players = squad.slice(0, 15 - absent);
+  const absentPlayers = squad.slice(15 - absent);
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   const onField = players.slice(0, game.on_field_size);
@@ -116,7 +123,7 @@ async function seedQ1Break(admin: ReturnType<typeof createAdminClient>, label: s
     { onConflict: "game_id,player_id" },
   );
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
-  return { ownerId, team, game, players, lineup };
+  return { ownerId, team, game, players, absentPlayers, lineup };
 }
 
 async function eventsUntilQ2Starts(
@@ -243,4 +250,55 @@ test("AFL: a kid hurt while the coach was away isn't restored onto the staged fi
   expect(ALL_ZONES.flatMap((z) => q2[z])).not.toContain(comingOn);
   expect(q2.bench).toContain(comingOn);
   expect(q2.bench).toContain(goingOff);
+});
+
+// A kid who turns up at the break joins the staged bench. They used to
+// live only in the break's draft (the store's lineup never heard of
+// them), so they vanished from the break after the team page and back.
+test("AFL: a kid who arrived at the break is still on the staged bench after the team page and back", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const admin = createAdminClient();
+  const { team, game, absentPlayers } = await seedQ1Break(admin, "BRK-ARRIVED", 1);
+  const arrival = absentPlayers[0];
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await reachBreak(page);
+  await keepLastQuarter(page);
+  await page.getByRole("button", { name: /add (an )?arrived player|add arrived/i }).click();
+  const sheet = page.getByRole("dialog", { name: /add arrived/i });
+  await expect(sheet).toBeVisible({ timeout: 5_000 });
+  await sheet.getByRole("button", { name: new RegExp(arrival.full_name, "i") }).click();
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("id")
+          .eq("game_id", game.id)
+          .eq("type", "player_arrived")
+          .eq("player_id", arrival.id);
+        return data?.length ?? 0;
+      },
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThanOrEqual(1);
+  const bench = page.getByRole("group", { name: "Bench", exact: true }).first();
+  await expect(bench.getByTestId(`player-tile-${arrival.id}`)).toBeVisible();
+  const staged = await stagedLineup(page);
+
+  // Off to the team page, then back to the live game.
+  await viaTeamPage(page, team.id);
+  await reachBreak(page);
+
+  await expect(bench.getByTestId(`player-tile-${arrival.id}`)).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => stagedLineup(page), { timeout: 10_000 }).toEqual(staged);
+
+  // Start Q2: the arrival starts it on the bench.
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
+  expect(q2.bench).toContain(arrival.id);
 });
