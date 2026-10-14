@@ -410,7 +410,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
 //     age-group's `forwardCount`; the split is re-shuffled per block
 //     so a kid isn't always a forward.
 function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
-  const cfg = getSportConfig("rugby_league");
+  const cfg = getSportConfig(input.sport);
   const ag = input.ageGroup;
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
@@ -479,7 +479,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   }
 
   return {
-    sport: "rugby_league",
+    sport: input.sport,
     periods,
     totals: computeTotals(periods, ids),
     periodLabel: label,

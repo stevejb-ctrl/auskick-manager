@@ -26,7 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -289,9 +289,10 @@ export default async function LivePage({ params }: LivePageProps) {
   // forks here so none of the AFL zone-minutes / netball position-
   // count helpers below run for an RL game.
   if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group)
-        ?? rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group)
+        ?? rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -370,8 +371,8 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     // How we play for the league suggester (UX plan 5.6): lines from
     // roles and season balance, the vest strategy, keep-on.
-    const lg = await loadTeamPlaybook(supabase, params.teamId, "rugby_league", teamRow?.age_group ?? null);
-    const lgAge = getAgeGroupConfig("rugby_league", teamRow?.age_group ?? null);
+    const lg = await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null);
+    const lgAge = getAgeGroupConfig(sport, teamRow?.age_group ?? null);
     const lgPeriodSeconds = getEffectiveQuarterSeconds(
       { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
       lgAge,
@@ -381,12 +382,12 @@ export default async function LivePage({ params }: LivePageProps) {
       lg.resolved,
       lg.prefs,
       lg.rules,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "line", {
+      seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "line", {
         since: lg.resolved.seasonBalanceSince,
       }),
       lgPeriodSeconds * 1000,
       lg.vestStrategy,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "position", {
+      seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "position", {
         since: lg.resolved.seasonBalanceSince,
       }),
     );
@@ -444,7 +445,7 @@ export default async function LivePage({ params }: LivePageProps) {
           availableIds={availableIds}
           fillInCount={fillInsForLive.length}
           canManageMatch
-          showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
+          showJerseyNumber={rugbyCfg.jerseyNumbers}
         />
       );
 
@@ -524,6 +525,7 @@ export default async function LivePage({ params }: LivePageProps) {
       <div className="space-y-3">
         <LeagueLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}

@@ -70,7 +70,7 @@ import {
   playerZoneMsOnField,
   suggestLeagueSubs,
 } from "@/lib/sports/rugby_league/fairness";
-import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
@@ -93,6 +93,8 @@ import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
+  /** The team's rugby sport: its own config, points and rules. */
+  sport: RugbySport;
   game: Game;
   teamName: string;
   squad: Player[];
@@ -141,6 +143,7 @@ interface LeagueLiveGameProps {
 
 export function LeagueLiveGame({
   auth,
+  sport,
   game,
   teamName,
   squad,
@@ -475,12 +478,12 @@ export function LeagueLiveGame({
   // identical chrome (reuse-before-fork). RL has a single config zone
   // ("field"), so the per-zone split collapses to one row.
 
-  // Labelled zones for the summary — RL sport config, filtered to this
-  // age group's zones (D-03; never a hardcoded list). Resolves to the
-  // single "field" zone.
+  // Labelled zones for the summary — the sport's config, filtered to
+  // this age group's zones (D-03; never a hardcoded list). Resolves to
+  // the single "field" zone.
   const insightZones = useMemo(
-    () => rugbyLeagueSport.zones.filter((z) => ageGroup.zones.includes(z.id)),
-    [ageGroup.zones],
+    () => getSportConfig(sport).zones.filter((z) => ageGroup.zones.includes(z.id)),
+    [sport, ageGroup.zones],
   );
 
   // Per-player, per-period CLOSED on-field ms under the single "field"
@@ -2469,7 +2472,7 @@ export function LeagueLiveGame({
         }
 
         const initialPlan = projectUpcomingRotation({
-          sport: "rugby_league",
+          sport,
           ageGroup,
           players: playersForPlan,
           onFieldSize: game.on_field_size,
@@ -2482,7 +2485,7 @@ export function LeagueLiveGame({
 
         return (
           <GamePlanModal
-            sport="rugby_league"
+            sport={sport}
             ageGroup={ageGroup}
             players={playersForPlan}
             onFieldSize={game.on_field_size}

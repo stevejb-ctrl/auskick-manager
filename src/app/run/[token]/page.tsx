@@ -18,7 +18,6 @@ import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, z
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
-import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -134,9 +133,10 @@ export default async function RunPage({ params }: RunPageProps) {
   // (the demo-picker symptom Steve caught: clicking the RL card
   // started a game on the RL team but rendered AFL chrome).
   if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
-      rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group) ??
+      rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -209,15 +209,15 @@ export default async function RunPage({ params }: RunPageProps) {
       : { data: [] as GameEvent[] };
     const leagueSeasonEvents = (leagueSeasonEventsRaw ?? []) as GameEvent[];
     // How we play for the league suggester, as on the coach's page.
-    const lg = await loadTeamPlaybook(admin, g.team_id, "rugby_league", teamRow?.age_group ?? null);
+    const lg = await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null);
     const leaguePlaybook = leaguePlaybookInput(
       lg.resolved,
       lg.prefs,
       lg.rules,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
+      seasonTimeByUnit(sport, leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
       periodSeconds * 1000,
       lg.vestStrategy,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
+      seasonTimeByUnit(sport, leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
     );
 
     // Chip labels for RL — Forward/Back are auto-seeded by the
@@ -286,7 +286,7 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
+                showJerseyNumber={rugbyCfg.jerseyNumbers}
                 requiredAvailable={ageCfgL.defaultOnFieldSize}
               />
             </section>
@@ -328,6 +328,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="space-y-3 px-4 py-3">
         <LeagueLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}

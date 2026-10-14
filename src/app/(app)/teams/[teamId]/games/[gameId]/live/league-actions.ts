@@ -21,13 +21,19 @@
 //   * kickoff rotation          — recordKickoff (full squad pool)
 // Both rotations are junior laws (U6–U12); U13+ plays international
 // laws without them (AgeGroupConfig.internationalLaws).
+//
+// Rugby league and union share these actions: every rule is read from
+// the team's own sport and age group (rugbyTeam), and every event is
+// stamped with the team's sport.
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, isRugby, teamSport, type RugbySport } from "@/lib/sports/registry";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
@@ -97,12 +103,27 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
 }
 
 /**
- * The team's league age config. U13+ plays international laws, where
- * the junior goal-kick (§15) and kickoff (§16) rotations don't apply.
+ * The team's own rugby sport and age group. Every rule these actions
+ * check (e.g. U13+ international laws, where the junior goal-kick §15
+ * and kickoff §16 rotations don't apply) and the sport stamped on
+ * every event are the team's: a union team is never checked against
+ * league's ages. Cached for the request, so a rule check and its
+ * insert read the team once. Reads with the writer's client: the
+ * admin client for a share token, the coach's own otherwise.
  */
-async function leagueAgeConfig(supabase: SupabaseClient, teamId: string) {
-  const { data } = await supabase.from("teams").select("age_group").eq("id", teamId).maybeSingle();
-  return getAgeGroupConfig("rugby_league", (data as { age_group?: string | null } | null)?.age_group ?? null);
+const rugbyTeam = cache(
+  async (teamId: string, viaShareToken: boolean): Promise<{ sport: RugbySport; ageCfg: AgeGroupConfig }> => {
+    const supabase = viaShareToken ? createAdminClient() : createClient();
+    const { data } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).maybeSingle();
+    const row = data as { sport?: string | null; age_group?: string | null } | null;
+    const sport = teamSport(row?.sport);
+    if (!isRugby(sport)) throw new Error(`Team ${teamId} plays ${sport}, not rugby.`);
+    return { sport, ageCfg: getAgeGroupConfig(sport, row?.age_group ?? null) };
+  },
+);
+
+function rugbyTeamOf(auth: LiveAuth, w: Writer) {
+  return rugbyTeam(w.teamId, auth.kind === "token");
 }
 
 async function insertEvent(
@@ -114,12 +135,13 @@ async function insertEvent(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  const { sport } = await rugbyTeamOf(auth, w);
 
   const { error } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type,
     player_id: payload.player_id ?? null,
-    metadata: payload.metadata ?? {},
+    metadata: { ...(payload.metadata ?? {}), sport },
     created_by: w.userId,
     idempotency_key: idempotencyKey ?? null,
   });
@@ -278,10 +300,11 @@ export async function startLeagueGame(
     }
   }
 
+  const { sport } = await rugbyTeamOf(auth, w);
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup, sport: "rugby_league" },
+    metadata: { lineup, sport },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
@@ -292,7 +315,7 @@ export async function startLeagueGame(
       .insert({
         game_id: gameId,
         type: "quarter_start",
-        metadata: { quarter: 1, sport: "rugby_league" },
+        metadata: { quarter: 1, sport },
         created_by: w.userId,
       });
     if (qStartError) return { success: false, error: qStartError.message };
@@ -323,7 +346,7 @@ export async function startLeagueGame(
         vest: "fr",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -339,7 +362,7 @@ export async function startLeagueGame(
         vest: "dh",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -452,7 +475,7 @@ export async function startLeagueQuarter(
     auth,
     gameId,
     "quarter_start",
-    { metadata: { quarter, sport: "rugby_league" } },
+    { metadata: { quarter } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -470,7 +493,7 @@ export async function endLeagueQuarter(
     auth,
     gameId,
     "quarter_end",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -490,19 +513,13 @@ export async function finaliseLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  // Use the team's age-group period count for the final-quarter
-  // value on the event metadata. Defaults to 4 (the AFL/Netball
-  // periodCount) — U10–U12 will overwrite to 2.
-  const { data: team } = await w.supabase
-    .from("teams")
-    .select("sport, age_group")
-    .eq("id", w.teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  // The team's age-group period count is the final-quarter value on
+  // the event metadata (4 quarters at U6–U9, 2 halves from U10).
+  const { ageCfg } = await rugbyTeamOf(auth, w);
   const finalQuarter = ageCfg.periodCount;
 
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs },
   });
   if (!finalise.success) return finalise;
 
@@ -548,7 +565,7 @@ export async function recordLeagueSwap(
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: { ...input, sport: "rugby_league" },
+      metadata: input,
     },
     idempotencyKey,
   );
@@ -574,7 +591,7 @@ export async function recordLeagueLineupSet(
     auth,
     gameId,
     "lineup_set",
-    { metadata: { lineup, ...(at ?? {}), sport: "rugby_league" } },
+    { metadata: { lineup, ...(at ?? {}) } },
     idempotencyKey,
   );
 }
@@ -608,7 +625,6 @@ export async function recordLeaguePositionChange(
         to_zone: input.to_zone,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -633,7 +649,7 @@ export async function recordTry(
     "try",
     {
       player_id: playerId,
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+      metadata: { quarter, elapsed_ms: elapsedMs },
     },
     idempotencyKey,
   );
@@ -653,7 +669,7 @@ export async function recordOpponentTry(
     auth,
     gameId,
     "opponent_try",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -736,7 +752,7 @@ export async function recordConversionAttempt(
     // mid-cycle substitutions resolve correctly. Junior laws only:
     // under international laws (U13+) any player may kick.
     const cycle = conversionCycle(priorEvents, onField);
-    if (cycle.attempted.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+    if (cycle.attempted.has(kickerId) && !(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
       return {
         success: false,
         rejected: true,
@@ -758,7 +774,6 @@ export async function recordConversionAttempt(
         made,
         force,
         try_event_id: tryEventId,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -801,7 +816,7 @@ export async function recordKickoff(
   const cycle = kickoffCycle(priorEvents, squadIds);
 
   // The rotation is a junior law; international laws (U13+) have none.
-  if (cycle.taken.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+  if (cycle.taken.has(kickerId) && !(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
     return {
       success: false,
       // A rule refusal: dropped, not retried (it would hold the game lane).
@@ -817,7 +832,7 @@ export async function recordKickoff(
     "kickoff_taken",
     {
       player_id: kickerId,
-      metadata: { period, sport: "rugby_league" },
+      metadata: { period },
     },
     idempotencyKey,
   );
@@ -838,7 +853,7 @@ export async function recordOpponentConversion(
     auth,
     gameId,
     "opponent_conversion",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -861,7 +876,7 @@ export async function recordLeagueGoal(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  if (!(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+  if (!(await rugbyTeamOf(auth, w)).ageCfg.internationalLaws) {
     return {
       success: false,
       rejected: true,
@@ -874,7 +889,7 @@ export async function recordLeagueGoal(
     kind,
     {
       player_id: kind.startsWith("opponent_") ? null : kickerId,
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+      metadata: { quarter, elapsed_ms: elapsedMs },
     },
     idempotencyKey,
   );
@@ -923,7 +938,6 @@ export async function undoLeagueScore(
         target_event_id: latest.id,
         original_type: latest.type,
         quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -1004,7 +1018,6 @@ export async function assignLeagueVest(
         vest,
         period,
         replacement,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,

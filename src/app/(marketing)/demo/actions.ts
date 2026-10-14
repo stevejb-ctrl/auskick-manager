@@ -192,7 +192,7 @@ function buildDemoGamePayload({
     // Rugby League U10 — pull from the registered sport config so
     // we get the half-based sub interval (10 min) + 11-on-field
     // default rather than AFL's quarter values.
-    const cfg = getSportConfig("rugby_league");
+    const cfg = getSportConfig(sport);
     const ageCfg =
       cfg.ageGroups.find((a) => a.id === teamAgeGroup) ??
       cfg.ageGroups.find((a) => a.id === "U10")!;

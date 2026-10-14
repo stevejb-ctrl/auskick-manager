@@ -49,10 +49,10 @@ export async function gamePlanPlaybooks(
       resolved,
       prefs,
       rules,
-      seasonTimeByUnit("rugby_league", seasonEvents, "line", { since }),
+      seasonTimeByUnit(sport, seasonEvents, "line", { since }),
       periodSeconds * 1000,
       vestStrategy,
-      seasonTimeByUnit("rugby_league", seasonEvents, "position", { since }),
+      seasonTimeByUnit(sport, seasonEvents, "position", { since }),
     ),
   };
 }

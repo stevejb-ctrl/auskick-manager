@@ -88,7 +88,7 @@ export function leaguePlaybookInput(
     positionRoles,
     seasonPositions: positions ? seasonPositions : undefined,
     strategy: resolved.strategy.id,
-    seasonWeight: seasonBalanceWeight("rugby_league", resolved.seasonBalance === "off" ? null : resolved.seasonBalance),
+    seasonWeight: seasonBalanceWeight(resolved.sport, resolved.seasonBalance === "off" ? null : resolved.seasonBalance),
     season,
     periodMs,
     roles,

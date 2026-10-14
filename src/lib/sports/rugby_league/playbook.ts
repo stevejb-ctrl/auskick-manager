@@ -6,7 +6,7 @@
 // Receiver / Dummy Half vests and §6 unbroken periods, both from the
 // age config. Vests are duties, not positions.
 
-import { getAgeGroupConfig, periodLabels } from "@/lib/sports";
+import { getAgeGroupConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import type {
   AgePolicy,
   EffectivePolicy,
@@ -101,79 +101,87 @@ const NAMED_POSITIONS: StrategyDef = {
   balanceByDefault: true,
 };
 
-export const leaguePlaybook: SportPlaybook = {
-  sport: "rugby_league",
-  unitWord: "line",
-  // Rolling subs: "nobody sits out twice" would count stints.
-  benchPeriodWord: () => "stint",
+/**
+ * How we play for a rugby sport. Every age-group lookup reads the
+ * team's own sport, never league's by default.
+ */
+function rugbyPlaybook(sport: RugbySport): SportPlaybook {
+  return {
+    sport,
+    unitWord: "line",
+    // Rolling subs: "nobody sits out twice" would count stints.
+    benchPeriodWord: () => "stint",
 
-  // The league engine acts on no catalogue rule except subs at the
-  // breaks (suggestLeagueSubs). Every-line, apart/together, stays-home
-  // and bench rules aren't offered until it does: they'd do nothing.
-  ruleKinds(): RuleKind[] {
-    return ["subs-at-breaks"];
-  },
+    // The league engine acts on no catalogue rule except subs at the
+    // breaks (suggestLeagueSubs). Every-line, apart/together, stays-home
+    // and bench rules aren't offered until it does: they'd do nothing.
+    ruleKinds(): RuleKind[] {
+      return ["subs-at-breaks"];
+    },
 
-  lawRules(policy, agePolicy): LockedRule[] {
-    const out: LockedRule[] = [];
-    // The age group's own period: U6–U9 play quarters, U10+ halves.
-    const periods = periodLabels("rugby_league", getAgeGroupConfig("rugby_league", policy.ageGroup));
-    if (policy.minUnbrokenPeriods > 0) {
-      out.push({
-        id: "unbroken",
-        text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? periods.label : periods.plural} each`,
-        source: policy.overridden.includes("minUnbrokenPeriods")
-          ? "Your league"
-          : agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
-      });
-    }
-    if (policy.vests.fr || policy.vests.dh) {
-      out.push({ id: "vests", text: `Each vest is worn by a different player each ${periods.label}`, source: NRL_LAWS });
-    }
-    return out;
-  },
+    lawRules(policy, agePolicy): LockedRule[] {
+      const out: LockedRule[] = [];
+      // The age group's own period: U6–U9 play quarters, U10+ halves.
+      const periods = periodLabels(sport, getAgeGroupConfig(sport, policy.ageGroup));
+      if (policy.minUnbrokenPeriods > 0) {
+        out.push({
+          id: "unbroken",
+          text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? periods.label : periods.plural} each`,
+          source: policy.overridden.includes("minUnbrokenPeriods")
+            ? "Your league"
+            : agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
+        });
+      }
+      if (policy.vests.fr || policy.vests.dh) {
+        out.push({ id: "vests", text: `Each vest is worn by a different player each ${periods.label}`, source: NRL_LAWS });
+      }
+      return out;
+    },
 
-  agePolicy(ageGroup: string): AgePolicy {
-    const cfg = getAgeGroupConfig("rugby_league", ageGroup);
-    return {
-      zonesEnforced: { default: false, overridable: false },
-      minGameTimePct: { default: 50, overridable: true, band: [0, 100], locked: false },
-      minUnbrokenPeriods: {
-        default: cfg.minUnbrokenPeriods ?? 0,
-        overridable: true,
-        source: `${NRL_LAWS} §6`,
-      },
-      vests: { fr: cfg.vestRequirements?.fr ?? false, dh: cfg.vestRequirements?.dh ?? false },
-      tracksScoreDefault: cfg.tracksScoreDefault,
-    };
-  },
+    agePolicy(ageGroup: string): AgePolicy {
+      const cfg = getAgeGroupConfig(sport, ageGroup);
+      return {
+        zonesEnforced: { default: false, overridable: false },
+        minGameTimePct: { default: 50, overridable: true, band: [0, 100], locked: false },
+        minUnbrokenPeriods: {
+          default: cfg.minUnbrokenPeriods ?? 0,
+          overridable: true,
+          source: `${NRL_LAWS} §6`,
+        },
+        vests: { fr: cfg.vestRequirements?.fr ?? false, dh: cfg.vestRequirements?.dh ?? false },
+        tracksScoreDefault: cfg.tracksScoreDefault,
+      };
+    },
 
-  positionModel(policy: EffectivePolicy, onFieldSize: number): PositionModel {
-    if (!NAMED_POSITION_AGES.has(policy.ageGroup)) {
-      return { kind: "none", lines: LEAGUE_LINES, defaults: [], canRename: false, canAddRemove: false };
-    }
-    const cfg = getAgeGroupConfig("rugby_league", policy.ageGroup);
-    return {
-      kind: "catalogue",
-      lines: LEAGUE_LINES,
-      defaults: leagueCatalogue(onFieldSize, cfg.forwardCount ?? Math.floor(onFieldSize / 2)),
-      canRename: false,
-      canAddRemove: false,
-    };
-  },
+    positionModel(policy: EffectivePolicy, onFieldSize: number): PositionModel {
+      if (!NAMED_POSITION_AGES.has(policy.ageGroup)) {
+        return { kind: "none", lines: LEAGUE_LINES, defaults: [], canRename: false, canAddRemove: false };
+      }
+      const cfg = getAgeGroupConfig(sport, policy.ageGroup);
+      return {
+        kind: "catalogue",
+        lines: LEAGUE_LINES,
+        defaults: leagueCatalogue(onFieldSize, cfg.forwardCount ?? Math.floor(onFieldSize / 2)),
+        canRename: false,
+        canAddRemove: false,
+      };
+    },
 
-  strategies(policy: EffectivePolicy): StrategyDef[] {
-    return NAMED_POSITION_AGES.has(policy.ageGroup) ? [...BASE_STRATEGIES, NAMED_POSITIONS] : BASE_STRATEGIES;
-  },
+    strategies(policy: EffectivePolicy): StrategyDef[] {
+      return NAMED_POSITION_AGES.has(policy.ageGroup) ? [...BASE_STRATEGIES, NAMED_POSITIONS] : BASE_STRATEGIES;
+    },
 
-  recommendedStrategy(policy: EffectivePolicy): string {
-    // Past Mod League kids play set positions (international laws).
-    if (getAgeGroupConfig("rugby_league", policy.ageGroup).internationalLaws) return "named-positions";
-    return MOD_LEAGUE.has(policy.ageGroup) ? "preferred-line" : "both-lines";
-  },
+    recommendedStrategy(policy: EffectivePolicy): string {
+      // Past Mod League kids play set positions (international laws).
+      if (getAgeGroupConfig(sport, policy.ageGroup).internationalLaws) return "named-positions";
+      return MOD_LEAGUE.has(policy.ageGroup) ? "preferred-line" : "both-lines";
+    },
 
-  fallbackStrategy(): string {
-    // Today's engine: forwards/backs from the player's F/B chip when set.
-    return "preferred-line";
-  },
-};
+    fallbackStrategy(): string {
+      // Today's engine: forwards/backs from the player's F/B chip when set.
+      return "preferred-line";
+    },
+  };
+}
+
+export const leaguePlaybook: SportPlaybook = rugbyPlaybook("rugby_league");
