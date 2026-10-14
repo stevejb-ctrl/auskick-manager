@@ -65,3 +65,19 @@ test("league: the runner's welcome and the team settings say nothing AFL", async
   await expect(welcome).toBeVisible({ timeout: 15_000 });
   await expect(welcome).not.toContainText(/goal/i);
 });
+
+// U8 league plays quarters: its vest and unbroken-play rules are per
+// quarter, and U8 wears the First Receiver vest only (cross-sport audit,
+// 14 Oct 2026: the card said "each half" at every age).
+test("league U8: How we play states the rules in quarters, FR vest only", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers();
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U8", sport: "rugby_league", name: `Words U8 ${Date.now() % 100000}` });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  const rules = page.getByRole("list", { name: "Age group rules" });
+  await expect(rules).toContainText("Each player plays 2 full quarters without a break", { timeout: 15_000 });
+  await expect(rules).toContainText("FR vests are worn by a different player each quarter");
+  await expect(rules).not.toContainText(/half|DH/);
+});
