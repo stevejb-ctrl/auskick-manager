@@ -2,10 +2,11 @@
 // (cross-sport audit, 14 Oct 2026). Each test pins one migration:
 //   0061 sport_event_types   a game takes only its own sport's events
 //   0062 sport_lines         positions and prefs sit on their sport's lines
+//   0063 no AFL defaults     a team or game says its sport and size
 // The live-game specs cover the other side of 0061: every event the
 // three live screens write still lands.
 //
-// Covers: supabase/migrations/0061-0062
+// Covers: supabase/migrations/0061-0063, e2e/fixtures/factories.ts
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -120,4 +121,35 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
       return data;
     })
     .toEqual([{ kind: "never", line: "attack-third" }]);
+});
+
+test("0063: a team and a game say their own sport and size", async () => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+
+  // No column quietly makes them AFL U10.
+  const name = `No defaults ${Date.now() % 100000}`;
+  const { error: noSport } = await admin.from("teams").insert({ name, age_group: "go", created_by: ownerId });
+  expect(noSport?.message).toMatch(/"sport"/);
+  const { error: noAge } = await admin.from("teams").insert({ name, sport: "netball", created_by: ownerId });
+  expect(noAge?.message).toMatch(/"age_group"/);
+
+  const team = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "go" });
+  const base = { team_id: team.id, opponent: "Nobody", scheduled_at: new Date().toISOString(), created_by: ownerId };
+  const { error: noSize } = await admin.from("games").insert({ ...base, sub_interval_seconds: 300 });
+  expect(noSize?.message).toMatch(/"on_field_size"/);
+  const { error: noInterval } = await admin.from("games").insert({ ...base, on_field_size: 7 });
+  expect(noInterval?.message).toMatch(/"sub_interval_seconds"/);
+
+  // The factory sizes a game from its own team, as createGame does.
+  for (const [sport, ageGroup, onField, interval] of [
+    ["netball", "go", 7, 300],
+    ["rugby_league", "U13", 13, 250],
+    ["afl", "U9", 9, 240],
+  ] as const) {
+    const t = await makeTeam(admin, { ownerId, sport, ageGroup });
+    const game = await makeGame(admin, { teamId: t.id, ownerId });
+    expect({ on_field_size: game.on_field_size, sub_interval_seconds: game.sub_interval_seconds }, `${sport} ${ageGroup}`)
+      .toEqual({ on_field_size: onField, sub_interval_seconds: interval });
+  }
 });

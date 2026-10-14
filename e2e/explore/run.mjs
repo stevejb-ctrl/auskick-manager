@@ -469,12 +469,15 @@ async function seedTeam(admin, email, name, origin) {
       onField: 8,
     },
   };
+  // Each age group's usual on-field size. Games have no size default
+  // (migration 0063), so every seeded game takes its team's. Also
   // runner-<sport>-<age> (e.g. runner-afl-U13, runner-netball-set): the
   // runner link to a game for that age group, at its usual size, for the
   // age-group missions.
   const RUNNER_ON_FIELD = {
     afl: { U8: 6, U9: 9, U10: 12, U11: 12, U12: 12, U13: 15, U14: 15, U15: 15, U16: 18, U17: 18 },
     netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
+    rugby_league: { U6: 6, U7: 6, U8: 8, U9: 8, U10: 11, U11: 11, U12: 13, U13: 13, U14: 13, U15: 13, U16: 13, U17: 13 },
   };
   const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
@@ -491,6 +494,7 @@ async function seedTeam(admin, email, name, origin) {
     console.error(`Unknown --seed=${name}. Seeds: ${Object.keys(SEEDS).join(", ")}`);
     process.exit(1);
   }
+  const onField = s.onField ?? RUNNER_ON_FIELD[s.team.sport][s.team.age_group];
   const NAMES = [
     "Ava Nguyen", "Lachlan Smith", "Mia Patel", "Oliver Brown", "Isla Wilson", "Noah Taylor",
     "Ruby Martin", "Jack Anderson", "Zara Thompson", "Leo White", "Chloe Harris", "Hamish Clarke",
@@ -534,6 +538,8 @@ async function seedTeam(admin, email, name, origin) {
         team_id: team.id,
         opponent,
         scheduled_at: minsAgo(startMinsAgo + 10),
+        on_field_size: onField,
+        sub_interval_seconds: 900,
         created_by: ownerId,
         status: "completed",
       })
@@ -592,7 +598,7 @@ async function seedTeam(admin, email, name, origin) {
       clock_multiplier: s.live?.multiplier ?? 8,
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
-      ...(s.onField ? { on_field_size: s.onField } : {}),
+      on_field_size: onField,
     })
     .select("id, share_token")
     .single();
