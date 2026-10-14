@@ -50,7 +50,7 @@ export default async function AppLayout({
     .flatMap((m) => (m.teams ? [m.teams] : []))
     .map((t) => {
       const sport = teamSport(t.sport);
-      const sportName = sport === "afl" ? "AFL" : getSportConfig(sport).name;
+      const sportName = getSportConfig(sport).shortName;
       return {
         id: t.id,
         name: t.name,
