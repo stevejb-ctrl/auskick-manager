@@ -13,7 +13,10 @@
 //
 // This wrapper retries the goto a small number of times on ERR_ABORTED
 // (and ONLY that error — any other navigation failure is re-thrown
-// immediately so genuine breakage still surfaces). Centralised here so
+// immediately so genuine breakage still surfaces). WebKit reports the
+// same race differently — "interrupted by another navigation" — when
+// the page is still following one of the app's own redirects; that
+// retries too. Centralised here so
 // any spec hitting the same race gets the guard with one import.
 
 import type { Page, Response } from "@playwright/test";
@@ -47,11 +50,33 @@ export async function gotoStable(
       return await page.goto(url, { waitUntil });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (!message.includes("net::ERR_ABORTED")) throw err;
+      if (!message.includes("net::ERR_ABORTED") && !message.includes("interrupted by another navigation")) throw err;
       lastErr = err;
       // Brief settle so the aborted prefetch finishes before we retry.
       await page.waitForTimeout(300);
     }
   }
   throw lastErr;
+}
+
+/**
+ * Wait until React has hydrated the page: network idle, then every
+ * input, button, textarea and select carries React's own hydration
+ * marker (`__reactProps$…`). Use it:
+ *   - after a sign-in, so the app's own redirects (/dashboard → the team,
+ *     or → /welcome) have finished before the test navigates; and
+ *   - before typing straight after a goto: text typed before hydration
+ *     sits in the box but React never sees it (Save stays disabled).
+ * Chromium is fast enough to hide both; WebKit (iPhone) isn't.
+ */
+export async function waitForHydration(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
+  await page.waitForFunction(
+    () => {
+      const controls = Array.from(document.querySelectorAll("input, button, textarea, select"));
+      return controls.every((el) => Object.keys(el).some((k) => k.startsWith("__reactProps")));
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
 }

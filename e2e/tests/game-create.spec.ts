@@ -17,6 +17,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -66,13 +67,15 @@ for (const { sport = "afl", ageGroup, expectedSize, expectedSubSeconds } of case
       const page = await context.newPage();
 
       await page.goto("/login");
+      await waitForHydration(page);
       await page.getByTestId("login-mode-toggle").click();
       await page.getByTestId("login-email").fill(user.email);
       await page.getByTestId("login-password").fill(user.password);
       await page.getByTestId("login-submit").click();
       await page.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
+      await waitForHydration(page);
 
-      await page.goto(`/teams/${team.id}/games`);
+      await gotoStable(page, `/teams/${team.id}/games`);
 
       // The games page lives behind AddGameSection now: the "manual
       // create" affordance is a "Create manually" button (the primary

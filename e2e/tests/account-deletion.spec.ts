@@ -17,7 +17,7 @@
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
-import { gotoStable } from "../helpers/navigation";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { purgeUserAccount } from "../../src/lib/account/purge";
 import { GRACE_DAYS } from "../../src/lib/account/constants";
 
@@ -48,6 +48,7 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     userId = created.user!.id;
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
@@ -55,11 +56,12 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     await page.waitForURL(/\/(dashboard|teams\/new|welcome)/, {
       timeout: 15_000,
     });
+    await waitForHydration(page);
 
     // ── Create a team so the modal has consequences to surface ──────
     // The team will be deleted as part of the purge (sole admin).
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
     await page
       .getByLabel(/team name/i)
@@ -214,6 +216,7 @@ test("user schedules deletion, restores, then is purged after grace period", asy
 
     // Sign-in fails — credentials no longer valid.
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);

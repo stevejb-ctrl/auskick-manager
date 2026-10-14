@@ -26,6 +26,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -57,14 +58,16 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
 
     // Sign in via the email/password flow (testids per onboarding.spec.ts).
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
 
     // Brand defaults AFL on localhost per RESEARCH §3 / L9 — clicking the AFL
@@ -137,14 +140,16 @@ test("netball setup wizard creates team with sport='netball' and netball-default
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
 
     // L9 — brand defaults AFL on localhost; the netball case MUST click the
@@ -212,6 +217,7 @@ test("team settings round-trips quarter_length_seconds for a netball team", asyn
 
   try {
     await page.goto(`/teams/${team.id}/settings`);
+    await waitForHydration(page);
 
     // QuarterLengthInput renders as a <div> wrapper (not <section>
     // like TeamNameSettings), and its label is unique on the settings
@@ -283,14 +289,16 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
 
     // Localhost defaults to the AFL brand (per RESEARCH §3 / L9), so
@@ -374,13 +382,15 @@ test("rugby league supports the full U6-U17 age range", async ({
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
 
     await page.getByRole("button", { name: "Rugby League" }).click();

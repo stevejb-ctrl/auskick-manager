@@ -27,6 +27,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -103,13 +104,15 @@ test("admin invites a parent, parent accepts via /join/[token]", async ({
     // above). /login is email-first / magic-link; toggle to password
     // mode and use the testid pattern.
     await userPage.goto("/login");
+    await waitForHydration(userPage);
     await userPage.getByTestId("login-mode-toggle").click();
     await userPage.getByTestId("login-email").fill(invitee.email);
     await userPage.getByTestId("login-password").fill(invitee.password);
     await userPage.getByTestId("login-submit").click();
     await userPage.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
+    await waitForHydration(userPage);
 
-    await userPage.goto(`/join/${token}`);
+    await gotoStable(userPage, `/join/${token}`);
     // AcceptInviteButton renders "Accept & join team".
     await userPage
       .getByRole("button", { name: /accept.*join team/i })
@@ -249,6 +252,7 @@ test.skip("Resend email on a pending row increments the send count", async ({
   });
   const page = await ctx.newPage();
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
   // InviteRow is a client component — wait for hydration so the
   // button's onClick is actually attached before we click. Without
   // this the click can be a no-op (matches the hydration race the

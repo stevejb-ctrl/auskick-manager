@@ -8,6 +8,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -18,11 +19,13 @@ async function signInAs(browser: Browser, email: string, password: string) {
   });
   const page = await context.newPage();
   await page.goto("/login");
+  await waitForHydration(page);
   await page.getByTestId("login-mode-toggle").click();
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 15_000 });
+  await waitForHydration(page);
   return { context, page };
 }
 
@@ -54,7 +57,7 @@ test("a parent follows the team read-only, watches the live score, and can leave
       .insert({ team_id: team.id, user_id: parent.id, role: "parent" });
     const { context, page } = await signInAs(browser, parent.email, password);
 
-    await page.goto(`/teams/${team.id}`);
+    await gotoStable(page, `/teams/${team.id}`);
     const bar = page.getByRole("navigation", { name: /team sections/i });
     await expect(bar.getByRole("link")).toHaveText(["Today", "Games", "Stats"], { timeout: 10_000 });
 

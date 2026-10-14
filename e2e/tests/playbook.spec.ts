@@ -9,6 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -213,7 +214,13 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
   // Rename CHB and give it a full name. Typing replaces the old label
   // (usability run: it used to append, "CHB" + "KEY" → "CHBK").
   await field.getByRole("button", { name: "Centre half-back (CHB)" }).click();
-  await page.getByLabel("Short label (up to 4 letters)").click();
+  const shortLabel = page.getByLabel("Short label (up to 4 letters)");
+  await shortLabel.click();
+  // The tap selects the label on the next frame (after the browser places
+  // the cursor); a person types after that. WebKit's typing is faster.
+  await expect
+    .poll(() => shortLabel.evaluate((el: HTMLInputElement) => el.selectionStart === 0 && el.selectionEnd === el.value.length))
+    .toBe(true);
   await page.keyboard.type("key");
   await expect(page.getByLabel("Short label (up to 4 letters)")).toHaveValue("KEY");
   await page.getByLabel("Full name (optional)").fill("Key back");
@@ -297,6 +304,7 @@ test("a home position follows the position when the coach renames it", async ({ 
 
   // Rename FF on the Team tab; the first save turns defaults into rows.
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
   const field = page.getByRole("group", { name: "Team positions" });
   await field.getByRole("button", { name: "Full forward (FF)" }).click();
   await page.getByLabel("Short label (up to 4 letters)").fill("TALL");
@@ -325,7 +333,7 @@ test("a home position follows the position when the coach renames it", async ({ 
     })
     .not.toBe("ff");
 
-  await page.goto(`/teams/${team.id}/squad`);
+  await gotoStable(page, `/teams/${team.id}/squad`);
   await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home TALL");
 });
 
@@ -586,6 +594,7 @@ test("stats show season balance, backfilled, with since-reset", async ({ page })
   // After a reset, "Since reset" counts nothing yet.
   await admin.from("team_playbooks").insert({ team_id: team.id, season_balance_since: new Date().toISOString() });
   await page.reload();
+  await waitForHydration(page);
   await page.getByRole("link", { name: "Since reset" }).click();
   await expect(page).toHaveURL(/balance=since/);
   await expect(section.getByText("No data yet")).toBeVisible();
@@ -879,6 +888,7 @@ test("dialogs are named and close on Escape (one Modal primitive)", async ({ pag
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
 
   await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
   const sheet = page.getByRole("dialog", { name: `Role for ${player.full_name}` });
   await expect(sheet).toBeVisible();

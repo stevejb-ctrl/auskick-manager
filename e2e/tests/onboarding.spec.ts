@@ -8,6 +8,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 async function superAdminId(admin: SupabaseClient): Promise<string> {
   const { data } = await admin.auth.admin.listUsers();
@@ -48,6 +49,7 @@ test("new user signs up, creates team, adds first player", async ({
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     // LoginForm's inputs are unlabelled at the DOM level (LoginField
     // wraps them but the label association isn't exposed to a11y), so
@@ -58,10 +60,11 @@ test("new user signs up, creates team, adds first player", async ({
 
     // Sign-in lands on either /dashboard or /teams/new (no teams yet).
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     // --- Create team ---
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
     }
     const teamName = `Roos ${stamp}`;
     await page.getByLabel(/team name/i).fill(teamName);
@@ -91,6 +94,7 @@ test("new user signs up, creates team, adds first player", async ({
     expect(teams).toBe(1);
 
     await page.goto(`/teams/${teamId}/squad`);
+    await waitForHydration(page);
     await page.getByLabel(/player name/i).fill("Sam Smith");
     await page.getByLabel(/jersey/i).fill("7");
     await page.getByRole("button", { name: /add player/i }).click();
@@ -114,6 +118,7 @@ test("creating a game inside the wizard stays in the wizard and reaches All set"
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/setup?step=games`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: /create manually/i }).click();
   await page.getByLabel(/opponent/i).fill("Wizard Wombats");
   await page.getByLabel(/date & time/i).fill("2026-11-01T09:00");
@@ -139,6 +144,7 @@ test("the Basics step pill edits the existing team instead of creating another",
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name: original });
 
   await page.goto(`/teams/${team.id}/setup?step=config`);
+  await waitForHydration(page);
   await page.getByRole("link", { name: /back to team basics/i }).click();
   await expect(page).toHaveURL(new RegExp(`/teams/${team.id}/setup[?]step=basics`));
 
@@ -169,6 +175,7 @@ test("a new AFL U14 team starts with scoring on, matching the stated default", a
   const teamName = `Scoring ${Date.now()}`;
 
   await page.goto("/teams/new");
+  await waitForHydration(page);
   await page.getByRole("button", { name: /junior afl/i }).click();
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U14");
@@ -198,6 +205,7 @@ test("a new team starts on the age group's suggested way to play", async ({ page
   const teamName = `Suggested ${Date.now()}`;
 
   await page.goto("/teams/new");
+  await waitForHydration(page);
   await page.getByRole("button", { name: /junior afl/i }).click();
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U15");

@@ -11,6 +11,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -195,6 +196,7 @@ test("team admin adds a fill-in player for this game only", async ({
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
+  await waitForHydration(page);
 
   await page.getByText(/add fill-in/i).click();
   await page

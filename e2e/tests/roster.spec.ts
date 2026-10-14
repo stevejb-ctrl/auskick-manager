@@ -8,6 +8,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
 import { waitForAdminHydration } from "../helpers/admin-hydration";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -21,6 +22,7 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
 
   // ── Add ────────────────────────────────────────────────────
   // AddPlayerForm has proper labels: "Player name" + "Jersey #".
@@ -108,6 +110,7 @@ test("pasting a list adds the whole squad at once", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: /^paste a list$/i }).click();
   await page
     .getByLabel(/paste your squad/i)
@@ -153,6 +156,7 @@ test("reactivating into a full squad says why it didn't work", async ({ page }) 
   if (error) throw new Error(error.message);
 
   await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
   const row = page.getByRole("listitem").filter({ hasText: "Benched Bo" });
   const reactivate = row.getByRole("switch", { name: /reactivate player/i });
   await waitForAdminHydration(reactivate);
@@ -172,6 +176,7 @@ test("the add-player name error clears once a name is typed", async ({ page }) =
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: /^add player$/i }).click();
   await expect(page.getByText("Name is required.")).toBeVisible();
   await page.getByLabel(/player name/i).fill("Sam");

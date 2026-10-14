@@ -11,6 +11,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
 import { waitForAdminHydration } from "../helpers/admin-hydration";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -28,6 +29,7 @@ test("rename team persists in DB + renders new name", async ({ page }) => {
   });
 
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
 
   // The TeamNameSettings card has no <label>; the section is keyed by
   // its h2 ("Team name"). Scope the input + button lookup to that
@@ -62,6 +64,7 @@ test("toggle track-scoring flag", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
 
   // Capture initial state.
   const { data: before } = await admin
@@ -121,6 +124,7 @@ test("team members list shows every member and changes a role", async ({ page })
     });
 
     await page.goto(`/teams/${team.id}/settings`);
+    await waitForHydration(page);
 
     await expect(page.getByText("2 members")).toBeVisible();
     await expect(page.getByText("Morgan Helper")).toBeVisible();
@@ -161,6 +165,7 @@ test("Team tab: sections, age group change, and deleting the team", async ({ pag
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name });
 
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
   for (const section of ["How we play", "People", "Season", "Game-day extras", "Danger zone"]) {
     await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
   }
@@ -195,6 +200,7 @@ test("the team's only coach can't leave it", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
 
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: /^leave team$/i }).click();
   await page.getByRole("button", { name: /yes, leave the team/i }).click();
   await expect(page.getByText(/only coach/i)).toBeVisible();

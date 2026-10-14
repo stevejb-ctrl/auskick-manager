@@ -8,6 +8,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -61,6 +62,7 @@ test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
   });
 
   await page.goto(`/teams/${team.id}/games`);
+  await waitForHydration(page);
 
   await page.getByRole("button", { name: /import from playhq/i }).click();
 

@@ -24,6 +24,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 /** Player ids of the tiles in a lineup's bench, sorted. */
 async function benchIds(scope: import("@playwright/test").Locator, prefix: string): Promise<string[]> {
@@ -215,6 +216,7 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
   await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: /game settings/i }).click();

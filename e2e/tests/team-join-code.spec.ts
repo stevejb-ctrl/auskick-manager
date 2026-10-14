@@ -21,6 +21,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -160,6 +161,7 @@ test("parent enters a valid code on /join-team → lands on /games", async ({
 
     // Sign in as the parent first (mirrors the auth.setup pattern).
     await page.goto("/login");
+    await waitForHydration(page);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-password").waitFor({ state: "visible" });
@@ -170,8 +172,10 @@ test("parent enters a valid code on /join-team → lands on /games", async ({
     await page.waitForURL(/\/(welcome|dashboard|join-team)/, {
       timeout: 30_000,
     });
+    await waitForHydration(page);
 
-    await page.goto("/join-team");
+    await gotoStable(page, "/join-team");
+    await waitForHydration(page);
     // Type a casing/format-shifted version of the seeded code to
     // exercise the normaliser: lowercase, hyphen stripped. The
     // normaliser upper-cases and re-hyphenates back to the canonical
@@ -217,6 +221,7 @@ test("garbage code format fails before hitting the DB", async ({ browser }) => {
   });
   const page = await ctx.newPage();
   await page.goto("/join-team");
+  await waitForHydration(page);
 
   await page.getByTestId("join-code-input").fill("abc");
   await page.getByRole("button", { name: /^join team$/i }).click();
@@ -248,6 +253,7 @@ test("valid-shaped but unknown code returns a friendly error", async ({
   });
   const page = await ctx.newPage();
   await page.goto("/join-team");
+  await waitForHydration(page);
 
   // Right shape, no team with this code (vanishingly unlikely
   // collision with the 31^8 generator space).
@@ -279,6 +285,7 @@ test("/welcome surfaces both Set up and Join with a code CTAs", async ({
     const ctx = await browser.newContext({ storageState: undefined });
     const page = await ctx.newPage();
     await page.goto("/login");
+    await waitForHydration(page);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-password").waitFor({ state: "visible" });
@@ -286,6 +293,7 @@ test("/welcome surfaces both Set up and Join with a code CTAs", async ({
     await page.getByTestId("login-password").fill(parent.password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/welcome/, { timeout: 30_000 });
+    await waitForHydration(page);
 
     await expect(
       page.getByRole("link", { name: /^set up a new team$/i }),
