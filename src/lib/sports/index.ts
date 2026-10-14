@@ -48,6 +48,22 @@ export function getEffectiveQuarterSeconds(
 }
 
 /**
+ * The period words for a sport and age group: the age group's own, else
+ * the sport's ("quarter" for AFL and netball, "half" where a sport plays
+ * halves). Never assume "quarter" for a sport that doesn't say so.
+ */
+export function periodLabels(
+  sport: Sport,
+  ageGroup: AgeGroupConfig,
+): { label: "quarter" | "half" | "period"; plural: "quarters" | "halves" | "periods" } {
+  const cfg = getSportConfig(sport);
+  return {
+    label: ageGroup.periodLabel ?? cfg.periodLabel,
+    plural: ageGroup.periodLabelPlural ?? cfg.periodLabelPlural,
+  };
+}
+
+/**
  * Whether a brand-new team in this sport + age group starts with the
  * scoreboard on. The setup wizard shows this as "Default for {age}"
  * and createTeam stores it, so the two can never disagree.

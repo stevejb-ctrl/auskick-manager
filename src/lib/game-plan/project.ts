@@ -39,6 +39,7 @@ import type {
   ProjectGamePlanInput,
 } from "./types";
 import { assignLeagueLines } from "@/lib/sports/rugby_league/engine";
+import { periodLabels } from "@/lib/sports";
 
 // ─── Small deterministic shuffle (local; engine ones aren't exported) ──
 function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
@@ -63,15 +64,6 @@ function clampOnField(ageGroup: AgeGroupConfig, onFieldSize: number): number {
   );
 }
 
-function resolvePeriodLabels(
-  cfg: SportConfig,
-  ageGroup: AgeGroupConfig,
-): { label: "quarter" | "half" | "period"; plural: "quarters" | "halves" | "periods" } {
-  return {
-    label: ageGroup.periodLabel ?? cfg.periodLabel,
-    plural: ageGroup.periodLabelPlural ?? cfg.periodLabelPlural,
-  };
-}
 
 // Per-player start tally across the projected periods: how many periods
 // each player begins on the field. Every input player appears —
@@ -145,7 +137,7 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const model: PositionModel = ag.zones.length >= 5 ? "positions5" : "zones3";
@@ -324,7 +316,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const periodMs = periodMinutes * 60_000;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const positions = pickNetballPositionsToFill(ag, onFieldSize);
@@ -423,7 +415,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const ids = input.players.map((p) => p.id);
