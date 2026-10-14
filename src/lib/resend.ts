@@ -24,6 +24,16 @@ export function getResend(): Resend {
 export const CONTACT_FROM =
   process.env.RESEND_FROM_EMAIL ?? "Siren Footy <hello@sirenfooty.com.au>";
 
+/**
+ * The verified sender address under a team's own brand name, so a
+ * netball team's invite comes from "Siren Netball", not "Siren Footy".
+ * Only the display name changes; the address stays the verified one.
+ */
+export function senderAs(brandName: string): string {
+  const address = CONTACT_FROM.match(/<([^<>]+)>/)?.[1] ?? CONTACT_FROM.trim();
+  return `${brandName.replace(/[<>"]/g, "")} <${address}>`;
+}
+
 // Inbox for contact-form submissions.
 export const CONTACT_TO =
   process.env.RESEND_TO_EMAIL ?? "hello@sirenfooty.com.au";

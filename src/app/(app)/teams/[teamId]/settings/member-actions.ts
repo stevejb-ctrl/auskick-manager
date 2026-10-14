@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CONTACT_FROM, getResend } from "@/lib/resend";
+import { getResend, senderAs } from "@/lib/resend";
+import { getSportConfig, isSportId } from "@/lib/sports";
 import { EMAIL_RE, maskEmail } from "@/lib/email/validate";
 import {
   buildInviteEmail,
@@ -13,6 +14,14 @@ import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
 import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
 import type { ActionResult, TeamRole } from "@/lib/types";
+
+/**
+ * The team's own sport's brand for its emails ("Siren Netball"). A team
+ * that can't be read gets the umbrella "Siren", never another sport's.
+ */
+function brandNameFor(sport: unknown): string {
+  return isSportId(sport) ? getSportConfig(sport).brand.name : "Siren";
+}
 
 /** Result of a profiles-by-email lookup for the invite form. */
 export type InviteRecipientLookup =
@@ -151,11 +160,12 @@ export async function sendInviteEmail(
   }
 
   const [{ data: team }, { data: inviter }] = await Promise.all([
-    supabase.from("teams").select("name").eq("id", teamId).single(),
+    supabase.from("teams").select("name, sport").eq("id", teamId).single(),
     supabase.from("profiles").select("full_name, email").eq("id", invite.created_by).single(),
   ]);
 
   const teamName = team?.name ?? "your team";
+  const brandName = brandNameFor(team?.sport);
   const inviterName = inviter?.full_name?.trim() || "Your coach";
   const inviterEmail = inviter?.email ?? null;
 
@@ -165,6 +175,7 @@ export async function sendInviteEmail(
     roleLabel: ROLE_LABEL[invite.role as TeamRole],
     roleSummary: ROLE_SUMMARY[invite.role as TeamRole],
     joinUrl: `${publicOrigin()}/join/${invite.token}`,
+    brandName,
   });
 
   const nowIso = new Date().toISOString();
@@ -195,7 +206,7 @@ export async function sendInviteEmail(
   try {
     const resend = getResend();
     const result = await resend.emails.send({
-      from: CONTACT_FROM,
+      from: senderAs(brandName),
       to: recipient,
       replyTo: inviterEmail ?? undefined,
       subject,
@@ -447,12 +458,13 @@ export async function addExistingMember(
 
   if (isFirstAdd) {
     const [teamRes, adminProfileRes, newMemberRes] = await Promise.all([
-      admin.from("teams").select("name").eq("id", teamId).maybeSingle(),
+      admin.from("teams").select("name, sport").eq("id", teamId).maybeSingle(),
       admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
       admin.from("profiles").select("email").eq("id", userId).maybeSingle(),
     ]);
 
     const teamName = teamRes.data?.name ?? "your team";
+    const brandName = brandNameFor(teamRes.data?.sport);
     const adminName = adminProfileRes.data?.full_name?.trim() || "Your coach";
     const recipientEmail = newMemberRes.data?.email ?? null;
     const teamUrl = `${publicOrigin()}/teams/${teamId}/games`;
@@ -478,6 +490,7 @@ export async function addExistingMember(
         roleLabel,
         roleSummary,
         teamUrl,
+        brandName,
       });
 
       if (!process.env.RESEND_API_KEY) {
@@ -488,7 +501,7 @@ export async function addExistingMember(
         try {
           const resend = getResend();
           const result = await resend.emails.send({
-            from: CONTACT_FROM,
+            from: senderAs(brandName),
             to: recipientEmail,
             subject,
             text,

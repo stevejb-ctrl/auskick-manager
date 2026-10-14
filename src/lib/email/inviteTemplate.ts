@@ -27,6 +27,8 @@ export interface InviteEmailInput {
   roleSummary: string;
   /** Full URL to /join/{token}. */
   joinUrl: string;
+  /** The team's sport's brand ("Siren Netball"), never another sport's. */
+  brandName: string;
 }
 
 export interface InviteEmail {
@@ -45,12 +47,12 @@ function escapeHtml(s: string): string {
 }
 
 export function buildInviteEmail(input: InviteEmailInput): InviteEmail {
-  const { teamName, inviterName, roleLabel, roleSummary, joinUrl } = input;
+  const { teamName, inviterName, roleLabel, roleSummary, joinUrl, brandName } = input;
 
-  const subject = `${inviterName} invited you to ${teamName} on Siren Footy`;
+  const subject = `${inviterName} invited you to ${teamName} on ${brandName}`;
 
   const text = [
-    `${inviterName} added you to ${teamName} on Siren Footy as ${roleLabel}.`,
+    `${inviterName} added you to ${teamName} on ${brandName} as ${roleLabel}.`,
     "",
     roleSummary,
     "",
@@ -59,7 +61,7 @@ export function buildInviteEmail(input: InviteEmailInput): InviteEmail {
     "",
     "If you didn't expect this email, ignore it — the link only works once.",
     "",
-    "— Siren Footy",
+    `— ${brandName}`,
   ].join("\n");
 
   const html = `<!doctype html>
@@ -90,7 +92,7 @@ export function buildInviteEmail(input: InviteEmailInput): InviteEmail {
         Link expires in 14 days. If you didn't expect this email, just ignore it.
       </p>
       <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">
-        — Siren Footy
+        — ${escapeHtml(brandName)}
       </p>
     </div>
   </body>
@@ -109,15 +111,17 @@ export interface MemberAddedEmailInput {
   roleSummary: string;
   /** Full URL to /teams/{id}/games — where the email's CTA lands. */
   teamUrl: string;
+  /** The team's sport's brand ("Siren Netball"), never another sport's. */
+  brandName: string;
 }
 
 export function buildMemberAddedEmail(input: MemberAddedEmailInput): InviteEmail {
-  const { teamName, adminName, roleLabel, roleSummary, teamUrl } = input;
+  const { teamName, adminName, roleLabel, roleSummary, teamUrl, brandName } = input;
 
-  const subject = `${adminName} added you to ${teamName} on Siren Footy`;
+  const subject = `${adminName} added you to ${teamName} on ${brandName}`;
 
   const text = [
-    `${adminName} added you to ${teamName} on Siren Footy as ${roleLabel}.`,
+    `${adminName} added you to ${teamName} on ${brandName} as ${roleLabel}.`,
     "",
     roleSummary,
     "",
@@ -126,7 +130,7 @@ export function buildMemberAddedEmail(input: MemberAddedEmailInput): InviteEmail
     "",
     "Didn't expect this? You can leave the team from the team's settings page.",
     "",
-    "— Siren Footy",
+    `— ${brandName}`,
   ].join("\n");
 
   const html = `<!doctype html>
@@ -157,7 +161,7 @@ export function buildMemberAddedEmail(input: MemberAddedEmailInput): InviteEmail
         Didn't expect this? You can leave the team from its settings page.
       </p>
       <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">
-        — Siren Footy
+        — ${escapeHtml(brandName)}
       </p>
     </div>
   </body>
