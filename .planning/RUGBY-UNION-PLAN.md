@@ -147,7 +147,7 @@ can change it. Add the same pattern:
 This lands in phase 2, but it works for every sport. An AFL or netball
 coach whose league plays a different size gets it too.
 
-### 3. The field and positions for 15
+### 3. The field and union positions
 
 - `fieldFormation.ts` `getFieldSlots` tops out at 13. A 15-a-side union
   team (U12 and up) would hide two kids. Add union layouts for every
@@ -157,10 +157,84 @@ coach whose league plays a different size gets it too.
 - `LeagueField` draws league markings. Give it a sport prop, or a small
   `RugbyField` wrapper, for union's 22 m and 10 m lines. Keep one
   component.
-- Union position names for How we play's named positions: loosehead and
-  tighthead prop, hooker, locks, flankers, number 8, halfback,
-  five-eighth, inside and outside centre, wingers, fullback. The
-  current set stops at league's 6 forwards and 7 backs with NRL names.
+#### Union positions (their own catalogue, not league's)
+
+League's named positions come from `leagueCatalogue` in
+`rugby_league/playbook.ts`: NRL names (PR, HK, 2R, LK, HB, 5/8, CE, WG,
+FB), filled in a fixed order, topping out at 6 forwards and 7 backs.
+Union needs its own catalogue, and a sport-aware lookup in place of the
+direct `leagueCatalogue` calls.
+
+The full side, numbered as on the jersey, in Australian terms:
+
+| No. | Short | Name | Line |
+|-----|-------|------|------|
+| 1 | LHP | Loosehead prop | Forwards |
+| 2 | HK | Hooker | Forwards |
+| 3 | THP | Tighthead prop | Forwards |
+| 4 | LK | Lock (second row) | Forwards |
+| 5 | LK | Lock (second row) | Forwards |
+| 6 | BF | Blindside flanker (breakaway) | Forwards |
+| 7 | OF | Openside flanker (breakaway) | Forwards |
+| 8 | N8 | Number 8 | Forwards |
+| 9 | HB | Halfback (scrum-half) | Backs |
+| 10 | FE | Five-eighth (fly-half) | Backs |
+| 11 | LW | Left wing | Backs |
+| 12 | IC | Inside centre | Backs |
+| 13 | OC | Outside centre | Backs |
+| 14 | RW | Right wing | Backs |
+| 15 | FB | Fullback | Backs |
+
+**Same words, different positions.** These clash with league, so labels
+carry the jersey number and the keys are union's own (`ru-…`), never
+league's:
+
+- **Lock:** league's is the 13 at the back of the scrum; union's are
+  4 and 5, the second row. Some Australian junior documents (Hunter's
+  by-laws) still call union's 8 "lock".
+- **Halves:** league's halfback and five-eighth wear 7 and 6; union's
+  wear 9 and 10.
+- **Second row:** league's 11 and 12 (back-rowers by role); union's
+  second row is the locks, 4 and 5.
+
+**Which positions play at each size.** From Hunter's by-laws (10 to 14)
+and the full side (15):
+
+| Players | Forwards | Backs |
+|---------|----------|-------|
+| 10 | 1, 2, 3, 4, 5 | 9, 10, 12, 13, 15 |
+| 11 | 1–5 | 9, 10, 11, 12, 13, 15 |
+| 12 | 1–5, 8 | 9, 10, 11, 12, 13, 15 |
+| 13 | 1–5, 8 | 9–15 |
+| 14 | 1–8 | 9, 10, 11, 12, 13, 15 |
+| 15 | 1–8 | 9–15 |
+
+Below 10 (U6–U9: 7 a side, tag up to U7) named positions stay off, as
+league's do below U10. Kids play forwards or backs, with tiles showing
+F or B. If a 7-a-side split is ever wanted, sevens uses 1, 2, 3 and
+9, 10, 12, 15 (to confirm).
+
+**Where it shows up:**
+- `unionCatalogue(onFieldSize)` mirrors `leagueCatalogue`, driven by
+  the table above instead of league's fill order. It gives each
+  position a key, short label, name, line and x/y.
+- Named positions are offered from U10 (12 a side) up, as for league.
+  "Preferred line" stays the recommended strategy at U10–U11, and named
+  positions from U12 (15 a side) — to confirm when phase 3 starts.
+- The field, tiles, role sheet, How we play roles ("home" and "also
+  plays"), the rule check, stats by position and season balance all
+  read positions through the catalogue, so they pick union's up once
+  the lookup is sport-aware.
+- `team_positions`, where coaches rename positions, has a CHECK that
+  allows AFL lines only. Widen it to `forwards`/`backs` so a union coach
+  can rename (e.g. "Lock" back to "Second row"). League would gain it
+  too.
+- Tests:
+  - unit: the catalogue at each size (10–15) gives the positions in the
+    table, with the right lines;
+  - e2e: a union U10 lineup at 12 a side shows N8 and no flankers, and
+    U12 at 15 shows all fifteen;
+  - a role saved as union "LK" never reads as league's lock.
 
 ### 4. The live game
 
