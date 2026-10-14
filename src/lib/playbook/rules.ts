@@ -159,6 +159,11 @@ export function ruleWords(sport: Sport, periodWord: string, usesPositions: boole
   };
 }
 
+/** A catalogue title in this team's words ("every third" for netball). */
+export function ruleTitle(def: RuleDef, words: RuleWords): string {
+  return def.title.replace(/\blines\b/g, words.lines).replace(/\bline\b/g, words.line);
+}
+
 /** Which catalogue rules this team can add (some depend on sport / strategy). */
 export function ruleCatalogue(resolved: ResolvedPlaybook): RuleDef[] {
   const kinds: RuleKind[] = ["every-line-per-game", "distinct-lines", "keep-apart", "keep-together", "max-bench-in-row"];

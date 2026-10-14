@@ -9,6 +9,7 @@ import {
   newRule,
   ruleDef,
   ruleSentence,
+  ruleTitle,
   type LockedRule,
   type RuleDef,
   type RuleInstance,
@@ -186,7 +187,7 @@ export function RulesEditor({
                   if (d.needsPlayers) setPicking(rule.id);
                 }}
               >
-                {d.title}
+                {ruleTitle(d, words)}
               </button>
             ))}
             {addable.length === 0 && <p className="text-sm text-ink-mute">Every rule is already on.</p>}

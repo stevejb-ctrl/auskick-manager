@@ -118,6 +118,21 @@ test("a netball coach picks Position cycle", async ({ page }) => {
   await expect(page.getByText(/time in each position across the season. It decides/)).toBeVisible();
 });
 
+// Round 5 (setup-netball-rotation): the "Add a rule" list said "every
+// line" on a netball team, whose units are thirds. Titles use the
+// sport's word, as the rule sentences already did.
+test("a netball team's Add a rule list talks about thirds, not lines", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await page.getByRole("button", { name: "+ Add a rule" }).click({ timeout: 15_000 });
+  const list = page.getByRole("dialog", { name: "Add a rule" });
+  await expect(list).toContainText("Everyone plays every third each game");
+  await expect(list).not.toContainText(/every line|different lines/);
+});
+
 test("the wizard's How we play step saves the strategy", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
