@@ -35,13 +35,20 @@ const SPORT_WORD: Record<Sport, string> = {
   rugby_league: "league",
 };
 
-/** What each vest strategy does, under the control (usability run: "doesn't say what order"). */
-const VEST_HELP: Record<"auto" | "fixed-order" | "coach", string> = {
-  auto: "Each vest goes to whoever on the field has worn it least.",
-  "fixed-order":
-    "Each vest goes round the squad in jersey-number order: the next kid on the field after whoever wore it last.",
-  coach: "Siren doesn't hand them out: you pick who wears each vest at the start of each half.",
-};
+/**
+ * What each vest strategy does, under the control (usability run: "doesn't
+ * say what order"), in the age group's period (U8–U9 play quarters).
+ */
+function vestHelp(strategy: "auto" | "fixed-order" | "coach", periodWord: string): string {
+  switch (strategy) {
+    case "auto":
+      return "Each vest goes to whoever on the field has worn it least.";
+    case "fixed-order":
+      return "Each vest goes round the squad in jersey-number order: the next kid on the field after whoever wore it last.";
+    case "coach":
+      return `Siren doesn't hand them out: you pick who wears each vest at the start of each ${periodWord}.`;
+  }
+}
 
 export type HowWePlayRow = Pick<
   TeamPlaybookRow,
@@ -191,7 +198,7 @@ export function HowWePlayCard({
         <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
           <p className="text-sm font-semibold text-ink">Vests</p>
           <p className="mt-0.5 text-xs text-ink-dim">
-            How Siren picks the FR and DH vests each half, always within the vest rules.
+            How Siren picks the FR and DH vests each {periodWord}, always within the vest rules.
           </p>
           <SegmentedControl
             className="mt-3"
@@ -206,7 +213,7 @@ export function HowWePlayCard({
             onChange={(v) => save({ ...row, vest_strategy: v }, { vestStrategy: v })}
           />
           <p className="mt-2 text-xs text-ink-dim">
-            {VEST_HELP[row.vest_strategy ?? "auto"]}
+            {vestHelp(row.vest_strategy ?? "auto", periodWord)}
           </p>
         </div>
       )}

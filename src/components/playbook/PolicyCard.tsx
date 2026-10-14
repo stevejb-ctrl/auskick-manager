@@ -78,7 +78,7 @@ export function PolicyCard({
   }
   if (sport === "rugby_league" && (policy.vests.fr || policy.vests.dh)) {
     const vests = [policy.vests.fr && "FR", policy.vests.dh && "DH"].filter(Boolean).join(" and ");
-    lines.push({ text: `${vests} vests are worn by a different player each half` });
+    lines.push({ text: `${vests} vests are worn by a different player each ${periodWord}` });
   }
 
   return (

@@ -101,6 +101,17 @@ describe("each sport owns its rules", () => {
     expect(unbroken.source).toBe("NRL Junior League Laws §6");
   });
 
+  // U8–U9 league plays quarters: vests and unbroken play are per quarter,
+  // never "each half" (cross-sport audit, 14 Oct 2026).
+  it("says the age group's own period in league's laws", () => {
+    const u8 = lockedRules(resolve("rugby_league", "U8", null));
+    expect(u8.find((r) => r.id === "vests")!.text).toMatch(/each quarter$/);
+    expect(u8.find((r) => r.id === "unbroken")!.text).toMatch(/unbroken quarter/);
+    expect(u8.map((r) => r.text).join(" ")).not.toMatch(/half/);
+    const u11 = lockedRules(resolve("rugby_league", "U11", null));
+    expect(u11.find((r) => r.id === "unbroken")!.text).toMatch(/unbroken half/);
+  });
+
   it("uses the sport's own words", () => {
     expect(ruleWords("netball", "half", false)).toMatchObject({ line: "third", period: "half" });
     expect(ruleWords("rugby_league", "half", false)).toMatchObject({ line: "line", period: "stint" });

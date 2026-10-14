@@ -6,7 +6,7 @@
 // Receiver / Dummy Half vests and §6 unbroken periods, both from the
 // age config. Vests are duties, not positions.
 
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, periodLabels } from "@/lib/sports";
 import type {
   AgePolicy,
   EffectivePolicy,
@@ -116,17 +116,19 @@ export const leaguePlaybook: SportPlaybook = {
 
   lawRules(policy, agePolicy): LockedRule[] {
     const out: LockedRule[] = [];
+    // The age group's own period: U6–U9 play quarters, U10+ halves.
+    const periods = periodLabels("rugby_league", getAgeGroupConfig("rugby_league", policy.ageGroup));
     if (policy.minUnbrokenPeriods > 0) {
       out.push({
         id: "unbroken",
-        text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? "period" : "periods"} each`,
+        text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? periods.label : periods.plural} each`,
         source: policy.overridden.includes("minUnbrokenPeriods")
           ? "Your league"
           : agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
       });
     }
     if (policy.vests.fr || policy.vests.dh) {
-      out.push({ id: "vests", text: "Each vest is worn by a different player each half", source: NRL_LAWS });
+      out.push({ id: "vests", text: `Each vest is worn by a different player each ${periods.label}`, source: NRL_LAWS });
     }
     return out;
   },
