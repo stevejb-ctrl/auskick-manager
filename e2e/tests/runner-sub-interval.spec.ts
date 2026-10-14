@@ -51,7 +51,9 @@ for (const sport of ["afl", "rugby_league"] as const) {
     }
     await page.getByRole("button", { name: /^start (q|h)1$/i }).click({ timeout: 15_000 });
     const startClock = page.getByRole("button", { name: /^start clock$/i });
-    if (await startClock.isVisible({ timeout: 5_000 }).catch(() => false)) await startClock.click();
+    // Start always opens the "Start clock" step. isVisible() doesn't wait,
+    // so checking it raced the dialog and sometimes skipped the tap.
+    await startClock.click({ timeout: 10_000 });
 
     await expect
       .poll(async () => {
