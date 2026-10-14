@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { gridUnits, seasonBalanceGrid } from "@/lib/playbook/seasonGrid";
+import { netballBibs } from "@/lib/sports/netball/playbook";
 
 const MIN = 60_000;
 
@@ -24,5 +25,14 @@ describe("season balance grid", () => {
     expect(grid.rows[0].biggestGap).toBe(2);
     expect([grid.within, grid.total]).toEqual([1, 2]);
     expect(gridUnits("afl", "position").columns.map((c) => c.key)).toEqual(["fwd", "mid", "back"]);
+  });
+});
+
+// Netball Set plays five bibs; its season grid showed all seven
+// (cross-sport audit, 14 Oct 2026). The grid takes the age group's bibs.
+describe("netball season grid", () => {
+  it("has a column per bib the age group plays", () => {
+    expect(gridUnits("netball", "bib", netballBibs("set")).columns.map((c) => c.label)).toEqual(["GS", "GA", "C", "GD", "GK"]);
+    expect(gridUnits("netball", "bib", netballBibs("11u")).columns).toHaveLength(7);
   });
 });

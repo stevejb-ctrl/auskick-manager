@@ -36,15 +36,14 @@ export interface SeasonGrid {
 export function gridUnits(
   sport: Sport,
   unit: BalanceUnit | null,
-  /** League named positions: the team's catalogue, one column each. */
+  /** League named positions or netball bibs: the team's, one column each. */
   positions: { key: string; label: string }[] = [],
 ): { unit: BalanceUnit; columns: { key: string; label: string }[] } {
   if (sport === "netball") {
     if (unit === "bib") {
-      return {
-        unit: "bib",
-        columns: ["gs", "ga", "wa", "c", "wd", "gd", "gk"].map((k) => ({ key: k, label: k.toUpperCase() })),
-      };
+      // The age group's own bibs (Set plays five), from How we play.
+      const bibs = positions.length > 0 ? positions : ["gs", "ga", "wa", "c", "wd", "gd", "gk"].map((k) => ({ key: k, label: k.toUpperCase() }));
+      return { unit: "bib", columns: bibs.map((p) => ({ key: p.key, label: p.label })) };
     }
     return {
       unit: "third",
