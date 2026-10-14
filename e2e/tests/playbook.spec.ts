@@ -1122,6 +1122,14 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   const kidToken = page.getByRole("button", { name: new RegExp(`, ${players[6].full_name}$`) });
   await expect(kidToken).toBeVisible({ timeout: 15_000 });
   await expect(kidToken).toHaveAccessibleName(/^(Goal Shooter|Goal Attack),/);
+
+  // Round 5 (carnival-day-netball): before kickoff nothing showed who
+  // still needs which third today — the rule check only appeared at the
+  // first break. The pre-game lineup has it now, as AFL's does.
+  const check = page.getByTestId("rule-check");
+  await expect(check).toBeVisible();
+  await check.getByRole("button").first().click();
+  await expect(check).toContainText(/every third today/);
 });
 
 test("the wizard's squad step sets players' positions too", async ({ page }) => {

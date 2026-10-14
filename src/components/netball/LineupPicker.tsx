@@ -48,6 +48,8 @@ import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan
 import { KeepOnMarker, keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { netballRuleCheck } from "@/lib/sports/netball/engine";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -384,6 +386,24 @@ export function NetballLineupPicker({
     if (initialLineup) return initialLineup;
     return buildLineup("suggested");
   });
+  // Rule check for the lineup about to start, as AFL's picker and both
+  // breaks show — carnival day's "still to play every third today" was
+  // invisible until the first break (round 5).
+  const ruleCheck = useMemo(() => {
+    if (!netballPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of squad) names[p.id] = p.full_name;
+    return netballRuleCheck({
+      lineup,
+      previousLineup: null,
+      names,
+      thirdMs: new Map(),
+      period: 1,
+      periodCount: ageGroup.periodCount,
+      periodMs: (defaultQuarterSeconds ?? ageGroup.periodSeconds) * 1000,
+      input: netballPlaybook,
+    });
+  }, [netballPlaybook, squad, lineup, ageGroup.periodCount, ageGroup.periodSeconds, defaultQuarterSeconds]);
 
   function handleModeChange(next: "suggested" | "manual") {
     if (next === lineupMode) return;
@@ -1131,6 +1151,8 @@ export function NetballLineupPicker({
           </div>
         )}
       </div>
+
+      {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
 
       <Court
         attackThird={byThird("attack-third").map(renderTokenAt)}
