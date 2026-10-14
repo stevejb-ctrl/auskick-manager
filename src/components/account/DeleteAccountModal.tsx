@@ -107,7 +107,7 @@ export function DeleteAccountModal({
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
           Your account will be scheduled for deletion in{" "}
           <strong className="text-ink">{GRACE_DAYS} days</strong>. You can
-          keep using Siren Footy in the meantime and restore your account
+          keep using Siren in the meantime and restore your account
           any time before then.
         </p>
 

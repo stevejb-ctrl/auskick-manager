@@ -14,7 +14,7 @@ import type { Metadata } from "next";
 // nothing else does.
 
 export const metadata: Metadata = {
-  title: "You're offline — Siren Footy",
+  title: "You're offline — Siren",
   robots: { index: false, follow: false },
 };
 
