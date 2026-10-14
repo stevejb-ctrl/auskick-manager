@@ -218,6 +218,9 @@ test("netball: at the break a coach can add an arrived player, mark a player out
     name: /who comes on at/i,
   });
   await expect(replacementDialog).toBeVisible({ timeout: 5_000 });
+  // The bib in netball's words ("GS"), not an AFL zone label or a
+  // capitalised id ("Gs") — cross-sport audit, 14 Oct 2026.
+  await expect(replacementDialog).toHaveAccessibleName("Who comes on at GS?");
   await replacementDialog
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();

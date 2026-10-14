@@ -140,6 +140,12 @@ interface LeagueLiveGameProps {
   exitHref: string;
 }
 
+/** A league player's spot, as the injury / mark-out modal names it. */
+const LEAGUE_SPOT_LABEL: Record<"forward" | "back", string> = {
+  forward: "Forward",
+  back: "Back",
+};
+
 export function LeagueLiveGame({
   auth,
   game,
@@ -2820,7 +2826,7 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={outPlayer}
-            zone={markOutReplacement.zone}
+            spotLabel={LEAGUE_SPOT_LABEL[markOutReplacement.zone]}
             candidates={markOutReplacementCandidates}
             onPickReplacement={(rid) =>
               void handleMarkOutReplacement(
@@ -2859,7 +2865,7 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={injPlayer}
-            zone={injuryReplacementModal.zone}
+            spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}
             onPickReplacement={(rid) =>
               void handleInjuryReplacement(
