@@ -54,18 +54,13 @@ import type { PlaybookSnapshot } from "@/lib/playbook/types";
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
 async function clampOnFieldSize(
-  supabase: SupabaseClient,
-  teamId: string,
+  auth: LiveAuth,
+  w: Writer,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
-  // This module writes rugby_league games only: clamp to that sport's
-  // own age groups, never whatever another sport would allow.
-  const { data: team } = await supabase
-    .from("teams")
-    .select("age_group")
-    .eq("id", teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig("rugby_league", team?.age_group);
+  // Clamp to the team's own rugby age group, never whatever another
+  // sport would allow.
+  const { ageCfg } = await rugbyTeamOf(auth, w);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -217,11 +212,7 @@ export async function startLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    onFieldSize,
-  );
+  const { value: clampedSize } = await clampOnFieldSize(auth, w, onFieldSize);
 
   // B1 / AVAIL-01: reconcile against availability BEFORE the vest
   // pre-flight below. The pre-flight builds `fieldSet` from
@@ -1101,11 +1092,7 @@ export async function setLeagueOnFieldSizeMidGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize, min, max } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    input.newSize,
-  );
+  const { value: clampedSize, min, max } = await clampOnFieldSize(auth, w, input.newSize);
 
   if (Math.floor(input.newSize) < min || Math.floor(input.newSize) > max) {
     return {

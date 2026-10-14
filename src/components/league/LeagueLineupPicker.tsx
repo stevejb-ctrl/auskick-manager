@@ -72,7 +72,7 @@ import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
-import { periodLabels } from "@/lib/sports";
+import { periodLabels, type RugbySport } from "@/lib/sports";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -97,6 +97,8 @@ function suggestedSubMinutes(
 
 interface LeagueLineupPickerProps {
   auth: LiveAuth;
+  /** The team's rugby sport: its words for the period. */
+  sport: RugbySport;
   gameId: string;
   players: Player[];
   ageGroup: AgeGroupConfig;
@@ -154,6 +156,7 @@ interface LeagueLineupPickerProps {
 
 export function LeagueLineupPicker({
   auth,
+  sport,
   gameId,
   players,
   ageGroup,
@@ -1322,7 +1325,7 @@ export function LeagueLineupPicker({
           <ul className="divide-y divide-hairline">
             {Array.from({ length: ageGroup.periodCount }).map((_, periodIdx) => {
               const periodNum = periodIdx + 1;
-              const periodAbbrev = periodLabels("rugby_league", ageGroup).label.charAt(0).toUpperCase();
+              const periodAbbrev = periodLabels(sport, ageGroup).label.charAt(0).toUpperCase();
               const frPickId = vestPlan.fr[periodIdx] ?? null;
               const dhPickId = vestPlan.dh[periodIdx] ?? null;
               return (
@@ -1448,7 +1451,7 @@ export function LeagueLineupPicker({
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
         confirmLabel={
-          `Start ${periodLabels("rugby_league", ageGroup).label.charAt(0).toUpperCase()}1`
+          `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
         }
         confirmDisabled={confirmDisabled}
         confirmLoading={isPending}
@@ -1497,7 +1500,7 @@ export function LeagueLineupPicker({
       {startModalOpen && (
         <StartQuarterModal
           quarter={1}
-          periodLabel={periodLabels("rugby_league", ageGroup).label}
+          periodLabel={periodLabels(sport, ageGroup).label}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

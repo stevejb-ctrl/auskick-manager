@@ -298,6 +298,7 @@ export default async function RunPage({ params }: RunPageProps) {
             </section>
           ) : (
             <LeagueLineupPicker
+              sport={sport}
               auth={auth}
               gameId={g.id}
               players={availablePlayers}

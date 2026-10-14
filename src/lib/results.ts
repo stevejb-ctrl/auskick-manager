@@ -4,7 +4,7 @@
 
 import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame, replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
 import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
@@ -67,14 +67,15 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
     for (const [playerId, goals] of Object.entries(replayNetballGame(events).playerGoals)) {
       if (goals > 0) rows.push({ playerId, detail: `${goals} ${goals === 1 ? "goal" : "goals"}`, points: goals, showPoints: false });
     }
-  } else if (sport === "rugby_league") {
-    const r = replayLeagueGame(events);
+  } else if (isRugby(sport)) {
+    const pts = rugbyPoints(sport);
+    const r = replayRugbyGame(events, pts);
     const ids = Array.from(new Set(Object.keys(r.playerTries).concat(Object.keys(r.playerConversions), Object.keys(r.playerGoals))));
     for (const playerId of ids) {
       const tries = r.playerTries[playerId] ?? 0;
       const conversions = r.playerConversions[playerId]?.made ?? 0;
       const { penalty = 0, field = 0 } = r.playerGoals[playerId] ?? {};
-      const points = tries * 4 + conversions * 2 + penalty * 2 + field;
+      const points = tries * pts.try + conversions * pts.conversion + penalty * pts.penaltyGoal + field * pts.fieldGoal;
       if (points === 0) continue;
       const parts = [
         tries > 0 && `${tries}T`,

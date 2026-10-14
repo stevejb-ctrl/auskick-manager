@@ -326,7 +326,7 @@ export function LeagueLiveGame({
   const liveRootRef = useRef<HTMLDivElement>(null);
 
   // ── Period label resolver ─────────────────────────────────────
-  const { label: periodLabel, plural: periodLabelPlural } = periodLabels("rugby_league", ageGroup);
+  const { label: periodLabel, plural: periodLabelPlural } = periodLabels(sport, ageGroup);
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -921,7 +921,7 @@ export function LeagueLiveGame({
       }),
     [
       trackScoring,
-      ageGroup.periodLabel,
+      periodLabel,
       ageGroup.vestRequirements,
       ageGroup.kickingAllowed,
       ageGroup.goalsFromPlay,
@@ -2186,6 +2186,7 @@ export function LeagueLiveGame({
       {isAtQbreak && vestRequired && state.lineup && (
         <VestAssignmentCard
           auth={auth}
+          sport={sport}
           gameId={game.id}
           squad={squad}
           onFieldPlayerIds={[
@@ -2658,6 +2659,7 @@ export function LeagueLiveGame({
             </header>
             <VestAssignmentCard
               auth={auth}
+              sport={sport}
               gameId={game.id}
               squad={squad}
               onFieldPlayerIds={[

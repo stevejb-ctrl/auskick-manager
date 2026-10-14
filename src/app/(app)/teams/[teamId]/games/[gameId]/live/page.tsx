@@ -472,6 +472,7 @@ export default async function LivePage({ params }: LivePageProps) {
             // default (Steve 2026-05-19, see LeagueLineupPicker.tsx
             // header for the interaction model).
             <LeagueLineupPicker
+              sport={sport}
               // Rebuild the suggestion when who's-here changes.
               key={Array.from(availableIds).sort().join(",")}
               availabilityPanel={leagueAvailabilityPanel}

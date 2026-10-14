@@ -110,7 +110,7 @@ export function LeagueFullTimeReview({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const periodLabel = periodLabels("rugby_league", ageGroup).label;
+  const periodLabel = periodLabels(sport, ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
   const scoreByPeriod: LeagueScoreByPeriod = rugbyScoreByPeriod(
     events,
