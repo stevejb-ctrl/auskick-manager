@@ -15,6 +15,26 @@ config" today is that the code knows only one rugby by name: about 25
 league, and point values written into the replay. Fix that first, with
 league's tests as the safety net, and union becomes mostly data.
 
+**Sports are independent (14 Oct 2026).** Shared code, never shared
+rules:
+
+- Every rule, default, word and list a team sees comes from that team's
+  own sport config.
+- Nothing falls back to another sport. A missing or unknown sport is an
+  error, not AFL. Today a dozen-plus places fall back to AFL; phase 1
+  removes them.
+- Union and league share the rugby engine's code, but union's config
+  states every rule itself (no vests, no kick rotations, no
+  unbroken-period rule, its own positions, its own points). It inherits
+  no values from league.
+- Data is checked against the team's own sport: position lines, roles,
+  rule packs, and the source text of locked rules. Today these read
+  "AFL junior rules" and "NRL junior laws"; union's will read Rugby
+  Australia's pathway.
+- Isolation tests per sport: a union team's How we play, rule packs,
+  strategies, positions and copy contain nothing from AFL or league,
+  and the same for each other sport.
+
 ## What already works for union
 
 - **Vests switch off cleanly.** League U6–U7 and U13+ have no vests, and
@@ -225,10 +245,15 @@ F or B. If a 7-a-side split is ever wanted, sevens uses 1, 2, 3 and
   plays"), the rule check, stats by position and season balance all
   read positions through the catalogue, so they pick union's up once
   the lookup is sport-aware.
-- `team_positions`, where coaches rename positions, has a CHECK that
-  allows AFL lines only. Widen it to `forwards`/`backs` so a union coach
-  can rename (e.g. "Lock" back to "Second row"). League would gain it
-  too.
+- `team_positions`, where coaches rename positions, has
+  `CHECK (line in ('back', 'mid', 'fwd'))`: AFL's lines, for every
+  sport. Don't widen that list. Check each row against its own team's
+  sport instead: a trigger that looks up `teams.sport` and accepts only
+  that sport's lines (AFL `back/mid/fwd`; league and union
+  `forwards/backs`). Do the same for `player_position_prefs.line`, plus
+  the matching server-side check from the sport config. A union coach
+  can then rename "Lock" to "Second row", and an AFL line can never be
+  saved on a rugby team, or the reverse.
 - Tests:
   - unit: the catalogue at each size (10–15) gives the positions in the
     table, with the right lines;
