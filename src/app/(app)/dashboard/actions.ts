@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
 import { defaultTrackScoring, getSportConfig } from "@/lib/sports";
@@ -16,7 +15,7 @@ export async function createTeam(
   name: string,
   ageGroup: string = "U10",
   sport: Sport = "afl"
-): Promise<ActionResult> {
+): Promise<ActionResult<{ setupUrl: string }>> {
   const supabase = createClient();
 
   const {
@@ -132,7 +131,9 @@ export async function createTeam(
   sendTelegramNotification(text).catch(() => {});
 
   revalidatePath("/dashboard");
-  // redirect() throws NEXT_REDIRECT; must be OUTSIDE any try/catch
-  // block so Next.js's action handler can propagate the redirect.
-  redirect(`/teams/${teamId}/setup?step=config`);
+  // The form replaces /teams/new with the setup (router.replace), so
+  // Back leaves the wizard instead of landing on a blank create form
+  // whose Continue makes a second team (round 5). A server-action
+  // redirect() always pushes in Next 14, whatever its RedirectType.
+  return { success: true, data: { setupUrl: `/teams/${teamId}/setup?step=config` } };
 }

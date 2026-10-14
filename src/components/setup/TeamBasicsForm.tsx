@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createTeam } from "@/app/(app)/dashboard/actions";
 import { updateTeamBasics } from "@/app/(app)/teams/[teamId]/setup/actions";
 import { Button } from "@/components/ui/Button";
@@ -56,6 +57,7 @@ export function TeamBasicsForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup) ?? cfg.ageGroups[0];
 
@@ -73,16 +75,22 @@ export function TeamBasicsForm({
       return;
     }
 
-    // createTeam calls redirect() internally on success — control never
-    // returns from the action in that case.  The result branch here
-    // only runs for the failure path.
+    // updateTeamBasics redirects on success. createTeam hands back the
+    // setup URL instead, and we REPLACE this page with it: Back from the
+    // setup must not land on a blank create form (round 5: Continue there
+    // made a second team).
     startTransition(async () => {
-      const result = existingTeam
-        ? await updateTeamBasics(existingTeam.id, name.trim(), ageGroup)
-        : await createTeam(userId, name.trim(), ageGroup, sport);
+      if (existingTeam) {
+        const result = await updateTeamBasics(existingTeam.id, name.trim(), ageGroup);
+        if (!result.success) setError(result.error);
+        return;
+      }
+      const result = await createTeam(userId, name.trim(), ageGroup, sport);
       if (!result.success) {
         setError(result.error);
+        return;
       }
+      if (result.data) router.replace(result.data.setupUrl);
     });
   }
 

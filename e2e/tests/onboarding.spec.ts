@@ -78,6 +78,18 @@ test("new user signs up, creates team, adds first player", async ({
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
+    // Round 5 (setup missions): Back from here returned to a blank
+    // /teams/new, and Continue there made a second team. The create
+    // form is replaced in history, so Back leaves the wizard instead.
+    await page.goBack();
+    await page.waitForLoadState("networkidle");
+    await expect(page).not.toHaveURL(/\/teams\/new/);
+    const { count: teams } = await admin
+      .from("team_memberships")
+      .select("team_id", { count: "exact", head: true })
+      .eq("user_id", userId!);
+    expect(teams).toBe(1);
+
     await page.goto(`/teams/${teamId}/squad`);
     await page.getByLabel(/player name/i).fill("Sam Smith");
     await page.getByLabel(/jersey/i).fill("7");
