@@ -91,6 +91,7 @@ import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { periodLabels } from "@/lib/sports";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   game: Game;
@@ -316,8 +317,7 @@ export function LeagueLiveGame({
   const liveRootRef = useRef<HTMLDivElement>(null);
 
   // ── Period label resolver ─────────────────────────────────────
-  const periodLabel = ageGroup.periodLabel ?? "quarter";
-  const periodLabelPlural = ageGroup.periodLabelPlural ?? "quarters";
+  const { label: periodLabel, plural: periodLabelPlural } = periodLabels("rugby_league", ageGroup);
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -533,9 +533,7 @@ export function LeagueLiveGame({
       ? elapsedMs
       : 0;
   const nowAbsMs = completedQuarterMs + liveOverlayMs;
-  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
-    .charAt(0)
-    .toUpperCase();
+  const periodAbbrev = periodLabel.charAt(0).toUpperCase();
 
   // Build the PlayerInsightSummary input for one player. Overlays the
   // live open stint onto the current period (closed buckets + the
@@ -901,10 +899,7 @@ export function LeagueLiveGame({
     () =>
       buildLeagueWalkthroughSteps({
         trackScoring,
-        periodLabel: (ageGroup.periodLabel ?? "quarter") as
-          | "quarter"
-          | "half"
-          | "period",
+        periodLabel,
         vestsEnabled:
           (ageGroup.vestRequirements?.fr ?? false)
           || (ageGroup.vestRequirements?.dh ?? false),

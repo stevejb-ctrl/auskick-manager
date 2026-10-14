@@ -20,7 +20,7 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport, periodLabels } from "@/lib/sports";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -164,7 +164,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           ageLabel={ageGroupCfg.label}
           onFieldSize={ageGroupCfg.defaultOnFieldSize}
           maxOnFieldSize={ageGroupCfg.maxOnFieldSize}
-          periodWord={ageGroupCfg.periodLabel === "half" ? "half" : "quarter"}
+          periodWord={periodLabels(sport, ageGroupCfg).label}
           row={(playbookRow ?? null) as HowWePlayRow | null}
           positions={(positionRows ?? []) as HowWePlayPosition[]}
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
@@ -231,7 +231,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           initialOverrideSeconds={
             (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
           }
-          periodWord={ageGroupCfg.periodLabel === "half" ? "Half" : "Quarter"}
+          periodWord={periodLabels(sport, ageGroupCfg).label === "half" ? "Half" : "Quarter"}
           isAdmin={isAdmin}
         />
       </SettingsSection>

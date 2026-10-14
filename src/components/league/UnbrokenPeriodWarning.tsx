@@ -25,6 +25,7 @@ import { useMemo } from "react";
 import { unbrokenPeriodLiveStatus } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, Player } from "@/lib/types";
+import { periodLabels } from "@/lib/sports";
 
 interface UnbrokenPeriodWarningProps {
   squad: Player[];
@@ -83,8 +84,7 @@ export function UnbrokenPeriodWarning({
 
   if (atRisk.length === 0 && onTrack.length === 0) return null;
 
-  const periodNoun = ageGroup.periodLabel ?? "period";
-  const periodNounPlural = ageGroup.periodLabelPlural ?? `${periodNoun}s`;
+  const { label: periodNoun, plural: periodNounPlural } = periodLabels("rugby_league", ageGroup);
 
   return (
     <section

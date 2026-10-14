@@ -33,6 +33,7 @@ import {
 } from "@/lib/sports/rugby_league/vests";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
+import { periodLabels } from "@/lib/sports";
 
 interface VestAssignmentCardProps {
   auth: LiveAuth;
@@ -163,8 +164,8 @@ export function VestAssignmentCard({
             <PlayerVestBadge vest={vest} />
             <span className="text-sm font-semibold text-ink">
               {isReplacing
-                ? `Replace ${label} (this ${ageGroup.periodLabel ?? "period"} only)`
-                : `Assign ${label} for ${ageGroup.periodLabel ?? "period"} ${period}`}
+                ? `Replace ${label} (this ${periodLabels("rugby_league", ageGroup).label} only)`
+                : `Assign ${label} for ${periodLabels("rugby_league", ageGroup).label} ${period}`}
             </span>
           </div>
           {isReplacing && (
@@ -224,7 +225,7 @@ export function VestAssignmentCard({
           Vests
         </h2>
         <p className="text-xs text-ink-mute">
-          Rotate each {ageGroup.periodLabel ?? "period"} — no player wears the same
+          Rotate each {periodLabels("rugby_league", ageGroup).label} — no player wears the same
           vest twice in a game.
         </p>
       </header>

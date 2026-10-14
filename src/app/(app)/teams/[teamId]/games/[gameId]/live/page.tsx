@@ -26,7 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -496,7 +496,7 @@ export default async function LivePage({ params }: LivePageProps) {
               walkthroughOffer={
                 <LeagueWalkthroughOffer
                   trackScoring={trackScoring}
-                  periodLabel={(ageCfgL.periodLabel ?? "quarter") as "quarter" | "half" | "period"}
+                  periodLabel={periodLabels("rugby_league", ageCfgL).label}
                   vestsEnabled={
                     (ageCfgL.vestRequirements?.fr ?? false) ||
                     (ageCfgL.vestRequirements?.dh ?? false)
