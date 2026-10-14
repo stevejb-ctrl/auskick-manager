@@ -73,7 +73,7 @@ export function buildNetballWalkthroughSteps(opts: {
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter & the post-game summary",
-    body: "When the clock hits zero the Q-break screen appears with the suggested next-quarter lineup. After Q4 the game is marked complete and a summary card appears at full time — total minutes per player, per-third %, top scorers, and a Copy for group chat button so you can paste it into the team thread.",
+    body: "When the clock hits zero the Q-break screen appears with the suggested next-quarter lineup. After Q4, check the full-time review and tap Finish game; a summary card then shows — total minutes per player, per-third %, top scorers, and a Copy for group chat button so you can paste it into the team thread.",
   });
 
   return steps;
