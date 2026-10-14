@@ -23,6 +23,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
+import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -210,7 +211,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         aggregate={aggregate}
         totalGames={seasonGames.length}
         seasonBalance={seasonBalance}
-        internationalLaws={balanceAgeCfg.internationalLaws === true}
+        columns={leagueStatsColumns(balanceAgeCfg)}
       />
     );
   }
