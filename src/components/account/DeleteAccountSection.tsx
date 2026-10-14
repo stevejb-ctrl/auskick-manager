@@ -75,7 +75,7 @@ export function DeleteAccountSection({
         <p className="mt-2 text-sm leading-relaxed text-warn/90">
           Your account and personal data will be permanently deleted on{" "}
           <strong className="font-semibold">{formatted}</strong>. Until then
-          you can keep using Siren Footy and restore your account at any
+          you can keep using Siren and restore your account at any
           time.
         </p>
         {error && (

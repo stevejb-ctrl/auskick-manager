@@ -8,6 +8,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow } from "@/components/sf";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface GamesPageProps {
   params: { teamId: string };
@@ -48,7 +50,7 @@ export default async function GamesPage({
 
   const isAdmin = membershipResult.data?.role === "admin";
   const team = teamResult.data;
-  const sport = teamSport((team as { sport?: string | null } | null)?.sport);
+  const sport = team ? teamSport((team as { sport?: string | null }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
   const ageGroupCfg = getAgeGroupConfig(sport, team?.age_group as string | null);
 
   let existingExternalIds: string[] = [];

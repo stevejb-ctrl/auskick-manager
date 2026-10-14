@@ -39,12 +39,12 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     {
       emoji: "🔔",
       title: "Sub timer alert",
-      body: "When it's time for subs, a pop-up shows you the suggested swaps. Tap Apply subs to action them all in one go, or dismiss and do it yourself.",
+      body: "When it's time for subs, a pop-up shows you the suggested swaps. Tap Make all swaps to do them in one go, or dismiss and do it yourself.",
     },
     {
       emoji: "👇",
       title: "Long-press for player actions",
-      body: "Hold a player tile for half a second to open the actions sheet. From here you can Lock to field (never subbed), Lock to zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture, four options — works on field and bench tiles.",
+      body: "Hold a player tile for half a second to open the actions sheet. From here you can Switch player, Keep on field (never subbed), Keep in their zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture — works on field and bench tiles.",
     },
     {
       emoji: "↩️",
@@ -57,14 +57,14 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     steps.push({
       emoji: "⚽",
       title: "Recording scores",
-      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? An Undo chip appears at the top after every score — tap Undo to reverse it.",
+      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? Tap Undo on the strip above the scoreboard to take back the latest score.",
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter",
-    body: "Tap End Q1 when the quarter finishes. You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4 the game is marked complete and flows into your season stats.",
+    body: "The quarter ends when the clock runs out (or tap the clock, then End Q1 now). You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4, check the full-time review and tap Finish game so it flows into your season stats.",
   });
 
   return steps;

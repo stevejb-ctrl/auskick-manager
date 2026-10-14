@@ -29,6 +29,7 @@ import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -107,7 +108,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
-  const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
+  const sport: Sport = team ? teamSport((team as { sport?: Sport }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
   const teamName = (team as { name?: string } | null)?.name ?? "Us";
   // Sport-config age-group shape (label, on-field size, positions,
   // zones, period count). Always the team's own sport — never the

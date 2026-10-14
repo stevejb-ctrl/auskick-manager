@@ -32,8 +32,9 @@ export default async function LineupPage({ params }: LineupPageProps) {
     .select("name, sport, age_group, chip_a_mode, chip_b_mode, chip_c_mode")
     .eq("id", g.team_id)
     .single();
-  const teamName = teamRow?.name ?? "Team";
-  const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
+  if (!teamRow) notFound();
+  const teamName = teamRow.name ?? "Team";
+  const sport: Sport = teamSport((teamRow as { sport?: Sport }).sport);
 
   // This page is AFL's lineup picker. Netball and league pick their
   // lineup on /run/[token] itself (their live screens have a built-in

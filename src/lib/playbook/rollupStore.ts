@@ -18,7 +18,8 @@ async function periodSecondsFor(client: Client, gameId: string): Promise<{ sport
   const team = (game as unknown as {
     teams: { sport: Sport | null; age_group: string | null; quarter_length_seconds: number | null } | null;
   }).teams;
-  const sport = teamSport(team?.sport);
+  if (!team) return null;
+  const sport = teamSport(team.sport);
   const seconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team?.quarter_length_seconds ?? null },
     getAgeGroupConfig(sport, team?.age_group ?? null),
