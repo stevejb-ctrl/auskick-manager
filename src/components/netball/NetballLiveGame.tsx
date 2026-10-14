@@ -2354,6 +2354,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         auth={auth}
         gameId={game.id}
         isAdmin={isAdmin}
+        finished={finalised}
       />
 
       <p className="text-center text-xs text-ink-mute">

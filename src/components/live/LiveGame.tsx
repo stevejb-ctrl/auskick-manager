@@ -1850,6 +1850,7 @@ export function LiveGame({
             auth={auth}
             gameId={gameId}
             isAdmin={isAdmin}
+            finished={finalised}
             // Steve 2026-05-20: mid-game settings affordance —
             // currently just the sub-interval override (drives
             // the SubDueModal reminder cadence), but the modal

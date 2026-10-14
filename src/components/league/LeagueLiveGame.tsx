@@ -2251,6 +2251,7 @@ export function LeagueLiveGame({
         onLateArrival={handleAddLateArrival}
         lateArrivalPending={pending}
         isAdmin={isAdmin}
+        finished={state.finalised}
         auth={auth}
         gameId={game.id}
         extra={

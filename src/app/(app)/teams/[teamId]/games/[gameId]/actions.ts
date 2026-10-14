@@ -263,11 +263,20 @@ export async function resetGame(
   if (auth.kind === "token") {
     const { data: game } = await admin
       .from("games")
-      .select("id, team_id, share_token")
+      .select("id, team_id, share_token, status")
       .eq("id", gameId)
       .maybeSingle();
     if (!game || game.share_token !== auth.token) {
       return { success: false, error: "Invalid share link." };
+    }
+    // A finished game is the season's record. Share links get passed
+    // around group chats, so they can't wipe one — a team admin can,
+    // from the game page.
+    if (game.status === "completed") {
+      return {
+        success: false,
+        error: "This game is finished. Only a team admin can restart it, from the game page.",
+      };
     }
     teamId = game.team_id;
   } else {
