@@ -134,6 +134,22 @@ test("a netball team's Add a rule list talks about thirds, not lines", async ({ 
   await expect(list).not.toContainText(/every line|different lines/);
 });
 
+// Sports are independent (14 Oct 2026): league was offered every
+// catalogue rule though its engine acts on none but "subs only at the
+// breaks". Its Add a rule list now holds only what league does.
+test("a league team's Add a rule list holds only what league acts on", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U11", sport: "rugby_league" });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "+ Add a rule" }).click({ timeout: 15_000 });
+  const list = page.getByRole("dialog", { name: "Add a rule" });
+  await expect(list.getByRole("listitem")).toHaveText(["Subs only at the breaks"]);
+  await expect(list).not.toContainText(/Mod League/);
+});
+
 test("the wizard's How we play step saves the strategy", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
@@ -417,7 +433,8 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
   const list = page.getByRole("list", { name: "Rules", exact: true });
   // The game-time floor is always there, locked, with its source.
   await expect(list).toContainText("Everyone plays at least 50% of the game");
-  await expect(list).toContainText("AFL junior rules");
+  // The source is the sport's own (its age policy), not a name check.
+  await expect(list).toContainText("AFL Junior Rules (May 2024)");
 
   // Add "nobody sits out twice in a row", make it Prefer.
   await page.getByRole("button", { name: "+ Add a rule" }).click();
