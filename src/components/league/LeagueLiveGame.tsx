@@ -914,7 +914,7 @@ export function LeagueLiveGame({
       }),
     [
       trackScoring,
-      ageGroup.periodLabel,
+      periodLabel,
       ageGroup.vestRequirements,
       ageGroup.kickingAllowed,
       ageGroup.internationalLaws,
