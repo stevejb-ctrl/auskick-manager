@@ -17,7 +17,7 @@
 // through to the paused branch.
 
 import { describe, expect, test } from "vitest";
-import { computePeriodClockMs } from "../periodClock";
+import { RUNNING_CLOCK, computePeriodClockMs, togglePeriodPause } from "../periodClock";
 
 describe("computePeriodClockMs — base states", () => {
   test("pre-Q1 returns 0 regardless of other state", () => {
@@ -241,5 +241,66 @@ describe("computePeriodClockMs — freeze invariant", () => {
         nowMs: 120_000,
       }),
     ).toBe(480_000); // 60s × 8 = 8 minutes, frozen at pause
+  });
+});
+
+// Rugby league's pause was display-only: resuming dropped the pause
+// without banking it, so the half clock jumped forward by however
+// long it had been paused — over-crediting every kid on the field.
+// togglePeriodPause is the pause/resume step league now shares.
+describe("togglePeriodPause — pause and resume", () => {
+  const halfOpts = {
+    currentQuarter: 1,
+    quarterEnded: false,
+    finalised: false,
+    quarterStartedAtMs: 0,
+    fallbackElapsedMs: 0,
+    clockMultiplier: 1,
+  };
+
+  test("pausing stamps the pause moment and keeps earlier pauses", () => {
+    expect(togglePeriodPause({ pausedAtMs: null, accumulatedPauseMs: 5_000 }, 60_000)).toEqual({
+      pausedAtMs: 60_000,
+      accumulatedPauseMs: 5_000,
+    });
+  });
+
+  test("resuming banks the paused stretch", () => {
+    expect(togglePeriodPause({ pausedAtMs: 60_000, accumulatedPauseMs: 5_000 }, 90_000)).toEqual({
+      pausedAtMs: null,
+      accumulatedPauseMs: 35_000,
+    });
+  });
+
+  test("the clock carries on from where it was paused, not from the wall clock", () => {
+    // Paused 10 s into the half, resumed 30 s later.
+    const paused = togglePeriodPause(RUNNING_CLOCK, 10_000);
+    const atPause = computePeriodClockMs({ ...halfOpts, ...paused, nowMs: 39_999 });
+    const resumed = togglePeriodPause(paused, 40_000);
+
+    expect(atPause).toBe(10_000);
+    expect(computePeriodClockMs({ ...halfOpts, ...resumed, nowMs: 40_000 })).toBe(10_000);
+    // Ten more seconds of play is 0:20 of the half, not 0:50.
+    expect(computePeriodClockMs({ ...halfOpts, ...resumed, nowMs: 50_000 })).toBe(20_000);
+  });
+
+  test("pauses add up across the half", () => {
+    let pause = togglePeriodPause(RUNNING_CLOCK, 10_000); // pause at 0:10
+    pause = togglePeriodPause(pause, 20_000); // 10 s stoppage
+    pause = togglePeriodPause(pause, 50_000); // pause at 0:40 of play
+    pause = togglePeriodPause(pause, 80_000); // 30 s stoppage
+
+    expect(pause).toEqual({ pausedAtMs: null, accumulatedPauseMs: 40_000 });
+    expect(computePeriodClockMs({ ...halfOpts, ...pause, nowMs: 100_000 })).toBe(60_000);
+  });
+
+  test("a sped-up clock banks real paused time, then scales", () => {
+    // 8× demo: 5 real seconds of play, a 20-second stoppage, 5 more.
+    const paused = togglePeriodPause(RUNNING_CLOCK, 5_000);
+    const resumed = togglePeriodPause(paused, 25_000);
+
+    expect(computePeriodClockMs({ ...halfOpts, ...resumed, clockMultiplier: 8, nowMs: 30_000 })).toBe(
+      80_000,
+    );
   });
 });

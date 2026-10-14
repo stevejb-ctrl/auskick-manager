@@ -93,3 +93,29 @@ export function computePeriodClockMs(opts: PeriodClockOpts): number {
   const rawElapsed = Math.max(0, refMs - quarterStartedAtMs - accumulatedPauseMs);
   return rawElapsed * clockMultiplier;
 }
+
+/** A period's pause state, in wall-clock ms. */
+export interface PeriodPause {
+  /** When the current pause began. null = the clock is running. */
+  pausedAtMs: number | null;
+  /** Real ms already spent paused earlier in the period. */
+  accumulatedPauseMs: number;
+}
+
+/** A clock that hasn't been paused. Every period starts here. */
+export const RUNNING_CLOCK: PeriodPause = { pausedAtMs: null, accumulatedPauseMs: 0 };
+
+/**
+ * Pause a running clock, or resume a paused one. Resuming banks the
+ * paused stretch into accumulatedPauseMs, so computePeriodClockMs
+ * carries on from the moment of the pause instead of jumping ahead by
+ * the stoppage. Pause time is real ms; computePeriodClockMs applies
+ * the clock multiplier afterwards.
+ */
+export function togglePeriodPause(pause: PeriodPause, nowMs: number): PeriodPause {
+  if (pause.pausedAtMs === null) return { ...pause, pausedAtMs: nowMs };
+  return {
+    pausedAtMs: null,
+    accumulatedPauseMs: pause.accumulatedPauseMs + Math.max(0, nowMs - pause.pausedAtMs),
+  };
+}

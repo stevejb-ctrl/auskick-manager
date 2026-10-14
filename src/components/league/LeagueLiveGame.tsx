@@ -46,6 +46,12 @@ import {
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import {
+  computePeriodClockMs,
+  togglePeriodPause,
+  RUNNING_CLOCK,
+  type PeriodPause,
+} from "@/lib/live/periodClock";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
@@ -272,17 +278,17 @@ export function LeagueLiveGame({
   const [kickoffSkippedTick, setKickoffSkippedTick] = useState(0);
 
   // ── Local clock tick + pause ─────────────────────────────────
-  // The clock derives `elapsedMs` (game ms) from wall-clock time
-  // anchored at `state.quarterStartedAt`, scaled by clockMultiplier. Pause is currently CLIENT-ONLY: while
-  // `pausedAtElapsedMs` is non-null the elapsed value is frozen at
-  // that point. Pause doesn't persist across reloads yet — needs a
+  // `elapsedMs` (game ms) is netball's period clock: wall-clock time
+  // since `state.quarterStartedAt`, less the real time spent paused,
+  // scaled by clockMultiplier. A pause freezes it; resuming banks the
+  // stoppage (togglePeriodPause) so the clock carries on from where
+  // it stopped instead of jumping ahead by the paused time. Pause is
+  // CLIENT-ONLY: it doesn't persist across reloads yet — needs a
   // `quarter_pause` / `quarter_resume` event pair to lock in server-
   // side. Filed as a follow-up; the UX matches AFL for now.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pausedAtElapsedMs, setPausedAtElapsedMs] = useState<number | null>(
-    null,
-  );
-  const running = pausedAtElapsedMs == null;
+  const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
+  const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
@@ -294,25 +300,43 @@ export function LeagueLiveGame({
   }, [state.quarterStartedAt, state.quarterEnded, state.finalised, running]);
 
   const elapsedMs = useMemo(() => {
-    if (pausedAtElapsedMs != null) return pausedAtElapsedMs;
-    if (state.quarterStartedAt == null) return state.quarterElapsedMs ?? 0;
+    // Until the first client tick, show the server's value so the
+    // hydrated clock matches the server render.
     if (nowMs == null) return state.quarterElapsedMs ?? 0;
-    return (
-      Math.max(0, nowMs - new Date(state.quarterStartedAt).getTime()) * clockMultiplier
-    );
-  }, [nowMs, state.quarterStartedAt, state.quarterElapsedMs, pausedAtElapsedMs, clockMultiplier]);
+    const startedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
+    return computePeriodClockMs({
+      currentQuarter: state.currentQuarter,
+      quarterEnded: state.quarterEnded,
+      finalised: state.finalised,
+      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
+      pausedAtMs: pause.pausedAtMs,
+      accumulatedPauseMs: pause.accumulatedPauseMs,
+      fallbackElapsedMs: state.quarterElapsedMs ?? 0,
+      clockMultiplier,
+      nowMs,
+    });
+  }, [
+    nowMs,
+    state.currentQuarter,
+    state.quarterEnded,
+    state.finalised,
+    state.quarterStartedAt,
+    state.quarterElapsedMs,
+    pause,
+    clockMultiplier,
+  ]);
 
   // Reset pause when the period flips — a fresh quarter starts
-  // running by default.
+  // running by default, with no stoppages banked.
   useEffect(() => {
-    setPausedAtElapsedMs(null);
+    setPause(RUNNING_CLOCK);
   }, [state.currentQuarter, state.quarterEnded]);
 
   function toggleClock() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
     }
-    setPausedAtElapsedMs((prev) => (prev == null ? elapsedMs : null));
+    setPause((prev) => togglePeriodPause(prev, Date.now()));
   }
   function handleClockTap() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
