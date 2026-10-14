@@ -488,3 +488,115 @@ Each failure, re-run on its own:
   clock).
 - **Connection refused / Failed to fetch** (holds-keep-on, two others):
   the build server stopping. All three were re-run.
+
+# Round 5 (14 Oct 2026): the widest pass yet
+
+Everything at once, on a production build of the branch against local
+Supabase (a fresh coach account per mission):
+
+- **Sideline walkers** at ten times their usual depth (`SIDELINE_SCALE`).
+- **A route crawl** of every page, signed in and out, at phone width:
+  console errors, sideways scroll, controls with no accessible name.
+- **Stagehand: 52 missions.** Every older mission, every How we play
+  mission, an age-group mission for each AFL age and netball level,
+  whole-game and sideline-chaos runs in all three sports, and
+  reload-mid-game runs. Each new mission got a seed that puts the coach
+  where the brief says.
+- **Every claim checked** against the stored events and the code, by
+  four read-only checkers, before anything was fixed.
+- **The full Playwright suite** after the fixes.
+
+Each fix landed with a test that failed first.
+
+## Found and fixed
+
+Before the Stagehand run (walkers, crawl, round 4's leftovers):
+
+| # | Finding | Fix | Commit |
+|---|---------|-----|--------|
+| 1 | Walkers at 10×: the AFL zone-swap walk could pick from an empty list (test code). | Partner picked from kids in another zone. | 644c927 |
+| 2 | Round 4: "Mark all in" saved one kid at a time (12 round trips). | One bulk write. | 4ded97f |
+| 3 | Crawl: signed-out visitors asking for `/capacitor.js` and other public scripts were redirected to login, so the page threw. | Middleware serves public `.js`. | be86943 |
+| 4 | Crawl: the runner link's live screen scrolled sideways at 375px (netball 4px, league 16px). | Wrappers match the top bar's bleed. | a1b62e7 |
+| 5 | Crawl: the team-name field, the admin tag form, a user's note and the unsubscribe switch had no accessible name. | Labelled. | 6de9a41 |
+
+From Stagehand:
+
+| # | Finding | Fix | Commit |
+|---|---------|-----|--------|
+| 6 | AFL full time: a behind deleted in Fix scores came off the scoreline but stayed in the summary's scorers ("Ava 0.1"); a goal added there never reached the kicker. | The panel moves the player's tally too. | 248ab0d |
+| 7 | The AFL break had its own copy of Fix scores with the same gap: the deleted goal's badge stayed on the kicker's tile. | The break uses the shared panel, as netball did. | 2ca5eb4, a528da4 |
+| 8 | League: with no line preference, sub suggestions always took forwards. Backs played the whole half, and a forward who'd just come on was suggested straight back off. | Longest on, either line. | 734df48 |
+| 9 | League: a sub joined the end of the line, so everyone after the gap moved a spot (and the last back is drawn as fullback). Four copies of that code. | One helper; the sub takes the outgoing kid's spot. | 85fd734 |
+| 10 | AFL: a quarter ended after the siren while the phone wasn't watching saved the whole overrun (Q1 at 17:21 of 12:00) into every kid's minutes. | Capped at the quarter length, as the store already was. | 6506523 |
+| 11 | League: a closed "Replace vest wearer" sheet couldn't be reopened, so nobody wore the First Receiver vest for the rest of the half; the sheet said "injury" for a sub; an injured kid on the bench could be "selected" to swap on. | A banner reopens it; it says who's missing and why; injured or lent bench kids open their actions, as on AFL's bench. | fbecb60 |
+| 12 | The scorer picker labelled kids MID and BACK; tiles say CEN and BCK. | The field's labels. | ad8812c |
+| 13 | Q-by-Q showed dashes for the quarter in play while the scoreboard counted its goals, so a fix to that quarter looked like it did nothing. | The quarter so far, tagged "in play". | f5718ef |
+| 14 | A finished game's runner link showed Restart game, and the server let a share link wipe a finalised game. | Hidden on finished games in all sports; the server refuses. Admins restart from the game page. | f4b5b32 |
+| 15 | A kickoff from the runner link overwrote the game's sub interval with an estimate (7 min became 5). | The runner pages pass the game's own. | 1d84a17 |
+| 16 | AFL: after one "Make swap", the kid just swapped off was suggested straight back on (the live screen never learnt of its own swaps until a refresh). | Local swaps count for the rest guard; just-benched kids sit the rotation out while others have rested. | 38b6113 |
+| 17 | Squad: reactivating into a full squad failed silently; "Name is required" stayed up while typing. | The refusal shows; errors clear on typing. | b091283 |
+| 18 | "All rules kept" over an empty spot at the break (AFL and netball). | The empty spot leads the check. | 6f4e1de |
+| 19 | Netball's "Add a rule" list said "every line". | Thirds. | a02fd8c |
+| 20 | Setup: Back from the first setup step returned to a blank create form, and Continue made a second team (two coaches had duplicates). | The create form is replaced in history. | 5a497c2 |
+| 21 | Netball's pre-game lineup had no rule check, so carnival day's "still to play every third today" only showed at the first break. | The same check as AFL's. | 54d4237 |
+| 22 | AFL Set positions: kids without a home were shuffled between lines at every break, against the promised like-for-like bench. | Stayers keep their line; the bench fills the gaps. | 5f09a4a |
+| 23 | League: H2's planned Dummy Half was benched in H1, and the break showed him with only Replace, so the half kicked off with the vest on the bench. | The break flags it and opens the picker; a plan re-made before its half isn't counted as worn. | 7ad652e |
+| 24 | On a phone, the last row of the live screen ("+ Add late arrival", Restart) sat under the fixed score bar and couldn't be scrolled clear, in all three sports. | The bar leaves room for itself. | de72003 |
+
+Mission set-up, also fixed: two missions (rushed-coach,
+chaotic-substitution-coach) ran on a pre-game seed though their briefs
+start mid-game. New seeds put the game at Q1 or half time (cabb171),
+and both reran from the right place. The season seeds sat one kid out
+for a whole game, which read as a stats bug (efc81c4).
+
+## Full Playwright suite
+
+One run at de72003 (the final fixes), two workers, on the same kind of
+build: 251 passed, 4 failed, 3 skipped (258).
+
+- **Load flakes** (each passed alone, twice): the walkthrough-before-
+  kickoff test, setting a role from the squad, and the season-balance
+  stats tab. The run shared the machine with a second build server.
+- **Kotara** (netball quarter break): as in round 4, my runs use their
+  own super-admin, which can't see the shared seed team.
+
+Every new and changed spec also ran on its own against a build with
+its fix, and failed first against the build without it.
+
+## Worth a look (confirmed, not fixed)
+
+- **Next.js 14.2.29** has published advisories; 14.2.35 is a drop-in,
+  and 15.5 is the longer step. Proposed as its own piece of work.
+- **The demo's 8× clock**: AFL tiles mix real and game time, and league
+  ignores the multiplier altogether (its demo runs at real speed). Real
+  games run at 1× and are unaffected. Already proposed.
+- **Unsaved break edits are lost** if the coach leaves the break screen
+  and comes back (every sport keeps the draft only on the screen).
+- **Bench counts include sidelined kids** (badged tiles, AFL and
+  netball alike). By design today; worth deciding.
+- **League vest replacement** may go to a kid who has already worn that
+  vest. The code treats the injury carve-out as allowing it; the laws
+  comment says both kids count. A laws question.
+- **The rule check counts a lent kid as sitting out** ("would sit out
+  twice in a row").
+- **League has no Fix scores panel** at full time (known, commented).
+- **The live page's JS is about 1.2 MB uncompressed** (already split
+  per sport).
+- **/account scrolled 13px sideways** at 375px in one crawl run;
+  unconfirmed.
+- **A DB lint warning**: an unused variable in
+  `generate_team_join_code`.
+
+## Noise
+
+- **Clock jumps and odd times**: the seeds' 8× clock, and "End quarter
+  early" crediting the full quarter (by design).
+- **Misclicks**: Jack credited instead of Hamish (the tap landed one
+  row down), Isla swapped instead of Sienna, a lock instead of a lend.
+- **Squad sizes and dates in the age-group briefs**: the seeds make a
+  squad of on-field + 3, on fixed days.
+- **Typing and native dropdowns**: Stagehand drops leading letters,
+  can't insert newlines, and can't drive `<select>`.
+- **"Games tab empty", "page flickered"**: screenshots taken while a
+  page loaded under seven agents' load.
