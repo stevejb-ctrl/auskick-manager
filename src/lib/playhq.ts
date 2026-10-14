@@ -70,8 +70,10 @@ export type ParsedPlayhqUrl =
 /**
  * Where each sport's fixtures live on PlayHQ: the tenant in a team
  * page's URL (playhq.com/<tenant>/org/...), which the API is asked under
- * too. League has none: Australian junior league runs its fixtures on
- * MySideline, not PlayHQ. Sports never borrow another's tenant.
+ * too (checked 14 Oct 2026: PlayHQ finds a netball team under
+ * "netball-australia" and not under "afl"). League has none: Australian
+ * junior league runs its fixtures on MySideline, not PlayHQ. Sports
+ * never borrow another's tenant.
  */
 export const PLAYHQ_TENANT: Record<Sport, string | null> = {
   afl: "afl",
@@ -92,7 +94,7 @@ const TENANT_SPORT: Record<string, string> = {
 export function parsePlayhqUrl(raw: string, sport: Sport): ParsedPlayhqUrl {
   const expected = PLAYHQ_TENANT[sport];
   if (!expected) {
-    return { ok: false, reason: `PlayHQ import isn't available for ${getSportConfig(sport).name}. Add your games manually.` };
+    return { ok: false, reason: `PlayHQ import isn't available for ${getSportConfig(sport).shortName}. Add your games manually.` };
   }
   let url: URL;
   try {
@@ -121,7 +123,7 @@ export function parsePlayhqUrl(raw: string, sport: Sport): ParsedPlayhqUrl {
     const whose = tenant ? (TENANT_SPORT[tenant] ?? "another sport's") : "another sport's";
     return {
       ok: false,
-      reason: `That's ${whose} team page. Paste your ${getSportConfig(sport).name} team's page (playhq.com/${expected}/…).`,
+      reason: `That's ${whose} team page. Paste your ${getSportConfig(sport).shortName} team's page (playhq.com/${expected}/…).`,
     };
   }
   return { ok: true, teamId, tenant };

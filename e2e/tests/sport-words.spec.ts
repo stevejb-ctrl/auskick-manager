@@ -29,7 +29,7 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   const { team, game } = await leagueGame("Words live");
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("rl-walkthrough-seen", "1");
+      for (const k of ["league-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
@@ -43,6 +43,13 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   await expect(menu).not.toContainText(/ball-up/i);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+
+  // Game settings states U11's own §6 rule (one unbroken half), not
+  // "an unbroken quarter/half".
+  await page.getByRole("button", { name: /^game settings$/i }).click();
+  await expect(page.getByText(/§6: each player must play 1 unbroken half\./)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/quarter\/half/)).toHaveCount(0);
+  await page.getByRole("button", { name: /^cancel$/i }).click();
 
   await page.getByRole("button", { name: /^restart game$/i }).click();
   const restart = page.getByRole("dialog").filter({ hasText: /restart this game\?/i });
@@ -64,4 +71,20 @@ test("league: the runner's welcome and the team settings say nothing AFL", async
   const welcome = page.getByRole("region", { name: /welcome — getting started/i });
   await expect(welcome).toBeVisible({ timeout: 15_000 });
   await expect(welcome).not.toContainText(/goal/i);
+});
+
+// U8 league plays quarters: its vest and unbroken-play rules are per
+// quarter, and U8 wears the First Receiver vest only (cross-sport audit,
+// 14 Oct 2026: the card said "each half" at every age).
+test("league U8: How we play states the rules in quarters, FR vest only", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers();
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U8", sport: "rugby_league", name: `Words U8 ${Date.now() % 100000}` });
+
+  await page.goto(`/teams/${team.id}/settings`);
+  const rules = page.getByRole("list", { name: "Age group rules" });
+  await expect(rules).toContainText("Each player plays 2 full quarters without a break", { timeout: 15_000 });
+  await expect(rules).toContainText("FR vests are worn by a different player each quarter");
+  await expect(rules).not.toContainText(/half|DH/);
 });

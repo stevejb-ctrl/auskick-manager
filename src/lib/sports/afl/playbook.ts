@@ -246,6 +246,17 @@ export const aflPlaybook: SportPlaybook = {
 
   // Every rule the AFL engine acts on (fairness.ts suggestStartingLineup
   // and suggestSwaps).
+  engineRuleKinds: [
+    "every-line-per-game",
+    "distinct-lines",
+    "keep-apart",
+    "keep-together",
+    "stays-home",
+    "max-bench-in-row",
+    "subs-at-breaks",
+    "like-for-like",
+  ],
+
   ruleKinds(strategy, policy) {
     // Zoned ages already rotate every kid through every zone by rule.
     const kinds: RuleKind[] = policy.zonesEnforced ? [] : ["every-line-per-game", "distinct-lines"];

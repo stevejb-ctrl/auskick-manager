@@ -192,33 +192,28 @@ export async function saveTeamPositions(
     .is("archived_at", null);
   const existingIds = new Set((existing ?? []).map((r) => r.id as string));
 
-  const ids: string[] = [];
+  // One write for the whole list: a write per position (up to 15) took
+  // seconds on a slow connection. New positions get their ids here, so
+  // nothing needs reading back.
   const moved: { from: string; to: string }[] = [];
-  for (let sort = 0; sort < clean.length; sort++) {
-    const p = clean[sort];
-    const fields = {
+  const rows = clean.map((p, sort) => {
+    const kept = UUID.test(p.key) && existingIds.has(p.key);
+    const id = kept ? p.key : crypto.randomUUID();
+    if (kept) existingIds.delete(p.key);
+    else if (!p.key.startsWith("new-")) moved.push({ from: p.key, to: id });
+    return {
+      id,
+      team_id: teamId,
       label: p.label,
       name: p.name,
       line: p.line as "back" | "mid" | "fwd",
       sort,
       on_field_size: ageCfg.defaultOnFieldSize,
     };
-    if (UUID.test(p.key) && existingIds.has(p.key)) {
-      const { error: e } = await supabase.from("team_positions").update(fields).eq("id", p.key);
-      if (e) return { success: false, error: e.message };
-      ids.push(p.key);
-      existingIds.delete(p.key);
-    } else {
-      const { data: inserted, error: e } = await supabase
-        .from("team_positions")
-        .insert({ team_id: teamId, ...fields })
-        .select("id")
-        .single();
-      if (e || !inserted) return { success: false, error: e?.message ?? "Couldn't add a position." };
-      ids.push(inserted.id as string);
-      if (!p.key.startsWith("new-")) moved.push({ from: p.key, to: inserted.id as string });
-    }
-  }
+  });
+  const { error: saveError } = await supabase.from("team_positions").upsert(rows, { onConflict: "id" });
+  if (saveError) return { success: false, error: saveError.message };
+  const ids = rows.map((r) => r.id);
 
   if (existingIds.size > 0) {
     const { error: e } = await supabase
@@ -227,13 +222,15 @@ export async function saveTeamPositions(
       .in("id", Array.from(existingIds));
     if (e) return { success: false, error: e.message };
   }
-  for (const m of moved) {
-    await supabase
-      .from("player_position_prefs")
-      .update({ position_key: m.to })
-      .eq("team_id", teamId)
-      .eq("position_key", m.from);
-  }
+  await Promise.all(
+    moved.map((m) =>
+      supabase
+        .from("player_position_prefs")
+        .update({ position_key: m.to })
+        .eq("team_id", teamId)
+        .eq("position_key", m.from),
+    ),
+  );
 
   revalidatePath(`/teams/${teamId}`, "layout");
   return { success: true, data: { ids } };

@@ -176,12 +176,14 @@ export function ruleCatalogue(resolved: Pick<ResolvedPlaybook, "sport" | "strate
   return getSportPlaybook(resolved.sport).ruleKinds(resolved.strategy, resolved.policy).map(ruleDef);
 }
 
-/** The team's rules, keeping only kinds its sport offers (saved data from before, or another sport, is dropped). */
+/** The team's rules, keeping only kinds its sport's engine acts on (another sport's, or anything retired, is dropped). */
 export function rulesForSport(
   rules: RuleInstance[],
   resolved: Pick<ResolvedPlaybook, "sport" | "strategy" | "policy">,
 ): RuleInstance[] {
-  const allowed = new Set(getSportPlaybook(resolved.sport).ruleKinds(resolved.strategy, resolved.policy));
+  // What the engine acts on, not what the picker offers for this
+  // strategy: switching strategy mustn't delete a coach's rules.
+  const allowed = new Set<RuleKind>(getSportPlaybook(resolved.sport).engineRuleKinds);
   return rules.filter((r) => allowed.has(r.kind));
 }
 
