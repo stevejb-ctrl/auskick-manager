@@ -272,6 +272,9 @@ export interface GameAvailability {
 
 export type Zone = "back" | "hback" | "mid" | "hfwd" | "fwd";
 
+// The database takes only the types each sport records: a new type
+// needs a migration adding it to sport_event_types for every sport
+// that writes it (migration 0061), or its inserts are refused.
 export type GameEventType =
   | "lineup_set"
   | "quarter_start"
