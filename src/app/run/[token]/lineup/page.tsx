@@ -5,7 +5,7 @@ import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { seasonZoneMinutes } from "@/lib/fairness";
-import { aflPositionModel, getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
@@ -44,7 +44,7 @@ export default async function LineupPage({ params }: LineupPageProps) {
     redirect(`/run/${params.token}`);
   }
 
-  const ageCfg = getAgeGroupConfig("afl", (teamRow as { age_group?: string } | null)?.age_group ?? null);
+  const ageCfg = getAgeGroupConfig(aflBranch(sport), (teamRow as { age_group?: string } | null)?.age_group ?? null);
   const positionModel = aflPositionModel(ageCfg);
 
   const auth: LiveAuth = { kind: "token", token: params.token };

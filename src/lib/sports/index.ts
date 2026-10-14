@@ -13,6 +13,8 @@ export {
   getSportByBrand,
   isSportId,
   teamSport,
+  noSportBranch,
+  aflBranch,
 } from "@/lib/sports/registry";
 export { aflSport, aflPositionModel } from "@/lib/sports/afl";
 export {

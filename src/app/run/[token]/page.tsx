@@ -17,7 +17,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, teamSport } from "@/lib/sports";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -534,7 +534,7 @@ export default async function RunPage({ params }: RunPageProps) {
   }
 
   // ─── AFL branch (existing behaviour) ────────────────────────
-  const ageCfgSport = getAgeGroupConfig("afl", teamRow?.age_group ?? null);
+  const ageCfgSport = getAgeGroupConfig(aflBranch(sport), teamRow?.age_group ?? null);
   const positionModel = aflPositionModel(ageCfgSport);
   // D-26 / D-27: same wiring as the team-coach branch in
   // (app)/teams/[teamId]/games/[gameId]/live/page.tsx. The runner-token

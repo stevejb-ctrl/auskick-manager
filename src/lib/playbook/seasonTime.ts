@@ -18,6 +18,7 @@ import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { noSportBranch } from "@/lib/sports/registry";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -109,6 +110,7 @@ export function gameTimeByUnit(
     return out;
   }
 
+  if (sport !== "rugby_league") return noSportBranch(sport, "gameTimeByUnit");
   // Rugby league: forwards / backs, with vest wearers' periods in
   // "centre" (the duty, not a line). Named positions come from the
   // slots recorded on each lineup (chunk 5.7).

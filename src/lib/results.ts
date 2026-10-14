@@ -6,6 +6,7 @@ import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
+import { noSportBranch } from "@/lib/sports/registry";
 
 export interface GameScore {
   us: number;
@@ -27,14 +28,17 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
     const r = replayLeagueGame(events);
     return { us: r.teamScore.points, them: r.opponentScore.points };
   }
-  const r = replayGame(events);
-  const pts = (s: { goals: number; behinds: number }) => s.goals * 6 + s.behinds;
-  return {
-    us: pts(r.teamScore),
-    them: pts(r.opponentScore),
-    usDetail: `${r.teamScore.goals}.${r.teamScore.behinds}`,
-    themDetail: `${r.opponentScore.goals}.${r.opponentScore.behinds}`,
-  };
+  if (sport === "afl") {
+    const r = replayGame(events);
+    const pts = (s: { goals: number; behinds: number }) => s.goals * 6 + s.behinds;
+    return {
+      us: pts(r.teamScore),
+      them: pts(r.opponentScore),
+      usDetail: `${r.teamScore.goals}.${r.teamScore.behinds}`,
+      themDetail: `${r.opponentScore.goals}.${r.opponentScore.behinds}`,
+    };
+  }
+  return noSportBranch(sport, "scoreFromEvents");
 }
 
 export function outcomeOf(score: GameScore): Outcome {

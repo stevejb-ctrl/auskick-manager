@@ -26,7 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -821,9 +821,8 @@ export default async function LivePage({ params }: LivePageProps) {
   const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
-  const ageCfg = getAgeGroupConfig("afl", teamRow?.age_group ?? null);
+  const ageCfg = getAgeGroupConfig(aflBranch(sport), teamRow?.age_group ?? null);
   const positionModel = aflPositionModel(ageCfg);
-  void getSportConfig; // exported for future use; keep import alive.
 
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 

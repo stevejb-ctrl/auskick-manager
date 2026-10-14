@@ -23,7 +23,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -290,7 +290,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     // Nominal quarter length per game — clamps a runaway clock so a
     // quarter left running past the hooter can't inflate minutes /
     // AVG/G. Resolves game override → team default → age default.
-    const aflAgeCfg = getAgeGroupConfig("afl", team.age_group);
+    const aflAgeCfg = getAgeGroupConfig(aflBranch(sport), team.age_group);
     const gameById = new Map(seasonGames.map((g) => [g.id, g]));
     snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) => {
       const g = gameById.get(gid);

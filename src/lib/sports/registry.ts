@@ -33,6 +33,26 @@ export function teamSport(value: unknown): SportId {
   throw new Error(`Unknown sport "${String(value)}"`);
 }
 
+/**
+ * The end of a per-sport dispatcher, after every sport's branch has
+ * returned. Typed `never`, so adding a sport without its own branch
+ * fails to compile; at runtime it throws rather than borrowing another
+ * sport's rules.
+ */
+export function noSportBranch(sport: never, where: string): never {
+  throw new Error(`${where}: no branch for sport "${String(sport)}"`);
+}
+
+/**
+ * The sport at the top of an AFL-only branch (a page's "everything
+ * else"), once the other sports' branches have returned. It takes only
+ * "afl", so a new sport that falls through fails to compile here.
+ */
+export function aflBranch(sport: "afl"): "afl" {
+  if (sport !== "afl") noSportBranch(sport, "AFL branch");
+  return sport;
+}
+
 export function getSportConfig(sport: SportId | string | null | undefined): SportConfig {
   return REGISTRY[teamSport(sport)];
 }

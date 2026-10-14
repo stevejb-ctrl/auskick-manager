@@ -7,6 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
+import { noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -66,14 +67,17 @@ export function gridUnits(
       ],
     };
   }
-  return {
-    unit: "line",
-    columns: [
-      { key: "fwd", label: "Fwd" },
-      { key: "mid", label: "Cen" },
-      { key: "back", label: "Back" },
-    ],
-  };
+  if (sport === "afl") {
+    return {
+      unit: "line",
+      columns: [
+        { key: "fwd", label: "Fwd" },
+        { key: "mid", label: "Cen" },
+        { key: "back", label: "Back" },
+      ],
+    };
+  }
+  return noSportBranch(sport, "gridUnits");
 }
 
 export function seasonBalanceGrid({

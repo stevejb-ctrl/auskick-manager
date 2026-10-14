@@ -4,24 +4,21 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
-import { getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
 // league, netball, union) map to the in-app SportId space that's
 // used in the DB and rule modules. The picker URL/form sends the
 // marketing id; this server action translates.
-type MarketingSportId = "afl" | "league" | "netball" | "union";
+// Rugby Union has no in-app sport yet — it's a coming-soon card on
+// the picker, so it has no entry here and runDemoGame refuses it.
+type MarketingSportId = "afl" | "league" | "netball";
 
 const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
   afl: "afl",
   league: "rugby_league",
   netball: "netball",
-  // Rugby Union has no in-app sport yet — it's a coming-soon
-  // placeholder on the picker. The picker disables the union card
-  // so this entry is for type completeness only; runDemoGame
-  // refuses union before reaching this map.
-  union: "afl",
 };
 
 /**
@@ -59,13 +56,8 @@ export async function runDemoGame(formData: FormData): Promise<void> {
   // Whitelist the input. Rejecting an unknown sport here means a
   // malicious form post can't smuggle arbitrary strings into the
   // DB sport column.
-  const allowedMarketingIds: MarketingSportId[] = [
-    "afl",
-    "league",
-    "netball",
-  ];
-  if (!allowedMarketingIds.includes(rawSport as MarketingSportId)) {
-    // union explicitly excluded; unknown strings same path.
+  if (!Object.hasOwn(MARKETING_TO_SPORT, rawSport)) {
+    // union (coming soon) and unknown strings alike.
     throw new Error(`Demo not available for sport: ${rawSport}`);
   }
   const marketingSportId = rawSport as MarketingSportId;
@@ -212,7 +204,7 @@ function buildDemoGamePayload({
   }
 
   // AFL — the demo always plays U10.
-  const cfg = getAgeGroupConfig("afl", "U10");
+  const cfg = getAgeGroupConfig(aflBranch(sport), "U10");
   return {
     ...base,
     on_field_size: cfg.defaultOnFieldSize,

@@ -28,7 +28,7 @@ import {
   type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
-import { getSportConfig } from "@/lib/sports/registry";
+import { getSportConfig, noSportBranch } from "@/lib/sports/registry";
 import type { AgeGroupConfig, SportConfig } from "@/lib/sports/types";
 import type { Lineup, Player, PlayerChip, Zone, PositionModel } from "@/lib/types";
 import type {
@@ -504,7 +504,8 @@ export function projectGamePlan(input: ProjectGamePlanInput): GamePlan {
     case "rugby_league":
       return projectLeagueGamePlan(input);
     case "afl":
-    default:
       return projectAflGamePlan(input);
+    default:
+      return noSportBranch(input.sport, "projectGamePlan");
   }
 }
