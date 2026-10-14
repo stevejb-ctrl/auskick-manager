@@ -51,10 +51,12 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   const hurt = onField[third]; // a mid
   const replacement = bench[0];
 
-  await admin.from("game_events").insert([
-    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
-    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
-  ]);
+  // Two inserts, as startGame writes them: rows from one insert share
+  // created_at, and the replay below reads events in created_at order,
+  // so on a tie it could start Q1 before the lineup and credit the lent
+  // kid nothing.
+  await admin.from("game_events").insert({ game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId });
+  await admin.from("game_events").insert({ game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId });
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await page.addInitScript(() => {
