@@ -92,7 +92,7 @@ export default async function AvailabilityPage({
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
           Mark each player In or Out. You can change this any time
-          before the game starts, or add late arrivals once it's under way.
+          before the game starts, or add late arrivals once it&apos;s under way.
         </p>
       </SFCard>
 
