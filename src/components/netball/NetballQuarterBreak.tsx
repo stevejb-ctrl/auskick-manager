@@ -1778,7 +1778,14 @@ export function NetballQuarterBreak({
         ]}
       />
 
-      {breakRuleCheck && <RuleCheckBar items={breakRuleCheck.items} why={breakRuleCheck.why} />}
+      {breakRuleCheck && (
+        <RuleCheckBar
+          items={breakRuleCheck.items}
+          why={breakRuleCheck.why}
+          emptySpots={positionsToFill.filter((p) => (draft.positions[p]?.length ?? 0) === 0).length}
+          spotWord="position"
+        />
+      )}
 
       {/* The same court the live game draws (UX plan principle 2: one
           lineup, one picture). Tap two players to swap — across thirds or

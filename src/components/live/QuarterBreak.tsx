@@ -1718,7 +1718,13 @@ export function QuarterBreak({
       )}
 
       {/* Rule check + Why (UX plan 4.3) for the lineup about to start. */}
-      {breakRuleCheck && <RuleCheckBar items={breakRuleCheck.items} why={breakRuleCheck.why} />}
+      {breakRuleCheck && (
+        <RuleCheckBar
+          items={breakRuleCheck.items}
+          why={breakRuleCheck.why}
+          emptySpots={ALL_ZONES.reduce((n, z) => n + Math.max(0, effectiveZoneCaps[z] - draft[z].length), 0)}
+        />
+      )}
 
       {/* Colour key for the per-player time-in-zone bars below — shown
           once so a glance at any bar reads instantly (Steve 2026-06-29:

@@ -7,6 +7,14 @@ interface RuleCheckBarProps {
   items: RuleCheckItem[];
   /** Why chips for the suggested moves: "Mia → Back: owed Back time". */
   why?: { playerName: string; to: string; reason: string }[];
+  /**
+   * Spots in the lineup with nobody in them (a kid lent or hurt at the
+   * break and not replaced). They lead the check — "All rules kept" over
+   * an empty spot read as all clear (round 5).
+   */
+  emptySpots?: number;
+  /** What a spot is called: "spot" (AFL, league) or "position" (netball). */
+  spotWord?: string;
 }
 
 const ICON: Record<CheckStatus, string> = { ok: "✓", warn: "⚠", fail: "✕" };
@@ -24,8 +32,19 @@ const TONE: Record<CheckStatus, string> = {
  * Season nudges are soft warnings and never block. Shared by the AFL,
  * netball and league lineup and break screens.
  */
-export function RuleCheckBar({ items, why = [] }: RuleCheckBarProps) {
+export function RuleCheckBar({ items: ruleItems, why = [], emptySpots = 0, spotWord = "spot" }: RuleCheckBarProps) {
   const [open, setOpen] = useState(false);
+  const items: RuleCheckItem[] =
+    emptySpots > 0
+      ? [
+          {
+            id: "empty-spots",
+            status: "warn",
+            text: emptySpots === 1 ? `1 ${spotWord} is empty` : `${emptySpots} ${spotWord}s are empty`,
+          },
+          ...ruleItems,
+        ]
+      : ruleItems;
   if (items.length === 0) return null;
   const summary = summariseCheck(items);
   const extra = items.filter((i) => i.status !== "ok").length;

@@ -525,6 +525,19 @@ test("the rule check reads the lineup, and the break says why kids move", async 
   await expect(why).toContainText("Hasn't played");
   await expect(why.getByRole("listitem")).toHaveCount(5);
   await expect(check).toContainText(/and [0-9]+ more moves for a fair rotation/);
+
+  // Round 5 (rushed-coach, chaotic-substitution): lending a kid at the
+  // break left a spot empty while the check said "All rules kept". The
+  // empty spot is in the check. (Q1's bench kid is coming on for Q2;
+  // lending her also trips "sits out twice", which rightly leads.)
+  await page.getByRole("button", { name: /game settings/i }).first().click();
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  await page
+    .getByRole("dialog", { name: /lend/i })
+    .getByRole("button", { name: new RegExp(players[12].full_name) })
+    .click();
+  await expect(page.getByTestId("rule-check-summary")).not.toHaveText("All rules kept");
+  await expect(check).toContainText("1 spot is empty");
 });
 
 test("stats show season balance, backfilled, with since-reset", async ({ page }) => {

@@ -594,7 +594,7 @@ test("Position cycle: the break moves everyone along the cycle", async ({ page }
 });
 
 test("the netball break shows the rule check and why kids move", async ({ page }) => {
-  const { team, game, admin } = await setupQ1AutoEnded({});
+  const { team, game, admin, players } = await setupQ1AutoEnded({});
   await admin.from("team_playbooks").insert({
     team_id: team.id,
     strategy: "position-cycle",
@@ -610,4 +610,16 @@ test("the netball break shows the rule check and why kids move", async ({ page }
   await check.getByRole("button").first().click();
   await expect(check).toContainText("Nobody sits out twice in a row");
   await expect(page.getByRole("list", { name: "Why these moves" })).toContainText("Everyone moves along the cycle");
+
+  // Round 5 (sideline-chaos-netball, rushed-coach, chaotic-substitution):
+  // a kid lent at the break left a position empty while the check still
+  // said "All rules kept". The empty position leads the check now.
+  // Q1's GS moves along to WA for Q2: lend her.
+  await expandGameSettings(page);
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  await page
+    .getByRole("dialog", { name: /lend/i })
+    .getByRole("button", { name: new RegExp(players[0].full_name, "i") })
+    .click();
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("1 position is empty");
 });
