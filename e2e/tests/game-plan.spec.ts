@@ -450,8 +450,12 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   await page.getByRole("button", { name: /^end q1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*q\s*1$/i }).click();
   const selectQ2 = page.getByRole("button", { name: /select team for q2/i });
-  if (await selectQ2.isVisible({ timeout: 5_000 }).catch(() => false)) await selectQ2.click();
-  await expect(page.getByTestId("planned-seed-banner")).toBeVisible({ timeout: 15_000 });
+  const seedBanner = page.getByTestId("planned-seed-banner");
+  // isVisible() doesn't wait: wait for whichever the break shows first,
+  // then step past "Select team for Q2" if that's it.
+  await expect(selectQ2.or(seedBanner).first()).toBeVisible({ timeout: 15_000 });
+  if (await selectQ2.isVisible()) await selectQ2.click();
+  await expect(seedBanner).toBeVisible({ timeout: 15_000 });
   const bench = page.getByRole("group", { name: "Bench", exact: true });
   await expect(bench.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
   await expect(bench.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
