@@ -11,6 +11,7 @@
 // still this game's minutes and the time floor.
 
 import type { SportId } from "@/lib/sports/types";
+import type { PlaybookSnapshot } from "./types";
 import type { UnitTime } from "./seasonTime";
 
 export type BalanceStrength = "light" | "balanced" | "strong";
@@ -40,6 +41,25 @@ export const OWED_CAP_PERIODS = 2;
 export function seasonBalanceWeight(sport: SportId, strength: BalanceStrength | null | undefined): number {
   if (!strength) return 0;
   return SEASON_BALANCE_WEIGHT[sport][strength];
+}
+
+/**
+ * A game in progress plays the strategy and season balance it kicked
+ * off with (games.playbook_snapshot), even if the coach changes How we
+ * play mid-game. Roles stay live — they're about the kids. The same
+ * rule for every sport's suggester input.
+ */
+export function withKickoffSnapshot<T extends { strategy: string; seasonWeight: number }>(
+  sport: SportId,
+  input: T,
+  snapshot: Pick<PlaybookSnapshot, "strategy" | "seasonBalance"> | null | undefined,
+): T {
+  if (!snapshot) return input;
+  return {
+    ...input,
+    strategy: snapshot.strategy,
+    seasonWeight: seasonBalanceWeight(sport, snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance),
+  };
 }
 
 export interface OwedInput {

@@ -8,6 +8,7 @@ import {
   type LeaguePlaybookInput,
   type LeagueRole,
 } from "@/lib/sports/rugby_league/engine";
+import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import type { GameEvent } from "@/lib/types";
 
 const P = 20 * 60_000;
@@ -92,5 +93,26 @@ describe("named positions (UX plan 5.7)", () => {
     const pb = input({ strategy: "named-positions", roles: { a: role({ home: "backs" }) } });
     const s = leagueLineScores(pb, "a");
     expect(s.backs - s.forwards).toBeGreaterThanOrEqual(3000);
+  });
+});
+
+// A league game in progress plays what it kicked off with, as AFL and
+// netball do (cross-sport audit, 14 Oct 2026): league read the live
+// How we play, so a mid-game change to the strategy or season balance
+// changed a running game.
+describe("the kickoff snapshot", () => {
+  it("holds a league game to the strategy and balance it kicked off with", () => {
+    const live = input({ strategy: "preferred-line", seasonWeight: 600 });
+    const snapshot = {
+      strategy: "both-lines",
+      seasonBalance: "off" as const,
+      seasonBalanceSince: null,
+      positions: [],
+      policy: {} as never,
+      takenAt: new Date(0).toISOString(),
+    };
+    expect(withKickoffSnapshot("rugby_league", live, snapshot)).toMatchObject({ strategy: "both-lines", seasonWeight: 0 });
+    expect(withKickoffSnapshot("rugby_league", live, { ...snapshot, seasonBalance: "light" }).seasonWeight).toBe(150);
+    expect(withKickoffSnapshot("rugby_league", live, null)).toBe(live);
   });
 });

@@ -9,6 +9,7 @@ import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
@@ -377,18 +378,23 @@ export default async function LivePage({ params }: LivePageProps) {
       lgAge,
       { quarter_length_seconds: g.quarter_length_seconds },
     );
-    const leaguePlaybook = leaguePlaybookInput(
-      lg.resolved,
-      lg.prefs,
-      lg.rules,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "line", {
-        since: lg.resolved.seasonBalanceSince,
-      }),
-      lgPeriodSeconds * 1000,
-      lg.vestStrategy,
-      seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "position", {
-        since: lg.resolved.seasonBalanceSince,
-      }),
+    // A game in progress plays what it kicked off with (as AFL and netball).
+    const leaguePlaybook = withKickoffSnapshot(
+      "rugby_league",
+      leaguePlaybookInput(
+        lg.resolved,
+        lg.prefs,
+        lg.rules,
+        seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "line", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+        lgPeriodSeconds * 1000,
+        lg.vestStrategy,
+        seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "position", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+      ),
+      g.playbook_snapshot,
     );
 
     if (!hasStarted) {
