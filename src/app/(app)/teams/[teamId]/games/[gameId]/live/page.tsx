@@ -538,6 +538,7 @@ export default async function LivePage({ params }: LivePageProps) {
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={leagueEnforceUnbroken}
           trackZoneTime={leagueTrackZoneTime}

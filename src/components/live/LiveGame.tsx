@@ -239,7 +239,8 @@ interface LiveGameProps {
   songStartSeconds?: number;
   /** How many seconds to play the song for after each goal (default 15). */
   songDurationSeconds?: number;
-  /** Speed multiplier for demo games — scales stored elapsed_ms and sub/quarter timing (default 1). */
+  /** Game seconds per real second (games.clock_multiplier): 1 for a real
+   *  game, 8 for the demo. The live store's clock runs in game ms. */
   clockMultiplier?: number;
   /** Effective quarter duration in milliseconds for this game/team/age-group.
    * Computed by parent via getEffectiveQuarterSeconds(team, ageGroup, game) * 1000.
@@ -607,10 +608,10 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
-      accumulatedMs = Math.max(
-        0,
-        Date.now() - new Date(initialState.quarterStartedAt).getTime(),
-      );
+      // Game ms, the frame the replay's stint stamps are in.
+      accumulatedMs =
+        Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime()) *
+        clockMultiplier;
       // Auto-resume only on a fresh mount. On a Q-break advance
       // (same mount, new initialState), Steve's intent stands:
       // leave clockStartedAt null so the StartQuarterModal blocks
@@ -656,16 +657,14 @@ export function LiveGame({
       ...(initialState.locks ? aflStoreLocks(initialState.locks) : {}),
       clockStartedAt,
       accumulatedMs,
+      clockMultiplier,
     });
     setHydrated(true);
-  }, [init, initialState, gameId, activeGameId]);
+  }, [init, initialState, gameId, activeGameId, clockMultiplier]);
 
+  /** Game ms into this quarter: the frame of events, the replay and the store. */
   function currentElapsedMs() {
-    return clockElapsedMs({ clockStartedAt, accumulatedMs });
-  }
-
-  function scaledElapsedMs() {
-    return currentElapsedMs() * clockMultiplier;
+    return clockElapsedMs({ clockStartedAt, accumulatedMs, clockMultiplier });
   }
 
   useEffect(() => {
@@ -681,11 +680,9 @@ export function LiveGame({
       // clock recomputes correctly on remount (persisted timestamp), so
       // the floor is identical before/after a remount — the countdown
       // resumes from where it was instead of resetting to a full
-      // interval. effectiveSubIntervalMs is the grid spacing in the same
-      // (raw, multiplier-adjusted) frame as clockElapsedMs.
-      const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
+      // interval. Both sides are game ms.
       setSubBaseMs(
-        subIntervalStartFloor({ nowMs: elapsed, intervalMs: effectiveSubIntervalMs }),
+        subIntervalStartFloor({ nowMs: currentElapsedMs(), intervalMs: subIntervalMs }),
       );
     } else {
       setSubBaseMs(null);
@@ -711,7 +708,7 @@ export function LiveGame({
         const pidA = selected.playerId;
         const zoneA = selected.zone;
         const quarter = Math.max(1, currentQuarter);
-        const elapsed_ms = scaledElapsedMs();
+        const elapsed_ms = currentElapsedMs();
         clearSelection();
         applyFieldZoneSwap(pidA, zoneA, "", zone);
         showSwapToast(`${shortName(pidA)} → ${ZONE_LABELS[zone]}`);
@@ -750,7 +747,7 @@ export function LiveGame({
       const pidA = selected.playerId;
       const zoneA = selected.zone;
       const quarter = Math.max(1, currentQuarter);
-      const elapsed_ms = scaledElapsedMs();
+      const elapsed_ms = currentElapsedMs();
       applyFieldZoneSwap(pidA, zoneA, playerId, zone);
       showSwapToast(
         `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
@@ -824,7 +821,7 @@ export function LiveGame({
   // paths get them for free.
   function recordPlayerScore(playerId: string, kind: "goal" | "behind") {
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     const p = playersById.get(playerId);
     incTeam(kind === "goal" ? "goals" : "behinds");
     incPlayerScore(playerId, kind === "goal" ? "goals" : "behinds");
@@ -859,7 +856,7 @@ export function LiveGame({
   // assumption cost the whole goal when the coach hit Cancel.
   function recordUnattributedGoal() {
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     incTeam("goals");
     playSong();
     void hapticTap("light");
@@ -882,7 +879,7 @@ export function LiveGame({
   // skips the per-player tally and never plays the goal song.
   function recordRushedBehind() {
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     incTeam("behinds");
     startUndoToast({
       kind: "behind",
@@ -908,7 +905,7 @@ export function LiveGame({
   function handleInjuryToggle(playerId: string, injured: boolean) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     setInjured(playerId, injured);
     enqueueLiveAction("markInjury", [
       auth,
@@ -929,7 +926,7 @@ export function LiveGame({
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     // Issue 5: a forced injury/lent replacement is off-cadence — it must
     // NOT reset the sub countdown. Leave subBaseMs alone so the timer
     // keeps running toward the next scheduled rotation. (Was
@@ -965,7 +962,7 @@ export function LiveGame({
   function handleLoanToggle(playerId: string, loaned: boolean) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     setLoaned(playerId, loaned);
     enqueueLiveAction("markLoan", [
       auth,
@@ -980,14 +977,14 @@ export function LiveGame({
     enqueueLiveAction("recordPlayerLock", [
       auth,
       gameId,
-      { player_id: playerId, lock, quarter: Math.max(1, currentQuarter), elapsed_ms: scaledElapsedMs() },
+      { player_id: playerId, lock, quarter: Math.max(1, currentQuarter), elapsed_ms: currentElapsedMs() },
     ]);
   }
 
   function handleLateArrival(playerId: string) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     addBenchPlayer(playerId);
     enqueueLiveAction("addLateArrival", [
       auth,
@@ -998,7 +995,7 @@ export function LiveGame({
 
   function handleOpponent(kind: "goal" | "behind") {
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
+    const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
     startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
     enqueueLiveAction("recordOpponentScore", [
@@ -1054,9 +1051,8 @@ export function LiveGame({
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
-    const elapsed_ms = scaledElapsedMs();
-    // raw — sub timer compares against raw nowMs
-    if (resetSubTimer) setSubBaseMs(currentElapsedMs());
+    const elapsed_ms = currentElapsedMs();
+    if (resetSubTimer) setSubBaseMs(elapsed_ms);
     const at = initialState.completedQuarterMs + elapsed_ms;
     setLocalSubbedMs((prev) => ({
       on: { ...prev.on, [on]: at },
@@ -1105,7 +1101,7 @@ export function LiveGame({
   function handleEndQuarter(opts?: { creditFullQuarter?: boolean }) {
     setError(null);
     const q = currentQuarter;
-    // Auto-hooter path uses the actual scaled clock elapsed.
+    // Auto-hooter path uses the actual game-clock elapsed.
     // Manual "End quarter early" path (Steve's real-game scenario:
     // clock paused at the start of the quarter, forgot to resume,
     // game continued anyway) credits on-field players the full
@@ -1116,7 +1112,7 @@ export function LiveGame({
     // minutes they never played.
     const elapsed_ms = opts?.creditFullQuarter
       ? quarterMs
-      : Math.min(scaledElapsedMs(), quarterMs);
+      : Math.min(currentElapsedMs(), quarterMs);
     endCurrentQuarter(quarterMs, opts);
     const { flushed } = enqueueLiveAction("endQuarter", [
       auth,
@@ -1219,7 +1215,8 @@ export function LiveGame({
     };
   }, []);
 
-  const nowMs = clockElapsedMs({ clockStartedAt, accumulatedMs });
+  // Game ms, like quarterMs and every stint stamp.
+  const nowMs = currentElapsedMs();
   const displayNowMs = Math.min(nowMs, quarterMs);
 
   const zoneMsByPlayer: Record<string, ZoneMinutes> = {};
@@ -1252,8 +1249,6 @@ export function LiveGame({
   // configured interval is the single source of truth again; the
   // subs_per_quarter column is left unused.
   const subIntervalMs = subIntervalSeconds * 1000;
-  // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
-  const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;
   // F2 "final minutes" gate (D-11): the coach can plan the NEXT period once
   // the current one enters its final rotation window — i.e. less than one
   // sub interval remains before the hooter. Derived purely from the live
@@ -1263,11 +1258,11 @@ export function LiveGame({
   const inFinalWindow = isFinalSubWindow({
     nowMs,
     quarterMs,
-    effectiveSubIntervalMs,
+    effectiveSubIntervalMs: subIntervalMs,
   });
   const msUntilDue =
     subBaseMs !== null && !isPreGame && !isFinished
-      ? subBaseMs + effectiveSubIntervalMs - nowMs
+      ? subBaseMs + subIntervalMs - nowMs
       : null;
   // Steve's real-game scenario: lent a player to the opposition,
   // running 11 on field with the rest of the squad on bench. The
@@ -1360,8 +1355,7 @@ export function LiveGame({
       // cancel, and the next interval tick fires the hooter once
       // the user resolves attribution.
       if (pickScorerKind !== null) return;
-      const elapsed = clockElapsedMs({ clockStartedAt, accumulatedMs });
-      if (elapsed * clockMultiplier >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
+      if (currentElapsedMs() >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
         // Freeze the clock at the hooter so per-player stint times don't keep
         // accruing while the GM reads the modal.
@@ -1429,7 +1423,6 @@ export function LiveGame({
           chipModeByKey={chipModeByKey}
           aflPlaybook={aflPlaybook}
           periodCount={ageGroup.periodCount}
-          clockMultiplier={clockMultiplier}
           onStarted={() => beginNextQuarter()}
           onPrimeAudio={primeSong}
         />
@@ -1465,12 +1458,10 @@ export function LiveGame({
           // bench->field transition (refreshed on every router.refresh
           // after a sub). Compare it against the absolute current game
           // elapsed = completedQuarterMs (finished quarters) + this
-          // quarter's game-ms. nowMs is WALL-CLOCK, so scale by
-          // clockMultiplier to land in the game-ms frame that
-          // lastSubbedOnMs lives in. minStintMs is the real rotation
-          // window (subIntervalMs, NOT the wall-clock effective value).
+          // quarter's game-ms (nowMs). minStintMs is the rotation
+          // window, subIntervalMs.
           latestStamps(initialState.lastSubbedOnMs, localSubbedMs.on),
-          initialState.completedQuarterMs + nowMs * clockMultiplier,
+          initialState.completedQuarterMs + nowMs,
           subIntervalMs,
           // ON-side recency guard: keep a just-subbed-off player on the
           // bench for a rest before re-suggesting them (was yo-yoing back
@@ -2332,7 +2323,7 @@ export function LiveGame({
               seasonZoneMs: season[pid] ?? {},
               seasonPeriod: quarterMs / 60000,
               lastSubbedOnMs: initialState.lastSubbedOnMs[pid] ?? null,
-              nowAbsMs: initialState.completedQuarterMs + nowMs * clockMultiplier,
+              nowAbsMs: initialState.completedQuarterMs + nowMs,
             }}
           />
         );
@@ -2636,7 +2627,7 @@ export function LiveGame({
                 // tap-A-then-tap-B-in-different-zone. Direct
                 // store mutation + server event, no confirm.
                 const quarter = Math.max(1, currentQuarter);
-                const elapsed_ms = scaledElapsedMs();
+                const elapsed_ms = currentElapsedMs();
                 applyFieldZoneSwap(
                   subOffSelected.playerId,
                   subOffSelected.zone,

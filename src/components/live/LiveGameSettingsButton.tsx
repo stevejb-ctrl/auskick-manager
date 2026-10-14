@@ -34,7 +34,7 @@ import {
   setOnFieldSizeMidGame,
   setSubInterval,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { clockElapsedMs, useLiveGame } from "@/lib/stores/liveGameStore";
 import type { LiveAuth, Player } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 
@@ -370,11 +370,9 @@ function ShrinkPickerModal({
     startTransition(async () => {
       // Compute elapsed_ms from the live store. We read it imperatively
       // (not via subscribe) so the value reflects the moment the coach
-      // taps Confirm, not the moment they opened the picker.
-      const state = useLiveGame.getState();
-      const elapsedMs =
-        state.accumulatedMs +
-        (state.clockStartedAt ? Date.now() - state.clockStartedAt : 0);
+      // taps Confirm, not the moment they opened the picker. Game ms, like
+      // every other saved elapsed_ms.
+      const elapsedMs = clockElapsedMs(useLiveGame.getState());
 
       const res = await setOnFieldSizeMidGame(auth, gameId, {
         newSize,

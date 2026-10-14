@@ -5,8 +5,14 @@
 // `initialState.quarterStartedAt` (the wall-clock timestamp
 // replayGame extracts from the active quarter_start event), so
 // a reload mid-quarter rebuilds accumulatedMs as
-// Date.now() - quarterStartedAt and the clock keeps running from
-// roughly where it was. The only thing the wall-clock approach
+// (Date.now() - quarterStartedAt) × clockMultiplier and the clock
+// keeps running from roughly where it was.
+//
+// The clock is in GAME ms (real ms × clockMultiplier — 8× for the
+// demo), the same frame as saved events' elapsed_ms and replayGame's
+// stint stamps, so a stint opened here and one rebuilt by the replay
+// can be compared directly. Netball keeps the same single game-time
+// clock (computePeriodClockMs). The only thing the wall-clock approach
 // can't recover is in-quarter pause time — pauses aren't event-
 // persisted, so a reload silently includes paused seconds in
 // accumulatedMs. For a quarter without pauses (the common case)
@@ -49,7 +55,14 @@ export interface LiveGameState {
   quarterEnded: boolean;
   finalised: boolean;
   clockStartedAt: number | null;
+  /** Game ms banked before clockStartedAt (the whole quarter so far while paused). */
   accumulatedMs: number;
+  /**
+   * Game ms per real ms (games.clock_multiplier): 1 for a real game, 8
+   * for the demo. Set by init; clockElapsedMs scales the running stretch
+   * by it, so every stint and loan stamp below is in game ms.
+   */
+  clockMultiplier: number;
 
   selected: { kind: "field"; playerId: string; zone: Zone } | { kind: "bench"; playerId: string } | null;
 
@@ -241,6 +254,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   finalised: false,
   clockStartedAt: null as number | null,
   accumulatedMs: 0,
+  clockMultiplier: 1,
   selected: null as LiveGameState["selected"],
   teamScore: { goals: 0, behinds: 0 },
   opponentScore: { goals: 0, behinds: 0 },
@@ -520,9 +534,8 @@ export const useLiveGame = create<LiveGameState>()(
   pauseClock: () =>
     set((prev) => {
       if (prev.clockStartedAt === null) return prev;
-      const now = Date.now();
       return {
-        accumulatedMs: prev.accumulatedMs + (now - prev.clockStartedAt),
+        accumulatedMs: clockElapsedMs(prev),
         clockStartedAt: null,
       };
     }),
@@ -571,11 +584,7 @@ export const useLiveGame = create<LiveGameState>()(
 
   endCurrentQuarter: (quarterMs, opts) =>
     set((prev) => {
-      const now = Date.now();
-      const rawAccumulated =
-        prev.clockStartedAt === null
-          ? prev.accumulatedMs
-          : prev.accumulatedMs + (now - prev.clockStartedAt);
+      const rawAccumulated = clockElapsedMs(prev);
       // Cap at quarterMs (passed by caller from getEffectiveQuarterSeconds(team,
       // ageGroup, game) so that if the GM delays confirming end-of-quarter,
       // player stint durations don't leak past the hooter. AFL U10 default = 720s,
@@ -898,11 +907,16 @@ export const useLiveGame = create<LiveGameState>()(
   ),
 );
 
+/** Game ms elapsed this quarter. No multiplier means real time (1×). */
 export function clockElapsedMs(
-  state: Pick<LiveGameState, "clockStartedAt" | "accumulatedMs">
+  state: Pick<LiveGameState, "clockStartedAt" | "accumulatedMs"> &
+    Partial<Pick<LiveGameState, "clockMultiplier">>,
 ): number {
   if (state.clockStartedAt === null) return state.accumulatedMs;
-  return state.accumulatedMs + (Date.now() - state.clockStartedAt);
+  return (
+    state.accumulatedMs +
+    (Date.now() - state.clockStartedAt) * (state.clockMultiplier ?? 1)
+  );
 }
 
 export function formatClock(ms: number): string {

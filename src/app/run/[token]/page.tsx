@@ -342,6 +342,7 @@ export default async function RunPage({ params }: RunPageProps) {
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={
             (g as { enforce_unbroken_periods?: boolean | null })
