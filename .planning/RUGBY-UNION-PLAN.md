@@ -174,8 +174,10 @@ Mostly configuration once phase 1 is in:
   the phase-1 `kickRotations` knob off, so there's no kickoff picker
   and no "whose turn to convert". A conversion or goal still records
   who kicked it, as a scorer.
-- **No unbroken-period rule** unless union has one; the How we play
-  game-time floor still applies.
+- **No unbroken-period rule.** Union has no minimum-game-time law, so
+  union age groups set the phase-1 `unbrokenPeriods` knob off. The How
+  we play game-time floor applies at its default of 50 %, which the
+  coach can change as for any sport.
 - Walkthrough copy and the full-time review read the sport's words and
   points.
 
@@ -223,12 +225,10 @@ Mostly configuration once phase 1 is in:
 - **Brand:** under the main Siren brand, no domain of its own
   (14 Oct 2026).
 - **Kicking:** no kick rotations; kickers are recorded only as scorers.
+- **Game time:** no minimum-game-time law; the How we play 50 % floor
+  applies by default.
 
-## Still open
-
-1. **Game-time rules:** does the union have a minimum-game-time policy
-   (league's is the unbroken-period rule)? Siren's default 50 % floor
-   applies otherwise.
+Nothing is left open; phase 1 can start.
 
 ## Size and order
 
