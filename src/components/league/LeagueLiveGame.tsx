@@ -69,6 +69,7 @@ import {
   playerMsOnField,
   playerZoneMsOnField,
   suggestLeagueSubs,
+  swapInLeagueLineup,
 } from "@/lib/sports/rugby_league/fairness";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -78,14 +79,13 @@ import {
   withPinnedPeriods,
   hasPinnedPeriod,
   consumePeriodPin,
-  seedNextPeriodLineup,
   availablePlayersForPlan,
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
-import { benchSidelinedInLeagueLineup } from "@/lib/live/lineupOps";
+import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
@@ -319,46 +319,6 @@ export function LeagueLiveGame({
   const periodLabel = ageGroup.periodLabel ?? "quarter";
   const periodLabelPlural = ageGroup.periodLabelPlural ?? "quarters";
 
-  // ── Derived lineups ───────────────────────────────────────────
-  // `forwardPlayers` and `backPlayers` map the position-aware buckets
-  // back to Player records. `fieldPlayers` is the union used wherever
-  // the consumer doesn't care which zone — keeps the bulk of the live
-  // logic legible since most of it (vest assignments, late-arrival
-  // detection, sub timing) doesn't read zone info.
-  const forwardPlayers = useMemo<Player[]>(() => {
-    if (!state.lineup) return [];
-    return state.lineup.forwards
-      .map((id) => squad.find((p) => p.id === id))
-      .filter((p): p is Player => Boolean(p));
-  }, [state.lineup, squad]);
-  const backPlayers = useMemo<Player[]>(() => {
-    if (!state.lineup) return [];
-    return state.lineup.backs
-      .map((id) => squad.find((p) => p.id === id))
-      .filter((p): p is Player => Boolean(p));
-  }, [state.lineup, squad]);
-  const fieldPlayers = useMemo<Player[]>(
-    () => [...forwardPlayers, ...backPlayers],
-    [forwardPlayers, backPlayers],
-  );
-  const benchPlayers = useMemo<Player[]>(() => {
-    if (!state.lineup) return [];
-    return state.lineup.bench
-      .map((id) => squad.find((p) => p.id === id))
-      .filter((p): p is Player => Boolean(p));
-  }, [state.lineup, squad]);
-
-  // Late-arrival candidates.
-  const lateArrivalCandidates = useMemo<Player[]>(() => {
-    if (!state.lineup) return squad;
-    const placed = new Set([
-      ...state.lineup.forwards,
-      ...state.lineup.backs,
-      ...state.lineup.bench,
-    ]);
-    return squad.filter((p) => !placed.has(p.id));
-  }, [squad, state.lineup]);
-
   // ── Injury / loan derivation (last value wins per player) ────
   const { injuredIds, loanedIds } = useMemo(() => {
     const injured = new Map<string, { ts: string; on: boolean }>();
@@ -404,6 +364,87 @@ export function LeagueLiveGame({
     [squad, loanedSet, injuredSet],
   );
 
+  // ── The break opens on the plan (F2) ───────────────────────
+  // When the coach has planned the coming period, the break shows that
+  // plan (reconciled: a kid who can't play now is benched) and every
+  // lineup edit made there changes the PLAN, not the saved lineup; the
+  // Start tap commits it (handleStartNextPeriod). That's AFL's break:
+  // it opens on the plan and the coach edits that draft. The plan still
+  // goes on only at the coach's Start tap (threat model T-11-02-B), and
+  // it lives in the persisted store, so leaving the screen keeps it.
+  // The other way out, showing the last period's lineup and dropping
+  // the plan once the coach edits it, loses a whole plan to a one-kid
+  // tweak and shows a field that isn't the one Start puts on.
+  // Everything below reads `lineup`: the plan at such a break, the
+  // saved lineup otherwise.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const pinForThisGame =
+    plannedRotation && plannedRotation.gameId === game.id
+      ? plannedRotation
+      : null;
+  const isAtQbreak
+    = state.quarterEnded
+    && state.currentQuarter >= 1
+    && state.currentQuarter < ageGroup.periodCount
+    && !state.finalised;
+  // The coming period's 0-based index is state.currentQuarter.
+  const breakPlan = useMemo(
+    () =>
+      isAtQbreak && state.lineup
+        ? plannedLeagueLineup({
+            pin: pinForThisGame,
+            periodIndex: state.currentQuarter,
+            lineup: state.lineup,
+            squad,
+            injured: injuredSet,
+            loaned: loanedSet,
+          })
+        : null,
+    [isAtQbreak, state.lineup, state.currentQuarter, pinForThisGame, squad, injuredSet, loanedSet],
+  );
+  const lineup = breakPlan ?? state.lineup;
+
+  // ── Derived lineups ───────────────────────────────────────────
+  // `forwardPlayers` and `backPlayers` map the position-aware buckets
+  // back to Player records. `fieldPlayers` is the union used wherever
+  // the consumer doesn't care which zone — keeps the bulk of the live
+  // logic legible since most of it (vest assignments, late-arrival
+  // detection, sub timing) doesn't read zone info.
+  const forwardPlayers = useMemo<Player[]>(() => {
+    if (!lineup) return [];
+    return lineup.forwards
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is Player => Boolean(p));
+  }, [lineup, squad]);
+  const backPlayers = useMemo<Player[]>(() => {
+    if (!lineup) return [];
+    return lineup.backs
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is Player => Boolean(p));
+  }, [lineup, squad]);
+  const fieldPlayers = useMemo<Player[]>(
+    () => [...forwardPlayers, ...backPlayers],
+    [forwardPlayers, backPlayers],
+  );
+  const benchPlayers = useMemo<Player[]>(() => {
+    if (!lineup) return [];
+    return lineup.bench
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is Player => Boolean(p));
+  }, [lineup, squad]);
+
+  // Late-arrival candidates.
+  const lateArrivalCandidates = useMemo<Player[]>(() => {
+    if (!lineup) return squad;
+    const placed = new Set([
+      ...lineup.forwards,
+      ...lineup.backs,
+      ...lineup.bench,
+    ]);
+    return squad.filter((p) => !placed.has(p.id));
+  }, [squad, lineup]);
+
   // ── Vest assignment ──────────────────────────────────────────
   const periodForVests = state.currentQuarter || 1;
   const activeVests = useMemo(
@@ -421,9 +462,9 @@ export function LeagueLiveGame({
 
   // ── Conversion / kickoff cycle state ─────────────────────────
   const onFieldIds = useMemo(() => {
-    if (!state.lineup) return [];
-    return [...state.lineup.forwards, ...state.lineup.backs];
-  }, [state.lineup]);
+    if (!lineup) return [];
+    return [...lineup.forwards, ...lineup.backs];
+  }, [lineup]);
   const onFieldSet = useMemo(() => new Set(onFieldIds), [onFieldIds]);
   // Who can kick off: kids on the field who can play. The picker and its
   // rotation (which the server re-checks) used the whole squad, so they
@@ -679,13 +720,13 @@ export function LeagueLiveGame({
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
       return [];
     }
-    if (!state.lineup) return [];
+    if (!lineup) return [];
     return suggestLeagueSubs(
       thisGameEvents,
       state.currentQuarter,
       {
-        forwards: state.lineup.forwards,
-        backs: state.lineup.backs,
+        forwards: lineup.forwards,
+        backs: lineup.backs,
         bench: swappableBench.map((p) => p.id),
       },
       excludeOff,
@@ -698,7 +739,7 @@ export function LeagueLiveGame({
     state.currentQuarter,
     state.quarterEnded,
     state.finalised,
-    state.lineup,
+    lineup,
     swappableBench,
     excludeOff,
     elapsedMs,
@@ -712,12 +753,11 @@ export function LeagueLiveGame({
   //   1. a live-surface entry that opens the SAME shared GamePlanModal
   //      on the upcoming period, pinning forwards/backs into the ONE
   //      shared `plannedRotation` slice (the nextPeriod* fields), and
-  //   2. a seed-on-start that applies the reconciled pin via the
-  //      existing `recordLeagueLineupSet` action at the explicit
-  //      "Start period" tap (see handleStartNextPeriod) — never an
-  //      auto-commit (threat model T-11-02-B).
-  const plannedRotation = useLiveGame((s) => s.plannedRotation);
-  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  //   2. the break opening on the reconciled pin (`breakPlan`, above),
+  //      which Start applies via the existing `recordLeagueLineupSet`
+  //      action at the explicit "Start period" tap (see
+  //      handleStartNextPeriod) — never an auto-commit (threat model
+  //      T-11-02-B).
   const [planNextOpen, setPlanNextOpen] = useState(false);
   // Final-rotation window (D-11), league clock frame: `elapsedMs` is
   // wall-clock game-time (no multiplier), `periodSeconds * 1000` the
@@ -733,17 +773,13 @@ export function LeagueLiveGame({
   // The upcoming period's 0-based index equals state.currentQuarter
   // (planning during period P pins P+1, whose 0-based index is P) — and
   // stays equal at the break (currentQuarter holds P until Start fires).
-  const pinForThisGame =
-    plannedRotation && plannedRotation.gameId === game.id
-      ? plannedRotation
-      : null;
   const hasPinnedNextPeriod = hasPinnedPeriod(pinForThisGame, state.currentQuarter);
 
   // ── Force-vest-replacement detection ─────────────────────────
   // Triggered when an FR/DH wearer is no longer on the field.
   // Possible causes: sub off (swap), injury, loan.
   const missingVestWearer = useMemo<VestType | null>(() => {
-    if (!vestRequired || !state.lineup) return null;
+    if (!vestRequired || !lineup) return null;
     if (state.currentQuarter < 1 || state.finalised) return null;
     if (
       ageGroup.vestRequirements?.fr
@@ -762,7 +798,7 @@ export function LeagueLiveGame({
     return null;
   }, [
     vestRequired,
-    state.lineup,
+    lineup,
     state.currentQuarter,
     state.finalised,
     ageGroup.vestRequirements,
@@ -795,12 +831,12 @@ export function LeagueLiveGame({
   );
   const selectedOnField
     = selectedPlayer != null
-    && (state.lineup
-      ? state.lineup.forwards.includes(selectedPlayer.id)
-        || state.lineup.backs.includes(selectedPlayer.id)
+    && (lineup
+      ? lineup.forwards.includes(selectedPlayer.id)
+        || lineup.backs.includes(selectedPlayer.id)
       : false);
   const selectedOnBench
-    = selectedPlayer != null && state.lineup?.bench.includes(selectedPlayer.id);
+    = selectedPlayer != null && lineup?.bench.includes(selectedPlayer.id);
 
   // ── Click handlers ────────────────────────────────────────────
   function handlePlayerTap(playerId: string) {
@@ -950,83 +986,39 @@ export function LeagueLiveGame({
       window.scrollTo({ top: 0, behavior: "auto" });
     }
     const next = state.currentQuarter + 1;
-    // F2 pre-seed (ROTPLAN-02 / D-13/D-14): if the coach pinned this
-    // upcoming period's lineup during the final window, apply it now —
-    // reconciled so any player who became unavailable since pinning
-    // (injured / loaned) is dropped from BOTH field and bench, never
-    // fielded. The seed is committed through the SAME auth/RLS-guarded
-    // `recordLeagueLineupSet` action used by every manual lineup edit,
-    // and only here, on the coach's explicit Start tap (threat model
-    // T-11-02-B). The pin is then consumed so it can't re-apply.
-    // `state.currentQuarter` is the upcoming period's 0-based index
-    // (the period that just ended is P; its next, P+1, has index P).
+    // F2 (ROTPLAN-02 / D-13/D-14): the break showed the coach's plan for
+    // this period, with their edits (`breakPlan`: reconciled, so a kid
+    // who can't play now is never fielded). Commit exactly that, through
+    // the SAME auth/RLS-guarded `recordLeagueLineupSet` action used by
+    // every manual lineup edit, and only here, on the coach's explicit
+    // Start tap (threat model T-11-02-B). The pin is then consumed so it
+    // can't re-apply.
     let lineupRecorded = false;
-    if (hasPinnedPeriod(pinForThisGame, state.currentQuarter) && state.lineup) {
-      // The kids in this game (the planner's rule): the squad also holds
-      // kids who never turned up, and the bench used to take them all.
-      const inGameIds = new Set<string>([
-        ...state.lineup.forwards,
-        ...state.lineup.backs,
-        ...state.lineup.bench,
+    if (breakPlan) {
+      const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
+        auth,
+        game.id,
+        // Named positions: record each kid's slot (UX plan 5.7).
+        withLeagueSlots(breakPlan, leaguePlaybook),
+        undefined,
       ]);
-      const availableIds = availablePlayersForPlan(squad, inGameIds, injuredSet, loanedSet).map(
-        (p) => p.id,
-      );
-      const seed = seedNextPeriodLineup({
-        pin: pinForThisGame,
-        periodIndex: state.currentQuarter,
-        availableIds,
-        groupIds: ["forwards", "backs"],
-      });
-      if (seed) {
-        const seededForwards = seed.groups.forwards ?? [];
-        const seededBacks = seed.groups.backs ?? [];
-        const placed = new Set([...seededForwards, ...seededBacks]);
-        // Bench = the pinned bench plus any available player the pin
-        // never placed (e.g. a late arrival), de-duped against the
-        // field so no one is double-listed.
-        const benchSet = new Set(seed.bench.filter((id) => !placed.has(id)));
-        for (const id of availableIds) {
-          if (!placed.has(id)) benchSet.add(id);
-        }
-        // Hurt and lent kids stay in the game, parked on the bench (AFL
-        // parity). They used to be dropped, so a kid marked recovered
-        // later came back nowhere.
-        inGameIds.forEach((id) => {
-          if ((injuredSet.has(id) || loanedSet.has(id)) && !placed.has(id)) benchSet.add(id);
-        });
-        const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
-          auth,
-          game.id,
-          // Named positions: record each kid's slot (UX plan 5.7).
-          withLeagueSlots(
-            {
-              forwards: seededForwards,
-              backs: seededBacks,
-              bench: Array.from(benchSet),
-            },
-            leaguePlaybook,
-          ),
-          undefined,
-        ]);
-        await lineupFlushed;
-        // This period's plan is used; later planned periods stay.
-        setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter));
-        lineupRecorded = true;
-      }
+      await lineupFlushed;
+      // This period's plan is used; later planned periods stay.
+      setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter));
+      lineupRecorded = true;
     }
-    // No pin applied: the previous period's lineup carries forward as-is.
-    // League has no editable break draft, so reconcile here — drop any
+    // No plan: the previous period's lineup carries forward, with the
+    // break's swaps (saved as they were made). Reconcile here — drop any
     // injured / loaned player off the field onto the bench so they don't
     // start the next period still on the pitch accruing minutes (Steve
     // 2026-06-15, AFL parity). The field may end up a player short; the
     // coach fills it via a normal rolling sub.
-    if (!lineupRecorded && state.lineup) {
+    if (!lineupRecorded && lineup) {
       const sidelined = new Set<string>();
       injuredSet.forEach((id) => sidelined.add(id));
       loanedSet.forEach((id) => sidelined.add(id));
-      const reconciled = benchSidelinedInLeagueLineup(state.lineup, sidelined);
-      if (reconciled !== state.lineup) {
+      const reconciled = benchSidelinedInLeagueLineup(lineup, sidelined);
+      if (reconciled !== lineup) {
         const { flushed: reconcileFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
           auth,
           game.id,
@@ -1158,9 +1150,42 @@ export function LeagueLiveGame({
     router.refresh();
   }
 
-  async function applySwap(offId: string, onId: string) {
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordLeagueSwap", [
+  // ── Lineup edits ──────────────────────────────────────────────
+  // At a break showing the coach's plan, an edit changes the plan (as a
+  // pin of this period, which wins over one made before kickoff) and
+  // Start commits it: see `breakPlan`. Anywhere else it's saved as it's
+  // made.
+  function stageBreakPlan(next: LeagueLineup) {
+    setPlannedRotation({
+      ...(pinForThisGame ?? {}),
+      gameId: game.id,
+      nextPeriodIndex: state.currentQuarter,
+      nextPeriodGroups: { forwards: next.forwards, backs: next.backs },
+      nextPeriodBench: next.bench,
+    });
+  }
+
+  function saveLineup(next: LeagueLineup): Promise<void> {
+    if (breakPlan) {
+      stageBreakPlan(next);
+      return Promise.resolve();
+    }
+    return enqueueLiveAction("recordLeagueLineupSet", [
+      auth,
+      game.id,
+      // Named positions: record each kid's slot (UX plan 5.7).
+      withLeagueSlots(next, leaguePlaybook),
+      { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
+    ]).flushed;
+  }
+
+  // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
+  function saveSwap(offId: string, onId: string): Promise<void> {
+    if (breakPlan) {
+      stageBreakPlan(swapInLeagueLineup(breakPlan, offId, onId).lineup);
+      return Promise.resolve();
+    }
+    return enqueueLiveAction("recordLeagueSwap", [
       auth,
       game.id,
       {
@@ -1169,8 +1194,12 @@ export function LeagueLiveGame({
         quarter: state.currentQuarter,
         elapsed_ms: elapsedMs,
       },
-    ]);
-    await flushed;
+    ]).flushed;
+  }
+
+  async function applySwap(offId: string, onId: string) {
+    setPending(true);
+    await saveSwap(offId, onId);
     setPending(false);
     handleClearSelection();
     router.refresh();
@@ -1215,9 +1244,9 @@ export function LeagueLiveGame({
   }
 
   async function maybeCompleteSwap(secondId: string) {
-    if (!selectedPlayer || !state.lineup) return false;
-    const onForwards = state.lineup.forwards;
-    const onBacks = state.lineup.backs;
+    if (!selectedPlayer || !lineup) return false;
+    const onForwards = lineup.forwards;
+    const onBacks = lineup.backs;
     const zoneOfId = (id: string): "forward" | "back" | null => {
       if (onForwards.includes(id)) return "forward";
       if (onBacks.includes(id)) return "back";
@@ -1263,21 +1292,11 @@ export function LeagueLiveGame({
         );
       }
       setPending(true);
-      const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
-        auth,
-        game.id,
-        // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots(
-          {
-            forwards: nextForwards,
-            backs: nextBacks,
-            bench: state.lineup.bench,
-          },
-          leaguePlaybook,
-        ),
-        { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
-      ]);
-      await flushed;
+      await saveLineup({
+        forwards: nextForwards,
+        backs: nextBacks,
+        bench: lineup.bench,
+      });
       setPending(false);
       handleClearSelection();
       router.refresh();
@@ -1299,7 +1318,7 @@ export function LeagueLiveGame({
   async function handlePlayerTapMaybeSwap(playerId: string) {
     if (
       selectedPlayer
-      && state.lineup
+      && lineup
       && playerId !== selectedPlayer.id
     ) {
       const completed = await maybeCompleteSwap(playerId);
@@ -1335,44 +1354,37 @@ export function LeagueLiveGame({
   // Bench → field into an empty spot: the tapped zone wins over chip
   // preference.
   async function fillVacantSpot(playerId: string, slotZone: "forward" | "back") {
-    if (!state.lineup) return;
+    if (!lineup) return;
     setPending(true);
     const nextForwards
       = slotZone === "forward"
-        ? [...state.lineup.forwards, playerId]
-        : state.lineup.forwards;
+        ? [...lineup.forwards, playerId]
+        : lineup.forwards;
     const nextBacks
       = slotZone === "back"
-        ? [...state.lineup.backs, playerId]
-        : state.lineup.backs;
-    const nextBench = state.lineup.bench.filter((id) => id !== playerId);
-    const { flushed } = enqueueLiveAction("recordLeagueLineupSet", [
-      auth,
-      game.id,
-      // Named positions: record each kid's slot (UX plan 5.7).
-      withLeagueSlots({ forwards: nextForwards, backs: nextBacks, bench: nextBench }, leaguePlaybook),
-      { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
-    ]);
-    await flushed;
+        ? [...lineup.backs, playerId]
+        : lineup.backs;
+    const nextBench = lineup.bench.filter((id) => id !== playerId);
+    await saveLineup({ forwards: nextForwards, backs: nextBacks, bench: nextBench });
     setPending(false);
     handleClearSelection();
     router.refresh();
   }
 
   async function handleVacantSpotTap(slotZone: "forward" | "back") {
-    if (!state.lineup) return;
+    if (!lineup) return;
     // Nobody selected: pick who comes on (the spot says "tap to bring a
     // bench player on"; it used to do nothing: Stagehand round 4).
     if (!selectedPlayer) {
       setFillSpotZone(slotZone);
       return;
     }
-    const isBench = state.lineup.bench.includes(selectedPlayer.id);
+    const isBench = lineup.bench.includes(selectedPlayer.id);
     // A hurt or lent kid on the bench can't fill a spot.
     if (isBench && (injuredSet.has(selectedPlayer.id) || loanedSet.has(selectedPlayer.id))) return;
     const isField
-      = state.lineup.forwards.includes(selectedPlayer.id)
-      || state.lineup.backs.includes(selectedPlayer.id);
+      = lineup.forwards.includes(selectedPlayer.id)
+      || lineup.backs.includes(selectedPlayer.id);
 
     if (isBench) {
       await fillVacantSpot(selectedPlayer.id, slotZone);
@@ -1384,7 +1396,7 @@ export function LeagueLiveGame({
       // in the tapped zone (e.g. coach taps an empty FWD slot
       // with a forward selected — they were going to move within
       // forwards, which isn't a thing; just clear and bail).
-      const currentZone: "forward" | "back" = state.lineup.forwards.includes(
+      const currentZone: "forward" | "back" = lineup.forwards.includes(
         selectedPlayer.id,
       )
         ? "forward"
@@ -1447,12 +1459,12 @@ export function LeagueLiveGame({
     // backs array). If there are no swappable bench players, or the
     // player is on the bench (toggling recovery), skip straight to the
     // direct path.
-    if (injured && state.lineup) {
-      const zone: "forward" | "back" | null = state.lineup.forwards.includes(
+    if (injured && lineup) {
+      const zone: "forward" | "back" | null = lineup.forwards.includes(
         playerId,
       )
         ? "forward"
-        : state.lineup.backs.includes(playerId)
+        : lineup.backs.includes(playerId)
           ? "back"
           : null;
       if (zone !== null && swappableBench.length > 0) {
@@ -1506,16 +1518,7 @@ export function LeagueLiveGame({
         elapsed_ms: elapsedMs,
       },
     ]);
-    const { flushed: swapFlushed } = enqueueLiveAction("recordLeagueSwap", [
-      auth,
-      game.id,
-      {
-        off_player_id: injuredId,
-        on_player_id: replacementId,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
+    const swapFlushed = saveSwap(injuredId, replacementId);
     await Promise.all([injFlushed, swapFlushed]).catch(() => {
       // individual failures already handled by queue retry cap
     });
@@ -1573,10 +1576,10 @@ export function LeagueLiveGame({
   // otherwise mark them out directly.
   function handleMarkOutPick(playerId: string) {
     setMarkOutPickerOpen(false);
-    const zone: "forward" | "back" | null = state.lineup
-      ? state.lineup.forwards.includes(playerId)
+    const zone: "forward" | "back" | null = lineup
+      ? lineup.forwards.includes(playerId)
         ? "forward"
-        : state.lineup.backs.includes(playerId)
+        : lineup.backs.includes(playerId)
           ? "back"
           : null
       : null;
@@ -1633,16 +1636,7 @@ export function LeagueLiveGame({
         reason: "out",
       },
     ]);
-    const { flushed: swapFlushed } = enqueueLiveAction("recordLeagueSwap", [
-      auth,
-      game.id,
-      {
-        off_player_id: outId,
-        on_player_id: replacementId,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
+    const swapFlushed = saveSwap(outId, replacementId);
     await Promise.all([injFlushed, swapFlushed]).catch(() => {
       // individual failures already handled by queue retry cap
     });
@@ -1710,11 +1704,23 @@ export function LeagueLiveGame({
     playerId: string,
     toZone: "forward" | "back",
   ) {
-    if (!state.lineup) return;
+    if (!lineup) return;
     const wasOnField
-      = state.lineup.forwards.includes(playerId)
-      || state.lineup.backs.includes(playerId);
+      = lineup.forwards.includes(playerId)
+      || lineup.backs.includes(playerId);
     if (!wasOnField) return;
+    if (breakPlan) {
+      // Into the plan (see stageBreakPlan); the replay's move: off their
+      // line, onto the end of the other.
+      const others = (ids: string[]) => ids.filter((id) => id !== playerId);
+      stageBreakPlan({
+        forwards: toZone === "forward" ? [...others(lineup.forwards), playerId] : others(lineup.forwards),
+        backs: toZone === "back" ? [...others(lineup.backs), playerId] : others(lineup.backs),
+        bench: lineup.bench,
+      });
+      setActionSheetPlayerId(null);
+      return;
+    }
     setPending(true);
     const { flushed } = enqueueLiveAction("recordLeaguePositionChange", [
       auth,
@@ -1765,11 +1771,7 @@ export function LeagueLiveGame({
   // ── State views ───────────────────────────────────────────────
   const isPeriodActive
     = state.currentQuarter >= 1 && !state.quarterEnded && !state.finalised;
-  const isAtQbreak
-    = state.quarterEnded
-    && state.currentQuarter >= 1
-    && state.currentQuarter < ageGroup.periodCount
-    && !state.finalised;
+  // isAtQbreak: with the break's plan, above.
   const isAtFinalQ
     = state.quarterEnded
     && state.currentQuarter >= ageGroup.periodCount
@@ -1821,9 +1823,9 @@ export function LeagueLiveGame({
   );
   const actionSheetOnField
     = actionSheetPlayerId != null
-    && (state.lineup
-      ? state.lineup.forwards.includes(actionSheetPlayerId)
-        || state.lineup.backs.includes(actionSheetPlayerId)
+    && (lineup
+      ? lineup.forwards.includes(actionSheetPlayerId)
+        || lineup.backs.includes(actionSheetPlayerId)
       : false);
   const actionSheetVest
     = actionSheetPlayerId != null ? vestByPlayer[actionSheetPlayerId] ?? null : null;
@@ -1926,7 +1928,7 @@ export function LeagueLiveGame({
           LeagueGameSummaryCard carries the share text. The on-pitch
           layout doesn't carry any signal at that point and just
           pads the screen with stale state. */}
-      {!isFinished && state.lineup && (() => {
+      {!isFinished && lineup && (() => {
         // Build the swap maps from the suggester output so each tile
         // can render its own visual indicator (amber for going-off,
         // brand-blue for coming-on, +pair number when there's more
@@ -1969,9 +1971,9 @@ export function LeagueLiveGame({
             zoneMsByPlayer={zoneMsByPlayer}
             vestByPlayer={vestByPlayer}
             positionLabels={
-              state.lineup
+              lineup
                 ? assignLeaguePositionLabels(
-                    { forwards: state.lineup.forwards, backs: state.lineup.backs },
+                    { forwards: lineup.forwards, backs: lineup.backs },
                     leaguePlaybook,
                   )
                 : undefined
@@ -2099,11 +2101,11 @@ export function LeagueLiveGame({
             <strong>{state.teamScore.points}</strong> –{" "}
             <strong>{state.opponentScore.points}</strong>.
           </p>
-          {/* Planned-seed banner (F2 / D-15): the coach pinned this
-              upcoming period's lineup during the final window — surface
-              that so they know Start will open pre-seeded (the seed is
-              applied, reconciled, in handleStartNextPeriod). */}
-          {hasPinnedNextPeriod && (
+          {/* Planned-seed banner (F2 / D-15): the coach planned this
+              upcoming period, so the field below is that plan (with any
+              edits made here), and it's what Start puts on (see
+              breakPlan / handleStartNextPeriod). */}
+          {breakPlan && (
             <p
               data-testid="planned-seed-banner"
               className="mb-2 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
@@ -2175,14 +2177,14 @@ export function LeagueLiveGame({
         </section>
       )}
 
-      {isAtQbreak && vestRequired && state.lineup && (
+      {isAtQbreak && vestRequired && lineup && (
         <VestAssignmentCard
           auth={auth}
           gameId={game.id}
           squad={squad}
           onFieldPlayerIds={[
-            ...state.lineup.forwards,
-            ...state.lineup.backs,
+            ...lineup.forwards,
+            ...lineup.backs,
           ]}
           events={thisGameEvents}
           ageGroup={ageGroup}
@@ -2432,20 +2434,20 @@ export function LeagueLiveGame({
           we store the edited next-period forwards/backs/bench in the SAME
           plannedRotation slice (nextPeriod* fields); handleStartNextPeriod
           seeds the lineup from it (reconciled) at the explicit Start tap. */}
-      {planNextOpen && state.lineup && (() => {
+      {planNextOpen && lineup && (() => {
         const currentGroups: Record<string, string[]> = {
-          forwards: state.lineup.forwards,
-          backs: state.lineup.backs,
+          forwards: lineup.forwards,
+          backs: lineup.backs,
         };
-        const currentBench = state.lineup.bench;
+        const currentBench = lineup.bench;
 
         // Only players present (in the current lineup → excludes squad
         // members who didn't attend) AND healthy. Shared rule across all
         // sports (Steve 2026-06-15, short-squad game).
         const inGameIds = new Set<string>([
-          ...state.lineup.forwards,
-          ...state.lineup.backs,
-          ...state.lineup.bench,
+          ...lineup.forwards,
+          ...lineup.backs,
+          ...lineup.bench,
         ]);
         const playersForPlan = availablePlayersForPlan(
           squad,
@@ -2605,14 +2607,14 @@ export function LeagueLiveGame({
         />
       )}
 
-      {conversionDialogOpen && state.lineup && (
+      {conversionDialogOpen && lineup && (
         <RecordConversionDialog
           auth={auth}
           gameId={game.id}
           squad={squad}
           onFieldPlayerIds={[
-            ...state.lineup.forwards,
-            ...state.lineup.backs,
+            ...lineup.forwards,
+            ...lineup.backs,
           ]}
           events={thisGameEvents}
           quarter={state.currentQuarter}
@@ -2626,7 +2628,7 @@ export function LeagueLiveGame({
       {/* Force-vest-replace modal: shown when an FR/DH wearer leaves
           the field (sub, injury, loan) until the coach picks a
           replacement OR explicitly dismisses for the period. */}
-      {forceVestReplaceOpen && vestRequired && state.lineup && (
+      {forceVestReplaceOpen && vestRequired && lineup && (
         <Modal size="md" placement="sheet" label="Replace vest wearer" onClose={handleForceVestDismiss} padding="p-4">
             <header className="mb-3 flex items-start justify-between">
               <div>
@@ -2652,8 +2654,8 @@ export function LeagueLiveGame({
               gameId={game.id}
               squad={squad}
               onFieldPlayerIds={[
-                ...state.lineup.forwards,
-                ...state.lineup.backs,
+                ...lineup.forwards,
+                ...lineup.backs,
               ]}
               events={thisGameEvents}
               ageGroup={ageGroup}
