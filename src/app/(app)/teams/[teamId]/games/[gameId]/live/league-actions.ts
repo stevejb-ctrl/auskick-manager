@@ -52,12 +52,14 @@ async function clampOnFieldSize(
   teamId: string,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
+  // This module writes rugby_league games only: clamp to that sport's
+  // own age groups, never whatever another sport would allow.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("age_group")
     .eq("id", teamId)
     .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const ageCfg = getAgeGroupConfig("rugby_league", team?.age_group);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -490,15 +492,14 @@ export async function finaliseLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  // Use the team's age-group period count for the final-quarter
-  // value on the event metadata. Defaults to 4 (the AFL/Netball
-  // periodCount) — U10–U12 will overwrite to 2.
+  // The final period is the league age group's last: 4 quarters at
+  // U6–U9, 2 halves from U10.
   const { data: team } = await w.supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("age_group")
     .eq("id", w.teamId)
     .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const ageCfg = getAgeGroupConfig("rugby_league", team?.age_group);
   const finalQuarter = ageCfg.periodCount;
 
   const finalise = await insertEvent(auth, gameId, "game_finalised", {

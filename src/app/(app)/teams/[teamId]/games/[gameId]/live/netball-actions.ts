@@ -30,12 +30,14 @@ async function clampOnFieldSize(
   teamId: string,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
+  // This module writes netball games only: clamp to that sport's
+  // own age groups, never whatever another sport would allow.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("age_group")
     .eq("id", teamId)
     .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const ageCfg = getAgeGroupConfig("netball", team?.age_group);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
