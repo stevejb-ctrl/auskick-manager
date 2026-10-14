@@ -70,7 +70,9 @@ export function resolveTeamPlaybook({
   const live = positions
     .filter((p) => !p.archived_at)
     .sort((a, b) => a.sort - b.sort);
-  const customPositions = positionModel.kind === "custom" && live.length > 0;
+  // Coach-named positions are AFL's (open ages) and are laid out on
+  // AFL's field; no other sport's model is "custom".
+  const customPositions = sport === "afl" && positionModel.kind === "custom" && live.length > 0;
   const resolvedPositions = customPositions
     ? layoutAflPositions(
         live.map((p) => ({
