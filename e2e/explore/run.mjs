@@ -557,7 +557,9 @@ async function seedTeam(admin, email, name, origin) {
     // AFL, 12 on: three lines of four, the rest on the bench, rotating.
     for (let gNo = 0; gNo < s.pastGames; gNo++) {
       await playedGame(["Elwood Eels", "Hampton Hawks", "Mentone Magpies"][gNo % 3], (s.pastGames - gNo) * 7 * 24 * 60, 4, (q) => {
-        const shift = (gNo * 4 + q) % ids.length;
+        // Rotate by the bench size each quarter so everyone sits once at
+        // most — by one, the same kid sat a whole game out (round 5).
+        const shift = (gNo * 4 + q * Math.max(1, ids.length - 12)) % ids.length;
         const order = [...ids.slice(shift), ...ids.slice(0, shift)];
         return {
           type: "lineup_set",
