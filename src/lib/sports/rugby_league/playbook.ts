@@ -122,9 +122,7 @@ export const leaguePlaybook: SportPlaybook = {
       out.push({
         id: "unbroken",
         text: `At least ${policy.minUnbrokenPeriods} unbroken ${policy.minUnbrokenPeriods === 1 ? periods.label : periods.plural} each`,
-        source: policy.overridden.includes("minUnbrokenPeriods")
-          ? "Your league"
-          : agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
+        source: agePolicy.minUnbrokenPeriods?.source ?? NRL_LAWS,
       });
     }
     if (policy.vests.fr || policy.vests.dh) {
@@ -138,9 +136,12 @@ export const leaguePlaybook: SportPlaybook = {
     return {
       zonesEnforced: { default: false, overridable: false },
       minGameTimePct: { default: 50, overridable: true, band: [0, 100], locked: false },
+      // The laws' count. The team's on/off switch (enforce_unbroken_periods)
+      // is the control: the planner and live screen read the age group's
+      // count, so an override here would show a rule nothing enforces.
       minUnbrokenPeriods: {
         default: cfg.minUnbrokenPeriods ?? 0,
-        overridable: true,
+        overridable: false,
         source: `${NRL_LAWS} §6`,
       },
       vests: { fr: cfg.vestRequirements?.fr ?? false, dh: cfg.vestRequirements?.dh ?? false },

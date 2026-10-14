@@ -198,6 +198,15 @@ describe("rugby league", () => {
     expect(effectivePolicy("rugby_league", "U11").minUnbrokenPeriods).toBe(1);
   });
 
+  // The engines read the age group's §6 count, and the team's on/off
+  // switch is the control (cross-sport audit, 14 Oct 2026): a count
+  // override would show a rule nothing enforces.
+  it("keeps the §6 count the laws' own", () => {
+    const u9 = effectivePolicy("rugby_league", "U9", { minUnbrokenPeriods: 0 });
+    expect(u9.minUnbrokenPeriods).toBe(2);
+    expect(u9.overridden).not.toContain("minUnbrokenPeriods");
+  });
+
   it("builds an 11-a-side catalogue with unique keys", () => {
     const ps = leagueCatalogue(11, 5);
     expect(ps).toHaveLength(11);
