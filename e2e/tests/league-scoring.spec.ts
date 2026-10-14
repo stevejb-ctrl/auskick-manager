@@ -13,6 +13,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "serial" });
 
@@ -105,6 +106,8 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  // That text is server-rendered; a tap before hydration does nothing (WebKit).
+  await waitForHydration(page);
 
   // Junior laws (U6–U12): no penalty or field goals to record.
   await expect(page.getByRole("button", { name: "Record a penalty goal for our team" })).toHaveCount(0);
@@ -148,6 +151,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
 
   // With the kick undone, the try is waiting for its conversion again.
   await page.reload();
+  await waitForHydration(page);
   await page.getByRole("button", { name: "Record a conversion for our team" }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
