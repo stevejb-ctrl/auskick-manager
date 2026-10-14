@@ -227,11 +227,12 @@ export function aggregateLeagueSeason(
 export function aggregateLeagueSeasonFromGames(
   games: Game[],
   eventsByGame: Record<string, GameEvent[]>,
-  teamSport: string | null | undefined,
+  /** League only: another sport's team has no league season. */
+  teamSport: "rugby_league",
   teamAgeGroup: string | null | undefined,
 ): LeagueSeasonAggregate {
   const ageCfg = getAgeGroupConfig(teamSport, teamAgeGroup);
-  const required = ageCfg.minUnbrokenPeriods ?? 1;
+  const required = ageCfg.minUnbrokenPeriods ?? 0;
   const snaps = games.map((g) =>
     snapshotLeagueGame(g.id, eventsByGame[g.id] ?? [], required),
   );
