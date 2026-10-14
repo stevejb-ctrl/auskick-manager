@@ -147,6 +147,43 @@ describe("set positions", () => {
     expect(offHome).toEqual([]);
   });
 
+  // Stagehand round 5 (gameday-afl-u15-positions): Set positions promises
+  // a like-for-like bench, but a kid with no home scored the same in
+  // every line, so at each break kids who stayed on were shuffled between
+  // lines (Noah back→mid, Cooper mid→fwd) and those coming on took
+  // whatever was left. Stayers keep their line; the bench fills the gaps.
+  it("kids without a home keep their line across a break, and the bench fills the gaps", () => {
+    const squad = players(16);
+    const roles: Record<string, AflLineRole> = {
+      p1: role({ home: "fwd" }),
+      p2: role({ home: "back" }),
+      p3: role({ home: "mid" }),
+    };
+    const moved: string[] = [];
+    let checked = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const game = playGame(squad, base("set-positions", roles), {}, seed);
+      for (let q = 1; q < 4; q++) {
+        const [before, after] = [game[q - 1], game[q]];
+        // A kid with a home coming back on goes home, and someone there
+        // has to make room — not a like-for-like break.
+        if (Object.keys(roles).some((pid) => zoneOf(before, pid) === "bench" && zoneOf(after, pid) !== "bench")) continue;
+        checked++;
+        const off: Zone[] = [];
+        const on: Zone[] = [];
+        for (const p of squad) {
+          const [a, b] = [zoneOf(before, p.id), zoneOf(after, p.id)];
+          if (a !== "bench" && b !== "bench" && a !== b && !roles[p.id]) moved.push(`seed ${seed} Q${q + 1}: ${p.id} ${a}→${b}`);
+          if (a !== "bench" && b === "bench") off.push(a);
+          if (a === "bench" && b !== "bench") on.push(b);
+        }
+        expect(on.sort(), `seed ${seed} Q${q + 1}`).toEqual(off.sort());
+      }
+    }
+    expect(checked).toBeGreaterThan(30); // of 90 breaks
+    expect(moved).toEqual([]);
+  });
+
   it("labels each player with a position in their line, home first", () => {
     const lineup: Lineup = { back: ["a", "b"], hback: [], mid: ["c"], hfwd: [], fwd: ["d"], bench: ["e"] };
     const labels = assignPositionLabels(lineup, {

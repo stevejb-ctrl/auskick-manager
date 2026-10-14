@@ -542,6 +542,8 @@ export function suggestStartingLineup(
   // enough to break ties cleanly when in-game diversity is even (e.g. mid-
   // game in Q3 when all zones have already been played).
   const SAME_AS_LAST_Q = weights.sameAsLastQ;
+  // Set positions: staying in last quarter's line, under a backup line.
+  const SET_POSITIONS_STAY = 1000;
   // Per-teammate penalty for partnership avoidance. Tuned so one prior-
   // quarter mate already in a target zone flips the preference: with
   // IN_GAME_DIVERSITY (+1000) and SAME_AS_LAST_Q (-800), a fresh zone with
@@ -598,10 +600,19 @@ export function suggestStartingLineup(
       const roleBonus =
         role?.home === lineOf(z) ? weights.home : role?.also.includes(lineOf(z)) ? weights.also : 0;
       const rule = ruleZone(pid) === z ? RULE_ZONE_BONUS : 0;
+      // Set positions promises a like-for-like bench: a kid who stays on
+      // keeps their line (below a home or backup line). Without it a kid
+      // with no home scored the same everywhere and was shuffled between
+      // lines at every break (Stagehand round 5).
+      const prevZone = previousQuarterZones[pid];
+      const stay =
+        playbook.strategy === "set-positions" && prevZone && lineOf(prevZone) === lineOf(z)
+          ? SET_POSITIONS_STAY
+          : 0;
       const teamRule = teamRules.length
         ? ruleScore(teamRules, pid, lineOf(z), linesPlayed(pid), ruleLines.length, placedByZone.get(z), role?.home ?? null)
         : 0;
-      return inGameBonus + sameAsLastQ + roleBonus + rule + teamRule + playbook.seasonWeight * seasonOwed(pid, z);
+      return inGameBonus + sameAsLastQ + roleBonus + rule + stay + teamRule + playbook.seasonWeight * seasonOwed(pid, z);
     }
     // The effective per-game period length (fullPeriodMs) is passed by
     // production callers so the season-diversity nudge tracks THIS game's
@@ -708,11 +719,14 @@ export function suggestStartingLineup(
   // Set positions: the order above decides WHO plays; WHERE goes kids with
   // a home first, then those with backup spots, so a kid with no home
   // can't fill a home kid's line before their turn (Stagehand round 4:
-  // the full back played centre in Q4).
+  // the full back played centre in Q4). Then kids staying on (they keep
+  // their line), and last the kids coming on, who fill the lines left
+  // open — like-for-like (round 5).
   let placementOrder = sortedPlayers;
   if (playbook?.strategy === "set-positions") {
     const capacity = zones.reduce((n, z) => n + Math.max(0, zoneCaps[z] - zoneFill[z]), 0);
-    const homeRank = (pid: string) => (roles[pid]?.home ? 0 : roles[pid]?.also.length ? 1 : 2);
+    const homeRank = (pid: string) =>
+      roles[pid]?.home ? 0 : roles[pid]?.also.length ? 1 : previousQuarterZones[pid] ? 2 : 3;
     placementOrder = [
       ...sortedPlayers.slice(0, capacity).sort((a, b) => homeRank(a.id) - homeRank(b.id)),
       ...sortedPlayers.slice(capacity),
