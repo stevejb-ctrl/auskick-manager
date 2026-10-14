@@ -52,6 +52,7 @@ import {
   benchSidelinedInLineup,
   replaceInLineup,
 } from "@/lib/live/lineupOps";
+import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
@@ -680,6 +681,46 @@ export function QuarterBreak({
     setSelected(null);
   }, [lineupMode, suggestedLineup, rotatedLineup, manualLineup, lineup, availableForLineup.length]);
 
+  // The coach's staged lineup survives leaving the live screen (the team
+  // page and back, a reload): kept in the live store, restored here over
+  // the seed and suggestion above (declared after them, so it wins), for
+  // the kids who can still play. Shared with the netball break.
+  const stagedForStore = useMemo(
+    () => ({
+      groups: { back: draft.back, hback: draft.hback, mid: draft.mid, hfwd: draft.hfwd, fwd: draft.fwd },
+      bench: draft.bench,
+    }),
+    [draft],
+  );
+  const healthyIds = useMemo(() => healthyForLineup.map((p) => p.id), [healthyForLineup]);
+  const stagedBreakDraft = useStagedBreakDraft({
+    gameId,
+    period: nextQuarter,
+    ready: availableForLineup.length > 0,
+    groupIds: ALL_ZONES,
+    availableIds: healthyIds,
+    benchOnlyIds: sidelinedIdsInLineup,
+    staged: stagedForStore,
+    mode: lineupMode,
+    onRestore: (restored) => {
+      setDraft({
+        back: restored.groups.back ?? [],
+        hback: restored.groups.hback ?? [],
+        mid: restored.groups.mid ?? [],
+        hfwd: restored.groups.hfwd ?? [],
+        fwd: restored.groups.fwd ?? [],
+        bench: restored.bench,
+      });
+      const mode = restored.mode as RotationMode;
+      if (["suggested", "keep", "manual", "rotate"].includes(mode)) {
+        lastAppliedModeRef.current = mode;
+        setLineupMode(mode);
+      }
+      didSeedRef.current = true;
+      setSelected(null);
+    },
+  });
+
   // ─── Match-adjustment panel state ─────────────────────────────
   // The size dropdown is locally controlled — Q-break is a "stage"
   // moment, so we don't optimistically rerender the lineup picker
@@ -1110,6 +1151,8 @@ export function QuarterBreak({
         setStartModalOpen(false);
         return;
       }
+      // The staged lineup is now the quarter's: nothing left to restore.
+      stagedBreakDraft.clear();
       onStarted();
       // D-14: the next-period pin has now been consumed (it seeded this
       // break's draft, which we've just committed). Clear it so it can't
