@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeChipMode } from "@/lib/chips";
 import { getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
 
@@ -252,52 +251,6 @@ export async function deleteSong(teamId: string): Promise<ActionResult> {
   return { success: true };
 }
 
-
-/**
- * Update the team-level chip labels and per-chip behaviour modes.
- * Empty label strings normalise to NULL; modes default to 'split'
- * to match Phase D launched behaviour.
- */
-export async function updateTeamChipSettings(
-  teamId: string,
-  patch: {
-    chip_a_label: string | null;
-    chip_b_label: string | null;
-    chip_c_label: string | null;
-    chip_a_mode: import("@/lib/chips").ChipMode;
-    chip_b_mode: import("@/lib/chips").ChipMode;
-    chip_c_mode: import("@/lib/chips").ChipMode;
-  },
-): Promise<ActionResult> {
-  const { supabase, error } = await getAuthedAdmin(teamId);
-  if (error) return { success: false, error };
-
-  const normLabel = (v: string | null) => {
-    const trimmed = (v ?? "").trim();
-    return trimmed === "" ? null : trimmed.slice(0, 32);
-  };
-  // Mode validation lives in @/lib/chips (single canonical
-  // version). Steve 2026-05-20: was inline as
-  // `v === "group" ? "group" : "split"` which silently dropped
-  // forward/centre/back picks — see normalizeChipMode jsdoc for
-  // the full post-mortem.
-  const { error: updateError } = await supabase
-    .from("teams")
-    .update({
-      chip_a_label: normLabel(patch.chip_a_label),
-      chip_b_label: normLabel(patch.chip_b_label),
-      chip_c_label: normLabel(patch.chip_c_label),
-      chip_a_mode: normalizeChipMode(patch.chip_a_mode),
-      chip_b_mode: normalizeChipMode(patch.chip_b_mode),
-      chip_c_mode: normalizeChipMode(patch.chip_c_mode),
-    })
-    .eq("id", teamId);
-  if (updateError) return { success: false, error: updateError.message };
-
-  revalidatePath(`/teams/${teamId}/settings`);
-  revalidatePath(`/teams/${teamId}/squad`);
-  return { success: true };
-}
 
 /**
  * Team › Season › Age group. Validated against the team's sport; the
