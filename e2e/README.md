@@ -43,6 +43,21 @@ run its own super-admin, set `TEST_SUPER_ADMIN_EMAIL`. That works
 with `npm run e2e` too, because `scripts/e2e-setup.mjs` keeps values
 already in the environment.
 
+### On the iPhone engine (WebKit)
+
+The default project is Chromium as a Pixel 7. To run as an iPhone 14
+on WebKit, install the browser once (`npx playwright install webkit`),
+then set `PW_WEBKIT=1` and pick the project (PowerShell shown):
+
+```powershell
+$env:PW_WEBKIT = "1"; npm run e2e -- --project=webkit
+```
+
+WebKit hydrates later than Chromium, so a test that types straight
+after a `goto`, or navigates straight after signing in, races the page.
+`waitForHydration` and `gotoStable` in `e2e/helpers/navigation.ts`
+handle both; use them in new specs.
+
 ## When to add a test
 
 The tests earn their keep only if they evolve with the app. Treat

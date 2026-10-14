@@ -63,5 +63,22 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+
+    // The iPhone engine, opt in: PW_WEBKIT=1 plus `--project=webkit`
+    // (after `npx playwright install webkit`). Off by default so a normal
+    // run doesn't double. WebKit runs slower here, hence the longer timeout.
+    ...(process.env.PW_WEBKIT
+      ? [
+          {
+            name: "webkit",
+            timeout: 60_000,
+            use: {
+              ...devices["iPhone 14"],
+              storageState: "playwright/.auth/super-admin.json",
+            },
+            dependencies: ["setup"],
+          },
+        ]
+      : []),
   ],
 });
