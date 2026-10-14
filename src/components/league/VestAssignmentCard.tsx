@@ -107,8 +107,14 @@ export function VestAssignmentCard({
     const wearer = wearerId ? playerById.get(wearerId) ?? null : null;
     const isReplacing = replacingVest === vest;
     const isPending = pendingVest === vest;
+    // At a break (not the mid-period replace prompt), a planned wearer who
+    // isn't on the field — subbed off, hurt or lent since kickoff planned
+    // every period — needs someone else for that period: picker open.
+    // Without it the period kicked off with the vest on the bench
+    // (Stagehand round 5).
+    const plannedOff = !!wearerId && !onlyVest && !onFieldPlayerIds.includes(wearerId);
 
-    if (wearer && !isReplacing) {
+    if (wearer && !isReplacing && !plannedOff) {
       return (
         <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-3 py-2.5">
           <div className="flex items-center gap-2">
@@ -172,6 +178,11 @@ export function VestAssignmentCard({
             </SFButton>
           )}
         </div>
+        {plannedOff && wearer && !isReplacing && (
+          <p className="text-xs text-ink-dim">
+            {wearer.full_name} isn&rsquo;t on the field. Pick who wears it.
+          </p>
+        )}
 
         {candidates.length === 0 ? (
           <p className="text-xs text-ink-mute">

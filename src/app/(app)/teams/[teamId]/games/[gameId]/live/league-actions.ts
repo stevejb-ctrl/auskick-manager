@@ -971,7 +971,9 @@ export async function assignLeagueVest(
     .from("game_events")
     .select("*")
     .eq("game_id", gameId)
-    .eq("type", "vest_assigned")
+    // quarter_start too: a plan re-made before its period began was
+    // never worn, and vestHistory needs the kickoffs to tell.
+    .in("type", ["vest_assigned", "quarter_start"])
     .order("created_at", { ascending: true });
   const priorEvents = (prior ?? []) as GameEvent[];
 

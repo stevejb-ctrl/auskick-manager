@@ -489,3 +489,72 @@ test("rugby league: tapping an injured kid on the bench opens her actions, not a
   await expect(page.getByText(/selected from bench/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /back on/i })).toBeVisible();
 });
+
+// Round 5 (gameday-league-u11): kickoff plans every half's vests. H2's
+// Dummy Half was subbed off in H1, but the break's vest card showed him
+// with only a Replace button, and H2 kicked off with the vest on the
+// bench. At the break a planned wearer who isn't on the field now shows
+// as such, with the picker open — and picking someone else there gives
+// the vest for H2 without costing the benched kid his turn.
+test("rugby league: at the break, next half's vest wearer on the bench is flagged and re-picked", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U10",
+    sport: "rugby_league",
+    name: `RL-VEST-BREAK-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 5), backs: ids.slice(5, 11), bench: ids.slice(11) };
+  const [plannedDh, cameOn, pick] = [players[3], players[11], players[6]];
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const vest = (pid: string, v: "fr" | "dh", period: number) => ({
+    type: "vest_assigned",
+    player_id: pid,
+    metadata: { vest: v, period, replacement: false, sport: "rugby_league" },
+    created_at: t(60),
+  });
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" }, created_at: t(61) },
+      vest(ids[0], "fr", 1),
+      vest(ids[1], "dh", 1),
+      vest(ids[2], "fr", 2),
+      vest(plannedDh.id, "dh", 2),
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_at: t(59) },
+      { type: "swap", metadata: { quarter: 1, elapsed_ms: 300_000, off_player_id: plannedDh.id, on_player_id: cameOn.id, sport: "rugby_league" }, created_at: t(40) },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 1_200_000, sport: "rugby_league" }, created_at: t(20) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  await expect(page.getByText(new RegExp(`${plannedDh.full_name} isn.t on the field`))).toBeVisible({ timeout: 15_000 });
+  await page
+    .getByRole("region", { name: "Vest assignment" })
+    .getByRole("button", { name: new RegExp(pick.full_name) })
+    .click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("player_id, metadata")
+        .eq("game_id", game.id)
+        .eq("type", "vest_assigned");
+      return (data ?? []).some(
+        (e) => e.player_id === pick.id && (e.metadata as { vest?: string; period?: number }).vest === "dh" && (e.metadata as { period?: number }).period === 2,
+      );
+    }, { timeout: 15_000 })
+    .toBe(true);
+});

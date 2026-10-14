@@ -125,6 +125,34 @@ describe("vestHistory + eligibleForVest", () => {
     // p4 stepped in for the rest of Q1; can't take FR again at Q2.
     expect(eligibleForVest(events, "p4", "fr")).toBe(false);
   });
+
+  // Stagehand round 5 (gameday-league-u11): kickoff plans every half's
+  // vests. When H2's planned Dummy Half was benched and the coach gave
+  // the vest to someone else at the break, the planned kid still counted
+  // as having worn it — they lost their turn without ever wearing it.
+  it("a planned vest re-assigned before its half starts doesn't use up the planned kid's turn", () => {
+    reset();
+    const events = [
+      vestEvent("p1", "dh", 1),
+      vestEvent("p2", "dh", 2), // planned at kickoff
+      ev("quarter_start", { quarter: 1 }),
+      ev("quarter_end", { quarter: 1 }),
+      vestEvent("p3", "dh", 2), // re-planned at the break
+      ev("quarter_start", { quarter: 2 }),
+    ];
+    expect(vestHistory(events, "dh")).toEqual(new Set(["p1", "p3"]));
+    expect(eligibleForVest(events, "p2", "dh")).toBe(true);
+  });
+
+  it("a vest handed over once its half has started counts both kids", () => {
+    reset();
+    const events = [
+      vestEvent("p1", "dh", 1),
+      ev("quarter_start", { quarter: 1 }),
+      vestEvent("p2", "dh", 1), // re-assigned after kickoff
+    ];
+    expect(vestHistory(events, "dh")).toEqual(new Set(["p1", "p2"]));
+  });
 });
 
 describe("eligibleVestCandidates", () => {
