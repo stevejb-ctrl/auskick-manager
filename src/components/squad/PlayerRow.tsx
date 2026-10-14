@@ -99,19 +99,21 @@ export function PlayerRow({
   }
 
   function handleToggle(active: boolean) {
+    setServerError(null);
     startTransition(async () => {
-      if (active) {
-        await reactivatePlayer(teamId, player.id);
-      } else {
-        await deactivatePlayer(teamId, player.id);
-      }
+      // A refusal (e.g. "Squad is full") is shown, not swallowed — the
+      // switch flipping back on its own said nothing about why.
+      const result = active
+        ? await reactivatePlayer(teamId, player.id)
+        : await deactivatePlayer(teamId, player.id);
+      if (!result.success) setServerError(result.error);
     });
   }
 
   return (
     <li
       data-testid={`player-row-${player.id}`}
-      className={`flex items-center gap-3 px-4 py-3 sm:px-5 ${
+      className={`flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5 ${
         !player.is_active ? "opacity-50" : ""
       }`}
     >
@@ -213,6 +215,9 @@ export function PlayerRow({
           disabled={isPending}
           label={player.is_active ? "Deactivate player" : "Reactivate player"}
         />
+      )}
+      {!editing && serverError && (
+        <InlineAlert className="basis-full">{serverError}</InlineAlert>
       )}
     </li>
   );

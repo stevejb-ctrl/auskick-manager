@@ -99,7 +99,11 @@ export function AddPlayerForm({
             id="player-name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              // Clear as they type, not on the next Add.
+              setNameError(undefined);
+            }}
             placeholder="e.g. Sam Smith"
             error={nameError}
             disabled={isPending}
@@ -114,7 +118,10 @@ export function AddPlayerForm({
               min={1}
               max={99}
               value={jersey}
-              onChange={(e) => setJersey(e.target.value)}
+              onChange={(e) => {
+                setJersey(e.target.value);
+                setJerseyError(undefined);
+              }}
               placeholder="Optional"
               error={jerseyError}
               disabled={isPending}

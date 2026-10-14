@@ -87,7 +87,10 @@ export function AddFillInForm({
         <Input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
           placeholder="Fill-in name"
           disabled={isPending}
           autoFocus
@@ -98,7 +101,10 @@ export function AddFillInForm({
             type="number"
             inputMode="numeric"
             value={jersey}
-            onChange={(e) => setJersey(e.target.value)}
+            onChange={(e) => {
+              setJersey(e.target.value);
+              setError(null);
+            }}
             placeholder="#"
             min={0}
             disabled={isPending}

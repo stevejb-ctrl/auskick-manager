@@ -129,3 +129,51 @@ test("pasting a list adds the whole squad at once", async ({ page }) => {
     { full_name: "Cara Lee", jersey_number: 12 },
   ]);
 });
+
+// Round 5 (team-admin mission, checked in code): reactivating a player
+// into a full squad was refused by the server, but the row ignored the
+// answer — the switch just flipped back with no reason given.
+test("reactivating into a full squad says why it didn't work", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" }); // 20-kid squad
+  const { error } = await admin.from("players").insert([
+    ...Array.from({ length: 20 }, (_, i) => ({
+      team_id: team.id,
+      full_name: `Kid ${i + 1}`,
+      jersey_number: i + 1,
+      is_active: true,
+      created_by: ownerId,
+    })),
+    { team_id: team.id, full_name: "Benched Bo", jersey_number: 21, is_active: false, created_by: ownerId },
+  ]);
+  if (error) throw new Error(error.message);
+
+  await page.goto(`/teams/${team.id}/squad`);
+  const row = page.getByRole("listitem").filter({ hasText: "Benched Bo" });
+  const reactivate = row.getByRole("switch", { name: /reactivate player/i });
+  await waitForAdminHydration(reactivate);
+  await reactivate.click();
+  await expect(row.getByRole("alert")).toContainText(/squad is full/i);
+});
+
+// Round 5 (coach-onboarding, team-admin): "Name is required" stayed up
+// while the coach typed the name, until the next Add — it read as the
+// typing not taking.
+test("the add-player name error clears once a name is typed", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await page.getByRole("button", { name: /^add player$/i }).click();
+  await expect(page.getByText("Name is required.")).toBeVisible();
+  await page.getByLabel(/player name/i).fill("Sam");
+  await expect(page.getByText("Name is required.")).toHaveCount(0);
+});
