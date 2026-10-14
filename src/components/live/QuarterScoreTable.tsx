@@ -10,8 +10,9 @@
 //   AFL      — "2.1 (13)"  (goals.behinds + total points)
 //   Netball  — "3"         (goals only)
 //
-// Each completed quarter row shows the per-Q score, the cumulative
-// total in (parens), and a colour-coded margin column.
+// Each completed quarter row (and the one in play, so far) shows the
+// per-Q score, the cumulative total in (parens), and a colour-coded
+// margin column.
 
 interface QuarterScore {
   ours: { goals: number; behinds?: number };
@@ -80,15 +81,19 @@ export function QuarterScoreTable({
     const isDone =
       q < currentQuarter || (q === currentQuarter && quarterEnded);
     const isCurrent = q === currentQuarter && !quarterEnded;
+    // The quarter in play shows its score so far (tagged "in play"):
+    // dashes there hid goals the scoreboard already counted, so a fix to
+    // this quarter looked like it did nothing.
+    const shown = isDone || isCurrent;
     rows.push({
       label: `Q${q}`,
       state: isDone ? "done" : isCurrent ? "current" : "future",
-      ours: isDone ? o.primary : isCurrent ? "–" : "—",
-      theirs: isDone ? t.primary : isCurrent ? "–" : "—",
-      margin: isDone ? fmtMargin(o.pts - t.pts) : "",
-      cumOurs: isDone ? `${cumOursPts}` : "",
-      cumTheirs: isDone ? `${cumTheirsPts}` : "",
-      cumMargin: isDone ? fmtMargin(cumOursPts - cumTheirsPts) : "",
+      ours: shown ? o.primary : "—",
+      theirs: shown ? t.primary : "—",
+      margin: shown ? fmtMargin(o.pts - t.pts) : "",
+      cumOurs: shown ? `${cumOursPts}` : "",
+      cumTheirs: shown ? `${cumTheirsPts}` : "",
+      cumMargin: shown ? fmtMargin(cumOursPts - cumTheirsPts) : "",
     });
   }
 
@@ -133,7 +138,7 @@ export function QuarterScoreTable({
               </td>
               <td className="nums px-3 py-2 text-right font-mono tabular-nums text-ink">
                 {r.ours}
-                {r.state === "done" && r.cumOurs && (
+                {r.state !== "future" && r.cumOurs && (
                   <span className="ml-1 text-[10px] font-normal text-ink-mute">
                     ({r.cumOurs})
                   </span>
@@ -141,7 +146,7 @@ export function QuarterScoreTable({
               </td>
               <td className="nums px-3 py-2 text-right font-mono tabular-nums text-ink">
                 {r.theirs}
-                {r.state === "done" && r.cumTheirs && (
+                {r.state !== "future" && r.cumTheirs && (
                   <span className="ml-1 text-[10px] font-normal text-ink-mute">
                     ({r.cumTheirs})
                   </span>
@@ -159,7 +164,7 @@ export function QuarterScoreTable({
                 }`}
               >
                 {r.margin || "—"}
-                {r.state === "done" && r.cumMargin && (
+                {r.state !== "future" && r.cumMargin && (
                   <span className="ml-1 text-[10px] font-normal text-ink-mute">
                     ({r.cumMargin})
                   </span>

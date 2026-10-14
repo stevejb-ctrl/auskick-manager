@@ -260,3 +260,41 @@ test("undo last score removes the most recent goal from the tally", async ({
     )
     .toBeGreaterThanOrEqual(1);
 });
+
+// Round 5 (runner-parent-scoring, score-reconciler): the Q-by-Q row for
+// the quarter in play showed dashes while the scoreboard already counted
+// its goals — so a score fixed in that quarter looked like it did
+// nothing. The row shows the quarter so far, still tagged "in play".
+test("Q-by-Q shows the score of the quarter in play", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+  await admin.from("game_events").insert(
+    [
+      { type: "goal", player_id: players[8].id },
+      { type: "behind", player_id: players[8].id },
+      { type: "opponent_goal", player_id: null },
+    ].map((e) => ({ ...e, game_id: game.id, metadata: { quarter: 1 }, created_by: ownerId })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /show quarter-by-quarter scores/i }).click();
+  const q1 = page.getByRole("row").filter({ hasText: /Q1/ });
+  await expect(q1).toContainText(/in play/i);
+  await expect(q1).toContainText("1.1");
+  await expect(q1).toContainText("1.0");
+});
