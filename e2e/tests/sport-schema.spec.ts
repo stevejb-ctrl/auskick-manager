@@ -1,15 +1,16 @@
 // Sports are independent in the database, not just in the app
 // (cross-sport audit, 14 Oct 2026). Each test pins one migration:
 //   0061 sport_event_types   a game takes only its own sport's events
+//   0062 sport_lines         positions and prefs sit on their sport's lines
 // The live-game specs cover the other side of 0061: every event the
 // three live screens write still lands.
 //
-// Covers: supabase/migrations/0061
+// Covers: supabase/migrations/0061-0062
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
-import { makeGame, makeTeam } from "../fixtures/factories";
+import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -76,4 +77,47 @@ test("0061: each sport's games take only that sport's events", async () => {
       .eq("type", c.own);
     expect(retype?.message).toMatch(/don't record/);
   }
+});
+
+test("0062: positions and prefs sit on their own sport's lines", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+
+  // AFL named positions: AFL lines only.
+  const afl = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const position = (line: string) => ({ team_id: afl.id, label: "TALL", line, sort: 1 });
+  expect((await admin.from("team_positions").insert(position("fwd"))).error).toBeNull();
+  expect((await admin.from("team_positions").insert(position("forwards"))).error?.message).toMatch(
+    /afl teams have no "forwards" line/,
+  );
+
+  // League prefs: no AFL line.
+  const league = await makeTeam(admin, { ownerId, sport: "rugby_league", ageGroup: "U10" });
+  const [leaguePlayer] = await makePlayers(admin, { teamId: league.id, ownerId, count: 3 });
+  const { error: aflLine } = await admin
+    .from("player_position_prefs")
+    .insert({ team_id: league.id, player_id: leaguePlayer.id, line: "fwd", kind: "never" });
+  expect(aflLine?.message).toMatch(/rugby_league teams have no "fwd" line/);
+
+  // Netball: the role sheet saves a third, and an AFL line is refused.
+  const netball = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "11u" });
+  const [kid] = await makePlayers(admin, { teamId: netball.id, ownerId, count: 3 });
+  await admin.from("team_playbooks").insert({ team_id: netball.id, strategy: "by-thirds" });
+  const { error: backLine } = await admin
+    .from("player_position_prefs")
+    .insert({ team_id: netball.id, player_id: kid.id, line: "back", kind: "never" });
+  expect(backLine?.message).toMatch(/netball teams have no "back" line/);
+
+  await page.goto(`/teams/${netball.id}/squad`);
+  await page.getByRole("button", { name: `Role for ${kid.full_name}` }).click({ timeout: 15_000 });
+  const sheet = page.getByRole("dialog", { name: `Role for ${kid.full_name}` });
+  await sheet.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: "Attack" }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("player_position_prefs").select("kind, line").eq("player_id", kid.id);
+      return data;
+    })
+    .toEqual([{ kind: "never", line: "attack-third" }]);
 });
