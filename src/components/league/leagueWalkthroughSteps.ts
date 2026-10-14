@@ -31,8 +31,8 @@ export function buildLeagueWalkthroughSteps(opts: {
   /** "quarter" or "half" — drives the start/end-period copy so the
    *  modal reads "Start Q1" at U6–U9 and "Start H1" at U10+. */
   periodLabel: "quarter" | "half" | "period";
-  /** Whether the age group uses FR / DH vests at all (U6/U7 don't). */
-  vestsEnabled: boolean;
+  /** The age group's vests: none at U6–U7, FR only at U8, FR and DH from U9. */
+  vests: { fr: boolean; dh: boolean };
   /** Whether the age group attempts conversions (kicking turns on at U8+). */
   kickingAllowed: boolean;
   /** Whether this team has track_zone_time on. When false, the F/C/B
@@ -74,15 +74,15 @@ export function buildLeagueWalkthroughSteps(opts: {
     },
   ];
 
-  if (opts.vestsEnabled) {
+  if (opts.vests.fr || opts.vests.dh) {
     steps.push({
       emoji: "🦺",
-      title: "FR & DH vests",
+      title: opts.vests.dh ? "FR & DH vests" : "FR vest",
       body: `${
-        opts.kickingAllowed
-          ? "First Receiver (FR) and Dummy Half (DH)"
-          : "First Receiver (FR)"
-      } wear coloured vests and must rotate each period — no player can wear the same vest twice in one game. At the start of each ${periodWord} a vest assignment card prompts you to pick the wearer; the suggester defaults to whoever's least used that vest across the season.`,
+        opts.vests.dh
+          ? "First Receiver (FR) and Dummy Half (DH) wear coloured vests"
+          : "First Receiver (FR) wears a coloured vest"
+      } that must rotate each ${periodWord} — no player can wear the same vest twice in one game. At the start of each ${periodWord} a vest assignment card prompts you to pick the wearer; the suggester defaults to whoever's least used that vest across the season.`,
     });
   }
 
@@ -93,8 +93,8 @@ export function buildLeagueWalkthroughSteps(opts: {
       body: opts.internationalLaws
         ? "Tap a field player, then Try, Penalty goal (2) or Field goal (1) at the bottom. After a try the conversion picker opens — pick the kicker; there's no kicking rotation at this age. +PG and +FG beside our score ask who kicked. For an opponent score, tap +T, +C, +PG or +FG beside their score. Undo takes back the latest score."
         : opts.kickingAllowed
-        ? "Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker. The app enforces the goal-kick rotation: every on-field player must attempt a conversion before anyone gets a second. For an opponent score, tap +T or +C beside their score in the header. Undo chip appears for 8 seconds after every score."
-        : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo chip appears for 8 seconds after every score.",
+        ? "Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker. The app enforces the goal-kick rotation: every on-field player must attempt a conversion before anyone gets a second. For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score."
+        : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.",
     });
   }
 

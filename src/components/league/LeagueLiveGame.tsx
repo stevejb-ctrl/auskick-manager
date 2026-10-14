@@ -906,9 +906,7 @@ export function LeagueLiveGame({
       buildLeagueWalkthroughSteps({
         trackScoring,
         periodLabel,
-        vestsEnabled:
-          (ageGroup.vestRequirements?.fr ?? false)
-          || (ageGroup.vestRequirements?.dh ?? false),
+        vests: { fr: ageGroup.vestRequirements?.fr ?? false, dh: ageGroup.vestRequirements?.dh ?? false },
         kickingAllowed: ageGroup.kickingAllowed === true,
         internationalLaws: ageGroup.internationalLaws === true,
         trackZoneTime,

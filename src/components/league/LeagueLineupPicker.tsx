@@ -1314,8 +1314,8 @@ export function LeagueLineupPicker({
               </h3>
               <p className="text-[11px] text-ink-mute">
                 Auto-picked from fairness — tap any pick to swap.
-                Once a player wears a vest in one half, they&rsquo;re
-                excluded from the other.
+                Once a player wears a vest, they don&rsquo;t wear one
+                again this game.
               </p>
             </div>
           </div>

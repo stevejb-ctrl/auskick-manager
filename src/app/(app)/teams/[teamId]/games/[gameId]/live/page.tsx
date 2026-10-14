@@ -497,10 +497,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 <LeagueWalkthroughOffer
                   trackScoring={trackScoring}
                   periodLabel={periodLabels("rugby_league", ageCfgL).label}
-                  vestsEnabled={
-                    (ageCfgL.vestRequirements?.fr ?? false) ||
-                    (ageCfgL.vestRequirements?.dh ?? false)
-                  }
+                  vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
                   kickingAllowed={ageCfgL.kickingAllowed === true}
                   internationalLaws={ageCfgL.internationalLaws === true}
                   trackZoneTime={leagueTrackZoneTime}
