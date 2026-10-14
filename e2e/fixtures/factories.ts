@@ -9,21 +9,39 @@
 // (e.g. "given a started game, a swap updates zone minutes").
 
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { getAgeGroupConfig } from "../../src/lib/sports";
+import { getAgeGroupConfig, getSportConfig, type SportId } from "../../src/lib/sports";
+import { newGameDefaults } from "../../src/lib/games/newGameDefaults";
 import type { AgeGroup } from "../../src/lib/types";
 
 export interface MakeTeamOpts {
   name?: string;
+  /** One of the sport's age groups. Default: the setup wizard's (U10, netball "go"). */
   ageGroup?: string;
-  sport?: "afl" | "netball" | "rugby_league";
+  /** Default "afl", the reference sport. Netball and league specs say so. */
+  sport?: SportId;
   ownerId: string; // profile id of the admin who "created" this team
 }
+
+// The setup wizard's starting age group per sport (TeamBasicsForm).
+const DEFAULT_AGE_GROUP: Record<SportId, string> = {
+  afl: "U10",
+  netball: "go",
+  rugby_league: "U10",
+};
 
 export async function makeTeam(
   admin: SupabaseClient,
   opts: MakeTeamOpts
 ): Promise<{ id: string; name: string; ageGroup: string }> {
-  const ageGroup = opts.ageGroup ?? "U10";
+  // The database has no sport or age group defaults (migration 0063),
+  // so every team says both, and the age group must be its sport's: a
+  // netball "U10" team would quietly run on another age group's rules.
+  const sport = opts.sport ?? "afl";
+  const ageGroup = opts.ageGroup ?? DEFAULT_AGE_GROUP[sport];
+  const cfg = getSportConfig(sport);
+  if (![...cfg.ageGroups, ...(cfg.legacyAgeGroups ?? [])].some((a) => a.id === ageGroup)) {
+    throw new Error(`makeTeam: "${ageGroup}" isn't a ${sport} age group`);
+  }
   const name = opts.name ?? `Test Team ${Math.random().toString(36).slice(2, 7)}`;
 
   // Two-step insert/select — the `handle_new_team` trigger relies on
@@ -32,8 +50,8 @@ export async function makeTeam(
   const { error: insertError } = await admin.from("teams").insert({
     name,
     age_group: ageGroup,
+    sport,
     created_by: opts.ownerId,
-    ...(opts.sport ? { sport: opts.sport } : {}),
   });
   if (insertError) throw new Error(`makeTeam insert: ${insertError.message}`);
 
@@ -114,7 +132,6 @@ export async function makePlayers(
 export interface MakeGameOpts {
   teamId: string;
   ownerId: string;
-  ageGroup?: AgeGroup;
   opponent?: string;
   scheduledAt?: string;
   roundNumber?: number;
@@ -123,11 +140,16 @@ export interface MakeGameOpts {
 export async function makeGame(
   admin: SupabaseClient,
   opts: MakeGameOpts
-): Promise<{ id: string; on_field_size: number; share_token: string }> {
-  const ageGroup = opts.ageGroup ?? "U10";
-  // AFL sizes even for netball / league teams: those specs pass an
-  // AFL id here and patch on_field_size themselves.
-  const cfg = getAgeGroupConfig("afl", ageGroup);
+): Promise<{ id: string; on_field_size: number; sub_interval_seconds: number; share_token: string }> {
+  // Sized from the team's own sport + age group, as createGame does
+  // (the database has no on-field or interval defaults, migration
+  // 0063). A spec that wants another size patches the game.
+  const { data: team, error: teamError } = await admin
+    .from("teams")
+    .select("sport, age_group")
+    .eq("id", opts.teamId)
+    .single();
+  if (teamError || !team) throw new Error(`makeGame team: ${teamError?.message}`);
   const { data, error } = await admin
     .from("games")
     .insert({
@@ -135,15 +157,16 @@ export async function makeGame(
       opponent: opts.opponent ?? "Test Opponent",
       scheduled_at: opts.scheduledAt ?? new Date(Date.now() + 86400_000).toISOString(),
       round_number: opts.roundNumber ?? 1,
-      on_field_size: cfg.defaultOnFieldSize,
+      ...newGameDefaults(team.sport as string, team.age_group as string),
       created_by: opts.ownerId,
     })
-    .select("id, on_field_size, share_token")
+    .select("id, on_field_size, sub_interval_seconds, share_token")
     .single();
   if (error || !data) throw new Error(`makeGame: ${error?.message}`);
   return {
     id: data.id as string,
     on_field_size: data.on_field_size as number,
+    sub_interval_seconds: data.sub_interval_seconds as number,
     share_token: data.share_token as string,
   };
 }

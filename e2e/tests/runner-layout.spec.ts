@@ -20,7 +20,7 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
     const onField = sport === "afl" ? 12 : sport === "netball" ? 7 : 11;
     const team = await makeTeam(admin, { ownerId, ageGroup: age, sport, name: `Runner fit ${sport} ${Date.now() % 100000}` });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: onField + 2, ageGroup: "U10" });
-    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
     await admin.from("games").update({ on_field_size: onField, status: "in_progress" }).eq("id", game.id);
     const ids = players.map((p) => p.id);
     const lineup =

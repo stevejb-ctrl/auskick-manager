@@ -23,7 +23,7 @@ test("AFL: an undone goal leaves the scorer card", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U12", name: `Scorers AFL ${Date.now() % 100000}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 3, ageGroup: "U12" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U12" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const at = (s: number) => new Date(Date.now() - 600_000 + s * 1000).toISOString();
   const { error } = await admin.from("game_events").insert([
     { type: "quarter_start", player_id: null, metadata: { quarter: 1 }, created_at: at(1) },
@@ -47,7 +47,7 @@ test("league: tries and kicks make the scorer card, a missed kick doesn't", asyn
   const { admin, ownerId } = await owner();
   const team = await makeTeam(admin, { ownerId, ageGroup: "U11", sport: "rugby_league", name: `Scorers RL ${Date.now() % 100000}` });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 3, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const at = (s: number) => new Date(Date.now() - 600_000 + s * 1000).toISOString();
   const { error } = await admin.from("game_events").insert([
     { type: "quarter_start", player_id: null, metadata: { quarter: 1, sport: "rugby_league" }, created_at: at(1) },

@@ -34,7 +34,7 @@ for (const sport of ["afl", "rugby_league"] as const) {
       name: `Runner sub ${sport} ${Date.now() % 100000}`,
     });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
     const { error } = await admin.from("games").update({ sub_interval_seconds: 420 }).eq("id", game.id);
     if (error) throw new Error(error.message);
     await admin.from("game_availability").insert(

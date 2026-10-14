@@ -64,7 +64,7 @@ async function setupNetballGame(opts: { trackScoring: boolean }) {
     count: 9,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   return { team, players, game, ownerId, admin };
 }
 

@@ -90,7 +90,6 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   // makeGame uses AFL's AGE_GROUPS (defaultOnFieldSize=12 for U10).
   // Override to RL's 11 so the lineup we seed matches the legal

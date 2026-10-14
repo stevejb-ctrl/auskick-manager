@@ -243,7 +243,7 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
   const ownerId = await getOwnerId();
   const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -273,7 +273,7 @@ test("league pre-kickoff: Game plan's first half is the lineup, and Use this pla
   const ownerId = await getOwnerId();
   const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 11, ageGroup: "U9" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U9" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -318,7 +318,6 @@ test("Netball game-detail: the shared planner is driven by the netball projectio
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
     opponent: "Comets",
   });
 
@@ -365,7 +364,6 @@ test("Rugby league game-detail: the shared planner is driven by the RL projectio
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U9",
     opponent: "Sharks",
   });
 
@@ -390,7 +388,7 @@ test("set positions: Game plan names each kid's position, on screen and in the c
   const ownerId = await getOwnerId();
   const team = await makeTeam(admin, { ownerId, ageGroup: "U13" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U13", opponent: "Eagles" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Eagles" });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
   const ruck = players[3];
   const fullForward = players[0];

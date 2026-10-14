@@ -44,7 +44,7 @@ test("rugby league: a player lent before kickoff can be recalled during the game
     count: 12,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // Lent before kickoff → NOT in the lineup.
   const lent = players[players.length - 1];

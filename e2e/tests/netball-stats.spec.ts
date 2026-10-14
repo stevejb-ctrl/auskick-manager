@@ -71,7 +71,6 @@ async function seedFinalisedNetballGame(opts: { trackScoring: boolean }) {
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // Build a 7-position netball lineup; bench the remaining players.

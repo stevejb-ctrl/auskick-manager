@@ -755,7 +755,7 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -816,7 +816,7 @@ test("league named positions: a home position shows on the tile", async ({ page 
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -858,7 +858,7 @@ test("a season keep-on role shows on the lineup in every sport", async ({ page }
   for (const s of sports) {
     const team = await makeTeam(admin, { ownerId, ageGroup: s.teamAge, sport: s.sport });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: s.count, ageGroup: s.playerAge });
-    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: s.playerAge });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
     if (s.sport === "rugby_league") await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
     await admin.from("game_availability").insert(
       players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -973,7 +973,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   // Netball, set positions: long-press a bench chip, give them a home bib.
   const nbTeam = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
   const nbPlayers = await makePlayers(admin, { teamId: nbTeam.id, ownerId, count: 9, ageGroup: "U10" });
-  const nbGame = await makeGame(admin, { teamId: nbTeam.id, ownerId, ageGroup: "U10" });
+  const nbGame = await makeGame(admin, { teamId: nbTeam.id, ownerId });
   await admin.from("game_availability").insert(
     nbPlayers.map((p) => ({ game_id: nbGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -1000,7 +1000,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   // League: the long-press menu gains "Player role".
   const lgTeam = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const lgPlayers = await makePlayers(admin, { teamId: lgTeam.id, ownerId, count: 13, ageGroup: "U10" });
-  const lgGame = await makeGame(admin, { teamId: lgTeam.id, ownerId, ageGroup: "U10" });
+  const lgGame = await makeGame(admin, { teamId: lgTeam.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", lgGame.id);
   await admin.from("game_availability").insert(
     lgPlayers.map((p) => ({ game_id: lgGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -1036,7 +1036,7 @@ test("league named positions: lineups record positions, and stats count time by 
   await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: hooker.id, position_key: "hk", kind: "home" });
 
   // A finished game whose lineup recorded positions.
-  const past = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const past = await makeGame(admin, { teamId: team.id, ownerId });
   const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const lineup = {
     forwards: ids.slice(0, 3),
@@ -1072,7 +1072,7 @@ test("league named positions: lineups record positions, and stats count time by 
     .toEqual([["pr2", 20 * 60_000]]);
 
   // Kickoff records a position for every kid on the field.
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   // Eleven here, so everyone (the hooker too) starts on the field.
   await admin.from("game_availability").insert(
@@ -1111,7 +1111,7 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   });
   // This morning's game: everyone had a turn in attack (GS / GA) except
   // the last kid, who played C, GK and WD (centre and defence thirds).
-  const morning = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const morning = await makeGame(admin, { teamId: team.id, ownerId });
   const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
   const lineupWith = (order: string[]) => ({ positions: Object.fromEntries(keys.map((k, i) => [k, [order[i]]])), bench: [] });
   const kid = ids[6];
@@ -1135,7 +1135,7 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   await admin.from("games").update({ status: "completed" }).eq("id", morning.id);
 
   // The next game: the suggested lineup puts the kid in the attack third.
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );

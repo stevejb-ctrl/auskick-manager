@@ -38,7 +38,7 @@ test("netball game-detail scorers card uses 'Goal shooters / Who put it in', omi
     count: 9,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // Seed scoring events directly: 3 goals for players[0] (GS), 1
   // goal for players[1] (GA). The netball replay credits `goal`

@@ -83,7 +83,6 @@ async function seedFinalisedNetballGame(opts: { trackScoring: boolean }) {
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   const positions: Record<string, string[]> = Object.fromEntries(

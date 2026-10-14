@@ -43,7 +43,7 @@ async function seedLeagueGame(age: "U10" | "U13" = "U10") {
     count: size + 2,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: size }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({

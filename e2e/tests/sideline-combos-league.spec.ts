@@ -30,7 +30,7 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
     name: `RL-SIDELINE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   // No rotation prompt mid-half (it would cover the field).
   const { error: sizeErr } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900 }).eq("id", game.id);
   if (sizeErr) throw new Error(sizeErr.message);
@@ -147,7 +147,7 @@ test("rugby league: a 12-a-side field draws all twelve kids", async ({ page }) =
     name: `RL-12-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 12, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -185,7 +185,7 @@ test("rugby league: a bench kid selected and then lent doesn't swap on with the 
     name: `RL-STALE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -239,7 +239,7 @@ test("rugby league: the kickoff picker offers only kids on the field who can pla
     name: `RL-KICKOFF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -286,7 +286,7 @@ test("rugby league: when the First Receiver is hurt and replaced, the prompt is 
     name: `RL-VEST-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -353,7 +353,7 @@ test("rugby league: after a lend, tapping the empty spot brings a bench kid on t
     name: `RL-FILL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -417,7 +417,7 @@ async function seedFirstReceiverGame(page: import("@playwright/test").Page) {
     name: `RL-VEST-LATER-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);
@@ -507,7 +507,7 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
     name: `RL-VEST-BREAK-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin.from("games").update({ on_field_size: 11, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
   if (error) throw new Error(error.message);
   const ids = players.map((p) => p.id);

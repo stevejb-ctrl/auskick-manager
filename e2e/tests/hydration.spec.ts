@@ -66,7 +66,7 @@ test("league: the live game hydrates cleanly on a slow phone", async ({ page }) 
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U9" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U9" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
   await admin.from("games").update({ on_field_size: 8, status: "in_progress" }).eq("id", game.id);
   const startedAt = new Date(Date.now() - 60_000).toISOString();

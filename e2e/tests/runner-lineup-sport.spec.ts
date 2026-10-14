@@ -34,7 +34,7 @@ for (const sport of ["rugby_league", "netball"] as const) {
       name: `Runner lineup ${sport} ${Date.now() % 100000}`,
     });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
     await admin.from("game_availability").insert(
       players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
     );

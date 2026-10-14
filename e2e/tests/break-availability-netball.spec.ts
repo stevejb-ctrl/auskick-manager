@@ -106,7 +106,6 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   const arrival = players[9]; // off-court, NOT available pre-game
@@ -308,7 +307,7 @@ test("netball: lending at the break takes the kid off court, and a kid brought b
     .update({ track_scoring: false, quarter_length_seconds: teamQS })
     .eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" })),
   );
@@ -426,7 +425,7 @@ test("netball: a kid selected and then lent at the break doesn't swap on with th
     .update({ track_scoring: false, quarter_length_seconds: teamQS })
     .eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" })),
   );

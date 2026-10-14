@@ -171,7 +171,6 @@ test("netball: a player marked unavailable pre-game is dropped from the kickoff 
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   const X = players[0]; // seated at GS in the draft
@@ -241,7 +240,6 @@ test("rugby league: a player marked unavailable pre-game is dropped from the kic
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   // makeGame uses AFL's defaultOnFieldSize (12 for U10); RL is 11.
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);

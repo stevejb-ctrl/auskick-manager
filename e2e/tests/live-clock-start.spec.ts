@@ -434,7 +434,7 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
   const team = await makeTeam(admin, { ownerId, ageGroup: "U16" });
   // 15 players is the factory's ceiling.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U16" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,

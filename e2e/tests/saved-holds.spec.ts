@@ -95,7 +95,7 @@ test("netball: Keep in GS is saved and shows on another phone", async ({ page })
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
   const lineup = {
     positions: Object.fromEntries(keys.map((k, i) => [k, [players[i].id]])),
