@@ -60,7 +60,7 @@ export function TrackZoneTimeToggle({
           Track forward and back time
         </p>
         <p className="mt-0.5 text-xs text-ink-mute">
-          Adds an AFL-style stacked bar to every player tile showing the share
+          Adds a stacked bar to every player tile showing the share
           of game time spent in{" "}
           <strong className="text-ink">forwards</strong>,{" "}
           <strong className="text-ink">centre</strong> (time wearing the FR or

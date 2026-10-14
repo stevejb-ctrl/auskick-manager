@@ -494,5 +494,6 @@ export const rugbyLeagueSport: SportConfig = {
   periodLabelPlural: "quarters",
   fairnessModel: "unbroken-period",
   jerseyNumbers: true,
+  teamSong: false,
   validateLineup: validateRugbyLeagueLineup,
 };

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 // Default warm-up phrase set — drawn from how kids actually warm up
-// before a junior AFL match. Friendly, in-domain, slightly winking.
+// before a junior game. Friendly, in-domain, slightly winking, and
+// true of every sport (no marks or footies: netball and league load
+// here too).
 // The trailing ellipsis on each phrase reinforces "this is in
 // progress" without needing a spinner annotation.
 //
@@ -15,13 +17,13 @@ import { useEffect, useState } from "react";
 // update the Swift array; regenerate the iOS build via
 // `npx cap sync ios`.
 const DEFAULT_PHRASES = [
-  "Lacing the boots…",
+  "Lacing up…",
   "Star jumps…",
   "Stretching the hammies…",
-  "Practising marks…",
+  "Passing drills…",
   "Spreading the cones…",
   "High knees…",
-  "Pumping up the footy…",
+  "Pumping up the ball…",
   "Limbering up…",
   "Coach's pre-game chat…",
   "Tossing the coin…",

@@ -103,9 +103,9 @@ export function ResetGameDialog({
         happened in this game.
       </p>
       <ul className="mt-2 list-disc pl-5 text-xs text-ink-dim">
-        <li>All quarters, swaps, goals, and behinds will be wiped.</li>
+        <li>The clock, every swap and every score will be wiped.</li>
         <li>The starting lineup will be cleared.</li>
-        <li>Player zone minutes from this game will no longer count.</li>
+        <li>Game time from this game will no longer count for the season.</li>
         <li>This can&apos;t be undone.</li>
       </ul>
 

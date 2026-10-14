@@ -465,5 +465,6 @@ export const netballSport: SportConfig = {
   periodLabelPlural: "quarters",
   fairnessModel: "position-count-per-game",
   jerseyNumbers: false,
+  teamSong: true,
   validateLineup: validateNetballLineup,
 };

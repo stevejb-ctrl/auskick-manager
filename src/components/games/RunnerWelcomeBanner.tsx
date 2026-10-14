@@ -18,9 +18,9 @@
 interface RunnerWelcomeBannerProps {
   /** Team name — surfaces "You're running scoring for {teamName} today." */
   teamName: string;
-  /** True when the team has track_scoring off — copy flips from
-   *  "tap goals" to "track substitutions" so the message matches
-   *  what the parent will actually be doing during the game. */
+  /** False when the team has track_scoring off — copy drops "scores"
+   *  so the message matches what the parent will actually be doing
+   *  during the game. ("Scores", not "goals": league scores tries.) */
   trackScoring: boolean;
 }
 
@@ -54,7 +54,7 @@ export function RunnerWelcomeBanner({
         <li>
           <span className="font-medium text-ink">
             {trackScoring
-              ? "Tap goals + substitutions"
+              ? "Tap scores + substitutions"
               : "Tap substitutions"}
           </span>{" "}
           as they happen. Everything saves automatically — you can

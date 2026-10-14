@@ -243,14 +243,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           isAdmin={isAdmin}
           sportId={sport}
         />
-        <TeamSongSettings
-          teamId={params.teamId}
-          currentSongUrl={team.song_url ?? null}
-          currentStartSeconds={team.song_start_seconds ?? 0}
-          currentDurationSeconds={team.song_duration_seconds ?? 15}
-          currentEnabled={team.song_enabled ?? true}
-          isAdmin={isAdmin}
-        />
+        {getSportConfig(sport).teamSong && (
+          <TeamSongSettings
+            teamId={params.teamId}
+            currentSongUrl={team.song_url ?? null}
+            currentStartSeconds={team.song_start_seconds ?? 0}
+            currentDurationSeconds={team.song_duration_seconds ?? 15}
+            currentEnabled={team.song_enabled ?? true}
+            isAdmin={isAdmin}
+          />
+        )}
       </SettingsSection>
 
       <SettingsSection title="Danger zone" tone="danger">

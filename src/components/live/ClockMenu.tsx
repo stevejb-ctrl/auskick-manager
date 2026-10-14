@@ -32,7 +32,7 @@ export function ClockMenu({
       ? {
           id: "pause",
           label: "Pause clock",
-          description: "For a stoppage — injuries, a long ball-up.",
+          description: "For a stoppage, like an injury.",
           onSelect: onPause,
         }
       : { id: "resume", label: "Resume clock", onSelect: onResume },

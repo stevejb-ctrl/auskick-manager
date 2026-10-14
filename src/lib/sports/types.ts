@@ -211,6 +211,11 @@ export interface SportConfig {
    * and live surface reads this — none decides for itself.
    */
   jerseyNumbers: boolean;
+  /**
+   * The live screen plays the team song when the team scores (AFL and
+   * netball goals). League's doesn't, so its settings don't offer one.
+   */
+  teamSong: boolean;
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /**
