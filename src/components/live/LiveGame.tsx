@@ -1250,7 +1250,7 @@ export function LiveGame({
   // count (quarterMs/(N+1)), but that IGNORED the configured interval and
   // produced surprising values (U15 4-min setting → 5-min cadence). The
   // configured interval is the single source of truth again; the
-  // subs_per_quarter column is left unused.
+  // subs_per_quarter column was dropped (migration 0065).
   const subIntervalMs = subIntervalSeconds * 1000;
   // Divide sub interval by multiplier so subs fire at the right virtual-game cadence.
   const effectiveSubIntervalMs = subIntervalMs / clockMultiplier;

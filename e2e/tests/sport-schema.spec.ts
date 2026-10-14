@@ -4,10 +4,11 @@
 //   0062 sport_lines         positions and prefs sit on their sport's lines
 //   0063 no AFL defaults     a team or game says its sport and size
 //   0064 vest_strategy       vests are a league rule
+//   0065 subs_per_quarter    gone
 // The live-game specs cover the other side of 0061: every event the
 // three live screens write still lands.
 //
-// Covers: supabase/migrations/0061-0064, e2e/fixtures/factories.ts
+// Covers: supabase/migrations/0061-0065, e2e/fixtures/factories.ts
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -195,4 +196,10 @@ test("0064: a league team's vests start on Auto-fair and keep the coach's pick",
   await expect(vests.getByRole("radio", { name: "Auto-fair" })).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
   await vests.getByRole("radio", { name: "Fixed order" }).click();
   await expect.poll(row).toEqual({ vest_strategy: "fixed-order" });
+});
+
+test("0065: games no longer carry subs_per_quarter", async () => {
+  const admin = createAdminClient();
+  const { error } = await admin.from("games").select("id, subs_per_quarter").limit(1);
+  expect(error?.message).toMatch(/subs_per_quarter does not exist/);
 });
