@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { ParsedPlayer } from "@/lib/squadPaste";
 import type { ActionResult, Sport } from "@/lib/types";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -40,7 +41,10 @@ async function squadCapFor(
     .eq("id", teamId)
     .single();
   const row = team as { sport?: Sport | null; age_group?: string | null } | null;
-  return getAgeGroupConfig(teamSport(row?.sport), row?.age_group).maxSquadSize;
+  const sport = row ? teamSport(row.sport) : await teamSportById(teamId);
+  // No such team: no room in its squad.
+  if (!sport) return 0;
+  return getAgeGroupConfig(sport, row?.age_group).maxSquadSize;
 }
 
 /**

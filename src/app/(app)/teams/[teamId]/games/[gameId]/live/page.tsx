@@ -33,6 +33,7 @@ import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -191,7 +192,7 @@ export default async function LivePage({ params }: LivePageProps) {
   if (!game) notFound();
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
-  const sport: Sport = teamSport(teamRow?.sport);
+  const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   // track_scoring is sport-agnostic — both AFL and netball flows
   // honour it. Hoisted ABOVE the netball branch (was nested inside
   // the AFL branch) so plan 04-04's NetballLiveGame can consume it.

@@ -9,6 +9,7 @@ import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
 import { getSportConfig, teamSport } from "@/lib/sports";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 interface AvailabilityPageProps {
   params: { teamId: string; gameId: string };
@@ -80,7 +81,7 @@ export default async function AvailabilityPage({
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
   const canMarkAvailability = !!role;
-  const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
+  const sport: Sport = team ? teamSport((team as { sport?: Sport }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
 
   return (
     <div className="space-y-6 pb-32">

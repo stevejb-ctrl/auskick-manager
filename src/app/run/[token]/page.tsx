@@ -66,6 +66,8 @@ export default async function RunPage({ params }: RunPageProps) {
     .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
     .eq("id", g.team_id)
     .single();
+  // Read with the service client: no row means no such team.
+  if (!teamRow) notFound();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   // Netball-only: opt-in mid-quarter subs. Default false (the rule

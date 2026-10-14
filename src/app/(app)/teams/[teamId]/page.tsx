@@ -16,6 +16,8 @@ import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { teamSport } from "@/lib/sports";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -95,7 +97,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .eq("team_id", params.teamId),
   ]);
 
-  const sport = teamSport(teamRow?.sport);
+  const sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,

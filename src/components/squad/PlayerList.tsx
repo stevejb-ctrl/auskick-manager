@@ -7,6 +7,8 @@ import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow, SFCard } from "@/components/sf";
 import { loadSquadRoles } from "@/lib/playbook/load";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface PlayerListProps {
   teamId: string;
@@ -32,7 +34,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   // Resolve age-group config against the team's sport so netball teams
   // pick up NetSetGO max-squad limits (16) instead of falling through
   // to AFL U10's defaults.
-  const sport = teamSport((team as { sport?: string | null } | null)?.sport);
+  const sport = team ? teamSport((team as { sport?: string | null }).sport) : ((await teamSportById(teamId)) ?? notFound());
   const ageGroupCfg = getAgeGroupConfig(
     sport,
     (team as { age_group?: string | null } | null)?.age_group ?? null,
