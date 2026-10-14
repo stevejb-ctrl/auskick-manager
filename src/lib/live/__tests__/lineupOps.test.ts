@@ -8,6 +8,7 @@ import {
   benchPlayerInPositionLineup,
   benchSidelinedInLeagueLineup,
   benchSidelinedInLineup,
+  plannedLeagueLineup,
   replaceInLineup,
 } from "@/lib/live/lineupOps";
 import type { Lineup } from "@/lib/types";
@@ -125,5 +126,72 @@ describe("replaceInLineup (AFL)", () => {
     const field = (["back", "hback", "mid", "hfwd", "fwd"] as const).flatMap((z) => next[z]);
     expect(field).not.toContain("P5");
     expect(field.filter((p) => p === "P9")).toHaveLength(1);
+  });
+});
+
+// League's break shows the coach's plan for the coming period, and
+// Start commits the same lineup.
+describe("plannedLeagueLineup (rugby league)", () => {
+  const lineup = { forwards: ["F1", "F2"], backs: ["B1", "B2"], bench: ["X1", "X2"] };
+  const squad = ["F1", "F2", "B1", "B2", "X1", "X2", "ABSENT"].map((id) => ({ id }));
+  const pin = {
+    gameId: "g1",
+    laterPeriods: { 1: { groups: { forwards: ["X1", "F2"], backs: ["B1", "B2"] }, bench: ["F1", "X2"] } },
+  };
+  const none = new Set<string>();
+
+  it("is the plan for the coming period", () => {
+    expect(plannedLeagueLineup({ pin, periodIndex: 1, lineup, squad, injured: none, loaned: none })).toEqual({
+      forwards: ["X1", "F2"],
+      backs: ["B1", "B2"],
+      bench: ["F1", "X2"],
+    });
+  });
+
+  it("is null when the period has no plan", () => {
+    expect(plannedLeagueLineup({ pin, periodIndex: 2, lineup, squad, injured: none, loaned: none })).toBeNull();
+    expect(plannedLeagueLineup({ pin: null, periodIndex: 1, lineup, squad, injured: none, loaned: none })).toBeNull();
+  });
+
+  it("a mid-game pin of the period wins over the plan made before kickoff", () => {
+    const edited = {
+      ...pin,
+      nextPeriodIndex: 1,
+      nextPeriodGroups: { forwards: ["X1", "F2"], backs: ["X2", "B2"] },
+      nextPeriodBench: ["F1", "B1"],
+    };
+    expect(plannedLeagueLineup({ pin: edited, periodIndex: 1, lineup, squad, injured: none, loaned: none })).toEqual({
+      forwards: ["X1", "F2"],
+      backs: ["X2", "B2"],
+      bench: ["F1", "B1"],
+    });
+  });
+
+  it("never fields a hurt or lent kid, and parks them on the bench", () => {
+    const next = plannedLeagueLineup({
+      pin,
+      periodIndex: 1,
+      lineup,
+      squad,
+      injured: new Set(["X1"]),
+      loaned: new Set(["B2"]),
+    })!;
+    expect(next.forwards).toEqual(["F2"]);
+    expect(next.backs).toEqual(["B1"]);
+    // In the order the last period ended on: B2 was on the field, X1 on the bench.
+    expect(next.bench).toEqual(["F1", "X2", "B2", "X1"]);
+  });
+
+  it("benches a kid in the game the plan never placed, and leaves out a kid who never came", () => {
+    const next = plannedLeagueLineup({
+      pin,
+      periodIndex: 1,
+      lineup: { ...lineup, bench: [...lineup.bench, "LATE"] },
+      squad: [...squad, { id: "LATE" }],
+      injured: none,
+      loaned: none,
+    })!;
+    expect(next.bench).toEqual(["F1", "X2", "LATE"]);
+    expect([...next.forwards, ...next.backs, ...next.bench]).not.toContain("ABSENT");
   });
 });
