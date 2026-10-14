@@ -35,11 +35,12 @@ export default async function LineupPage({ params }: LineupPageProps) {
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
 
-  // Netball runner-token flow doesn't use this separate /lineup step —
-  // NetballLiveGame has a built-in pre-kickoff lineup picker that
-  // shows on /run/[token] when no lineup_set has been recorded yet.
-  // Bounce there so the netball flow stays single-page.
-  if (sport === "netball") {
+  // This page is AFL's lineup picker. Netball and league pick their
+  // lineup on /run/[token] itself (their live screens have a built-in
+  // pre-kickoff picker), so every other sport goes back there. Only
+  // sending netball back gave a league runner AFL's picker, AFL U10's
+  // settings, and an AFL-shaped lineup at kickoff.
+  if (sport !== "afl") {
     redirect(`/run/${params.token}`);
   }
 
