@@ -82,8 +82,17 @@ Done when every league unit and e2e test passes unchanged and
 - **Migration:** widen `teams_sport_check`. Also decide what the 0043
   `seed_rugby_league_position_chips` trigger should do for union (extend
   it, or leave chips to How we play, which replaced them).
-- `brands/union.json`, plus union copy in `brand-copy.ts`,
-  `marketing-copy.ts` and `manifest.ts`.
+- **Brand:** union lives under the main Siren brand, with no domain or
+  brand file of its own.
+  - Every `SportConfig` carries a `brand`, so union's points at the
+    main brand rather than reserving a host like league's
+    `sirenleague.com.au`.
+  - `getBrandForHost` never resolves to union.
+  - Union is a sport you pick on the main site and in the setup wizard.
+  - Union still needs entries in the typed per-sport maps
+    (`brand-copy.ts`, `manifest.ts`), but they reuse the main brand's
+    copy and palette. `marketing-copy.ts` gets a union section for the
+    sport page.
 
 **Age table: the national pathway by default, the team can override.**
 Each age defaults to Rugby Australia's Kids Pathway (NSW and WA play it
@@ -160,9 +169,11 @@ Mostly configuration once phase 1 is in:
 - **Score bug:** +T / +C / +PG / +DG. Show PG and DG only where union
   kicks for goal, via the `goalsFromPlay` knob.
 - **No vest card, prompt or badge** (already gated).
-- **Kickoffs and conversions:** league's junior kickoff (§16) and
-  conversion (§15) rotations are league laws. Off for union unless the
-  state's junior laws have an equivalent (open question).
+- **No kick rotations.** League's junior kickoff (§16) and conversion
+  (§15) cycles are league laws; union has neither. Union age groups set
+  the phase-1 `kickRotations` knob off, so there's no kickoff picker
+  and no "whose turn to convert". A conversion or goal still records
+  who kicked it, as a scorer.
 - **No unbroken-period rule** unless union has one; the How we play
   game-time floor still applies.
 - Walkthrough copy and the full-time review read the sport's words and
@@ -209,16 +220,15 @@ Mostly configuration once phase 1 is in:
   to U12. The team's Track scoring switch turns them on.
 - **Interchange:** unlimited rolling subs at every junior age (Hunter
   2025, WA 2023): Siren's rolling-sub model as is.
+- **Brand:** under the main Siren brand, no domain of its own
+  (14 Oct 2026).
+- **Kicking:** no kick rotations; kickers are recorded only as scorers.
 
 ## Still open
 
-1. **Brand:** its own domain like `sirenleague.com.au`, or under the
-   main Siren brand?
-2. **Kicking fairness:** do junior union laws rotate kick-offs or
-   conversion kickers? If not, union has no kick cycles.
-3. **Game-time rules:** does the union have a minimum-game-time policy
+1. **Game-time rules:** does the union have a minimum-game-time policy
    (league's is the unbroken-period rule)? Siren's default 50 % floor
-   would apply otherwise.
+   applies otherwise.
 
 ## Size and order
 
