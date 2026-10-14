@@ -91,6 +91,31 @@ describe("each sport owns its rules", () => {
     expect(kept.map((r) => r.kind)).toEqual(["subs-at-breaks"]);
   });
 
+  // What the Add-a-rule list offers depends on the strategy; what a team
+  // keeps depends only on what its sport's engine acts on. AFL's engine
+  // keeps a stays-home Must under Free rotation too, and switching
+  // strategy and back mustn't delete a coach's rules.
+  it("keeps every saved rule the sport's engine acts on, whatever the strategy", () => {
+    const free = resolve("afl", "U12", "free");
+    expect(ruleCatalogue(free).map((d) => d.kind)).not.toContain("stays-home");
+    const kept = rulesForSport([newRule("stays-home"), newRule("like-for-like"), newRule("every-line-per-day")], free);
+    expect(kept.map((r) => r.kind)).toEqual(["stays-home", "like-for-like"]);
+    const netball = resolve("netball", "11u", "position-by-position");
+    expect(rulesForSport([newRule("stays-home"), newRule("subs-at-breaks")], netball).map((r) => r.kind)).toEqual(["stays-home"]);
+  });
+
+  it("never offers a rule the engine ignores", () => {
+    const ages = { afl: ["U9", "U12", "U15"], netball: ["set", "11u", "13u"], rugby_league: ["U8", "U11", "U14"] } as const;
+    for (const [sport, list] of Object.entries(ages) as [keyof typeof ages, readonly string[]][]) {
+      const engine = getSportPlaybook(sport).engineRuleKinds;
+      for (const age of list) {
+        for (const s of resolve(sport, age, null).strategies) {
+          for (const d of ruleCatalogue(resolve(sport, age, s.id))) expect(engine, `${sport} ${age} ${s.id}`).toContain(d.kind);
+        }
+      }
+    }
+  });
+
   it("takes each locked rule's source from the sport, not from a name check", () => {
     const floor = (sport: "afl" | "netball" | "rugby_league", age: string) =>
       lockedRules(resolve(sport, age, null)).find((r) => r.id === "min-game-time")!.source;

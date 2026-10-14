@@ -111,6 +111,8 @@ export const leaguePlaybook: SportPlaybook = {
   // The league engine acts on no catalogue rule except subs at the
   // breaks (suggestLeagueSubs). Every-line, apart/together, stays-home
   // and bench rules aren't offered until it does: they'd do nothing.
+  engineRuleKinds: ["subs-at-breaks"],
+
   ruleKinds(): RuleKind[] {
     return ["subs-at-breaks"];
   },

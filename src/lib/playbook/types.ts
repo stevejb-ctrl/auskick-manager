@@ -139,7 +139,13 @@ export interface SportPlaybook {
    * run count stints; netball sits kids out for whole periods.
    */
   benchPeriodWord(periodWord: string): string;
-  /** The catalogue rules this sport's engine acts on, for the team's strategy and policy. */
+  /**
+   * Every catalogue rule this sport's engine acts on. A team keeps the
+   * saved rules in this list, whatever its strategy (a coach who switches
+   * strategy and back keeps their rules); anything else is dropped.
+   */
+  engineRuleKinds: readonly import("@/lib/playbook/rules").RuleKind[];
+  /** The rules the Add-a-rule list offers, for the team's strategy and policy. */
   ruleKinds(strategy: StrategyDef, policy: EffectivePolicy): import("@/lib/playbook/rules").RuleKind[];
   /** This sport's own laws shown as locked rules (zones, unbroken periods, vests). */
   lawRules(policy: EffectivePolicy, agePolicy: AgePolicy): LockedRule[];

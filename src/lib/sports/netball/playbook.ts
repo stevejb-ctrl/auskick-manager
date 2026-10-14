@@ -109,6 +109,16 @@ export const netballPlaybook: SportPlaybook = {
   // max-bench-in-row and Carnival day). No like-for-like or
   // subs-at-breaks: the positions fix the first, and netball subs at the
   // breaks already.
+  engineRuleKinds: [
+    "every-line-per-game",
+    "every-line-per-day",
+    "distinct-lines",
+    "keep-apart",
+    "keep-together",
+    "max-bench-in-row",
+    "stays-home",
+  ],
+
   ruleKinds(strategy) {
     const kinds: RuleKind[] = [
       "every-line-per-game",
