@@ -8,6 +8,7 @@ import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { loadSquadRoles } from "@/lib/playbook/load";
 import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { Player, Sport } from "@/lib/types";
@@ -208,6 +209,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         existingExternalIds={existingExternalIds}
         playhqUrl={(team.playhq_url as string | null) ?? ""}
+        playhqTenant={PLAYHQ_TENANT[sport]}
         games={gamesRaw ?? []}
       />
     );

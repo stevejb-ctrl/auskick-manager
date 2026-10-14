@@ -10,6 +10,7 @@ import {
 } from "@/lib/playhq";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults } from "@/lib/games/newGameDefaults";
+import { teamSport } from "@/lib/sports";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -30,6 +31,13 @@ async function getAuthedAdmin(teamId: string) {
   return { supabase, user, error: null };
 }
 
+/** The team's sport and age group: PlayHQ links are checked against the sport. */
+async function teamSportRow(supabase: ReturnType<typeof createClient>, teamId: string) {
+  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  if (!team) return null;
+  return { sport: teamSport(team.sport), ageGroup: team.age_group as string | null };
+}
+
 function futureFixtures(fixtures: PlayHQFixture[]): PlayHQFixture[] {
   const now = Date.now();
   return fixtures.filter((f) => {
@@ -46,13 +54,15 @@ export async function previewPlayhqFixtures(
 > {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
+  const team = await teamSportRow(supabase, teamId);
+  if (!team) return { success: false, error: "Team not found." };
 
-  const parsed = parsePlayhqUrl(playhqUrl);
+  const parsed = parsePlayhqUrl(playhqUrl, team.sport);
   if (!parsed.ok) return { success: false, error: parsed.reason };
 
   let result: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
   try {
-    result = await fetchPlayhqTeamPage(parsed.teamId);
+    result = await fetchPlayhqTeamPage(parsed.teamId, parsed.tenant);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
     return { success: false, error: msg };
@@ -85,7 +95,9 @@ export async function importPlayhqFixtures(
     };
   }
 
-  const parsed = parsePlayhqUrl(playhqUrl);
+  const team = await teamSportRow(supabase, teamId);
+  if (!team) return { success: false, error: "Team not found.", imported: 0, updated: 0, skipped: 0 };
+  const parsed = parsePlayhqUrl(playhqUrl, team.sport);
   if (!parsed.ok) {
     return {
       success: false,
@@ -98,7 +110,7 @@ export async function importPlayhqFixtures(
 
   let page: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
   try {
-    page = await fetchPlayhqTeamPage(parsed.teamId);
+    page = await fetchPlayhqTeamPage(parsed.teamId, parsed.tenant);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to reach PlayHQ.";
     return { success: false, error: msg, imported: 0, updated: 0, skipped: 0 };
@@ -127,12 +139,7 @@ export async function importPlayhqFixtures(
   let updated = 0;
   let skipped = 0;
 
-  const { data: team } = await supabase
-    .from("teams")
-    .select("sport, age_group")
-    .eq("id", teamId)
-    .single();
-  const defaults = newGameDefaults(team?.sport, team?.age_group);
+  const defaults = newGameDefaults(team.sport, team.ageGroup);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the

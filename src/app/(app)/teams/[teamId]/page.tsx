@@ -15,6 +15,7 @@ import { getSeasonEvents } from "@/lib/season";
 import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { teamSport } from "@/lib/sports";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -148,7 +149,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     todos.push({
       id: "add-game",
       label: "Add your next game",
-      detail: "Import the fixture from PlayHQ or add one by hand.",
+      detail: PLAYHQ_TENANT[sport] ? "Import the fixture from PlayHQ or add one by hand." : "Add it from your fixture.",
       href: `/teams/${params.teamId}/games`,
     });
   }

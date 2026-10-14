@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AddGameSection } from "@/components/games/AddGameSection";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { GameList } from "@/components/games/GameList";
 import { GamesFilter, type GamesFilterValue } from "@/components/games/GamesFilter";
 import { Spinner } from "@/components/ui/Spinner";
@@ -82,6 +83,7 @@ export default async function GamesPage({
           initialUrl={
             (team as { playhq_url?: string | null } | null)?.playhq_url ?? ""
           }
+          playhqTenant={PLAYHQ_TENANT[sport]}
         />
       )}
 

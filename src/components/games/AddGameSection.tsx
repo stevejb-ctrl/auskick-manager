@@ -12,6 +12,8 @@ interface Props {
   ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   initialUrl?: string;
+  /** The sport's PlayHQ tenant; null where the sport isn't on PlayHQ (league). */
+  playhqTenant: string | null;
   /** What the manual create form does afterwards (see createGame). */
   afterCreate?: "open-game" | "stay";
 }
@@ -21,6 +23,7 @@ export function AddGameSection({
   ageGroup,
   existingExternalIds,
   initialUrl = "",
+  playhqTenant,
   afterCreate = "open-game",
 }: Props) {
   const [showManual, setShowManual] = useState(false);
@@ -29,22 +32,26 @@ export function AddGameSection({
     <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card sm:p-5">
       <h2 className="text-base font-semibold text-ink">Add games</h2>
       <p className="mt-1 text-xs text-ink-mute">
-        Importing from PlayHQ keeps opponents, rounds and kickoff times in sync
-        with your league fixtures.
+        {playhqTenant
+          ? "Importing from PlayHQ keeps opponents, rounds and kickoff times in sync with your league fixtures."
+          : "Add each game from your fixture: opponent, round and kickoff time."}
       </p>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <ImportFixturesButton
-          teamId={teamId}
-          existingExternalIds={existingExternalIds}
-          initialUrl={initialUrl}
-          variant="primary"
-          size="md"
-          className="sm:flex-1"
-        />
+        {playhqTenant && (
+          <ImportFixturesButton
+            teamId={teamId}
+            existingExternalIds={existingExternalIds}
+            initialUrl={initialUrl}
+            tenant={playhqTenant}
+            variant="primary"
+            size="md"
+            className="sm:flex-1"
+          />
+        )}
         <Button
           type="button"
-          variant="secondary"
+          variant={playhqTenant ? "secondary" : "primary"}
           size="md"
           onClick={() => setShowManual(true)}
           className="sm:flex-1"
@@ -61,7 +68,7 @@ export function AddGameSection({
                   Create a game
                 </h3>
                 <p className="mt-1 text-xs text-ink-mute">
-                  Use this for friendlies or games not in PlayHQ.
+                  {playhqTenant ? "Use this for friendlies or games not in PlayHQ." : "One game from your fixture, or a friendly."}
                 </p>
               </div>
               <button

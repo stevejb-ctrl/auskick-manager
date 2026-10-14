@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPlayhqTeamPage, parsePlayhqUrl } from "@/lib/playhq";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults } from "@/lib/games/newGameDefaults";
+import { teamSport } from "@/lib/sports";
 
 // Allow up to 60 s — one PlayHQ fetch per team, sequential.
 export const maxDuration = 60;
@@ -67,12 +68,19 @@ async function syncTeam(
 ): Promise<TeamSyncResult> {
   const base = { teamId: team.id, imported: 0, updated: 0, skipped: 0 };
 
-  const parsed = parsePlayhqUrl(team.playhq_url ?? "");
+  // One team with a bad sport mustn't stop the others syncing.
+  let sport;
+  try {
+    sport = teamSport(team.sport);
+  } catch (err) {
+    return { ...base, error: err instanceof Error ? err.message : "Unknown sport" };
+  }
+  const parsed = parsePlayhqUrl(team.playhq_url ?? "", sport);
   if (!parsed.ok) return { ...base, error: parsed.reason };
 
   let page: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
   try {
-    page = await fetchPlayhqTeamPage(parsed.teamId);
+    page = await fetchPlayhqTeamPage(parsed.teamId, parsed.tenant);
   } catch (err) {
     return { ...base, error: err instanceof Error ? err.message : "PlayHQ fetch failed" };
   }

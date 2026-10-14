@@ -20,6 +20,8 @@ interface Props {
   teamId: string;
   existingExternalIds: string[];
   initialUrl?: string;
+  /** The team's sport's PlayHQ tenant (PLAYHQ_TENANT), shown in the example URL. */
+  tenant: string;
   /** Trigger-button style. Defaults to `ghost` / `sm` to match the old inline usage. */
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -30,6 +32,7 @@ export function ImportFixturesButton({
   teamId,
   existingExternalIds,
   initialUrl = "",
+  tenant,
   variant = "ghost",
   size = "sm",
   className,
@@ -154,7 +157,7 @@ export function ImportFixturesButton({
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://www.playhq.com/afl/org/..."
+                    placeholder={`https://www.playhq.com/${tenant}/org/...`}
                     disabled={isPending}
                     autoFocus
                   />
@@ -163,7 +166,7 @@ export function ImportFixturesButton({
                     page, and paste the URL here. It should look like:
                   </p>
                   <p className="mt-1 rounded bg-surface-alt px-2 py-1 font-mono text-xs text-ink-dim break-all">
-                    playhq.com/afl/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
+                    playhq.com/{tenant}/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
                   </p>
                   <p className="mt-1 text-xs text-ink-mute">
                     The short code at the end is what identifies your team. If the
