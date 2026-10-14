@@ -10,38 +10,29 @@ interface TrackScoringToggleProps {
   teamId: string;
   initialEnabled: boolean;
   isAdmin?: boolean;
-  /**
-   * Sport drives the toggle label. AFL has goals + behinds, netball is
-   * goals-only; without this prop the label always reads "goals & behinds"
-   * which is wrong for any non-AFL team.
-   */
-  sportId?: Sport;
+  /** The team's sport: it names what the scoreboard tracks. */
+  sportId: Sport;
 }
+
+// Score-shape varies by sport. League says "points": "tries &
+// conversions" was a mouthful for a toggle.
+const SCORING_HEADING: Record<Sport, string> = {
+  afl: "Track goals & behinds",
+  netball: "Track goals",
+  rugby_league: "Track points",
+};
 
 export function TrackScoringToggle({
   teamId,
   initialEnabled,
   isAdmin = false,
-  sportId = "afl",
+  sportId,
 }: TrackScoringToggleProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Score-shape varies by sport.
-  //   - AFL: goals + behinds → "Track goals & behinds"
-  //   - Netball: goals only  → "Track goals"
-  //   - Rugby League: tries + conversions → "Track points" (the
-  //     coach's mental model; surfacing "tries & conversions" was
-  //     a mouthful for a toggle).
-  // A registry-driven label would be cleaner but isn't worth the
-  // client-component cost for three discrete sports.
-  const heading =
-    sportId === "rugby_league"
-      ? "Track points"
-      : sportId === "netball"
-        ? "Track goals"
-        : "Track goals & behinds";
+  const heading = SCORING_HEADING[sportId];
 
   function handleChange(next: boolean) {
     if (!isAdmin) return;

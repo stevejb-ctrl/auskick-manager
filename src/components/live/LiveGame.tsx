@@ -107,7 +107,7 @@ import {
   type GamePlan,
 } from "@/lib/game-plan";
 import { rotateLines } from "@/lib/live/rotateLines";
-import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
+import { positionsFor, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useHypeSong } from "@/lib/live/useHypeSong";
@@ -2431,7 +2431,7 @@ export function LiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={inj}
-            zone={injuryReplacementModal.zone}
+            spotLabel={ZONE_SHORT_LABELS[injuryReplacementModal.zone]}
             candidates={candidates}
             onPickReplacement={(rid) => {
               handleInjuryReplacement(

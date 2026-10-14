@@ -221,6 +221,7 @@ const OPEN_STRATEGIES: StrategyDef[] = [
     blurb: "Kids lean to one or two lines but still get a stint elsewhere.",
     fit: "U11–U12",
     usesPositions: false,
+    roleHome: "line",
     balanceUnit: "line",
     balanceByDefault: true,
   },

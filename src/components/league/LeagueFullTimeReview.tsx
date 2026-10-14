@@ -33,6 +33,7 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { periodLabels } from "@/lib/sports";
 
 interface LeagueFullTimeReviewProps {
   auth: LiveAuth;
@@ -109,7 +110,7 @@ export function LeagueFullTimeReview({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const periodLabel = ageGroup.periodLabel ?? "quarter";
+  const periodLabel = periodLabels("rugby_league", ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
   const scoreByPeriod: LeagueScoreByPeriod = rugbyScoreByPeriod(
     events,

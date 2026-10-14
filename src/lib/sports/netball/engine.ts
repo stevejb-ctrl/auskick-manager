@@ -10,7 +10,7 @@ import type { ResolvedPlaybook } from "@/lib/playbook/team";
 import type { PlaybookSnapshot, PlayerPositionPrefRow } from "@/lib/playbook/types";
 import type { RuleInstance } from "@/lib/playbook/rules";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
-import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
+import { periodsOwed, seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
@@ -191,12 +191,7 @@ export function withNetballSnapshot(
   input: NetballPlaybookInput,
   snapshot: PlaybookSnapshot | null | undefined,
 ): NetballPlaybookInput {
-  if (!snapshot) return input;
-  return {
-    ...input,
-    strategy: snapshot.strategy,
-    seasonWeight: seasonBalanceWeight("netball", snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance),
-  };
+  return withKickoffSnapshot("netball", input, snapshot);
 }
 
 const THIRD_LABEL: Record<string, string> = {

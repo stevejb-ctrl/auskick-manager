@@ -9,6 +9,7 @@ import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
@@ -26,7 +27,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -378,18 +379,23 @@ export default async function LivePage({ params }: LivePageProps) {
       lgAge,
       { quarter_length_seconds: g.quarter_length_seconds },
     );
-    const leaguePlaybook = leaguePlaybookInput(
-      lg.resolved,
-      lg.prefs,
-      lg.rules,
-      seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "line", {
-        since: lg.resolved.seasonBalanceSince,
-      }),
-      lgPeriodSeconds * 1000,
-      lg.vestStrategy,
-      seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "position", {
-        since: lg.resolved.seasonBalanceSince,
-      }),
+    // A game in progress plays what it kicked off with (as AFL and netball).
+    const leaguePlaybook = withKickoffSnapshot(
+      sport,
+      leaguePlaybookInput(
+        lg.resolved,
+        lg.prefs,
+        lg.rules,
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "line", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+        lgPeriodSeconds * 1000,
+        lg.vestStrategy,
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "position", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+      ),
+      g.playbook_snapshot,
     );
 
     if (!hasStarted) {
@@ -497,11 +503,8 @@ export default async function LivePage({ params }: LivePageProps) {
               walkthroughOffer={
                 <LeagueWalkthroughOffer
                   trackScoring={trackScoring}
-                  periodLabel={(ageCfgL.periodLabel ?? "quarter") as "quarter" | "half" | "period"}
-                  vestsEnabled={
-                    (ageCfgL.vestRequirements?.fr ?? false) ||
-                    (ageCfgL.vestRequirements?.dh ?? false)
-                  }
+                  periodLabel={periodLabels(sport, ageCfgL).label}
+                  vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
                   kickingAllowed={ageCfgL.kickingAllowed === true}
                   goalsFromPlay={ageCfgL.goalsFromPlay === true}
                   kickRotations={ageCfgL.kickRotations === true}

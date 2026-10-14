@@ -23,7 +23,7 @@ export default function SquadsPage() {
 
       <HelpFigure
         src="/help-screenshots/squads-player-list.png"
-        alt="The squad page showing a list of players with jersey numbers and names"
+        alt="An AFL squad page showing a list of players with jersey numbers and names"
         caption="The Squad tab shows your full active roster."
       />
 
@@ -32,30 +32,32 @@ export default function SquadsPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Add player</strong> at the top of the list.
+            Find <strong className="text-ink">Add player</strong> at the top of the page.
           </li>
           <li>
-            Enter the player&apos;s <strong className="text-ink">full name</strong> and
-            their <strong className="text-ink">jersey number</strong>. Jersey numbers
-            are optional — netball squads typically leave them blank.
+            Enter the player&apos;s <strong className="text-ink">full name</strong>.
+            AFL and league squads can also add a{" "}
+            <strong className="text-ink">jersey number</strong> (optional).
+            Netball squads don&apos;t use numbers, so there&apos;s no number
+            field.
           </li>
           <li>
-            Tap <strong className="text-ink">Save</strong>. The player appears in the
-            active squad list.
+            Tap <strong className="text-ink">Add player</strong>. The player
+            appears in the active squad list.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/squads-add-player.png"
-          alt="The add player form open at the top of the squad list, showing name and jersey number fields"
-          caption="Fill in name and jersey number, then tap Save."
+          alt="The AFL add player form open at the top of the squad list, showing name and jersey number fields"
+          caption="Fill in the name (and a jersey number for AFL or league), then tap Add player."
         />
 
         <HelpCallout type="tip">
-          Jersey numbers help you identify football players quickly during a live
-          game. You can use any number; it does not need to be unique. Netball
-          uses bib position codes (GS, GA, etc.) instead, so jersey numbers can
-          be left blank.
+          In AFL and league, jersey numbers show on player tiles so you can
+          spot players quickly during a live game. Each number can only be
+          used once in the squad. Netball players wear position bibs (GS, GA,
+          etc.) instead, so Siren doesn&apos;t ask for numbers.
         </HelpCallout>
       </section>
 
@@ -63,7 +65,8 @@ export default function SquadsPage() {
         <h2 className="text-xl font-semibold text-ink">Editing a player</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Tap a player&apos;s row in the squad list to open the edit form. Change the name
-          or jersey number and tap <strong className="text-ink">Save</strong>.
+          (or, for AFL and league, the jersey number) and tap{" "}
+          <strong className="text-ink">Save</strong>.
         </p>
       </section>
 
@@ -89,9 +92,10 @@ export default function SquadsPage() {
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-ink-dim">
           <li>
-            <strong className="text-ink">Home</strong> — their position (Set
-            positions, netball Partners, league Named positions) or their
-            preferred line or third.
+            <strong className="text-ink">Home</strong> — their position (AFL
+            or netball Set positions, netball Partners, league Named
+            positions) or their preferred line (AFL and league) or third
+            (netball).
           </li>
           <li>
             <strong className="text-ink">Also plays</strong> — backups Siren
@@ -156,8 +160,8 @@ export default function SquadsPage() {
         />
 
         <HelpCallout type="tip">
-          You can add a late-arriving player during a live game using the{" "}
-          <strong>Late arrival</strong> menu on the live game screen. See{" "}
+          You can add a late-arriving player during a live game using{" "}
+          <strong>+ Add late arrival</strong> on the live game screen. See{" "}
           <Link href="/help/live-game" className="font-medium underline">
             Live Game
           </Link>{" "}

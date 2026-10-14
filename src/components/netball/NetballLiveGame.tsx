@@ -108,6 +108,7 @@ import {
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { periodLabels } from "@/lib/sports";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -1219,9 +1220,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const nowAbsMs = completedQuarterMs + liveOverlayMs;
 
   // Period label initial for the per-period rows (e.g. "Q" → "Q1").
-  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
-    .charAt(0)
-    .toUpperCase();
+  const periodAbbrev = periodLabels("netball", ageGroup).label.charAt(0).toUpperCase();
 
   // Build the PlayerInsightSummary input for one player. Reused by the
   // long-press action modal's `insight` slot. Maps PlayerThirdMs

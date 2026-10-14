@@ -84,6 +84,7 @@ const STRATEGIES: StrategyDef[] = [
     blurb: "Kids keep their third and swap with their partner each quarter (GS↔GA, GD↔GK).",
     fit: "12U–13U, starting to specialise",
     usesPositions: false,
+    roleHome: "position",
     balanceUnit: "bib",
     balanceByDefault: true,
   },

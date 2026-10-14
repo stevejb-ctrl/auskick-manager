@@ -10,7 +10,7 @@ import type { PlayerZoneMinutes } from "@/lib/fairness";
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
 import type { PlaybookSnapshot, PlayerPositionPrefRow } from "@/lib/playbook/types";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
-import { periodsOwed, seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
+import { periodsOwed, seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import type { RuleInstance } from "@/lib/playbook/rules";
 import { checkRules, whyMove, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
@@ -239,15 +239,7 @@ export function withSnapshot(
   input: AflPlaybookInput,
   snapshot: PlaybookSnapshot | null | undefined,
 ): AflPlaybookInput {
-  if (!snapshot) return input;
-  return {
-    ...input,
-    strategy: snapshot.strategy,
-    seasonWeight: seasonBalanceWeight(
-      "afl",
-      snapshot.seasonBalance === "off" ? null : snapshot.seasonBalance,
-    ),
-  };
+  return withKickoffSnapshot("afl", input, snapshot);
 }
 
 /**

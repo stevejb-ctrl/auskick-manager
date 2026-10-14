@@ -91,6 +91,7 @@ import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { periodLabels } from "@/lib/sports";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   /** The team's rugby sport: its own config, points and rules. */
@@ -140,6 +141,12 @@ interface LeagueLiveGameProps {
   isAdmin: boolean;
   exitHref: string;
 }
+
+/** A league player's spot, as the injury / mark-out modal names it. */
+const LEAGUE_SPOT_LABEL: Record<"forward" | "back", string> = {
+  forward: "Forward",
+  back: "Back",
+};
 
 export function LeagueLiveGame({
   auth,
@@ -319,8 +326,7 @@ export function LeagueLiveGame({
   const liveRootRef = useRef<HTMLDivElement>(null);
 
   // ── Period label resolver ─────────────────────────────────────
-  const periodLabel = ageGroup.periodLabel ?? "quarter";
-  const periodLabelPlural = ageGroup.periodLabelPlural ?? "quarters";
+  const { label: periodLabel, plural: periodLabelPlural } = periodLabels("rugby_league", ageGroup);
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -538,9 +544,7 @@ export function LeagueLiveGame({
       ? elapsedMs
       : 0;
   const nowAbsMs = completedQuarterMs + liveOverlayMs;
-  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
-    .charAt(0)
-    .toUpperCase();
+  const periodAbbrev = periodLabel.charAt(0).toUpperCase();
 
   // Build the PlayerInsightSummary input for one player. Overlays the
   // live open stint onto the current period (closed buckets + the
@@ -906,13 +910,8 @@ export function LeagueLiveGame({
     () =>
       buildLeagueWalkthroughSteps({
         trackScoring,
-        periodLabel: (ageGroup.periodLabel ?? "quarter") as
-          | "quarter"
-          | "half"
-          | "period",
-        vestsEnabled:
-          (ageGroup.vestRequirements?.fr ?? false)
-          || (ageGroup.vestRequirements?.dh ?? false),
+        periodLabel,
+        vests: { fr: ageGroup.vestRequirements?.fr ?? false, dh: ageGroup.vestRequirements?.dh ?? false },
         kickingAllowed: ageGroup.kickingAllowed === true,
         goalsFromPlay: ageGroup.goalsFromPlay === true,
         kickRotations: ageGroup.kickRotations === true,
@@ -2835,7 +2834,7 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={outPlayer}
-            zone={markOutReplacement.zone}
+            spotLabel={LEAGUE_SPOT_LABEL[markOutReplacement.zone]}
             candidates={markOutReplacementCandidates}
             onPickReplacement={(rid) =>
               void handleMarkOutReplacement(
@@ -2874,7 +2873,7 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={injPlayer}
-            zone={injuryReplacementModal.zone}
+            spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}
             onPickReplacement={(rid) =>
               void handleInjuryReplacement(

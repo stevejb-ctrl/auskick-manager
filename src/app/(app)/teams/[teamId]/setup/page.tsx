@@ -116,7 +116,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-ink">Team basics</h1>
           <p className="text-sm text-ink-dim">
-            Your age group sets the default on-field size, quarter length, and
+            Your age group sets the default on-field size, game length, and
             rotation rules for this team.
           </p>
         </div>

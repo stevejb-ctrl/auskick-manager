@@ -23,7 +23,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -170,7 +170,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
           balanceAgeCfg,
         ) * 1000,
     }),
-    periodWord: balanceAgeCfg.periodLabel === "half" ? "half" : "quarter",
+    periodWord: periodLabels(sport, balanceAgeCfg).label,
     reset: balanceSince
       ? {
           since: useSince,

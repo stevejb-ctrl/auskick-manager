@@ -1631,7 +1631,10 @@ export function NetballQuarterBreak({
           return (
             <InjuryReplacementModal
               injuredPlayer={outPlayer}
-              zone={outReplacement.positionId}
+              spotLabel={
+                netballSport.allPositions.find((p) => p.id === outReplacement.positionId)?.shortLabel ??
+                outReplacement.positionId.toUpperCase()
+              }
               candidates={outReplacementCandidates}
               onPickReplacement={(replacementId) =>
                 handleOutReplacement(

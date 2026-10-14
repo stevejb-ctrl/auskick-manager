@@ -31,8 +31,8 @@ export function buildLeagueWalkthroughSteps(opts: {
   /** "quarter" or "half" — drives the start/end-period copy so the
    *  modal reads "Start Q1" at U6–U9 and "Start H1" at U10+. */
   periodLabel: "quarter" | "half" | "period";
-  /** Whether the age group uses FR / DH vests at all (U6/U7 don't). */
-  vestsEnabled: boolean;
+  /** The age group's vests: none at U6–U7, FR only at U8, FR and DH from U9. */
+  vests: { fr: boolean; dh: boolean };
   /** Whether the age group attempts conversions (kicking turns on at U8+). */
   kickingAllowed: boolean;
   /** Whether this team has track_zone_time on. When false, the F/C/B
@@ -40,12 +40,13 @@ export function buildLeagueWalkthroughSteps(opts: {
   trackZoneTime: boolean;
   /** Whether this team / game has the §6 unbroken-period rule on. */
   enforceUnbrokenPeriods: boolean;
+  // The age group's law knobs; an omitted one is off.
   /** Penalty and field goals score (AgeGroupConfig.goalsFromPlay; league U13+). */
-  goalsFromPlay: boolean;
+  goalsFromPlay?: boolean;
   /** The goal-kick and kickoff rotations apply (AgeGroupConfig.kickRotations; league U6–U12). */
-  kickRotations: boolean;
+  kickRotations?: boolean;
   /** The §6 unbroken-period law applies (AgeGroupConfig.unbrokenPeriods; league U6–U12). */
-  unbrokenPeriods: boolean;
+  unbrokenPeriods?: boolean;
 }): WalkthroughStep[] {
   const abbr = opts.periodLabel.charAt(0).toUpperCase();
   const periodWord = opts.periodLabel === "half" ? "half" : "quarter";
@@ -78,15 +79,15 @@ export function buildLeagueWalkthroughSteps(opts: {
     },
   ];
 
-  if (opts.vestsEnabled) {
+  if (opts.vests.fr || opts.vests.dh) {
     steps.push({
       emoji: "🦺",
-      title: "FR & DH vests",
+      title: opts.vests.dh ? "FR & DH vests" : "FR vest",
       body: `${
-        opts.kickingAllowed
-          ? "First Receiver (FR) and Dummy Half (DH)"
-          : "First Receiver (FR)"
-      } wear coloured vests and must rotate each period — no player can wear the same vest twice in one game. At the start of each ${periodWord} a vest assignment card prompts you to pick the wearer; the suggester defaults to whoever's least used that vest across the season.`,
+        opts.vests.dh
+          ? "First Receiver (FR) and Dummy Half (DH) wear coloured vests"
+          : "First Receiver (FR) wears a coloured vest"
+      } that must rotate each ${periodWord} — no player can wear the same vest twice in one game. At the start of each ${periodWord} a vest assignment card prompts you to pick the wearer; the suggester defaults to whoever's least used that vest across the season.`,
     });
   }
 
@@ -104,8 +105,8 @@ export function buildLeagueWalkthroughSteps(opts: {
         : opts.kickingAllowed
         ? `Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker.${
             opts.kickRotations ? ` The app enforces the goal-kick rotation: ${rotation}.` : ""
-          } For an opponent score, tap +T or +C beside their score in the header. Undo chip appears for 8 seconds after every score.`
-        : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo chip appears for 8 seconds after every score.",
+          } For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score.`
+        : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.",
     });
   }
 

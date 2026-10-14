@@ -25,7 +25,7 @@ import {
 import {
   kickoffTakers,
 } from "@/lib/sports/rugby_league/kicks";
-import { getAgeGroupConfig, isRugby, teamSport as checkedSport } from "@/lib/sports/registry";
+import { getAgeGroupConfig, type RugbySport } from "@/lib/sports/registry";
 import type { Game, GameEvent } from "@/lib/types";
 
 // ─── Per-game snapshot ───────────────────────────────────────
@@ -239,14 +239,13 @@ export function aggregateLeagueSeason(
 export function aggregateLeagueSeasonFromGames(
   games: Game[],
   eventsByGame: Record<string, GameEvent[]>,
-  teamSport: string | null | undefined,
+  /** Rugby only: another sport's team has no rugby season. */
+  teamSport: RugbySport,
   teamAgeGroup: string | null | undefined,
 ): LeagueSeasonAggregate {
-  const sport = checkedSport(teamSport);
-  if (!isRugby(sport)) throw new Error(`League stats for a ${sport} team`);
-  const ageCfg = getAgeGroupConfig(sport, teamAgeGroup);
-  const required = ageCfg.minUnbrokenPeriods ?? 1;
-  const points = rugbyPoints(sport);
+  const ageCfg = getAgeGroupConfig(teamSport, teamAgeGroup);
+  const required = ageCfg.minUnbrokenPeriods ?? 0;
+  const points = rugbyPoints(teamSport);
   const snaps = games.map((g) =>
     snapshotRugbyGame(g.id, eventsByGame[g.id] ?? [], required, points),
   );

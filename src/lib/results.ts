@@ -4,7 +4,7 @@
 
 import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { replayLeagueGame, replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
 import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
@@ -39,6 +39,55 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
     };
   }
   return noSportBranch(sport, "scoreFromEvents");
+}
+
+/** One player's scoring in a game, in their sport's words. */
+export interface ScorerTally {
+  playerId: string;
+  /** "2 g · 1 b" (AFL), "3 goals" (netball), "1T · 2C" (league). */
+  detail: string;
+  points: number;
+  /** Show the points beside the detail (not for netball: goals are points). */
+  showPoints: boolean;
+}
+
+/**
+ * Who scored in a game, most points first (ties in player order). From
+ * each sport's own replay, so an undone score doesn't count and a
+ * missed conversion isn't a score.
+ */
+export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTally[] {
+  const rows: ScorerTally[] = [];
+  if (sport === "afl") {
+    for (const [playerId, s] of Object.entries(replayGame(events).playerScores)) {
+      const points = s.goals * 6 + s.behinds;
+      if (points > 0) rows.push({ playerId, detail: `${s.goals} g · ${s.behinds} b`, points, showPoints: true });
+    }
+  } else if (sport === "netball") {
+    for (const [playerId, goals] of Object.entries(replayNetballGame(events).playerGoals)) {
+      if (goals > 0) rows.push({ playerId, detail: `${goals} ${goals === 1 ? "goal" : "goals"}`, points: goals, showPoints: false });
+    }
+  } else if (sport === "rugby_league") {
+    const r = replayLeagueGame(events);
+    const ids = Array.from(new Set(Object.keys(r.playerTries).concat(Object.keys(r.playerConversions), Object.keys(r.playerGoals))));
+    for (const playerId of ids) {
+      const tries = r.playerTries[playerId] ?? 0;
+      const conversions = r.playerConversions[playerId]?.made ?? 0;
+      const { penalty = 0, field = 0 } = r.playerGoals[playerId] ?? {};
+      const points = tries * 4 + conversions * 2 + penalty * 2 + field;
+      if (points === 0) continue;
+      const parts = [
+        tries > 0 && `${tries}T`,
+        conversions > 0 && `${conversions}C`,
+        penalty > 0 && `${penalty}PG`,
+        field > 0 && `${field}FG`,
+      ].filter(Boolean);
+      rows.push({ playerId, detail: parts.join(" · "), points, showPoints: true });
+    }
+  } else {
+    return noSportBranch(sport, "scorersFromEvents");
+  }
+  return rows.sort((a, b) => b.points - a.points || (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0));
 }
 
 export function outcomeOf(score: GameScore): Outcome {

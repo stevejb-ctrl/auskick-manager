@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { defaultTrackScoring, getSportConfig, isRugby } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, isRugby, isSportId } from "@/lib/sports";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
@@ -13,8 +13,8 @@ import {
 export async function createTeam(
   userId: string,
   name: string,
-  ageGroup: string = "U10",
-  sport: Sport = "afl"
+  ageGroup: string,
+  sport: Sport
 ): Promise<ActionResult<{ setupUrl: string }>> {
   const supabase = createClient();
 
@@ -27,6 +27,12 @@ export async function createTeam(
     return { success: false, error: "Unauthenticated." };
   }
 
+  // A server action takes anything a client posts: check the sport
+  // before looking it up (an unknown one is never filed under AFL).
+  if (!isSportId(sport)) {
+    console.error("[createTeam] unknown sport", { sport });
+    return { success: false, error: "Pick a sport for the team." };
+  }
   // Validate age_group belongs to the chosen sport. The DB has no
   // per-sport CHECK (intentional — sport configs own the set), so
   // guard here before writing garbage.

@@ -1521,7 +1521,7 @@ export function QuarterBreak({
           return (
             <InjuryReplacementModal
               injuredPlayer={outPlayer}
-              zone={outReplacement.zone}
+              spotLabel={ZONE_SHORT_LABELS[outReplacement.zone]}
               candidates={outReplacementCandidates}
               onPickReplacement={(replacementId) =>
                 handleOutReplacement(

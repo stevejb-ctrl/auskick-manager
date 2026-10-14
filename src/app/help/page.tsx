@@ -14,7 +14,7 @@ export const metadata = {
 const QUICK_LINKS = [
   { slug: "getting-started", emoji: "🚀" },
   // 🏟️ reads as "the venue / the sideline" — sport-neutral. Older
-  // versions used 🏈 here, which only worked on the football brand.
+  // versions used 🏈 here, which only worked on the AFL brand.
   { slug: "live-game", emoji: "🏟️" },
   { slug: "rotations", emoji: "🔄" },
   { slug: "stats", emoji: "📊" },
@@ -32,7 +32,7 @@ export default function HelpOverviewPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink">Siren Help</h1>
         <p className="mt-3 text-base leading-relaxed text-ink-dim">
-          Siren helps coaches run their junior football or netball season, from
+          Siren helps coaches run their junior AFL, netball or rugby league season, from
           setting up squads and scheduling games, to running rotations live on
           the sideline and reviewing fairness stats after the game. Use the
           topics on the left (or the menu above on mobile) to find what you need.

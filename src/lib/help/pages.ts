@@ -43,7 +43,7 @@ export const HELP_PAGES: HelpPage[] = [
   {
     slug: "live-game",
     title: "Live Game",
-    description: "Running a game: the on-area view, scoring, subs, and quarter breaks.",
+    description: "Running a game: the on-area view, scoring, subs, and the breaks between quarters or halves.",
     href: "/help/live-game",
   },
   {
@@ -55,7 +55,7 @@ export const HELP_PAGES: HelpPage[] = [
   {
     slug: "stats",
     title: "Stats",
-    description: "Per-player stats, minutes equity, combinations, chemistry, and more.",
+    description: "Per-player stats, season balance, scoring by period, and attendance.",
     href: "/help/stats",
   },
   {

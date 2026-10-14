@@ -108,7 +108,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <ul className="space-y-2">
           {teams.map((team) => {
             const sport = teamSport(team.sport);
-            const sportName = sport === "afl" ? "AFL" : getSportConfig(sport).name;
+            const sportName = getSportConfig(sport).shortName;
             const ageLabel = getAgeGroupConfig(sport, team.age_group).label;
             const next = nextByTeam.get(team.id);
             return (

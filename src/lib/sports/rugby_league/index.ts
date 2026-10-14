@@ -523,7 +523,7 @@ export const rugbyLeagueSport: SportConfig = {
   id: "rugby_league",
   family: "rugby",
   name: "Rugby League",
-  shortName: "League",
+  shortName: "Rugby League",
   brand: {
     id: "rugby_league",
     // Reserved host for the future brand phase; harmless until then

@@ -59,7 +59,7 @@ describe("each law knob switches only its own walkthrough copy", () => {
   const BASE = {
     trackScoring: true,
     periodLabel: "half" as const,
-    vestsEnabled: true,
+    vests: { fr: true, dh: true },
     kickingAllowed: true,
     trackZoneTime: true,
     enforceUnbrokenPeriods: true,
