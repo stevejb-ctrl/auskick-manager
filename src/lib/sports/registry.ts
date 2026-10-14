@@ -58,6 +58,23 @@ export function getSportConfig(sport: SportId | string | null | undefined): Spor
 }
 
 /**
+ * The sports that run on the rugby engine (rugby union joins in its
+ * phase 2). Typed so `isRugby` narrows; a test checks it matches the
+ * configs' `family`.
+ */
+export const RUGBY_SPORT_IDS = ["rugby_league"] as const satisfies readonly SportId[];
+export type RugbySport = (typeof RUGBY_SPORT_IDS)[number];
+
+/**
+ * The one way to ask "is this rugby?": the sport's own config says so.
+ * Use it wherever league and union share the code (live game, replay,
+ * stats); each still reads its own rules from its config.
+ */
+export function isRugby(sport: SportId): sport is RugbySport {
+  return getSportConfig(sport).family === "rugby";
+}
+
+/**
  * Resolve an age group config for a team. Given a sport + age-group id,
  * returns the matching AgeGroupConfig, including retired ids existing
  * teams still store. The sport must be known (it throws otherwise); an

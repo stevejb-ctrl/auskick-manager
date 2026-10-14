@@ -10,6 +10,13 @@
 /** Stable identifier for a sport. New sports extend this union. */
 export type SportId = "afl" | "netball" | "rugby_league";
 
+/**
+ * Sports that share an engine. Rugby league (and, next, rugby union)
+ * share the rugby engine — live game, replay, fairness — each with its
+ * own rules. Ask `isRugby(sport)`, never `sport === "rugby_league"`.
+ */
+export type SportFamily = "afl" | "netball" | "rugby";
+
 /** Identifier for one on-field position within a sport (e.g. "gs", "mid"). */
 export type PositionId = string;
 
@@ -177,6 +184,8 @@ export interface ValidationResult {
 // ─── SportConfig ─────────────────────────────────────────────
 export interface SportConfig {
   id: SportId;
+  /** The engine this sport runs on (see SportFamily). */
+  family: SportFamily;
   name: string;
   /** Customer-facing short name (e.g. "AFL" / "Netball"). */
   shortName: string;

@@ -469,6 +469,7 @@ function validateRugbyLeagueLineup(
 // keyed off `sirenleague.com.au`.
 export const rugbyLeagueSport: SportConfig = {
   id: "rugby_league",
+  family: "rugby",
   name: "Rugby League",
   shortName: "League",
   brand: {

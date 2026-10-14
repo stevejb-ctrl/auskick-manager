@@ -15,7 +15,10 @@ export {
   teamSport,
   noSportBranch,
   aflBranch,
+  isRugby,
+  RUGBY_SPORT_IDS,
 } from "@/lib/sports/registry";
+export type { RugbySport } from "@/lib/sports/registry";
 export { aflSport, aflPositionModel } from "@/lib/sports/afl";
 export {
   netballSport,
