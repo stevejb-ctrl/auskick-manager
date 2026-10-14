@@ -131,6 +131,10 @@ export default async function LineupPage({ params }: LineupPageProps) {
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
           gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
+          // The game's own interval, as the coach's page passes it —
+          // without it the picker estimates one from the squad and
+          // kickoff saves that over the game's setting.
+          defaultSubMinutes={g.sub_interval_seconds / 60}
           // The share-token page feeds the age-group DEFAULT period for the
           // season-diversity threshold, not getEffectiveQuarterSeconds'
           // per-game/per-team override (accepted D-03 divergence, see

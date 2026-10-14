@@ -299,6 +299,8 @@ export default async function RunPage({ params }: RunPageProps) {
               defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              // The game's own interval (see the AFL runner lineup page).
+              defaultSubMinutes={g.sub_interval_seconds / 60}
               seasonEvents={leagueSeasonEvents}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
