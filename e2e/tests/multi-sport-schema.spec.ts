@@ -68,6 +68,9 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
 
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // Brand defaults AFL on localhost per RESEARCH §3 / L9 — clicking the AFL
@@ -150,6 +153,9 @@ test("netball setup wizard creates team with sport='netball' and netball-default
 
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // L9 — brand defaults AFL on localhost; the netball case MUST click the
@@ -299,6 +305,9 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
 
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // Localhost defaults to the AFL brand (per RESEARCH §3 / L9), so
@@ -391,6 +400,9 @@ test("rugby league supports the full U6-U17 age range", async ({
     await waitForHydration(page);
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     await page.getByRole("button", { name: "Rugby League" }).click();

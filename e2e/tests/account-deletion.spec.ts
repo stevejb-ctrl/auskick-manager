@@ -62,6 +62,9 @@ test("user schedules deletion, restores, then is purged after grace period", asy
     // The team will be deleted as part of the purge (sole admin).
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
     await page
       .getByLabel(/team name/i)

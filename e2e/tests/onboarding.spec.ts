@@ -65,6 +65,9 @@ test("new user signs up, creates team, adds first player", async ({
     // --- Create team ---
     if (!page.url().includes("/teams/new")) {
       await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
     const teamName = `Roos ${stamp}`;
     await page.getByLabel(/team name/i).fill(teamName);
