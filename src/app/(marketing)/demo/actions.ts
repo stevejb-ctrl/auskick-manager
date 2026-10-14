@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
-import { aflBranch, getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig, isRugby } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
@@ -188,7 +188,7 @@ function buildDemoGamePayload({
     };
   }
 
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     // Rugby League U10 — pull from the registered sport config so
     // we get the half-based sub interval (10 min) + 11-on-field
     // default rather than AFL's quarter values.

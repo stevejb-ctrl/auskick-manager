@@ -17,7 +17,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -133,7 +133,7 @@ export default async function RunPage({ params }: RunPageProps) {
   // Without this branch RL games fall through to the AFL LiveGame
   // (the demo-picker symptom Steve caught: clicking the RL card
   // started a game on the RL team but rendered AFL chrome).
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     const ageCfgL =
       rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
       rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;

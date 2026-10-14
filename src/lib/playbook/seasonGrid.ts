@@ -7,7 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { noSportBranch } from "@/lib/sports/registry";
+import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -55,7 +55,7 @@ export function gridUnits(
       ],
     };
   }
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     if (unit === "position" && positions.length > 0) {
       return { unit: "position", columns: positions.map((p) => ({ key: p.key, label: p.label })) };
     }

@@ -26,7 +26,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, rugbyLeagueSport, teamSport } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -288,7 +288,7 @@ export default async function LivePage({ params }: LivePageProps) {
   // 4-5; Phase 3 ships the core flow without them). The branch
   // forks here so none of the AFL zone-minutes / netball position-
   // count helpers below run for an RL game.
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     const ageCfgL =
       rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group)
         ?? rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;

@@ -23,7 +23,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -188,7 +188,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // field goals and drops the junior laws. The shared aggregator
   // pipes through the same replay engines the live UI uses so
   // live ↔ post-game numbers stay consistent.
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     const eventsByGameRecord: Record<string, GameEvent[]> = {};
     eventsByGame.forEach((evs, gid) => {
       eventsByGameRecord[gid] = evs;

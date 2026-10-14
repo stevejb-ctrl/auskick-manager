@@ -10,7 +10,7 @@ import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { aflPlaybookInput, withBalanceSeason, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, type NetballPlaybookInput } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
-import { noSportBranch } from "@/lib/sports/registry";
+import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
 export interface GamePlanPlaybooks {
   aflPlaybook?: AflPlaybookInput;
@@ -43,7 +43,7 @@ export async function gamePlanPlaybooks(
       ),
     };
   }
-  if (sport !== "rugby_league") return noSportBranch(sport, "gamePlanPlaybooks");
+  if (!isRugby(sport)) return noSportBranch(sport, "gamePlanPlaybooks");
   return {
     leaguePlaybook: leaguePlaybookInput(
       resolved,

@@ -7,6 +7,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
+import { isRugby } from "@/lib/sports/registry";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -45,7 +46,7 @@ export function ScoringStep({
   // track_scoring to match, so this step has nothing to toggle —
   // we just explain what's happening and move on. AFL and netball
   // keep the explicit toggle below.
-  const isRugbyLeague = sportId === "rugby_league";
+  const isRugbyLeague = isRugby(sportId);
   const rlScoringOn = isRugbyLeague && ageGroup.tracksScoreDefault === true;
 
   const blurb =

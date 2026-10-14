@@ -20,6 +20,7 @@ import {
 import { lockedRules, ruleCatalogue, ruleWords, sanitizeRules } from "@/lib/playbook/rules";
 import { rulePacksFor } from "@/lib/playbook/rulePacks";
 import { getSportPlaybook } from "@/lib/playbook";
+import { isRugby } from "@/lib/sports/registry";
 import { resolveTeamPlaybook } from "@/lib/playbook/team";
 import type {
   PolicyOverrides,
@@ -194,7 +195,7 @@ export function HowWePlayCard({
         />
       )}
 
-      {sport === "rugby_league" && (resolved.policy.vests.fr || resolved.policy.vests.dh) && (
+      {isRugby(sport) && (resolved.policy.vests.fr || resolved.policy.vests.dh) && (
         <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
           <p className="text-sm font-semibold text-ink">Vests</p>
           <p className="mt-0.5 text-xs text-ink-dim">
