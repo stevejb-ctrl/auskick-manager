@@ -260,6 +260,16 @@ type LastScore = {
   quarter: number;
 };
 
+/** Per player, the later of the server's and this phone's stamp. */
+function latestStamps(
+  server: Record<string, number>,
+  local: Record<string, number>,
+): Record<string, number> {
+  const out = { ...server };
+  for (const [pid, ms] of Object.entries(local)) out[pid] = Math.max(out[pid] ?? ms, ms);
+  return out;
+}
+
 export function LiveGame({
   auth,
   gameId,
@@ -413,6 +423,14 @@ export function LiveGame({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
+  // Swaps made on this phone, stamped in the replay's absolute game-ms
+  // frame. The recency guard's lastSubbedOn/OffMs come from the server
+  // replay, which a mid-quarter swap doesn't refresh — so without these
+  // the kid just swapped off was suggested straight back on (round 5).
+  const [localSubbedMs, setLocalSubbedMs] = useState<{
+    on: Record<string, number>;
+    off: Record<string, number>;
+  }>({ on: {}, off: {} });
   const [pendingSwap, setPendingSwap] = useState<{ off: string; on: string; zone: Zone } | null>(null);
   // An empty spot tapped with nobody selected: pick who comes on there
   // (the break does the same). It used to do nothing, so after lending a
@@ -1039,6 +1057,11 @@ export function LiveGame({
     const elapsed_ms = scaledElapsedMs();
     // raw — sub timer compares against raw nowMs
     if (resetSubTimer) setSubBaseMs(currentElapsedMs());
+    const at = initialState.completedQuarterMs + elapsed_ms;
+    setLocalSubbedMs((prev) => ({
+      on: { ...prev.on, [on]: at },
+      off: { ...prev.off, [off]: at },
+    }));
     applySwap(off, on, zone);
     enqueueLiveAction("recordSwap", [
       auth,
@@ -1446,13 +1469,13 @@ export function LiveGame({
           // clockMultiplier to land in the game-ms frame that
           // lastSubbedOnMs lives in. minStintMs is the real rotation
           // window (subIntervalMs, NOT the wall-clock effective value).
-          initialState.lastSubbedOnMs,
+          latestStamps(initialState.lastSubbedOnMs, localSubbedMs.on),
           initialState.completedQuarterMs + nowMs * clockMultiplier,
           subIntervalMs,
           // ON-side recency guard: keep a just-subbed-off player on the
           // bench for a rest before re-suggesting them (was yo-yoing back
           // on ~1 min later — Steve 2026-06-29).
-          initialState.lastSubbedOffMs,
+          latestStamps(initialState.lastSubbedOffMs, localSubbedMs.off),
           aflPlaybook ? { ...aflPlaybook, season, periodMs: quarterMs } : undefined,
         );
 

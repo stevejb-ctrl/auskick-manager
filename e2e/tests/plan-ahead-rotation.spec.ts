@@ -364,3 +364,64 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     timeout: 15_000,
   });
 });
+
+// Round 5 (runner-parent-scoring): after one "Make swap", the kid who
+// had just gone off was suggested straight back on. The live screen
+// only learnt who was benched from the server, and a mid-quarter swap
+// doesn't refresh it — so the rest guard never saw this phone's own
+// swaps. (And one suggestion per bench kid always included them.)
+test("a kid just swapped off isn't suggested straight back on", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ clock_multiplier: 1, sub_interval_seconds: 40 }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  await admin.from("game_events").insert(
+    [
+      {
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) },
+        },
+      },
+      { type: "quarter_start", metadata: { quarter: 1 } },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^got it$/i })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("button", { name: /^got it$/i }).click();
+  await page.getByTestId("swapcard-toggle").click();
+
+  // Make the first suggested swap on its own.
+  await page.getByRole("button", { name: /^make swap$/i }).first().click();
+  const swaps = async () => {
+    const { data } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "swap");
+    return (data ?? []).map((e) => (e.metadata as { off_player_id: string }).off_player_id);
+  };
+  await expect.poll(async () => (await swaps()).length, { timeout: 10_000 }).toBe(1);
+  const [offId] = await swaps();
+  const offName = players.find((p) => p.id === offId)!.full_name;
+
+  // Whatever the card suggests next, the kid who just came off isn't
+  // coming back on.
+  const toggle = page.getByTestId("swapcard-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').first()).toBeVisible();
+  await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').filter({ hasText: offName })).toHaveCount(0);
+});

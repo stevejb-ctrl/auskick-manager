@@ -159,6 +159,31 @@ describe("subRecencyGuard — AFL ON side (suggestSwaps bench order)", () => {
     expect(swaps[0].on_player_id).toBe("B_rested");
   });
 
+  // Round 5 (runner-parent-scoring): one suggestion per bench kid meant
+  // the kid benched seconds ago was always in the list — last, but there
+  // ("Do all 3 swaps" put Ava straight back on). While anyone on the
+  // bench has had a rest, the just-benched kid waits.
+  it("leaves a just-benched player out while anyone else on the bench has rested", () => {
+    const lineup = emptyLineup();
+    lineup.mid = ["F1", "F2", "F3"];
+    lineup.bench = ["B_recent", "B_rested1", "B_rested2"];
+    const swaps = suggestSwaps(
+      lineup,
+      { F1: 9 * 60_000, F2: 9 * 60_000, F3: 9 * 60_000, B_recent: 9 * 60_000, B_rested1: 4 * 60_000, B_rested2: 4 * 60_000 },
+      0,
+      [],
+      ["mid"] as Zone[],
+      [],
+      {},
+      {},
+      {},
+      ELAPSED,
+      MIN_STINT,
+      { B_recent: ELAPSED - 1_000 },
+    );
+    expect(swaps.map((s) => s.on_player_id).sort()).toEqual(["B_rested1", "B_rested2"]);
+  });
+
   it("soft guard: still suggests when every bench player was just benched", () => {
     const swaps = callOn(
       { B_recent: 580_000, B_rested: 590_000 }, // both recent

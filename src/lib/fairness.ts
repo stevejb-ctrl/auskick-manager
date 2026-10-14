@@ -974,14 +974,15 @@ export function suggestSwaps(
   const benchByGameMin = seededShuffle(fitBench, tieBreak).sort(
     (a, b) => gameMin(a) - gameMin(b)
   );
-  // Soft recency partition (mirror of the field side): a player just
-  // subbed off rotates back on LAST, so they actually get a rest instead
-  // of being re-picked a minute later because their total is low. Stays
-  // eligible (no deadlock when the whole bench is freshly benched).
-  const benchSorted = [
-    ...benchByGameMin.filter((p) => !recentlyBenched(p)),
-    ...benchByGameMin.filter((p) => recentlyBenched(p)),
-  ];
+  // ON-side recency: a player just subbed off waits for a rest instead
+  // of being re-picked a minute later because their total is low. While
+  // anyone on the bench HAS rested, the just-benched sit this rotation
+  // out — one suggestion per bench kid otherwise always included them,
+  // last but there (round 5: "Do all 3 swaps" put Ava straight back
+  // on). Still eligible when the whole bench is freshly benched, so it
+  // never deadlocks.
+  const rested = benchByGameMin.filter((p) => !recentlyBenched(p));
+  const benchSorted = rested.length > 0 ? rested : benchByGameMin;
   if (playbook) {
     // Keep-on players come back on first.
     benchSorted.sort((a, b) => (roles[a]?.keepOn ? 0 : 1) - (roles[b]?.keepOn ? 0 : 1));
