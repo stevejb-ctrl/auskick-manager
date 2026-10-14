@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
-import { teamSport } from "@/lib/sports";
+import { getSportConfig, teamSport } from "@/lib/sports";
 
 interface AvailabilityPageProps {
   params: { teamId: string; gameId: string };
@@ -109,7 +109,7 @@ export default async function AvailabilityPage({
           gameId={params.gameId}
           canMarkAvailability={canMarkAvailability}
           canManageMatch={canManageMatch}
-          showJerseyNumber={sport !== "netball"}
+          showJerseyNumber={getSportConfig(sport).jerseyNumbers}
         />
       </Suspense>
 

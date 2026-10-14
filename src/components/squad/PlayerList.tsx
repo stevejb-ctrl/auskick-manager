@@ -3,7 +3,7 @@ import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import { getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow, SFCard } from "@/components/sf";
 import { loadSquadRoles } from "@/lib/playbook/load";
@@ -41,7 +41,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   // Player roles (How we play): what the role sheet offers depends on
   // how the team plays — null at AFL zoned ages.
   const { roleModel, roles } = await loadSquadRoles(supabase, teamId, sport, ageGroupCfg.id);
-  const showJersey = sport === "afl";
+  const showJersey = getSportConfig(sport).jerseyNumbers;
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);

@@ -218,4 +218,5 @@ export const aflSport: SportConfig = {
   periodLabel: "quarter",
   periodLabelPlural: "quarters",
   fairnessModel: "zone-minutes",
+  jerseyNumbers: true,
 };

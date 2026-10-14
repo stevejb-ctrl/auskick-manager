@@ -493,5 +493,6 @@ export const rugbyLeagueSport: SportConfig = {
   periodLabel: "quarter",
   periodLabelPlural: "quarters",
   fairnessModel: "unbroken-period",
+  jerseyNumbers: true,
   validateLineup: validateRugbyLeagueLineup,
 };

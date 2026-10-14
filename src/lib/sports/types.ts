@@ -205,6 +205,12 @@ export interface SportConfig {
    *     age-group's `minUnbrokenPeriods` requirement.
    */
   fairnessModel: "zone-minutes" | "position-count-per-game" | "unbroken-period";
+  /**
+   * Kids wear numbers the coach records (AFL guernseys, league jerseys).
+   * Netball doesn't: the bib is the position. Every squad, availability
+   * and live surface reads this — none decides for itself.
+   */
+  jerseyNumbers: boolean;
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /**

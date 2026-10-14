@@ -3,6 +3,7 @@ import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
+import { getSportConfig } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Player, Sport } from "@/lib/types";
 import type { PlayerRole, RoleModel } from "@/lib/playbook/roles";
@@ -11,14 +12,8 @@ interface SquadStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   players: Player[];
-  /**
-   * AFL + rugby league show jersey numbers (jersey-driven sports);
-   * netball doesn't (positions are letter-coded). Steve 2026-05-20:
-   * RL falls into the jersey-showing branch so the add-player form
-   * surfaces the jersey input that the lineup picker + tile time
-   * readouts rely on.
-   */
-  sportId?: Sport;
+  /** The team's sport: it decides whether kids have jersey numbers. */
+  sportId: Sport;
   /** How we play role sheet (from the step before); null where roles don't apply. */
   roleModel?: RoleModel | null;
   roles?: Record<string, PlayerRole>;
@@ -28,16 +23,13 @@ export function SquadStep({
   teamId,
   ageGroup,
   players,
-  sportId = "afl",
+  sportId,
   roleModel = null,
   roles = {},
 }: SquadStepProps) {
-  // AFL + rugby league show jersey numbers (jersey-driven sports);
-  // netball doesn't (positions are letter-coded). RL falls into the
-  // jersey-showing branch so the add-player form surfaces the
-  // jersey input that the lineup picker + tile time readouts rely
-  // on. Steve 2026-05-20.
-  const showJersey = sportId === "afl" || sportId === "rugby_league";
+  // The sport decides (AFL and league number their kids; netball's
+  // bib is the position).
+  const showJersey = getSportConfig(sportId).jerseyNumbers;
   const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);

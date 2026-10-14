@@ -17,7 +17,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport, teamSport } from "@/lib/sports";
+import { aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, teamSport } from "@/lib/sports";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -286,7 +286,7 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber
+                showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
                 requiredAvailable={ageCfgL.defaultOnFieldSize}
               />
             </section>
@@ -486,7 +486,7 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber={false}
+                showJerseyNumber={getSportConfig("netball").jerseyNumbers}
                 requiredAvailable={ageCfgN.positions.length}
               />
             </section>
@@ -677,7 +677,7 @@ export default async function RunPage({ params }: RunPageProps) {
           gameId={g.id}
           canMarkAvailability
           canManageMatch
-          showJerseyNumber
+          showJerseyNumber={getSportConfig("afl").jerseyNumbers}
           // AFL needs g.on_field_size players available (12 for U10).
           // Drives the "X of 12 available" pill + helper hint.
           requiredAvailable={g.on_field_size}

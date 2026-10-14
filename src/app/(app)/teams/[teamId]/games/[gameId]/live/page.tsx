@@ -444,7 +444,7 @@ export default async function LivePage({ params }: LivePageProps) {
           availableIds={availableIds}
           fillInCount={fillInsForLive.length}
           canManageMatch
-          showJerseyNumber
+          showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
         />
       );
 
@@ -758,7 +758,7 @@ export default async function LivePage({ params }: LivePageProps) {
               availableIds={availableIds}
               fillInCount={fillInsForLive.length}
               canManageMatch
-              showJerseyNumber={false}
+              showJerseyNumber={getSportConfig("netball").jerseyNumbers}
             />
           }
           ageGroup={ageCfgN}
@@ -1024,7 +1024,7 @@ export default async function LivePage({ params }: LivePageProps) {
       availableIds={availableIds}
       fillInCount={fillInsForPicker.length}
       canManageMatch
-      showJerseyNumber
+      showJerseyNumber={getSportConfig("afl").jerseyNumbers}
     />
   );
 

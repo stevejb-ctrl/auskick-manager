@@ -182,3 +182,29 @@ test("the add-player name error clears once a name is typed", async ({ page }) =
   await page.getByLabel(/player name/i).fill("Sam");
   await expect(page.getByText("Name is required.")).toHaveCount(0);
 });
+
+// Jersey numbers are the sport's call, made once (cross-sport audit,
+// 14 Oct 2026). The squad page showed them for AFL only while setup,
+// availability and the live screens showed them for league too, so a
+// league coach could set a number in setup and never see it again.
+for (const [sport, ageGroup, jerseys] of [
+  ["afl", "U10", true],
+  ["rugby_league", "U11", true],
+  ["netball", "11u", false],
+] as const) {
+  test(`${sport}: the squad page ${jerseys ? "shows" : "hides"} jersey numbers`, async ({ page }) => {
+    const admin = createAdminClient();
+    const { data: superAdmin } = await admin.auth.admin.listUsers();
+    const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+    const team = await makeTeam(admin, { ownerId, ageGroup, sport });
+    await admin.from("players").insert({ team_id: team.id, full_name: "Jo Number", jersey_number: 27, created_by: ownerId });
+
+    await page.goto(`/teams/${team.id}/squad`);
+    await waitForHydration(page);
+    await expect(page.getByText("Jo Number")).toBeVisible();
+    await expect(page.getByLabel(/jersey #/i)).toHaveCount(jerseys ? 1 : 0);
+    await expect(page.getByRole("listitem").filter({ hasText: "Jo Number" }).getByText("27", { exact: true })).toHaveCount(
+      jerseys ? 1 : 0,
+    );
+  });
+}
