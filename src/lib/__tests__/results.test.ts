@@ -38,6 +38,25 @@ describe("scoreFromEvents", () => {
     expect(s.us).toBe(1);
     expect(s.them).toBe(2);
   });
+
+  it("adds league tries, made conversions and goals, and takes back an undone score", () => {
+    const s = scoreFromEvents("rugby_league", [
+      ev("quarter_start", { quarter: 1 }, null),
+      ev("try"),
+      ev("conversion_attempt", { made: true }),
+      ev("try"),
+      ev("conversion_attempt", { made: false }),
+      ev("penalty_goal"),
+      ev("field_goal"),
+      ev("field_goal"),
+      ev("score_undo", {}, null),
+      ev("opponent_try", {}, null),
+      ev("opponent_conversion", {}, null),
+    ]);
+    // 4 + 2 + 4 + 0 + 2 + 1 = 13 (the second field goal undone); 4 + 2 = 6.
+    expect(s.us).toBe(13);
+    expect(s.them).toBe(6);
+  });
 });
 
 describe("outcome and season record", () => {
