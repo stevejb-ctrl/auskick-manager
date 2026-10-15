@@ -18,6 +18,7 @@ test("dashboard team cards show sport, age group and the next game", async ({ pa
     ownerId,
     ageGroup: "U12",
     name: `Card ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sport: "afl",
   });
   await makeGame(admin, {
     teamId: team.id,

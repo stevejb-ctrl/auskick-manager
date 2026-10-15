@@ -12,7 +12,7 @@ test("settings and admin controls have accessible names", async ({ page }) => {
   const admin = createAdminClient();
   const { data } = await admin.auth.admin.listUsers();
   const ownerId = data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await expect(page.getByRole("textbox", { name: "Team name" })).toBeVisible({ timeout: 15_000 });

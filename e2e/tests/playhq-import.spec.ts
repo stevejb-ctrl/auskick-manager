@@ -33,7 +33,7 @@ test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Stub the outbound PlayHQ call. The exact URL + response shape is
   // defined in lib/playhq.ts; adjust the matcher if that module changes.

@@ -47,7 +47,7 @@ test("SFButton primary on team home wires active:bg- tap feedback", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   await makeGame(admin, { teamId: team.id, ownerId });
 
@@ -89,7 +89,7 @@ test("segmented controls are 44 pt targets with pressed feedback", async ({ page
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   await makeGame(admin, { teamId: team.id, ownerId });
 
   await page.goto(`/teams/${team.id}/settings`);

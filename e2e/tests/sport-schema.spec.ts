@@ -87,7 +87,7 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
   const ownerId = await superAdminId(admin);
 
   // AFL named positions: AFL lines only.
-  const afl = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const afl = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "afl" });
   const position = (line: string) => ({ team_id: afl.id, label: "TALL", line, sort: 1 });
   expect((await admin.from("team_positions").insert(position("fwd"))).error).toBeNull();
   expect((await admin.from("team_positions").insert(position("forwards"))).error?.message).toMatch(
@@ -159,7 +159,7 @@ test("0063: a team and a game say their own sport and size", async () => {
 test("0064: AFL and netball keep no vest strategy", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
 
   // How we play saved on the Team tab carries no vests.
   await page.goto(`/teams/${team.id}/settings`);

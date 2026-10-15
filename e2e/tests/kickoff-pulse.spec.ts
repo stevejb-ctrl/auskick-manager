@@ -33,7 +33,7 @@ test("kickoff pulse: ring renders when game is inside the ±30min window", async
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   // Schedule the game for RIGHT NOW so the wrapper's
   // `Math.abs(Date.now() - target) <= 30min` check passes immediately.
@@ -69,7 +69,7 @@ test("kickoff pulse: ring is absent when game is well outside the window", async
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   // +2h from now — comfortably outside the ±30min window.
   await makeGame(admin, {

@@ -17,8 +17,8 @@ export interface MakeTeamOpts {
   name?: string;
   /** One of the sport's age groups. Default: the setup wizard's (U10, netball "go"). */
   ageGroup?: string;
-  /** Default "afl", the reference sport. Netball and league specs say so. */
-  sport?: SportId;
+  /** Every spec says which sport its team plays; none is assumed. */
+  sport: SportId;
   ownerId: string; // profile id of the admin who "created" this team
 }
 
@@ -36,7 +36,7 @@ export async function makeTeam(
   // The database has no sport or age group defaults (migration 0063),
   // so every team says both, and the age group must be its sport's: a
   // netball "U10" team would quietly run on another age group's rules.
-  const sport = opts.sport ?? "afl";
+  const { sport } = opts;
   const ageGroup = opts.ageGroup ?? DEFAULT_AGE_GROUP[sport];
   const cfg = getSportConfig(sport);
   if (![...cfg.ageGroups, ...(cfg.legacyAgeGroups ?? [])].some((a) => a.id === ageGroup)) {

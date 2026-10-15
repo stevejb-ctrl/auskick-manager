@@ -84,7 +84,7 @@ test("AFL: a player marked unavailable pre-game is dropped from the kickoff line
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // 15 = 12 on field + 3 bench for U10 (defaultOnFieldSize=12).
   const players = await makePlayers(admin, {
     teamId: team.id,

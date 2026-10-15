@@ -108,7 +108,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   )!.id;
 
   // ─── Setup ─────────────────────────────────────────────────
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Track scoring on so the +Goal button + score recap render.
   await admin
     .from("teams")

@@ -49,7 +49,7 @@ async function locksFor(admin: ReturnType<typeof createAdminClient>, gameId: str
 test("AFL: Keep on field is saved and shows on another phone", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const onField = players.slice(0, game.on_field_size);

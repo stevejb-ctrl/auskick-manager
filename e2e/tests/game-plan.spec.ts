@@ -75,6 +75,7 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
     ownerId,
     ageGroup: "U10",
     name: `GP-AFL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sport: "afl",
   });
   // 15 active players → 12 on field (U10) + a 3-player bench, so the
   // tap-to-swap below can swap an on-field player with a bench player
@@ -154,6 +155,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
     ownerId,
     ageGroup: "U10",
     name: `GP-LIVE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sport: "afl",
   });
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -209,7 +211,7 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   // on field and "Sub every 10m".
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -386,7 +388,7 @@ test("set positions: Game plan names each kid's position, on screen and in the c
   // only, so a ruck sat under "Centre" and parents couldn't read it.
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U13" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U13", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Eagles" });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
@@ -412,7 +414,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   // vanished — "Use for Q1" kept only Q1.
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(

@@ -25,7 +25,7 @@ test("injuring an on-field player prompts for a bench replacement and persists b
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // U10's defaultOnFieldSize is 12 (per src/lib/ageGroups.ts) — so for
   // a non-empty bench we need >12 players. 15 = 12 on field + 3 bench.
   const players = await makePlayers(admin, {
@@ -153,7 +153,7 @@ test("injuring an on-field player when the bench is empty falls through to the o
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Exactly on_field_size (12 for U10) players → no bench candidates.
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -238,7 +238,7 @@ test("tapping a player reaches Mark injured without a long-press", async ({ page
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: false }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });

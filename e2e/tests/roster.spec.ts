@@ -19,7 +19,7 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);
@@ -107,7 +107,7 @@ test("pasting a list adds the whole squad at once", async ({ page }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);
@@ -142,7 +142,7 @@ test("reactivating into a full squad says why it didn't work", async ({ page }) 
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" }); // 20-kid squad
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" }); // 20-kid squad
   const { error } = await admin.from("players").insert([
     ...Array.from({ length: 20 }, (_, i) => ({
       team_id: team.id,
@@ -173,7 +173,7 @@ test("the add-player name error clears once a name is typed", async ({ page }) =
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);

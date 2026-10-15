@@ -20,7 +20,7 @@ async function owner() {
 
 test("AFL: an undone goal leaves the scorer card", async ({ page }) => {
   const { admin, ownerId } = await owner();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", name: `Scorers AFL ${Date.now() % 100000}` });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", name: `Scorers AFL ${Date.now() % 100000}`, sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 3, ageGroup: "U12" });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
