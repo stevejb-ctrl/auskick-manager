@@ -22,7 +22,7 @@ async function runnerPage(browser: Browser) {
   return { context, page };
 }
 
-for (const sport of ["rugby_league", "netball"] as const) {
+for (const sport of ["rugby_league", "rugby_union", "netball"] as const) {
   test(`${sport}: the runner's /lineup goes back to the sport's own page, not AFL's picker`, async ({ browser }) => {
     const admin = createAdminClient();
     const { data: su } = await admin.auth.admin.listUsers();
@@ -42,8 +42,9 @@ for (const sport of ["rugby_league", "netball"] as const) {
     const { context, page } = await runnerPage(browser);
     await page.goto(`/run/${game.share_token}/lineup`);
     await expect(page).toHaveURL(new RegExp(`/run/${game.share_token}$`));
-    // AFL's picker kicks off with "Start Q1"; league U11 plays halves.
-    if (sport === "rugby_league") {
+    // AFL's picker kicks off with "Start Q1"; league U11 and union U11
+    // play halves.
+    if (sport !== "netball") {
       await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
     }
     await context.close();
