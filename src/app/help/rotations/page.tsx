@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball and league: badges, position colours, keeping players on, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league and union: badges, position colours, keeping players on, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -156,6 +156,20 @@ export default function RotationsPage() {
           How we play). Then long-press a player on court and tap{" "}
           <strong className="text-ink">Switch player</strong> to bring someone
           on.
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in rugby union</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Junior rugby union uses rolling subs, the same model as league and
+          AFL, with none of league&apos;s junior laws: no vests, no kicking
+          rotations and no unbroken-period rule. The game-time floor in{" "}
+          <strong className="text-ink">How we play</strong> (half the game
+          by default) keeps playing time fair, and you can change it like any
+          other sport. Kids play forwards or backs to Under 9; from Under 10
+          you can give them named positions, numbered as on the jersey (LK4,
+          HB9, N8 and so on).
         </p>
       </section>
 

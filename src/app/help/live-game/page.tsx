@@ -27,12 +27,13 @@ export default function LiveGamePage() {
         Here&apos;s how to use it.
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-        The exact controls vary by sport. AFL and league use rolling subs, so
-        a sub timer and a swap card suggest who comes on during play. Netball
-        subs at the breaks, so it shows the next-quarter reshuffle at every
-        break instead. League also tracks its junior laws: FR and DH vests,
-        goal-kick turns and kickoff turns. All three sports have a lineup
-        picker, scoring buttons and a long-press player-actions sheet.
+        The exact controls vary by sport. AFL, league and union use rolling
+        subs, so a sub timer and a swap card suggest who comes on during
+        play. Netball subs at the breaks, so it shows the next-quarter
+        reshuffle at every break instead. League also tracks its junior laws:
+        FR and DH vests, goal-kick turns and kickoff turns; union has none of
+        them. Every sport has a lineup picker, scoring buttons and a
+        long-press player-actions sheet.
       </p>
 
       <section className="mt-8">
@@ -137,8 +138,8 @@ export default function LiveGamePage() {
         </p>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            Tap a scoring player on the playing area to select them. In AFL
-            and league this is any player on the field; in netball it&apos;s
+            Tap a scoring player on the playing area to select them. In AFL,
+            league and union this is any player on the field; in netball it&apos;s
             only GS or GA (the shooter positions).
           </li>
           <li>
@@ -149,9 +150,13 @@ export default function LiveGamePage() {
             <strong className="text-ink">+ Try</strong>, plus{" "}
             <strong className="text-ink">+ Penalty goal</strong> and{" "}
             <strong className="text-ink">+ Field goal</strong> from Under 13.
+            Union: <strong className="text-ink">+ Try</strong>, plus{" "}
+            <strong className="text-ink">+ Penalty goal</strong> and{" "}
+            <strong className="text-ink">+ Drop goal</strong> from Under 10.
           </li>
           <li>
-            League from Under 8: after a try, the conversion picker opens.
+            League and union from Under 8: after a try, the conversion picker
+            opens.
             Pick the kicker, then tap <strong className="text-ink">Made</strong>{" "}
             or <strong className="text-ink">Missed</strong>.
           </li>
@@ -167,7 +172,11 @@ export default function LiveGamePage() {
             <strong className="text-ink">+T</strong> and{" "}
             <strong className="text-ink">+C</strong> (plus{" "}
             <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+FG</strong> from Under 13). On your
+            <strong className="text-ink">+FG</strong> from Under 13), union{" "}
+            <strong className="text-ink">+T</strong>,{" "}
+            <strong className="text-ink">+C</strong>,{" "}
+            <strong className="text-ink">+PG</strong> and{" "}
+            <strong className="text-ink">+DG</strong>. On your
             side they ask who scored; on the opponent&apos;s side they add the
             score straight away.
           </li>
@@ -185,6 +194,8 @@ export default function LiveGamePage() {
           single goals tally — every goal is worth one point. League shows the
           total points with a tries·conversions breakdown (try 4, conversion
           2), and penalty goals (2) and field goals (1) once there are any.
+          Union shows the same, in its points (try 5, conversion 2, penalty
+          and drop goals 3).
         </HelpCallout>
       </section>
 
