@@ -86,6 +86,10 @@ const PLAYER_FIRST_NAMES = [
   "Alicia", "Brendan", "Camille", "Damian", "Elena",
   "Felix", "Gemma", "Harvey", "Ingrid", "Joaquin",
   "Karina", "Lachlan", "Maeve", "Nikolai", "Octavia",
+  // A union side is 15 on the field plus a bench (squads to 23).
+  "Pierce", "Quinn", "Rosa", "Silas", "Tamsin",
+  "Ulric", "Vera", "Wyatt", "Xanthe", "Yusuf",
+  "Zara", "Arlo", "Bianca", "Cosmo", "Delphine",
 ];
 
 export async function makePlayers(
@@ -93,24 +97,17 @@ export async function makePlayers(
   opts: MakePlayersOpts
 ): Promise<Array<{ id: string; full_name: string; jersey_number: number }>> {
   const ageGroup = opts.ageGroup ?? "U10";
-  // Default = defaultOnFieldSize + 4 (covers a bench rotation) but
-  // clamp to the 15-name pool / 15-active-player squad trigger from
-  // migration 0001. Without the clamp every U10 (defaultOnFieldSize
-  // = 12 → 16) and U13+ test that omits `count` throws "exceeds the
-  // 15-name pool" before any assertion runs. Specs that actually
-  // need 16+ players (full-game playthroughs at large age groups)
-  // must still pass an explicit count and either resize the pool or
-  // accept the trigger rejection.
+  // Default = defaultOnFieldSize + 4 (covers a bench rotation), clamped
+  // to 15 so specs that omit `count` keep their old squads. Specs that
+  // need more (a 15-a-side union side) pass `count`, up to the 30-name
+  // pool (the squad cap is 30 active players, migration 0037).
   const count =
     opts.count
-    ?? Math.min(
-      PLAYER_FIRST_NAMES.length,
-      getAgeGroupConfig("afl", ageGroup).defaultOnFieldSize + 4,
-    );
+    ?? Math.min(15, getAgeGroupConfig("afl", ageGroup).defaultOnFieldSize + 4);
   if (count > PLAYER_FIRST_NAMES.length) {
     throw new Error(
       `makePlayers: count=${count} exceeds the ${PLAYER_FIRST_NAMES.length}-name pool ` +
-        `(also bumps against the 15-active-player squad trigger from migration 0001)`,
+        `(the squad cap is 30 active players, migration 0037)`,
     );
   }
 

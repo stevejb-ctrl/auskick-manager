@@ -6,7 +6,8 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { isRugby, noSportBranch, periodLabels } from "@/lib/sports";
+import { noSportBranch, periodLabels } from "@/lib/sports";
+import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -38,9 +39,10 @@ export function ScoringStep({
   // with tries + conversions tracked, and U13+ plays international laws
   // (penalty and field goals too). createTeam pre-flips
   // track_scoring to match, so this step has nothing to toggle —
-  // we just explain what's happening and move on. AFL and netball
-  // keep the explicit toggle below.
-  const isRugbyLeague = isRugby(sportId);
+  // we just explain what's happening and move on. AFL, netball and
+  // union keep the explicit toggle below (union's pathway keeps no
+  // score to U11, but a competition can).
+  const isRugbyLeague = sportId === "rugby_league";
   const rlScoringOn = isRugbyLeague && ageGroup.tracksScoreDefault === true;
 
   const blurb =
@@ -80,6 +82,8 @@ export function ScoringStep({
           switch to modified tackle.
         </>
       )
+    ) : sportId === "rugby_union" ? (
+      <UnionScoringBlurb ageGroup={ageGroup} />
     ) : sportId === "afl" ? (
       <>
         Most AFL juniors don&apos;t keep score up to U10, then scoring comes in
@@ -161,5 +165,26 @@ export function ScoringStep({
         </Link>
       </div>
     </div>
+  );
+}
+
+/** Union's scoring copy, in its own points. */
+function UnionScoringBlurb({ ageGroup }: { ageGroup: AgeGroupConfig }) {
+  const pts = rugbyPoints("rugby_union");
+  const goals = ageGroup.goalsFromPlay
+    ? `, penalty goals (${pts.penaltyGoal}) and drop goals (${pts.fieldGoal})`
+    : "";
+  return ageGroup.tracksScoreDefault ? (
+    <>
+      {ageGroup.label} keeps score: tries ({pts.try} points), conversions ({pts.conversion}){goals}. The live
+      screen shows the score buttons and the post-game summary includes the result.
+    </>
+  ) : (
+    <>
+      Rugby Australia&apos;s pathway keeps no score before Under 12, so {ageGroup.label} starts with no
+      scoreboard. Flip this on if your competition keeps one: tries ({pts.try} points),
+      conversions ({pts.conversion}){goals} —{" "}
+      <strong className="text-ink">you can change it later on the Team tab</strong>.
+    </>
   );
 }

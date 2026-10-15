@@ -160,11 +160,11 @@ export function TeamBasicsForm({
         <div className="space-y-1">
           <Label>Sport</Label>
           {/*
-            One column on phones — three pills stacked is the most
-            scannable shape on a thumb. Switch to 3-up at sm+ so an
-            iPad / browser shows the field of choices at a glance.
+            One column on phones — the pills stacked is the most
+            scannable shape on a thumb. Two by two at sm+ so an iPad /
+            browser shows the four choices at a glance.
           */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <SportPill
               active={sport === "afl"}
               onClick={() => handleSportChange("afl")}
@@ -185,6 +185,13 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Rugby League"
               subtitle="U6–U17. Manage subs, vest + kick rotations, scoring and more."
+            />
+            <SportPill
+              active={sport === "rugby_union"}
+              onClick={() => handleSportChange("rugby_union")}
+              disabled={isPending}
+              title="Junior Rugby Union"
+              subtitle="U6–U18. Manage subs, forwards and backs or named positions, scoring and more."
             />
           </div>
         </div>
@@ -285,8 +292,9 @@ export function TeamBasicsForm({
 
 // ─── Sport pill ──────────────────────────────────────────────
 // Radio-ish button with title + one-line capsule. The parent wraps
-// these in a responsive 1-up (mobile) / 3-up (sm+) grid so all three
-// sports — AFL, Netball, Rugby League — are scannable at a glance.
+// these in a responsive 1-up (mobile) / 2-up (sm+) grid so all four
+// sports — AFL, Netball, Rugby League, Rugby Union — are scannable at
+// a glance.
 function SportPill({
   active,
   onClick,

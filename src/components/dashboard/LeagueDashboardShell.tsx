@@ -27,6 +27,7 @@ import type {
 } from "@/lib/dashboard/leagueAggregators";
 import type { Season } from "@/lib/dashboard/types";
 import type { LeagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
+import type { RugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 
 interface LeagueDashboardShellProps {
   seasons: Season[];
@@ -38,6 +39,8 @@ interface LeagueDashboardShellProps {
   seasonBalance?: SeasonBalanceSectionProps;
   /** Which law columns the team's age group has (leagueStatsColumns). */
   columns: LeagueStatsColumns;
+  /** The sport's goal names (union's field goal is a drop goal). */
+  words: RugbyScoreWords;
 }
 
 export function LeagueDashboardShell({
@@ -48,6 +51,7 @@ export function LeagueDashboardShell({
   totalGames,
   seasonBalance,
   columns,
+  words,
 }: LeagueDashboardShellProps) {
   if (totalGames === 0) {
     return (
@@ -109,7 +113,7 @@ export function LeagueDashboardShell({
         {columns.goals && (
           <>
             <TotalCard label="Pen. goals" value={aggregate.totals.penaltyGoals} />
-            <TotalCard label="Field goals" value={aggregate.totals.fieldGoals} />
+            <TotalCard label={`${words.fieldGoal.label}s`} value={aggregate.totals.fieldGoals} />
           </>
         )}
         <TotalCard
@@ -159,8 +163,8 @@ export function LeagueDashboardShell({
               <Th>Conv (M/A)</Th>
               {columns.goals && (
                 <>
-                  <Th>PG</Th>
-                  <Th>FG</Th>
+                  <Th>{words.penaltyGoal.short}</Th>
+                  <Th>{words.fieldGoal.short}</Th>
                 </>
               )}
               {columns.fr && <Th>FR</Th>}
