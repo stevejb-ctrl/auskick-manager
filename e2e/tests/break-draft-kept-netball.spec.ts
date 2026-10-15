@@ -65,7 +65,7 @@ test("netball: two swaps staged at the break are still there after the team page
     .update({ track_scoring: false, quarter_length_seconds: teamQS })
     .eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" })),
   );

@@ -11,7 +11,6 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { getAgeGroupConfig, getSportConfig, type SportId } from "../../src/lib/sports";
 import { newGameDefaults } from "../../src/lib/games/newGameDefaults";
-import type { AgeGroup } from "../../src/lib/types";
 
 export interface MakeTeamOpts {
   name?: string;
@@ -70,7 +69,7 @@ export interface MakePlayersOpts {
   teamId: string;
   ownerId: string;
   count?: number; // default: age group's defaultOnFieldSize + 4
-  ageGroup?: AgeGroup;
+  ageGroup?: string;
 }
 
 // 15 unique single-word names — matches the 15-player squad cap from

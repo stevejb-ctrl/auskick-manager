@@ -36,7 +36,7 @@ test("rugby league: resuming a paused half carries on from where it stopped", as
     name: `RL-Pause-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
   const onFieldCount = 8;
 

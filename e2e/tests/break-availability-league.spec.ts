@@ -437,7 +437,7 @@ test("rugby league: the break shows the planned half, and a swap made there is i
     name: `RL-PIN-SWAP-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 13 }).eq("id", game.id);
 
   const ids = players.map((p) => p.id);

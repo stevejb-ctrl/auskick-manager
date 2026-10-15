@@ -40,7 +40,7 @@ test("AFL at 8×: tiles count game time after a reload, like the replay", async 
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
@@ -134,7 +134,7 @@ test("rugby league at 8×: the half clock runs at game speed", async ({ page }) 
     name: `RL-8X-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
   const onFieldCount = 8;
 
