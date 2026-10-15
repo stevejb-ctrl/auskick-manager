@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run",
     "e2e": "node scripts/e2e-setup.mjs",
     "explore": "node e2e/explore/run.mjs",
