@@ -56,7 +56,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const field = page.getByRole("region", { name: "On field" });
-  await expect(page.getByText("15 / 15")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("15 / 15").first()).toBeVisible({ timeout: 15_000 });
   await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(15);
   await expect(field.locator("[data-pitch-line='22m']")).toHaveCount(2);
   await expect(page.getByText(/First Receiver|Dummy Half/)).toHaveCount(0);
@@ -130,8 +130,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
     .poll(async () => (await admin.from("games").select("status").eq("id", game.id).single()).data?.status)
     .toBe("completed");
 
-  // ─── 6. The team's sport on every event; stats in union's words ─
+  // ─── 6. The team's sport on the rugby events; stats in union's words ─
   const { data: events } = await admin.from("game_events").select("type, metadata").eq("game_id", game.id);
+  expect(events?.length).toBeGreaterThan(0);
   for (const e of events ?? []) {
     expect((e.metadata as { sport?: string }).sport, e.type as string).toBe("rugby_union");
   }

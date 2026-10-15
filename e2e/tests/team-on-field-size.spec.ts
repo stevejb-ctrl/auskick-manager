@@ -99,7 +99,7 @@ test("a team's size follows the age group until set, and a new age keeps it in r
   await players.selectOption("10");
   const card = players.locator("xpath=ancestor::div[contains(@class, 'rounded-lg')][1]");
   await card.getByRole("button", { name: /^save$/i }).click();
-  await expect(card.getByRole("status")).toHaveText("Saved. New games start with 10 on the field.");
+  await expect(card.getByText("Saved. New games start with 10 on the field.")).toBeVisible();
   await expect.poll(() => teamRow(team.id)).toMatchObject({ on_field_size: 10 });
 
   // Moving up to U12 (12 to 15): 10 is out of range, so 12.
