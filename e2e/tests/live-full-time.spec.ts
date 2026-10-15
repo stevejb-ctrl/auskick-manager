@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
@@ -41,7 +41,7 @@ async function seedGameAtQ4Hooter(
 
   // Build the same `Lineup` shape startGame writes — `{back, hback, mid,
   // hfwd, fwd, bench}` — keyed off the team's age-group position model.
-  const positionModel = positionsFor(team.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", team.ageGroup));
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],

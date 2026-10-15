@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
@@ -32,7 +32,7 @@ test("end Q1 transitions to quarter break and renders rotation suggestion", asyn
 
   // Build the same `Lineup` shape startGame writes (see actions.ts —
   // metadata.lineup, NOT the historical { on_field, on_field_size }).
-  const positionModel = positionsFor(team.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", team.ageGroup));
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],

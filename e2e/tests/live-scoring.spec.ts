@@ -13,8 +13,8 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
-import type { AgeGroup, Lineup } from "../../src/lib/types";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -29,7 +29,7 @@ async function startGameInDb(opts: {
   gameId: string;
   playerIds: string[];
   onFieldSize: number;
-  ageGroup: AgeGroup;
+  ageGroup: string;
   createdBy: string;
 }) {
   const { admin, gameId, playerIds, onFieldSize, ageGroup, createdBy } = opts;
@@ -37,7 +37,7 @@ async function startGameInDb(opts: {
   // Build the same `Lineup` shape startGame writes — `{back, hback, mid,
   // hfwd, fwd, bench}`. Zone caps come from the team's age group
   // position model so the seed matches whatever the live page expects.
-  const positionModel = positionsFor(ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", ageGroup));
   const zoneCaps = zoneCapsFor(onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],

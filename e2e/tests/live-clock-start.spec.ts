@@ -27,17 +27,17 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
-import type { AgeGroup, Lineup } from "../../src/lib/types";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
 async function buildLineup(opts: {
   playerIds: string[];
   onFieldSize: number;
-  ageGroup: AgeGroup;
+  ageGroup: string;
 }): Promise<Lineup> {
-  const positionModel = positionsFor(opts.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", opts.ageGroup));
   const zoneCaps = zoneCapsFor(opts.onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
