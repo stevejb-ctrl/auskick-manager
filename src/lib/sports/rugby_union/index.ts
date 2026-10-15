@@ -17,9 +17,14 @@
 //   - No vests, no kick rotations, no minimum-game-time law: How we
 //     play's 50% floor applies.
 //
-// To confirm with Steve: kicking from U8 (U6–U7 is tag), and penalty
-// and drop goals counting from U10 (the national pathway's junior law
-// review didn't publish its kicking table).
+// Decided with Steve (14–16 Oct 2026), not provisional:
+//   - Conversions from U8; U6–U7 play tag, with no kicking.
+//   - Penalty and drop goals count from U10.
+//   - Forwards below 10 a side: 7 plays 3/4, the others about half
+//     (FORWARDS_BY_SIZE).
+//   - Squads: 12 (U6–U8), 16 (U9), 22 (U10–U11), 23 (U12 up).
+//   - Named positions offered from U10, recommended from U12 (preferred
+//     line at U10–U11).
 
 import type {
   PositionDef,
@@ -52,8 +57,8 @@ const RU_SCORE_TYPES: ScoreTypeDef[] = [
 
 // Forwards at each on-field size: Hunter's by-laws from 10 to 14 a side
 // (10 is 5/5, 11 is 5/6, 12 is 6/6, 13 is 6/7, 14 is 8/6) and the full
-// 15 (8/7). Below 10, to confirm: 7 a side as 3/4, and the others near
-// half.
+// 15 (8/7). Below 10 (decided 16 Oct 2026): 7 a side as 3/4, and the
+// others about half.
 const FORWARDS_BY_SIZE: Record<number, number> = {
   5: 2,
   6: 3,

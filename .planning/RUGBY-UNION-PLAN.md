@@ -173,7 +173,8 @@ coach whose league plays a different size gets it too.
   team (U12 and up) would hide two kids. Add union layouts for every
   size in the ranges above (5 to 15). Forwards and backs per size,
   from Hunter's by-laws: 10 is 5/5, 11 is 5/6, 12 is 6/6, 13 is 6/7,
-  14 is 8/6, 15 is 8/7. Smaller sizes are to confirm (7 is likely 3/4).
+  14 is 8/6, 15 is 8/7. Smaller sizes: 7 is 3/4 and the others about
+  half (decided 16 Oct 2026).
 - `LeagueField` draws league markings. Give it a sport prop, or a small
   `RugbyField` wrapper, for union's 22 m and 10 m lines. Keep one
   component.
@@ -240,7 +241,7 @@ F or B. If a 7-a-side split is ever wanted, sevens uses 1, 2, 3 and
   position a key, short label, name, line and x/y.
 - Named positions are offered from U10 (12 a side) up, as for league.
   "Preferred line" stays the recommended strategy at U10–U11, and named
-  positions from U12 (15 a side) — to confirm when phase 3 starts.
+  positions from U12 (15 a side) (decided 16 Oct 2026).
 - The field, tiles, role sheet, How we play roles ("home" and "also
   plays"), the rule check, stats by position and season balance all
   read positions through the catalogue, so they pick union's up once
@@ -326,6 +327,15 @@ Mostly configuration once phase 1 is in:
 - **Kicking:** no kick rotations; kickers are recorded only as scorers.
 - **Game time:** no minimum-game-time law; the How we play 50 % floor
   applies by default.
+- **Conversions** from U8; U6–U7 play tag, with no kicking (16 Oct
+  2026).
+- **Penalty and drop goals** count from U10 (16 Oct 2026).
+- **Forwards below 10 a side:** 7 plays 3/4, the others about half
+  (16 Oct 2026).
+- **Squads:** 12 at U6–U8, 16 at U9, 22 at U10–U11, 23 from U12 (16 Oct
+  2026).
+- **Named positions** offered from U10, recommended from U12; preferred
+  line is recommended at U10–U11 (16 Oct 2026).
 
 Nothing is left open; phase 1 can start.
 
