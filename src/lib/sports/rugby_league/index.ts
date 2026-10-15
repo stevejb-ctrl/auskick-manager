@@ -38,10 +38,10 @@ import type {
   ScoreTypeDef,
   AgeGroupConfig,
   RugbyAgeGroupConfig,
-  ValidationResult,
-  ValidationIssue,
 } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
+// Lineup validation is shared with rugby union.
+import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
 
 // ─── Field zones ─────────────────────────────────────────────
 // Junior RL is positionless and the field is treated as a single
@@ -442,78 +442,6 @@ const RL_AGE_GROUPS: RugbyAgeGroupConfig[] = [
   },
 ];
 
-// ─── Lineup shape used by validateLineup ─────────────────────
-// Junior RL is positionless: `{ field: PlayerId[], bench: PlayerId[] }`.
-// Defined as `LeagueLineup` in `@/lib/types` for cross-module reuse
-// (the server actions and replay engine consume the same shape).
-import type { LeagueLineup } from "@/lib/types";
-
-function validateRugbyLeagueLineup(
-  lineup: unknown,
-  ageGroup: AgeGroupConfig,
-): ValidationResult {
-  const issues: ValidationIssue[] = [];
-  const l = lineup as LeagueLineup;
-
-  if (
-    !l ||
-    typeof l !== "object" ||
-    !Array.isArray(l.forwards) ||
-    !Array.isArray(l.backs) ||
-    !Array.isArray(l.bench)
-  ) {
-    return {
-      ok: false,
-      issues: [{ kind: "error", message: "Invalid lineup shape." }],
-    };
-  }
-
-  // On-field count = forwards + backs. Coach can ignore the
-  // position split (everyone in one bucket), but the totals still
-  // have to land inside the age-group's legal window.
-  const onFieldCount = l.forwards.length + l.backs.length;
-  if (onFieldCount > ageGroup.maxOnFieldSize) {
-    issues.push({
-      kind: "error",
-      message: `Too many players on field (${onFieldCount}); max is ${ageGroup.maxOnFieldSize}.`,
-      positionId: "player",
-    });
-  } else if (onFieldCount < ageGroup.minOnFieldSize) {
-    issues.push({
-      kind: "warn",
-      message: `Below the recommended minimum (${ageGroup.minOnFieldSize}); local-league discretion to proceed.`,
-      positionId: "player",
-    });
-  }
-
-  // No player double-booked across forwards / backs / bench (or
-  // repeated within a single pool).
-  const seen = new Map<string, string>();
-  const mark = (pid: string, slot: string) => {
-    if (!pid) return;
-    const existing = seen.get(pid);
-    if (existing && existing !== slot) {
-      issues.push({
-        kind: "error",
-        message: `Player is in both ${existing} and ${slot}.`,
-        playerId: pid,
-      });
-    } else if (existing === slot) {
-      issues.push({
-        kind: "error",
-        message: `Player listed twice in ${slot}.`,
-        playerId: pid,
-      });
-    }
-    seen.set(pid, slot);
-  };
-  for (const playerId of l.forwards) mark(playerId, "forwards");
-  for (const playerId of l.backs) mark(playerId, "backs");
-  for (const playerId of l.bench) mark(playerId, "bench");
-
-  return { ok: issues.filter((i) => i.kind === "error").length === 0, issues };
-}
-
 // ─── SportConfig export ──────────────────────────────────────
 // `brand.palette` reuses AFL's `"brand"` palette while v1 ships under
 // the existing Siren brand. A future brand phase will widen the
@@ -548,5 +476,5 @@ export const rugbyLeagueSport: SportConfig = {
   fairnessModel: "unbroken-period",
   jerseyNumbers: true,
   teamSong: false,
-  validateLineup: validateRugbyLeagueLineup,
+  validateLineup: validateRugbyLineup,
 };
