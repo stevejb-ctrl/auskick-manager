@@ -20,6 +20,7 @@ import type { SportId } from "@/lib/sports/types";
 import aflJson from "../../../content/marketing/brands/afl.json";
 import netballJson from "../../../content/marketing/brands/netball.json";
 import leagueJson from "../../../content/marketing/brands/league.json";
+import unionJson from "../../../content/marketing/brands/union.json";
 
 /**
  * A heading split into three parts so a single word can render in
@@ -103,6 +104,12 @@ const COPY: Record<SportId, BrandCopy> = {
   // homepage's union sport section reads marketing-copy.ts.
   rugby_union: AFL_COPY,
 };
+
+/**
+ * Union's own long-form copy for the homepage sport picker (union has
+ * no site of its own, so no brand reads it): marketing-copy.ts.
+ */
+export const UNION_MARKETING_COPY = unionJson as BrandCopy;
 
 export function getBrandCopy(id: SportId): BrandCopy {
   return COPY[id] ?? AFL_COPY;

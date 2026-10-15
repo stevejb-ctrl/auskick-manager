@@ -11,13 +11,12 @@ import type { Sport } from "@/lib/types";
 // league, netball, union) map to the in-app SportId space that's
 // used in the DB and rule modules. The picker URL/form sends the
 // marketing id; this server action translates.
-// Rugby Union has no in-app sport yet — it's a coming-soon card on
-// the picker, so it has no entry here and runDemoGame refuses it.
-type MarketingSportId = "afl" | "league" | "netball";
+type MarketingSportId = "afl" | "league" | "union" | "netball";
 
 const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
   afl: "afl",
   league: "rugby_league",
+  union: "rugby_union",
   netball: "netball",
 };
 
@@ -27,7 +26,7 @@ const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
  * immediately.
  *
  * Flow:
- *   1. Validate the marketing sport id (reject union — coming-soon).
+ *   1. Validate the marketing sport id.
  *   2. Find the seeded `is_demo=true` team for that sport. If
  *      missing, return early with a clear message (the seed-demo
  *      cron should have created it; manual seed via
@@ -57,7 +56,7 @@ export async function runDemoGame(formData: FormData): Promise<void> {
   // malicious form post can't smuggle arbitrary strings into the
   // DB sport column.
   if (!Object.hasOwn(MARKETING_TO_SPORT, rawSport)) {
-    // union (coming soon) and unknown strings alike.
+    // Unknown strings.
     throw new Error(`Demo not available for sport: ${rawSport}`);
   }
   const marketingSportId = rawSport as MarketingSportId;
@@ -189,9 +188,9 @@ function buildDemoGamePayload({
   }
 
   if (isRugby(sport)) {
-    // Rugby League U10 — pull from the registered sport config so
-    // we get the half-based sub interval (10 min) + 11-on-field
-    // default rather than AFL's quarter values.
+    // Rugby (league and union) U10 — pull from the sport's own config
+    // so we get its half-based sub interval and on-field default
+    // rather than AFL's quarter values.
     const cfg = getSportConfig(sport);
     const ageCfg =
       cfg.ageGroups.find((a) => a.id === teamAgeGroup) ??

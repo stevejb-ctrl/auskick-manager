@@ -248,6 +248,19 @@ collections:
         format: json
         fields: *brandCopyFields
 
+  - name: brand-union
+    label: Rugby Union content
+    description: >
+      Deep junior rugby union marketing copy. Shows when Rugby Union
+      is the active sport on the homepage picker (union has no site
+      of its own).
+    files:
+      - name: union
+        label: Rugby Union content
+        file: content/marketing/brands/union.json
+        format: json
+        fields: *brandCopyFields
+
   - name: brand-netball
     label: Netball content
     description: >

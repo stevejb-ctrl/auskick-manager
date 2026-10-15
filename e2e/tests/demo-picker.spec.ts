@@ -1,11 +1,10 @@
 // Covers the multi-sport demo picker at /demo.
 //
-//   1. Picker renders 4 cards: AFL, Rugby League, Netball (all
-//      clickable), Rugby Union (disabled "Coming soon").
-//   2. Clicking an active card POSTs to runDemoGame and redirects to
+//   1. Picker renders 4 cards: AFL, Rugby League, Netball and Rugby
+//      Union, all clickable (union opened with its phase 5).
+//   2. Clicking a card POSTs to runDemoGame and redirects to
 //      /run/{token} (the public live-game view). Verified by URL
 //      assertion + presence of live-game chrome.
-//   3. Union card has aria-disabled and doesn't navigate when clicked.
 //
 // Covers: src/app/(marketing)/demo/page.tsx (DemoPage, DemoSportCard)
 //         + src/app/(marketing)/demo/actions.ts (runDemoGame)
@@ -45,6 +44,14 @@ const TEST_DEMO_SEED = {
     settings: {
       track_zone_time: true,
       enforce_unbroken_periods: true,
+    },
+  },
+  rugby_union: {
+    name: "Demo Union",
+    age_group: "U10",
+    players: ["Hamish Grant", "Fraser Doyle", "Angus Byrne", "Lachie Moore"],
+    settings: {
+      track_zone_time: true,
     },
   },
 } as const;
@@ -121,6 +128,7 @@ test.describe("Demo picker", () => {
     await seedDemoTeamIfMissing(admin, owner.id, "afl");
     await seedDemoTeamIfMissing(admin, owner.id, "netball");
     await seedDemoTeamIfMissing(admin, owner.id, "rugby_league");
+    await seedDemoTeamIfMissing(admin, owner.id, "rugby_union");
   });
 
   test("renders all 4 sport cards with the expected affordances", async ({
@@ -132,19 +140,15 @@ test.describe("Demo picker", () => {
       page.getByRole("heading", { name: /pick a sport/i }),
     ).toBeVisible();
 
-    for (const sport of ["afl", "league", "netball"] as const) {
+    for (const sport of ["afl", "league", "netball", "union"] as const) {
       const card = page.getByTestId(`demo-card-${sport}`);
       await expect(card).toBeVisible();
       await expect(card).toHaveAttribute("aria-label", /start.*demo/i);
+      await expect(card).not.toContainText(/coming soon/i);
     }
-
-    const unionCard = page.getByTestId("demo-card-union");
-    await expect(unionCard).toBeVisible();
-    await expect(unionCard).toHaveAttribute("aria-disabled", "true");
-    await expect(unionCard).toContainText(/coming soon/i);
   });
 
-  for (const sport of ["afl", "league", "netball"] as const) {
+  for (const sport of ["afl", "league", "netball", "union"] as const) {
     test(`${sport} card starts a demo game and redirects to /run/{token}`, async ({
       page,
     }) => {
@@ -173,12 +177,21 @@ test.describe("Demo picker", () => {
     });
   }
 
-  test("union card is non-interactive", async ({ page }) => {
+  test("the union demo plays union: its own team, sized from union U10", async ({ page }) => {
     await page.goto("/demo");
-
-    const unionCard = page.getByTestId("demo-card-union");
-    await unionCard.click();
-    await page.waitForTimeout(500);
-    expect(page.url()).toMatch(/\/demo\/?$/);
+    await page.getByTestId("demo-card-union").click();
+    await page.waitForURL(/\/run\/[a-zA-Z0-9_-]+/, { timeout: 15_000 });
+    const token = page.url().match(/\/run\/([a-zA-Z0-9_-]+)/)![1];
+    const admin = createAdminClient();
+    const { data: game } = await admin
+      .from("games")
+      .select("on_field_size, sub_interval_seconds, teams!inner(sport, is_demo)")
+      .eq("share_token", token)
+      .single();
+    expect(game).toMatchObject({
+      on_field_size: 12,
+      sub_interval_seconds: 240,
+      teams: { sport: "rugby_union", is_demo: true },
+    });
   });
 });

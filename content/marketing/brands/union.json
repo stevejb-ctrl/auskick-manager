@@ -1,0 +1,185 @@
+{
+  "banner": {
+    "prefix": "Free for the entire 2026 season.",
+    "linkText": "Sign up in under a minute →"
+  },
+  "trustBand": [
+    {
+      "stat": "300+",
+      "label": "Coaches"
+    },
+    {
+      "stat": "9k",
+      "label": "Games tracked"
+    },
+    {
+      "stat": "4.9★",
+      "label": "Parent rating"
+    },
+    {
+      "stat": "0",
+      "label": "Clipboards"
+    }
+  ],
+  "tagline": "Made for volunteer coaches.",
+  "finalCtaEyebrow": "Saturday morning is coming",
+  "heroEyebrow": "Built for junior rugby union",
+  "heroSubtitle": "Rolling subs, forwards and backs, named positions numbered as on the jersey, and your competition's own side size, from TriTag to 15 a side. Siren keeps playing time fair so you can stop juggling a clipboard and watch your kid play.",
+  "metaDescription": "Junior rugby union game manager. Fair rolling subs, forward and back rotations, named positions 1 to 15, live tries, conversions, penalty and drop goals.",
+  "centerpiece": {
+    "before": "Everything you need to make game day a ",
+    "italic": "breeze",
+    "after": "."
+  },
+  "productName": "Siren",
+  "finalCtaBody": "Free for the entire 2026 season. Works on the phone you already have. Optional app download, no credit card.",
+  "features": [
+    {
+      "id": "rotations",
+      "eyebrow": "Fair rotations",
+      "title": {
+        "before": "Every player gets a ",
+        "italic": "fair",
+        "after": " run."
+      },
+      "body": "Unlimited rolling subs, the way junior union plays. The rotation engine tracks every kid's minutes and suggests who comes on next, so playing time stays fair without you counting.",
+      "bullets": [
+        "Total game time visible at a glance",
+        "A game-time floor you set (half the game by default)",
+        "Season totals carry across all games"
+      ],
+      "image": "/marketing/screenshots/rl-sub-rotations.png",
+      "imageAlt": "Rotation view showing each player's forward and back field-time bars"
+    },
+    {
+      "id": "sizes",
+      "eyebrow": "Your competition",
+      "title": {
+        "before": "TriTag to fifteen a side, ",
+        "italic": "your",
+        "after": " way."
+      },
+      "body": "Siren starts each age at Rugby Australia's pathway sizes and half lengths. Your state plays 10 or 15 at Under 10? Set your competition's size once and every game starts from it, and change it on the day if the opposition is short.",
+      "bullets": [
+        "Pathway defaults from Under 6 to Under 18",
+        "Your team's own players on the field and half length",
+        "Any size from 5 to 15 drawn on the field"
+      ],
+      "image": "/marketing/screenshots/availability.png",
+      "imageAlt": "Pre-game squad screen with the players on the field for the day"
+    },
+    {
+      "id": "positions",
+      "eyebrow": "Named positions",
+      "title": {
+        "before": "Props, locks and a ",
+        "italic": "number 8",
+        "after": "."
+      },
+      "body": "From Under 10, give kids home positions from the full side, numbered as on the jersey: the front row 1 to 3, the locks 4 and 5, the back row to 8, and the backs 9 to 15. The lineup fills the positions your side size plays.",
+      "bullets": [
+        "Home and also-plays positions for every kid",
+        "Positions follow your side size, 10 to 15",
+        "Forwards and backs only for the youngest ages"
+      ],
+      "image": "/marketing/screenshots/img_3855.png",
+      "imageAlt": "Player roles with forward and back lines and their colour dots"
+    },
+    {
+      "id": "scoring",
+      "eyebrow": "Score tracking",
+      "title": {
+        "before": "Tries, conversions and ",
+        "italic": "drop goals",
+        "after": "."
+      },
+      "body": "Log a try with one tap and the conversion kicker straight after. Penalty and drop goals sit beside the try once kicking for goal counts. The pathway keeps no score to Under 11, so the scoreboard starts off there and is one switch away.",
+      "bullets": [
+        "Try 5, conversion 2, penalty and drop goals 3",
+        "Both teams scored from the sideline",
+        "Undo the last score in one tap"
+      ],
+      "image": "/marketing/screenshots/img_3859.png",
+      "imageAlt": "Score view with tries and a conversion-kicker picker"
+    },
+    {
+      "id": "availability",
+      "eyebrow": "Availability",
+      "title": {
+        "before": "Set your squad before you ",
+        "italic": "leave",
+        "after": " home."
+      },
+      "body": "Mark each player available or unavailable the night before. Short of numbers? Drop the side size to match and Siren rebalances the rotation automatically.",
+      "bullets": [
+        "One tap to mark a player available or unavailable",
+        "Run a smaller side to match the opposition",
+        "Last-minute changes and fill-ins handled on the day"
+      ],
+      "image": "/marketing/screenshots/availability.png",
+      "imageAlt": "Pre-game availability list with available/unavailable chips"
+    },
+    {
+      "id": "flexibility",
+      "eyebrow": "Full control",
+      "title": {
+        "before": "Handle anything the game ",
+        "italic": "throws",
+        "after": " at you."
+      },
+      "body": "Long-press any player to move them between forwards and backs, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of anyone's time.",
+      "bullets": [
+        "Move a player between forwards and backs",
+        "Injured players skip the rotation",
+        "Lend a player to the opposition and track their time separately"
+      ],
+      "image": "/marketing/screenshots/rl-long-press.png",
+      "imageAlt": "Player actions sheet with move, injury and lend options"
+    },
+    {
+      "id": "share",
+      "eyebrow": "Share with parents",
+      "title": {
+        "before": "Hand scoring to any parent in ",
+        "italic": "one",
+        "after": " tap."
+      },
+      "body": "Send the run-link to a parent on the sideline and they become the scorer for the day. No app download, no account, no setup. A magic link gets them straight in.",
+      "bullets": [
+        "Full scoring access via a single shareable link",
+        "No app download or account needed",
+        "Coach stays focused on the field"
+      ],
+      "image": "/marketing/screenshots/share.png",
+      "imageAlt": "Public run-link scoring view for parents"
+    },
+    {
+      "id": "stats",
+      "eyebrow": "Season stats",
+      "title": {
+        "before": "See how the ",
+        "italic": "season",
+        "after": " is going."
+      },
+      "body": "After every game, field time and scoring update automatically. Spot who's spent the season in the forwards and give them a run in the backs.",
+      "bullets": [
+        "Forward / back balance across the whole squad",
+        "Time in each named position",
+        "Top try-scorer leaderboard"
+      ],
+      "image": "/marketing/screenshots/stats.png",
+      "imageAlt": "Season stats dashboard with forward/back balance and try-scorer leaderboard"
+    }
+  ],
+  "finalCtaTitle": {
+    "before": "Set up your team in about ",
+    "italic": "five",
+    "after": " minutes."
+  },
+  "heroTitle": {
+    "before": "Run the half. Keep your head up.",
+    "italic": "",
+    "after": ""
+  },
+  "heroTrust": "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL"
+}
