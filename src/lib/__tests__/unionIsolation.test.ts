@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { rulePacksFor } from "@/lib/playbook/rulePacks";
-import { rugbyUnionSport } from "@/lib/sports";
+import { aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport } from "@/lib/sports";
 import { unionCatalogue } from "@/lib/sports/rugby_union/playbook";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
@@ -110,6 +110,64 @@ describe("a union team reads only union", () => {
       { playerId: "p1", detail: "1T", points: 5, showPoints: true },
       { playerId: "p2", detail: "1C · 1PG", points: 5, showPoints: true },
       { playerId: "p3", detail: "1DG", points: 3, showPoints: true },
+    ]);
+  });
+});
+
+// And the other way: union's laws, positions and goal names never reach
+// another sport through the code it shares (the rugby How we play, the
+// rugby walkthrough, score words, scorer chips). League shares Hooker,
+// Lock, Halfback, Five-eighth and Fullback, so only union's own words.
+const UNION_WORDS = /Rugby Australia|rugby union|\bunion\b|Loosehead|Tighthead|flanker|Number 8|Inside centre|Outside centre|Drop goal|\bDG\b/i;
+
+describe("no other sport reads union", () => {
+  it("(the check catches union's own words)", () => {
+    expect(words(unionCatalogue(15))).toMatch(UNION_WORDS);
+    expect(words(rugbyScoreWords("rugby_union"))).toMatch(UNION_WORDS);
+    const policy = effectivePolicy("rugby_union", "U12");
+    expect(words(getSportPlaybook("rugby_union").positionModel(policy, 15))).toMatch(UNION_WORDS);
+  });
+
+  for (const sport of [aflSport, netballSport, rugbyLeagueSport]) {
+    it(`${sport.id}: How we play, rule packs and age notes`, () => {
+      const playbook = getSportPlaybook(sport.id);
+      for (const ag of sport.ageGroups) {
+        const policy = effectivePolicy(sport.id, ag.id);
+        const text = words([
+          playbook.strategies(policy),
+          playbook.positionModel(policy, ag.defaultOnFieldSize),
+          playbook.lawRules(policy, playbook.agePolicy(ag.id)),
+          playbook.agePolicy(ag.id),
+          rulePacksFor(sport.id, ag.id),
+          `${ag.label} ${ag.notes ?? ""}`,
+        ]);
+        expect(text, ag.id).not.toMatch(UNION_WORDS);
+      }
+    });
+  }
+
+  it("rugby_league: its walkthrough, score words and scorer chips", () => {
+    for (const ag of rugbyLeagueSport.ageGroups) {
+      const steps = buildLeagueWalkthroughSteps({
+        sport: "rugby_league",
+        trackScoring: true,
+        periodLabel: ag.periodCount === 2 ? "half" : "quarter",
+        vests: { fr: ag.vestRequirements?.fr === true, dh: ag.vestRequirements?.dh === true },
+        kickingAllowed: ag.kickingAllowed === true,
+        goalsFromPlay: ag.goalsFromPlay === true,
+        kickRotations: ag.kickRotations === true,
+        unbrokenPeriods: ag.unbrokenPeriods === true,
+        trackZoneTime: true,
+        enforceUnbrokenPeriods: true,
+      });
+      expect(words(steps), ag.id).not.toMatch(UNION_WORDS);
+    }
+    expect(words(rugbyScoreWords("rugby_league"))).not.toMatch(UNION_WORDS);
+    expect(
+      scorersFromEvents("rugby_league", [ev("try", "p1"), ev("penalty_goal", "p2"), ev("field_goal", "p2")]),
+    ).toEqual([
+      { playerId: "p1", detail: "1T", points: 4, showPoints: true },
+      { playerId: "p2", detail: "1PG · 1FG", points: 3, showPoints: true },
     ]);
   });
 });
