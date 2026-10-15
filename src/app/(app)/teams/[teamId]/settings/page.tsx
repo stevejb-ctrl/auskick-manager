@@ -229,7 +229,10 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             both. */}
         <OnFieldSizeInput
           // Fresh after an age change: its range and saved size move.
-          key={`${ageGroupCfg.id}:${(team as { on_field_size?: number | null }).on_field_size ?? ""}`}
+          // Not keyed on the saved size: its own save would remount it
+          // and drop the "Saved." confirmation. (Its own prefix: the
+          // period-length card beside it is keyed on the age too.)
+          key={`on-field:${ageGroupCfg.id}`}
           teamId={params.teamId}
           ageGroupDefault={ageGroupCfg.defaultOnFieldSize}
           min={ageGroupCfg.minOnFieldSize}

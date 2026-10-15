@@ -99,13 +99,21 @@ test("a team's size follows the age group until set, and a new age keeps it in r
   await players.selectOption("10");
   const card = players.locator("xpath=ancestor::div[contains(@class, 'rounded-lg')][1]");
   await card.getByRole("button", { name: /^save$/i }).click();
-  await expect(card.getByText("Saved. New games start with 10 on the field.")).toBeVisible();
+  const saved = card.getByText("Saved. New games start with 10 on the field.");
+  await expect(saved).toBeVisible({ timeout: 10_000 });
   await expect.poll(() => teamRow(team.id)).toMatchObject({ on_field_size: 10 });
+  // The save refreshes the page; the coach's confirmation stays. (It
+  // was keyed on the saved size, so the card remounted and dropped it,
+  // before WebKit even drew it.)
+  await page.waitForLoadState("networkidle");
+  await expect(saved).toBeVisible();
 
   // Moving up to U12 (12 to 15): 10 is out of range, so 12.
   await page.getByLabel("Age group", { exact: true }).selectOption("U12");
   await page.getByRole("button", { name: "Save age group" }).click();
   await expect.poll(() => teamRow(team.id)).toMatchObject({ age_group: "U12", on_field_size: 12 });
+  // One card, redrawn for U12 (not the U10 one left beside it).
+  await expect(page.getByLabel("Players on the field")).toHaveCount(1);
   await expect(page.getByLabel("Players on the field")).toHaveValue("12");
 });
 
