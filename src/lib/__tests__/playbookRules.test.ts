@@ -144,7 +144,7 @@ describe("each sport owns its rules", () => {
   });
 
   it("has no fallback sport", () => {
-    expect(() => getSportPlaybook("rugby_union" as never)).toThrow(/rugby_union/);
+    expect(() => getSportPlaybook("touch_football" as never)).toThrow(/touch_football/);
   });
 });
 

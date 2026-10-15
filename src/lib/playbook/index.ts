@@ -4,6 +4,7 @@
 import { aflPlaybook } from "@/lib/sports/afl/playbook";
 import { netballPlaybook } from "@/lib/sports/netball/playbook";
 import { leaguePlaybook } from "@/lib/sports/rugby_league/playbook";
+import { unionPlaybook } from "@/lib/sports/rugby_union/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
 import type { Sport } from "@/lib/types";
 import type {
@@ -22,6 +23,7 @@ const PLAYBOOKS: Record<Sport, SportPlaybook> = {
   afl: aflPlaybook,
   netball: netballPlaybook,
   rugby_league: leaguePlaybook,
+  rugby_union: unionPlaybook,
 };
 
 export function getSportPlaybook(sport: Sport): SportPlaybook {

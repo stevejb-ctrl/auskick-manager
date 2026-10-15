@@ -82,7 +82,7 @@ export type AgeGroup =
 export type PositionModel = "zones3" | "positions5";
 
 /** Sport identifier stored on Team. Drives SportConfig lookup. */
-export type Sport = "afl" | "netball" | "rugby_league";
+export type Sport = "afl" | "netball" | "rugby_league" | "rugby_union";
 
 export interface Team {
   id: string;

@@ -26,6 +26,6 @@ describe("sport families", () => {
   });
 
   it("an unknown sport is an error, not 'not rugby'", () => {
-    expect(() => isRugby("rugby_union" as never)).toThrow(/rugby_union/);
+    expect(() => isRugby("touch_football" as never)).toThrow(/touch_football/);
   });
 });

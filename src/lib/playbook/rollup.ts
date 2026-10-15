@@ -26,10 +26,11 @@ export const BASE_UNIT: Record<Sport, BalanceUnit> = {
   afl: "zone",
   netball: "bib",
   rugby_league: "line",
+  rugby_union: "line",
 };
 
 /**
- * Units stored per sport: the base unit, plus league named positions
+ * Units stored per sport: the base unit, plus rugby named positions
  * (UX plan 5.7), which can't fold from lines. A game with no recorded
  * slots simply writes no position rows.
  */
@@ -37,6 +38,7 @@ const STORED_UNITS: Record<Sport, BalanceUnit[]> = {
   afl: ["zone"],
   netball: ["bib"],
   rugby_league: ["line", "position"],
+  rugby_union: ["line", "position"],
 };
 
 export function gameRollupRows(

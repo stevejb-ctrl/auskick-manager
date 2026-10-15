@@ -32,6 +32,17 @@ const NAME_EXAMPLE: Record<Sport, string> = {
   afl: "e.g. Kingsway Roos",
   netball: "e.g. Kingsway Flyers",
   rugby_league: "e.g. Kingsway Tigers",
+  rugby_union: "e.g. Kingsway Rams",
+};
+
+// Default age group per sport: a "common entry" rather than the first
+// id in the catalog — most clubs start at U10 for AFL and both rugbys,
+// and at NetSetGO "go" for netball.
+const DEFAULT_AGE: Record<Sport, string> = {
+  afl: "U10",
+  netball: "go",
+  rugby_league: "U10",
+  rugby_union: "U10",
 };
 
 export function TeamBasicsForm({
@@ -43,19 +54,7 @@ export function TeamBasicsForm({
   const [sport, setSport] = useState<Sport>(defaultSport);
   const cfg = useMemo(() => getSportConfig(sport), [sport]);
 
-  // Default age group per sport. Each default is a "common entry"
-  // rather than the first id in the catalog — most clubs start at
-  // U10 for AFL and rugby league, and at NetSetGO "go" for netball.
-  const defaultAgeFor = (s: Sport) => {
-    switch (s) {
-      case "afl":
-        return "U10";
-      case "netball":
-        return "go";
-      case "rugby_league":
-        return "U10";
-    }
-  };
+  const defaultAgeFor = (s: Sport) => DEFAULT_AGE[s];
 
   const [name, setName] = useState(existingTeam?.name ?? "");
   const [ageGroup, setAgeGroup] = useState<string>(

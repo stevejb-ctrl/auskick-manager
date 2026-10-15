@@ -72,13 +72,14 @@ export type ParsedPlayhqUrl =
  * page's URL (playhq.com/<tenant>/org/...), which the API is asked under
  * too (checked 14 Oct 2026: PlayHQ finds a netball team under
  * "netball-australia" and not under "afl"). League has none: Australian
- * junior league runs its fixtures on MySideline, not PlayHQ. Sports
- * never borrow another's tenant.
+ * junior league runs its fixtures on MySideline, and junior union on
+ * Rugby Xplorer, not PlayHQ. Sports never borrow another's tenant.
  */
 export const PLAYHQ_TENANT: Record<Sport, string | null> = {
   afl: "afl",
   netball: "netball-australia",
   rugby_league: null,
+  rugby_union: null,
 };
 
 const TENANT_SPORT: Record<string, string> = {

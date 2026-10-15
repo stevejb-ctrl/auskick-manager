@@ -27,6 +27,7 @@ export {
   primaryThirdFor,
 } from "@/lib/sports/netball";
 export { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+export { rugbyUnionSport } from "@/lib/sports/rugby_union";
 
 /**
  * Resolve the effective quarter duration (in seconds) for a game.

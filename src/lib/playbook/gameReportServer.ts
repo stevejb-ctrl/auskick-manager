@@ -31,7 +31,7 @@ const LABELS: Record<string, string> = {
 };
 
 /** Whether the after-game report compares season balance, per sport. */
-const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false };
+const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false };
 
 export async function buildGameReport(
   supabase: SupabaseClient<any, any, any>,

@@ -8,7 +8,7 @@
 // substitution rule, period structure, and field/court UI.
 
 /** Stable identifier for a sport. New sports extend this union. */
-export type SportId = "afl" | "netball" | "rugby_league";
+export type SportId = "afl" | "netball" | "rugby_league" | "rugby_union";
 
 /**
  * Sports that share an engine. Rugby league (and, next, rugby union)

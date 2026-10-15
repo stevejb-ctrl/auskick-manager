@@ -8,16 +8,24 @@ import type { AgeGroupConfig, SportConfig, SportId } from "@/lib/sports/types";
 import { aflSport } from "@/lib/sports/afl";
 import { netballSport } from "@/lib/sports/netball";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import { rugbyUnionSport } from "@/lib/sports/rugby_union";
 
 const REGISTRY: Record<SportId, SportConfig> = {
   afl: aflSport,
   netball: netballSport,
   rugby_league: rugbyLeagueSport,
+  rugby_union: rugbyUnionSport,
 };
 
-export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport];
+export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport];
 
-export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league"];
+export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union"];
+
+/**
+ * The sports with a site (brand) of their own. Rugby union lives under
+ * the main Siren brand, so no host or brand id resolves to it.
+ */
+const SITE_SPORTS: SportConfig[] = ALL_SPORTS.filter((cfg) => cfg.brand.id === cfg.id);
 
 export function isSportId(value: unknown): value is SportId {
   return typeof value === "string" && value in REGISTRY;
@@ -58,11 +66,10 @@ export function getSportConfig(sport: SportId | string | null | undefined): Spor
 }
 
 /**
- * The sports that run on the rugby engine (rugby union joins in its
- * phase 2). Typed so `isRugby` narrows; a test checks it matches the
+ * The sports that run on the rugby engine. Typed so `isRugby` narrows; a test checks it matches the
  * configs' `family`.
  */
-export const RUGBY_SPORT_IDS = ["rugby_league"] as const satisfies readonly SportId[];
+export const RUGBY_SPORT_IDS = ["rugby_league", "rugby_union"] as const satisfies readonly SportId[];
 export type RugbySport = (typeof RUGBY_SPORT_IDS)[number];
 
 /**
@@ -98,7 +105,7 @@ export function getAgeGroupConfig(
 export function getBrandForHost(host: string | null | undefined): SportConfig {
   if (!host) return aflSport;
   const bare = host.replace(/:\d+$/, "").toLowerCase();
-  for (const cfg of ALL_SPORTS) {
+  for (const cfg of SITE_SPORTS) {
     if (bare === cfg.brand.host || bare.endsWith("." + cfg.brand.host)) {
       return cfg;
     }
@@ -110,7 +117,7 @@ export function getBrandForHost(host: string | null | undefined): SportConfig {
 export function getSportByBrand(brandId: string | null | undefined): SportConfig {
   if (!brandId) return aflSport;
   const normalized = brandId.toLowerCase();
-  for (const cfg of ALL_SPORTS) {
+  for (const cfg of SITE_SPORTS) {
     if (cfg.brand.id === normalized) return cfg;
   }
   return aflSport;

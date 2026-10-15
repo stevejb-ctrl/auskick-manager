@@ -34,6 +34,7 @@ const SPORT_WORD: Record<Sport, string> = {
   afl: "AFL",
   netball: "netball",
   rugby_league: "league",
+  rugby_union: "union",
 };
 
 /**

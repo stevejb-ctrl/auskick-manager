@@ -98,6 +98,10 @@ const COPY: Record<SportId, BrandCopy> = {
   // the dedicated copy. The marketing homepage's client picker also
   // resolves through this map via src/lib/sports/marketing-copy.ts.
   rugby_league: LEAGUE_COPY,
+  // Union has no site of its own: it lives under the main Siren brand,
+  // so a brand lookup for it reads the main brand's copy. The
+  // homepage's union sport section reads marketing-copy.ts.
+  rugby_union: AFL_COPY,
 };
 
 export function getBrandCopy(id: SportId): BrandCopy {

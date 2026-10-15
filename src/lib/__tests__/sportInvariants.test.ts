@@ -38,6 +38,7 @@ describe("every sport", () => {
     expect(getSportConfig("afl")).toMatchObject({ jerseyNumbers: true, teamSong: true });
     expect(getSportConfig("netball")).toMatchObject({ jerseyNumbers: false, teamSong: true });
     expect(getSportConfig("rugby_league")).toMatchObject({ jerseyNumbers: true, teamSong: false });
-    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null });
+    expect(getSportConfig("rugby_union")).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null, rugby_union: null });
   });
 });

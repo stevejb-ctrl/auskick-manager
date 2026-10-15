@@ -29,7 +29,7 @@ describe("sport registry", () => {
   it("throws for an unknown or missing sport instead of falling back to AFL", () => {
     expect(() => getSportConfig(null)).toThrow(/Unknown sport/);
     expect(() => getSportConfig(undefined)).toThrow(/Unknown sport/);
-    expect(() => getSportConfig("rugby_union")).toThrow(/rugby_union/);
+    expect(() => getSportConfig("touch_football")).toThrow(/touch_football/);
     expect(() => teamSport("unknown")).toThrow(/Unknown sport/);
     expect(teamSport("netball")).toBe("netball");
   });

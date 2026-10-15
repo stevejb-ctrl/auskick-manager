@@ -14,12 +14,13 @@ interface TrackScoringToggleProps {
   sportId: Sport;
 }
 
-// Score-shape varies by sport. League says "points": "tries &
+// Score-shape varies by sport. Rugby says "points": "tries &
 // conversions" was a mouthful for a toggle.
 const SCORING_HEADING: Record<Sport, string> = {
   afl: "Track goals & behinds",
   netball: "Track goals",
   rugby_league: "Track points",
+  rugby_union: "Track points",
 };
 
 export function TrackScoringToggle({

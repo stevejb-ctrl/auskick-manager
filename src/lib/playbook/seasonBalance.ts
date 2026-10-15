@@ -34,6 +34,7 @@ export const SEASON_BALANCE_WEIGHT: Record<SportId, Record<BalanceStrength, numb
   afl: { light: 150, balanced: 300, strong: 600 },
   netball: { light: 10_000, balanced: 20_000, strong: 40_000 },
   rugby_league: { light: 150, balanced: 300, strong: 600 },
+  rugby_union: { light: 150, balanced: 300, strong: 600 },
 };
 
 export const OWED_CAP_PERIODS = 2;
