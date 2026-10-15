@@ -4,6 +4,11 @@
 
 import type { Lineup } from "@/lib/types";
 import { ALL_ZONES } from "@/lib/fairness";
+import {
+  availablePlayersForPlan,
+  seedNextPeriodLineup,
+  type PlannedRotation,
+} from "@/lib/game-plan";
 
 /**
  * Move a player out of every on-field zone and onto the bench.
@@ -121,4 +126,53 @@ export function benchSidelinedInLeagueLineup<
       ...movedOff.filter((id) => !lineup.bench.includes(id)),
     ],
   };
+}
+
+interface LeagueLineupShape {
+  forwards: string[];
+  backs: string[];
+  bench: string[];
+}
+
+/**
+ * Rugby league: the coming period's lineup from the coach's plan, as the
+ * break shows it and Start commits it. The plan is reconciled first
+ * (`seedNextPeriodLineup`), so a kid who can't play now is never
+ * fielded. The bench is the planned bench, then anyone available the
+ * plan never placed (a late arrival), then the hurt and lent kids,
+ * parked there so they stay in the game (AFL parity). Kids who aren't
+ * in `lineup` (never turned up) stay out. Null when nothing is planned
+ * for the period.
+ */
+export function plannedLeagueLineup(input: {
+  pin: PlannedRotation | null | undefined;
+  /** 0-based index of the period about to start. */
+  periodIndex: number;
+  /** The lineup the last period ended on: who is in the game. */
+  lineup: LeagueLineupShape;
+  squad: readonly { id: string }[];
+  injured: ReadonlySet<string>;
+  loaned: ReadonlySet<string>;
+}): LeagueLineupShape | null {
+  const { lineup, injured, loaned } = input;
+  const inGameIds = new Set([...lineup.forwards, ...lineup.backs, ...lineup.bench]);
+  const availableIds = availablePlayersForPlan(input.squad, inGameIds, injured, loaned).map((p) => p.id);
+  const seed = seedNextPeriodLineup({
+    pin: input.pin,
+    periodIndex: input.periodIndex,
+    availableIds,
+    groupIds: ["forwards", "backs"],
+  });
+  if (!seed) return null;
+  const forwards = seed.groups.forwards ?? [];
+  const backs = seed.groups.backs ?? [];
+  const placed = new Set([...forwards, ...backs]);
+  const bench = new Set(seed.bench.filter((id) => !placed.has(id)));
+  for (const id of availableIds) {
+    if (!placed.has(id)) bench.add(id);
+  }
+  inGameIds.forEach((id) => {
+    if ((injured.has(id) || loaned.has(id)) && !placed.has(id)) bench.add(id);
+  });
+  return { forwards, backs, bench: Array.from(bench) };
 }

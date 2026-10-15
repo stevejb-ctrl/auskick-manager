@@ -5,8 +5,14 @@
 // `initialState.quarterStartedAt` (the wall-clock timestamp
 // replayGame extracts from the active quarter_start event), so
 // a reload mid-quarter rebuilds accumulatedMs as
-// Date.now() - quarterStartedAt and the clock keeps running from
-// roughly where it was. The only thing the wall-clock approach
+// (Date.now() - quarterStartedAt) × clockMultiplier and the clock
+// keeps running from roughly where it was.
+//
+// The clock is in GAME ms (real ms × clockMultiplier — 8× for the
+// demo), the same frame as saved events' elapsed_ms and replayGame's
+// stint stamps, so a stint opened here and one rebuilt by the replay
+// can be compared directly. Netball keeps the same single game-time
+// clock (computePeriodClockMs). The only thing the wall-clock approach
 // can't recover is in-quarter pause time — pauses aren't event-
 // persisted, so a reload silently includes paused seconds in
 // accumulatedMs. For a quarter without pauses (the common case)
@@ -38,6 +44,7 @@ import {
 } from "@/lib/types";
 import { ALL_ZONES } from "@/lib/fairness";
 import { withoutSubPin, type PlannedRotation } from "@/lib/game-plan";
+import type { StagedBreakDraft } from "@/lib/live/breakDraft";
 
 export type ZoneMs = Record<Zone, number>;
 const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
@@ -49,7 +56,14 @@ export interface LiveGameState {
   quarterEnded: boolean;
   finalised: boolean;
   clockStartedAt: number | null;
+  /** Game ms banked before clockStartedAt (the whole quarter so far while paused). */
   accumulatedMs: number;
+  /**
+   * Game ms per real ms (games.clock_multiplier): 1 for a real game, 8
+   * for the demo. Set by init; clockElapsedMs scales the running stretch
+   * by it, so every stint and loan stamp below is in game ms.
+   */
+  clockMultiplier: number;
 
   selected: { kind: "field"; playerId: string; zone: Zone } | { kind: "bench"; playerId: string } | null;
 
@@ -127,6 +141,14 @@ export interface LiveGameState {
    * game-event type (D-04/D-05).
    */
   plannedRotation: PlannedRotation | null;
+  /**
+   * The lineup the coach is staging at a period break (any sport with a
+   * break draft: AFL, netball). Persisted so leaving the live screen
+   * and coming back, or a reload, finds the same edits (Stagehand round
+   * 5). Keyed by game and period; cleared when the period starts. See
+   * `src/lib/live/breakDraft.ts`.
+   */
+  breakDraft: StagedBreakDraft | null;
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
@@ -192,6 +214,8 @@ export interface LiveGameState {
   setPlannedRotation: (plan: PlannedRotation | null) => void;
   /** Clear the pinned plan (after it's applied, or when it's no longer valid). */
   clearPlannedRotation: () => void;
+  /** Save the break's staged lineup; null clears it. */
+  setBreakDraft: (draft: StagedBreakDraft | null) => void;
 }
 
 function cloneLineup(l: Lineup): Lineup {
@@ -241,6 +265,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   finalised: false,
   clockStartedAt: null as number | null,
   accumulatedMs: 0,
+  clockMultiplier: 1,
   selected: null as LiveGameState["selected"],
   teamScore: { goals: 0, behinds: 0 },
   opponentScore: { goals: 0, behinds: 0 },
@@ -264,6 +289,7 @@ const DEFAULT_LIVE_STATE_DATA = {
   zoneLockedPlayers: {} as Record<string, Zone>,
   rotationMode: "suggested" as "suggested" | "manual" | "rotate",
   plannedRotation: null as PlannedRotation | null,
+  breakDraft: null as StagedBreakDraft | null,
 };
 
 export const useLiveGame = create<LiveGameState>()(
@@ -323,6 +349,17 @@ export const useLiveGame = create<LiveGameState>()(
         && prev.plannedRotation.gameId === state.activeGameId
       ) {
         carryOver.plannedRotation = prev.plannedRotation;
+      }
+      // This game's staged break lineup carries in too, so a reload or a
+      // trip to the team page finds it. Only once the game is under way:
+      // a pre-kickoff init (a restart lands there) has no break to stage.
+      if (
+        !isRestart
+        && stateQuarter >= 1
+        && prev.breakDraft != null
+        && prev.breakDraft.gameId === state.activeGameId
+      ) {
+        carryOver.breakDraft = prev.breakDraft;
       }
       return { ...prev, ...DEFAULT_LIVE_STATE_DATA, ...carryOver, ...state };
     }),
@@ -520,9 +557,8 @@ export const useLiveGame = create<LiveGameState>()(
   pauseClock: () =>
     set((prev) => {
       if (prev.clockStartedAt === null) return prev;
-      const now = Date.now();
       return {
-        accumulatedMs: prev.accumulatedMs + (now - prev.clockStartedAt),
+        accumulatedMs: clockElapsedMs(prev),
         clockStartedAt: null,
       };
     }),
@@ -571,11 +607,7 @@ export const useLiveGame = create<LiveGameState>()(
 
   endCurrentQuarter: (quarterMs, opts) =>
     set((prev) => {
-      const now = Date.now();
-      const rawAccumulated =
-        prev.clockStartedAt === null
-          ? prev.accumulatedMs
-          : prev.accumulatedMs + (now - prev.clockStartedAt);
+      const rawAccumulated = clockElapsedMs(prev);
       // Cap at quarterMs (passed by caller from getEffectiveQuarterSeconds(team,
       // ageGroup, game) so that if the GM delays confirming end-of-quarter,
       // player stint durations don't leak past the hooter. AFL U10 default = 720s,
@@ -858,6 +890,7 @@ export const useLiveGame = create<LiveGameState>()(
 
   setPlannedRotation: (plan) => set({ plannedRotation: plan }),
   clearPlannedRotation: () => set({ plannedRotation: null }),
+  setBreakDraft: (draft) => set({ breakDraft: draft }),
 }),
     {
       // ─── persist config ───────────────────────────────────────
@@ -893,16 +926,24 @@ export const useLiveGame = create<LiveGameState>()(
         // read (init wipes on restart/different game) and by the gameId
         // key the consumer checks against activeGameId (D-04).
         plannedRotation: state.plannedRotation,
+        // The break's staged lineup isn't in the event log until the
+        // period starts, so it's kept here (keyed by game and period).
+        breakDraft: state.breakDraft,
       }),
     },
   ),
 );
 
+/** Game ms elapsed this quarter. No multiplier means real time (1×). */
 export function clockElapsedMs(
-  state: Pick<LiveGameState, "clockStartedAt" | "accumulatedMs">
+  state: Pick<LiveGameState, "clockStartedAt" | "accumulatedMs"> &
+    Partial<Pick<LiveGameState, "clockMultiplier">>,
 ): number {
   if (state.clockStartedAt === null) return state.accumulatedMs;
-  return state.accumulatedMs + (Date.now() - state.clockStartedAt);
+  return (
+    state.accumulatedMs +
+    (Date.now() - state.clockStartedAt) * (state.clockMultiplier ?? 1)
+  );
 }
 
 export function formatClock(ms: number): string {

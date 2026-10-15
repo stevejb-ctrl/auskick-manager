@@ -20,7 +20,7 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig, teamSport, periodLabels } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -174,7 +174,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             unbroken quarters (U6–U9) or one full half (U10–U12). Off by
             default for casual comps. U13+ plays international laws:
             no such rule, so no toggle. */}
-        {sport === "rugby_league" && (ageGroupCfg.minUnbrokenPeriods ?? 0) > 0 && (
+        {isRugby(sport) && (ageGroupCfg.minUnbrokenPeriods ?? 0) > 0 && (
           <UnbrokenPeriodsToggle
             teamId={params.teamId}
             initialEnabled={
@@ -184,7 +184,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           />
         )}
         {/* Rugby league zone-time bar (AFL F/C/B equivalent). */}
-        {sport === "rugby_league" && (
+        {isRugby(sport) && (
           <TrackZoneTimeToggle
             teamId={params.teamId}
             initialEnabled={

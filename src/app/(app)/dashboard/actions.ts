@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { defaultTrackScoring, getSportConfig, isSportId } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, isRugby, isSportId } from "@/lib/sports";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
@@ -91,7 +91,7 @@ export async function createTeam(
     chip_b_mode?: import("@/lib/chips").ChipMode;
   } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
   if (initialTrackScoring) insertRow.track_scoring = true;
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     insertRow.chip_a_label = "Forward";
     insertRow.chip_b_label = "Back";
     insertRow.chip_a_mode = "forward";

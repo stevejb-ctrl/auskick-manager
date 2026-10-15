@@ -7,7 +7,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { noSportBranch, periodLabels } from "@/lib/sports";
+import { isRugby, noSportBranch, periodLabels } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export function ScoringStep({
   // track_scoring to match, so this step has nothing to toggle —
   // we just explain what's happening and move on. AFL and netball
   // keep the explicit toggle below.
-  const isRugbyLeague = sportId === "rugby_league";
+  const isRugbyLeague = isRugby(sportId);
   const rlScoringOn = isRugbyLeague && ageGroup.tracksScoreDefault === true;
 
   const blurb =
@@ -56,7 +56,7 @@ export function ScoringStep({
         .
       </>
     ) : isRugbyLeague ? (
-      rlScoringOn && ageGroup.internationalLaws ? (
+      rlScoringOn && ageGroup.goalsFromPlay ? (
         // U13+ (Stagehand round 3: an Under 14 coach was told "modified
         // tackle, tries and conversions").
         <>

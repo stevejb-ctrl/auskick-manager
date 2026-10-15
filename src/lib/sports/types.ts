@@ -10,6 +10,13 @@
 /** Stable identifier for a sport. New sports extend this union. */
 export type SportId = "afl" | "netball" | "rugby_league";
 
+/**
+ * Sports that share an engine. Rugby league (and, next, rugby union)
+ * share the rugby engine — live game, replay, fairness — each with its
+ * own rules. Ask `isRugby(sport)`, never `sport === "rugby_league"`.
+ */
+export type SportFamily = "afl" | "netball" | "rugby";
+
 /** Identifier for one on-field position within a sport (e.g. "gs", "mid"). */
 export type PositionId = string;
 
@@ -132,11 +139,46 @@ export interface AgeGroupConfig {
   forwardCount?: number;
   /**
    * Rugby league only — the grade plays international (open-age) laws
-   * rather than the national 6–12 junior laws: no goal-kick (§15) or
-   * kickoff (§16) rotations, and penalty goals (2) and field goals (1)
-   * count. U13 and up.
+   * rather than the national 6–12 junior laws (U13 and up). It names
+   * the law set; the knobs below say what those laws do, so a sport
+   * with other laws (union) can mix them.
    */
   internationalLaws?: boolean;
+  /**
+   * Rugby: penalty goals and field (drop) goals score. League's junior
+   * laws forbid both (Law 17); its international grades allow them.
+   */
+  goalsFromPlay?: boolean;
+  /**
+   * Rugby league junior laws §15–16: the goal-kick and kickoff
+   * rotations (nobody kicks twice until everyone has had a turn).
+   */
+  kickRotations?: boolean;
+  /**
+   * Rugby league junior laws §6: the unbroken-period rule applies at
+   * this age (`minUnbrokenPeriods` says how many periods).
+   */
+  unbrokenPeriods?: boolean;
+  /** Rugby: How we play's suggested strategy for this age (★). */
+  recommendedStrategy?: RugbyStrategyId;
+}
+
+/** Rugby How we play strategies (rugby_league/playbook.ts). */
+export type RugbyStrategyId = "both-lines" | "preferred-line" | "named-positions";
+
+/**
+ * A rugby age group states every rugby rule itself (sports are
+ * independent): nothing is left to a default or borrowed from another
+ * rugby sport.
+ */
+export interface RugbyAgeGroupConfig extends AgeGroupConfig {
+  kickingAllowed: boolean;
+  minUnbrokenPeriods: number;
+  forwardCount: number;
+  goalsFromPlay: boolean;
+  kickRotations: boolean;
+  unbrokenPeriods: boolean;
+  recommendedStrategy: RugbyStrategyId;
 }
 
 // ─── Brand (domain) config ───────────────────────────────────
@@ -177,6 +219,8 @@ export interface ValidationResult {
 // ─── SportConfig ─────────────────────────────────────────────
 export interface SportConfig {
   id: SportId;
+  /** The engine this sport runs on (see SportFamily). */
+  family: SportFamily;
   name: string;
   /** Customer-facing short name (e.g. "AFL" / "Netball"). */
   shortName: string;

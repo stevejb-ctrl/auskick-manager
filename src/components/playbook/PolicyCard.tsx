@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Toggle } from "@/components/ui/Toggle";
 import type { AgePolicy, EffectivePolicy, PolicyOverrides } from "@/lib/playbook/types";
+import { isRugby } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 interface PolicyCardProps {
@@ -68,7 +69,7 @@ export function PolicyCard({
     source: agePolicy.minGameTimePct.source,
     changed: policy.overridden.includes("minGameTimePct"),
   });
-  if (sport === "rugby_league" && policy.minUnbrokenPeriods > 0) {
+  if (isRugby(sport) && policy.minUnbrokenPeriods > 0) {
     lines.push({
       text: `Each player plays ${policy.minUnbrokenPeriods} full ${periodWord}${
         policy.minUnbrokenPeriods === 1 ? "" : "s"
@@ -76,7 +77,7 @@ export function PolicyCard({
       source: agePolicy.minUnbrokenPeriods?.source,
     });
   }
-  if (sport === "rugby_league" && (policy.vests.fr || policy.vests.dh)) {
+  if (isRugby(sport) && (policy.vests.fr || policy.vests.dh)) {
     const vests = [policy.vests.fr && "FR", policy.vests.dh && "DH"].filter(Boolean).join(" and ");
     lines.push({ text: `${vests} vests are worn by a different player each ${periodWord}` });
   }

@@ -199,6 +199,7 @@ export function aflPositionModel(ageGroup: AgeGroupConfig): PositionModel {
 
 export const aflSport: SportConfig = {
   id: "afl",
+  family: "afl",
   name: "Australian Rules Football",
   shortName: "AFL",
   brand: {

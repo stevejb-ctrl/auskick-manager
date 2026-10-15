@@ -20,14 +20,20 @@
 //   * conversion-kick rotation  — recordConversionAttempt (bypass with force: true)
 //   * kickoff rotation          — recordKickoff (full squad pool)
 // Both rotations are junior laws (U6–U12); U13+ plays international
-// laws without them (AgeGroupConfig.internationalLaws).
+// laws without them (AgeGroupConfig.kickRotations).
+//
+// Rugby league and union share these actions: every rule is read from
+// the team's own sport and age group (rugbyTeam), and every event is
+// stamped with the team's sport.
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, isRugby, teamSport, type RugbySport } from "@/lib/sports/registry";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
@@ -40,7 +46,7 @@ import {
   LEAGUE_GOAL_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
@@ -48,18 +54,12 @@ import type { PlaybookSnapshot } from "@/lib/playbook/types";
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
 async function clampOnFieldSize(
-  supabase: SupabaseClient,
-  teamId: string,
+  w: Writer,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
-  // This module writes rugby_league games only: clamp to that sport's
-  // own age groups, never whatever another sport would allow.
-  const { data: team } = await supabase
-    .from("teams")
-    .select("age_group")
-    .eq("id", teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig("rugby_league", team?.age_group);
+  // Clamp to the team's own rugby age group, never whatever another
+  // sport would allow.
+  const { ageCfg } = await rugbyTeamOf(w);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -99,12 +99,27 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
 }
 
 /**
- * The team's league age config. U13+ plays international laws, where
- * the junior goal-kick (§15) and kickoff (§16) rotations don't apply.
+ * The team's own rugby sport and age group. Every rule these actions
+ * check (e.g. U13+ international laws, where the junior goal-kick §15
+ * and kickoff §16 rotations don't apply) and the sport stamped on
+ * every event are the team's: a union team is never checked against
+ * league's ages. Cached for the request, so a rule check and its
+ * insert read the team once. Read past RLS (a team's sport and age
+ * aren't secret, and resolveWriter has already checked the writer):
+ * an RLS read of a team created moments ago can come back empty.
  */
-async function leagueAgeConfig(supabase: SupabaseClient, teamId: string) {
-  const { data } = await supabase.from("teams").select("age_group").eq("id", teamId).maybeSingle();
-  return getAgeGroupConfig("rugby_league", (data as { age_group?: string | null } | null)?.age_group ?? null);
+const rugbyTeam = cache(
+  async (teamId: string): Promise<{ sport: RugbySport; ageCfg: AgeGroupConfig }> => {
+    const { data } = await createAdminClient().from("teams").select("sport, age_group").eq("id", teamId).maybeSingle();
+    const row = data as { sport?: string | null; age_group?: string | null } | null;
+    const sport = teamSport(row?.sport);
+    if (!isRugby(sport)) throw new Error(`Team ${teamId} plays ${sport}, not rugby.`);
+    return { sport, ageCfg: getAgeGroupConfig(sport, row?.age_group ?? null) };
+  },
+);
+
+function rugbyTeamOf(w: Writer) {
+  return rugbyTeam(w.teamId);
 }
 
 async function insertEvent(
@@ -116,12 +131,13 @@ async function insertEvent(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  const { sport } = await rugbyTeamOf(w);
 
   const { error } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type,
     player_id: payload.player_id ?? null,
-    metadata: payload.metadata ?? {},
+    metadata: { ...(payload.metadata ?? {}), sport },
     created_by: w.userId,
     idempotency_key: idempotencyKey ?? null,
   });
@@ -195,11 +211,7 @@ export async function startLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    onFieldSize,
-  );
+  const { value: clampedSize } = await clampOnFieldSize(w, onFieldSize);
 
   // B1 / AVAIL-01: reconcile against availability BEFORE the vest
   // pre-flight below. The pre-flight builds `fieldSet` from
@@ -280,10 +292,11 @@ export async function startLeagueGame(
     }
   }
 
+  const { sport } = await rugbyTeamOf(w);
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup, sport: "rugby_league" },
+    metadata: { lineup, sport },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
@@ -294,7 +307,7 @@ export async function startLeagueGame(
       .insert({
         game_id: gameId,
         type: "quarter_start",
-        metadata: { quarter: 1, sport: "rugby_league" },
+        metadata: { quarter: 1, sport },
         created_by: w.userId,
       });
     if (qStartError) return { success: false, error: qStartError.message };
@@ -325,7 +338,7 @@ export async function startLeagueGame(
         vest: "fr",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -341,7 +354,7 @@ export async function startLeagueGame(
         vest: "dh",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -454,7 +467,7 @@ export async function startLeagueQuarter(
     auth,
     gameId,
     "quarter_start",
-    { metadata: { quarter, sport: "rugby_league" } },
+    { metadata: { quarter } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -472,7 +485,7 @@ export async function endLeagueQuarter(
     auth,
     gameId,
     "quarter_end",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -492,18 +505,13 @@ export async function finaliseLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  // The final period is the league age group's last: 4 quarters at
-  // U6–U9, 2 halves from U10.
-  const { data: team } = await w.supabase
-    .from("teams")
-    .select("age_group")
-    .eq("id", w.teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig("rugby_league", team?.age_group);
+  // The team's age-group period count is the final-quarter value on
+  // the event metadata (4 quarters at U6–U9, 2 halves from U10).
+  const { ageCfg } = await rugbyTeamOf(w);
   const finalQuarter = ageCfg.periodCount;
 
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs },
   });
   if (!finalise.success) return finalise;
 
@@ -549,7 +557,7 @@ export async function recordLeagueSwap(
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: { ...input, sport: "rugby_league" },
+      metadata: input,
     },
     idempotencyKey,
   );
@@ -575,7 +583,7 @@ export async function recordLeagueLineupSet(
     auth,
     gameId,
     "lineup_set",
-    { metadata: { lineup, ...(at ?? {}), sport: "rugby_league" } },
+    { metadata: { lineup, ...(at ?? {}) } },
     idempotencyKey,
   );
 }
@@ -609,7 +617,6 @@ export async function recordLeaguePositionChange(
         to_zone: input.to_zone,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -634,7 +641,7 @@ export async function recordTry(
     "try",
     {
       player_id: playerId,
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+      metadata: { quarter, elapsed_ms: elapsedMs },
     },
     idempotencyKey,
   );
@@ -654,7 +661,7 @@ export async function recordOpponentTry(
     auth,
     gameId,
     "opponent_try",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -718,7 +725,7 @@ export async function recordConversionAttempt(
     }
     tryEventId ??= waiting[0];
 
-    const state = replayLeagueGame(priorEvents);
+    const state = replayRugbyGame(priorEvents, rugbyPoints((await rugbyTeamOf(w)).sport));
     const onField = state.lineup
       ? [...state.lineup.forwards, ...state.lineup.backs]
       : [];
@@ -734,10 +741,11 @@ export async function recordConversionAttempt(
 
     // No-twice rule: kicker already attempted in the current
     // cycle. Use the subset semantics from `conversionCycle` so
-    // mid-cycle substitutions resolve correctly. Junior laws only:
-    // under international laws (U13+) any player may kick.
+    // mid-cycle substitutions resolve correctly. Only where the age
+    // has the junior kick rotations: under international laws (U13+)
+    // any player may kick.
     const cycle = conversionCycle(priorEvents, onField);
-    if (cycle.attempted.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+    if (cycle.attempted.has(kickerId) && (await rugbyTeamOf(w)).ageCfg.kickRotations === true) {
       return {
         success: false,
         rejected: true,
@@ -759,7 +767,6 @@ export async function recordConversionAttempt(
         made,
         force,
         try_event_id: tryEventId,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -802,7 +809,7 @@ export async function recordKickoff(
   const cycle = kickoffCycle(priorEvents, squadIds);
 
   // The rotation is a junior law; international laws (U13+) have none.
-  if (cycle.taken.has(kickerId) && !(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+  if (cycle.taken.has(kickerId) && (await rugbyTeamOf(w)).ageCfg.kickRotations === true) {
     return {
       success: false,
       // A rule refusal: dropped, not retried (it would hold the game lane).
@@ -818,7 +825,7 @@ export async function recordKickoff(
     "kickoff_taken",
     {
       player_id: kickerId,
-      metadata: { period, sport: "rugby_league" },
+      metadata: { period },
     },
     idempotencyKey,
   );
@@ -839,7 +846,7 @@ export async function recordOpponentConversion(
     auth,
     gameId,
     "opponent_conversion",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -862,7 +869,7 @@ export async function recordLeagueGoal(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  if (!(await leagueAgeConfig(w.supabase, w.teamId)).internationalLaws) {
+  if ((await rugbyTeamOf(w)).ageCfg.goalsFromPlay !== true) {
     return {
       success: false,
       rejected: true,
@@ -875,7 +882,7 @@ export async function recordLeagueGoal(
     kind,
     {
       player_id: kind.startsWith("opponent_") ? null : kickerId,
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+      metadata: { quarter, elapsed_ms: elapsedMs },
     },
     idempotencyKey,
   );
@@ -924,7 +931,6 @@ export async function undoLeagueScore(
         target_event_id: latest.id,
         original_type: latest.type,
         quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -1005,7 +1011,6 @@ export async function assignLeagueVest(
         vest,
         period,
         replacement,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -1086,11 +1091,7 @@ export async function setLeagueOnFieldSizeMidGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize, min, max } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    input.newSize,
-  );
+  const { value: clampedSize, min, max } = await clampOnFieldSize(w, input.newSize);
 
   if (Math.floor(input.newSize) < min || Math.floor(input.newSize) > max) {
     return {

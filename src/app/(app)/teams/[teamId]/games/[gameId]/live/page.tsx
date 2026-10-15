@@ -27,9 +27,9 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -290,10 +290,11 @@ export default async function LivePage({ params }: LivePageProps) {
   // 4-5; Phase 3 ships the core flow without them). The branch
   // forks here so none of the AFL zone-minutes / netball position-
   // count helpers below run for an RL game.
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group)
-        ?? rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group)
+        ?? rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -358,7 +359,7 @@ export default async function LivePage({ params }: LivePageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStarted = replay.lineup !== null;
 
     // Season events (this-game-excluded) — drives the lineup-picker's
@@ -372,8 +373,8 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     // How we play for the league suggester (UX plan 5.6): lines from
     // roles and season balance, the vest strategy, keep-on.
-    const lg = await loadTeamPlaybook(supabase, params.teamId, "rugby_league", teamRow?.age_group ?? null);
-    const lgAge = getAgeGroupConfig("rugby_league", teamRow?.age_group ?? null);
+    const lg = await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null);
+    const lgAge = getAgeGroupConfig(sport, teamRow?.age_group ?? null);
     const lgPeriodSeconds = getEffectiveQuarterSeconds(
       { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
       lgAge,
@@ -381,17 +382,17 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     // A game in progress plays what it kicked off with (as AFL and netball).
     const leaguePlaybook = withKickoffSnapshot(
-      "rugby_league",
+      sport,
       leaguePlaybookInput(
         lg.resolved,
         lg.prefs,
         lg.rules,
-        seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "line", {
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "line", {
           since: lg.resolved.seasonBalanceSince,
         }),
         lgPeriodSeconds * 1000,
         lg.vestStrategy,
-        seasonTimeByUnit("rugby_league", leagueSeasonEvents as GameEvent[], "position", {
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "position", {
           since: lg.resolved.seasonBalanceSince,
         }),
       ),
@@ -451,7 +452,7 @@ export default async function LivePage({ params }: LivePageProps) {
           availableIds={availableIds}
           fillInCount={fillInsForLive.length}
           canManageMatch
-          showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
+          showJerseyNumber={rugbyCfg.jerseyNumbers}
         />
       );
 
@@ -472,6 +473,7 @@ export default async function LivePage({ params }: LivePageProps) {
             // default (Steve 2026-05-19, see LeagueLineupPicker.tsx
             // header for the interaction model).
             <LeagueLineupPicker
+              sport={sport}
               // Rebuild the suggestion when who's-here changes.
               key={Array.from(availableIds).sort().join(",")}
               availabilityPanel={leagueAvailabilityPanel}
@@ -503,10 +505,12 @@ export default async function LivePage({ params }: LivePageProps) {
               walkthroughOffer={
                 <LeagueWalkthroughOffer
                   trackScoring={trackScoring}
-                  periodLabel={periodLabels("rugby_league", ageCfgL).label}
+                  periodLabel={periodLabels(sport, ageCfgL).label}
                   vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
                   kickingAllowed={ageCfgL.kickingAllowed === true}
-                  internationalLaws={ageCfgL.internationalLaws === true}
+                  goalsFromPlay={ageCfgL.goalsFromPlay === true}
+                  kickRotations={ageCfgL.kickRotations === true}
+                  unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
                   trackZoneTime={leagueTrackZoneTime}
                   enforceUnbrokenPeriods={leagueEnforceUnbroken}
                 />
@@ -528,12 +532,14 @@ export default async function LivePage({ params }: LivePageProps) {
       <div className="space-y-3">
         <LeagueLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={leagueEnforceUnbroken}
           trackZoneTime={leagueTrackZoneTime}

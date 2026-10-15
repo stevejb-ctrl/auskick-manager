@@ -446,6 +446,7 @@ export function primaryThirdFor(positionId: string): string | null {
 
 export const netballSport: SportConfig = {
   id: "netball",
+  family: "netball",
   name: "Netball",
   shortName: "Netball",
   brand: {

@@ -17,9 +17,8 @@ import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, teamSport } from "@/lib/sports";
-import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -136,10 +135,11 @@ export default async function RunPage({ params }: RunPageProps) {
   // Without this branch RL games fall through to the AFL LiveGame
   // (the demo-picker symptom Steve caught: clicking the RL card
   // started a game on the RL team but rendered AFL chrome).
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
-      rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group) ??
+      rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -194,7 +194,7 @@ export default async function RunPage({ params }: RunPageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStartedL = replay.lineup !== null;
 
     // Season events for the suggester + kickoff badges. Fetched the
@@ -212,18 +212,18 @@ export default async function RunPage({ params }: RunPageProps) {
       : { data: [] as GameEvent[] };
     const leagueSeasonEvents = (leagueSeasonEventsRaw ?? []) as GameEvent[];
     // How we play for the league suggester, as on the coach's page.
-    const lg = await loadTeamPlaybook(admin, g.team_id, "rugby_league", teamRow?.age_group ?? null);
+    const lg = await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null);
     // A game in progress plays what it kicked off with (as AFL and netball).
     const leaguePlaybook = withKickoffSnapshot(
-      "rugby_league",
+      sport,
       leaguePlaybookInput(
         lg.resolved,
         lg.prefs,
         lg.rules,
-        seasonTimeByUnit("rugby_league", leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
+        seasonTimeByUnit(sport, leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
         periodSeconds * 1000,
         lg.vestStrategy,
-        seasonTimeByUnit("rugby_league", leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
+        seasonTimeByUnit(sport, leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
       ),
       g.playbook_snapshot,
     );
@@ -294,12 +294,13 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber={getSportConfig("rugby_league").jerseyNumbers}
+                showJerseyNumber={rugbyCfg.jerseyNumbers}
                 requiredAvailable={ageCfgL.defaultOnFieldSize}
               />
             </section>
           ) : (
             <LeagueLineupPicker
+              sport={sport}
               auth={auth}
               gameId={g.id}
               players={availablePlayers}
@@ -336,12 +337,14 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="space-y-3 px-4 py-3">
         <LeagueLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={
             (g as { enforce_unbroken_periods?: boolean | null })

@@ -7,7 +7,7 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, periodLabels, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, periodLabels, teamSport } from "@/lib/sports";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -73,7 +73,7 @@ export async function buildGameReport(
   } else if (sport === "netball") {
     lines = ["attack-third", "centre-third", "defence-third"];
     Object.assign(byPeriod, netballByPeriod(events, periodSeconds, primaryThirdFor as ThirdLookup));
-  } else if (sport === "rugby_league") {
+  } else if (isRugby(sport)) {
     // League time per period has no lines yet (Phase 5.6): the report
     // shows the game-time floor. League's one catalogue rule (subs at
     // the breaks) has nothing to report after the game.

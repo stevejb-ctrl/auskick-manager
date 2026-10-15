@@ -28,7 +28,7 @@ import {
   type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
-import { getSportConfig, noSportBranch } from "@/lib/sports/registry";
+import { getSportConfig, isRugby, noSportBranch } from "@/lib/sports/registry";
 import type { AgeGroupConfig, SportConfig } from "@/lib/sports/types";
 import type { Lineup, Player, PlayerChip, Zone, PositionModel } from "@/lib/types";
 import type {
@@ -410,7 +410,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
 //     age-group's `forwardCount`; the split is re-shuffled per block
 //     so a kid isn't always a forward.
 function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
-  const cfg = getSportConfig("rugby_league");
+  const cfg = getSportConfig(input.sport);
   const ag = input.ageGroup;
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
@@ -479,7 +479,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   }
 
   return {
-    sport: "rugby_league",
+    sport: input.sport,
     periods,
     totals: computeTotals(periods, ids),
     periodLabel: label,
@@ -498,14 +498,9 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
  * component on every tweak / reshuffle.
  */
 export function projectGamePlan(input: ProjectGamePlanInput): GamePlan {
-  switch (input.sport) {
-    case "netball":
-      return projectNetballGamePlan(input);
-    case "rugby_league":
-      return projectLeagueGamePlan(input);
-    case "afl":
-      return projectAflGamePlan(input);
-    default:
-      return noSportBranch(input.sport, "projectGamePlan");
-  }
+  const { sport } = input;
+  if (sport === "netball") return projectNetballGamePlan(input);
+  if (isRugby(sport)) return projectLeagueGamePlan(input);
+  if (sport === "afl") return projectAflGamePlan(input);
+  return noSportBranch(sport, "projectGamePlan");
 }

@@ -40,8 +40,13 @@ export function buildLeagueWalkthroughSteps(opts: {
   trackZoneTime: boolean;
   /** Whether this team / game has the §6 unbroken-period rule on. */
   enforceUnbrokenPeriods: boolean;
-  /** U13+: international laws — goals from play, no kick rotations, no §6. */
-  internationalLaws?: boolean;
+  // The age group's law knobs; an omitted one is off.
+  /** Penalty and field goals score (AgeGroupConfig.goalsFromPlay; league U13+). */
+  goalsFromPlay?: boolean;
+  /** The goal-kick and kickoff rotations apply (AgeGroupConfig.kickRotations; league U6–U12). */
+  kickRotations?: boolean;
+  /** The §6 unbroken-period law applies (AgeGroupConfig.unbrokenPeriods; league U6–U12). */
+  unbrokenPeriods?: boolean;
 }): WalkthroughStep[] {
   const abbr = opts.periodLabel.charAt(0).toUpperCase();
   const periodWord = opts.periodLabel === "half" ? "half" : "quarter";
@@ -87,13 +92,20 @@ export function buildLeagueWalkthroughSteps(opts: {
   }
 
   if (opts.trackScoring) {
+    // Each law writes its own part: goals from play the goal buttons,
+    // the kick rotations the rotation sentence.
+    const rotation = "every on-field player must attempt a conversion before anyone gets a second";
     steps.push({
       emoji: "🏆",
-      title: opts.internationalLaws ? "Recording tries & goals" : "Recording tries & conversions",
-      body: opts.internationalLaws
-        ? "Tap a field player, then Try, Penalty goal (2) or Field goal (1) at the bottom. After a try the conversion picker opens — pick the kicker; there's no kicking rotation at this age. +PG and +FG beside our score ask who kicked. For an opponent score, tap +T, +C, +PG or +FG beside their score. Undo takes back the latest score."
+      title: opts.goalsFromPlay ? "Recording tries & goals" : "Recording tries & conversions",
+      body: opts.goalsFromPlay
+        ? `Tap a field player, then Try, Penalty goal (2) or Field goal (1) at the bottom. After a try the conversion picker opens — pick the kicker; ${
+            opts.kickRotations ? `the app enforces the goal-kick rotation: ${rotation}` : "there's no kicking rotation at this age"
+          }. +PG and +FG beside our score ask who kicked. For an opponent score, tap +T, +C, +PG or +FG beside their score. Undo takes back the latest score.`
         : opts.kickingAllowed
-        ? "Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker. The app enforces the goal-kick rotation: every on-field player must attempt a conversion before anyone gets a second. For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score."
+        ? `Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker.${
+            opts.kickRotations ? ` The app enforces the goal-kick rotation: ${rotation}.` : ""
+          } For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score.`
         : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.",
     });
   }
@@ -106,7 +118,7 @@ export function buildLeagueWalkthroughSteps(opts: {
     });
   }
 
-  if (opts.enforceUnbrokenPeriods && !opts.internationalLaws) {
+  if (opts.enforceUnbrokenPeriods && opts.unbrokenPeriods) {
     steps.push({
       emoji: "📏",
       title: "Unbroken-period rule",

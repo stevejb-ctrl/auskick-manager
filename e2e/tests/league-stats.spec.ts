@@ -16,9 +16,11 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-async function seedFinalisedLeagueGame(age: "U10" | "U13") {
-  const size = age === "U13" ? 13 : 11;
-  const forwards = age === "U13" ? 6 : 5;
+// On-field size and forwards per seeded age group.
+const SHAPE = { U6: [6, 3], U8: [8, 4], U10: [11, 5], U13: [13, 6] } as const;
+
+async function seedFinalisedLeagueGame(age: keyof typeof SHAPE) {
+  const [size, forwards] = SHAPE[age];
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -161,6 +163,28 @@ test("U10 stats keep the junior-law columns and show no goal columns", async ({ 
   await expect(page.getByRole("group", { name: "Pen. goals" })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Field goals" })).toHaveCount(0);
 });
+
+// The FR / DH columns follow the age group's vests: none at U6–U7, FR
+// only at U8, both from U9. They used to show for every junior grade.
+for (const [age, worn] of [
+  ["U6", []],
+  ["U8", ["FR"]],
+] as const) {
+  test(`${age} stats show only the vests ${age} wears`, async ({ page }) => {
+    const { team, kicker } = await seedFinalisedLeagueGame(age);
+    await page.goto(`/teams/${team.id}/stats`);
+    await expect(playerRow(page, kicker.full_name)).toBeVisible();
+
+    for (const vest of ["FR", "DH"] as const) {
+      await expect(
+        statsTable(page).getByRole("columnheader", { name: vest, exact: true }),
+        vest,
+      ).toHaveCount((worn as readonly string[]).includes(vest) ? 1 : 0);
+    }
+    // The other junior-law columns stay: the vests are their own rule.
+    await expect(statsTable(page).getByRole("columnheader", { name: "Unbroken", exact: true })).toHaveCount(1);
+  });
+}
 
 // Sideline combo: a kid hurt in the first half, replaced from the bench,
 // then marked recovered while sitting on the bench never went back on,

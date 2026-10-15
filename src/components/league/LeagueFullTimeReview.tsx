@@ -23,10 +23,12 @@ import { SFButton } from "@/components/sf";
 import { hapticSiren } from "@/lib/haptics";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import {
-  leagueScoreByPeriod,
   leagueScoreLine,
+  rugbyPoints,
+  rugbyScoreByPeriod,
   type LeagueScoreByPeriod,
 } from "@/lib/sports/rugby_league/fairness";
+import type { RugbySport } from "@/lib/sports/registry";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
@@ -35,6 +37,8 @@ import { periodLabels } from "@/lib/sports";
 
 interface LeagueFullTimeReviewProps {
   auth: LiveAuth;
+  /** The team's rugby sport: its points score each period. */
+  sport: RugbySport;
   gameId: string;
   /** Live replay state at the time of full-time. */
   state: LeagueGameState;
@@ -82,6 +86,7 @@ interface LeagueFullTimeReviewProps {
 
 export function LeagueFullTimeReview({
   auth,
+  sport,
   gameId,
   state,
   events,
@@ -105,11 +110,12 @@ export function LeagueFullTimeReview({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const periodLabel = periodLabels("rugby_league", ageGroup).label;
+  const periodLabel = periodLabels(sport, ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
-  const scoreByPeriod: LeagueScoreByPeriod = leagueScoreByPeriod(
+  const scoreByPeriod: LeagueScoreByPeriod = rugbyScoreByPeriod(
     events,
     ageGroup.periodCount,
+    rugbyPoints(sport),
   );
 
   function handleFinalise() {

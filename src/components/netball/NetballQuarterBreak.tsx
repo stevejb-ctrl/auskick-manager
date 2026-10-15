@@ -61,6 +61,7 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
 import { benchPlayerInPositionLineup } from "@/lib/live/lineupOps";
+import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -621,6 +622,35 @@ export function NetballQuarterBreak({
     setSelected(null);
   }, [lineupMode, suggestedLineup, previousLineup, manualLineup, forcedBenchIds]);
 
+  // The coach's staged lineup survives leaving the live screen (the team
+  // page and back, a reload): kept in the live store, restored here over
+  // the seed and suggestion above (declared after them, so it wins), for
+  // the kids who can still play. Shared with the AFL break. Sidelined
+  // kids aren't restored to the bench: the Sidelined strip shows them,
+  // as it does for a fresh suggestion.
+  const stagedForStore = useMemo(
+    () => ({ groups: draft.positions, bench: draft.bench }),
+    [draft],
+  );
+  const stagedBreakDraft = useStagedBreakDraft({
+    gameId,
+    period: nextQuarter,
+    groupIds: positions,
+    availableIds: candidatePool,
+    staged: stagedForStore,
+    mode: lineupMode,
+    onRestore: (restored) => {
+      setDraft({ positions: restored.groups, bench: restored.bench });
+      const mode = restored.mode as typeof lineupMode;
+      if (["suggested", "keep", "manual"].includes(mode)) {
+        lastAppliedModeRef.current = mode;
+        setLineupMode(mode);
+      }
+      didSeedRef.current = true;
+      setSelected(null);
+    },
+  });
+
   // Players currently flagged injured or on loan — sourced from the
   // events-derived sets in the parent. The candidatePool intentionally
   // excludes them so the suggester doesn't put them back on court, but
@@ -936,6 +966,8 @@ export function NetballQuarterBreak({
       quarter,
     ]);
     setPendingStartQuarter(null);
+    // The staged lineup is now the quarter's: nothing left to restore.
+    stagedBreakDraft.clear();
     onStarted();
     // D-14: the next-period pin has now been consumed (it seeded this
     // break's draft, which we've just committed). Clear it so it can't

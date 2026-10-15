@@ -133,8 +133,8 @@ export function GameHeader({
     return () => window.clearInterval(id);
   }, [startedAt]);
 
-  const rawElapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs });
-  const elapsed = rawElapsed * clockMultiplier;
+  // Game ms, the store's frame (accumulatedMs is already scaled).
+  const elapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs, clockMultiplier });
   const remaining = Math.max(0, quarterMs - elapsed);
   const overtime = elapsed > quarterMs;
 

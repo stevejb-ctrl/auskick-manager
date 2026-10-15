@@ -19,9 +19,11 @@
 //   - src/components/league/LeagueLiveGame.tsx (the new break entry on isAtQbreak)
 //   - addLateArrival / markInjury(reason:"out") + recordLeagueSwap
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
+import type { GameEvent } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -33,6 +35,39 @@ async function suppressWalkthrough(
       localStorage.setItem("gm-walkthrough-seen", "1");
     } catch {}
   });
+}
+
+/**
+ * The coach's plan for the game, where the live store keeps it on the
+ * device. Seeded once per tab, so a reload finds what the page saved
+ * there since, not the plan again.
+ */
+async function seedPlan(page: Page, gameId: string, plannedRotation: object): Promise<void> {
+  await page.addInitScript(
+    ([id, pin]) => {
+      try {
+        localStorage.setItem("gm-walkthrough-seen", "1");
+        if (sessionStorage.getItem("plan-seeded")) return;
+        sessionStorage.setItem("plan-seeded", "1");
+        localStorage.setItem(
+          "siren-live-game-v1",
+          JSON.stringify({
+            state: {
+              activeGameId: id,
+              lockedIds: [],
+              zoneLockedPlayers: {},
+              swapCount: 0,
+              lastStintMs: {},
+              lastStintZone: {},
+              plannedRotation: pin,
+            },
+            version: 1,
+          }),
+        );
+      } catch {}
+    },
+    [gameId, plannedRotation] as const,
+  );
 }
 
 test("rugby league: at the break a coach can add an arrived player, mark a player out (forced replacement), and mark a player injured", async ({
@@ -341,29 +376,7 @@ test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and
       1: { groups: { forwards: [...ids.slice(1, 5), ids[11]], backs: ids.slice(5, 11) }, bench: [ids[12]] },
     },
   };
-  await page.addInitScript(
-    ([gameId, plannedRotation]) => {
-      try {
-        localStorage.setItem("gm-walkthrough-seen", "1");
-        localStorage.setItem(
-          "siren-live-game-v1",
-          JSON.stringify({
-            state: {
-              activeGameId: gameId,
-              lockedIds: [],
-              zoneLockedPlayers: {},
-              swapCount: 0,
-              lastStintMs: {},
-              lastStintZone: {},
-              plannedRotation,
-            },
-            version: 1,
-          }),
-        );
-      } catch {}
-    },
-    [game.id, pin] as const,
-  );
+  await seedPlan(page, game.id, pin);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // The break pops the start modal; start the second half.
@@ -398,4 +411,122 @@ test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and
   // ...and the kids who never turned up stay out of it.
   const inGame = [...started!.forwards, ...started!.backs, ...started!.bench];
   for (const p of absent) expect(inGame).not.toContain(p.id);
+});
+
+// ─── A swap at the break goes on top of the plan (rugby league) ──────
+// The coach planned the second half (a bench kid on for a forward) and,
+// at the break, swaps one more kid. Pre-fix the break drew the FIRST
+// half's lineup under "Pre-filled from your planned H2 lineup", saved
+// the swap against that, and Start then put the plan on over it: the
+// half began without the swap. AFL opens its break on the plan and the
+// coach edits that, so league must too: the field at the break is the
+// plan, a swap changes the plan, and Start begins the half with both.
+test("rugby league: the break shows the planned half, and a swap made there is in it when it starts", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  // U13: no vest or kickoff prompts in the way.
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U13",
+    sport: "rugby_league",
+    name: `RL-PIN-SWAP-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  await admin.from("games").update({ on_field_size: 13 }).eq("id", game.id);
+
+  const ids = players.map((p) => p.id);
+  const h1 = { forwards: ids.slice(0, 6), backs: ids.slice(6, 13), bench: ids.slice(13) };
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup: h1, sport: "rugby_league" }, created_at: t(800) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_at: t(799) },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 12 * 60_000, sport: "rugby_league" }, created_at: t(60) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("game_availability").upsert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available", updated_by: ownerId, updated_at: new Date().toISOString() })),
+    { onConflict: "game_id,player_id" },
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  // The plan for H2: bench kid 13 on for forward 0.
+  const plannedOn = ids[13];
+  const plannedOff = ids[0];
+  await seedPlan(page, game.id, {
+    gameId: game.id,
+    laterPeriods: {
+      1: { groups: { forwards: [plannedOn, ...ids.slice(1, 6)], backs: ids.slice(6, 13) }, bench: [plannedOff, ids[14]] },
+    },
+  });
+  // At the break the coach also brings bench kid 14 on for back 6.
+  const swapOn = ids[14];
+  const swapOff = ids[6];
+
+  const field = page.getByRole("region", { name: "On field" });
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  const tile = (id: string) => page.getByTestId(`league-player-tile-${id}`);
+  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
+  const toTheBreak = async () => {
+    // The break pops the start modal on arrival; step back to the field.
+    await backToLineup.click({ timeout: 15_000 });
+    await expect(backToLineup).toBeHidden({ timeout: 5_000 });
+    await expect(page.getByTestId("planned-seed-banner")).toBeVisible({ timeout: 15_000 });
+  };
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await toTheBreak();
+
+  // The field at the break is the plan, not the half just played.
+  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect.soft(bench.getByTestId(`league-player-tile-${plannedOff}`)).toBeVisible();
+
+  // The swap.
+  await tile(swapOn).click();
+  await tile(swapOff).click();
+  await expect(field.getByTestId(`league-player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`league-player-tile-${swapOff}`)).toBeVisible();
+  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible();
+
+  // It's still there after a reload, on top of the plan.
+  await page.reload();
+  await toTheBreak();
+  await expect(field.getByTestId(`league-player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`league-player-tile-${swapOff}`)).toBeVisible();
+  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible();
+
+  // Start H2: it begins with the plan AND the swap.
+  await page.getByRole("button", { name: /^start h2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  let events: GameEvent[] = [];
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("game_events")
+          .select("*")
+          .eq("game_id", game.id)
+          .order("created_at", { ascending: true });
+        events = (data ?? []) as GameEvent[];
+        return events.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2);
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+  const h2 = replayLeagueGame(events).lineup!;
+  expect(h2.backs).toContain(swapOn);
+  expect(h2.bench).toContain(swapOff);
+  expect(h2.forwards).toContain(plannedOn);
+  expect(h2.bench).toContain(plannedOff);
+  const everyone = [...h2.forwards, ...h2.backs, ...h2.bench];
+  expect(everyone.sort()).toEqual([...ids].sort());
+  // The swap stayed where it was made: on the backs line, kid 14 in kid 6's spot.
+  expect(h2.backs.indexOf(swapOn)).toBe(0);
 });

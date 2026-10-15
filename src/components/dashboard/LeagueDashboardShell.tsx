@@ -5,11 +5,13 @@
 // equity (FR / DH), kickoff equity, and Junior Laws §6
 // unbroken-period compliance.
 //
-// U13+ grades play international laws (`internationalLaws`): they
-// score penalty and field goals, and none of the junior laws apply,
-// so the goal counts replace the FR / DH / kickoff / unbroken
-// columns and the §6 panel goes. Junior grades never show goals
-// (Law 17 forbids both kicks).
+// Each law's columns show only where the age group has that law
+// (leagueStatsColumns): U13+ grades play international laws, so they
+// score penalty and field goals and none of the junior laws apply (the
+// goal counts replace the kickoff / unbroken columns and the §6 panel
+// goes); junior grades never show goals (Law 17 forbids both kicks);
+// FR and DH show where those vests are worn (none at U6–U7, FR only at
+// U8).
 //
 // Same DashboardShell visual ladder as AFL + netball — coaches
 // landing on this page from a different sport should feel
@@ -24,6 +26,7 @@ import type {
   LeagueSeasonPlayerStats,
 } from "@/lib/dashboard/leagueAggregators";
 import type { Season } from "@/lib/dashboard/types";
+import type { LeagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 
 interface LeagueDashboardShellProps {
   seasons: Season[];
@@ -33,8 +36,8 @@ interface LeagueDashboardShellProps {
   totalGames: number;
   /** Stats › Season balance (UX plan 4.4). */
   seasonBalance?: SeasonBalanceSectionProps;
-  /** The team's grade plays international laws (U13+). */
-  internationalLaws?: boolean;
+  /** Which law columns the team's age group has (leagueStatsColumns). */
+  columns: LeagueStatsColumns;
 }
 
 export function LeagueDashboardShell({
@@ -44,7 +47,7 @@ export function LeagueDashboardShell({
   aggregate,
   totalGames,
   seasonBalance,
-  internationalLaws = false,
+  columns,
 }: LeagueDashboardShellProps) {
   if (totalGames === 0) {
     return (
@@ -73,9 +76,9 @@ export function LeagueDashboardShell({
       );
     });
 
-  const shortfallPlayers = internationalLaws
-    ? []
-    : rows.filter((r) => r.unbrokenShortfallGames > 0);
+  const shortfallPlayers = columns.unbroken
+    ? rows.filter((r) => r.unbrokenShortfallGames > 0)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -88,7 +91,7 @@ export function LeagueDashboardShell({
 
       {/* Team totals strip */}
       <section
-        className={`grid grid-cols-2 gap-3 ${internationalLaws ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}
+        className={`grid grid-cols-2 gap-3 ${columns.goals ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}
       >
         <TotalCard label="Games" value={aggregate.totals.games} />
         <TotalCard
@@ -103,7 +106,7 @@ export function LeagueDashboardShell({
             aggregate.totals.conversionsAttempted === 1 ? "attempt" : "attempts"
           }`}
         />
-        {internationalLaws && (
+        {columns.goals && (
           <>
             <TotalCard label="Pen. goals" value={aggregate.totals.penaltyGoals} />
             <TotalCard label="Field goals" value={aggregate.totals.fieldGoals} />
@@ -154,19 +157,16 @@ export function LeagueDashboardShell({
               <Th>GP</Th>
               <Th>Tries</Th>
               <Th>Conv (M/A)</Th>
-              {internationalLaws ? (
+              {columns.goals && (
                 <>
                   <Th>PG</Th>
                   <Th>FG</Th>
                 </>
-              ) : (
-                <>
-                  <Th>FR</Th>
-                  <Th>DH</Th>
-                  <Th>Kickoffs</Th>
-                  <Th>Unbroken</Th>
-                </>
               )}
+              {columns.fr && <Th>FR</Th>}
+              {columns.dh && <Th>DH</Th>}
+              {columns.kickoffs && <Th>Kickoffs</Th>}
+              {columns.unbroken && <Th>Unbroken</Th>}
             </tr>
           </thead>
           <tbody>
@@ -185,24 +185,23 @@ export function LeagueDashboardShell({
                     ? `${r.conversionsMade}/${r.conversionsAttempted}`
                     : "—"}
                 </Td>
-                {internationalLaws ? (
+                {columns.goals && (
                   <>
                     <Td>{r.penaltyGoals || "—"}</Td>
                     <Td>{r.fieldGoals || "—"}</Td>
                   </>
-                ) : (
-                  <>
-                    <Td>{r.vestFr || "—"}</Td>
-                    <Td>{r.vestDh || "—"}</Td>
-                    <Td>{r.kickoffs || "—"}</Td>
-                    <Td
-                      className={
-                        r.unbrokenShortfallGames > 0 ? "text-warn" : "text-ok"
-                      }
-                    >
-                      {r.unbrokenCompliantGames}/{r.gamesPlayed}
-                    </Td>
-                  </>
+                )}
+                {columns.fr && <Td>{r.vestFr || "—"}</Td>}
+                {columns.dh && <Td>{r.vestDh || "—"}</Td>}
+                {columns.kickoffs && <Td>{r.kickoffs || "—"}</Td>}
+                {columns.unbroken && (
+                  <Td
+                    className={
+                      r.unbrokenShortfallGames > 0 ? "text-warn" : "text-ok"
+                    }
+                  >
+                    {r.unbrokenCompliantGames}/{r.gamesPlayed}
+                  </Td>
                 )}
               </tr>
             ))}

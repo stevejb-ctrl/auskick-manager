@@ -52,6 +52,7 @@ import {
   benchSidelinedInLineup,
   replaceInLineup,
 } from "@/lib/live/lineupOps";
+import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
@@ -103,13 +104,6 @@ interface QuarterBreakProps {
    * roles for the AFL suggesters. Omitted = today's behaviour.
    */
   aflPlaybook?: AflPlaybookInput;
-  /**
-   * Demo-clock speed multiplier (default 1). Used to scale real-time
-   * stint durations into game-time when checking the "recent arrival"
-   * pin threshold, so the demo's 8× quarters don't treat every field
-   * player's whole-quarter stint as a recent sub.
-   */
-  clockMultiplier?: number;
   onStarted: () => void;
   /**
    * Fired SYNCHRONOUSLY when the coach taps Start (issue 1) — before the
@@ -142,7 +136,6 @@ export function QuarterBreak({
   chipModeByKey = {},
   aflPlaybook,
   periodCount = 4,
-  clockMultiplier = 1,
   onStarted,
   onPrimeAudio,
 }: QuarterBreakProps) {
@@ -190,6 +183,7 @@ export function QuarterBreak({
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
   const setInjured = useLiveGame((s) => s.setInjured);
+  const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   // F2 plan-ahead (ROTPLAN-02): the coach may have pinned THIS upcoming
   // period's lineup during the dying minutes of the last one. Read the
   // pin so the break can open PRE-SEEDED on it (D-12), and the clearer
@@ -514,14 +508,12 @@ export function QuarterBreak({
 
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
-    // Recent arrivals: short last stint. Compare in GAME time, not
-    // real time — the demo's 8× clock would otherwise treat every
-    // full-quarter stint (~90s real = 12 min game) as a recent sub
-    // and pin every field player to their previous zone, blocking
-    // the auto-rotation the UI promises. Steve 2026-05-20.
+    // Recent arrivals: short last stint. Stints are in GAME time (the
+    // live store's clock), so the demo's 8× quarters don't read every
+    // full-quarter stint as a recent sub. Steve 2026-05-20.
     for (const [pid, dur] of Object.entries(lastStintMs)) {
       const z = lastStintZone[pid];
-      if (z && dur * clockMultiplier < RECENT_ARRIVAL_MS) pins[pid] = z;
+      if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
     }
     // Field-locked: always stay in their last zone (never go to bench)
     for (const pid of lockedIds) {
@@ -533,7 +525,7 @@ export function QuarterBreak({
       pins[pid] = z;
     }
     return pins;
-  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers, clockMultiplier]);
+  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
 
   // Q-just-ended teammate cohorts, keyed by player id. Built from
   // the END-of-quarter lineup (already in the live store) so it
@@ -680,6 +672,46 @@ export function QuarterBreak({
     setSelected(null);
   }, [lineupMode, suggestedLineup, rotatedLineup, manualLineup, lineup, availableForLineup.length]);
 
+  // The coach's staged lineup survives leaving the live screen (the team
+  // page and back, a reload): kept in the live store, restored here over
+  // the seed and suggestion above (declared after them, so it wins), for
+  // the kids who can still play. Shared with the netball break.
+  const stagedForStore = useMemo(
+    () => ({
+      groups: { back: draft.back, hback: draft.hback, mid: draft.mid, hfwd: draft.hfwd, fwd: draft.fwd },
+      bench: draft.bench,
+    }),
+    [draft],
+  );
+  const healthyIds = useMemo(() => healthyForLineup.map((p) => p.id), [healthyForLineup]);
+  const stagedBreakDraft = useStagedBreakDraft({
+    gameId,
+    period: nextQuarter,
+    ready: availableForLineup.length > 0,
+    groupIds: ALL_ZONES,
+    availableIds: healthyIds,
+    benchOnlyIds: sidelinedIdsInLineup,
+    staged: stagedForStore,
+    mode: lineupMode,
+    onRestore: (restored) => {
+      setDraft({
+        back: restored.groups.back ?? [],
+        hback: restored.groups.hback ?? [],
+        mid: restored.groups.mid ?? [],
+        hfwd: restored.groups.hfwd ?? [],
+        fwd: restored.groups.fwd ?? [],
+        bench: restored.bench,
+      });
+      const mode = restored.mode as RotationMode;
+      if (["suggested", "keep", "manual", "rotate"].includes(mode)) {
+        lastAppliedModeRef.current = mode;
+        setLineupMode(mode);
+      }
+      didSeedRef.current = true;
+      setSelected(null);
+    },
+  });
+
   // ─── Match-adjustment panel state ─────────────────────────────
   // The size dropdown is locally controlled — Q-break is a "stage"
   // moment, so we don't optimistically rerender the lineup picker
@@ -814,6 +846,11 @@ export function QuarterBreak({
         ? prev
         : { ...prev, bench: [...prev.bench, playerId] },
     );
+    // And in the store's lineup, as an in-game arrival is (LiveGame's
+    // handleLateArrival): the refresh doesn't re-init the store, so the
+    // break would otherwise forget them on a mode change, or when its
+    // staged draft is restored after the team page and back.
+    addBenchPlayer(playerId);
     startLoanTransition(async () => {
       const { flushed } = enqueueLiveAction("addLateArrival", [
         auth,
@@ -1110,6 +1147,8 @@ export function QuarterBreak({
         setStartModalOpen(false);
         return;
       }
+      // The staged lineup is now the quarter's: nothing left to restore.
+      stagedBreakDraft.clear();
       onStarted();
       // D-14: the next-period pin has now been consumed (it seeded this
       // break's draft, which we've just committed). Clear it so it can't

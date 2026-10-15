@@ -7,11 +7,12 @@
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { assignLeaguePositionLabels, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
-import type { Lineup } from "@/lib/types";
+import { isRugby } from "@/lib/sports/registry";
+import type { Lineup, Sport } from "@/lib/types";
 import type { GamePlanPeriod } from "./types";
 
 export function periodPositionLabels(
-  sport: string,
+  sport: Sport,
   period: GamePlanPeriod,
   playbooks: { aflPlaybook?: AflPlaybookInput | null; leaguePlaybook?: LeaguePlaybookInput | null },
 ): Record<string, string> {
@@ -28,7 +29,7 @@ export function periodPositionLabels(
     };
     return assignPositionLabels(lineup, playbooks.aflPlaybook);
   }
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     if (!playbooks.leaguePlaybook?.positions?.length) return {};
     return assignLeaguePositionLabels({ forwards: ids("forwards"), backs: ids("backs") }, playbooks.leaguePlaybook);
   }
