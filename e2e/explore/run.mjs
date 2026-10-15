@@ -468,6 +468,26 @@ async function seedTeam(admin, email, name, origin) {
       squad: 11,
       onField: 8,
     },
+    // Rugby union: 15 a side at U12 with named positions (jersey
+    // numbers, union's own keys), the hooker and halfback set.
+    "union-u12-gameday": {
+      team: { name: "Randwick Rams", age_group: "U12", sport: "rugby_union" },
+      playbook: { strategy: "named-positions" },
+      squad: 19,
+      onField: 15,
+      prefs: [
+        [1, { position_key: "ru-2", kind: "home" }],
+        [8, { position_key: "ru-9", kind: "home" }],
+        [9, { position_key: "ru-10", kind: "home" }],
+      ],
+    },
+    // Union U10 on the pathway: 12 a side, forwards and backs.
+    "union-u10-gameday": {
+      team: { name: "Randwick Rams", age_group: "U10", sport: "rugby_union" },
+      playbook: { strategy: "preferred-line" },
+      squad: 15,
+      onField: 12,
+    },
   };
   // Each age group's usual on-field size. Games have no size default
   // (migration 0063), so every seeded game takes its team's. Also
@@ -478,6 +498,7 @@ async function seedTeam(admin, email, name, origin) {
     afl: { U8: 6, U9: 9, U10: 12, U11: 12, U12: 12, U13: 15, U14: 15, U15: 15, U16: 18, U17: 18 },
     netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
     rugby_league: { U6: 6, U7: 6, U8: 8, U9: 8, U10: 11, U11: 11, U12: 13, U13: 13, U14: 13, U15: 13, U16: 13, U17: 13 },
+    rugby_union: { U6: 7, U7: 7, U8: 7, U9: 10, U10: 12, U11: 12, U12: 15, U13: 15, U14: 15, U15: 15, U16: 15, U17: 15, U18: 15 },
   };
   const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;

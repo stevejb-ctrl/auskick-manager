@@ -55,6 +55,9 @@ How we play missions (run with `--as=coach`, plus the seed shown):
 | `gameday-afl-u12`                | `afl-u12-gameday`     | Lineup, keep on, score + undo, injury, the break and Why |
 | `gameday-afl-u15-positions`      | `afl-u15-gameday`     | Positions under time pressure, keep in the back line, like-for-like |
 | `gameday-netball-11u`            | `netball-11u-gameday` | Sit-outs, keep GS, scoring, the break, handing over the phone |
+| `gameday-union-u12`              | `union-u12-gameday`   | 15 a side, union's positions, try / conversion / penalty and drop goals, undo |
+| `sideline-chaos-union`           | `union-u10-gameday`   | Injury, lend, late arrival, a sub; at the break the lent kid back |
+| `whole-game-union`               | `union-u12-gameday`   | Both halves to the finished game: scores, goals, time, the summary |
 
 Older missions (some still mention player chips, which How we play replaced):
 
