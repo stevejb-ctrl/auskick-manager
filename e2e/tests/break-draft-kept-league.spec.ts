@@ -57,7 +57,7 @@ test("rugby league: a swap made at the break is still there after the team page 
     name: `RL-BRK-KEPT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const onFieldSize = 11;
   await admin.from("games").update({ on_field_size: onFieldSize }).eq("id", game.id);
   const fieldIds = players.slice(0, onFieldSize).map((p) => p.id);

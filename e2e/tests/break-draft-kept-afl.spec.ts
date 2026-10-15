@@ -81,6 +81,7 @@ async function seedQ1Break(
   )!.id;
   const team = await makeTeam(admin, {
     ownerId,
+    sport: "afl",
     ageGroup: "U10",
     name: `AFL-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });

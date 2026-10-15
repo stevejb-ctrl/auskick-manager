@@ -35,7 +35,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { AgeGroup, Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "serial" });
@@ -68,9 +68,9 @@ function attachConsoleErrorWatcher(
 function buildDefaultLineup(
   playerIds: string[],
   onFieldSize: number,
-  ageGroup: AgeGroup,
+  ageGroup: string,
 ): Lineup {
-  const positionModel = positionsFor(ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", ageGroup));
   const zoneCaps = zoneCapsFor(onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [],
