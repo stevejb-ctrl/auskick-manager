@@ -147,7 +147,7 @@ export async function makeGame(
   // 0063). A spec that wants another size patches the game.
   const { data: team, error: teamError } = await admin
     .from("teams")
-    .select("sport, age_group")
+    .select("sport, age_group, on_field_size")
     .eq("id", opts.teamId)
     .single();
   if (teamError || !team) throw new Error(`makeGame team: ${teamError?.message}`);
@@ -158,7 +158,7 @@ export async function makeGame(
       opponent: opts.opponent ?? "Test Opponent",
       scheduled_at: opts.scheduledAt ?? new Date(Date.now() + 86400_000).toISOString(),
       round_number: opts.roundNumber ?? 1,
-      ...newGameDefaults(team.sport as string, team.age_group as string),
+      ...newGameDefaults(team.sport as string, team.age_group as string, team.on_field_size as number | null),
       created_by: opts.ownerId,
     })
     .select("id, on_field_size, sub_interval_seconds, share_token")

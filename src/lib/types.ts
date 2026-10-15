@@ -106,6 +106,11 @@ export interface Team {
    * junior netball where regions vary widely).
    */
   quarter_length_seconds: number | null;
+  /**
+   * The team's own players on the field; NULL = the age group's default
+   * (migration 0067). New games start from it (newGameDefaults).
+   */
+  on_field_size: number | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   /** Optional human labels for the three player chip slots. Coach

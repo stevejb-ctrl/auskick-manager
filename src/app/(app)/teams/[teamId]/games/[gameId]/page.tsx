@@ -30,6 +30,7 @@ import type { Game, GameEvent, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { teamSportById } from "@/lib/sports/teamSportById";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -73,7 +74,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, name, track_scoring, quarter_length_seconds")
+      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size")
       .eq("id", params.teamId)
       .single(),
     // Every event: each sport's replay tallies the scorers, honouring
@@ -302,9 +303,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 )}
               </div>
               <p className="mt-3 text-xs text-ink-mute">
-                {planAgeCfg.label} ·{" "}
-                {isUp ? planAgeCfg.defaultOnFieldSize : g.on_field_size} on field
-                {!isUp && g.on_field_size < planAgeCfg.defaultOnFieldSize && (
+                {/* The game's own size: it starts at the team's (its
+                    competition's), else the age group's. */}
+                {planAgeCfg.label} · {g.on_field_size} on field
+                {!isUp &&
+                  g.on_field_size <
+                    teamOnFieldSize(planAgeCfg, (team as { on_field_size?: number | null } | null)?.on_field_size ?? null) && (
                   <span className="ml-1 font-medium text-warn">(short-handed)</span>
                 )}
               </p>
@@ -420,7 +424,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   edit={
                     isUp && role === "admin"
                       ? {
-                          ageGroup: planAgeCfg,
                           game: {
                             id: g.id,
                             opponent: g.opponent,

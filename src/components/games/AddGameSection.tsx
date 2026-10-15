@@ -4,12 +4,10 @@ import { useState } from "react";
 import { CreateGameForm } from "@/components/games/CreateGameForm";
 import { ImportFixturesButton } from "@/components/games/ImportFixturesButton";
 import { Button } from "@/components/ui/Button";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 import { Modal } from "@/components/ui/Modal";
 interface Props {
   teamId: string;
-  ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   initialUrl?: string;
   /** The sport's PlayHQ tenant; null where the sport isn't on PlayHQ (league). */
@@ -20,7 +18,6 @@ interface Props {
 
 export function AddGameSection({
   teamId,
-  ageGroup,
   existingExternalIds,
   initialUrl = "",
   playhqTenant,
@@ -82,7 +79,6 @@ export function AddGameSection({
             </div>
             <CreateGameForm
               teamId={teamId}
-              ageGroup={ageGroup}
               onCancel={() => setShowManual(false)}
               afterCreate={afterCreate}
               onCreated={() => setShowManual(false)}

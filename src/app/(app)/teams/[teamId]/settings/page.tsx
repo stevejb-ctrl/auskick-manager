@@ -3,6 +3,8 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
+import { OnFieldSizeInput } from "@/components/team/OnFieldSizeInput";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
 import { TrackZoneTimeToggle } from "@/components/team/TrackZoneTimeToggle";
@@ -37,7 +39,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -162,7 +164,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           sport={sport}
           ageGroup={ageGroupCfg.id}
           ageLabel={ageGroupCfg.label}
-          onFieldSize={ageGroupCfg.defaultOnFieldSize}
+          onFieldSize={teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null)}
           maxOnFieldSize={ageGroupCfg.maxOnFieldSize}
           periodWord={periodLabels(sport, ageGroupCfg).label}
           row={(playbookRow ?? null) as HowWePlayRow | null}
@@ -222,10 +224,21 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           options={ageOptions}
           isAdmin={isAdmin}
         />
-        {/* Every sport's period length (it used to show for netball
-            only, though AFL and league honour it too). A game can still
-            override it. */}
+        {/* The team's competition's size and period length (competitions
+            differ by state), for every sport. A game can still override
+            both. */}
+        <OnFieldSizeInput
+          // Fresh after an age change: its range and saved size move.
+          key={`${ageGroupCfg.id}:${(team as { on_field_size?: number | null }).on_field_size ?? ""}`}
+          teamId={params.teamId}
+          ageGroupDefault={ageGroupCfg.defaultOnFieldSize}
+          min={ageGroupCfg.minOnFieldSize}
+          max={ageGroupCfg.maxOnFieldSize}
+          initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
+          isAdmin={isAdmin}
+        />
         <QuarterLengthInput
+          key={ageGroupCfg.id}
           teamId={params.teamId}
           ageGroupDefaultSeconds={ageGroupCfg.periodSeconds}
           initialOverrideSeconds={

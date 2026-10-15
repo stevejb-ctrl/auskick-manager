@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
-import { newGameDefaults } from "@/lib/games/newGameDefaults";
+import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -69,10 +69,10 @@ export async function createGame(
   // the historical comment that flagged this.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("sport, age_group, on_field_size")
     .eq("id", teamId)
     .single();
-  const defaults = newGameDefaults(team?.sport, team?.age_group);
+  const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size);
   const gameId = crypto.randomUUID();
   const { error: insertError } = await supabase
     .from("games")
@@ -134,8 +134,8 @@ export async function setTrackScoring(
 /**
  * Per-team override for quarter duration (in seconds). Pass `null` to
  * clear the override and fall back to the age-group default. The form
- * validates sane ranges (1–30 min); the DB column has no CHECK so a
- * coach who genuinely wants 30-second training quarters isn't blocked.
+ * validates sane ranges (1–60 min: union's U17–U18 halves run 35); the
+ * DB column has no CHECK.
  */
 export async function setQuarterLengthSeconds(
   teamId: string,
@@ -145,10 +145,10 @@ export async function setQuarterLengthSeconds(
   if (error) return { success: false, error };
 
   if (seconds !== null) {
-    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 1800) {
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > PERIOD_MINUTES_MAX * 60) {
       return {
         success: false,
-        error: "Quarter length must be a whole number of minutes between 1 and 30.",
+        error: `Period length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`,
       };
     }
   }

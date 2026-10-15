@@ -7,6 +7,7 @@ import { GamesStep } from "@/components/setup/GamesStep";
 import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { loadSquadRoles } from "@/lib/playbook/load";
@@ -74,7 +75,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     adminClient
       .from("teams")
       .select(
-        "name, age_group, sport, track_scoring, quarter_length_seconds, playhq_url",
+        "name, age_group, sport, track_scoring, quarter_length_seconds, on_field_size, playhq_url",
       )
       .eq("id", params.teamId)
       .maybeSingle(),
@@ -128,6 +129,8 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
               id: params.teamId,
               name: teamName,
               ageGroup: (team.age_group as string | null) ?? ageGroupCfg.id,
+              onFieldSize: (team as { on_field_size?: number | null }).on_field_size ?? null,
+              periodSeconds: (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null,
             }}
           />
         </div>
@@ -157,9 +160,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         initialEnabled={team.track_scoring ?? false}
         sportId={sport}
-        initialQuarterLengthSeconds={
-          (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
-        }
+        onFieldSize={teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null)}
       />
     );
   }
@@ -206,7 +207,6 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     return (
       <GamesStep
         teamId={params.teamId}
-        ageGroup={ageGroupCfg}
         existingExternalIds={existingExternalIds}
         playhqUrl={(team.playhq_url as string | null) ?? ""}
         playhqTenant={PLAYHQ_TENANT[sport]}

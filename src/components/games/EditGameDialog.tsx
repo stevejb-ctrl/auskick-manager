@@ -2,11 +2,9 @@
 
 import { Modal } from "@/components/ui/Modal";
 import { CreateGameForm } from "@/components/games/CreateGameForm";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface EditGameDialogProps {
   teamId: string;
-  ageGroup: AgeGroupConfig;
   game: {
     id: string;
     opponent: string;
@@ -23,14 +21,13 @@ interface EditGameDialogProps {
  * the game hub's More sheet. Reuses the create form in edit mode so the
  * two never drift; updateGame revalidates the hub so it re-renders.
  */
-export function EditGameDialog({ teamId, ageGroup, game, onClose }: EditGameDialogProps) {
+export function EditGameDialog({ teamId, game, onClose }: EditGameDialogProps) {
   return (
     <Modal size="md">
       <h2 className="mb-4 text-lg font-semibold text-ink">Edit details</h2>
       <div className="overflow-y-auto">
         <CreateGameForm
           teamId={teamId}
-          ageGroup={ageGroup}
           existingGame={game}
           onCancel={onClose}
           onCreated={onClose}

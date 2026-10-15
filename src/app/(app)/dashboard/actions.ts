@@ -9,12 +9,24 @@ import {
   formatTeamMessage,
   sendTelegramNotification,
 } from "@/lib/notifications/telegram";
+import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+
+/**
+ * What the coach set on the Basics step: their competition's players on
+ * the field and period length (competitions differ by state). Omitted
+ * or the age group's own = the age group's default.
+ */
+export interface TeamGameShape {
+  onFieldSize?: number | null;
+  periodSeconds?: number | null;
+}
 
 export async function createTeam(
   userId: string,
   name: string,
   ageGroup: string,
-  sport: Sport
+  sport: Sport,
+  shape: TeamGameShape = {},
 ): Promise<ActionResult<{ setupUrl: string }>> {
   const supabase = createClient();
 
@@ -37,8 +49,8 @@ export async function createTeam(
   // per-sport CHECK (intentional — sport configs own the set), so
   // guard here before writing garbage.
   const cfg = getSportConfig(sport);
-  const validAgeGroup = cfg.ageGroups.some((a) => a.id === ageGroup);
-  if (!validAgeGroup) {
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  if (!ageCfg) {
     console.error("[createTeam] invalid age group for sport", { sport, ageGroup });
     return {
       success: false,
@@ -89,7 +101,22 @@ export async function createTeam(
     chip_b_label?: string;
     chip_a_mode?: import("@/lib/chips").ChipMode;
     chip_b_mode?: import("@/lib/chips").ChipMode;
-  } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
+    on_field_size: number | null;
+    quarter_length_seconds: number | null;
+  } = {
+    id: teamId,
+    name,
+    created_by: user.id,
+    age_group: ageGroup,
+    sport,
+    on_field_size: storedOnFieldSize(ageCfg, shape.onFieldSize),
+    quarter_length_seconds: null,
+  };
+  try {
+    insertRow.quarter_length_seconds = storedPeriodSeconds(ageCfg, shape.periodSeconds);
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
   if (initialTrackScoring) insertRow.track_scoring = true;
   if (isRugby(sport)) {
     insertRow.chip_a_label = "Forward";

@@ -31,11 +31,18 @@ async function getAuthedAdmin(teamId: string) {
   return { supabase, user, error: null };
 }
 
-/** The team's sport and age group: PlayHQ links are checked against the sport. */
+/**
+ * The team's sport, age group and own players on the field: PlayHQ links
+ * are checked against the sport, and new games sized from the team.
+ */
 async function teamSportRow(supabase: ReturnType<typeof createClient>, teamId: string) {
-  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, age_group, on_field_size").eq("id", teamId).single();
   if (!team) return null;
-  return { sport: teamSport(team.sport), ageGroup: team.age_group as string | null };
+  return {
+    sport: teamSport(team.sport),
+    ageGroup: team.age_group as string | null,
+    onFieldSize: team.on_field_size as number | null,
+  };
 }
 
 function futureFixtures(fixtures: PlayHQFixture[]): PlayHQFixture[] {
@@ -139,7 +146,7 @@ export async function importPlayhqFixtures(
   let updated = 0;
   let skipped = 0;
 
-  const defaults = newGameDefaults(team.sport, team.ageGroup);
+  const defaults = newGameDefaults(team.sport, team.ageGroup, team.onFieldSize);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the

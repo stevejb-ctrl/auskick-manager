@@ -8,7 +8,6 @@ import { ResetGameDialog } from "@/components/games/ResetGameButton";
 import { DeleteGameDialog } from "@/components/games/DeleteGameDialog";
 import { GameDayLinkDialog } from "@/components/games/GameDayLinkDialog";
 import { EditGameDialog } from "@/components/games/EditGameDialog";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface GameMoreMenuProps {
   teamId: string;
@@ -19,7 +18,6 @@ interface GameMoreMenuProps {
   liveHref?: string;
   /** Enables "Edit details" (upcoming games). */
   edit?: {
-    ageGroup: AgeGroupConfig;
     game: {
       id: string;
       opponent: string;
@@ -117,7 +115,7 @@ export function GameMoreMenu({
       )}
       {dialog === "link" && shareToken && <GameDayLinkDialog token={shareToken} onClose={close} />}
       {dialog === "edit" && edit && (
-        <EditGameDialog teamId={teamId} ageGroup={edit.ageGroup} game={edit.game} onClose={close} />
+        <EditGameDialog teamId={teamId} game={edit.game} onClose={close} />
       )}
       {dialog === "restart" && (
         <ResetGameDialog auth={{ kind: "team", teamId }} gameId={gameId} onClose={close} />

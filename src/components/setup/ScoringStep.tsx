@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
-import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import {
   HowWePlayCard,
   type HowWePlayPosition,
@@ -17,8 +16,8 @@ interface ScoringStepProps {
   initialEnabled: boolean;
   /** The team's sport: each has its own scoring copy below. */
   sportId: Sport;
-  /** Current quarter-length override in seconds, or null to use age-group default. */
-  initialQuarterLengthSeconds?: number | null;
+  /** The team's players on the field (its own, else the age group's): named positions are drawn for it. */
+  onFieldSize: number;
   /** Saved How we play, or null for a new team (age-group defaults). */
   playbookRow?: HowWePlayRow | null;
   /** The team's own named positions (AFL open ages). */
@@ -30,7 +29,7 @@ export function ScoringStep({
   ageGroup,
   initialEnabled,
   sportId,
-  initialQuarterLengthSeconds = null,
+  onFieldSize,
   playbookRow = null,
   positions = [],
 }: ScoringStepProps) {
@@ -111,7 +110,7 @@ export function ScoringStep({
         sport={sportId}
         ageGroup={ageGroup.id}
         ageLabel={ageGroup.label}
-        onFieldSize={ageGroup.defaultOnFieldSize}
+        onFieldSize={onFieldSize}
         maxOnFieldSize={ageGroup.maxOnFieldSize}
         periodWord={periodLabels(sportId, ageGroup).label}
         row={playbookRow}
@@ -139,17 +138,6 @@ export function ScoringStep({
         />
       )}
 
-      {/* Quarter-length override is a netball-only knob today — junior
-          netball leagues vary so much region-to-region that the
-          age-group default rarely fits everyone. AFL keeps its
-          age-group quarters as the source of truth. */}
-      {sportId === "netball" && (
-        <QuarterLengthInput
-          teamId={teamId}
-          ageGroupDefaultSeconds={ageGroup.periodSeconds}
-          initialOverrideSeconds={initialQuarterLengthSeconds}
-        />
-      )}
 
 
       <div className="flex justify-end">

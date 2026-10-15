@@ -5,19 +5,24 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { defaultTrackScoring, getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
+import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+import type { TeamGameShape } from "@/app/(app)/dashboard/actions";
 
 /**
  * Edit an existing team's basics from the setup wizard's "Basics"
- * step (name + age group). Sport is fixed once the team exists — its
- * chips, positions and history are sport-specific.
+ * step (name, age group, players on the field, period length). Sport
+ * is fixed once the team exists — its chips, positions and history are
+ * sport-specific.
  *
  * Changing the age group re-applies that age's scoring default: the
  * coach is still in the wizard and sees the result on the next step.
+ * The team's players on the field stay inside the age's range.
  */
 export async function updateTeamBasics(
   teamId: string,
   name: string,
   ageGroup: string,
+  shape?: TeamGameShape,
 ): Promise<ActionResult> {
   const supabase = createClient();
   const {
@@ -41,21 +46,41 @@ export async function updateTeamBasics(
 
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("sport, age_group, on_field_size, quarter_length_seconds")
     .eq("id", teamId)
     .single();
   if (!team) return { success: false, error: "Team not found." };
 
   const sport = teamSport(team.sport);
   const cfg = getSportConfig(sport);
-  if (!cfg.ageGroups.some((a) => a.id === ageGroup)) {
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  if (!ageCfg) {
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
   }
 
-  const update: { name: string; age_group: string; track_scoring?: boolean } = {
+  const update: {
+    name: string;
+    age_group: string;
+    track_scoring?: boolean;
+    on_field_size: number | null;
+    quarter_length_seconds: number | null;
+  } = {
     name: trimmed,
     age_group: ageGroup,
+    // What the coach set, else the team's own, inside the age's range.
+    on_field_size: storedOnFieldSize(
+      ageCfg,
+      shape?.onFieldSize !== undefined ? shape.onFieldSize : (team.on_field_size as number | null),
+    ),
+    quarter_length_seconds: team.quarter_length_seconds as number | null,
   };
+  if (shape?.periodSeconds !== undefined) {
+    try {
+      update.quarter_length_seconds = storedPeriodSeconds(ageCfg, shape.periodSeconds);
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
   if (team.age_group !== ageGroup) {
     update.track_scoring = defaultTrackScoring(sport, ageGroup);
   }

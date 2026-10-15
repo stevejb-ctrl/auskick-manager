@@ -7,7 +7,9 @@ import { updateTeamBasics } from "@/app/(app)/teams/[teamId]/setup/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { getSportConfig } from "@/lib/sports";
+import { getSportConfig, periodLabels } from "@/lib/sports";
+import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
 interface TeamBasicsFormProps {
@@ -25,7 +27,14 @@ interface TeamBasicsFormProps {
    * Edit an existing team instead of creating one (the wizard's Basics
    * step after the team exists). Sport is shown but can't change.
    */
-  existingTeam?: { id: string; name: string; ageGroup: string };
+  existingTeam?: {
+    id: string;
+    name: string;
+    ageGroup: string;
+    /** The team's own players on the field and period length; null = the age group's. */
+    onFieldSize: number | null;
+    periodSeconds: number | null;
+  };
 }
 
 const NAME_EXAMPLE: Record<Sport, string> = {
@@ -66,9 +75,42 @@ export function TeamBasicsForm({
 
   const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup) ?? cfg.ageGroups[0];
 
+  // Players on the field and period length start at the age group's
+  // defaults (the national pathway, for union) and follow the age group
+  // until the coach sets their own; a size the coach set is kept inside
+  // a new age's range. Competitions differ by state.
+  const [players, setPlayers] = useState<number>(() =>
+    teamOnFieldSize(ageCfg, existingTeam?.onFieldSize ?? null),
+  );
+  const [playersSet, setPlayersSet] = useState(existingTeam?.onFieldSize != null);
+  const [periodMinutes, setPeriodMinutes] = useState<string>(() =>
+    String((existingTeam?.periodSeconds ?? ageCfg.periodSeconds) / 60),
+  );
+  const [periodSet, setPeriodSet] = useState(existingTeam?.periodSeconds != null);
+  const { label: periodWord, plural: periodPlural } = periodLabels(sport, ageCfg);
+  const sizes: number[] = [];
+  for (let n = ageCfg.minOnFieldSize; n <= ageCfg.maxOnFieldSize; n++) sizes.push(n);
+
+  function followAge(next: AgeGroupConfig, keepSet: boolean) {
+    setPlayers((current) => (keepSet && playersSet ? teamOnFieldSize(next, current) : next.defaultOnFieldSize));
+    if (!keepSet || !playersSet) setPlayersSet(false);
+    if (!keepSet || !periodSet) {
+      setPeriodMinutes(String(next.periodSeconds / 60));
+      setPeriodSet(false);
+    }
+  }
+
   function handleSportChange(next: Sport) {
     setSport(next);
-    setAgeGroup(defaultAgeFor(next));
+    const nextAge = defaultAgeFor(next);
+    setAgeGroup(nextAge);
+    const nextCfg = getSportConfig(next).ageGroups.find((a) => a.id === nextAge) ?? getSportConfig(next).ageGroups[0];
+    followAge(nextCfg, false);
+  }
+
+  function handleAgeChange(next: string) {
+    setAgeGroup(next);
+    followAge(cfg.ageGroups.find((a) => a.id === next) ?? cfg.ageGroups[0], true);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -79,6 +121,13 @@ export function TeamBasicsForm({
       setError("Team name is required.");
       return;
     }
+    const minutes = Number(periodMinutes);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > PERIOD_MINUTES_MAX) {
+      setError(`${periodWord.charAt(0).toUpperCase()}${periodWord.slice(1)} length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`);
+      return;
+    }
+    // The server stores none for the age group's own values.
+    const shape = { onFieldSize: players, periodSeconds: minutes * 60 };
 
     // updateTeamBasics redirects on success. createTeam hands back the
     // setup URL instead, and we REPLACE this page with it: Back from the
@@ -86,11 +135,11 @@ export function TeamBasicsForm({
     // made a second team).
     startTransition(async () => {
       if (existingTeam) {
-        const result = await updateTeamBasics(existingTeam.id, name.trim(), ageGroup);
+        const result = await updateTeamBasics(existingTeam.id, name.trim(), ageGroup, shape);
         if (!result.success) setError(result.error);
         return;
       }
-      const result = await createTeam(userId, name.trim(), ageGroup, sport);
+      const result = await createTeam(userId, name.trim(), ageGroup, sport, shape);
       if (!result.success) {
         setError(result.error);
         return;
@@ -160,7 +209,7 @@ export function TeamBasicsForm({
         <select
           id="team-age"
           value={ageGroup}
-          onChange={(e) => setAgeGroup(e.target.value)}
+          onChange={(e) => handleAgeChange(e.target.value)}
           disabled={isPending}
           className="h-10 w-full rounded-md border border-hairline bg-surface px-2 text-sm text-ink shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus:border-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
         >
@@ -171,6 +220,54 @@ export function TeamBasicsForm({
           ))}
         </select>
         <p className="text-xs text-ink-mute">{ageCfg?.notes}</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="team-on-field">Players on the field</Label>
+            <select
+              id="team-on-field"
+              value={players}
+              onChange={(e) => {
+                setPlayers(Number(e.target.value));
+                setPlayersSet(true);
+              }}
+              disabled={isPending}
+              className="h-10 w-full rounded-md border border-hairline bg-surface px-2 text-sm text-ink shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus:border-brand-600 disabled:bg-surface-alt disabled:text-ink-mute"
+            >
+              {sizes.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="team-period">
+              {periodWord.charAt(0).toUpperCase()}
+              {periodWord.slice(1)} length (minutes)
+            </Label>
+            <Input
+              id="team-period"
+              type="number"
+              min={1}
+              max={PERIOD_MINUTES_MAX}
+              step={1}
+              value={periodMinutes}
+              onChange={(e) => {
+                setPeriodMinutes(e.target.value);
+                setPeriodSet(true);
+              }}
+              disabled={isPending}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-ink-mute">
+          These start at {ageCfg.label}&apos;s defaults ({ageCfg.defaultOnFieldSize} a side,{" "}
+          {ageCfg.periodSeconds / 60}-minute {periodPlural}).
+          Competitions differ by state: set what yours plays. A game can still change on the day.
+        </p>
       </div>
 
       <Button

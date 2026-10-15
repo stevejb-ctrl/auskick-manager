@@ -5,11 +5,9 @@ import { createGame, updateGame } from "@/app/(app)/teams/[teamId]/games/actions
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface CreateGameFormProps {
   teamId: string;
-  ageGroup: AgeGroupConfig;
   onCancel?: () => void;
   /** Passed through to createGame — see its `afterCreate` doc. */
   afterCreate?: "open-game" | "stay";
@@ -38,13 +36,11 @@ function toLocalInputValue(iso: string): string {
 
 export function CreateGameForm({
   teamId,
-  ageGroup,
   onCancel,
   afterCreate = "open-game",
   onCreated,
   existingGame,
 }: CreateGameFormProps) {
-  const cfg = ageGroup;
   const [opponent, setOpponent] = useState(existingGame?.opponent ?? "");
   const [scheduledAt, setScheduledAt] = useState(
     existingGame ? toLocalInputValue(existingGame.scheduled_at) : "",
@@ -95,7 +91,7 @@ export function CreateGameForm({
         location: location || null,
         round_number: roundNum,
         notes: notes || null,
-        on_field_size: cfg.defaultOnFieldSize,
+        // The size comes from the team (its own, else its age group's).
       }, afterCreate);
       if (result && !result.success) {
         setServerError(result.error);

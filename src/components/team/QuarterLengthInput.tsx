@@ -1,10 +1,10 @@
 "use client";
 
 // ─── Quarter Length Input ────────────────────────────────────
-// Small editable card for a coach to override their team's quarter
-// duration. Shown for netball teams in both the setup wizard's
-// "How we play" step and the team settings page. Empty = use the
-// age-group default; any positive integer (1–30 min) overrides.
+// Small editable card for a coach to override their team's period
+// (quarter or half) length, on team settings for every sport (the
+// setup wizard sets it on its Basics step). The age-group default =
+// no override; any whole number of minutes (1–60) overrides.
 //
 // Persists via setQuarterLengthSeconds server action. The input is
 // in MINUTES because that's what coaches think in; the action
@@ -12,6 +12,7 @@
 
 import { useState, useTransition } from "react";
 import { setQuarterLengthSeconds } from "@/app/(app)/teams/[teamId]/games/actions";
+import { PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -51,8 +52,8 @@ export function QuarterLengthInput({
     if (!isAdmin) return;
     setError(null);
     const next = parseInt(minutes, 10);
-    if (!Number.isInteger(next) || next < 1 || next > 30) {
-      setError(`${periodWord} length must be a whole number between 1 and 30.`);
+    if (!Number.isInteger(next) || next < 1 || next > PERIOD_MINUTES_MAX) {
+      setError(`${periodWord} length must be a whole number between 1 and ${PERIOD_MINUTES_MAX}.`);
       return;
     }
     const overrideSeconds = next === ageGroupMinutes ? null : next * 60;
@@ -85,7 +86,7 @@ export function QuarterLengthInput({
             id={`quarter-length-${teamId}`}
             type="number"
             min={1}
-            max={30}
+            max={PERIOD_MINUTES_MAX}
             step={1}
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}

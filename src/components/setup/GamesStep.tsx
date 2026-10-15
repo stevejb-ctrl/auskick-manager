@@ -2,7 +2,6 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface GameSummary {
   id: string;
@@ -14,7 +13,6 @@ interface GameSummary {
 
 interface GamesStepProps {
   teamId: string;
-  ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   playhqUrl: string;
   /** The sport's PlayHQ tenant; null where the sport isn't on PlayHQ (league). */
@@ -24,7 +22,6 @@ interface GamesStepProps {
 
 export function GamesStep({
   teamId,
-  ageGroup,
   existingExternalIds,
   playhqUrl,
   playhqTenant,
@@ -52,7 +49,6 @@ export function GamesStep({
 
       <AddGameSection
         teamId={teamId}
-        ageGroup={ageGroup}
         existingExternalIds={existingExternalIds}
         initialUrl={playhqUrl}
         playhqTenant={playhqTenant}

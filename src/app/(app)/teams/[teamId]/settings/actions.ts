@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
+import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -254,7 +255,8 @@ export async function deleteSong(teamId: string): Promise<ActionResult> {
 
 /**
  * Team › Season › Age group. Validated against the team's sport; the
- * scoring toggle and existing games are left as they are.
+ * scoring toggle and existing games are left as they are. The team's
+ * own players on the field are kept inside the new age's range.
  */
 export async function setTeamAgeGroup(
   teamId: string,
@@ -263,21 +265,60 @@ export async function setTeamAgeGroup(
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
-  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, on_field_size").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
   const sport = teamSport((team as { sport?: Sport | null }).sport);
   const cfg = getSportConfig(sport);
-  if (!cfg.ageGroups.some((a) => a.id === ageGroup)) {
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  if (!ageCfg) {
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
   }
 
   const { error: updateError } = await supabase
     .from("teams")
-    .update({ age_group: ageGroup })
+    .update({
+      age_group: ageGroup,
+      on_field_size: storedOnFieldSize(ageCfg, (team as { on_field_size?: number | null }).on_field_size),
+    })
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 
   revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
+}
+
+/**
+ * Team › Season › Players on the field: the team's competition's size
+ * (competitions differ by state). New games start from it; NULL (or the
+ * age group's own) = the age group's default. It must be inside the age
+ * group's range.
+ */
+export async function setTeamOnFieldSize(
+  teamId: string,
+  size: number | null,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  const ageCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  if (size !== null && (!Number.isInteger(size) || size < ageCfg.minOnFieldSize || size > ageCfg.maxOnFieldSize)) {
+    return {
+      success: false,
+      error: `${ageCfg.label} plays ${ageCfg.minOnFieldSize} to ${ageCfg.maxOnFieldSize} on the field.`,
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ on_field_size: storedOnFieldSize(ageCfg, size) })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  revalidatePath(`/teams/${teamId}/games`);
   return { success: true };
 }
 

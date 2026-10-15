@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const { data: teams, error: teamsError } = await supabase
     .from("teams")
-    .select("id, sport, age_group, playhq_url")
+    .select("id, sport, age_group, on_field_size, playhq_url")
     .not("playhq_url", "is", null);
 
   if (teamsError) {
@@ -62,6 +62,7 @@ async function syncTeam(
     id: string;
     sport: string | null;
     age_group: string | null;
+    on_field_size: number | null;
     playhq_url: string | null;
   },
   now: number
@@ -105,7 +106,7 @@ async function syncTeam(
   );
 
   // Resolve team config for defaults on new games.
-  const defaults = newGameDefaults(team.sport, team.age_group);
+  const defaults = newGameDefaults(team.sport, team.age_group, team.on_field_size);
 
   // Active-player lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
