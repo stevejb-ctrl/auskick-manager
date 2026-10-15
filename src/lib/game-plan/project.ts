@@ -39,6 +39,7 @@ import type {
   ProjectGamePlanInput,
 } from "./types";
 import { assignLeagueLines } from "@/lib/sports/rugby_league/engine";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { periodLabels } from "@/lib/sports";
 
 // ─── Small deterministic shuffle (local; engine ones aren't exported) ──
@@ -422,7 +423,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   const seed = input.seed ?? 0;
   const fwdCount = Math.min(
     onFieldSize,
-    ag.forwardCount ?? Math.floor(onFieldSize / 2),
+    rugbyForwards(ag, onFieldSize),
   );
   const blockSize = Math.max(1, ag.minUnbrokenPeriods ?? 1);
 

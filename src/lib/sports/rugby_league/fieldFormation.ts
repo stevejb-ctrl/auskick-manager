@@ -216,3 +216,45 @@ export function pickBestForSlot<T extends { chip?: ChipForSlot }>(
   }
   return pool.splice(bestIdx, 1)[0];
 }
+
+// ─── Union: a field for any size it plays ─────────────────────
+// League draws hand-made shapes up to 13 a side. Union plays 5 to 15
+// with its own forward / back split at each size (rugbyForwards), and no
+// vests, so its field is laid out from the split: forwards in rows of
+// up to three across the top, backs in rows below, the last back alone
+// as the fullback. Rows share the pitch evenly, so even six rows (15 a
+// side) keep tiles a row apart.
+
+function rowSizes(count: number): number[] {
+  if (count <= 0) return [];
+  const rows = Math.ceil(count / 3);
+  const base = Math.floor(count / rows);
+  const extra = count % rows;
+  return Array.from({ length: rows }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+const ROW_XS: Record<number, number[]> = { 1: [50], 2: [32, 68], 3: [22, 50, 78] };
+
+/** One spot per player: `forwards` forwards, the rest backs, a fullback last. */
+export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlot[] {
+  const size = Math.max(1, Math.round(onFieldSize));
+  const fwd = Math.max(0, Math.min(size - 1, Math.round(forwards)));
+  const forwardRows = rowSizes(fwd);
+  const backRows = rowSizes(size - fwd - 1);
+  const rowCount = forwardRows.length + backRows.length + 1;
+  const yOf = (row: number) => (rowCount === 1 ? 50 : 13 + ((90 - 13) * row) / (rowCount - 1));
+  const slots: FieldSlot[] = [];
+  let row = 0;
+  let f = 0;
+  for (const n of forwardRows) {
+    for (const x of ROW_XS[n]) slots.push({ id: `fwd-${++f}`, role: "forward", x, y: yOf(row) });
+    row++;
+  }
+  let b = 0;
+  for (const n of backRows) {
+    for (const x of ROW_XS[n]) slots.push({ id: `back-${++b}`, role: "back", x, y: yOf(row) });
+    row++;
+  }
+  slots.push({ id: "fullback", role: "fullback", x: 50, y: yOf(row) });
+  return slots;
+}

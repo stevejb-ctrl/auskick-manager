@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgeGroupConfig } from "@/lib/sports";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { resolveTeamPlaybook, type ResolvedPlaybook } from "@/lib/playbook/team";
 import { activeRules, rulesForSport, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
 import type { PlayerPositionPrefRow, TeamPlaybookRow, TeamPositionRow } from "@/lib/playbook/types";
@@ -28,7 +29,7 @@ export async function loadTeamPlaybook(
   ageGroup: string | null,
 ): Promise<LoadedPlaybook> {
   const ageCfg = getAgeGroupConfig(sport, ageGroup);
-  const [{ data: row }, { data: positions }, { data: prefs }] = await Promise.all([
+  const [{ data: row }, { data: positions }, { data: prefs }, { data: team }] = await Promise.all([
     supabase
       .from("team_playbooks")
       .select("strategy, policy_overrides, season_balance, season_balance_since, rules, vest_strategy")
@@ -43,11 +44,14 @@ export async function loadTeamPlaybook(
       .from("player_position_prefs")
       .select("player_id, position_key, line, kind, rank")
       .eq("team_id", teamId),
+    // The team's own players on the field: named positions are drawn
+    // for the size it plays (union U10 can be 10, 12 or 15 a side).
+    supabase.from("teams").select("on_field_size").eq("id", teamId).maybeSingle(),
   ]);
   const resolved = resolveTeamPlaybook({
     sport,
     ageGroup: ageCfg.id,
-    onFieldSize: ageCfg.defaultOnFieldSize,
+    onFieldSize: teamOnFieldSize(ageCfg, (team as { on_field_size?: number | null } | null)?.on_field_size ?? null),
     row: (row ?? null) as Pick<
       TeamPlaybookRow,
       "strategy" | "policy_overrides" | "season_balance" | "season_balance_since"

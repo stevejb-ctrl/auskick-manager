@@ -138,6 +138,12 @@ export interface AgeGroupConfig {
    */
   forwardCount?: number;
   /**
+   * Rugby: forwards at each on-field size the age group plays, when the
+   * sport states one (union: Hunter's by-laws from 10 a side). Without
+   * it, `forwardCount` holds at every size (league).
+   */
+  forwardsBySize?: Record<number, number>;
+  /**
    * Rugby league only — the grade plays international (open-age) laws
    * rather than the national 6–12 junior laws (U13 and up). It names
    * the law set; the knobs below say what those laws do, so a sport

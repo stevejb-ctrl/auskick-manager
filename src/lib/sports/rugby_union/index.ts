@@ -50,6 +50,24 @@ const RU_SCORE_TYPES: ScoreTypeDef[] = [
   { id: "opponent_field_goal", label: "Opp. Drop goal", shortLabel: "+DG", points: 3, opponent: true },
 ];
 
+// Forwards at each on-field size: Hunter's by-laws from 10 to 14 a side
+// (10 is 5/5, 11 is 5/6, 12 is 6/6, 13 is 6/7, 14 is 8/6) and the full
+// 15 (8/7). Below 10, to confirm: 7 a side as 3/4, and the others near
+// half.
+const FORWARDS_BY_SIZE: Record<number, number> = {
+  5: 2,
+  6: 3,
+  7: 3,
+  8: 4,
+  9: 4,
+  10: 5,
+  11: 5,
+  12: 6,
+  13: 6,
+  14: 8,
+  15: 8,
+};
+
 interface UnionAge {
   id: string;
   label: string;
@@ -107,6 +125,9 @@ const RU_AGE_GROUPS: RugbyAgeGroupConfig[] = AGES.map((a) => {
     // unbroken-period law.
     minUnbrokenPeriods: 0,
     forwardCount: a.forwards,
+    forwardsBySize: Object.fromEntries(
+      Object.entries(FORWARDS_BY_SIZE).filter(([n]) => Number(n) >= a.min && Number(n) <= a.max),
+    ),
     goalsFromPlay: a.goalsFromPlay,
     kickRotations: false,
     unbrokenPeriods: false,

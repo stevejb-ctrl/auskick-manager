@@ -73,6 +73,7 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { periodLabels, type RugbySport } from "@/lib/sports";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -243,7 +244,7 @@ export function LeagueLineupPicker({
       suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, defaultOnFieldSize),
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
@@ -721,7 +722,7 @@ export function LeagueLineupPicker({
       const r = suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize: onFieldSize,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, onFieldSize),
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
@@ -748,7 +749,7 @@ export function LeagueLineupPicker({
       const r = suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize: next,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, next),
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
@@ -1256,6 +1257,8 @@ export function LeagueLineupPicker({
         </div>
         <div className="p-3">
           <LeagueField
+            sport={sport}
+            forwardsBySize={ageGroup.forwardsBySize}
             players={fieldPlayers}
             forwardPlayers={forwardPlayers}
             backPlayers={backPlayers}

@@ -1,6 +1,6 @@
 "use client";
 
-// ─── LeagueField — rugby league pitch ────────────────────────
+// ─── LeagueField — the rugby pitch (league and union) ────────
 // Visual playing surface for the rugby-league live view. Mirrors
 // the shape of `Field.tsx` (AFL — oval pitch with zone rows) and
 // `Court.tsx` (netball — rectangular court with thirds + goal
@@ -29,8 +29,20 @@ import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import {
   getFieldSlots,
   pickBestForSlot,
+  unionFieldSlots,
   type FieldSlot,
 } from "@/lib/sports/rugby_league/fieldFormation";
+import type { RugbySport } from "@/lib/sports/registry";
+
+/**
+ * Each rugby sport's pitch markings. League: 10 m and 20 m lines;
+ * union: the 22 m line and the dashed 10 m lines either side of
+ * halfway.
+ */
+const PITCH: Record<RugbySport, "league" | "union"> = {
+  rugby_league: "league",
+  rugby_union: "union",
+};
 import { LeaguePlayerTile } from "./LeaguePlayerTile";
 
 /**
@@ -162,6 +174,14 @@ function arrangeFieldSlots(
 }
 
 interface LeagueFieldProps {
+  /** The team's rugby sport: its pitch markings. */
+  sport: RugbySport;
+  /**
+   * Forwards at each on-field size, when the sport states its split
+   * (union): the field is laid out from it at any size. Without it,
+   * league's hand-made formations.
+   */
+  forwardsBySize?: Record<number, number>;
   /** Players currently on the field, in display order. Union of
    *  forwards + backs — used by the count chip and legacy routing
    *  fallback. New callers pass `forwardPlayers` + `backPlayers`
@@ -249,6 +269,8 @@ interface LeagueFieldProps {
 }
 
 export function LeagueField({
+  sport,
+  forwardsBySize,
   players,
   forwardPlayers,
   backPlayers,
@@ -322,24 +344,45 @@ export function LeagueField({
           <DashedLine top="14%" />
           <DashedLine bottom="14%" />
 
-          {/* 10m line — top + bottom (solid). */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1 right-1 top-[22%] h-px bg-white/60"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-[22%] left-1 right-1 h-px bg-white/60"
-          />
-          {/* 20m line — top + bottom (solid, lighter). */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1 right-1 top-[36%] h-px bg-white/50"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-[36%] left-1 right-1 h-px bg-white/50"
-          />
+          {PITCH[sport] === "league" ? (
+            <>
+              {/* 10m line — top + bottom (solid). */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1 right-1 top-[22%] h-px bg-white/60"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute bottom-[22%] left-1 right-1 h-px bg-white/60"
+              />
+              {/* 20m line — top + bottom (solid, lighter). */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1 right-1 top-[36%] h-px bg-white/50"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute bottom-[36%] left-1 right-1 h-px bg-white/50"
+              />
+            </>
+          ) : (
+            <>
+              {/* Union: the 22 m line — top + bottom (solid). */}
+              <div
+                aria-hidden
+                data-pitch-line="22m"
+                className="pointer-events-none absolute left-1 right-1 top-[27%] h-px bg-white/60"
+              />
+              <div
+                aria-hidden
+                data-pitch-line="22m"
+                className="pointer-events-none absolute bottom-[27%] left-1 right-1 h-px bg-white/60"
+              />
+              {/* Union: the 10 m lines either side of halfway (dashed). */}
+              <DashedLine top="42%" />
+              <DashedLine bottom="42%" />
+            </>
+          )}
 
           {/* Halfway line — solid white with a centre mark. */}
           <div
@@ -390,10 +433,10 @@ export function LeagueField({
             // Never fewer spots than kids on the field: a lineup over
             // the size (the size dropped after kickoff) still shows
             // every kid rather than hiding one.
-            const slots = getFieldSlots(
-              Math.max(typeof onFieldSize === "number" ? onFieldSize : 11, players.length),
-              vestRequirements,
-            );
+            const size = Math.max(typeof onFieldSize === "number" ? onFieldSize : 11, players.length);
+            const slots = forwardsBySize
+              ? unionFieldSlots(size, forwardsBySize[size] ?? Math.floor(size / 2))
+              : getFieldSlots(size, vestRequirements);
             const arrangement = arrangeFieldSlots(
               players,
               vestByPlayer ?? {},

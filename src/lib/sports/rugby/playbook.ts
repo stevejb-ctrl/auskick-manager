@@ -15,6 +15,7 @@ import type {
   StrategyDef,
 } from "@/lib/playbook/types";
 import type { RuleKind } from "@/lib/playbook/rules";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 
 export const RUGBY_LINES: LineDef[] = [
   { id: "forwards", label: "Forwards", colorToken: "zone-f" },
@@ -112,7 +113,7 @@ export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): Spo
       return {
         kind: "catalogue",
         lines: RUGBY_LINES,
-        defaults: rules.catalogue(onFieldSize, cfg.forwardCount ?? Math.floor(onFieldSize / 2)),
+        defaults: rules.catalogue(onFieldSize, rugbyForwards(cfg, onFieldSize)),
         canRename: false,
         canAddRemove: false,
       };

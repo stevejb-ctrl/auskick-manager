@@ -2003,6 +2003,8 @@ export function LeagueLiveGame({
             />
           )}
           <LeagueField
+            sport={sport}
+            forwardsBySize={ageGroup.forwardsBySize}
             players={fieldPlayers}
             forwardPlayers={forwardPlayers}
             backPlayers={backPlayers}
