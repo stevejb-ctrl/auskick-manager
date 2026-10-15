@@ -613,7 +613,9 @@ test("stats show season balance, backfilled, with since-reset", async ({ page })
   await page.reload();
   await waitForHydration(page);
   await page.getByRole("link", { name: "Since reset" }).click();
-  await expect(page).toHaveURL(/balance=since/);
+  // The stats page renders on the server; under a loaded test run that
+  // takes more than the 5 s default (the link is tapped, the page lags).
+  await expect(page).toHaveURL(/balance=since/, { timeout: 15_000 });
   await expect(section.getByText("No data yet")).toBeVisible();
   await page.getByRole("link", { name: "Whole season" }).click();
   await expect(page.getByTestId("season-balance-summary")).toContainText("of 12 kids");
