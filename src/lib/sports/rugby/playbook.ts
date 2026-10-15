@@ -46,6 +46,8 @@ export const RUGBY_BASE_STRATEGIES: StrategyDef[] = [
 export interface RugbyPlaybookRules {
   /** The laws its locked rules cite ("NRL Junior League Laws"). */
   lawSource: string;
+  /** Where its unbroken-period rule is written, if it has one (league's §6). */
+  unbrokenLawSource?: string;
   /** The ages that may play named positions. */
   namedPositionAges: ReadonlySet<string>;
   /** Its named positions at an on-field size: the sport's own catalogue. */
@@ -98,7 +100,7 @@ export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): Spo
         minUnbrokenPeriods: {
           default: cfg.minUnbrokenPeriods ?? 0,
           overridable: false,
-          source: `${rules.lawSource} §6`,
+          source: rules.unbrokenLawSource ?? rules.lawSource,
         },
         vests: { fr: cfg.vestRequirements?.fr ?? false, dh: cfg.vestRequirements?.dh ?? false },
         tracksScoreDefault: cfg.tracksScoreDefault,

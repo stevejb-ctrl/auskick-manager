@@ -73,6 +73,7 @@ const NAMED_POSITIONS: StrategyDef = {
 
 export const leaguePlaybook = rugbyPlaybook("rugby_league", {
   lawSource: NRL_LAWS,
+  unbrokenLawSource: `${NRL_LAWS} §6`,
   namedPositionAges: NAMED_POSITION_AGES,
   catalogue: leagueCatalogue,
   namedPositions: NAMED_POSITIONS,

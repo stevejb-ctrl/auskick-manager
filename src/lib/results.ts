@@ -4,7 +4,7 @@
 
 import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
 import { isRugby, noSportBranch } from "@/lib/sports/registry";
 
@@ -69,6 +69,7 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
     }
   } else if (isRugby(sport)) {
     const pts = rugbyPoints(sport);
+    const words = rugbyScoreWords(sport);
     const r = replayRugbyGame(events, pts);
     const ids = Array.from(new Set(Object.keys(r.playerTries).concat(Object.keys(r.playerConversions), Object.keys(r.playerGoals))));
     for (const playerId of ids) {
@@ -80,8 +81,8 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
       const parts = [
         tries > 0 && `${tries}T`,
         conversions > 0 && `${conversions}C`,
-        penalty > 0 && `${penalty}PG`,
-        field > 0 && `${field}FG`,
+        penalty > 0 && `${penalty}${words.penaltyGoal.short}`,
+        field > 0 && `${field}${words.fieldGoal.short}`,
       ].filter(Boolean);
       rows.push({ playerId, detail: parts.join(" · "), points, showPoints: true });
     }

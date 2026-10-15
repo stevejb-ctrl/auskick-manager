@@ -21,7 +21,7 @@
 // Returned shape matches `WalkthroughModal`'s `Step` type so the
 // modal renders sport-agnostically — text content lives here.
 
-import type { RugbySport } from "@/lib/sports/registry";
+import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 
 export interface WalkthroughStep {
@@ -105,13 +105,18 @@ export function buildLeagueWalkthroughSteps(opts: {
     const words = rugbyScoreWords(opts.sport);
     const pg = words.penaltyGoal;
     const fg = words.fieldGoal;
+    // "No rotation at this age" only where younger ages had one (league
+    // U13+); union never rotates kickers.
+    const kickerRule = opts.kickRotations
+      ? `the app enforces the goal-kick rotation: ${rotation}`
+      : getSportConfig(opts.sport).ageGroups.some((a) => a.kickRotations)
+        ? "there's no kicking rotation at this age"
+        : "";
     steps.push({
       emoji: "🏆",
       title: opts.goalsFromPlay ? "Recording tries & goals" : "Recording tries & conversions",
       body: opts.goalsFromPlay
-        ? `Tap a field player, then Try, ${pg.label} (${points.penaltyGoal}) or ${fg.label} (${points.fieldGoal}) at the bottom. After a try the conversion picker opens — pick the kicker; ${
-            opts.kickRotations ? `the app enforces the goal-kick rotation: ${rotation}` : "there's no kicking rotation at this age"
-          }. +${pg.short} and +${fg.short} beside our score ask who kicked. For an opponent score, tap +T, +C, +${pg.short} or +${fg.short} beside their score. Undo takes back the latest score.`
+        ? `Tap a field player, then Try, ${pg.label} (${points.penaltyGoal}) or ${fg.label} (${points.fieldGoal}) at the bottom. After a try the conversion picker opens — pick the kicker${kickerRule ? `; ${kickerRule}` : ""}. +${pg.short} and +${fg.short} beside our score ask who kicked. For an opponent score, tap +T, +C, +${pg.short} or +${fg.short} beside their score. Undo takes back the latest score.`
         : opts.kickingAllowed
         ? `Tap a field player, then tap Try at the bottom to credit them with ${points.try} points. A conversion picker then opens — pick the kicker.${
             opts.kickRotations ? ` The app enforces the goal-kick rotation: ${rotation}.` : ""
@@ -121,11 +126,21 @@ export function buildLeagueWalkthroughSteps(opts: {
   }
 
   if (opts.trackZoneTime) {
-    steps.push({
-      emoji: "📊",
-      title: "Forward / Centre / Back time",
-      body: "Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards zone, blue is Backs, and the brand-coloured Centre segment is time wearing the FR or DH vest. Turn this off in Game settings if you don't rotate the vest as a real position.",
-    });
+    // The Centre segment is vest time, so it only shows where vests are
+    // worn (league U8+); union has no vests.
+    steps.push(
+      opts.vests.fr || opts.vests.dh
+        ? {
+            emoji: "📊",
+            title: "Forward / Centre / Back time",
+            body: "Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards zone, blue is Backs, and the brand-coloured Centre segment is time wearing the FR or DH vest. Turn this off in Game settings if you don't rotate the vest as a real position.",
+          }
+        : {
+            emoji: "📊",
+            title: "Forward / Back time",
+            body: "Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards, blue is Backs. Turn this off in Game settings if you don't keep players to a line.",
+          },
+    );
   }
 
   if (opts.enforceUnbrokenPeriods && opts.unbrokenPeriods) {

@@ -42,7 +42,8 @@ describe("the walkthrough quotes the sport's own points", () => {
     expect(step.body).toContain("Penalty goal (3) or Drop goal (3)");
     expect(step.body).toContain("+PG and +DG");
     expect(step.body).not.toMatch(/Field goal|\+FG/);
-    expect(step.body).toMatch(/no kicking rotation/);
+    // Union never rotates kickers, so it isn't told there's none "at this age".
+    expect(step.body).not.toMatch(/rotation/);
   });
 
   it("union without goals from play: a try is 5 points", () => {
