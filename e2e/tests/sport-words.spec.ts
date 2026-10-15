@@ -16,7 +16,7 @@ async function leagueGame(name: string) {
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const team = await makeTeam(admin, { ownerId, ageGroup: "U11", sport: "rugby_league", name: `${name} ${Date.now() % 100000}` });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   await admin.from("game_availability").insert(

@@ -47,7 +47,7 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // 15 players. 12 on field (U10 defaultOnFieldSize), 3 bench.
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -318,7 +318,7 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
@@ -470,7 +470,7 @@ test("AFL: a kid selected at the break and then lent doesn't swap on with the ne
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const onField = players.slice(0, game.on_field_size);

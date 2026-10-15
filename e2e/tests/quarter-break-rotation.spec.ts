@@ -30,7 +30,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -237,7 +237,7 @@ test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Only 10 kids turned up — fewer than U10's default 12 on-field size.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10 });
   const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size = 12
@@ -318,7 +318,7 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Full 12-a-side squad → clean 4/4/4, so the rotation has no overflow.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size 12

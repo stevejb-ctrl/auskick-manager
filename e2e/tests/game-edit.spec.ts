@@ -21,7 +21,7 @@ test("delete game removes it from the games list", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
@@ -70,7 +70,7 @@ test("a final game leads with Summary and keeps Restart/Delete in More", async (
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ status: "completed" }).eq("id", game.id);
 
@@ -100,7 +100,7 @@ test("an upcoming game leads with Plan lineup; More holds link, edit and delete"
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,

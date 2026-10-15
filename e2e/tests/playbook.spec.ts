@@ -34,7 +34,7 @@ function rotation(page: Page) {
 test("an AFL U12 coach picks a strategy and season balance on the Team tab", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await expect(page.getByText("Under 12 AFL")).toBeVisible({ timeout: 15_000 });
@@ -81,7 +81,7 @@ test("an AFL U12 coach picks a strategy and season balance on the Team tab", asy
 test("our league is different: zones back on for U12, and a higher game-time floor", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await page.getByRole("button", { name: /Our league is different/ }).click();
@@ -153,7 +153,7 @@ test("a league team's Add a rule list holds only what league acts on", async ({ 
 test("the wizard's How we play step saves the strategy", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/setup?step=config`);
   await expect(page.getByRole("heading", { name: "How we play" })).toBeVisible({ timeout: 15_000 });
@@ -172,7 +172,7 @@ test("the wizard's How we play step saves the strategy", async ({ page }) => {
 test("only a coach can change how the team plays", async () => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -208,7 +208,7 @@ test("only a coach can change how the team plays", async () => {
 test("an AFL U14 coach names the team's positions on the field", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "afl" });
   const activePositions = async () => {
     const { data } = await admin
       .from("team_positions")
@@ -278,7 +278,7 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
 test("a coach sets a player's role from the squad", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
 
@@ -305,7 +305,7 @@ test("a coach sets a player's role from the squad", async ({ page }) => {
 test("a home position follows the position when the coach renames it", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "afl" });
   const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
 
@@ -356,7 +356,7 @@ test("a home position follows the position when the coach renames it", async ({ 
 test("set positions: game day puts kids in their home line, labelled", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U14" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U14", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -388,7 +388,7 @@ test("set positions: game day puts kids in their home line, labelled", async ({ 
 test("kickoff freezes How we play onto the game", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -424,7 +424,7 @@ test("kickoff freezes How we play onto the game", async ({ page }) => {
 test("a coach adds rules and a local rule pack", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const [mia, jack] = await makePlayers(admin, { teamId: team.id, ownerId, count: 4 });
   const rules = async () =>
     ((await playbookRow(admin, team.id)) as { rules?: { kind: string; params: Record<string, unknown>; strength: string; source?: string }[] } | null)?.rules ?? [];
@@ -476,7 +476,7 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
 test("Must rules shape the game-day lineup", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -520,7 +520,7 @@ test("Must rules shape the game-day lineup", async ({ page }) => {
 test("the rule check reads the lineup, and the break says why kids move", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -583,7 +583,7 @@ test("the rule check reads the lineup, and the break says why kids move", async 
 test("stats show season balance, backfilled, with since-reset", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
@@ -626,7 +626,7 @@ test("stats show season balance, backfilled, with since-reset", async ({ page })
 test("season zone time follows a zone switch and an injury replacement", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
@@ -675,7 +675,7 @@ test("season zone time follows a zone switch and an injury replacement", async (
 test("a finished game says how we played against the rules", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("team_playbooks").insert({
@@ -723,7 +723,7 @@ test("how we played judges game time on the quarters as they ran", async ({ page
   // full quarter length).
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
@@ -755,7 +755,7 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -816,7 +816,7 @@ test("league named positions: a home position shows on the tile", async ({ page 
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -858,7 +858,7 @@ test("a season keep-on role shows on the lineup in every sport", async ({ page }
   for (const s of sports) {
     const team = await makeTeam(admin, { ownerId, ageGroup: s.teamAge, sport: s.sport });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: s.count, ageGroup: s.playerAge });
-    const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: s.playerAge });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
     if (s.sport === "rugby_league") await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
     await admin.from("game_availability").insert(
       players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -879,7 +879,7 @@ test("a season keep-on role shows on the lineup in every sport", async ({ page }
 test("chips are retired: no chip card or picker, carried-over rules are labelled", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const [a, b] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
   // What migration 0056 writes for a team that had a "group" chip.
   await admin.from("team_playbooks").insert({
@@ -900,7 +900,7 @@ test("chips are retired: no chip card or picker, carried-over rules are labelled
 test("dialogs are named and close on Escape (one Modal primitive)", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 2 });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "preferred-lines" });
 
@@ -916,7 +916,7 @@ test("dialogs are named and close on Escape (one Modal primitive)", async ({ pag
 test("a coach sets a role from the game-day lineup with a long-press", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -973,7 +973,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   // Netball, set positions: long-press a bench chip, give them a home bib.
   const nbTeam = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
   const nbPlayers = await makePlayers(admin, { teamId: nbTeam.id, ownerId, count: 9, ageGroup: "U10" });
-  const nbGame = await makeGame(admin, { teamId: nbTeam.id, ownerId, ageGroup: "U10" });
+  const nbGame = await makeGame(admin, { teamId: nbTeam.id, ownerId });
   await admin.from("game_availability").insert(
     nbPlayers.map((p) => ({ game_id: nbGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -1000,7 +1000,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   // League: the long-press menu gains "Player role".
   const lgTeam = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
   const lgPlayers = await makePlayers(admin, { teamId: lgTeam.id, ownerId, count: 13, ageGroup: "U10" });
-  const lgGame = await makeGame(admin, { teamId: lgTeam.id, ownerId, ageGroup: "U10" });
+  const lgGame = await makeGame(admin, { teamId: lgTeam.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", lgGame.id);
   await admin.from("game_availability").insert(
     lgPlayers.map((p) => ({ game_id: lgGame.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -1036,7 +1036,7 @@ test("league named positions: lineups record positions, and stats count time by 
   await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: hooker.id, position_key: "hk", kind: "home" });
 
   // A finished game whose lineup recorded positions.
-  const past = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const past = await makeGame(admin, { teamId: team.id, ownerId });
   const t = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const lineup = {
     forwards: ids.slice(0, 3),
@@ -1072,7 +1072,7 @@ test("league named positions: lineups record positions, and stats count time by 
     .toEqual([["pr2", 20 * 60_000]]);
 
   // Kickoff records a position for every kid on the field.
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
   // Eleven here, so everyone (the hooker too) starts on the field.
   await admin.from("game_availability").insert(
@@ -1111,7 +1111,7 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   });
   // This morning's game: everyone had a turn in attack (GS / GA) except
   // the last kid, who played C, GK and WD (centre and defence thirds).
-  const morning = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const morning = await makeGame(admin, { teamId: team.id, ownerId });
   const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
   const lineupWith = (order: string[]) => ({ positions: Object.fromEntries(keys.map((k, i) => [k, [order[i]]])), bench: [] });
   const kid = ids[6];
@@ -1135,7 +1135,7 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
   await admin.from("games").update({ status: "completed" }).eq("id", morning.id);
 
   // The next game: the suggested lineup puts the kid in the attack third.
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -1165,7 +1165,7 @@ test("the wizard's squad step sets players' positions too", async ({ page }) => 
   // couldn't give kids their positions while adding them.
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U15" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U15", sport: "afl" });
   const [player] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
 
@@ -1194,7 +1194,7 @@ test("AFL: keep a kid on the field from the lineup, and it carries into the game
   // the tile to show it.
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(

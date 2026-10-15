@@ -82,6 +82,7 @@ test("user schedules deletion, restores, then is purged after grace period", asy
       scheduled_at: new Date(Date.now() + 86_400_000).toISOString(),
       round_number: 1,
       on_field_size: 9,
+      sub_interval_seconds: 240, // AFL U10's
       created_by: userId,
     });
     if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
@@ -263,6 +264,7 @@ test("SET NULL: audit-trail FKs survive user deletion (migration 0034)", async (
     const { error: tErr } = await admin.from("teams").insert({
       name: `Audit Team ${stamp}`,
       age_group: "U10",
+      sport: "afl",
       created_by: uB,
     });
     if (tErr) throw new Error(`team: ${tErr.message}`);
@@ -283,6 +285,7 @@ test("SET NULL: audit-trail FKs survive user deletion (migration 0034)", async (
       scheduled_at: new Date(Date.now() + 86_400_000).toISOString(),
       round_number: 7,
       on_field_size: 9,
+      sub_interval_seconds: 240,
       created_by: uA,
     });
     if (gErr) throw new Error(`game: ${gErr.message}`);

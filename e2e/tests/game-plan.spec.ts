@@ -75,6 +75,7 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
     ownerId,
     ageGroup: "U10",
     name: `GP-AFL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sport: "afl",
   });
   // 15 active players → 12 on field (U10) + a 3-player bench, so the
   // tap-to-swap below can swap an on-field player with a bench player
@@ -154,6 +155,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
     ownerId,
     ageGroup: "U10",
     name: `GP-LIVE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sport: "afl",
   });
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -209,7 +211,7 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   // on field and "Sub every 10m".
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -243,7 +245,7 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
   const ownerId = await getOwnerId();
   const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -273,7 +275,7 @@ test("league pre-kickoff: Game plan's first half is the lineup, and Use this pla
   const ownerId = await getOwnerId();
   const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 11, ageGroup: "U9" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U9" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
@@ -318,7 +320,6 @@ test("Netball game-detail: the shared planner is driven by the netball projectio
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
     opponent: "Comets",
   });
 
@@ -365,7 +366,6 @@ test("Rugby league game-detail: the shared planner is driven by the RL projectio
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U9",
     opponent: "Sharks",
   });
 
@@ -388,9 +388,9 @@ test("set positions: Game plan names each kid's position, on screen and in the c
   // only, so a ruck sat under "Centre" and parents couldn't read it.
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U13" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U13", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U13", opponent: "Eagles" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Eagles" });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "set-positions" });
   const ruck = players[3];
   const fullForward = players[0];
@@ -414,7 +414,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   // vanished — "Use for Q1" kept only Q1.
   const admin = createAdminClient();
   const ownerId = await getOwnerId();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(

@@ -21,7 +21,7 @@ async function superAdminId(admin: SupabaseClient): Promise<string> {
 test("phones get a bottom tab bar that hides on the game-day screen", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   await page.goto(`/teams/${team.id}`);
@@ -51,8 +51,8 @@ test("the header team switcher moves between teams", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const a = await makeTeam(admin, { ownerId, ageGroup: "U10", name: `Switch A ${stamp}` });
-  const b = await makeTeam(admin, { ownerId, ageGroup: "U12", name: `Switch B ${stamp}` });
+  const a = await makeTeam(admin, { ownerId, ageGroup: "U10", name: `Switch A ${stamp}`, sport: "afl" });
+  const b = await makeTeam(admin, { ownerId, ageGroup: "U12", name: `Switch B ${stamp}`, sport: "afl" });
 
   await page.goto(`/teams/${a.id}`);
   const switcher = page.getByRole("button", { name: new RegExp(`switch team.*${a.name}`, "i") });
@@ -86,7 +86,7 @@ test("Help keeps Sign in for visitors", async ({ page }) => {
 test("pages share one back link", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   await page.goto(`/teams/${team.id}/games/${game.id}`);

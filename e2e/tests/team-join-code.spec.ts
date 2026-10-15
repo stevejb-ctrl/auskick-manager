@@ -53,7 +53,7 @@ async function makeTeamWithCode(
   ownerId: string,
 ) {
   const code = randomJoinCode();
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const { error } = await admin
     .from("teams")
     .update({ join_code: code })

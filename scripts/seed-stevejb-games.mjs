@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gameDefaults } from "./lib/game-defaults.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -178,7 +179,7 @@ async function run() {
   //    `Bulls Netball {AgeGroup}`, so the prefix filter is exact.
   const { data: allTeams, error: teamsErr } = await admin
     .from("teams")
-    .select("id, name, sport")
+    .select("id, name, sport, age_group")
     .eq("created_by", owner.id)
     .order("created_at");
   if (teamsErr) {
@@ -240,6 +241,7 @@ async function run() {
         location,
         round_number: r,
         status: "upcoming",
+        ...gameDefaults(team.sport, team.age_group),
         created_by: owner.id,
       });
     }

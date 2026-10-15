@@ -72,7 +72,7 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -232,7 +232,7 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -377,7 +377,7 @@ test("a kid just swapped off isn't suggested straight back on", async ({ page })
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ clock_multiplier: 1, sub_interval_seconds: 40 }).eq("id", game.id);

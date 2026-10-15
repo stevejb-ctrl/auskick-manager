@@ -74,7 +74,6 @@ async function seedActiveGame(
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // Position-aware lineup — split starters into forwards/backs.

@@ -30,7 +30,7 @@ test("AFL: player tile time freezes at the auto-hooter", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -104,7 +104,7 @@ test("AFL: a quarter ended after the siren is saved at the quarter length", asyn
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);

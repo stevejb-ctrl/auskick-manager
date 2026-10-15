@@ -18,7 +18,7 @@ async function superAdminId(admin: ReturnType<typeof createAdminClient>) {
 test("AFL: scoring off is said on the live score bar, with a way to turn it on", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: false }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
@@ -55,7 +55,7 @@ test("league: scoring off is said on the live score bar", async ({ page }) => {
   const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
   await admin.from("teams").update({ track_scoring: false }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U9" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U9" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   const ids = players.map((p) => p.id);
   await admin.from("games").update({ on_field_size: 8, status: "in_progress" }).eq("id", game.id);
   await admin.from("game_events").insert([

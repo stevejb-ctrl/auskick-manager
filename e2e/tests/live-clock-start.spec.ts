@@ -73,7 +73,7 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -162,7 +162,7 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -224,7 +224,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -334,7 +334,7 @@ test("first-time coach is offered the walkthrough before kickoff, never over the
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -377,7 +377,7 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
@@ -431,10 +431,10 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U16" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U16", sport: "afl" });
   // 15 players is the factory's ceiling.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U16" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("game_availability").insert(
     players.map((p) => ({
       game_id: game.id,

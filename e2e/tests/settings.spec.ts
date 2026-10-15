@@ -26,6 +26,7 @@ test("rename team persists in DB + renders new name", async ({ page }) => {
     ownerId,
     ageGroup: "U10",
     name: `Pre-${Date.now()}`,
+    sport: "afl",
   });
 
   await page.goto(`/teams/${team.id}/settings`);
@@ -61,7 +62,7 @@ test("toggle track-scoring flag", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await waitForHydration(page);
@@ -109,7 +110,7 @@ test("team members list shows every member and changes a role", async ({ page })
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const helper = await createTestUser(admin, {
     email: `members-list-${Date.now()}@siren.test`,
     password: "pw-test-12345",
@@ -162,7 +163,7 @@ test("Team tab: sections, age group change, and deleting the team", async ({ pag
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
   const name = `Doomed ${Date.now()}`;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name, sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await waitForHydration(page);
@@ -197,7 +198,7 @@ test("the team's only coach can't leave it", async ({ page }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/settings`);
   await waitForHydration(page);

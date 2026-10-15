@@ -111,7 +111,7 @@ async function setupQ1AutoEnded(opts: {
     count: 9,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // Seed game_availability rows for ALL 9 players. The suggester reads
   // availableIds (NetballLiveGame.tsx:735-744) which sources from
@@ -479,7 +479,6 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   const game = await makeGame(admin, {
     teamId: KOTARA_KOALAS_TEAM_ID,
     ownerId,
-    ageGroup: "U10",
     opponent: `NB-QB-Kotara-${Date.now()}`,
   });
 

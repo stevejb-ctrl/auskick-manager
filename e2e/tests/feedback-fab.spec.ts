@@ -58,7 +58,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
     // /dashboard` assertion below. Mirrors the in-game cases: makeTeam
     // + deleteTestUser cleanup, no explicit team delete (the auth-user
     // delete cascades).
-    await makeTeam(admin, { ownerId: user.id });
+    await makeTeam(admin, { ownerId: user.id, sport: "afl" });
 
     // Fresh context so we don't inherit the chromium project's
     // super-admin session — this case is specifically about a regular
@@ -188,7 +188,7 @@ test("on /live the floating FAB is hidden and the LiveTopBar header button takes
   });
 
   try {
-    const team = await makeTeam(admin, { ownerId: user.id });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
     const game = await makeGame(admin, { teamId: team.id, ownerId: user.id });
 
@@ -255,7 +255,7 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
   });
 
   try {
-    const team = await makeTeam(admin, { ownerId: user.id });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
     const game = await makeGame(admin, { teamId: team.id, ownerId: user.id });
 

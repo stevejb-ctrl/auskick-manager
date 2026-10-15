@@ -18,7 +18,7 @@ async function superAdminId(admin: SupabaseClient): Promise<string> {
 test("Today shows the last result and the season record", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, {
@@ -54,7 +54,7 @@ test("on game day the hero starts game day straight into the lineup screen", asy
 }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, {
     teamId: team.id,
@@ -71,7 +71,7 @@ test("on game day the hero starts game day straight into the lineup screen", asy
 test("a coach on their own sees an invite-a-manager to-do", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   await makeGame(admin, { teamId: team.id, ownerId });
 

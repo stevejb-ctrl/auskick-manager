@@ -29,7 +29,7 @@ test("AFL: long-press → Switch → tap teammate in different zone records a fi
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -135,7 +135,7 @@ test("AFL: long-press a bench player → Switch → tap a field player opens the
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,

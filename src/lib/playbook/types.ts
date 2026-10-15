@@ -175,8 +175,11 @@ export interface TeamPlaybookRow {
   season_balance: SeasonBalanceSetting | null;
   /** When the coach last reset season balance; only games after it count. */
   season_balance_since: string | null;
-  /** Rugby league: how the FR / DH vests are chosen (migration 0055). */
-  vest_strategy?: "auto" | "fixed-order" | "coach";
+  /**
+   * Rugby league: how the FR / DH vests are chosen (migration 0055).
+   * Null for AFL and netball, which wear no vests (migration 0064).
+   */
+  vest_strategy?: "auto" | "fixed-order" | "coach" | null;
   updated_by: string | null;
   updated_at: string;
 }

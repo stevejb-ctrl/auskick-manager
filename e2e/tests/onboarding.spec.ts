@@ -118,7 +118,7 @@ test("creating a game inside the wizard stays in the wizard and reaches All set"
 }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   await page.goto(`/teams/${team.id}/setup?step=games`);
   await waitForHydration(page);
@@ -144,7 +144,7 @@ test("the Basics step pill edits the existing team instead of creating another",
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
   const original = `Basics ${Date.now()}`;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name: original });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", name: original, sport: "afl" });
 
   await page.goto(`/teams/${team.id}/setup?step=config`);
   await waitForHydration(page);
@@ -250,7 +250,7 @@ test.describe("setup wizard on a phone", () => {
   test("shows a readable stepper and no team chrome", async ({ page }) => {
     const admin = createAdminClient();
     const ownerId = await superAdminId(admin);
-    const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+    const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
     await page.goto(`/teams/${team.id}/setup?step=squad`);
     await expect(page.getByText("Step 3 of 5 · Add the squad")).toBeVisible({ timeout: 10_000 });

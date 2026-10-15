@@ -42,7 +42,6 @@ async function seedFinalisedLeagueGame(age: keyof typeof SHAPE) {
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
     scheduledAt: new Date(Date.now() - 86400_000).toISOString(),
   });
   await admin.from("games").update({ on_field_size: size }).eq("id", game.id);

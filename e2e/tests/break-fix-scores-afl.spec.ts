@@ -20,7 +20,7 @@ test("AFL break: deleting a goal in Fix scores clears the kicker's badge", async
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });

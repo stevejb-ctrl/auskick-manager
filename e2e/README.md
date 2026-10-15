@@ -98,7 +98,7 @@ test("my feature does the thing", async ({ page }) => {
     password: "pw-test-12345",
   });
   try {
-    const team = await makeTeam(admin, { ownerId: user.id, ageGroup: "U10" });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl", ageGroup: "U10" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
 
     // ... click through UI, assert outcome ...

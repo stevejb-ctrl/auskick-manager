@@ -40,7 +40,7 @@ test("AFL: long-press a player shows in-game, per-period and season insight sect
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -148,7 +148,6 @@ test("netball: long-press a player shows in-game, per-period and season insight 
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // GenericLineup shape: { positions: { gs:[...], ... }, bench:[...] }.
@@ -277,7 +276,6 @@ test("rugby league: long-press a player shows in-game, per-period and season ins
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   // makeGame uses AFL's AGE_GROUPS (defaultOnFieldSize=12); RL U10 is
   // 11-a-side, so override to match the seeded lineup window.

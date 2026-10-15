@@ -109,7 +109,6 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // Speed up the perceived clock 60×: a 10-min "go" quarter ticks

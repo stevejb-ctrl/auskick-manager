@@ -238,10 +238,12 @@ begin
     'aaaaaaaa-0005-4a4a-aaaa-000000000005'::uuid
   ];
 
+  --    Sized as NetSetGO "go" games (7 on court, a 5-minute sub
+  --    interval): games have no on-field / interval defaults (0063).
   for i in 1..5 loop
     insert into public.games (
       id, team_id, opponent, scheduled_at, round_number,
-      status, created_by
+      on_field_size, sub_interval_seconds, status, created_by
     )
     values (
       v_game_ids[i],
@@ -249,6 +251,8 @@ begin
       'Seed Opp R' || i,
       now() - (interval '7 days' * (6 - i)),
       i,
+      7,
+      300,
       'completed',
       v_seed_bot_id
     )

@@ -80,7 +80,7 @@ test("record a goal via the live UI and see it in game_events", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Score buttons render only when canScore is true, which requires
   // team.track_scoring (see src/components/live/LiveGame.tsx ~ line
   // 848). makeTeam doesn't enable it; flip it explicitly here.
@@ -144,7 +144,7 @@ test("record an unattributed goal via 'Didn't see who'", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -205,7 +205,7 @@ test("undo last score removes the most recent goal from the tally", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Required for canScore — see comment on the goal test above.
   await admin
     .from("teams")
@@ -271,7 +271,7 @@ test("Q-by-Q shows the score of the quarter in play", async ({ page }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });

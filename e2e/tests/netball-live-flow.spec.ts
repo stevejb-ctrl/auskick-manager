@@ -98,7 +98,7 @@ async function setupNetballTeam(opts: SetupOpts): Promise<SetupResult> {
     ageGroup: "U10",
   });
 
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   if (opts.gameQuarterLengthSeconds !== undefined) {
     await admin
       .from("games")

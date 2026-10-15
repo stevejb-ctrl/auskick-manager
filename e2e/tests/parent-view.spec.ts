@@ -35,7 +35,7 @@ test("a parent follows the team read-only, watches the live score, and can leave
   const admin = createAdminClient();
   const { data } = await admin.auth.admin.listUsers();
   const ownerId = data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U12" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Watched Wallabies" });

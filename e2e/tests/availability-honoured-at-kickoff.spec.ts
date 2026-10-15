@@ -84,7 +84,7 @@ test("AFL: a player marked unavailable pre-game is dropped from the kickoff line
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // 15 = 12 on field + 3 bench for U10 (defaultOnFieldSize=12).
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -171,7 +171,6 @@ test("netball: a player marked unavailable pre-game is dropped from the kickoff 
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   const X = players[0]; // seated at GS in the draft
@@ -241,7 +240,6 @@ test("rugby league: a player marked unavailable pre-game is dropped from the kic
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   // makeGame uses AFL's defaultOnFieldSize (12 for U10); RL is 11.
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);

@@ -26,7 +26,7 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   // 20× clock: the 12-minute quarter runs in ~36 s. No sub-due prompt
@@ -51,10 +51,12 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   const hurt = onField[third]; // a mid
   const replacement = bench[0];
 
-  await admin.from("game_events").insert([
-    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
-    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
-  ]);
+  // Two inserts, as startGame writes them: rows from one insert share
+  // created_at, and the replay below reads events in created_at order,
+  // so on a tie it could start Q1 before the lineup and credit the lent
+  // kid nothing.
+  await admin.from("game_events").insert({ game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId });
+  await admin.from("game_events").insert({ game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId });
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await page.addInitScript(() => {
@@ -144,7 +146,7 @@ test("AFL: a bench kid selected and then lent isn't offered as a sub with the ne
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ sub_interval_seconds: 900 }).eq("id", game.id);
@@ -196,7 +198,7 @@ test("AFL: after a lend, tapping the empty spot brings a bench kid on there", as
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ sub_interval_seconds: 900 }).eq("id", game.id);

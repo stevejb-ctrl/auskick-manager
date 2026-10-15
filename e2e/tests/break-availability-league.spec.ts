@@ -96,7 +96,6 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   const onFieldSize = 11;
   await admin
@@ -338,7 +337,7 @@ test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and
     name: `RL-PIN-SIDELINE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
   await admin.from("games").update({ on_field_size: 11 }).eq("id", game.id);
 
   const ids = players.map((p) => p.id);
