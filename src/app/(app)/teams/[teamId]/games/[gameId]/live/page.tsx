@@ -504,6 +504,7 @@ export default async function LivePage({ params }: LivePageProps) {
               enforceUnbrokenPeriods={leagueEnforceUnbroken}
               walkthroughOffer={
                 <LeagueWalkthroughOffer
+                  sport={sport}
                   trackScoring={trackScoring}
                   periodLabel={periodLabels(sport, ageCfgL).label}
                   vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}

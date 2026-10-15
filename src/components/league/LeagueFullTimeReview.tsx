@@ -25,6 +25,7 @@ import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/li
 import {
   leagueScoreLine,
   rugbyPoints,
+  rugbyScoreWords,
   rugbyScoreByPeriod,
   type LeagueScoreByPeriod,
 } from "@/lib/sports/rugby_league/fairness";
@@ -112,6 +113,7 @@ export function LeagueFullTimeReview({
   const [error, setError] = useState<string | null>(null);
   const periodLabel = periodLabels(sport, ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
+  const words = rugbyScoreWords(sport);
   const scoreByPeriod: LeagueScoreByPeriod = rugbyScoreByPeriod(
     events,
     ageGroup.periodCount,
@@ -150,7 +152,7 @@ export function LeagueFullTimeReview({
               {state.teamScore.points}
             </p>
             <p className="text-[11px] text-ink-mute">
-              {leagueScoreLine(state.teamScore)}
+              {leagueScoreLine(state.teamScore, words)}
             </p>
           </div>
           <div className="rounded-md border border-hairline bg-surface-alt p-3">
@@ -161,7 +163,7 @@ export function LeagueFullTimeReview({
               {state.opponentScore.points}
             </p>
             <p className="text-[11px] text-ink-mute">
-              {leagueScoreLine(state.opponentScore)}
+              {leagueScoreLine(state.opponentScore, words)}
             </p>
           </div>
         </div>
@@ -201,7 +203,7 @@ export function LeagueFullTimeReview({
                         {row.team.points}
                       </span>{" "}
                       <span className="text-[10px] text-ink-mute">
-                        ({leagueScoreLine(row.team)})
+                        ({leagueScoreLine(row.team, words)})
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
@@ -209,7 +211,7 @@ export function LeagueFullTimeReview({
                         {row.opponent.points}
                       </span>{" "}
                       <span className="text-[10px] text-ink-mute">
-                        ({leagueScoreLine(row.opponent)})
+                        ({leagueScoreLine(row.opponent, words)})
                       </span>
                     </td>
                   </tr>
@@ -236,7 +238,7 @@ export function LeagueFullTimeReview({
           </p>
           <p className="mt-0.5 text-[11px] text-ink-mute">
             Spotted a miscount? Add a missed score with +T / +C
-            {onTeamPenaltyGoal || onOpponentPenaltyGoal ? " / +PG / +FG" : ""}, or
+            {onTeamPenaltyGoal || onOpponentPenaltyGoal ? ` / +${words.penaltyGoal.short} / +${words.fieldGoal.short}` : ""}, or
             undo the most recent one.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -270,12 +272,12 @@ export function LeagueFullTimeReview({
                 <div className="flex gap-1.5">
                   {onTeamPenaltyGoal && (
                     <button type="button" onClick={onTeamPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
-                      + PG
+                      + {words.penaltyGoal.short}
                     </button>
                   )}
                   {onTeamFieldGoal && (
                     <button type="button" onClick={onTeamFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
-                      + FG
+                      + {words.fieldGoal.short}
                     </button>
                   )}
                 </div>
@@ -311,12 +313,12 @@ export function LeagueFullTimeReview({
                 <div className="flex gap-1.5">
                   {onOpponentPenaltyGoal && (
                     <button type="button" onClick={onOpponentPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
-                      + PG
+                      + {words.penaltyGoal.short}
                     </button>
                   )}
                   {onOpponentFieldGoal && (
                     <button type="button" onClick={onOpponentFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
-                      + FG
+                      + {words.fieldGoal.short}
                     </button>
                   )}
                 </div>

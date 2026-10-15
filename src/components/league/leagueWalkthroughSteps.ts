@@ -1,13 +1,14 @@
-// ─── Rugby league walkthrough steps ──────────────────────────
-// First-time onboarding for the rugby league live shell. Mirrors
+// ─── Rugby walkthrough steps (league and union) ──────────────
+// First-time onboarding for the rugby live shell. Mirrors
 // AFL's `buildWalkthroughSteps` (src/components/live/WalkthroughModal.tsx)
 // and netball's `buildNetballWalkthroughSteps` but the body copy is
 // RL-specific:
 //   - Two on-field zones (Forwards / Backs) — no native centre zone.
 //   - FR (First Receiver) and DH (Dummy Half) vests must rotate
 //     each period; same player can't wear a given vest twice.
-//   - Scoring: try (4) + conversion (2). U6/U7 default to no
-//     scoring.
+//   - Scoring in the sport's own points and words (league: try
+//     4, conversion 2; union: try 5, drop goals). League U6/U7
+//     default to no scoring.
 //   - Goal-kick rotation — every on-field player attempts a
 //     conversion before any player gets a second.
 //   - Unbroken-period rule (Junior League §6) — opt-in per team /
@@ -20,6 +21,9 @@
 // Returned shape matches `WalkthroughModal`'s `Step` type so the
 // modal renders sport-agnostically — text content lives here.
 
+import type { RugbySport } from "@/lib/sports/registry";
+import { rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+
 export interface WalkthroughStep {
   emoji: string;
   title: string;
@@ -27,6 +31,8 @@ export interface WalkthroughStep {
 }
 
 export function buildLeagueWalkthroughSteps(opts: {
+  /** The team's rugby sport: its points and goal names. */
+  sport: RugbySport;
   trackScoring: boolean;
   /** "quarter" or "half" — drives the start/end-period copy so the
    *  modal reads "Start Q1" at U6–U9 and "Start H1" at U10+. */
@@ -60,7 +66,7 @@ export function buildLeagueWalkthroughSteps(opts: {
     {
       emoji: "🏉",
       title: "Field & bench",
-      body: "The field splits into Forwards (top) and Backs (bottom). Anyone not on the field sits in the bench strip below. Junior RL is positionless within each zone — coaches can drag players to rebalance the forward/back ratio at any time.",
+      body: "The field splits into Forwards (top) and Backs (bottom). Anyone not on the field sits in the bench strip below. Junior rugby is positionless within each line — coaches can drag players to rebalance the forward/back ratio at any time.",
     },
     {
       emoji: "🔁",
@@ -95,18 +101,22 @@ export function buildLeagueWalkthroughSteps(opts: {
     // Each law writes its own part: goals from play the goal buttons,
     // the kick rotations the rotation sentence.
     const rotation = "every on-field player must attempt a conversion before anyone gets a second";
+    const points = rugbyPoints(opts.sport);
+    const words = rugbyScoreWords(opts.sport);
+    const pg = words.penaltyGoal;
+    const fg = words.fieldGoal;
     steps.push({
       emoji: "🏆",
       title: opts.goalsFromPlay ? "Recording tries & goals" : "Recording tries & conversions",
       body: opts.goalsFromPlay
-        ? `Tap a field player, then Try, Penalty goal (2) or Field goal (1) at the bottom. After a try the conversion picker opens — pick the kicker; ${
+        ? `Tap a field player, then Try, ${pg.label} (${points.penaltyGoal}) or ${fg.label} (${points.fieldGoal}) at the bottom. After a try the conversion picker opens — pick the kicker; ${
             opts.kickRotations ? `the app enforces the goal-kick rotation: ${rotation}` : "there's no kicking rotation at this age"
-          }. +PG and +FG beside our score ask who kicked. For an opponent score, tap +T, +C, +PG or +FG beside their score. Undo takes back the latest score.`
+          }. +${pg.short} and +${fg.short} beside our score ask who kicked. For an opponent score, tap +T, +C, +${pg.short} or +${fg.short} beside their score. Undo takes back the latest score.`
         : opts.kickingAllowed
-        ? `Tap a field player, then tap Try at the bottom to credit them with 4 points. A conversion picker then opens — pick the kicker.${
+        ? `Tap a field player, then tap Try at the bottom to credit them with ${points.try} points. A conversion picker then opens — pick the kicker.${
             opts.kickRotations ? ` The app enforces the goal-kick rotation: ${rotation}.` : ""
           } For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score.`
-        : "Tap a field player, then tap Try at the bottom to credit them with 4 points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.",
+        : `Tap a field player, then tap Try at the bottom to credit them with ${points.try} points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.`,
     });
   }
 

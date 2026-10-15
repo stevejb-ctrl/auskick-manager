@@ -10,6 +10,7 @@ import { getAgeGroupConfig, periodLabels } from "@/lib/sports";
 function vestStep(ageGroup: string) {
   const ag = getAgeGroupConfig("rugby_league", ageGroup);
   const steps = buildLeagueWalkthroughSteps({
+    sport: "rugby_league",
     trackScoring: true,
     periodLabel: periodLabels("rugby_league", ag).label,
     vests: { fr: ag.vestRequirements?.fr ?? false, dh: ag.vestRequirements?.dh ?? false },

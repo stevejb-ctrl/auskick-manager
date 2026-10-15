@@ -1,6 +1,7 @@
 "use client";
 
-import type { LeagueScore } from "@/lib/sports/rugby_league/fairness";
+import { rugbyScoreWords, type LeagueScore, type RugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import type { RugbySport } from "@/lib/sports/registry";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
 // Rugby-league scoreboard contents rendered inside the shared
@@ -19,6 +20,8 @@ import type { LeagueScore } from "@/lib/sports/rugby_league/fairness";
 // until the coach picks a player. Mirrors AFL's onTeam(kind) shape.
 
 interface LeagueScoreBugProps {
+  /** The team's rugby sport: its goal names (union's drop goal is DG). */
+  sport: RugbySport;
   teamName: string;
   opponentName: string;
   teamScore: LeagueScore;
@@ -58,11 +61,11 @@ interface LeagueScoreBugProps {
   /** End-period-early — surfaces below the clock when paused (AFL parity). */
 }
 
-/** "2T·1C·1PG" — penalty / field goals only once there are some. */
-function ScoreLine({ score, testId }: { score: LeagueScore; testId: string }) {
+/** "2T·1C·1PG" — penalty / field (drop) goals only once there are some. */
+function ScoreLine({ score, testId, words }: { score: LeagueScore; testId: string; words: RugbyScoreWords }) {
   const parts = [`${score.tries}T`, `${score.conversions}C`];
-  if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}PG`);
-  if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}FG`);
+  if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}${words.penaltyGoal.short}`);
+  if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}${words.fieldGoal.short}`);
   return (
     <span className="text-sm font-semibold text-ink-dim" data-testid={testId}>
       {parts.map((p, i) => (
@@ -86,6 +89,7 @@ const SCORE_CHIP
   + "disabled:pointer-events-none disabled:opacity-60";
 
 export function LeagueScoreBug({
+  sport,
   teamName,
   opponentName,
   teamScore,
@@ -110,6 +114,7 @@ export function LeagueScoreBug({
   running = true,
   onClockTap,
 }: LeagueScoreBugProps) {
+  const words = rugbyScoreWords(sport);
   const periodNoun = periodLabel.toUpperCase();
   const periodLabelLine
     = `${periodNoun} ${currentPeriod || 1}${quarterEnded ? " · over" : ""}`;
@@ -124,7 +129,7 @@ export function LeagueScoreBug({
           <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-team">
             {teamScore.points}
           </span>
-          <ScoreLine score={teamScore} testId="league-score-line-team" />
+          <ScoreLine score={teamScore} testId="league-score-line-team" words={words} />
         </p>
         {trackScoring && (onTeamTry || onTeamConversion || onTeamPenaltyGoal || onTeamFieldGoal) && (
           <div className="mt-1 flex flex-wrap gap-2">
@@ -156,9 +161,9 @@ export function LeagueScoreBug({
                 onClick={onTeamPenaltyGoal}
                 disabled={pending}
                 className={SCORE_CHIP}
-                aria-label="Record a penalty goal for our team"
+                aria-label={`Record a ${words.penaltyGoal.label.toLowerCase()} for our team`}
               >
-                +PG
+                +{words.penaltyGoal.short}
               </button>
             )}
             {onTeamFieldGoal && (
@@ -167,9 +172,9 @@ export function LeagueScoreBug({
                 onClick={onTeamFieldGoal}
                 disabled={pending}
                 className={SCORE_CHIP}
-                aria-label="Record a field goal for our team"
+                aria-label={`Record a ${words.fieldGoal.label.toLowerCase()} for our team`}
               >
-                +FG
+                +{words.fieldGoal.short}
               </button>
             )}
           </div>
@@ -217,7 +222,7 @@ export function LeagueScoreBug({
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono leading-none text-ink">
-          <ScoreLine score={opponentScore} testId="league-score-line-opponent" />
+          <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />
           <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-opponent">
             {opponentScore.points}
           </span>
@@ -252,9 +257,9 @@ export function LeagueScoreBug({
                 onClick={onOpponentPenaltyGoal}
                 disabled={pending}
                 className={SCORE_CHIP}
-                aria-label="Record opponent penalty goal"
+                aria-label={`Record opponent ${words.penaltyGoal.label.toLowerCase()}`}
               >
-                +PG
+                +{words.penaltyGoal.short}
               </button>
             )}
             {onOpponentFieldGoal && (
@@ -263,9 +268,9 @@ export function LeagueScoreBug({
                 onClick={onOpponentFieldGoal}
                 disabled={pending}
                 className={SCORE_CHIP}
-                aria-label="Record opponent field goal"
+                aria-label={`Record opponent ${words.fieldGoal.label.toLowerCase()}`}
               >
-                +FG
+                +{words.fieldGoal.short}
               </button>
             )}
           </div>

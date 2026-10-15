@@ -46,7 +46,7 @@ import {
   LEAGUE_GOAL_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
-import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
@@ -869,11 +869,15 @@ export async function recordLeagueGoal(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  if ((await rugbyTeamOf(w)).ageCfg.goalsFromPlay !== true) {
+  const team = await rugbyTeamOf(w);
+  if (team.ageCfg.goalsFromPlay !== true) {
+    // League's junior laws forbid both kicks (Law 17); each sport says
+    // it in its own words (union's field goal is a drop goal).
+    const words = rugbyScoreWords(team.sport);
     return {
       success: false,
       rejected: true,
-      error: "Penalty and field goals don't count under the junior laws (U6–U12).",
+      error: `${words.penaltyGoal.label}s and ${words.fieldGoal.label.toLowerCase()}s don't count at ${team.ageCfg.label}.`,
     };
   }
   const result = await insertEvent(

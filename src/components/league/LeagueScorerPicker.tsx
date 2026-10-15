@@ -10,8 +10,12 @@
 import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import type { RugbySport } from "@/lib/sports/registry";
 
 interface LeagueScorerPickerProps {
+  /** The team's rugby sport: its goal names (union's drop goal). */
+  sport: RugbySport;
   /** On-field players, in display order. */
   onFieldPlayers: Player[];
   /** Picked → orchestrator records the try for this player. */
@@ -22,20 +26,24 @@ interface LeagueScorerPickerProps {
   score?: "try" | "penalty_goal" | "field_goal";
 }
 
-const COPY = {
-  try: { label: "Who scored the try?", heading: "Who scored?", prompt: "Pick the player who scored the try." },
-  penalty_goal: { label: "Who kicked the penalty goal?", heading: "Who kicked?", prompt: "Pick the player who kicked the penalty goal." },
-  field_goal: { label: "Who kicked the field goal?", heading: "Who kicked?", prompt: "Pick the player who kicked the field goal." },
-} as const;
+function copyFor(sport: RugbySport, score: "try" | "penalty_goal" | "field_goal") {
+  if (score === "try") {
+    return { label: "Who scored the try?", heading: "Who scored?", prompt: "Pick the player who scored the try." };
+  }
+  const words = rugbyScoreWords(sport);
+  const goal = (score === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
+  return { label: `Who kicked the ${goal}?`, heading: "Who kicked?", prompt: `Pick the player who kicked the ${goal}.` };
+}
 
 export function LeagueScorerPicker({
+  sport,
   onFieldPlayers,
   onPick,
   onCancel,
   pending,
   score = "try",
 }: LeagueScorerPickerProps) {
-  const copy = COPY[score];
+  const copy = copyFor(sport, score);
   return (
     <Modal size="md" placement="sheet" label={copy.label} onClose={onCancel} padding="p-4">
         <header className="mb-2 flex items-start justify-between">

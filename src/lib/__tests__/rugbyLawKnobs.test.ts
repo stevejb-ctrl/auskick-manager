@@ -57,6 +57,7 @@ describe("How we play suggests the age group's recommended strategy", () => {
 
 describe("each law knob switches only its own walkthrough copy", () => {
   const BASE = {
+    sport: "rugby_league" as const,
     trackScoring: true,
     periodLabel: "half" as const,
     vests: { fr: true, dh: true },

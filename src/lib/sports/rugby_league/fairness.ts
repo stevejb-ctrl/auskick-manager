@@ -93,11 +93,30 @@ function goalPoints(points: RugbyPoints, goal: "penalty" | "field"): number {
   return goal === "penalty" ? points.penaltyGoal : points.fieldGoal;
 }
 
-/** "2T · 1C · 1PG" — penalty and field goals only when there are some. */
-export function leagueScoreLine(s: LeagueScore): string {
+/**
+ * A rugby sport's own names for its goals, from its score types: league's
+ * field goal is union's drop goal (both recorded as `field_goal`).
+ */
+export interface RugbyScoreWords {
+  penaltyGoal: { label: string; short: string };
+  fieldGoal: { label: string; short: string };
+}
+
+export function rugbyScoreWords(sport: RugbySport): RugbyScoreWords {
+  const types = getSportConfig(sport).scoreTypes;
+  const words = (id: string) => {
+    const type = types.find((t) => t.id === id && !t.opponent);
+    if (!type) throw new Error(`${sport} has no "${id}" score type`);
+    return { label: type.label, short: type.shortLabel };
+  };
+  return { penaltyGoal: words("penalty_goal"), fieldGoal: words("field_goal") };
+}
+
+/** "2T · 1C · 1PG" — penalty and field (drop) goals only when there are some. */
+export function leagueScoreLine(s: LeagueScore, words: RugbyScoreWords): string {
   const parts = [`${s.tries}T`, `${s.conversions}C`];
-  if (s.penaltyGoals > 0) parts.push(`${s.penaltyGoals}PG`);
-  if (s.fieldGoals > 0) parts.push(`${s.fieldGoals}FG`);
+  if (s.penaltyGoals > 0) parts.push(`${s.penaltyGoals}${words.penaltyGoal.short}`);
+  if (s.fieldGoals > 0) parts.push(`${s.fieldGoals}${words.fieldGoal.short}`);
   return parts.join(" · ");
 }
 

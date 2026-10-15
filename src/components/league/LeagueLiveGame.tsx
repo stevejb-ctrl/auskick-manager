@@ -74,6 +74,7 @@ import {
   playedZoneMsByPeriod,
   playerMsOnField,
   playerZoneMsOnField,
+  rugbyScoreWords,
   suggestLeagueSubs,
   swapInLeagueLineup,
 } from "@/lib/sports/rugby_league/fairness";
@@ -523,6 +524,7 @@ export function LeagueLiveGame({
   // from play the score bug and the scorer sheet offer PG and FG.
   const kickRotations = ageGroup.kickRotations === true;
   const goalsFromPlay = ageGroup.goalsFromPlay === true;
+  const scoreWords = useMemo(() => rugbyScoreWords(sport), [sport]);
   const conversionByPlayer = useMemo(
     () => (kickRotations ? playerConversionStatusInCycle(thisGameEvents, onFieldIds) : {}),
     [thisGameEvents, onFieldIds, kickRotations],
@@ -979,6 +981,7 @@ export function LeagueLiveGame({
   const walkthroughSteps = useMemo(
     () =>
       buildLeagueWalkthroughSteps({
+        sport,
         trackScoring,
         periodLabel,
         vests: { fr: ageGroup.vestRequirements?.fr ?? false, dh: ageGroup.vestRequirements?.dh ?? false },
@@ -990,6 +993,7 @@ export function LeagueLiveGame({
         enforceUnbrokenPeriods,
       }),
     [
+      sport,
       trackScoring,
       periodLabel,
       ageGroup.vestRequirements,
@@ -2283,6 +2287,7 @@ export function LeagueLiveGame({
           for group chat". Mirrors AFL `GameSummaryCard`. */}
       {state.finalised && (
         <LeagueGameSummaryCard
+          sport={sport}
           state={state}
           events={thisGameEvents}
           squad={squad}
@@ -2384,7 +2389,7 @@ export function LeagueLiveGame({
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
-                    + Penalty goal
+                    + {scoreWords.penaltyGoal.label}
                   </button>
                   <button
                     type="button"
@@ -2392,7 +2397,7 @@ export function LeagueLiveGame({
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
-                    + Field goal
+                    + {scoreWords.fieldGoal.label}
                   </button>
                 </div>
               )}
@@ -2416,6 +2421,7 @@ export function LeagueLiveGame({
           }
           scorebug={
             <LeagueScoreBug
+              sport={sport}
               teamName={teamName}
               opponentName={game.opponent || "Opponent"}
               teamScore={state.teamScore}
@@ -2720,6 +2726,7 @@ export function LeagueLiveGame({
       {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
       {goalPicker && (
         <LeagueScorerPicker
+          sport={sport}
           score={goalPicker}
           onFieldPlayers={fieldPlayers}
           pending={pending}
@@ -2735,6 +2742,7 @@ export function LeagueLiveGame({
       {/* Own-team scorer picker — invoked by scorebug +T. */}
       {scorerPickerOpen && (
         <LeagueScorerPicker
+          sport={sport}
           onFieldPlayers={fieldPlayers}
           pending={pending}
           onCancel={() => setScorerPickerOpen(false)}
