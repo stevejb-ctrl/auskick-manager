@@ -17,7 +17,7 @@ import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-type Sport = "afl" | "netball" | "rugby_league";
+type Sport = "afl" | "netball" | "rugby_league" | "rugby_union";
 
 async function superAdminId(admin: SupabaseClient): Promise<string> {
   const { data } = await admin.auth.admin.listUsers();
@@ -43,6 +43,14 @@ const EVENT_TYPES: Record<Sport, string[]> = {
     "penalty_goal", "field_goal", "opponent_penalty_goal", "opponent_field_goal",
     "kickoff_taken", "vest_assigned",
   ],
+  // Union (0066): the rugby engine's, without league's kickoff
+  // rotation or vests. A drop goal is a field_goal.
+  rugby_union: [
+    ...SHARED,
+    "swap", "league_position_change", "roster_shrink",
+    "try", "opponent_try", "conversion_attempt", "opponent_conversion",
+    "penalty_goal", "field_goal", "opponent_penalty_goal", "opponent_field_goal",
+  ],
 };
 
 test("0061: each sport's games take only that sport's events", async () => {
@@ -60,6 +68,7 @@ test("0061: each sport's games take only that sport's events", async () => {
     { sport: "afl", ageGroup: "U10", own: "behind", foreign: ["try", "period_break_swap", "vest_assigned"] },
     { sport: "netball", ageGroup: "go", own: "period_break_swap", foreign: ["behind", "swap", "field_zone_swap"] },
     { sport: "rugby_league", ageGroup: "U10", own: "try", foreign: ["goal", "behind", "player_lock", "period_break_swap"] },
+    { sport: "rugby_union", ageGroup: "U12", own: "field_goal", foreign: ["vest_assigned", "kickoff_taken", "goal", "period_break_swap"] },
   ];
   for (const c of cases) {
     const team = await makeTeam(admin, { ownerId, sport: c.sport, ageGroup: c.ageGroup });
@@ -101,6 +110,14 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
     .from("player_position_prefs")
     .insert({ team_id: league.id, player_id: leaguePlayer.id, line: "fwd", kind: "never" });
   expect(aflLine?.message).toMatch(/rugby_league teams have no "fwd" line/);
+
+  // Union prefs (0066): forwards and backs, no AFL line.
+  const union = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12" });
+  const [unionPlayer] = await makePlayers(admin, { teamId: union.id, ownerId, count: 3 });
+  const unionPref = (line: string) =>
+    admin.from("player_position_prefs").insert({ team_id: union.id, player_id: unionPlayer.id, line, kind: "never" });
+  expect((await unionPref("forwards")).error).toBeNull();
+  expect((await unionPref("fwd")).error?.message).toMatch(/rugby_union teams have no "fwd" line/);
 
   // Netball: the role sheet saves a third, and an AFL line is refused.
   const netball = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "11u" });
@@ -147,6 +164,7 @@ test("0063: a team and a game say their own sport and size", async () => {
   for (const [sport, ageGroup, onField, interval] of [
     ["netball", "go", 7, 300],
     ["rugby_league", "U13", 13, 250],
+    ["rugby_union", "U12", 15, 250],
     ["afl", "U9", 9, 240],
   ] as const) {
     const t = await makeTeam(admin, { ownerId, sport, ageGroup });
@@ -178,6 +196,13 @@ test("0064: AFL and netball keep no vest strategy", async ({ page }) => {
     .from("team_playbooks")
     .insert({ team_id: netball.id, strategy: "by-thirds", vest_strategy: "fixed-order" });
   expect(netballVests?.message).toMatch(/Vests are a rugby league rule; netball teams/);
+
+  // Union wears no vests either (0066 needed no change for it).
+  const union = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12" });
+  const { error: unionVests } = await admin
+    .from("team_playbooks")
+    .insert({ team_id: union.id, strategy: "named-positions", vest_strategy: "auto" });
+  expect(unionVests?.message).toMatch(/Vests are a rugby league rule; rugby_union teams/);
 });
 
 test("0064: a league team's vests start on Auto-fair and keep the coach's pick", async ({ page }) => {
