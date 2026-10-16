@@ -10,6 +10,7 @@
 //   U9        →  8 on field, FR + DH            (4 fwd + 2 vest + 2 back)
 //   U10 / U11 → 11 on field, FR + DH            (5 fwd + 2 vest + 4 back)
 //   U12       → 13 on field, FR + DH            (6 fwd + 2 vest + 5 back)
+//   U13+      → 13 on field, no vests           (6 fwd + 7 back)
 //
 // One slot per on-field player; no extras. Steve flagged on
 // 2026-05-19 that the old hard-coded 11-slot array rendered 5
@@ -112,12 +113,42 @@ const FIELD_SLOTS_13_FR_DH: FieldSlot[] = [
   { id: "fullback", role: "fullback", x: 50, y: 90 },
 ];
 
+// U13+ (international laws): the same 13-a-side shape, the two vest
+// spots played by backs (dummy half / first receiver become halves).
+const FIELD_SLOTS_13_NO_VESTS: FieldSlot[] = FIELD_SLOTS_13_FR_DH.map((s) =>
+  s.role === "dh"
+    ? { ...s, id: "back-5", role: "back" }
+    : s.role === "fr"
+      ? { ...s, id: "back-6", role: "back" }
+      : s,
+);
+
+/** The hand-made layouts, by vest shape, smallest first. */
+function layoutsFor(fr: boolean, dh: boolean): FieldSlot[][] {
+  if (fr && dh) return [FIELD_SLOTS_8_FR_DH, FIELD_SLOTS_11_FR_DH, FIELD_SLOTS_13_FR_DH];
+  if (fr) {
+    // FR only past 8 a side: the 13 shape with the DH spot played by a forward.
+    return [
+      FIELD_SLOTS_8_FR_ONLY,
+      FIELD_SLOTS_13_FR_DH.map((s) => (s.role === "dh" ? { ...s, id: "fwd-7", role: "forward" as const } : s)),
+    ];
+  }
+  if (dh) {
+    return [FIELD_SLOTS_13_FR_DH.map((s) => (s.role === "fr" ? { ...s, id: "back-5", role: "back" as const } : s))];
+  }
+  return [FIELD_SLOTS_6_NO_VESTS, FIELD_SLOTS_13_NO_VESTS];
+}
+
 /**
  * Resolve the formation slot array for the given on-field size +
- * vest requirements. Defaults to the 11-player FR+DH layout
- * (closest to canonical RL) when the size/vest combo isn't
- * explicitly defined — keeps the component robust to future
- * age-group tweaks.
+ * vest requirements: EXACTLY one slot per on-field player, the vest
+ * slots iff the grade wears vests, one fullback. Each age group's
+ * usual size has a hand-made layout; a coach can also play short
+ * ("Players on field", a short squad, a kid lent so both sides play
+ * one down), so any other size starts from the closest larger layout
+ * and gives up plain forward / back spots, from whichever line has
+ * more, until it fits. (Those sizes used to get the 11-slot layout:
+ * 12 a side drew 11 spots and hid a kid on the field.)
  */
 export function getFieldSlots(
   onFieldSize: number,
@@ -125,12 +156,19 @@ export function getFieldSlots(
 ): FieldSlot[] {
   const fr = vestRequirements?.fr === true;
   const dh = vestRequirements?.dh === true;
-  if (onFieldSize <= 6) return FIELD_SLOTS_6_NO_VESTS;
-  if (onFieldSize === 8 && fr && !dh) return FIELD_SLOTS_8_FR_ONLY;
-  if (onFieldSize === 8 && fr && dh) return FIELD_SLOTS_8_FR_DH;
-  if (onFieldSize === 11) return FIELD_SLOTS_11_FR_DH;
-  if (onFieldSize === 13) return FIELD_SLOTS_13_FR_DH;
-  return FIELD_SLOTS_11_FR_DH;
+  const layouts = layoutsFor(fr, dh);
+  const base = layouts.find((l) => l.length >= onFieldSize) ?? layouts[layouts.length - 1];
+  const slots = [...base];
+  while (slots.length > Math.max(onFieldSize, 1)) {
+    const forwards = slots.filter((s) => s.role === "forward").length;
+    const backs = slots.filter((s) => s.role === "back").length;
+    if (forwards === 0 && backs === 0) break;
+    const drop: FieldSlotRole = forwards > backs ? "forward" : "back";
+    let i = slots.length - 1;
+    while (slots[i].role !== drop) i--;
+    slots.splice(i, 1);
+  }
+  return slots;
 }
 
 // ─── Chip-aware overflow placement ───────────────────────────
@@ -177,4 +215,46 @@ export function pickBestForSlot<T extends { chip?: ChipForSlot }>(
     }
   }
   return pool.splice(bestIdx, 1)[0];
+}
+
+// ─── Union: a field for any size it plays ─────────────────────
+// League draws hand-made shapes up to 13 a side. Union plays 5 to 15
+// with its own forward / back split at each size (rugbyForwards), and no
+// vests, so its field is laid out from the split: forwards in rows of
+// up to three across the top, backs in rows below, the last back alone
+// as the fullback. Rows share the pitch evenly, so even six rows (15 a
+// side) keep tiles a row apart.
+
+function rowSizes(count: number): number[] {
+  if (count <= 0) return [];
+  const rows = Math.ceil(count / 3);
+  const base = Math.floor(count / rows);
+  const extra = count % rows;
+  return Array.from({ length: rows }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+const ROW_XS: Record<number, number[]> = { 1: [50], 2: [32, 68], 3: [22, 50, 78] };
+
+/** One spot per player: `forwards` forwards, the rest backs, a fullback last. */
+export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlot[] {
+  const size = Math.max(1, Math.round(onFieldSize));
+  const fwd = Math.max(0, Math.min(size - 1, Math.round(forwards)));
+  const forwardRows = rowSizes(fwd);
+  const backRows = rowSizes(size - fwd - 1);
+  const rowCount = forwardRows.length + backRows.length + 1;
+  const yOf = (row: number) => (rowCount === 1 ? 50 : 13 + ((90 - 13) * row) / (rowCount - 1));
+  const slots: FieldSlot[] = [];
+  let row = 0;
+  let f = 0;
+  for (const n of forwardRows) {
+    for (const x of ROW_XS[n]) slots.push({ id: `fwd-${++f}`, role: "forward", x, y: yOf(row) });
+    row++;
+  }
+  let b = 0;
+  for (const n of backRows) {
+    for (const x of ROW_XS[n]) slots.push({ id: `back-${++b}`, role: "back", x, y: yOf(row) });
+    row++;
+  }
+  slots.push({ id: "fullback", role: "fullback", x: 50, y: yOf(row) });
+  return slots;
 }

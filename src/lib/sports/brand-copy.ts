@@ -20,6 +20,7 @@ import type { SportId } from "@/lib/sports/types";
 import aflJson from "../../../content/marketing/brands/afl.json";
 import netballJson from "../../../content/marketing/brands/netball.json";
 import leagueJson from "../../../content/marketing/brands/league.json";
+import unionJson from "../../../content/marketing/brands/union.json";
 
 /**
  * A heading split into three parts so a single word can render in
@@ -98,7 +99,17 @@ const COPY: Record<SportId, BrandCopy> = {
   // the dedicated copy. The marketing homepage's client picker also
   // resolves through this map via src/lib/sports/marketing-copy.ts.
   rugby_league: LEAGUE_COPY,
+  // Union has no site of its own: it lives under the main Siren brand,
+  // so a brand lookup for it reads the main brand's copy. The
+  // homepage's union sport section reads marketing-copy.ts.
+  rugby_union: AFL_COPY,
 };
+
+/**
+ * Union's own long-form copy for the homepage sport picker (union has
+ * no site of its own, so no brand reads it): marketing-copy.ts.
+ */
+export const UNION_MARKETING_COPY = unionJson as BrandCopy;
 
 export function getBrandCopy(id: SportId): BrandCopy {
   return COPY[id] ?? AFL_COPY;

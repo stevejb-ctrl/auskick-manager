@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
@@ -23,7 +23,7 @@ test("swap a bench player onto the field produces a swap event", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -38,7 +38,7 @@ test("swap a bench player onto the field produces a swap event", async ({
   // `{ lineup: Lineup }` where Lineup is `{back, hback, mid, hfwd, fwd,
   // bench}` — not the historical `{ on_field, on_field_size }` shape
   // this spec used to seed before being quarantined).
-  const positionModel = positionsFor(team.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", team.ageGroup));
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],

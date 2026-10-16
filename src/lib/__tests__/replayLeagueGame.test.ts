@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  leagueScoreByPeriod,
   replayLeagueGame,
   suggestLeagueLineup,
   suggestLeagueSubs,
@@ -36,8 +37,9 @@ describe("replayLeagueGame — empty + lineup_set", () => {
     const state = replayLeagueGame([]);
     expect(state.lineup).toBeNull();
     expect(state.currentQuarter).toBe(0);
-    expect(state.teamScore).toEqual({ tries: 0, conversions: 0, points: 0 });
-    expect(state.opponentScore).toEqual({ tries: 0, conversions: 0, points: 0 });
+    const nil = { tries: 0, conversions: 0, penaltyGoals: 0, fieldGoals: 0, points: 0 };
+    expect(state.teamScore).toEqual(nil);
+    expect(state.opponentScore).toEqual(nil);
     expect(state.finalised).toBe(false);
   });
 
@@ -200,6 +202,57 @@ const onField = (state: ReturnType<typeof replayLeagueGame>): string[] =>
   state.lineup
     ? [...state.lineup.forwards, ...state.lineup.backs]
     : [];
+
+// U13+ international laws: penalty goal 2, field goal 1.
+describe("replayLeagueGame — penalty and field goals", () => {
+  it("scores them for us (credited to the kicker) and the opposition", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("try", { quarter: 1 }, "p1"),
+      ev("penalty_goal", { quarter: 1 }, "p2"),
+      ev("field_goal", { quarter: 2 }, "p2"),
+      ev("opponent_penalty_goal", { quarter: 2 }),
+      ev("opponent_field_goal", { quarter: 2 }),
+      ev("opponent_field_goal", { quarter: 2 }),
+    ]);
+    expect(state.teamScore).toEqual({ tries: 1, conversions: 0, penaltyGoals: 1, fieldGoals: 1, points: 7 });
+    expect(state.opponentScore).toEqual({ tries: 0, conversions: 0, penaltyGoals: 1, fieldGoals: 2, points: 4 });
+    expect(state.playerGoals).toEqual({ p2: { penalty: 1, field: 1 } });
+  });
+
+  it("undo takes them back like any score", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("penalty_goal", {}, "p2"),
+      ev("field_goal", {}, "p3"),
+      ev("score_undo"),
+      ev("opponent_penalty_goal"),
+      ev("score_undo"),
+    ]);
+    expect(state.teamScore).toMatchObject({ penaltyGoals: 1, fieldGoals: 0, points: 2 });
+    expect(state.opponentScore).toMatchObject({ penaltyGoals: 0, points: 0 });
+    expect(state.playerGoals).toEqual({ p2: { penalty: 1, field: 0 }, p3: { penalty: 0, field: 0 } });
+  });
+
+  it("counts them per period", () => {
+    reset();
+    const byPeriod = leagueScoreByPeriod(
+      [
+        ev("quarter_start", { quarter: 1 }),
+        ev("penalty_goal", { quarter: 1 }, "p2"),
+        ev("opponent_field_goal", { quarter: 1 }),
+        ev("quarter_start", { quarter: 2 }),
+        ev("field_goal", { quarter: 2 }, "p2"),
+        ev("field_goal", { quarter: 2 }, "p2"),
+        ev("score_undo"),
+      ],
+      2,
+    );
+    expect(byPeriod[1].team).toMatchObject({ penaltyGoals: 1, points: 2 });
+    expect(byPeriod[1].opponent).toMatchObject({ fieldGoals: 1, points: 1 });
+    expect(byPeriod[2].team).toMatchObject({ fieldGoals: 1, points: 1 });
+  });
+});
 
 describe("replayLeagueGame — swap", () => {
   it("swap moves off→bench and on→field", () => {
@@ -573,6 +626,28 @@ describe("suggestLeagueLineup — chip-aware zone distribution", () => {
   });
 });
 
+// Round 5 (Stagehand whole-game-league, sideline-chaos-league): a sub
+// put the incoming kid at the end of the line, so every kid after the
+// outgoing one shifted a spot on the field (and the last back is drawn
+// as fullback). The sub takes the outgoing kid's spot, like AFL.
+describe("replayLeagueGame — a rolling sub takes the outgoing kid's spot", () => {
+  it("keeps everyone else where they were", () => {
+    reset();
+    const state = replayLeagueGame([
+      ev("lineup_set", {
+        lineup: { forwards: ["f1", "f2", "f3"], backs: ["b1", "b2", "b3", "b4"], bench: ["x", "y"] },
+        sport: "rugby_league",
+      }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+      ev("swap", { quarter: 1, elapsed_ms: 60_000, off_player_id: "b2", on_player_id: "x", sport: "rugby_league" }),
+      ev("swap", { quarter: 1, elapsed_ms: 90_000, off_player_id: "f1", on_player_id: "y", sport: "rugby_league" }),
+    ]);
+    expect(state.lineup?.backs).toEqual(["b1", "x", "b3", "b4"]);
+    expect(state.lineup?.forwards).toEqual(["y", "f2", "f3"]);
+    expect(state.lineup?.bench).toEqual(["b2", "f1"]);
+  });
+});
+
 describe("suggestLeagueSubs — whole-bench rotation (AFL parity)", () => {
   it("returns one swap PER bench player, longest-on-bench first (Steve 2026-05-19)", () => {
     reset();
@@ -629,6 +704,58 @@ describe("suggestLeagueSubs — whole-bench rotation (AFL parity)", () => {
     const offIds = new Set(suggestions.map((s) => s.off.playerId));
     expect(offIds.has("fr")).toBe(false);
     expect(offIds.has("dh")).toBe(false);
+  });
+
+  // Round 5 (Stagehand league-u8-vests): with no line preference the
+  // suggester always took off forwards first, so the backs played the
+  // whole period while a forward who'd just come on was pulled straight
+  // back off (Zara, 7s after her sub).
+  for (const withPlaybook of [false, true]) {
+    it(`a kid with no line preference rotates whoever has been on longest, forward or back${withPlaybook ? " (with a playbook)" : ""}`, () => {
+      reset();
+      const start = {
+        forwards: ["ava", "lachlan", "mia", "oliver"],
+        backs: ["isla", "noah", "ruby", "jack"],
+        bench: ["zara", "leo", "chloe"],
+      };
+      const events: GameEvent[] = [
+        ev("lineup_set", { lineup: start, sport: "rugby_league" }),
+        ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+        ev("swap", { quarter: 1, elapsed_ms: 42_415, off_player_id: "lachlan", on_player_id: "zara", sport: "rugby_league" }),
+      ];
+      const now = {
+        forwards: ["ava", "zara", "mia", "oliver"],
+        backs: ["isla", "noah", "ruby", "jack"],
+        bench: ["leo", "chloe", "lachlan"],
+      };
+      const playbook = withPlaybook
+        ? { strategy: "both-lines", seasonWeight: 0, periodMs: 20 * 60_000, roles: {}, vestStrategy: "rotate" as never }
+        : undefined;
+      const offs = suggestLeagueSubs(events, 1, now, ["ava"], 49_000, undefined, playbook).map((s) => s.off.playerId);
+      expect(offs).toHaveLength(3);
+      expect(offs).not.toContain("zara");
+      expect(offs.some((id) => now.backs.includes(id))).toBe(true);
+    });
+  }
+
+  it("doesn't take straight back off the kids who just came on while the backs have played all half", () => {
+    reset();
+    const start = {
+      forwards: ["f1", "f2", "f3", "f4", "f5"],
+      backs: ["b1", "b2", "b3", "b4", "b5", "b6"],
+      bench: ["x1", "x2", "x3"],
+    };
+    const events: GameEvent[] = [
+      ev("lineup_set", { lineup: start, sport: "rugby_league" }),
+      ev("quarter_start", { quarter: 1, sport: "rugby_league" }),
+      ...(["3", "4", "5"] as const).map((n, i) =>
+        ev("swap", { quarter: 1, elapsed_ms: 300_000, off_player_id: `f${n}`, on_player_id: `x${i + 1}`, sport: "rugby_league" }),
+      ),
+    ];
+    const now = { forwards: ["f1", "f2", "x1", "x2", "x3"], backs: start.backs, bench: ["f3", "f4", "f5"] };
+    const offs = suggestLeagueSubs(events, 1, now, ["f1", "f2"], 330_000).map((s) => s.off.playerId);
+    expect(offs).toHaveLength(3);
+    expect(offs.filter((id) => id.startsWith("x"))).toEqual([]);
   });
 
   it("returns empty when there are no bench players", () => {

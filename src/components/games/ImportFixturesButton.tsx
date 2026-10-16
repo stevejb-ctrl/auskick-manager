@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/Label";
 import { Spinner } from "@/components/ui/Spinner";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import type { PlayHQFixture, PlayHQTeamMeta } from "@/lib/playhq";
+import { Modal } from "@/components/ui/Modal";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -19,6 +20,8 @@ interface Props {
   teamId: string;
   existingExternalIds: string[];
   initialUrl?: string;
+  /** The team's sport's PlayHQ tenant (PLAYHQ_TENANT), shown in the example URL. */
+  tenant: string;
   /** Trigger-button style. Defaults to `ghost` / `sm` to match the old inline usage. */
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -29,6 +32,7 @@ export function ImportFixturesButton({
   teamId,
   existingExternalIds,
   initialUrl = "",
+  tenant,
   variant = "ghost",
   size = "sm",
   className,
@@ -119,14 +123,7 @@ export function ImportFixturesButton({
       </Button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
-          onClick={close}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-hairline bg-surface p-5 shadow-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal size="xl" label="Import fixtures from PlayHQ" onClose={close} className="overflow-y-auto">
             <div className="mb-4 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-ink">
                 Import fixtures from PlayHQ
@@ -160,7 +157,7 @@ export function ImportFixturesButton({
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://www.playhq.com/afl/org/..."
+                    placeholder={`https://www.playhq.com/${tenant}/org/...`}
                     disabled={isPending}
                     autoFocus
                   />
@@ -169,7 +166,7 @@ export function ImportFixturesButton({
                     page, and paste the URL here. It should look like:
                   </p>
                   <p className="mt-1 rounded bg-surface-alt px-2 py-1 font-mono text-xs text-ink-dim break-all">
-                    playhq.com/afl/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
+                    playhq.com/{tenant}/org/<em>club</em>/&hellip;/teams/<em>team-name</em>/<em>abc123</em>
                   </p>
                   <p className="mt-1 text-xs text-ink-mute">
                     The short code at the end is what identifies your team. If the
@@ -332,8 +329,7 @@ export function ImportFixturesButton({
                 <Spinner size="sm" /> Fetching from PlayHQ…
               </div>
             )}
-          </div>
-        </div>
+          </Modal>
       )}
     </>
   );

@@ -28,6 +28,36 @@ npm run e2e:ui       # Playwright inspector — best for debugging
 npm run e2e -- path/to.spec.ts    # single spec
 ```
 
+### Two runs against one local Supabase
+
+`auth.setup.ts` only resets the super-admin's password when sign-in
+with the `.env.test` one fails. GoTrue deletes every session a user
+has when the password changes, so a reset on every run signed out
+any other run already in flight on the same DB.
+`ensure-test-user.spec.ts` guards this.
+
+`npm run e2e` still resets the DB before it starts, which wipes the
+data under any run in flight. For overlapping runs, export the
+`.env.test` values and call `npx playwright test` directly. To give a
+run its own super-admin, set `TEST_SUPER_ADMIN_EMAIL`. That works
+with `npm run e2e` too, because `scripts/e2e-setup.mjs` keeps values
+already in the environment.
+
+### On the iPhone engine (WebKit)
+
+The default project is Chromium as a Pixel 7. To run as an iPhone 14
+on WebKit, install the browser once (`npx playwright install webkit`),
+then set `PW_WEBKIT=1` and pick the project (PowerShell shown):
+
+```powershell
+$env:PW_WEBKIT = "1"; npm run e2e -- --project=webkit
+```
+
+WebKit hydrates later than Chromium, so a test that types straight
+after a `goto`, or navigates straight after signing in, races the page.
+`waitForHydration` and `gotoStable` in `e2e/helpers/navigation.ts`
+handle both; use them in new specs.
+
 ## When to add a test
 
 The tests earn their keep only if they evolve with the app. Treat
@@ -68,7 +98,7 @@ test("my feature does the thing", async ({ page }) => {
     password: "pw-test-12345",
   });
   try {
-    const team = await makeTeam(admin, { ownerId: user.id, ageGroup: "U10" });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl", ageGroup: "U10" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
 
     // ... click through UI, assert outcome ...

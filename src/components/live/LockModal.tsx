@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { Modal } from "@/components/ui/Modal";
 
 interface LockModalProps {
   player: Player;
@@ -30,8 +31,9 @@ interface LockModalProps {
    */
   onLockZone?: () => void;
   onUnlock: () => void;
-  onToggleInjury: () => void;
-  onToggleLoan: () => void;
+  /** Omitted before kickoff: there's nothing to injure or lend yet. */
+  onToggleInjury?: () => void;
+  onToggleLoan?: () => void;
   /**
    * Enter "switch" mode — closes the modal and selects this player so
    * the next tap on another field tile or bench tile completes the
@@ -78,6 +80,11 @@ interface LockModalProps {
    */
   onToggleBench?: () => void;
   /**
+   * How we play: opens the player role sheet (home, also plays,
+   * never plays, keep on). Pre-game pickers only, coaches only.
+   */
+  onEditRole?: () => void;
+  /**
    * `true` when the player is on the field. Drives the bench
    * button label and hides Move/Vest actions that don't apply
    * to bench players.
@@ -92,6 +99,16 @@ interface LockModalProps {
    */
   insight?: ReactNode;
   onClose: () => void;
+}
+
+/** The intro line, naming only the actions on offer. */
+function lockModalIntro(can: { lock: boolean; injure: boolean; lend: boolean }): string {
+  const parts = ["switch them out"];
+  if (can.lock) parts.push("lock them in place");
+  if (can.injure) parts.push("flag an injury");
+  if (can.lend) parts.push("lend them to the opposition");
+  const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
 export function LockModal({
@@ -117,6 +134,7 @@ export function LockModal({
   isFr,
   isDh,
   onToggleBench,
+  onEditRole,
   isOnField,
   insight,
   onClose,
@@ -127,13 +145,7 @@ export function LockModal({
   const squadLabel = Math.round(squadLoanMins);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="lock-modal-title"
-    >
-      <div className="w-full max-w-xs rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
@@ -159,7 +171,7 @@ export function LockModal({
                 onClick={onToggleInjury}
                 className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
               >
-                <span className="text-sm font-bold">Mark {firstName} recovered</span>
+                <span className="text-sm font-bold">Back on</span>
                 <span className="mt-0.5 text-xs opacity-90">
                   Back in the rotation from the next sub
                 </span>
@@ -205,8 +217,8 @@ export function LockModal({
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
               {currentLock === "field"
-                ? "Always on field — never subbed off."
-                : `Locked to ${zoneLabel ?? "position"} — subs back to this zone only.`}
+                ? "Kept on field — never subbed off."
+                : `Kept in ${zoneLabel ?? "position"} — subs back to this zone only.`}
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -214,7 +226,7 @@ export function LockModal({
                 onClick={onUnlock}
                 className="w-full rounded-md border border-hairline py-2.5 text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
               >
-                Unlock player
+                Let them rotate again
               </button>
               <button
                 type="button"
@@ -229,9 +241,11 @@ export function LockModal({
           /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             <p className="mb-4 text-center text-sm text-ink-dim">
-              {onLockField || onLockZone
-                ? "Switch them out, lock them in place, flag an injury, or lend them to the opposition."
-                : "Switch them out, flag an injury, or lend them to the opposition."}
+              {lockModalIntro({
+                lock: !!(onLockField || onLockZone),
+                injure: !!onToggleInjury,
+                lend: !!onToggleLoan,
+              })}
             </p>
             <div className="flex flex-col gap-2">
               {/* Switch — most common quick action, lives at the top.
@@ -346,13 +360,23 @@ export function LockModal({
                   </span>
                 </button>
               )}
+              {onEditRole && (
+                <button
+                  type="button"
+                  onClick={onEditRole}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Player role</span>
+                  <span className="mt-0.5 text-xs text-ink-dim">Home, also plays, never plays, keep on</span>
+                </button>
+              )}
               {onLockField && (
                 <button
                   type="button"
                   onClick={onLockField}
                   className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
                 >
-                  <span className="text-sm font-bold">Always on field</span>
+                  <span className="text-sm font-bold">Keep on field</span>
                   <span className="mt-0.5 text-xs opacity-80">Never substituted off</span>
                 </button>
               )}
@@ -362,35 +386,39 @@ export function LockModal({
                   onClick={onLockZone}
                   className="flex w-full flex-col items-center rounded-md bg-warn px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-warn/90"
                 >
-                  <span className="text-sm font-bold">Lock to {zoneLabel}</span>
+                  <span className="text-sm font-bold">Keep in {zoneLabel}</span>
                   <span className="mt-0.5 text-xs opacity-90">
                     Can sub on/off but only to this position
                   </span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onToggleInjury}
-                className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
-              >
-                <span className="text-sm font-bold">Mark injured</span>
-                <span className="mt-0.5 text-xs opacity-90">
-                  Moves to the bench and skips the sub rotation
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={onToggleLoan}
-                className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-              >
-                <span className="text-sm font-bold">Lend to opposition</span>
-                <span className="mt-0.5 text-center text-xs text-ink-dim">
-                  Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
-                  {squadLabel > 0 && (
-                    <> · squad avg {squadLabel}m</>
-                  )}
-                </span>
-              </button>
+              {onToggleInjury && (
+                <button
+                  type="button"
+                  onClick={onToggleInjury}
+                  className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
+                >
+                  <span className="text-sm font-bold">Mark injured</span>
+                  <span className="mt-0.5 text-xs opacity-90">
+                    Moves to the bench and skips the sub rotation
+                  </span>
+                </button>
+                )}
+              {onToggleLoan && (
+                <button
+                  type="button"
+                  onClick={onToggleLoan}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Lend to opposition</span>
+                  <span className="mt-0.5 text-center text-xs text-ink-dim">
+                    Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
+                    {squadLabel > 0 && (
+                      <> · squad avg {squadLabel}m</>
+                    )}
+                  </span>
+                </button>
+                )}
               <button
                 type="button"
                 onClick={onClose}
@@ -401,7 +429,6 @@ export function LockModal({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }

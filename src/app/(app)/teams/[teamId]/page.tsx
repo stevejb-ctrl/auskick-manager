@@ -11,25 +11,27 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import type { Game } from "@/lib/types";
+import { getSeasonEvents } from "@/lib/season";
+import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
+import type { Game, GameEvent, Sport } from "@/lib/types";
+import { teamSport } from "@/lib/sports";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface TeamDashboardProps {
   params: { teamId: string };
 }
 
 /**
- * Team Home — the coach's landing page after picking a team.
+ * Today — the coach's landing page for a team (UX plan §6, 1.4).
  *
- * Layout (matches design_handoff_siren_footy/prototype/sf/screens.jsx):
  *   1. Finish-setup banner (admins on empty squads only)
- *   2. Hero — Live banner if a game is in_progress, else Next-up hero
- *   3. Upcoming list — compact GameRow-style cards for everything
- *      after the next game
- *
- * The Season Pulse triplet (Record / Ladder / Form) and Last Result
- * card from the design are deferred until the upstream queries land:
- * Record + Form would need a sweep over completed games, Ladder isn't
- * surfaced anywhere in the data model yet.
+ *   2. Hero — live game, else the next game; on game day its primary
+ *      goes straight to the game-day screen ("Start game day")
+ *   3. To-dos — setup gaps the coach can close in one tap
+ *   4. Last result + season snapshot (record across final games)
+ *   5. More upcoming
  */
 export default async function TeamDashboardPage({ params }: TeamDashboardProps) {
   const supabase = createClient();
@@ -43,6 +45,9 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     { count: totalActive },
     { count: upcomingTotal },
     { data: membership },
+    { data: teamRow },
+    { data: finalGames },
+    { count: memberCount },
   ] = await Promise.all([
     supabase
       .from("games")
@@ -72,7 +77,47 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           .eq("user_id", user.id)
           .single()
       : Promise.resolve({ data: null }),
+
+    supabase
+      .from("teams")
+      .select("sport, track_scoring")
+      .eq("id", params.teamId)
+      .single(),
+
+    supabase
+      .from("games")
+      .select("id, opponent, scheduled_at, round_number")
+      .eq("team_id", params.teamId)
+      .eq("status", "completed")
+      .order("scheduled_at", { ascending: false }),
+
+    supabase
+      .from("team_memberships")
+      .select("user_id", { count: "exact", head: true })
+      .eq("team_id", params.teamId),
   ]);
+
+  const sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
+  const trackScoring = teamRow?.track_scoring === true;
+  const finals = (finalGames ?? []) as Pick<
+    Game,
+    "id" | "opponent" | "scheduled_at" | "round_number"
+  >[];
+  // Scores come from each final game's events (one cached read for the
+  // whole season — the same cache the lineup suggester uses).
+  const scoresById = new Map<string, GameScore>();
+  if (trackScoring && finals.length > 0) {
+    const byGame = new Map<string, GameEvent[]>();
+    for (const ev of await getSeasonEvents(params.teamId)) {
+      const list = byGame.get(ev.game_id) ?? [];
+      list.push(ev);
+      byGame.set(ev.game_id, list);
+    }
+    for (const g of finals) {
+      scoresById.set(g.id, scoreFromEvents(sport, byGame.get(g.id) ?? []));
+    }
+  }
+  const lastFinal = finals[0] ?? null;
 
   const upcomingIds = (upcomingRaw ?? []).map((g) => g.id);
   const { data: availabilityRaw } = upcomingIds.length
@@ -87,6 +132,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const playerCount = totalActive ?? 0;
   const upcomingCount = upcomingTotal ?? 0;
   const isAdmin = membership?.role === "admin";
+  // Coaches and managers run games; parents follow them (UX plan §6).
+  const canRun = isAdmin || membership?.role === "game_manager";
   const showSetupBanner = isAdmin && playerCount === 0;
 
   const availMap = new Map<string, number>();
@@ -98,21 +145,58 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const nextGames = upcoming.filter((g) => g.status !== "in_progress");
   const [featuredGame, ...moreGames] = nextGames;
 
+  // To-dos: setup gaps the coach can close in one tap (admins only).
+  const todos: { id: string; label: string; detail: string; href: string }[] = [];
+  if (isAdmin && playerCount > 0 && upcomingCount === 0) {
+    todos.push({
+      id: "add-game",
+      label: "Add your next game",
+      detail: PLAYHQ_TENANT[sport] ? "Import the fixture from PlayHQ or add one by hand." : "Add it from your fixture.",
+      href: `/teams/${params.teamId}/games`,
+    });
+  }
+  if (isAdmin && (memberCount ?? 0) <= 1) {
+    todos.push({
+      id: "invite",
+      label: "Invite a manager",
+      detail: "Someone to run the game when you can't be on the sideline.",
+      href: `/teams/${params.teamId}/settings`,
+    });
+  }
+
   return (
     <div className="space-y-4">
       {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
 
       {liveGame ? (
-        <LiveHero teamId={params.teamId} game={liveGame} />
+        <LiveHero teamId={params.teamId} game={liveGame} canRun={canRun} />
       ) : featuredGame ? (
         <NextUpHero
           teamId={params.teamId}
           game={featuredGame}
           available={availMap.get(featuredGame.id) ?? 0}
           playerCount={playerCount}
+          canRun={canRun}
         />
       ) : (
         <EmptyHero teamId={params.teamId} />
+      )}
+
+      {todos.length > 0 && <TodoList todos={todos} />}
+
+      {lastFinal && (
+        <LastResult
+          teamId={params.teamId}
+          game={lastFinal}
+          score={scoresById.get(lastFinal.id) ?? null}
+        />
+      )}
+
+      {finals.length > 0 && (
+        <SeasonSnapshot
+          played={finals.length}
+          record={trackScoring ? seasonRecord(Array.from(scoresById.values())) : null}
+        />
       )}
 
       {moreGames.length > 0 && (
@@ -161,7 +245,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
 // ─── Live banner ─────────────────────────────────────────────────────────────
 
-function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
+function LiveHero({ teamId, game, canRun }: { teamId: string; game: Game; canRun: boolean }) {
   return (
     <SFCard pad={0} className="overflow-hidden border-alarm/60">
       <div className="bg-ink px-5 py-5 text-warm sm:px-7 sm:py-6">
@@ -192,10 +276,127 @@ function LiveHero({ teamId, game }: { teamId: string; game: Game }) {
           full
           iconAfter={<SFIcon.chevronRight color="white" />}
         >
-          Open live game
+          {canRun ? "Back to live game" : "Watch live"}
         </SFButton>
       </div>
     </SFCard>
+  );
+}
+
+/** From six hours before kickoff — matches the game hub's "Start game day". */
+function isGameDay(game: Game): boolean {
+  return Date.now() >= new Date(game.scheduled_at).getTime() - 6 * 60 * 60 * 1000;
+}
+
+// ─── To-dos ──────────────────────────────────────────────────────────────────
+
+function TodoList({
+  todos,
+}: {
+  todos: { id: string; label: string; detail: string; href: string }[];
+}) {
+  return (
+    <section aria-label="To-do" className="space-y-2">
+      <Eyebrow>To-do</Eyebrow>
+      <SFCard pad={0}>
+        <ul className="divide-y divide-hairline">
+          {todos.map((t) => (
+            <li key={t.id}>
+              <Link
+                href={t.href}
+                className="flex min-h-[52px] items-center gap-3 px-4 py-3 transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink">{t.label}</span>
+                  <span className="block text-xs text-ink-mute">{t.detail}</span>
+                </span>
+                <SFIcon.chevronRight />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </SFCard>
+    </section>
+  );
+}
+
+// ─── Last result + season snapshot ───────────────────────────────────────────
+
+function LastResult({
+  teamId,
+  game,
+  score,
+}: {
+  teamId: string;
+  game: Pick<Game, "id" | "opponent" | "scheduled_at" | "round_number">;
+  /** null when the team doesn't keep score. */
+  score: GameScore | null;
+}) {
+  const outcome = score ? outcomeOf(score) : null;
+  const tone =
+    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm" : "bg-surface-alt text-ink";
+  return (
+    <section aria-label="Last result">
+      <Link href={`/teams/${teamId}/games/${game.id}#summary`} className="block">
+        <SFCard interactive>
+          <div className="flex items-center justify-between gap-3">
+            <Eyebrow>
+              Last result{game.round_number != null && ` · Round ${game.round_number}`}
+            </Eyebrow>
+            <span className="text-xs text-ink-mute">
+              <FormattedDateTime iso={game.scheduled_at} mode="short" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            {outcome && (
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold ${tone}`}
+              >
+                {outcome}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-base font-semibold text-ink">vs {game.opponent}</div>
+              {score?.usDetail && (
+                <div className="font-mono text-xs text-ink-mute">
+                  {score.usDetail} – {score.themDetail}
+                </div>
+              )}
+            </div>
+            {score ? (
+              <span className="font-mono text-xl font-bold tabular-nums text-ink">
+                {score.us}–{score.them}
+              </span>
+            ) : (
+              <span className="text-xs text-ink-mute">Summary</span>
+            )}
+          </div>
+        </SFCard>
+      </Link>
+    </section>
+  );
+}
+
+function SeasonSnapshot({
+  played,
+  record,
+}: {
+  played: number;
+  /** null when the team doesn't keep score. */
+  record: { won: number; lost: number; drawn: number } | null;
+}) {
+  const items = [`${played} played`];
+  if (record) {
+    items.push(`${record.won} won`, `${record.lost} lost`);
+    if (record.drawn > 0) items.push(`${record.drawn} drawn`);
+  }
+  return (
+    <section aria-label="Season">
+      <SFCard>
+        <Eyebrow>Season</Eyebrow>
+        <p className="mt-1.5 text-sm text-ink">{items.join(" · ")}</p>
+      </SFCard>
+    </section>
   );
 }
 
@@ -206,12 +407,15 @@ function NextUpHero({
   game,
   available,
   playerCount,
+  canRun,
 }: {
   teamId: string;
   game: Game;
   available: number;
   playerCount: number;
+  canRun: boolean;
 }) {
+  const startsGameDay = canRun && isGameDay(game);
   return (
     <SFCard pad={0} className="overflow-hidden">
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-800 px-5 py-6 text-warm sm:px-8 sm:py-8">
@@ -284,13 +488,19 @@ function NextUpHero({
           radius="md"
           className="w-full sm:w-auto"
         >
+          {/* On game day the hero goes straight to the game-day screen —
+              Today → Start game day → Start Q1 (UX plan §4 target). */}
           <SFButton
-            href={`/teams/${teamId}/games/${game.id}`}
+            href={
+              startsGameDay
+                ? `/teams/${teamId}/games/${game.id}/live`
+                : `/teams/${teamId}/games/${game.id}`
+            }
             variant="primary"
             iconAfter={<SFIcon.chevronRight color="currentColor" />}
             className="w-full sm:w-auto"
           >
-            Open game
+            {startsGameDay ? "Start game day" : "Open game"}
           </SFButton>
         </KickoffPulseWrapper>
       </div>

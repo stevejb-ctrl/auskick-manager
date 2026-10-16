@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -37,7 +38,14 @@ export async function createGame(
     round_number: number | null;
     notes: string | null;
     on_field_size?: number;
-  }
+  },
+  /**
+   * What happens after the insert. "open-game" (default) redirects to
+   * the new game's detail page. "stay" returns success so the caller
+   * keeps the coach where they are — the setup wizard uses it so a new
+   * coach isn't dropped onto game detail mid-onboarding (UX plan C2).
+   */
+  afterCreate: "open-game" | "stay" = "open-game",
 ): Promise<ActionResult & { gameId?: string }> {
   const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
@@ -59,6 +67,12 @@ export async function createGame(
   // `createTeam` (dashboard/actions.ts) and `submitFeedback`
   // (feedback/actions.ts). See 0002_games_availability.sql for
   // the historical comment that flagged this.
+  const { data: team } = await supabase
+    .from("teams")
+    .select("sport, age_group, on_field_size")
+    .eq("id", teamId)
+    .single();
+  const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size);
   const gameId = crypto.randomUUID();
   const { error: insertError } = await supabase
     .from("games")
@@ -70,7 +84,8 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
-      on_field_size: input.on_field_size ?? 12,
+      on_field_size: input.on_field_size ?? defaults.on_field_size,
+      sub_interval_seconds: defaults.sub_interval_seconds,
       created_by: user.id,
     });
 
@@ -90,6 +105,10 @@ export async function createGame(
   });
 
   revalidatePath(`/teams/${teamId}/games`);
+  if (afterCreate === "stay") {
+    revalidatePath(`/teams/${teamId}/setup`);
+    return { success: true, gameId };
+  }
   redirect(`/teams/${teamId}/games/${gameId}`);
 }
 
@@ -115,8 +134,8 @@ export async function setTrackScoring(
 /**
  * Per-team override for quarter duration (in seconds). Pass `null` to
  * clear the override and fall back to the age-group default. The form
- * validates sane ranges (1–30 min); the DB column has no CHECK so a
- * coach who genuinely wants 30-second training quarters isn't blocked.
+ * validates sane ranges (1–60 min: union's U17–U18 halves run 35); the
+ * DB column has no CHECK.
  */
 export async function setQuarterLengthSeconds(
   teamId: string,
@@ -126,10 +145,10 @@ export async function setQuarterLengthSeconds(
   if (error) return { success: false, error };
 
   if (seconds !== null) {
-    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 1800) {
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > PERIOD_MINUTES_MAX * 60) {
       return {
         success: false,
-        error: "Quarter length must be a whole number of minutes between 1 and 30.",
+        error: `Period length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`,
       };
     }
   }

@@ -26,6 +26,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -57,14 +58,19 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
 
     // Sign in via the email/password flow (testids per onboarding.spec.ts).
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // Brand defaults AFL on localhost per RESEARCH §3 / L9 — clicking the AFL
@@ -86,9 +92,9 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
-    // L4 — track_scoring stays false (the wizard does NOT auto-flip based on
-    // the age-group hint; the column ships NOT NULL DEFAULT false from
-    // 0003_live_game.sql and remains false until the coach toggles).
+    // track_scoring follows the age-group default the wizard displays
+    // (UX plan C4 replaced the old L4 "never auto-flip" contract).
+    // AFL U10 keeps no score, so it starts false.
     await expect.poll(
       async () => {
         const { data } = await admin
@@ -101,10 +107,10 @@ test("AFL setup wizard creates team with sport='afl' and default track_scoring",
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     ).toMatchObject({ sport: "afl", track_scoring: false });
 
-    // L7 negative-presence — QuarterLengthInput renders only for netball teams.
-    // Confirms the sport === 'netball' conditional-render gate is respected for AFL.
+    // The Team tab shows the period length for every sport (UX plan 2.3:
+    // AFL and league honour the override too; it used to be netball-only).
     await page.goto(`/teams/${teamId}/settings`);
-    await expect(page.getByLabel(/quarter length/i)).not.toBeVisible();
+    await expect(page.getByLabel(/quarter length/i)).toBeVisible();
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();
@@ -137,14 +143,19 @@ test("netball setup wizard creates team with sport='netball' and netball-default
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // L9 — brand defaults AFL on localhost; the netball case MUST click the
@@ -168,9 +179,9 @@ test("netball setup wizard creates team with sport='netball' and netball-default
     expect(teamUrlMatch).not.toBeNull();
     const teamId = teamUrlMatch![1];
 
-    // Assert sport persisted as 'netball'. track_scoring stays false per L4
-    // (the wizard does NOT auto-flip for netball either — the ScoringStep shows
-    // the age-group default as a hint in the UI but doesn't write to the column).
+    // Assert sport persisted as 'netball'. track_scoring follows the
+    // age-group default the wizard displays (UX plan C4): NetSetGO Go
+    // keeps a scoreboard, so it starts true.
     await expect.poll(
       async () => {
         const { data } = await admin
@@ -181,7 +192,7 @@ test("netball setup wizard creates team with sport='netball' and netball-default
         return data;
       },
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
-    ).toMatchObject({ sport: "netball", track_scoring: false });
+    ).toMatchObject({ sport: "netball", track_scoring: true });
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();
@@ -212,6 +223,7 @@ test("team settings round-trips quarter_length_seconds for a netball team", asyn
 
   try {
     await page.goto(`/teams/${team.id}/settings`);
+    await waitForHydration(page);
 
     // QuarterLengthInput renders as a <div> wrapper (not <section>
     // like TeamNameSettings), and its label is unique on the settings
@@ -283,14 +295,19 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     // Localhost defaults to the AFL brand (per RESEARCH §3 / L9), so
@@ -347,11 +364,12 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
   }
 });
 
-test("rugby league supports the full U6-U12 age range", async ({
+test("rugby league supports the full U6-U17 age range", async ({
   browser,
 }) => {
   // Junior RL splits into three game models by age (U6/U7 tag, U8/U9
-  // quarters with FR/DH vests at U9, U10-U12 halves). The wizard must
+  // quarters with FR/DH vests at U9, U10-U12 halves), and U13-U17
+  // play international laws. The wizard must
   // expose every option from the SportConfig.ageGroups list once
   // Rugby League is selected. Pre-migration, the CHECK on teams.sport
   // would reject the insert; pre-config, the select would be empty.
@@ -373,26 +391,126 @@ test("rugby league supports the full U6-U12 age range", async ({
     expect(userId).not.toBeNull();
 
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(email);
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+    await waitForHydration(page);
     if (!page.url().includes("/teams/new")) {
-      await page.goto("/teams/new");
+      await gotoStable(page, "/teams/new");
+      // Typing before hydration leaves React's name empty (WebKit):
+      // the field shows it, but Continue stays disabled.
+      await waitForHydration(page);
     }
 
     await page.getByRole("button", { name: "Rugby League" }).click();
 
-    // The Age group <select> should expose all 7 RL age groups once
+    // The Age group <select> should expose all 12 RL age groups once
     // the Rugby League pill is active. Read the option values directly.
     const ageSelect = page.getByLabel(/age group/i);
     const values = await ageSelect.evaluate((el) =>
       Array.from((el as HTMLSelectElement).options).map((o) => o.value),
     );
-    expect(values).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12"]);
+    expect(values).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17"]);
   } finally {
     if (userId) await deleteTestUser(admin, userId);
     await context.close();
+  }
+});
+
+// A team's sport never changes (cross-sport audit, 14 Oct 2026): its
+// games, events and How we play are that sport's, so the database
+// refuses a change (migration 0060) and the team keeps playing its own
+// sport.
+test("a team's sport can't be changed after it's created", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+
+  const { error } = await admin.from("teams").update({ sport: "afl", age_group: "U10" }).eq("id", team.id);
+  expect(error?.message).toMatch(/sport can't change/i);
+
+  // A change that leaves the sport alone still saves.
+  const { error: renameError } = await admin.from("teams").update({ name: `${team.name} renamed` }).eq("id", team.id);
+  expect(renameError).toBeNull();
+
+  await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
+  await expect(page.getByText(/^track goals$/i)).toBeVisible();
+});
+
+// Rugby union (rugby union plan, phases 2 and 5): a fourth sport pill,
+// U6 to U18, the national pathway's size and halves by default, and no
+// score kept by default before U12. teams.sport takes it from 0066.
+async function wizardAs(browser: import("@playwright/test").Browser, label: string) {
+  const context = await browser.newContext({ storageState: undefined });
+  const page = await context.newPage();
+  const admin = createAdminClient();
+  const email = `wizard-${label}-${Date.now()}@siren.test`;
+  const password = "wizard-test-pw-1234";
+  const { data: created, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  if (error) throw error;
+  const userId = created.user!.id;
+
+  await page.goto("/login");
+  await waitForHydration(page);
+  await page.getByTestId("login-mode-toggle").click();
+  await page.getByTestId("login-email").fill(email);
+  await page.getByTestId("login-password").fill(password);
+  await page.getByTestId("login-submit").click();
+  await page.waitForURL(/\/(dashboard|teams\/new)/, { timeout: 15_000 });
+  await waitForHydration(page);
+  if (!page.url().includes("/teams/new")) {
+    await gotoStable(page, "/teams/new");
+    await waitForHydration(page);
+  }
+  return {
+    page,
+    admin,
+    done: async () => {
+      await deleteTestUser(admin, userId);
+      await context.close();
+    },
+  };
+}
+
+test("rugby union setup wizard creates a team with sport='rugby_union' at the pathway's defaults", async ({
+  browser,
+}) => {
+  const { page, admin, done } = await wizardAs(browser, "rugby-union");
+  try {
+    await page.getByRole("button", { name: "Rugby Union" }).click();
+    const ageSelect = page.getByLabel(/age group/i);
+    const ages = await ageSelect.evaluate((el) =>
+      Array.from((el as HTMLSelectElement).options).map((o) => o.value),
+    );
+    expect(ages).toEqual(["U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18"]);
+
+    await page.getByLabel(/team name/i).fill(`Rams ${Date.now()}`);
+    await ageSelect.selectOption("U10");
+    // U10: 12 a side by default, 10 to 15 (Victoria 10, Brisbane 15), 20-minute halves.
+    const players = page.getByLabel("Players on the field");
+    await expect(players).toHaveValue("12");
+    await expect(players.locator("option")).toHaveText(["10", "11", "12", "13", "14", "15"]);
+    await expect(page.getByLabel(/half length/i)).toHaveValue("20");
+    await page.getByRole("button", { name: /continue/i }).click();
+    await page.waitForURL(/\/teams\/[0-9a-f-]+\/setup/, { timeout: 15_000 });
+    const teamId = page.url().match(/\/teams\/([0-9a-f-]+)/)![1];
+
+    await expect.poll(
+      async () =>
+        (await admin.from("teams").select("sport, age_group, track_scoring, on_field_size").eq("id", teamId).single()).data,
+      { timeout: 5_000 },
+    ).toEqual({ sport: "rugby_union", age_group: "U10", track_scoring: false, on_field_size: null });
+
+    // How we play: union's scoring copy, with its switch (scores are the
+    // competition's call before U12).
+    await expect(page.getByText(/pathway keeps no score before Under 12/)).toBeVisible();
+    await expect(page.getByText("Track points")).toBeVisible();
+  } finally {
+    await done();
   }
 });

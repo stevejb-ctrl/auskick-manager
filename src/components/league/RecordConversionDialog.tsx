@@ -23,8 +23,10 @@ import {
   conversionCycle,
   nextEligibleConversionKickers,
   totalConversionAttemptsByPlayer,
+  unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 interface RecordConversionDialogProps {
   auth: LiveAuth;
@@ -46,6 +48,16 @@ interface RecordConversionDialogProps {
    * each conversion attempt with its try.
    */
   tryEventId?: string;
+  /**
+   * Opened by a try just recorded. `events` are server props and may
+   * not hold that try until the refresh lands, so trust the caller.
+   */
+  afterTry?: boolean;
+  /**
+   * The junior goal-kick rotation (§15). Off under international laws
+   * (U13+): any on-field player may kick, and there's no Force.
+   */
+  rotation?: boolean;
 }
 
 export function RecordConversionDialog({
@@ -58,6 +70,8 @@ export function RecordConversionDialog({
   elapsedMs,
   onClose,
   tryEventId,
+  afterTry = false,
+  rotation = true,
 }: RecordConversionDialogProps) {
   const router = useRouter();
   const [pendingKickerId, setPendingKickerId] = useState<string | null>(null);
@@ -66,9 +80,14 @@ export function RecordConversionDialog({
 
   const cycle = conversionCycle(events, onFieldPlayerIds);
   const eligible = new Set(
-    nextEligibleConversionKickers(events, onFieldPlayerIds),
+    rotation ? nextEligibleConversionKickers(events, onFieldPlayerIds) : onFieldPlayerIds,
   );
   const totalAttempts = totalConversionAttemptsByPlayer(events);
+  // A kick converts a try (Stagehand round 2: a game held a conversion
+  // and no try). With none waiting, only Force (the extra kick) can
+  // record one. The server checks the same rule.
+  const waitingTries = unconvertedTryIds(events);
+  const hasTryToConvert = afterTry || waitingTries.length > 0;
   const neverKickedOnField = onFieldPlayerIds.filter(
     (id) => (totalAttempts[id] ?? 0) === 0,
   );
@@ -87,10 +106,12 @@ export function RecordConversionDialog({
   //      cycle).
   //   3. Otherwise → no banner.
   const showFreshBanner
-    = neverKickedOnField.length > 0
+    = rotation
+    && neverKickedOnField.length > 0
     && events.some((e) => e.type === "conversion_attempt");
   const showResetBanner
-    = !showFreshBanner
+    = rotation
+    && !showFreshBanner
     && cycle.attempted.size === 0
     && onFieldPlayerIds.length > 0
     && events.some((e) => e.type === "conversion_attempt");
@@ -105,34 +126,23 @@ export function RecordConversionDialog({
       made,
       quarter,
       elapsedMs,
-      { force, tryEventId },
+      { force, tryEventId: tryEventId ?? waitingTries[0] },
     ]);
-    await flushed;
+    try {
+      await flushed;
+    } catch (e) {
+      // Refused under a rule (no try, already kicked): say why.
+      setPendingKickerId(null);
+      setError(e instanceof Error ? e.message : "Couldn't record that kick.");
+      return;
+    }
     setPendingKickerId(null);
-    // The write queue swallows errors and retries. Surface a soft
-    // hint that the action is in flight — a true error would only
-    // show up if the queue's lastError gets surfaced; for Phase 5
-    // MVP we trust the queue to retry and close the dialog
-    // optimistically.
     router.refresh();
     onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-      {/*
-       * max-h caps the panel so it can never extend behind the
-       * LiveTopBar on mobile. LiveTopBar = env(safe-area-inset-top)
-       * + 44px content row. The player list is flex-1 overflow-y-auto
-       * so it scrolls inside the capped height while the header and
-       * force-toggle footer stay pinned. sm: override via sm:rounded-2xl
-       * / sm:max-h-[90dvh] keeps the centred desktop layout tidy.
-       */}
-      <div
-        role="dialog"
-        aria-label="Record conversion"
-        className="flex w-full max-w-md flex-col rounded-t-2xl bg-surface shadow-modal sm:rounded-2xl max-h-[calc(100dvh-env(safe-area-inset-top)-44px)] sm:max-h-[90dvh]"
-      >
+    <Modal size="md" placement="sheet" label="Record conversion" onClose={onClose} padding="p-0">
         {/* Header — pinned, never scrolls out of view */}
         <header className="flex flex-shrink-0 items-center justify-between px-4 pt-4 pb-3">
           <div>
@@ -140,7 +150,7 @@ export function RecordConversionDialog({
               Record conversion
             </h2>
             <p className="text-xs text-ink-mute">
-              Pick the kicker — laws §15 rotation enforced.
+              {rotation ? "Pick the kicker — laws §15 rotation enforced." : "Pick the kicker."}
             </p>
           </div>
           <button
@@ -155,6 +165,13 @@ export function RecordConversionDialog({
         {/* Alerts + scrollable player list */}
         <div className="flex-1 overflow-y-auto px-4">
           {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+          {!hasTryToConvert && (
+            <InlineAlert kind="warn">
+              {rotation
+                ? "No try to convert. Record the try first. Force is only for the extra kick when the try-scorer was fouled."
+                : "No try to convert. Record the try first. A kick from a penalty is a penalty goal."}
+            </InlineAlert>
+          )}
           {showFreshBanner && (
             <InlineAlert kind="warn">
               {neverKickedOnField.length === 1
@@ -171,7 +188,7 @@ export function RecordConversionDialog({
 
           <div className="mt-2 space-y-1.5 pb-1">
             {onFieldPlayers.map((p) => {
-              const canPick = force || eligible.has(p.id);
+              const canPick = force || (hasTryToConvert && eligible.has(p.id));
               const alreadyKickedInCycle = cycle.attempted.has(p.id);
               const totalAttemptsForPlayer = totalAttempts[p.id] ?? 0;
               const everKicked = totalAttemptsForPlayer > 0;
@@ -183,7 +200,9 @@ export function RecordConversionDialog({
               //     but a never-kicker on field jumps the queue, so
               //     this player isn't eligible right now.
               //   * Nothing — they're an eligible pick.
-              const statusLabel = !canPick && alreadyKickedInCycle
+              const statusLabel = !hasTryToConvert
+                ? null
+                : !canPick && alreadyKickedInCycle
                 ? "Already kicked this cycle"
                 : !canPick && everKicked
                   ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`
@@ -237,7 +256,10 @@ export function RecordConversionDialog({
           </div>
         </div>
 
-        {/* Force-toggle footer — pinned, never scrolls out of view */}
+        {/* Force-toggle footer — pinned, never scrolls out of view.
+            Junior laws only: international laws have no rotation, and a
+            kick from a penalty is a penalty goal. */}
+        {rotation && (
         <div className="flex-shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-0">
           <label className="mt-3 flex items-center gap-2 rounded-md bg-surface-alt px-3 py-2 text-xs text-ink-dim">
             <input
@@ -252,7 +274,8 @@ export function RecordConversionDialog({
             </span>
           </label>
         </div>
-      </div>
-    </div>
+        )}
+        {!rotation && <div className="pb-[calc(1rem+env(safe-area-inset-bottom))]" />}
+      </Modal>
   );
 }

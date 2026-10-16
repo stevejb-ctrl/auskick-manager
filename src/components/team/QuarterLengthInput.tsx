@@ -1,10 +1,10 @@
 "use client";
 
 // ─── Quarter Length Input ────────────────────────────────────
-// Small editable card for a coach to override their team's quarter
-// duration. Shown for netball teams in both the setup wizard's
-// "How we play" step and the team settings page. Empty = use the
-// age-group default; any positive integer (1–30 min) overrides.
+// Small editable card for a coach to override their team's period
+// (quarter or half) length, on team settings for every sport (the
+// setup wizard sets it on its Basics step). The age-group default =
+// no override; any whole number of minutes (1–60) overrides.
 //
 // Persists via setQuarterLengthSeconds server action. The input is
 // in MINUTES because that's what coaches think in; the action
@@ -12,9 +12,11 @@
 
 import { useState, useTransition } from "react";
 import { setQuarterLengthSeconds } from "@/app/(app)/teams/[teamId]/games/actions";
+import { PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Props {
   teamId: string;
@@ -24,6 +26,8 @@ interface Props {
   initialOverrideSeconds: number | null;
   /** Whether the current user can edit (admins only typically). */
   isAdmin?: boolean;
+  /** "Half" for sports that play halves (rugby league U10+). */
+  periodWord?: "Quarter" | "Half";
 }
 
 export function QuarterLengthInput({
@@ -31,6 +35,7 @@ export function QuarterLengthInput({
   ageGroupDefaultSeconds,
   initialOverrideSeconds,
   isAdmin = true,
+  periodWord = "Quarter",
 }: Props) {
   const initialMinutes =
     (initialOverrideSeconds ?? ageGroupDefaultSeconds) / 60;
@@ -47,8 +52,8 @@ export function QuarterLengthInput({
     if (!isAdmin) return;
     setError(null);
     const next = parseInt(minutes, 10);
-    if (!Number.isInteger(next) || next < 1 || next > 30) {
-      setError("Quarter length must be a whole number between 1 and 30.");
+    if (!Number.isInteger(next) || next < 1 || next > PERIOD_MINUTES_MAX) {
+      setError(`${periodWord} length must be a whole number between 1 and ${PERIOD_MINUTES_MAX}.`);
       return;
     }
     const overrideSeconds = next === ageGroupMinutes ? null : next * 60;
@@ -75,13 +80,13 @@ export function QuarterLengthInput({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[10rem]">
           <Label htmlFor={`quarter-length-${teamId}`}>
-            Quarter length (minutes)
+            {periodWord} length (minutes)
           </Label>
           <Input
             id={`quarter-length-${teamId}`}
             type="number"
             min={1}
-            max={30}
+            max={PERIOD_MINUTES_MAX}
             step={1}
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
@@ -119,12 +124,9 @@ export function QuarterLengthInput({
         )}
       </div>
       {error && (
-        <p
-          className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-2">
           {error}
-        </p>
+        </InlineAlert>
       )}
     </div>
   );

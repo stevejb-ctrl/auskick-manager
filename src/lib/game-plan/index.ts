@@ -2,6 +2,7 @@
 export * from "./types";
 export { projectGamePlan } from "./project";
 export { formatGamePlan, type FormatGamePlanOptions } from "./format";
+export { periodPositionLabels } from "./positions";
 export { swapPlayersInPeriod, clearPeriodToBench, setPeriodGroups } from "./edit";
 export { availablePlayersForPlan } from "./availableForPlan";
 export {
@@ -9,6 +10,11 @@ export {
   resolveHonouredSwaps,
   diffPlanToSwaps,
   seedNextPeriodLineup,
+  withPinnedPeriods,
+  hasPinnedPeriod,
+  consumePeriodPin,
+  withoutSubPin,
+  pinLaterPeriods,
   eligibleOnReplacements,
   eligibleOffReplacements,
   applyInlineSwapOverride,

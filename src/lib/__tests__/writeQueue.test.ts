@@ -16,8 +16,11 @@
 // !== "undefined".
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   clearActionHandlers,
+  laneOf,
   registerActionHandler,
   useWriteQueue,
   type ActionResult,
@@ -145,6 +148,139 @@ describe("writeQueue", () => {
   });
 
   // ─── Phase 4b: per-kind lane semantics ───────────────────────
+
+  it("a score and its undo share a lane, so the undo never overtakes the score", async () => {
+    // Stagehand round 2: a netball undo ran before its goal was saved,
+    // found nothing to take back, and paused its lane.
+    const calls: string[] = [];
+    let goalResolve!: () => void;
+    const goalGate = new Promise<void>((r) => (goalResolve = r));
+    registerActionHandler("recordNetballGoal", async (): Promise<ActionResult> => {
+      calls.push("goal-start");
+      await goalGate;
+      calls.push("goal-end");
+      return { success: true };
+    });
+    registerActionHandler("undoNetballScore", async (): Promise<ActionResult> => {
+      calls.push("undo");
+      return { success: true };
+    });
+
+    useWriteQueue.getState().enqueue("recordNetballGoal", []);
+    useWriteQueue.getState().enqueue("undoNetballScore", []);
+    await flushMicrotasks();
+    expect(calls).toEqual(["goal-start"]);
+
+    goalResolve();
+    await flushMicrotasks();
+    expect(calls).toEqual(["goal-start", "goal-end", "undo"]);
+  });
+
+  it("a game's sideline actions keep their order: an injury and its swap, then the hooter", async () => {
+    // Sideline combos: each kind had its own lane, so the replacement
+    // swap could overtake its injury, or a swap land after the hooter,
+    // and the replay showed a different game. One game lane now.
+    const calls: string[] = [];
+    let injuryResolve!: () => void;
+    const injuryGate = new Promise<void>((r) => (injuryResolve = r));
+    registerActionHandler("markInjury", async (): Promise<ActionResult> => {
+      calls.push("injury-start");
+      await injuryGate;
+      calls.push("injury-end");
+      return { success: true };
+    });
+    for (const kind of ["recordSwap", "endQuarter", "recordGoal"]) {
+      registerActionHandler(kind, async (): Promise<ActionResult> => {
+        calls.push(kind);
+        return { success: true };
+      });
+    }
+    registerActionHandler("setAvailability", async (): Promise<ActionResult> => {
+      calls.push("availability");
+      return { success: true };
+    });
+
+    for (const kind of ["markInjury", "recordSwap", "recordGoal", "endQuarter", "setAvailability"]) {
+      useWriteQueue.getState().enqueue(kind, []);
+    }
+    await flushMicrotasks();
+    // Availability isn't part of the game: it doesn't wait.
+    expect(calls).toEqual(["injury-start", "availability"]);
+
+    injuryResolve();
+    await flushMicrotasks();
+    expect(calls).toEqual(["injury-start", "availability", "injury-end", "recordSwap", "recordGoal", "endQuarter"]);
+  });
+
+  it("a lane paused by a passing failure retries on its own after a backoff", async () => {
+    // With one game lane, a single server hiccup used to hold every later
+    // sideline action until the phone went offline and back, or reloaded.
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      registerActionHandler("recordSwap", async (): Promise<ActionResult> => {
+        attempts++;
+        return attempts === 1 ? { success: false, error: "blip" } : { success: true };
+      });
+      const calls: string[] = [];
+      registerActionHandler("recordGoal", async (): Promise<ActionResult> => {
+        calls.push("goal");
+        return { success: true };
+      });
+      useWriteQueue.getState().enqueue("recordSwap", []);
+      useWriteQueue.getState().enqueue("recordGoal", []);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toBe(1);
+      expect(calls).toEqual([]); // held behind the paused swap, in order
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(attempts).toBe(2);
+      expect(calls).toEqual(["goal"]);
+      expect(useWriteQueue.getState().queue).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("every registered live-game action is on the game lane (availability isn't)", () => {
+    // Guard: a new action left off GAME_LANE would race the rest again.
+    const src = readFileSync(join(process.cwd(), "src/lib/live/registerLiveActions.ts"), "utf8");
+    const block = src.slice(src.indexOf("const actions = {"), src.indexOf("};", src.indexOf("const actions = {")));
+    const kinds = Array.from(block.matchAll(/^\s+([a-zA-Z]+),\s*$/gm)).map((m) => m[1]);
+    expect(kinds.length).toBeGreaterThan(20);
+    for (const kind of kinds) {
+      expect(laneOf(kind), kind).toBe(kind.startsWith("setAvailability") ? "setAvailability" : "game");
+    }
+    // "Mark all in" is one bulk write now (it was one per kid, 12 round
+    // trips, round 5); it shares the per-row lane so a row tap and the
+    // bulk write land in the order the coach made them.
+    expect(kinds).toContain("setAvailabilityMany");
+    expect(laneOf("setAvailabilityMany")).toBe(laneOf("setAvailability"));
+  });
+
+  it("a rule rejection drops its op at once and doesn't hold up the lane", async () => {
+    // A conversion with no try is refused under a game rule. Retrying
+    // can't help, and pausing would stall every score queued behind it
+    // (scores share a lane), so the op is dropped and its caller told.
+    const calls: string[] = [];
+    registerActionHandler("recordConversionAttempt", async (): Promise<ActionResult> => {
+      calls.push("kick");
+      return { success: false, error: "There's no try to convert.", rejected: true };
+    });
+    registerActionHandler("recordTry", async (): Promise<ActionResult> => {
+      calls.push("try");
+      return { success: true };
+    });
+
+    const kick = useWriteQueue.getState().enqueue("recordConversionAttempt", []);
+    const kickOutcome = kick.flushed.then(() => "flushed", (e: Error) => e.message);
+    useWriteQueue.getState().enqueue("recordTry", []);
+    await flushMicrotasks();
+
+    expect(calls).toEqual(["kick", "try"]);
+    expect(await kickOutcome).toBe("There's no try to convert.");
+    expect(useWriteQueue.getState().queue).toEqual([]);
+    expect(useWriteQueue.getState().pausedKinds).toEqual([]);
+  });
 
   it("runs ops of DIFFERENT kinds in parallel (lane independence)", async () => {
     // Old behaviour serialized everything — a slow score-goal would

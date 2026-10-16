@@ -17,11 +17,15 @@
 
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
-import { playerMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { leagueScoreLine, playerMsOnField, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import type { RugbySport } from "@/lib/sports/registry";
 import type { GameEvent, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
+import { DIDNT_GET_ON, didntGetOn, presentPlayerIds } from "@/lib/live/presentPlayers";
 
 interface LeagueGameSummaryCardProps {
+  /** The team's rugby sport: its goal names and points. */
+  sport: RugbySport;
   state: LeagueGameState;
   events: GameEvent[];
   squad: Player[];
@@ -42,6 +46,7 @@ function fmtMs(ms: number): string {
 }
 
 function buildSummary(
+  sport: RugbySport,
   teamName: string,
   opponentName: string,
   trackScoring: boolean,
@@ -51,6 +56,8 @@ function buildSummary(
   finalisedElapsedMs: number,
 ): string {
   const lines: string[] = [];
+  const words = rugbyScoreWords(sport);
+  const points = rugbyPoints(sport);
   const playersById = new Map(squad.map((p) => [p.id, p]));
   const firstName = (full: string) => full.split(" ")[0];
 
@@ -59,10 +66,8 @@ function buildSummary(
   if (trackScoring) {
     const us = state.teamScore.points;
     const them = state.opponentScore.points;
-    const usFmt
-      = `${us} (${state.teamScore.tries}T · ${state.teamScore.conversions}C)`;
-    const themFmt
-      = `${them} (${state.opponentScore.tries}T · ${state.opponentScore.conversions}C)`;
+    const usFmt = `${us} (${leagueScoreLine(state.teamScore, words)})`;
+    const themFmt = `${them} (${leagueScoreLine(state.opponentScore, words)})`;
     if (us > them) {
       lines.push(`${teamName} ${usFmt} def ${opponentName} ${themFmt}`);
     } else if (them > us) {
@@ -102,6 +107,26 @@ function buildSummary(
     if (kickers.length > 0) {
       lines.push(`🥾 Conversions: ${kickers.join(", ")}`);
     }
+
+    // Penalty and field (drop) goals, by kicker, most points first.
+    const goalPoints = (g: { penalty: number; field: number }) => g.penalty * points.penaltyGoal + g.field * points.fieldGoal;
+    const goalKickers = Object.entries(state.playerGoals ?? {})
+      .filter(([, g]) => g.penalty + g.field > 0)
+      .sort((a, b) => goalPoints(b[1]) - goalPoints(a[1]))
+      .map(([id, g]) => {
+        const p = playersById.get(id);
+        const name = p ? firstName(p.full_name) : "Unknown";
+        const jersey
+          = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
+        const bits = [
+          g.penalty > 0 ? `${g.penalty} ${words.penaltyGoal.short}` : null,
+          g.field > 0 ? `${g.field} ${words.fieldGoal.short}` : null,
+        ].filter(Boolean);
+        return `${name}${jersey} ${bits.join(", ")}`;
+      });
+    if (goalKickers.length > 0) {
+      lines.push(`🎯 Goals: ${goalKickers.join(", ")}`);
+    }
   }
 
   // Game-time block — totals per player. Walks the event log via the
@@ -125,6 +150,16 @@ function buildSummary(
       return `${jersey}${name} — ${fmtMs(ms)}`;
     });
 
+  // Kids who were there but never got on stay in the list (Stagehand
+  // round 3: the one How we played flagged was missing).
+  const played = Object.entries(totalMs).filter(([, ms]) => ms >= 1000).map(([id]) => id);
+  for (const id of didntGetOn(presentPlayerIds(events), played)) {
+    const p = playersById.get(id);
+    if (!p) continue;
+    const jersey = p.jersey_number != null ? `#${p.jersey_number} ` : "";
+    playerRows.push(`${jersey}${firstName(p.full_name)} — ${DIDNT_GET_ON}`);
+  }
+
   if (playerRows.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const row of playerRows) lines.push(row);
@@ -134,6 +169,7 @@ function buildSummary(
 }
 
 export function LeagueGameSummaryCard({
+  sport,
   state,
   events,
   squad,
@@ -144,6 +180,7 @@ export function LeagueGameSummaryCard({
   showArrivalPulse = false,
 }: LeagueGameSummaryCardProps) {
   const summary = buildSummary(
+    sport,
     teamName,
     opponentName,
     trackScoring,

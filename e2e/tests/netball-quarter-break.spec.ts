@@ -111,7 +111,7 @@ async function setupQ1AutoEnded(opts: {
     count: 9,
     ageGroup: "U10",
   });
-  const game = await makeGame(admin, { teamId: team.id, ownerId, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   // Seed game_availability rows for ALL 9 players. The suggester reads
   // availableIds (NetballLiveGame.tsx:735-744) which sources from
@@ -212,7 +212,7 @@ async function enterQBreakView(
   // "Ready for Q2" — matches the StartQuarterModal heading "Ready for
   // Q2" while staying distinct from its CTA "Start Q2".
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 10_000 });
 }
 
@@ -233,7 +233,7 @@ async function enterQBreakView(
 // the old copy. Anchored with `^` so it doesn't accidentally match
 // the longer "Suggested rotation" string if it ever reappears in
 // surrounding copy.
-const ROTATION_TOGGLE = /^(?:✓\s*)?Suggested$/i;
+const ROTATION_TOGGLE = /^Suggested$/i;
 
 // The rotation toggle now lives inside the collapsed "Game settings"
 // section in NetballQuarterBreak (Steve 2026-05-13: moved out of the
@@ -273,7 +273,7 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   // "Game settings" section — expand it first.
   await expandGameSettings(page);
   await expect(
-    page.getByRole("button", { name: ROTATION_TOGGLE }),
+    page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 
   // The PlayerTile renders the position shortLabel (GS / GA / WA /
@@ -325,15 +325,19 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   // sits inside the collapsed "Game settings" section now, so
   // expand before asserting. Label was shortened from "Suggested
   // rotation" to "Suggested" when the three-mode pill row landed.
+  // The toggle is now the shared 44 pt SegmentedControl (UX plan
+  // Phase 6): "Suggested" is the checked radio.
   await expandGameSettings(page);
-  await expect(
-    page.getByRole("button", { name: /^✓\s*Suggested$/i }),
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("radio", { name: /^Suggested$/i })).toHaveAttribute(
+    "aria-checked",
+    "true",
+    { timeout: 5_000 },
+  );
 
   // Time-in-zone colour key (Steve 2026-06-29): the per-player time-
   // by-third bars encode the third by colour alone, so a shared legend
   // must render once with the Attack/Centre/Defence labels.
-  const legend = page.locator('[aria-label="Time-in-zone colour key"]');
+  const legend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(legend).toBeVisible();
   await expect(legend).toContainText("Attack");
   await expect(legend).toContainText("Centre");
@@ -380,11 +384,11 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   //   2. Modal "Start Q2" — writes quarter_start.
   // Splitting the flow gives the GM control of the clock-start
   // moment — the umpire's whistle, not the lineup tap.
-  await page.getByRole("button", { name: /^ready for q2$/i }).click();
-  await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /^start q2$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /^start q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Rule-1 fix from the plan source: periodBreakSwap is called with
   // `nextQuarter` (= 2), and netball-actions.ts:160-167 writes
@@ -475,7 +479,6 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   const game = await makeGame(admin, {
     teamId: KOTARA_KOALAS_TEAM_ID,
     ownerId,
-    ageGroup: "U10",
     opponent: `NB-QB-Kotara-${Date.now()}`,
   });
 
@@ -529,6 +532,93 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   // first so the canary button is in the DOM.
   await expandGameSettings(page);
   await expect(
-    page.getByRole("button", { name: ROTATION_TOGGLE }),
+    page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
+});
+
+// UX plan 1.7 / H4: the netball break listed the next lineup in cards
+// per third while live play showed the court. The break now draws the
+// same court — every bib is a court token with a STAYS / "GA → WA"
+// caption for where the player goes next.
+test("the netball break draws the court with where-next captions", async ({ page }) => {
+  const { team, game, admin } = await setupQ1AutoEnded({});
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  for (const position of [
+    "Goal Shooter",
+    "Goal Attack",
+    "Wing Attack",
+    "Centre",
+    "Wing Defence",
+    "Goal Defence",
+    "Goal Keeper",
+  ]) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(`^${position}, `) }),
+    ).toBeVisible({ timeout: 5_000 });
+  }
+  // At least one court token carries a where-next caption.
+  await expect(page.getByText(/^(stays|bench → \w+|\w+ → \w+)$/i).first()).toBeVisible();
+});
+
+// How we play (UX plan 5.2): a Position cycle team's break moves
+// everyone along GS → GA → … → GK → bench → GS by the bench size.
+test("Position cycle: the break moves everyone along the cycle", async ({ page }) => {
+  const { team, game, admin, players } = await setupQ1AutoEnded({});
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "position-cycle" });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await expect(page.getByRole("heading", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  // Q1: players 0–6 at GS…GK, 7 and 8 on the bench. Two steps along:
+  // 7 and 8 come on at GS and GA, everyone moves up two, 5 and 6 sit.
+  const ids = players.map((p) => p.id);
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("metadata")
+        .eq("game_id", game.id)
+        .eq("type", "period_break_swap");
+      const lineup = (data?.[0]?.metadata as { lineup?: { positions: Record<string, string[]>; bench: string[] } })?.lineup;
+      return lineup ? NETBALL_LINEUP_KEYS.map((k) => lineup.positions[k]?.[0]) : null;
+    }, { timeout: 10_000 })
+    .toEqual([ids[7], ids[8], ids[0], ids[1], ids[2], ids[3], ids[4]]);
+});
+
+test("the netball break shows the rule check and why kids move", async ({ page }) => {
+  const { team, game, admin, players } = await setupQ1AutoEnded({});
+  await admin.from("team_playbooks").insert({
+    team_id: team.id,
+    strategy: "position-cycle",
+    rules: [{ id: "r1", kind: "max-bench-in-row", params: { count: 2 }, strength: "must", enabled: true }],
+  });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  const check = page.getByTestId("rule-check");
+  await expect(check).toBeVisible();
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
+  await check.getByRole("button").first().click();
+  await expect(check).toContainText("Nobody sits out twice in a row");
+  await expect(page.getByRole("list", { name: "Why these moves" })).toContainText("Everyone moves along the cycle");
+
+  // Round 5 (sideline-chaos-netball, rushed-coach, chaotic-substitution):
+  // a kid lent at the break left a position empty while the check still
+  // said "All rules kept". The empty position leads the check now.
+  // Q1's GS moves along to WA for Q2: lend her.
+  await expandGameSettings(page);
+  await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
+  await page
+    .getByRole("dialog", { name: /lend/i })
+    .getByRole("button", { name: new RegExp(players[0].full_name, "i") })
+    .click();
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("1 position is empty");
 });

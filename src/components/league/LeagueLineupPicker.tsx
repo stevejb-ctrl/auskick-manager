@@ -55,7 +55,6 @@ import {
   suggestLeagueLineup,
   suggestVestRotation,
 } from "@/lib/sports/rugby_league/fairness";
-import { chipZone } from "@/lib/sports/rugby_league/positions";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type {
   GameEvent,
@@ -67,6 +66,15 @@ import type {
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
+import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
+import { periodLabels, type RugbySport } from "@/lib/sports";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -91,6 +99,8 @@ function suggestedSubMinutes(
 
 interface LeagueLineupPickerProps {
   auth: LiveAuth;
+  /** The team's rugby sport: its words for the period. */
+  sport: RugbySport;
   gameId: string;
   players: Player[];
   ageGroup: AgeGroupConfig;
@@ -98,14 +108,26 @@ interface LeagueLineupPickerProps {
   minOnFieldSize: number;
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
-  backHref?: string | null;
+  availabilityHref?: string | null;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. Built by the server page (which
-   * has team name / opponent / season events) and threaded down so
-   * the planner sits in the same spot across all three sports.
+   * Junior League §6 (unbroken periods) is opt-in per team / game
+   * (enforce_unbroken_periods). When off, the suggester and the sub
+   * interval ignore the age group's minUnbrokenPeriods (UX plan H7 —
+   * the flag used to be stored but never read here).
    */
-  gamePlanButton?: import("react").ReactNode;
+  enforceUnbrokenPeriods?: boolean;
+  /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
+  /**
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use this plan" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
+   */
+  gamePlan?: GamePlanButtonProps;
   seasonEvents: GameEvent[];
   initialLoanedIds?: string[];
   chipLabels?: {
@@ -117,6 +139,13 @@ interface LeagueLineupPickerProps {
   chipModes?: Partial<
     Record<import("@/lib/chips").ChipKey, import("@/lib/chips").ChipMode>
   >;
+  /** How we play for the league suggester (UX plan 5.6). */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
+  /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   */
+  roleSheet?: RoleSheetConfig;
   /**
    * Default sub interval in MINUTES — the game's configured
    * `sub_interval_seconds` (defaulted to the age-group value at game
@@ -129,6 +158,7 @@ interface LeagueLineupPickerProps {
 
 export function LeagueLineupPicker({
   auth,
+  sport,
   gameId,
   players,
   ageGroup,
@@ -136,12 +166,17 @@ export function LeagueLineupPicker({
   minOnFieldSize,
   maxOnFieldSize,
   initialDraft,
-  backHref,
-  gamePlanButton,
+  availabilityHref,
+  enforceUnbrokenPeriods = false,
+  walkthroughOffer,
+  availabilityPanel,
+  gamePlan,
   seasonEvents,
   initialLoanedIds = [],
   chipLabels,
   chipModes,
+  leaguePlaybook,
+  roleSheet,
   defaultSubMinutes,
 }: LeagueLineupPickerProps) {
   const router = useRouter();
@@ -200,6 +235,9 @@ export function LeagueLineupPicker({
     () => seasonVestCountsByPlayer(seasonEvents),
     [seasonEvents],
   );
+  const requiredUnbroken = enforceUnbrokenPeriods
+    ? (ageGroup.minUnbrokenPeriods ?? 0)
+    : 0;
 
   // ── Initial suggestion ──────────────────────────────────────
   const initialSuggestion = useMemo(
@@ -207,10 +245,11 @@ export function LeagueLineupPicker({
       suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, defaultOnFieldSize),
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -261,8 +300,7 @@ export function LeagueLineupPicker({
   const gameMinutes
     = (ageGroup.periodSeconds * ageGroup.periodCount) / 60;
   const periodMinutes = ageGroup.periodSeconds / 60;
-  const unbrokenLockedMinutes
-    = (ageGroup.minUnbrokenPeriods ?? 0) * periodMinutes;
+  const unbrokenLockedMinutes = requiredUnbroken * periodMinutes;
   const benchCountForSuggest = Math.max(
     0,
     players.length - defaultOnFieldSize,
@@ -282,10 +320,7 @@ export function LeagueLineupPicker({
   const [subMinInput, setSubMinInput] = useState<string>(
     String(suggestedSubMin),
   );
-  const subIntervalSeconds = Math.round(
-    Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedSubMin))
-      * 60,
-  );
+  const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, suggestedSubMin) * 60);
 
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -364,6 +399,42 @@ export function LeagueLineupPicker({
   const [actionSheetPlayerId, setActionSheetPlayerId] = useState<string | null>(
     null,
   );
+  const playerRoles = useRoleSheet(
+    roleSheet,
+    auth.kind === "team" ? auth.teamId : null,
+    (pid) => playerById.get(pid)?.full_name,
+  );
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
+      // Plan what's on screen: this lineup's size and sub interval, not
+      // the game's stored ones (Stagehand round 2).
+      onFieldSize={onFieldSize}
+      subIntervalSeconds={subIntervalSeconds}
+      anchor={{ groups: { forwards: forwardIds, backs: backIds }, bench: benchIds }}
+      pinLabel="Use this plan"
+      onPin={(plan) => {
+        const first = plan.periods[0];
+        if (!first) return;
+        setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
+        setForwardIds([...(first.groups.find((g) => g.groupId === "forwards")?.playerIds ?? [])]);
+        setBackIds([...(first.groups.find((g) => g.groupId === "backs")?.playerIds ?? [])]);
+        setBenchIds([...first.bench]);
+      }}
+    />
+  ) : null;
 
   // Clear selection if the selected player gets benched / loaned
   // away by an upstream change.
@@ -384,9 +455,10 @@ export function LeagueLineupPicker({
     if (dhId === playerId) setDhId(null);
   }
   function moveToField(playerId: string, preferred?: LeagueZone) {
-    const player = playerById.get(playerId);
+    // A kid's home line (How we play) replaces the old chip zone.
+    const home = leaguePlaybook?.roles[playerId]?.home;
     const target: LeagueZone
-      = preferred ?? chipZone(player?.chip) ?? "forward";
+      = preferred ?? (home === "backs" ? "back" : home === "forwards" ? "forward" : null) ?? "forward";
     setBenchIds((prev) => prev.filter((id) => id !== playerId));
     if (target === "forward") {
       setForwardIds((prev) =>
@@ -648,10 +720,11 @@ export function LeagueLineupPicker({
       const r = suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize: onFieldSize,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, onFieldSize),
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       });
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);
@@ -674,10 +747,11 @@ export function LeagueLineupPicker({
       const r = suggestLeagueLineup({
         players: playersForLineup,
         defaultOnFieldSize: next,
-        forwardCount: ageGroup.forwardCount,
+        forwardCount: rugbyForwards(ageGroup, next),
         seasonEvents,
-        requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+        requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
+        playbook: leaguePlaybook,
       });
       setForwardIds(r.lineup.forwards);
       setBackIds(r.lineup.backs);
@@ -708,7 +782,7 @@ export function LeagueLineupPicker({
       onFieldIds: fieldIds,
       players: playersForLineup,
       seasonEvents,
-      requiredUnbrokenPeriods: ageGroup.minUnbrokenPeriods ?? 0,
+      requiredUnbrokenPeriods: requiredUnbroken,
       vestRequirements: reqs,
       periodCount: ageGroup.periodCount,
     });
@@ -748,7 +822,7 @@ export function LeagueLineupPicker({
     fieldIds,
     playersForLineup,
     seasonEvents,
-    ageGroup.minUnbrokenPeriods,
+    requiredUnbroken,
     ageGroup.periodCount,
     reqs,
     vestRequiredFr,
@@ -904,7 +978,8 @@ export function LeagueLineupPicker({
       const result = await startLeagueGame(
         auth,
         gameId,
-        lineup,
+        // Named positions: record each kid's slot (UX plan 5.7).
+        withLeagueSlots(lineup, leaguePlaybook),
         fieldIds.length,
         true,
         vestPlan,
@@ -927,7 +1002,7 @@ export function LeagueLineupPicker({
   const settingsSummary = (() => {
     const bits: string[] = [];
     bits.push(
-      lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+      lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
     bits.push(`${(subIntervalSeconds / 60).toFixed(1)} min subs`);
@@ -942,15 +1017,22 @@ export function LeagueLineupPicker({
   const actionIsOnField
     = actionSheetPlayerId !== null && zoneOf(actionSheetPlayerId) !== null;
   const actionZone = actionSheetPlayerId ? zoneOf(actionSheetPlayerId) : null;
-  const fwdLabel = chipLabels?.a || "Forwards";
-  const backLabel = chipLabels?.b || "Backs";
+  const fwdLabel = "Forwards";
+  const backLabel = "Backs";
 
   return (
-    <div ref={pickerRootRef} className="space-y-4 pb-32">
+    <div
+      ref={pickerRootRef}
+      role="region"
+      aria-label="Starting lineup"
+      className="space-y-4 pb-32"
+    >
       <LineupPickerBreadcrumb
-        backHref={backHref ?? undefined}
+        availabilityHref={availabilityHref ?? undefined}
         action={gamePlanButton}
       />
+      {availabilityPanel}
+      {walkthroughOffer}
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">
@@ -1057,17 +1139,24 @@ export function LeagueLineupPicker({
                 type="number"
                 inputMode="decimal"
                 step={0.5}
-                min={1}
-                max={10}
+                min={SUB_MINUTES_MIN}
+                max={SUB_MINUTES_MAX}
                 value={subMinInput}
                 onChange={(e) => setSubMinInput(e.target.value)}
+                // Show the minutes the game will use (1–10).
+                onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, suggestedSubMin)))}
                 className="w-32"
               />
               <p className="text-[11px] text-ink-mute">
-                Suggested: {suggestedSubMin.toFixed(1)} min (accounts for
-                {" "}
-                {ageGroup.minUnbrokenPeriods ?? 0} unbroken{" "}
-                {ageGroup.periodLabelPlural ?? "periods"} per player).
+                Suggested: {suggestedSubMin.toFixed(1)} min
+                {requiredUnbroken > 0 ? (
+                  <>
+                    {" "}(keeps {requiredUnbroken} unbroken{" "}
+                    {ageGroup.periodLabelPlural ?? "periods"} per player).
+                  </>
+                ) : (
+                  "."
+                )}
               </p>
             </div>
             <div className="space-y-1">
@@ -1093,7 +1182,7 @@ export function LeagueLineupPicker({
                       onClick={() => handleLendToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1103,7 +1192,7 @@ export function LeagueLineupPicker({
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player
@@ -1168,12 +1257,19 @@ export function LeagueLineupPicker({
         </div>
         <div className="p-3">
           <LeagueField
+            sport={sport}
+            forwardsBySize={ageGroup.forwardsBySize}
             players={fieldPlayers}
             forwardPlayers={forwardPlayers}
             backPlayers={backPlayers}
             onFieldSize={onFieldSize}
             vestRequirements={reqs}
             vestByPlayer={vestByPlayer}
+            positionLabels={assignLeaguePositionLabels(
+              { forwards: forwardIds, backs: backIds },
+              leaguePlaybook,
+            )}
+            keepOnIds={keepOnIds(playerRoles.roles)}
             selectedPlayerId={selectedPlayerId}
             chipModes={chipModes}
             onPlayerClick={handleTileTap}
@@ -1195,6 +1291,7 @@ export function LeagueLineupPicker({
       <LeagueBenchStrip
         players={benchPlayers}
         vestByPlayer={vestByPlayer}
+        keepOnIds={keepOnIds(playerRoles.roles)}
         selectedPlayerId={selectedPlayerId}
         chipModes={chipModes}
         onPlayerClick={handleTileTap}
@@ -1223,16 +1320,15 @@ export function LeagueLineupPicker({
               </h3>
               <p className="text-[11px] text-ink-mute">
                 Auto-picked from fairness — tap any pick to swap.
-                Once a player wears a vest in one half, they&rsquo;re
-                excluded from the other.
+                Once a player wears a vest, they don&rsquo;t wear one
+                again this game.
               </p>
             </div>
           </div>
           <ul className="divide-y divide-hairline">
             {Array.from({ length: ageGroup.periodCount }).map((_, periodIdx) => {
               const periodNum = periodIdx + 1;
-              const periodAbbrev
-                = ageGroup.periodLabel === "half" ? "H" : "Q";
+              const periodAbbrev = periodLabels(sport, ageGroup).label.charAt(0).toUpperCase();
               const frPickId = vestPlan.fr[periodIdx] ?? null;
               const dhPickId = vestPlan.dh[periodIdx] ?? null;
               return (
@@ -1358,7 +1454,7 @@ export function LeagueLineupPicker({
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
         confirmLabel={
-          ageGroup.periodLabel === "half" ? "Ready for H1" : "Ready for Q1"
+          `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
         }
         confirmDisabled={confirmDisabled}
         confirmLoading={isPending}
@@ -1375,8 +1471,6 @@ export function LeagueLineupPicker({
           seasonLoanMins={0}
           squadLoanMins={0}
           onUnlock={() => setActionSheetPlayerId(null)}
-          onToggleInjury={() => setActionSheetPlayerId(null)}
-          onToggleLoan={() => setActionSheetPlayerId(null)}
           onSwitch={handleActionSwitch}
           // "Move to {Forwards/Backs}" hidden from the long-press
           // menu (Steve 2026-05-19) — coaches handle forward/back
@@ -1388,10 +1482,19 @@ export function LeagueLineupPicker({
           isFr={frId === actionSheetPlayerId}
           isDh={dhId === actionSheetPlayerId}
           onToggleBench={handleActionToggleBench}
+          onEditRole={
+            playerRoles.open
+              ? () => {
+                  setActionSheetPlayerId(null);
+                  playerRoles.open?.(actionPlayer.id);
+                }
+              : undefined
+          }
           isOnField={actionIsOnField}
           onClose={() => setActionSheetPlayerId(null)}
         />
       )}
+      {playerRoles.sheet}
 
       {/* Two-step kickoff modal — mirrors AFL's LineupPicker. Opens
           on "Ready for Q1/H1", the modal's primary button is what
@@ -1400,12 +1503,7 @@ export function LeagueLineupPicker({
       {startModalOpen && (
         <StartQuarterModal
           quarter={1}
-          periodLabel={
-            (ageGroup.periodLabel ?? "quarter") as
-              | "quarter"
-              | "half"
-              | "period"
-          }
+          periodLabel={periodLabels(sport, ageGroup).label}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

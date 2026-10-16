@@ -46,11 +46,13 @@ async function handle(req: NextRequest) {
       superAdmin.id,
       "rugby_league",
     );
+    const unionResult = await seedDemoTeam(admin, superAdmin.id, "rugby_union");
     return NextResponse.json({
       ok: true,
       afl: aflResult,
       netball: netballResult,
       rugby_league: leagueResult,
+      rugby_union: unionResult,
     });
   } catch (e) {
     return NextResponse.json(
@@ -72,7 +74,7 @@ interface SeedResult {
   players?: number;
 }
 
-type SeedableSport = "afl" | "netball" | "rugby_league";
+type SeedableSport = "afl" | "netball" | "rugby_league" | "rugby_union";
 
 // Per-sport seed config. Centralised so adding a fourth sport (e.g.
 // Rugby Union when it launches) is one entry, not a new branch.
@@ -183,6 +185,37 @@ const SPORT_SEED: Record<
       { name: "Cooper Reid", jersey: 11 },
       { name: "Bodhi Webb", jersey: 12 },
       { name: "Archie Lee", jersey: 13 },
+    ],
+  },
+
+  // ─── Rugby Union ────────────────────────────────────────────
+  // U10 on the national pathway: 12 a side, 2 × 20-min halves,
+  // forwards and backs (no vests, no kick rotations, no unbroken
+  // rule). 15 players (= 12 + 3 bench). The F/B time bar is on to
+  // show forward and back equity. Names distinct from the other
+  // demos.
+  rugby_union: {
+    teamName: "Demo Union",
+    ageGroup: "U10",
+    settings: {
+      track_zone_time: true,
+    },
+    players: [
+      { name: "Hamish Grant", jersey: 1 },
+      { name: "Fraser Doyle", jersey: 2 },
+      { name: "Angus Byrne", jersey: 3 },
+      { name: "Lachie Moore", jersey: 4 },
+      { name: "Toby Quinn", jersey: 5 },
+      { name: "Reuben Hayes", jersey: 6 },
+      { name: "Ned Carroll", jersey: 7 },
+      { name: "Jasper Kelly", jersey: 8 },
+      { name: "Ollie Ryan", jersey: 9 },
+      { name: "Harry Nolan", jersey: 10 },
+      { name: "Xavier Price", jersey: 11 },
+      { name: "Will Foley", jersey: 12 },
+      { name: "Darcy Keane", jersey: 13 },
+      { name: "Ethan Burke", jersey: 14 },
+      { name: "Monty Shaw", jersey: 15 },
     ],
   },
 };

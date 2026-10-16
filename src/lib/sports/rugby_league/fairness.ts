@@ -28,18 +28,106 @@
 //   * Per-player time-on-field accumulation (out of scope — RL fairness
 //     is "unbroken periods", not minute-accuracy zone-minutes like AFL)
 
+import {
+  assignLeagueLines,
+  lastVestWearer,
+  leagueLineScores,
+  nextInOrder,
+  type LeaguePlaybookInput,
+} from "@/lib/sports/rugby_league/engine";
 import type { GameEvent, LeagueLineup, LeagueZone } from "@/lib/types";
 import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
+import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
+import type { ScoreTypeDef } from "@/lib/sports/types";
 import { chipZone } from "./positions";
+
+/**
+ * One side's rugby score. `points` = each score times the sport's
+ * points for it (RugbyPoints; league: tries × 4 + conversions × 2 +
+ * penalty goals × 2 + field goals × 1). League's penalty and field
+ * goals are U13+ (international laws) only.
+ */
+export interface LeagueScore {
+  tries: number;
+  conversions: number;
+  penaltyGoals: number;
+  fieldGoals: number;
+  points: number;
+}
+
+const emptyLeagueScore = (): LeagueScore => ({ tries: 0, conversions: 0, penaltyGoals: 0, fieldGoals: 0, points: 0 });
+
+/**
+ * Points per score for a rugby sport, from its own score types (league:
+ * try 4, conversion 2, penalty goal 2, field goal 1). The opposition
+ * scores the same (a test checks every rugby sport's opponent types).
+ */
+export interface RugbyPoints {
+  try: number;
+  conversion: number;
+  penaltyGoal: number;
+  fieldGoal: number;
+}
+
+/** The points table from a sport's score types; a missing one is an error. */
+export function rugbyPointsFromScoreTypes(scoreTypes: ScoreTypeDef[]): RugbyPoints {
+  const points = (id: string) => {
+    const type = scoreTypes.find((t) => t.id === id && !t.opponent);
+    if (!type) throw new Error(`No "${id}" score type`);
+    return type.points;
+  };
+  return {
+    try: points("try"),
+    conversion: points("conversion"),
+    penaltyGoal: points("penalty_goal"),
+    fieldGoal: points("field_goal"),
+  };
+}
+
+/** The sport's own points table. */
+export function rugbyPoints(sport: RugbySport): RugbyPoints {
+  return rugbyPointsFromScoreTypes(getSportConfig(sport).scoreTypes);
+}
+
+function goalPoints(points: RugbyPoints, goal: "penalty" | "field"): number {
+  return goal === "penalty" ? points.penaltyGoal : points.fieldGoal;
+}
+
+/**
+ * A rugby sport's own names for its goals, from its score types: league's
+ * field goal is union's drop goal (both recorded as `field_goal`).
+ */
+export interface RugbyScoreWords {
+  penaltyGoal: { label: string; short: string };
+  fieldGoal: { label: string; short: string };
+}
+
+export function rugbyScoreWords(sport: RugbySport): RugbyScoreWords {
+  const types = getSportConfig(sport).scoreTypes;
+  const words = (id: string) => {
+    const type = types.find((t) => t.id === id && !t.opponent);
+    if (!type) throw new Error(`${sport} has no "${id}" score type`);
+    return { label: type.label, short: type.shortLabel };
+  };
+  return { penaltyGoal: words("penalty_goal"), fieldGoal: words("field_goal") };
+}
+
+/** "2T · 1C · 1PG" — penalty and field (drop) goals only when there are some. */
+export function leagueScoreLine(s: LeagueScore, words: RugbyScoreWords): string {
+  const parts = [`${s.tries}T`, `${s.conversions}C`];
+  if (s.penaltyGoals > 0) parts.push(`${s.penaltyGoals}${words.penaltyGoal.short}`);
+  if (s.fieldGoals > 0) parts.push(`${s.fieldGoals}${words.fieldGoal.short}`);
+  return parts.join(" · ");
+}
 
 export interface LeagueGameState {
   lineup: LeagueLineup | null;
   currentQuarter: number;
   quarterEnded: boolean;
   quarterElapsedMs: number;
-  /** Per-team scoring tally. `points` = tries * 4 + conversions * 2. */
-  teamScore: { tries: number; conversions: number; points: number };
-  opponentScore: { tries: number; conversions: number; points: number };
+  /** Per-team scoring tally (see LeagueScore). */
+  teamScore: LeagueScore;
+  opponentScore: LeagueScore;
   /** Tries credited per player. The scorer's player_id on the try event. */
   playerTries: Record<string, number>;
   /**
@@ -48,6 +136,8 @@ export interface LeagueGameState {
    * UI in Phase 5; `made` counts successful kicks.
    */
   playerConversions: Record<string, { attempts: number; made: number }>;
+  /** Penalty and field goals credited per kicker (U13+). */
+  playerGoals: Record<string, { penalty: number; field: number }>;
   finalised: boolean;
   /** ISO timestamp of the current quarter_start event; null when quarter ended. */
   quarterStartedAt: string | null;
@@ -69,10 +159,11 @@ export function emptyLeagueGameState(): LeagueGameState {
     currentQuarter: 0,
     quarterEnded: false,
     quarterElapsedMs: 0,
-    teamScore: { tries: 0, conversions: 0, points: 0 },
-    opponentScore: { tries: 0, conversions: 0, points: 0 },
+    teamScore: emptyLeagueScore(),
+    opponentScore: emptyLeagueScore(),
     playerTries: {},
     playerConversions: {},
+    playerGoals: {},
     finalised: false,
     quarterStartedAt: null,
     lastSubbedOnMs: {},
@@ -80,7 +171,42 @@ export function emptyLeagueGameState(): LeagueGameState {
 }
 
 /**
- * Replay a rugby-league game's events into a `LeagueGameState`.
+ * A rolling sub: `on` takes the exact spot `off` held in their line and
+ * `off` goes to the bench. Every other kid keeps their place — the field
+ * draws spots in list order (the last back is the fullback), so appending
+ * the sub to the end of the line shifted everyone after the gap. A
+ * late arrival (not on the bench) comes on the same way; an `off` who is
+ * somehow not on the field leaves `on` joining the forwards.
+ */
+export function swapInLeagueLineup<T extends { forwards: string[]; backs: string[]; bench: string[] }>(
+  lineup: T,
+  off: string,
+  on: string,
+): { lineup: T; offZone: LeagueZone } {
+  const without = (ids: string[]) => ids.filter((id) => id !== on);
+  const forwards = without(lineup.forwards);
+  const backs = without(lineup.backs);
+  const bench = without(lineup.bench);
+  const offZone: LeagueZone = backs.includes(off) ? "back" : "forward";
+  const line = offZone === "back" ? backs : forwards;
+  const spot = line.indexOf(off);
+  if (spot >= 0) line[spot] = on;
+  else line.push(on);
+  if (!bench.includes(off)) bench.push(off);
+  return { lineup: { ...lineup, forwards, backs, bench }, offZone };
+}
+
+/**
+ * League's replay, with league's own points. Code shared with rugby
+ * union calls replayRugbyGame with the team's sport's points.
+ */
+export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
+  return replayRugbyGame(events, rugbyPoints("rugby_league"));
+}
+
+/**
+ * Replay a rugby game's events into a `LeagueGameState`, scoring with
+ * the sport's own `points` (see rugbyPoints).
  *
  * Pure function — input must already include `created_at` for stable
  * ordering. Sorts defensively in case the caller hands events in
@@ -88,7 +214,7 @@ export function emptyLeagueGameState(): LeagueGameState {
  * offline burst can land out of order if `created_at` precision is
  * tight).
  */
-export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
+export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): LeagueGameState {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -100,7 +226,8 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
     | { kind: "try"; player: string | null }
     | { kind: "opp_try" }
     | { kind: "conversion"; player: string; made: boolean }
-    | { kind: "opp_conversion" };
+    | { kind: "opp_conversion" }
+    | { kind: "goal"; side: "team" | "opponent"; goal: "penalty" | "field"; player: string | null };
   const undoStack: UndoOp[] = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
@@ -165,35 +292,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         const off = meta.off_player_id;
         const on = meta.on_player_id;
         if (!off || !on) break;
-        const forwards = state.lineup.forwards.slice();
-        const backs = state.lineup.backs.slice();
-        const bench = state.lineup.bench.slice();
-        // Figure out where the off-player was. Default to "forward"
-        // if they were already off the field somehow — gives the
-        // replay forward-bias when the data is inconsistent.
-        let offZone: LeagueZone = "forward";
-        const fwdIdx = forwards.indexOf(off);
-        const backIdx = backs.indexOf(off);
-        if (backIdx >= 0) {
-          offZone = "back";
-          backs.splice(backIdx, 1);
-        } else if (fwdIdx >= 0) {
-          offZone = "forward";
-          forwards.splice(fwdIdx, 1);
-        }
-        // Bench off-player slot — re-append unless already on bench.
-        if (!bench.includes(off)) bench.push(off);
-        // Pull on-player from bench / other zone if present.
-        const benchIdx = bench.indexOf(on);
-        if (benchIdx >= 0) bench.splice(benchIdx, 1);
-        const onFwdIdx = forwards.indexOf(on);
-        if (onFwdIdx >= 0) forwards.splice(onFwdIdx, 1);
-        const onBackIdx = backs.indexOf(on);
-        if (onBackIdx >= 0) backs.splice(onBackIdx, 1);
-        // Place on-player into the off-player's vacated zone.
-        if (offZone === "back") backs.push(on);
-        else forwards.push(on);
-        state.lineup = { forwards, backs, bench };
+        state.lineup = swapInLeagueLineup(state.lineup, off, on).lineup;
         // B4 recency: a mid-quarter sub-on is a bench->field transition;
         // stamp the absolute frame so it survives the period boundary.
         state.lastSubbedOnMs[on] = completedQuarterMs + (meta.elapsed_ms ?? 0);
@@ -253,7 +352,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "try": {
         state.teamScore.tries++;
-        state.teamScore.points += 4;
+        state.teamScore.points += points.try;
         if (ev.player_id) {
           state.playerTries[ev.player_id] =
             (state.playerTries[ev.player_id] ?? 0) + 1;
@@ -264,7 +363,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "opponent_try": {
         state.opponentScore.tries++;
-        state.opponentScore.points += 4;
+        state.opponentScore.points += points.try;
         undoStack.push({ kind: "opp_try" });
         break;
       }
@@ -279,7 +378,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         }
         if (made) {
           state.teamScore.conversions++;
-          state.teamScore.points += 2;
+          state.teamScore.points += points.conversion;
         }
         // Push the undo entry even for missed attempts so an undo
         // pops the attempt record alongside any points; the kicker
@@ -295,8 +394,27 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
 
       case "opponent_conversion": {
         state.opponentScore.conversions++;
-        state.opponentScore.points += 2;
+        state.opponentScore.points += points.conversion;
         undoStack.push({ kind: "opp_conversion" });
+        break;
+      }
+
+      case "penalty_goal":
+      case "field_goal":
+      case "opponent_penalty_goal":
+      case "opponent_field_goal": {
+        const side = ev.type.startsWith("opponent_") ? "opponent" : "team";
+        const goal = ev.type.endsWith("penalty_goal") ? "penalty" : "field";
+        const score = side === "team" ? state.teamScore : state.opponentScore;
+        if (goal === "penalty") score.penaltyGoals++;
+        else score.fieldGoals++;
+        score.points += goalPoints(points, goal);
+        const player = side === "team" ? ev.player_id : null;
+        if (player) {
+          state.playerGoals[player] ??= { penalty: 0, field: 0 };
+          state.playerGoals[player][goal]++;
+        }
+        undoStack.push({ kind: "goal", side, goal, player });
         break;
       }
 
@@ -306,7 +424,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
         switch (op.kind) {
           case "try": {
             state.teamScore.tries = Math.max(0, state.teamScore.tries - 1);
-            state.teamScore.points = Math.max(0, state.teamScore.points - 4);
+            state.teamScore.points = Math.max(0, state.teamScore.points - points.try);
             if (op.player && state.playerTries[op.player]) {
               state.playerTries[op.player] = Math.max(
                 0,
@@ -322,7 +440,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
             );
             state.opponentScore.points = Math.max(
               0,
-              state.opponentScore.points - 4,
+              state.opponentScore.points - points.try,
             );
             break;
           }
@@ -337,7 +455,7 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
                 0,
                 state.teamScore.conversions - 1,
               );
-              state.teamScore.points = Math.max(0, state.teamScore.points - 2);
+              state.teamScore.points = Math.max(0, state.teamScore.points - points.conversion);
             }
             break;
           }
@@ -348,8 +466,17 @@ export function replayLeagueGame(events: GameEvent[]): LeagueGameState {
             );
             state.opponentScore.points = Math.max(
               0,
-              state.opponentScore.points - 2,
+              state.opponentScore.points - points.conversion,
             );
+            break;
+          }
+          case "goal": {
+            const score = op.side === "team" ? state.teamScore : state.opponentScore;
+            if (op.goal === "penalty") score.penaltyGoals = Math.max(0, score.penaltyGoals - 1);
+            else score.fieldGoals = Math.max(0, score.fieldGoals - 1);
+            score.points = Math.max(0, score.points - goalPoints(points, op.goal));
+            const tally = op.player ? state.playerGoals[op.player] : undefined;
+            if (tally) tally[op.goal] = Math.max(0, tally[op.goal] - 1);
             break;
           }
         }
@@ -513,39 +640,53 @@ export interface UnbrokenPeriodCompliance {
   compliant: boolean;
 }
 
+type UnbrokenPeriodTracker = {
+  /** Players on the field at quarter_start. */
+  starters: Set<string>;
+  /**
+   * Players whose period stint was broken: swapped or lent off, an
+   * injury past the §7 carve-out, or an injury they never came back
+   * on from before quarter_end.
+   */
+  removed: Set<string>;
+  /** In-flight injuries: player id → elapsed_ms when it started. */
+  pendingInjury: Map<string, number>;
+  closed: boolean;
+};
+
 /**
- * Compute per-player unbroken-period compliance for a single
- * game. Walks events once; per-period state is reset on
- * `quarter_start` and finalised on `quarter_end`. Players who
- * never appear in any lineup are omitted (the dashboard's caller
- * unions with the full squad list to flag bench-only players).
+ * One walk of the events for both compliance views (closed game and
+ * live). A kid is on the field when they hold a field slot and aren't
+ * hurt: an injured kid keeps their slot until they're replaced, and a
+ * recovery only puts them back on if they still hold it. (A kid
+ * replaced while hurt and marked recovered on the bench used to be
+ * counted back on, keeping the period: sideline combos.)
  */
-export function unbrokenPeriodCompliance(
-  events: GameEvent[],
-  required: number,
-): Record<string, UnbrokenPeriodCompliance> {
+function walkUnbrokenPeriods(events: GameEvent[]): {
+  periods: Map<number, UnbrokenPeriodTracker>;
+  currentPeriod: number | null;
+  allPlayers: Set<string>;
+} {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
-
-  // Per-period bookkeeping. starters = set of players on field at
-  // quarter_start; removed = set of players whose period stint was
-  // broken (swap off, loan, injury that exceeded the §7 carve-out,
-  // or injury that never closed before quarter_end). pendingInjury
-  // tracks in-flight injuries keyed by player id → elapsed_ms when
-  // the injury started, so the closing event can compute the gap.
-  type PeriodTracker = {
-    starters: Set<string>;
-    removed: Set<string>;
-    pendingInjury: Map<string, number>;
-  };
-  const periods = new Map<number, PeriodTracker>();
-
-  // Tracks the current on-field set so a quarter_start can
-  // snapshot it. Updated by lineup_set, swap, and injury events.
-  let currentField = new Set<string>();
+  const periods = new Map<number, UnbrokenPeriodTracker>();
+  let slots = new Set<string>();
+  const hurt = new Set<string>();
+  const onField = (pid: string) => slots.has(pid) && !hurt.has(pid);
   let currentPeriod: number | null = null;
   const allPlayers = new Set<string>();
+  const tracker = () =>
+    currentPeriod !== null ? periods.get(currentPeriod) : undefined;
+  // An incident closes when the kid is back on the field; the gap
+  // decides §7.
+  const closeIncident = (pid: string, elapsed: number) => {
+    const t = tracker();
+    const startedAt = t?.pendingInjury.get(pid);
+    if (!t || startedAt === undefined) return;
+    t.pendingInjury.delete(pid);
+    if (elapsed - startedAt > INJURY_CARVEOUT_MS) t.removed.add(pid);
+  };
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -555,15 +696,22 @@ export function unbrokenPeriodCompliance(
       off_player_id?: string;
       on_player_id?: string;
       injured?: boolean;
+      loaned?: boolean;
     };
+    const elapsed = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
 
     switch (ev.type) {
       case "lineup_set": {
         if (meta.lineup) {
           const lineup = normalizeLeagueLineup(meta.lineup);
-          const onField = leagueOnField(lineup);
-          currentField = new Set(onField);
-          for (const id of onField) allPlayers.add(id);
+          const next = new Set(leagueOnField(lineup));
+          // Mid-period, anyone the new lineup takes off the field has
+          // left it.
+          slots.forEach((pid) => {
+            if (onField(pid) && !next.has(pid)) tracker()?.removed.add(pid);
+          });
+          slots = next;
+          next.forEach((id) => allPlayers.add(id));
           for (const id of lineup.bench) allPlayers.add(id);
         }
         break;
@@ -574,24 +722,21 @@ export function unbrokenPeriodCompliance(
             ? meta.quarter
             : (currentPeriod ?? 0) + 1;
         periods.set(currentPeriod, {
-          starters: new Set(currentField),
+          starters: new Set(Array.from(slots).filter((pid) => !hurt.has(pid))),
           removed: new Set(),
           pendingInjury: new Map(),
+          closed: false,
         });
         break;
       }
       case "quarter_end": {
-        // Any injuries still open at the hooter → the player never
-        // returned, so they're broken for this period regardless of
-        // duration.
-        if (currentPeriod !== null) {
-          const tracker = periods.get(currentPeriod);
-          if (tracker) {
-            tracker.pendingInjury.forEach((_startedAt, pid) => {
-              tracker.removed.add(pid);
-            });
-            tracker.pendingInjury.clear();
-          }
+        // Any injury still open at the hooter: the player never came
+        // back on, so the period is broken regardless of duration.
+        const t = tracker();
+        if (t) {
+          t.pendingInjury.forEach((_startedAt, pid) => t.removed.add(pid));
+          t.pendingInjury.clear();
+          t.closed = true;
         }
         currentPeriod = null;
         break;
@@ -599,19 +744,17 @@ export function unbrokenPeriodCompliance(
       case "swap": {
         const off = meta.off_player_id;
         const on = meta.on_player_id;
-        // Swap-off is unconditionally a break for the off-player
-        // (no §7 carve-out — that's injury-only). Done BEFORE
-        // mutating currentField so a stale-state swap with an
-        // off-player no longer on field is a no-op.
-        if (off && currentField.has(off)) {
-          currentField.delete(off);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(off);
-          }
+        // Swap-off is unconditionally a break (no §7 carve-out; that's
+        // injury-only). A hurt kid being replaced keeps their incident
+        // open: it closes if they come back on in time.
+        if (off && slots.has(off)) {
+          if (onField(off)) tracker()?.removed.add(off);
+          slots.delete(off);
         }
         if (on) {
-          currentField.add(on);
+          slots.add(on);
           allPlayers.add(on);
+          if (onField(on)) closeIncident(on, elapsed);
         }
         break;
       }
@@ -620,46 +763,25 @@ export function unbrokenPeriodCompliance(
         if (!pid) break;
         allPlayers.add(pid);
         // injured: true (default when missing) opens an incident.
-        // injured: false closes it; the gap decides §7.
-        const isInjured = meta.injured !== false;
-        const elapsed
-          = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        const tracker
-          = currentPeriod !== null ? periods.get(currentPeriod) : null;
-        if (isInjured) {
-          if (currentField.has(pid)) {
-            currentField.delete(pid);
-            // Don't add to `removed` yet — wait to see if they
-            // return within the §7 window. If currentPeriod is
-            // null (between quarters), this still removes them
-            // from the field but no tracker exists to record the
-            // pending incident — they're effectively just absent.
-            if (tracker) tracker.pendingInjury.set(pid, elapsed);
+        if (meta.injured !== false) {
+          const t = tracker();
+          if (onField(pid) && t && !t.pendingInjury.has(pid)) {
+            t.pendingInjury.set(pid, elapsed);
           }
-        } else if (tracker?.pendingInjury.has(pid)) {
-          const startedAt = tracker.pendingInjury.get(pid) as number;
-          tracker.pendingInjury.delete(pid);
-          const duration = elapsed - startedAt;
-          if (duration > INJURY_CARVEOUT_MS) {
-            tracker.removed.add(pid);
-          }
-          currentField.add(pid);
+          hurt.add(pid);
         } else {
-          // "Recovered" event without a matching open incident —
-          // most likely the injury happened pre-game or between
-          // periods. Re-add to field so subsequent quarter_starts
-          // see them.
-          currentField.add(pid);
+          hurt.delete(pid);
+          // Back on only if they still hold their slot; replaced and
+          // recovered on the bench, the incident stays open.
+          if (onField(pid)) closeIncident(pid, elapsed);
         }
         break;
       }
       case "player_loan": {
         const pid = ev.player_id;
-        if (pid && currentField.has(pid)) {
-          currentField.delete(pid);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(pid);
-          }
+        if (pid && meta.loaned !== false && slots.has(pid)) {
+          if (onField(pid)) tracker()?.removed.add(pid);
+          slots.delete(pid);
         }
         break;
       }
@@ -674,7 +796,21 @@ export function unbrokenPeriodCompliance(
         break;
     }
   }
+  return { periods, currentPeriod, allPlayers };
+}
 
+/**
+ * Compute per-player unbroken-period compliance for a single
+ * game. Walks events once; per-period state is reset on
+ * `quarter_start` and finalised on `quarter_end`. Players who
+ * never appear in any lineup are omitted (the dashboard's caller
+ * unions with the full squad list to flag bench-only players).
+ */
+export function unbrokenPeriodCompliance(
+  events: GameEvent[],
+  required: number,
+): Record<string, UnbrokenPeriodCompliance> {
+  const { periods, allPlayers } = walkUnbrokenPeriods(events);
   const result: Record<string, UnbrokenPeriodCompliance> = {};
   allPlayers.forEach((playerId) => {
     const unbroken: number[] = [];
@@ -731,128 +867,7 @@ export function unbrokenPeriodLiveStatus(
    */
   currentElapsedMs: number = 0,
 ): Record<string, UnbrokenPeriodLiveStatus> {
-  const sorted = [...events].sort((a, b) =>
-    a.created_at.localeCompare(b.created_at),
-  );
-
-  type PeriodTracker = {
-    starters: Set<string>;
-    removed: Set<string>;
-    pendingInjury: Map<string, number>;
-    closed: boolean;
-  };
-  const periods = new Map<number, PeriodTracker>();
-  let currentField = new Set<string>();
-  let currentPeriod: number | null = null;
-  const allPlayers = new Set<string>();
-
-  for (const ev of sorted) {
-    const meta = ev.metadata as {
-      lineup?: Partial<LeagueLineup>;
-      quarter?: number;
-      elapsed_ms?: number;
-      off_player_id?: string;
-      on_player_id?: string;
-      injured?: boolean;
-    };
-    switch (ev.type) {
-      case "lineup_set": {
-        if (meta.lineup) {
-          const lineup = normalizeLeagueLineup(meta.lineup);
-          const onField = leagueOnField(lineup);
-          currentField = new Set(onField);
-          for (const id of onField) allPlayers.add(id);
-          for (const id of lineup.bench) allPlayers.add(id);
-        }
-        break;
-      }
-      case "quarter_start": {
-        currentPeriod
-          = typeof meta.quarter === "number"
-            ? meta.quarter
-            : (currentPeriod ?? 0) + 1;
-        periods.set(currentPeriod, {
-          starters: new Set(currentField),
-          removed: new Set(),
-          pendingInjury: new Map(),
-          closed: false,
-        });
-        break;
-      }
-      case "quarter_end": {
-        if (currentPeriod !== null) {
-          const t = periods.get(currentPeriod);
-          if (t) {
-            t.pendingInjury.forEach((_startedAt, pid) => {
-              t.removed.add(pid);
-            });
-            t.pendingInjury.clear();
-            t.closed = true;
-          }
-        }
-        currentPeriod = null;
-        break;
-      }
-      case "swap": {
-        const off = meta.off_player_id;
-        const on = meta.on_player_id;
-        if (off && currentField.has(off)) {
-          currentField.delete(off);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(off);
-          }
-        }
-        if (on) {
-          currentField.add(on);
-          allPlayers.add(on);
-        }
-        break;
-      }
-      case "injury": {
-        const pid = ev.player_id;
-        if (!pid) break;
-        allPlayers.add(pid);
-        const isInjured = meta.injured !== false;
-        const elapsed
-          = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        const tracker
-          = currentPeriod !== null ? periods.get(currentPeriod) : null;
-        if (isInjured) {
-          if (currentField.has(pid)) {
-            currentField.delete(pid);
-            if (tracker) tracker.pendingInjury.set(pid, elapsed);
-          }
-        } else if (tracker?.pendingInjury.has(pid)) {
-          const startedAt = tracker.pendingInjury.get(pid) as number;
-          tracker.pendingInjury.delete(pid);
-          const duration = elapsed - startedAt;
-          if (duration > INJURY_CARVEOUT_MS) {
-            tracker.removed.add(pid);
-          }
-          currentField.add(pid);
-        } else {
-          currentField.add(pid);
-        }
-        break;
-      }
-      case "player_loan": {
-        const pid = ev.player_id;
-        if (pid && currentField.has(pid)) {
-          currentField.delete(pid);
-          if (currentPeriod !== null) {
-            periods.get(currentPeriod)?.removed.add(pid);
-          }
-        }
-        break;
-      }
-      case "player_arrived": {
-        if (ev.player_id) allPlayers.add(ev.player_id);
-        break;
-      }
-      default:
-        break;
-    }
-  }
+  const { periods, currentPeriod, allPlayers } = walkUnbrokenPeriods(events);
 
   // Live-side §7 enforcement on the open period: if an injury is
   // still pending and the current playing-time elapsed exceeds the
@@ -942,6 +957,12 @@ export interface LeagueSuggestInput {
   requiredUnbrokenPeriods: number;
   /** Vest requirements from the age-group config — controls suggestedFr / suggestedDh. */
   vestRequirements?: { fr: boolean; dh: boolean };
+  /**
+   * How we play (UX plan 5.6): lines from roles and season balance
+   * instead of chips, keep-on first, and the vest strategy. Omitted =
+   * today's chip-driven lines and auto-fair vests.
+   */
+  playbook?: LeaguePlaybookInput;
 }
 
 export interface LeagueSuggestOutput {
@@ -1155,6 +1176,7 @@ export function suggestLeagueLineup(
     seasonEvents,
     requiredUnbrokenPeriods,
     vestRequirements,
+    playbook,
   } = input;
 
   const fairness = computeSeasonFairness(
@@ -1182,12 +1204,22 @@ export function suggestLeagueLineup(
   //      everyone's caught up, the kid at every week gets the
   //      next go, not the kid who just showed up.
   //   4. jersey ASC — deterministic stable tiebreak.
+  const keepOn = (id: string) => (playbook?.roles[id]?.keepOn ? 0 : 1);
   const ranked = [...players].sort((a, b) => {
+    // How we play: keep-on kids start.
+    const k = keepOn(a.id) - keepOn(b.id);
+    if (k !== 0) return k;
     const fa = fairness.get(a.id);
     const fb = fairness.get(b.id);
     const sa = fa?.shortfall ?? 0;
     const sb = fb?.shortfall ?? 0;
     if (sa !== sb) return sb - sa;
+    // Named positions: kids with a home position start in it (AFL and
+    // netball parity, usability run). §6 shortfall still comes first:
+    // owed unbroken periods are the laws.
+    const ha = playbook?.positionRoles?.[a.id]?.home ? 0 : 1;
+    const hb = playbook?.positionRoles?.[b.id]?.home ? 0 : 1;
+    if (ha !== hb) return ha - hb;
     const ra = playtimeRatio(fa);
     const rb = playtimeRatio(fb);
     if (ra !== rb) return ra - rb;
@@ -1231,7 +1263,19 @@ export function suggestLeagueLineup(
   const backs: string[] = [];
   const unplaced: typeof starters = [];
 
-  for (const p of starters) {
+  // How we play: lines from roles + season balance, not chips.
+  if (playbook) {
+    const lines = assignLeagueLines(
+      starters.map((p) => p.id),
+      targetForwards,
+      targetBacks,
+      playbook,
+    );
+    forwards.push(...lines.forwards);
+    backs.push(...lines.backs);
+  }
+
+  for (const p of playbook ? [] : starters) {
     const zone = chipZone(p.chip);
     if (zone === "forward" && forwards.length < targetForwards) {
       forwards.push(p.id);
@@ -1296,18 +1340,31 @@ export function suggestLeagueLineup(
     return jerseyOf(a) - jerseyOf(b);
   };
 
-  if (vestRequirements?.fr) {
-    const frRanked = [...fieldPicks].sort((a, b) =>
-      compareVest(a, b, (r) => r?.frCount ?? 0, frRatio),
-    );
-    suggestedFr = frRanked[0] ?? null;
+  const vestStrategy = playbook?.vestStrategy ?? "auto";
+  // Fixed order: round the squad in jersey order from the last wearer.
+  const squadOrder = [...players]
+    .sort((a, b) => (a.jersey_number ?? Number.MAX_SAFE_INTEGER) - (b.jersey_number ?? Number.MAX_SAFE_INTEGER))
+    .map((p) => p.id);
+  if (vestRequirements?.fr && vestStrategy !== "coach") {
+    if (vestStrategy === "fixed-order") {
+      suggestedFr = nextInOrder(fieldPicks, squadOrder, lastVestWearer(seasonEvents, "fr"));
+    } else {
+      const frRanked = [...fieldPicks].sort((a, b) =>
+        compareVest(a, b, (r) => r?.frCount ?? 0, frRatio),
+      );
+      suggestedFr = frRanked[0] ?? null;
+    }
   }
-  if (vestRequirements?.dh) {
-    const dhPool = fieldPicks.filter((id) => id !== suggestedFr);
-    const dhRanked = [...dhPool].sort((a, b) =>
-      compareVest(a, b, (r) => r?.dhCount ?? 0, dhRatio),
-    );
-    suggestedDh = dhRanked[0] ?? null;
+  if (vestRequirements?.dh && vestStrategy !== "coach") {
+    if (vestStrategy === "fixed-order") {
+      suggestedDh = nextInOrder(fieldPicks, squadOrder, lastVestWearer(seasonEvents, "dh"), suggestedFr);
+    } else {
+      const dhPool = fieldPicks.filter((id) => id !== suggestedFr);
+      const dhRanked = [...dhPool].sort((a, b) =>
+        compareVest(a, b, (r) => r?.dhCount ?? 0, dhRatio),
+      );
+      suggestedDh = dhRanked[0] ?? null;
+    }
   }
 
   return {
@@ -1330,14 +1387,20 @@ export function suggestLeagueLineup(
 export interface LeagueScoreByPeriod {
   /** 1-indexed period number → tries / conversions / points scored in it. */
   [period: number]: {
-    team: { tries: number; conversions: number; points: number };
-    opponent: { tries: number; conversions: number; points: number };
+    team: LeagueScore;
+    opponent: LeagueScore;
   };
 }
 
-export function leagueScoreByPeriod(
+/** League's per-period table, with league's own points. */
+export function leagueScoreByPeriod(events: GameEvent[], periodCount: number): LeagueScoreByPeriod {
+  return rugbyScoreByPeriod(events, periodCount, rugbyPoints("rugby_league"));
+}
+
+export function rugbyScoreByPeriod(
   events: GameEvent[],
   periodCount: number,
+  points: RugbyPoints,
 ): LeagueScoreByPeriod {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
@@ -1345,10 +1408,7 @@ export function leagueScoreByPeriod(
   // Pre-seed every period so the table always has entries to render.
   const out: LeagueScoreByPeriod = {};
   for (let p = 1; p <= periodCount; p++) {
-    out[p] = {
-      team: { tries: 0, conversions: 0, points: 0 },
-      opponent: { tries: 0, conversions: 0, points: 0 },
-    };
+    out[p] = { team: emptyLeagueScore(), opponent: emptyLeagueScore() };
   }
 
   // Active-period fallback for events that didn't ship metadata.quarter.
@@ -1358,7 +1418,8 @@ export function leagueScoreByPeriod(
     = | { kind: "try"; period: number }
       | { kind: "opp_try"; period: number }
       | { kind: "conv"; period: number; made: boolean }
-      | { kind: "opp_conv"; period: number };
+      | { kind: "opp_conv"; period: number }
+      | { kind: "goal"; period: number; side: "team" | "opponent"; goal: "penalty" | "field" };
   const stack: Op[] = [];
 
   for (const ev of sorted) {
@@ -1376,47 +1437,64 @@ export function leagueScoreByPeriod(
         : active;
     if (period < 1) continue;
     if (!out[period]) {
-      out[period] = {
-        team: { tries: 0, conversions: 0, points: 0 },
-        opponent: { tries: 0, conversions: 0, points: 0 },
-      };
+      out[period] = { team: emptyLeagueScore(), opponent: emptyLeagueScore() };
     }
     if (ev.type === "try") {
       out[period].team.tries += 1;
-      out[period].team.points += 4;
+      out[period].team.points += points.try;
       stack.push({ kind: "try", period });
     } else if (ev.type === "opponent_try") {
       out[period].opponent.tries += 1;
-      out[period].opponent.points += 4;
+      out[period].opponent.points += points.try;
       stack.push({ kind: "opp_try", period });
     } else if (ev.type === "conversion_attempt") {
       const made = meta.made === true;
       if (made) {
         out[period].team.conversions += 1;
-        out[period].team.points += 2;
+        out[period].team.points += points.conversion;
       }
       stack.push({ kind: "conv", period, made });
     } else if (ev.type === "opponent_conversion") {
       out[period].opponent.conversions += 1;
-      out[period].opponent.points += 2;
+      out[period].opponent.points += points.conversion;
       stack.push({ kind: "opp_conv", period });
+    } else if (
+      ev.type === "penalty_goal"
+      || ev.type === "field_goal"
+      || ev.type === "opponent_penalty_goal"
+      || ev.type === "opponent_field_goal"
+    ) {
+      const side = ev.type.startsWith("opponent_") ? "opponent" : "team";
+      const goal = ev.type.endsWith("penalty_goal") ? "penalty" : "field";
+      const slot = out[period][side];
+      if (goal === "penalty") slot.penaltyGoals += 1;
+      else slot.fieldGoals += 1;
+      slot.points += goalPoints(points, goal);
+      stack.push({ kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
       const op = stack.pop();
       if (!op) continue;
+      if (op.kind === "goal") {
+        const slot = out[op.period][op.side];
+        if (op.goal === "penalty") slot.penaltyGoals = Math.max(0, slot.penaltyGoals - 1);
+        else slot.fieldGoals = Math.max(0, slot.fieldGoals - 1);
+        slot.points = Math.max(0, slot.points - goalPoints(points, op.goal));
+        continue;
+      }
       const bucket
         = op.kind === "try" || op.kind === "conv" ? "team" : "opponent";
       const slot = out[op.period][bucket];
       if (op.kind === "try" || op.kind === "opp_try") {
         slot.tries = Math.max(0, slot.tries - 1);
-        slot.points = Math.max(0, slot.points - 4);
+        slot.points = Math.max(0, slot.points - points.try);
       } else if (op.kind === "conv") {
         if (op.made) {
           slot.conversions = Math.max(0, slot.conversions - 1);
-          slot.points = Math.max(0, slot.points - 2);
+          slot.points = Math.max(0, slot.points - points.conversion);
         }
       } else if (op.kind === "opp_conv") {
         slot.conversions = Math.max(0, slot.conversions - 1);
-        slot.points = Math.max(0, slot.points - 2);
+        slot.points = Math.max(0, slot.points - points.conversion);
       }
     }
   }
@@ -1576,12 +1654,24 @@ export function playerMsOnField(
   // hooter. Both members typed up-front so the in-place .filter +
   // .push update on swap doesn't trip the "implicit any" inference.
   let snapshot: LeagueLineup | null = null;
+  // Sidelined kids don't accrue: an injured kid stays in their field slot
+  // (league treats injury as a flag) but isn't playing; a lent kid is
+  // benched (as the replay does).
+  const injured = new Set<string>();
+  const lent = new Set<string>();
 
   const closeStint = (playerId: string, endElapsed: number) => {
     const start = stintStart[playerId];
     if (start === undefined) return;
     total[playerId] = (total[playerId] ?? 0) + Math.max(0, endElapsed - start);
     delete stintStart[playerId];
+  };
+  const onFieldNow = (playerId: string) =>
+    !!snapshot && (snapshot.forwards.includes(playerId) || snapshot.backs.includes(playerId));
+  const openIfPlaying = (playerId: string, at: number) => {
+    if (activeQuarter === null || stintStart[playerId] !== undefined) return;
+    if (!onFieldNow(playerId) || injured.has(playerId) || lent.has(playerId)) return;
+    stintStart[playerId] = at;
   };
 
   for (const ev of sorted) {
@@ -1596,6 +1686,13 @@ export function playerMsOnField(
       case "lineup_set": {
         if (meta.lineup) {
           snapshot = normalizeLeagueLineup(meta.lineup);
+          // Mid-period (filling a spot, moving kids): who left stops,
+          // who came on starts (sideline combos: they got no time).
+          if (activeQuarter !== null) {
+            const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+            for (const id of Object.keys(stintStart)) if (!onFieldNow(id)) closeStint(id, at);
+            for (const id of leagueOnField(snapshot)) openIfPlaying(id, at);
+          }
         }
         break;
       }
@@ -1609,9 +1706,7 @@ export function playerMsOnField(
             ? meta.quarter
             : (activeQuarter ?? 0) + 1;
         if (snapshot) {
-          for (const id of leagueOnField(snapshot)) {
-            stintStart[id] = 0;
-          }
+          for (const id of leagueOnField(snapshot)) openIfPlaying(id, 0);
         }
         break;
       }
@@ -1637,29 +1732,7 @@ export function playerMsOnField(
         // replayer); a late arrival (on-player not on bench) lands
         // in that vacated zone too.
         if (snapshot && meta.off_player_id && meta.on_player_id) {
-          const off = meta.off_player_id;
-          const on = meta.on_player_id;
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          let bench: string[] = snapshot.bench.slice();
-          let offZone: LeagueZone = "forward";
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) {
-            offZone = "back";
-            backs.splice(bIdx, 1);
-          } else if (fIdx >= 0) {
-            offZone = "forward";
-            forwards.splice(fIdx, 1);
-          }
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, meta.off_player_id, meta.on_player_id).lineup;
         }
         break;
       }
@@ -1693,10 +1766,49 @@ export function playerMsOnField(
         }
         break;
       }
-      case "injury":
+      case "injury": {
+        const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
+        const pid = ev.player_id;
+        if (!pid) break;
+        if ((ev.metadata as { injured?: boolean }).injured ?? true) {
+          injured.add(pid);
+          closeStint(pid, at);
+        } else {
+          // Recovered: still on the field, so back to accruing
+          // (sideline combos: their clock never restarted).
+          injured.delete(pid);
+          openIfPlaying(pid, at);
+        }
+        break;
+      }
       case "player_loan": {
         const at = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
-        if (ev.player_id) closeStint(ev.player_id, at);
+        const pid = ev.player_id;
+        if (!pid) break;
+        if ((ev.metadata as { loaned?: boolean }).loaned ?? true) {
+          lent.add(pid);
+          closeStint(pid, at);
+        } else {
+          lent.delete(pid);
+        }
+        // Lent or back, they're on the bench (as the replay has it): a
+        // kid lent mid-period used to stay on the next period's field.
+        const snap = snapshot as LeagueLineup | null;
+        if (snap) {
+          snapshot = {
+            forwards: snap.forwards.filter((p) => p !== pid),
+            backs: snap.backs.filter((p) => p !== pid),
+            bench: snap.bench.includes(pid) ? snap.bench : [...snap.bench, pid],
+            slots: snap.slots,
+          };
+        }
+        break;
+      }
+      case "player_arrived": {
+        const snap = snapshot as LeagueLineup | null;
+        if (snap && ev.player_id && !snap.bench.includes(ev.player_id) && !onFieldNow(ev.player_id)) {
+          snapshot = { forwards: snap.forwards, backs: snap.backs, bench: [...snap.bench, ev.player_id], slots: snap.slots };
+        }
         break;
       }
       default:
@@ -1791,29 +1903,7 @@ export function playedZoneMsByPeriod(
         // Mirror the swap into snapshot so a later quarter_start seeds
         // the right field set (same rule as playerMsOnField).
         if (snapshot && meta.off_player_id && meta.on_player_id) {
-          const off = meta.off_player_id;
-          const on = meta.on_player_id;
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          const bench: string[] = snapshot.bench.slice();
-          let offZone: LeagueZone = "forward";
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) {
-            offZone = "back";
-            backs.splice(bIdx, 1);
-          } else if (fIdx >= 0) {
-            offZone = "forward";
-            forwards.splice(fIdx, 1);
-          }
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, meta.off_player_id, meta.on_player_id).lineup;
         }
         break;
       }
@@ -1895,6 +1985,37 @@ export function playerZoneMsOnField(
   currentQuarter: number,
   currentElapsedMs: number,
 ): Record<string, LeagueZoneMs> {
+  return walkLeagueStints(events, currentQuarter, currentElapsedMs).zones;
+}
+
+/**
+ * Named positions (5.7): ms per player per position key, from the
+ * slots recorded on each lineup_set. A sub takes over the slot of the
+ * player they replace; a forward/back move leaves the kid unslotted
+ * until the next lineup. Completed periods only.
+ */
+export function playerSlotMsOnField(events: GameEvent[]): Record<string, Record<string, number>> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).slots;
+}
+
+/**
+ * Named positions: the slot each kid holds now (playerId → position
+ * key), by the same walk — the latest lineup's slots, a sub taking over
+ * the slot of the kid they replace, a forward/back move dropping it.
+ */
+export function leagueSlotsNow(events: GameEvent[]): Record<string, string> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).slotOf;
+}
+
+function walkLeagueStints(
+  events: GameEvent[],
+  currentQuarter: number,
+  currentElapsedMs: number,
+): {
+  zones: Record<string, LeagueZoneMs>;
+  slots: Record<string, Record<string, number>>;
+  slotOf: Record<string, string>;
+} {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -1904,6 +2025,16 @@ export function playerZoneMsOnField(
     const row = total[pid] ?? { forwards: 0, centre: 0, backs: 0 };
     row[bucket] += ms;
     total[pid] = row;
+  };
+  // Slot time rides along: each open stint is credited to the slot the
+  // player holds when it closes.
+  const slotTotal: Record<string, Record<string, number>> = {};
+  let slotOf: Record<string, string> = {};
+  const addSlotMs = (pid: string, ms: number) => {
+    const slot = slotOf[pid];
+    if (!slot || ms <= 0) return;
+    slotTotal[pid] ??= {};
+    slotTotal[pid][slot] = (slotTotal[pid][slot] ?? 0) + ms;
   };
 
   // Pre-walk to resolve the INITIAL wearer for each (period, vest) —
@@ -1957,6 +2088,7 @@ export function playerZoneMsOnField(
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
+    addSlotMs(pid, dur);
     delete openStint[pid];
   };
 
@@ -1982,7 +2114,10 @@ export function playerZoneMsOnField(
     };
     switch (ev.type) {
       case "lineup_set": {
-        if (meta.lineup) snapshot = normalizeLeagueLineup(meta.lineup);
+        if (meta.lineup) {
+          snapshot = normalizeLeagueLineup(meta.lineup);
+          slotOf = { ...(meta.lineup.slots ?? {}) };
+        }
         break;
       }
       case "quarter_start": {
@@ -2026,25 +2161,17 @@ export function playerZoneMsOnField(
         }
         // Mirror the swap into snapshot (same rules as playerMsOnField).
         if (snapshot && off && on) {
-          let forwards: string[] = snapshot.forwards.slice();
-          let backs: string[] = snapshot.backs.slice();
-          let bench: string[] = snapshot.bench.slice();
-          const fIdx = forwards.indexOf(off);
-          const bIdx = backs.indexOf(off);
-          if (bIdx >= 0) backs.splice(bIdx, 1);
-          else if (fIdx >= 0) forwards.splice(fIdx, 1);
-          if (!bench.includes(off)) bench.push(off);
-          const benchIdx = bench.indexOf(on);
-          if (benchIdx >= 0) bench.splice(benchIdx, 1);
-          forwards = forwards.filter((id) => id !== on);
-          backs = backs.filter((id) => id !== on);
-          if (offZone === "back") backs.push(on);
-          else forwards.push(on);
-          snapshot = { forwards, backs, bench };
+          snapshot = swapInLeagueLineup(snapshot, off, on).lineup;
         }
         if (on && openStint[on] === undefined) {
           const vest = on === vestWearer.fr || on === vestWearer.dh;
           openStint[on] = { startMs: at, zone: offZone, vest };
+        }
+        // Like-for-like: the sub takes the slot the off player held.
+        if (off && on) {
+          const slot = slotOf[off];
+          delete slotOf[off];
+          if (slot) slotOf[on] = slot;
         }
         break;
       }
@@ -2062,6 +2189,8 @@ export function playerZoneMsOnField(
           closeStint(pid, at);
           openStint[pid] = { startMs: at, zone: toZone, vest: prior.vest };
         }
+        // They've left their position's line.
+        delete slotOf[pid];
         // Mirror into snapshot.
         if (snapshot) {
           const wasOnField
@@ -2165,10 +2294,11 @@ export function playerZoneMsOnField(
       if (s.vest) addMs(pid, "centre", dur);
       else if (s.zone === "forward") addMs(pid, "forwards", dur);
       else addMs(pid, "backs", dur);
+      addSlotMs(pid, dur);
     }
   }
 
-  return total;
+  return { zones: total, slots: slotTotal, slotOf };
 }
 
 // ─── Whole-bench rotation suggestion ──────────────────────────
@@ -2219,11 +2349,16 @@ export function suggestLeagueSubs(
   excludeOffPlayers: readonly string[],
   elapsedMs: number,
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
+  /** How we play: home line, never-plays and keep-on instead of chips. */
+  playbook?: LeaguePlaybookInput,
 ): LeagueSubSuggestion[] {
   const onFieldIds = leagueOnField(currentLineup);
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
     return [];
   }
+  // "Subs only at the breaks": no rolling-sub suggestions (the one
+  // catalogue rule league offers).
+  if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const excludeSet = new Set(excludeOffPlayers);
   type Stint = { startedAt: number; location: "field" | "bench" };
   const stint = new Map<string, Stint>();
@@ -2318,6 +2453,8 @@ export function suggestLeagueSubs(
   };
   for (const id of onFieldIds) {
     if (excludeSet.has(id)) continue;
+    // Keep-on kids aren't subbed off.
+    if (playbook?.roles[id]?.keepOn) continue;
     fieldByZone[zoneOf(id)].push(id);
   }
   for (const z of ["forward", "back"] as LeagueZone[]) {
@@ -2335,14 +2472,30 @@ export function suggestLeagueSubs(
     // stays stable across rotations. Soft preference: if the
     // matched zone is exhausted, fall back to the other zone.
     const chip = chipByPlayerId?.get(benchId) ?? null;
-    const preferredZone: LeagueZone | null
+    let preferredZone: LeagueZone | null
       = chip === "a" ? "forward" : chip === "b" ? "back" : null;
-    const zoneOrder: LeagueZone[]
-      = preferredZone === "forward"
-        ? ["forward", "back"]
-        : preferredZone === "back"
-          ? ["back", "forward"]
-          : ["forward", "back"];
+    let zoneOrder: LeagueZone[];
+    let noPreference: boolean;
+    if (playbook) {
+      // Lines the incoming kid wants (role, season balance), never-plays out.
+      const s = leagueLineScores(playbook, benchId);
+      preferredZone = s.backs > s.forwards ? "back" : "forward";
+      zoneOrder = (preferredZone === "back" ? (["back", "forward"] as LeagueZone[]) : (["forward", "back"] as LeagueZone[]))
+        .filter((z) => Number.isFinite(z === "forward" ? s.forwards : s.backs));
+      noPreference = s.backs === s.forwards;
+    } else {
+      zoneOrder = preferredZone === "back" ? ["back", "forward"] : ["forward", "back"];
+      noPreference = preferredZone === null;
+    }
+    // No preference between two open lines: rule 2 above — whoever has
+    // been on longest, either line. Defaulting to forwards-first meant the
+    // backs never came off and a just-subbed forward was pulled straight
+    // back (round 5, league-u8-vests).
+    if (noPreference && zoneOrder.length === 2) {
+      const fwd = fieldByZone.forward[cursor.forward];
+      const back = fieldByZone.back[cursor.back];
+      if (back && (!fwd || msAt(back) > msAt(fwd))) zoneOrder = ["back", "forward"];
+    }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
     for (const z of zoneOrder) {
@@ -2357,7 +2510,11 @@ export function suggestLeagueSubs(
       }
       if (pickedOff) break;
     }
-    if (!pickedOff || !pickedZone) break; // no field players left
+    if (!pickedOff || !pickedZone) {
+      // With roles, this kid may just have no line open — try the next.
+      if (playbook) continue;
+      break; // no field players left
+    }
     usedOff.add(pickedOff);
     usedOn.add(benchId);
     swaps.push({
@@ -2379,6 +2536,7 @@ export function suggestNextLeagueSub(
   excludeOffPlayers: readonly string[],
   elapsedMs: number,
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
+  playbook?: LeaguePlaybookInput,
 ): LeagueSubSuggestion | null {
   const all = suggestLeagueSubs(
     events,
@@ -2387,6 +2545,7 @@ export function suggestNextLeagueSub(
     excludeOffPlayers,
     elapsedMs,
     chipByPlayerId,
+    playbook,
   );
   return all[0] ?? null;
 }

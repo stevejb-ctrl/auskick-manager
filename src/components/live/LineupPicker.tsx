@@ -5,24 +5,25 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   markLoan,
+  recordPlayerLock,
   saveLineupDraft,
   startGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
+import { LockModal } from "@/components/live/LockModal";
+import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
+import type { ChipKey, ChipMode } from "@/lib/chips";
+import { Field } from "@/components/live/Field";
+import { Bench } from "@/components/live/Bench";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
-import { ZoneTimePercents } from "@/components/live/ZoneTimePercents";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   Eyebrow,
-  Guernsey,
   SFButton,
-  SFCard,
   SFIcon,
 } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
@@ -34,6 +35,14 @@ import {
 } from "@/lib/fairness";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
+import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -71,15 +80,22 @@ interface LineupPickerProps {
    * EFFECTIVE ms; the legacy share-token mount supplies the age-group default.
    */
   fullPeriodMs: number;
-  /** Optional href for the Back button shown above the picker. */
+  /** Where "Save plan & exit" returns to (game detail). */
   backHref?: string;
+  /** The game's availability page, for the "Update availability" link. */
+  availabilityHref?: string;
+  /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. The server page builds it (it
-   * has the team name / opponent / season events) and passes it down
-   * so the planner sits in the same spot across all three sports.
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use this plan" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
    */
-  gamePlanButton?: ReactNode;
+  gamePlan?: GamePlanButtonProps;
   /**
    * Pre-game saved lineup. When present, the picker pre-populates
    * with the saved lineup + size + sub-interval instead of running
@@ -94,6 +110,23 @@ interface LineupPickerProps {
    * while "split" (default) spreads them across zones.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
+  /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles for the AFL suggesters. Omitted = today's behaviour.
+   */
+  aflPlaybook?: AflPlaybookInput;
+  /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on — the same sheet as the Squad
+   * tab (UX plan 3.5). Coaches only; omitted for runners and managers.
+   */
+  roleSheet?: RoleSheetConfig;
+  /**
+   * Holds already set for this game (player_lock events): Keep on field
+   * / Keep in {line}, set from the long-press menu before kickoff and
+   * carried into the game.
+   */
+  initialLocks?: Record<string, PlayerLock>;
   /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
@@ -153,9 +186,15 @@ export function LineupPicker({
   gameMinutes,
   fullPeriodMs,
   backHref,
-  gamePlanButton,
+  availabilityHref,
+  walkthroughOffer,
+  availabilityPanel,
+  gamePlan,
   initialDraft,
   chipModeByKey = {},
+  aflPlaybook,
+  roleSheet,
+  initialLocks,
   initialLoanedIds = [],
   defaultSubMinutes,
 }: LineupPickerProps) {
@@ -264,7 +303,7 @@ export function LineupPicker({
 
   // Game-settings collapse. Steve 2026-05-13 (follow-up): always
   // start closed. The collapsed-header summary now spells out the
-  // active state in plain English ("Auto-suggested · No lent" or
+  // active state in plain English ("Suggested lineup · No lent" or
   // "Manual lineup · 1 lent") which makes the discoverability
   // auto-expand was solving unnecessary.
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
@@ -280,6 +319,12 @@ export function LineupPicker({
   // run the fairness suggester. Manual → all players on bench.
   // Uses `playersForLineup` (excludes loaned players) so a lent
   // player won't get auto-placed or appear on the bench grid.
+  // Holds (Keep on field / Keep in {line}) from the long-press menu.
+  // A ref too, so a rebuilt suggestion keeps them: field holds as
+  // keep-on, line holds pinned to their line.
+  const [locks, setLocks] = useState<Record<string, PlayerLock>>(initialLocks ?? {});
+  const locksRef = useRef<Record<string, PlayerLock>>(initialLocks ?? {});
+  const [holdPlayerId, setHoldPlayerId] = useState<string | null>(null);
   const buildLineup = (mode: "suggested" | "manual", size: number): Lineup => {
     if (mode === "manual") {
       return {
@@ -294,20 +339,30 @@ export function LineupPicker({
     // Build chip-by-id map from the available players list — picked
     // up by the suggester's chip-spread / chip-group penalty (Phase D).
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    for (const p of playersForLineup) chipByPlayerId[p.id] = p.chip;
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    const pinned: Record<string, Zone> = {};
+    let playbook = aflPlaybook;
+    for (const [pid, hold] of Object.entries(locksRef.current)) {
+      if (hold.kind === "zone") pinned[pid] = hold.zone as Zone;
+      if (hold.kind === "field" && playbook) {
+        const role = playbook.roles[pid] ?? { home: null, also: [], never: [], keepOn: false };
+        playbook = { ...playbook, roles: { ...playbook.roles, [pid]: { ...role, keepOn: true } } };
+      }
+    }
     return suggestStartingLineup(
       playersForLineup,
       season,
       0,
       zoneCapsFor(size, positionModel),
       {},
-      {},
+      pinned,
       {},
       {},
       {},
       chipByPlayerId,
       chipModeByKey,
       fullPeriodMs,
+      playbook,
     );
   };
 
@@ -378,6 +433,41 @@ export function LineupPicker({
     () => new Map(players.map((p) => [p.id, p])),
     [players],
   );
+  const roles = useRoleSheet(
+    roleSheet,
+    auth.kind === "team" ? auth.teamId : null,
+    (pid) => playerById.get(pid)?.full_name,
+  );
+  const holds = aflStoreLocks(locks);
+  // Saved as a player_lock event so it carries into the game (LiveGame
+  // reads holds back from the events) and shows on a co-manager's phone.
+  function saveHold(pid: string, hold: PlayerLock | null) {
+    const next = { ...locksRef.current };
+    if (hold) next[pid] = hold;
+    else delete next[pid];
+    locksRef.current = next;
+    setLocks(next);
+    void recordPlayerLock(auth, gameId, { player_id: pid, lock: hold, quarter: 0, elapsed_ms: 0 }).then((res) => {
+      if (!res.success) setServerError(res.error);
+    });
+  }
+
+  const ruleCheck = useMemo(() => {
+    if (!aflPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of playersForLineup) names[p.id] = p.full_name;
+    return aflRuleCheck({
+      lineup,
+      names,
+      gameMinutes: {},
+      previousZones: {},
+      period: 1,
+      periodCount: Math.max(1, Math.round((gameMinutes * 60000) / fullPeriodMs)),
+      periodMs: fullPeriodMs,
+      season,
+      input: aflPlaybook,
+    });
+  }, [aflPlaybook, playersForLineup, lineup, gameMinutes, fullPeriodMs, season]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // Display order mirrors the in-game field: forwards at the top, backs
@@ -514,9 +604,45 @@ export function LineupPicker({
     defaultSubMinutes ?? suggestedSubMinutes(benchCount, totalCount, gameMinutes);
   const effectiveOnFieldTarget = Math.min(onFieldSize, totalCount);
   const effectiveSubMin =
-    subMinInput === null
-      ? suggestedMin
-      : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
+    subMinInput === null ? suggestedMin : subMinutesFrom(subMinInput, suggestedMin);
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
+      // Plan what's on screen: this lineup's size and sub interval, not
+      // the game's stored ones (Stagehand round 2).
+      onFieldSize={onFieldSize}
+      subIntervalSeconds={Math.round(effectiveSubMin * 60)}
+      anchor={{
+        groups: Object.fromEntries(
+          (["back", "hback", "mid", "hfwd", "fwd"] as Zone[])
+            .filter((z) => displayZoneCaps[z] > 0)
+            .map((z) => [z, lineup[z]]),
+        ),
+        bench: lineup.bench,
+      }}
+      pinLabel="Use this plan"
+      onPin={(plan) => {
+        const q1 = plan.periods[0];
+        if (!q1) return;
+        setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
+        const next: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [...q1.bench] };
+        for (const g of q1.groups) if (g.groupId in next) next[g.groupId as Zone] = [...g.playerIds];
+        setLineup(next);
+      }}
+    />
+  ) : null;
 
   // Two-step kickoff (Steve 2026-05-13): tapping "Ready for Q1" used
   // to fire startGame immediately, writing lineup_set + flipping
@@ -614,6 +740,21 @@ export function LineupPicker({
     });
   }
 
+  // Season time in zone, in ms for the field tiles' zone bars.
+  const seasonMsByPlayer = useMemo(() => {
+    const out: Record<string, (typeof season)[string]> = {};
+    for (const [pid, z] of Object.entries(season)) {
+      out[pid] = {
+        back: z.back * 60_000,
+        hback: z.hback * 60_000,
+        mid: z.mid * 60_000,
+        hfwd: z.hfwd * 60_000,
+        fwd: z.fwd * 60_000,
+      };
+    }
+    return out;
+  }, [season]);
+
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
   return (
@@ -622,8 +763,15 @@ export function LineupPicker({
     // pushed the parent's bottom edge so far below the sticky
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
-    <div ref={lineupPickerRootRef} className="space-y-4">
-      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
+    <div
+      ref={lineupPickerRootRef}
+      role="region"
+      aria-label="Starting lineup"
+      className="space-y-4"
+    >
+      <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {availabilityPanel}
+      {walkthroughOffer}
 
       {/* Lent players — always-visible recall strip so a coach can shuffle
           lent players straight from the picker (recall was previously only
@@ -644,7 +792,7 @@ export function LineupPicker({
                 disabled={loanPending}
                 data-testid={`picker-recall-lent-${p.id}`}
                 aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 {p.jersey_number != null && (
                   <span className="tabular-nums font-semibold">{p.jersey_number}</span>
@@ -698,7 +846,7 @@ export function LineupPicker({
                 // hit the field yet.
                 const bits: string[] = [];
                 bits.push(
-                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                  lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
                 );
                 if (onFieldSize !== defaultOnFieldSize)
                   bits.push(`${onFieldSize} on field`);
@@ -750,24 +898,17 @@ export function LineupPicker({
             {/* Rotation mode */}
             <div>
               <p className="text-xs font-semibold text-ink">Rotation</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <SFButton
-                  variant={lineupMode === "suggested" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => handleModeChange("suggested")}
-                >
-                  {lineupMode === "suggested" ? "✓ Suggested" : "Suggested"}
-                </SFButton>
-                <SFButton
-                  variant={lineupMode === "manual" ? "primary" : "subtle"}
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => handleModeChange("manual")}
-                >
-                  {lineupMode === "manual" ? "✓ Set manually" : "Set manually"}
-                </SFButton>
-              </div>
+              <SegmentedControl
+                className="mt-2"
+                label="Rotation"
+                disabled={isPending}
+                value={lineupMode}
+                options={[
+                  { id: "suggested", label: "Suggested" },
+                  { id: "manual", label: "Set manually" },
+                ]}
+                onChange={(next) => handleModeChange(next)}
+              />
               <p className="mt-1.5 text-xs text-ink-mute">
                 {lineupMode === "suggested"
                   ? "Auto-rotates each quarter — players with less season zone time start."
@@ -831,11 +972,15 @@ export function LineupPicker({
                   <Input
                     id="sub-minutes"
                     type="number"
-                    min={1}
-                    max={10}
+                    min={SUB_MINUTES_MIN}
+                    max={SUB_MINUTES_MAX}
                     step={0.5}
                     value={subMinInput ?? String(suggestedMin)}
                     onChange={(e) => setSubMinInput(e.target.value)}
+                    // Show the minutes the game will use (1–10).
+                    onBlur={() => {
+                      if (subMinInput !== null) setSubMinInput(String(effectiveSubMin));
+                    }}
                     disabled={isPending}
                   />
                 </div>
@@ -866,7 +1011,7 @@ export function LineupPicker({
                       onClick={() => handleLendToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -876,7 +1021,7 @@ export function LineupPicker({
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player
@@ -950,139 +1095,73 @@ export function LineupPicker({
         </p>
       )}
 
-      {/* Single column — user feedback 2026-05-20: 2-col was too
-          cramped inside the demo phone-frame for the FWD / CENTRE /
-          BACK / BENCH cards. */}
-      <div className="grid grid-cols-1 gap-3">
-        {slots.map((slot) => {
-          const isBench = slot === "bench";
-          const cap = isBench ? null : displayZoneCaps[slot];
-          const filled = lineup[slot].length;
-          const emptyCount =
-            isBench || cap === null ? 0 : Math.max(0, cap - filled);
-          const isFull = !isBench && cap !== null && filled === cap;
+      {/* Rule check (UX plan 4.3): the team's rules, the game-time
+          floor and season balance against this lineup. */}
+      {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
+
+      {/* The same field the live game uses (UX plan principle 2: one
+          lineup, one picture). Tap a player then another to swap them
+          — across zones or with the bench; tap a player then an empty
+          spot to move them; tap an empty spot first to pick from the
+          bench. The zone bar on each tile is season time in zone. */}
+      <div className="space-y-3">
+        <Field
+          playersById={playerById}
+          lineup={lineup}
+          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
+          primedEmptyZone={selected?.kind === "empty" ? selected.zone : null}
+          dimUnselected={false}
+          onTapField={(pid, zone) => (pid ? tapPlayer(pid) : tapEmpty(zone))}
+          onLongPress={setHoldPlayerId}
+          lockedIds={holds.lockedIds}
+          zoneLockedPlayers={holds.zoneLockedPlayers}
+          zoneMsByPlayer={seasonMsByPlayer}
+          zoneCaps={displayZoneCaps}
+          displayZoneCaps={displayZoneCaps}
+          positionModel={positionModel}
+          chipModeByKey={chipModeByKey}
+          positionLabels={assignPositionLabels(lineup, aflPlaybook)}
+          keepOnIds={keepOnIds(roles.roles)}
+        />
+        <Bench
+          playersById={playerById}
+          lineup={lineup}
+          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
+          dimUnselected={false}
+          onTapBench={tapPlayer}
+          onLongPress={setHoldPlayerId}
+          lockedIds={holds.lockedIds}
+          zoneLockedPlayers={holds.zoneLockedPlayers}
+          zoneMsByPlayer={seasonMsByPlayer}
+          chipModeByKey={chipModeByKey}
+          keepOnIds={keepOnIds(roles.roles)}
+        />
+        {holdPlayerId && playerById.get(holdPlayerId) && (() => {
+          // The same long-press menu as in the game (UX: one "Keep on"):
+          // holds for this game, Switch, and the season role inside it.
+          const pid = holdPlayerId;
+          const zone = (["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).find((z) => lineup[z].includes(pid)) ?? null;
+          const hold = locks[pid];
+          const close = () => setHoldPlayerId(null);
           return (
-            <SFCard key={slot} pad={0} className="overflow-hidden">
-              <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-                <span
-                  aria-hidden="true"
-                  className={`block h-5 w-1 rounded-sm ${
-                    isBench ? "bg-ink-mute" : zoneAccent(slot)
-                  }`}
-                />
-                <div className="min-w-0 flex-1">
-                  {/* Header tinted to match the zone — coach can
-                      trace "BACK in blue" right through to the
-                      blue bar on each player tile. Steve 2026-05-23
-                      (parent feedback: hard to correlate labels
-                      with the per-tile colour stripes). Bench
-                      stays neutral ink. */}
-                  <h3
-                    className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
-                      isBench ? "text-ink" : zoneHeaderText(slot)
-                    }`}
-                  >
-                    {slotLabel(slot)}
-                  </h3>
-                </div>
-                <span
-                  className={`font-mono text-xs font-semibold tabular-nums ${
-                    isFull ? "text-ink" : "text-ink-mute"
-                  }`}
-                >
-                  {filled}
-                  {!isBench && cap !== null && ` / ${cap}`}
-                </span>
-              </div>
-              {filled === 0 && emptyCount === 0 ? (
-                <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
-              ) : (
-                <ul className="divide-y divide-hairline">
-                  {lineup[slot].map((pid) => {
-                    const p = playerById.get(pid);
-                    if (!p) return null;
-                    const isSelected =
-                      selected?.kind === "player" && selected.id === pid;
-                    return (
-                      <li key={pid}>
-                        <button
-                          type="button"
-                          onClick={() => tapPlayer(pid)}
-                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                            isSelected
-                              ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
-                              : "hover:bg-surface-alt"
-                          }`}
-                        >
-                          <Guernsey num={p.jersey_number ?? ""} size={32} />
-                          <span className="flex min-w-0 flex-1 flex-col gap-1">
-                            <span className="truncate font-medium text-ink">
-                              {p.chip && (
-                                <ChipIndicator
-                                  chipKey={p.chip as ChipKey}
-                                  mode={chipModeByKey[p.chip as ChipKey]}
-                                  className="mr-1.5 align-middle"
-                                />
-                              )}
-                              {p.full_name}
-                            </span>
-                            {/* Season time-in-zone — helps a coach setting
-                                the lineup by hand start a kid in a zone
-                                they've had least of. Steve 2026-07-07. */}
-                            <ZoneTimePercents zones={season[pid]} />
-                          </span>
-                          {isSelected ? (
-                            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
-                              Swapping…
-                            </span>
-                          ) : (
-                            <span className="text-ink-mute opacity-60">
-                              <SFIcon.swap />
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                  {!isBench &&
-                    Array.from({ length: emptyCount }).map((_, idx) => {
-                      const isSelected =
-                        selected?.kind === "empty" && selected.zone === slot;
-                      return (
-                        <li key={`__open-${idx}`}>
-                          <button
-                            type="button"
-                            onClick={() => tapEmpty(slot)}
-                            aria-label={`Empty ${slotLabel(slot)} position`}
-                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                              isSelected
-                                ? "bg-warn-soft ring-2 ring-inset ring-warn"
-                                : "hover:bg-surface-alt"
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-ink-mute/60 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-mute"
-                            >
-                              —
-                            </span>
-                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
-                              Open slot
-                            </span>
-                            {isSelected ? (
-                              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-warn">
-                                Tap a player
-                              </span>
-                            ) : null}
-                          </button>
-                        </li>
-                      );
-                    })}
-                </ul>
-              )}
-            </SFCard>
+            <LockModal
+              player={playerById.get(pid)!}
+              currentLock={hold?.kind === "field" ? "field" : hold?.kind === "zone" ? "zone" : null}
+              currentZone={hold?.kind === "zone" ? (hold.zone as Zone) : zone}
+              isInjured={false}
+              isLoaned={false}
+              seasonLoanMins={0}
+              squadLoanMins={0}
+              onLockField={zone ? () => { saveHold(pid, { kind: "field" }); close(); } : undefined}
+              onLockZone={zone ? () => { saveHold(pid, { kind: "zone", zone }); close(); } : undefined}
+              onUnlock={() => { saveHold(pid, null); close(); }}
+              onSwitch={() => { close(); tapPlayer(pid); }}
+              onEditRole={roles.open ? () => { close(); roles.open?.(pid); } : undefined}
+              onClose={close}
+            />
           );
-        })}
+        })()}
+        {roles.sheet}
       </div>
 
       {/* Sub interval input moved UP into the Game settings
@@ -1112,7 +1191,7 @@ export function LineupPicker({
         savedAt={savedAt}
         savePlanDisabled={onFieldCount === 0 || isPending}
         onConfirm={handleOpenStartModal}
-        confirmLabel="Ready for Q1"
+        confirmLabel="Start Q1"
         confirmDisabled={onFieldCount === 0 || isPending}
         confirmIconAfter={<SFIcon.chevronRight color="currentColor" />}
       />
@@ -1158,41 +1237,3 @@ export function LineupPicker({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-/**
- * Tailwind class for the small accent bar at the left of each zone-card
- * header. Uses our existing colourblind-tested zone tokens.
- */
-function zoneAccent(zone: Zone): string {
-  switch (zone) {
-    case "fwd":
-      return "bg-zone-f";
-    case "hfwd":
-      return "bg-zone-f/70";
-    case "mid":
-      return "bg-zone-c";
-    case "hback":
-      return "bg-zone-b/70";
-    case "back":
-      return "bg-zone-b";
-  }
-}
-
-/**
- * Tailwind text-colour class for the section-header label
- * ("FORWARD" / "CENTRE" / "BACK") so the heading text colour
- * matches the accent strip + the per-tile colour bars. Steve
- * 2026-05-23 — parent feedback that the labels and colours
- * weren't visually tied together at thumbnail size.
- */
-function zoneHeaderText(zone: Zone): string {
-  switch (zone) {
-    case "fwd":
-    case "hfwd":
-      return "text-zone-f";
-    case "mid":
-      return "text-zone-c";
-    case "back":
-    case "hback":
-      return "text-zone-b";
-  }
-}

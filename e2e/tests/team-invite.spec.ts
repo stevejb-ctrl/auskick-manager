@@ -27,6 +27,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -45,7 +46,7 @@ test("admin invites a parent, parent accepts via /join/[token]", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // --- Step 1: super-admin (acting as team admin) creates an invite ---
   const adminContext = await browser.newContext({
@@ -103,13 +104,15 @@ test("admin invites a parent, parent accepts via /join/[token]", async ({
     // above). /login is email-first / magic-link; toggle to password
     // mode and use the testid pattern.
     await userPage.goto("/login");
+    await waitForHydration(userPage);
     await userPage.getByTestId("login-mode-toggle").click();
     await userPage.getByTestId("login-email").fill(invitee.email);
     await userPage.getByTestId("login-password").fill(invitee.password);
     await userPage.getByTestId("login-submit").click();
     await userPage.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
+    await waitForHydration(userPage);
 
-    await userPage.goto(`/join/${token}`);
+    await gotoStable(userPage, `/join/${token}`);
     // AcceptInviteButton renders "Accept & join team".
     await userPage
       .getByRole("button", { name: /accept.*join team/i })
@@ -173,7 +176,7 @@ test("filling email sends invite + populates email columns", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   const { ctx, page } = await openInviteForm(browser, team.id);
 
@@ -225,7 +228,7 @@ test.skip("Resend email on a pending row increments the send count", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Seed an already-sent invite with email_sent_at set to 90s in the
   // past so the resend button is past the 60s throttle when the page
@@ -249,6 +252,7 @@ test.skip("Resend email on a pending row increments the send count", async ({
   });
   const page = await ctx.newPage();
   await page.goto(`/teams/${team.id}/settings`);
+  await waitForHydration(page);
   // InviteRow is a client component — wait for hydration so the
   // button's onClick is actually attached before we click. Without
   // this the click can be a no-op (matches the hydration race the
@@ -295,7 +299,7 @@ test("Resend button is disabled inside the 60s throttle window", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Seed an invite that was "just sent" — well within the throttle window.
   const justNow = new Date().toISOString();
@@ -332,7 +336,7 @@ test("invalid email format blocks creation entirely", async ({ browser }) => {
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   const { ctx, page } = await openInviteForm(browser, team.id);
 
@@ -364,7 +368,7 @@ test("blank email = link-only invite (no email columns populated)", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   const { ctx, page } = await openInviteForm(browser, team.id);
 
@@ -409,7 +413,7 @@ test("entering an existing Siren user's email swaps Send invite for direct-add",
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Create a separate Siren user who'll be the direct-add target.
   // They have a real profile but aren't a member of `team` yet, so
@@ -431,7 +435,7 @@ test("entering an existing Siren user's email swaps Send invite for direct-add",
       timeout: 10_000,
     });
     const directAddButton = page.getByRole("button", {
-      name: /^add existing target as game manager$/i,
+      name: /^add existing target as manager$/i,
     });
     await expect(directAddButton).toBeVisible();
     await directAddButton.click();
@@ -482,7 +486,7 @@ test("looking up an email of an existing team member disables submit", async ({
   const ownerId = superAdmin.users.find(
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Seed an existing user AND a membership row so the lookup returns
   // "already_member" not "existing".

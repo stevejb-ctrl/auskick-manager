@@ -18,7 +18,7 @@ import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { PulsingNumber } from "@/components/live/PulsingNumber";
-import { Court } from "@/components/netball/Court";
+import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
@@ -35,6 +35,8 @@ import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
+import { ClockMenu } from "@/components/live/ClockMenu";
 
 // Perf phase 8: same dynamic-import pattern as LiveGame.tsx for
 // the rare-state netball modals. Saves cold-start bundle weight
@@ -79,13 +81,16 @@ import {
   playerThirdMs,
   replayNetballGame,
   seasonPositionCounts,
+  lineupAfterSubs,
+  splitQuarterSegments,
 } from "@/lib/sports/netball/fairness";
-import { computeNetballClockMs } from "@/lib/sports/netball/clock";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
 import {
   saveNetballLineupDraft,
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
@@ -93,10 +98,18 @@ import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
   projectUpcomingRotation,
+  withPinnedPeriods,
+  hasPinnedPeriod,
+  consumePeriodPin,
   availablePlayersForPlan,
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
+import { UndoStrip } from "@/components/live/UndoStrip";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { periodLabels } from "@/lib/sports";
+import { SCORE_CHIP } from "@/components/live/scoreChip";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -160,15 +173,13 @@ interface NetballLiveGameProps {
    */
   clockMultiplier?: number;
   /**
-   * Suppress the first-visit walkthrough auto-open. Used by the
-   * runner-token page when it ALSO renders an availability section
-   * above this component — without this, the welcome modal opens
-   * at z-50 fixed inset-0 and silently swallows clicks meant for
-   * the availability buttons underneath. Default behaviour
-   * (auto-open on first visit) is unchanged when omitted. The "?"
-   * button stays as a manual trigger.
+   * When the server rendered the page (ms). The first client render
+   * uses it as "now" so tile times and the clock match the server's
+   * HTML; after mount the clock runs off Date.now(). Without it a
+   * second's gap before hydration ("1:00" vs "1:02") made React throw
+   * the HTML away and swallow the coach's first tap.
    */
-  suppressAutoWalkthrough?: boolean;
+  renderedAtMs?: number;
   /**
    * True when the current user has admin role on this team. Drives
    * the "Restart game" affordance — folded into the same row as
@@ -177,6 +188,8 @@ interface NetballLiveGameProps {
    * real estate (Steve 2026-05-13). Mirrors LiveGame.tsx.
    */
   isAdmin?: boolean;
+  /** Game-day "Who's here" panel for the pre-kickoff picker (team auth). */
+  availabilityPanel?: React.ReactNode;
   /**
    * Pre-game lineup draft fetched server-side from
    * game_lineup_drafts. Drives two things on the pre-kickoff
@@ -222,6 +235,10 @@ interface NetballLiveGameProps {
    * actually sees them influence the rotation.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** Player roles on the pre-game lineup (long-press). Coaches only. */
+  roleSheet?: import("@/components/playbook/useRoleSheet").RoleSheetConfig;
   /**
    * Steve 2026-05-16 (AFL parity): team hype song. Plays a snippet
    * on each own-team goal commit. AFL has had this since song
@@ -239,7 +256,7 @@ interface NetballLiveGameProps {
    * same spot it does for AFL / RL. Built by the server page (which
    * has team name / opponent / season events). Only shown pre-kickoff.
    */
-  gamePlanButton?: import("react").ReactNode;
+  gamePlan?: import("@/components/game-plan/GamePlanButton").GamePlanButtonProps;
 }
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
@@ -264,17 +281,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
-    suppressAutoWalkthrough = false,
+    renderedAtMs,
     isAdmin = false,
     initialDraft = null,
     allowMidQuarterSubs = false,
     teamAllowMidQuarterSubs = false,
     gameAllowMidQuarterSubs = null,
     chipModeByKey = {},
+    netballPlaybook,
+    roleSheet,
     songUrl = null,
     songStartSeconds = 0,
     songDurationSeconds = 15,
-    gamePlanButton,
+    gamePlan,
+    availabilityPanel,
   } = props;
 
   const [isPending, startTransition] = useTransition();
@@ -314,6 +334,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // `_quarterElapsedMs` from the parent (which represents the frozen
   // recorded value) so a closed quarter can't keep ticking.
   const [, setClockTick] = useState(0);
+  // Server's "now" until mounted, so hydration sees the same text.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // Pause state. `pausedAtMs` is the wall-clock timestamp of the
   // current pause (null when running). `accumulatedPauseMs` is the
   // total paused time across all pauses this quarter — subtracted
@@ -351,7 +374,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return () => window.clearInterval(id);
   }, [currentQuarter, quarterEnded, finalised, quarterStartedAt, pausedAtMs]);
   // Quarter-clock calculation extracted to a pure helper so the
-  // freeze invariant is unit-testable (src/lib/sports/netball/clock.ts).
+  // freeze invariant is unit-testable (src/lib/live/periodClock.ts).
   // Steve 2026-05-15: the freeze branch is load-bearing for the
   // auto-hooter bug fix — between hooter and the server-confirmed
   // quarter_end refresh, the helper MUST return the value captured
@@ -371,7 +394,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const ms = Date.parse(quarterStartedAt);
     return Number.isNaN(ms) ? null : ms;
   })();
-  const clockMs = computeNetballClockMs({
+  const clockMs = computePeriodClockMs({
     currentQuarter,
     quarterEnded,
     finalised,
@@ -380,10 +403,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     accumulatedPauseMs,
     fallbackElapsedMs: _quarterElapsedMs,
     clockMultiplier,
-    nowMs: Date.now(),
+    nowMs: mounted || renderedAtMs === undefined ? Date.now() : renderedAtMs,
   });
   const isPaused = pausedAtMs !== null;
-  const handleClockTap = useCallback(() => {
+  const toggleClock = useCallback(() => {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     // Once the auto-hooter has fired for this quarter the clock is
     // locked — tapping the pill to "resume" would re-start time
@@ -413,7 +436,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // pre-seeded from it (NetballQuarterBreak reads the pin directly).
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
   const [planNextOpen, setPlanNextOpen] = useState(false);
   // Final-rotation window, in GAME time. Netball's clockMs already has
   // the demo multiplier applied, so we compare against a game-time sub
@@ -428,10 +450,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     plannedRotation && plannedRotation.gameId === game.id
       ? plannedRotation
       : null;
-  const hasPinnedNextPeriod =
-    pinForThisGame != null &&
-    pinForThisGame.nextPeriodIndex === currentQuarter &&
-    pinForThisGame.nextPeriodGroups != null;
+  const hasPinnedNextPeriod = hasPinnedPeriod(pinForThisGame, currentQuarter);
 
   // ─── Pulse triggers ─────────────────────────────────────────
   // The Siren brand pulse fires at moments that ARE a siren going
@@ -474,6 +493,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // quarter length so on-court players are credited the time they
   // actually played, not the wall-clock that was paused.
   const [showManualEndConfirm, setShowManualEndConfirm] = useState(false);
+  // The clock pill opens the clock menu (pause / resume / end now).
+  const [clockMenuOpen, setClockMenuOpen] = useState(false);
   // Steve 2026-05-17 bug: was `useRef(false)` and flipped to `true`
   // on first fire and never reset. Q1's manual end-early worked
   // once, but Q2's tap silently no-op'd because the guard was
@@ -597,7 +618,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Freeze the local clock at the hooter so per-player tile time
     // doesn't keep ticking up while we wait for the server-confirmed
     // quarter_end refresh to land. Without this setPausedAtMs call,
-    // computeNetballClockMs(...) returns the live `Date.now()` delta
+    // computePeriodClockMs(...) returns the live `Date.now()` delta
     // and player times accrue during the ~100-500ms (often longer
     // on slow networks) between hooter and refresh — the bug Steve
     // reported 2026-05-15. Idempotent guard: if the coach manually
@@ -791,13 +812,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
       { ours: { goals: 0, behinds: 0 }, theirs: { goals: 0, behinds: 0 } },
     ];
-    const undoneTargets = new Set<string>();
-    for (const ev of thisGameEvents) {
-      if (ev.type !== "score_undo") continue;
-      const target = (ev.metadata as { target_event_id?: string } | null)
-        ?.target_event_id;
-      if (target) undoneTargets.add(target);
-    }
+    // Undos pair the way the replay pairs them (named target, else the
+    // latest standing score), so this matches the header.
+    const undoneTargets = new Set(
+      pairScoreUndos(
+        [...thisGameEvents].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        new Set(["goal", "opponent_goal"]),
+      ).values(),
+    );
     for (const ev of thisGameEvents) {
       if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
       if (undoneTargets.has(ev.id)) continue;
@@ -839,14 +861,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // until the coach explicitly unlocks. Coaches use this to keep a
   // strong shooter at GS or a defensive specialist at GK across the
   // game without having to re-pin each break.
-  const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>({});
-  // Mid-quarter substitution overlay. Coach injuries a court player and
-  // picks a bench replacement; the change is reflected here client-side
-  // until the next quarter break makes it durable via period_break_swap.
-  // Refreshing the page mid-quarter loses the overlay (the replayed
-  // lineup_set / period_break_swap events are the authoritative state).
-  // Coach can re-do the sub if that happens.
-  const [localOverlay, setLocalOverlay] = useState<GenericLineup | null>(null);
+  // Saved as player_lock events, so a reload or a co-manager's phone
+  // keeps them (UX plan 5.5).
+  const [nextBreakLocks, setNextBreakLocks] = useState<Record<string, string>>(() =>
+    netballPositionLocks(replayLocks(thisGameEvents)),
+  );
   // Mid-quarter sub log for the CURRENT quarter only. Each entry
   // records the exact clockMs at which a player vacated a position
   // and another took it. Drives accurate per-player time accounting:
@@ -873,10 +892,51 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     inPlayerId: string | null;
     atMs: number;
   };
+  // The quarter's sub log is the one source of truth for the court
+  // (onCourt below), and it's saved on the phone until the break writes
+  // it: a reload (phone locked, app switched) used to lose every
+  // mid-quarter sub, putting an injured or lent kid back on court
+  // (sideline combos).
+  const subsKey = `siren-netball-subs:${game.id}`;
   const [midQuarterSubs, setMidQuarterSubs] = useState<MidQuarterSub[]>([]);
+  // Restore after hydration (the server can't see the phone's storage,
+  // so restoring in the initial state would mismatch the server render).
+  const subsRestoredRef = useRef(false);
   useEffect(() => {
-    setMidQuarterSubs([]);
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(subsKey) ?? "null") as
+        | { quarter: number; subs: MidQuarterSub[] }
+        | null;
+      if (saved && saved.quarter === currentQuarter && Array.isArray(saved.subs) && saved.subs.length) {
+        setMidQuarterSubs(saved.subs);
+      }
+    } catch {
+      // Storage unavailable: nothing to restore.
+    }
+    subsRestoredRef.current = true;
+    // Mount only: later quarters start empty (below).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const subsQuarterRef = useRef(currentQuarter);
+  useEffect(() => {
+    // A new quarter starts with no subs (the last quarter's are written
+    // by its break). Only on an actual change, not on mount, so a
+    // restored log survives.
+    if (subsQuarterRef.current !== currentQuarter) {
+      subsQuarterRef.current = currentQuarter;
+      setMidQuarterSubs([]);
+    }
   }, [currentQuarter]);
+  useEffect(() => {
+    // Not before the restore has read what's saved.
+    if (!subsRestoredRef.current) return;
+    try {
+      if (midQuarterSubs.length === 0 || finalised) window.localStorage.removeItem(subsKey);
+      else window.localStorage.setItem(subsKey, JSON.stringify({ quarter: currentQuarter, subs: midQuarterSubs }));
+    } catch {
+      // Storage unavailable: the subs still live in memory.
+    }
+  }, [midQuarterSubs, currentQuarter, finalised, subsKey]);
   // Per-position pulse keys for the brand halo on PositionToken.
   // Each entry maps a positionId to the atMs of the most recent
   // mid-quarter sub at that position. When a new sub commits the
@@ -996,7 +1056,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // localOverlay wins if present (mid-quarter substitution); otherwise
   // we fall back to the replayed lineup. When quarterEnded + !finalised,
   // we show the LineupPicker instead of this lineup.
-  const onCourt = localOverlay ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
+  const onCourt = lineupAfterSubs(
+    initialLineup ?? emptyGenericLineup(ageGroup.positions),
+    midQuarterSubs,
+  );
 
   // Set of positionIds whose tokens get a "tap to score" affordance.
   // In netball only GS and GA can legally shoot — other tokens are
@@ -1043,39 +1106,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const startLineup =
       initialLineup ?? emptyGenericLineup(ageGroup.positions);
     const totalElapsed = quarterEnded ? quarterLengthMs : clockMs;
-    const segments: InProgressSegment[] = [];
-    let current = startLineup;
-    let prevMs = 0;
-    for (const sub of midQuarterSubs) {
-      const dur = Math.max(0, Math.min(sub.atMs, totalElapsed) - prevMs);
-      if (dur > 0) segments.push({ lineup: current, durationMs: dur });
-      // Apply the sub: outPlayer leaves position, inPlayer takes it.
-      // outPlayerId may be null when the slot was already empty
-      // (coach lent a player + cancelled the picker, then later
-      // tapped the empty token to fill it). inPlayerId may be null
-      // when the sub VACATES the position (short-squad "Move to
-      // empty position" emits a paired vacate + fill at the same
-      // atMs). Skip the matching step in either case.
-      const next: GenericLineup = {
-        positions: { ...current.positions },
-        bench:
-          sub.inPlayerId != null
-            ? current.bench.filter((id) => id !== sub.inPlayerId)
-            : [...current.bench],
-      };
-      const remaining = (next.positions[sub.positionId] ?? [])
-        .filter((id) => sub.outPlayerId == null || id !== sub.outPlayerId);
-      next.positions[sub.positionId] =
-        sub.inPlayerId != null ? remaining.concat([sub.inPlayerId]) : remaining;
-      if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
-        next.bench = [...next.bench, sub.outPlayerId];
-      }
-      current = next;
-      prevMs = Math.min(sub.atMs, totalElapsed);
-    }
-    const finalDur = Math.max(0, totalElapsed - prevMs);
-    if (finalDur > 0) segments.push({ lineup: current, durationMs: finalDur });
-    return { segments };
+    // The replay's own split, so the live clock and the replay agree.
+    return { segments: splitQuarterSegments(startLineup, totalElapsed, midQuarterSubs) };
   }, [
     clockMs,
     quarterEnded,
@@ -1189,9 +1221,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const nowAbsMs = completedQuarterMs + liveOverlayMs;
 
   // Period label initial for the per-period rows (e.g. "Q" → "Q1").
-  const periodAbbrev = (ageGroup.periodLabel ?? "quarter")
-    .charAt(0)
-    .toUpperCase();
+  const periodAbbrev = periodLabels("netball", ageGroup).label.charAt(0).toUpperCase();
 
   // Build the PlayerInsightSummary input for one player. Reused by the
   // long-press action modal's `insight` slot. Maps PlayerThirdMs
@@ -1219,6 +1249,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       inGameZoneMs,
       perPeriod,
       seasonZoneMs: seasonZoneCounts[pid] ?? {},
+      // Netball's season is counted in quarters.
+      seasonPeriod: 1,
       lastSubbedOnMs: replayState.lastSubbedOnMs[pid] ?? null,
       nowAbsMs,
     };
@@ -1242,12 +1274,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       setReplacingTarget({ positionId, vacatingPlayerId: null });
       return;
     }
-    if (!SCORING_POSITIONS.has(positionId)) return;
-    // NETBALL-04: scoring affordance gated on track_scoring. The tap
-    // becomes a no-op when the team isn't tracking scores; long-press
-    // (handleTokenLongPress) is unaffected so coaches can still open
-    // the actions modal on GS/GA tokens.
-    if (!trackScoring) return;
+    // Shooters with scoring on get the goal dock (which also offers
+    // Player actions). Everyone else opens the action sheet straight
+    // away — a tap used to do nothing here, leaving injure / lend /
+    // keep behind a long-press only (UX plan H5).
+    if (!SCORING_POSITIONS.has(positionId) || !trackScoring) {
+      setActionsTarget({ playerId, positionId });
+      return;
+    }
     setPendingGoal({ playerId, positionId });
   };
 
@@ -1322,17 +1356,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // skip both: there's no slot to vacate.
   const vacateAndPromptReplacement = (playerId: string, positionId: string | null) => {
     if (!positionId) return;
-    setLocalOverlay((prev) => {
-      const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-      const next: GenericLineup = {
-        positions: { ...base.positions },
-        bench: [...base.bench],
-      };
-      next.positions[positionId] = (next.positions[positionId] ?? []).filter(
-        (id) => id !== playerId,
-      );
-      return next;
-    });
+    // Recorded as a vacate at this moment, so a cancelled replacement
+    // still stops their clock (it used to leave them accruing).
+    setMidQuarterSubs((prev) => [
+      ...prev,
+      { positionId, outPlayerId: playerId, inPlayerId: null, atMs: clockMs },
+    ]);
     setReplacingTarget({ positionId, vacatingPlayerId: playerId });
   };
 
@@ -1433,19 +1462,36 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (!actionsTarget?.positionId) return;
     const { playerId, positionId } = actionsTarget;
     closeActions();
-    setNextBreakLocks((prev) => ({ ...prev, [positionId]: playerId }));
+    // One bib per kid: holding them at a new bib frees the old one.
+    setNextBreakLocks((prev) => {
+      const next: Record<string, string> = {};
+      for (const [pos, pid] of Object.entries(prev)) if (pid !== playerId) next[pos] = pid;
+      next[positionId] = playerId;
+      return next;
+    });
+    saveLock(playerId, { kind: "position", position: positionId });
   };
 
   const handleUnlock = () => {
     if (!actionsTarget?.positionId) return;
     const { positionId } = actionsTarget;
     closeActions();
+    const held = nextBreakLocks[positionId];
     setNextBreakLocks((prev) => {
       const next = { ...prev };
       delete next[positionId];
       return next;
     });
+    if (held) saveLock(held, null);
   };
+
+  function saveLock(playerId: string, lock: PlayerLock | null) {
+    enqueueLiveAction("recordPlayerLock", [
+      auth,
+      game.id,
+      { player_id: playerId, lock, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
+    ]);
+  }
 
   // Pick-replacement: drop the picked bench player into the vacated
   // position in the local overlay AND record the substitution
@@ -1459,21 +1505,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // useMemo re-derives, and the matching PositionToken gets a
     // fresh pulseKey on its next render. No extra trigger
     // needed here.
-    const { positionId, vacatingPlayerId } = replacingTarget;
-    setLocalOverlay((prev) => {
-      const base = prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-      const next: GenericLineup = {
-        positions: { ...base.positions },
-        bench: base.bench.filter((id) => id !== replacementId),
-      };
-      next.positions[positionId] = [replacementId];
-      return next;
-    });
+    // The vacate is already logged; this fills the position.
+    const { positionId } = replacingTarget;
     setMidQuarterSubs((prev) => [
       ...prev,
       {
         positionId,
-        outPlayerId: vacatingPlayerId,
+        outPlayerId: null,
         inPlayerId: replacementId,
         atMs: clockMs,
       },
@@ -1599,7 +1637,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the AFL walkthrough still gets the netball one on their first
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [walkthroughSkipWelcome, setWalkthroughSkipWelcome] = useState(false);
   // Q-by-Q modal trigger — set to true when the coach taps the
   // small chip under the clock pill in NetballScoreBug. Mirrors
   // AFL's quarterScoresOpen in LiveGame.tsx.
@@ -1613,27 +1650,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     () => buildNetballWalkthroughSteps({ trackScoring }),
     [trackScoring],
   );
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem("nb-walkthrough-seen")) return;
-    // Caller can suppress auto-open. Used by the runner-token page
-    // when it ALSO renders an availability section above this
-    // component — without it the welcome modal opens at z-50 fixed
-    // inset-0 and swallows clicks meant for the availability
-    // buttons. Coaches on the team-auth live page still see the
-    // walkthrough (default). The "?" button is the manual trigger.
-    if (suppressAutoWalkthrough) return;
-    setWalkthroughOpen(true);
-  }, [suppressAutoWalkthrough]);
+  // No auto-open: the tour is offered on the pre-kickoff lineup screen
+  // (WalkthroughOffer, passed into the picker below) and the "?" opens
+  // it on demand — never a modal over the clock or a break (UX plan H1).
   function handleWalkthroughClose() {
     if (typeof window !== "undefined") {
       localStorage.setItem("nb-walkthrough-seen", "1");
     }
     setWalkthroughOpen(false);
-    setWalkthroughSkipWelcome(false);
   }
   function handleOpenWalkthrough() {
-    setWalkthroughSkipWelcome(true);
     setWalkthroughOpen(true);
   }
 
@@ -1659,11 +1685,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     />
   );
   const walkthroughOverlay = walkthroughOpen ? (
-    <WalkthroughModal
-      steps={walkthroughSteps}
-      skipWelcome={walkthroughSkipWelcome}
-      onClose={handleWalkthroughClose}
-    />
+    <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
   ) : null;
 
   // ─── Initial lineup (before game starts) ────────────────────
@@ -1679,6 +1701,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballLineupPicker
+          // Rebuild the suggestion when who's-here changes on game day.
+          key={[...availableIds].sort().join(",")}
           ageGroup={ageGroup}
           squad={squad}
           availableIds={availableIds}
@@ -1696,18 +1720,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           gameId={game.id}
           initialLoanedIds={Array.from(loanedIds)}
           chipModeByKey={chipModeByKey}
+          netballPlaybook={netballPlaybook}
+          roleSheet={roleSheet}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           // "Back to availability" breadcrumb — only meaningful for
           // the team-auth path (game detail page exists). Token-auth
           // (share runner) doesn't have a netball flow yet, so the
           // link is hidden in that case.
-          backHref={
-            auth.kind === "team"
-              ? `/teams/${auth.teamId}/games/${game.id}`
+          // The game-day panel replaces the "Update availability" link.
+          availabilityHref={
+            auth.kind === "team" && !availabilityPanel
+              ? `/teams/${auth.teamId}/games/${game.id}/availability`
               : undefined
           }
-          gamePlanButton={gamePlanButton}
+          availabilityPanel={availabilityPanel}
+          gamePlan={gamePlan}
+          walkthroughOffer={
+            <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
+          }
           currentOnFieldSize={game.on_field_size}
           onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {
@@ -1760,7 +1791,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
           initialSavedAt={initialDraft?.updated_at ?? null}
-          confirmLabel="Ready for Q1"
+          confirmLabel="Start Q1"
           disabled={isPending}
         />
       </div>
@@ -1797,6 +1828,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerStats={playerStats}
           squad={squad}
           trackScoring={trackScoring}
+          presentIds={presentPlayerIds(thisGameEvents)}
         />
         {/* Sticky-bottom "Finish game" CTA — locks to the viewport
             so the user has a big, unmissable exit. Team-auth coach
@@ -1859,6 +1891,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           scoreByQuarter={scoreByQuarter}
           players={squad}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
+          midQuarterSubs={midQuarterSubs}
           opponentName={game.opponent}
         />
       </div>
@@ -1920,11 +1953,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           playerStats={playerStats}
           midQuarterSubs={midQuarterSubs}
           chipModeByKey={chipModeByKey}
+          netballPlaybook={netballPlaybook}
           trackScoring={trackScoring}
           onStarted={() => {
-            // Local overlay is durable now via the period_break_swap
-            // event the component just wrote.
-            setLocalOverlay(null);
             // nextBreakLocks INTENTIONALLY persist across the
             // transition: the coach's "🔒 Keep at GS next break" is
             // a sticky preference, not a one-shot. Each subsequent
@@ -1989,7 +2020,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
         >
           {isPending && <PulseDot size="sm" />}
-          {isPending ? "Finalising…" : "Finalise game"}
+          {isPending ? "Finishing…" : "Finish game"}
         </button>
       </div>
     );
@@ -2036,17 +2067,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ? () => setPickScorerOpen(true)
           : undefined
       }
-      onClockTap={handleClockTap}
+      onClockTap={
+        currentQuarter >= 1 && !quarterEnded && !finalised
+          ? () => setClockMenuOpen(true)
+          : undefined
+      }
+      clockLabel={`Clock — Q${currentQuarter}, ${isPaused ? "paused" : "running"}`}
       // Q-by-Q chip surfaces only when there's something to show.
       // trackScoring=false hides it entirely (would be empty).
       onShowQuarterScores={
         trackScoring ? () => setQuarterScoresOpen(true) : undefined
       }
-      // Surface "End Q early" only when the coach paused at the
-      // start of a quarter and forgot to resume — the chip
-      // self-gates on `paused` inside NetballScoreBug, so passing
-      // it here unconditionally is fine.
-      onEndQuarterEarly={() => setShowManualEndConfirm(true)}
       paused={isPaused}
       showScores={trackScoring}
       // Strip the inner card chrome — this scorebug renders
@@ -2066,6 +2097,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarter credit per Steve's spec ("apply all the
           remaining minutes of the quarter to the players on
           field"). */}
+      {clockMenuOpen && (
+        <ClockMenu
+          periodAbbr={`Q${currentQuarter}`}
+          running={!isPaused}
+          onPause={toggleClock}
+          onResume={toggleClock}
+          onEndEarly={() => setShowManualEndConfirm(true)}
+          onClose={() => setClockMenuOpen(false)}
+        />
+      )}
+
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
@@ -2167,7 +2209,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               <button
                 type="button"
                 data-testid="plan-next-clear"
-                onClick={() => clearPlannedRotation()}
+                onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
                 className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
               >
                 Clear
@@ -2231,6 +2273,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           onFieldSize: game.on_field_size,
           seed: 7,
           chipModeByKey,
+          netballPlaybook,
           fromPeriodIndex: Math.max(0, currentQuarter - 1),
           currentGroups,
           currentBench,
@@ -2246,7 +2289,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             opponentName={game.opponent}
             seasonEvents={seasonEvents}
             chipModeByKey={chipModeByKey}
-            initialPlan={initialPlan}
+            netballPlaybook={netballPlaybook}
+            // Reopened after a pin: show the pinned next period, not a
+            // fresh projection ("Suggested" still reverts to the projection).
+            initialPlan={withPinnedPeriods(initialPlan, {
+              pin: pinForThisGame,
+              fromPeriodIndex: currentQuarter,
+              availableIds: playersForPlan.map((p) => p.id),
+            })}
             initialPeriodIndex={1}
             playerStats={planPlayerStats}
             planActions={[
@@ -2304,6 +2354,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         auth={auth}
         gameId={game.id}
         isAdmin={isAdmin}
+        finished={finalised}
       />
 
       <p className="text-center text-xs text-ink-mute">
@@ -2382,24 +2433,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   if (sourcePositionId === targetPositionId) return;
                   closeActions();
                   const atMs = clockMs;
-                  setLocalOverlay((prev) => {
-                    const base =
-                      prev ?? initialLineup ?? emptyGenericLineup(ageGroup.positions);
-                    const next: GenericLineup = {
-                      positions: { ...base.positions },
-                      bench: [...base.bench],
-                    };
-                    next.positions[sourcePositionId] = (
-                      next.positions[sourcePositionId] ?? []
-                    ).filter((id) => id !== playerId);
-                    next.positions[targetPositionId] = [
-                      ...(next.positions[targetPositionId] ?? []).filter(
-                        (id) => id !== playerId,
-                      ),
-                      playerId,
-                    ];
-                    return next;
-                  });
                   setMidQuarterSubs((prev) => [
                     ...prev,
                     {
@@ -2526,6 +2559,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               </>
             }
             onCancel={handleCancelGoal}
+          onPlayerActions={() => {
+            const target = pendingGoal;
+            handleCancelGoal();
+            if (target) setActionsTarget(target);
+          }}
             actions={
               <button
                 type="button"
@@ -2557,39 +2595,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           undo to show. */}
       <LiveStickyScoreBar
         scorebug={liveScoreBug}
+          scoringOff={
+            !trackScoring
+              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              : undefined
+          }
         undoStrip={
           trackScoring && lastScore ? (
-            <div
-              className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
-                undoToastVisible ? "bg-ink text-warm" : "bg-surface-alt"
+            <UndoStrip
+              flashing={undoToastVisible}
+              message={`${lastScore.kind === "team" ? teamName : game.opponent} goal${
+                lastScore.playerName ? ` — ${lastScore.playerName}` : ""
               }`}
-              role="status"
-              aria-live="polite"
-            >
-              <span
-                className={`text-xs ${
-                  undoToastVisible ? "text-warm/80" : "text-ink-dim"
-                }`}
-              >
-                {undoToastVisible
-                  ? `${
-                      lastScore.kind === "team" ? teamName : game.opponent
-                    } goal${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`
-                  : "Undo last score"}
-              </span>
-              <button
-                type="button"
-                onClick={handleUndoLastScore}
-                disabled={isPending}
-                className={`font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 ${
-                  undoToastVisible
-                    ? "text-warn hover:text-warn/80"
-                    : "text-brand-700 hover:text-brand-600"
-                }`}
-              >
-                Undo
-              </button>
-            </div>
+              onUndo={handleUndoLastScore}
+              disabled={isPending}
+            />
           ) : null
         }
       />
@@ -2602,7 +2622,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           commit 2ca8e90. We mount it unconditionally on the
           live-play branch (this branch only renders when
           currentQuarter > 0 && !quarterEnded && !finalised). */}
-      <LongPressHint enabled />
+      {/* Hidden while the goal dock is open so it never covers it. */}
+      <LongPressHint enabled={!pendingGoal} />
 
     </div>
   );
@@ -2630,7 +2651,7 @@ function NetballScoreBug({
   isPending,
   onClockTap,
   onShowQuarterScores,
-  onEndQuarterEarly,
+  clockLabel,
   paused = false,
   showScores = true,
   clockPulseKey = null,
@@ -2675,7 +2696,8 @@ function NetballScoreBug({
    * the same name. Real-game scenario: paused at the start of the
    * quarter, forgot to resume, need to skip to the Q-break.
    */
-  onEndQuarterEarly?: () => void;
+  /** Accessible name of the clock pill, e.g. "Clock — Q2, running". */
+  clockLabel?: string;
   /** Whether the clock is currently paused — drives the visual cue. */
   paused?: boolean;
   /**
@@ -2781,7 +2803,7 @@ function NetballScoreBug({
           <button
             type="button"
             onClick={onClockTap}
-            aria-label={paused ? "Resume clock" : "Pause clock"}
+            aria-label={clockLabel}
             className={`${baseClass} transition-shadow hover:bg-ink/90 ${
               paused ? "ring-2 ring-brand-500" : ""
             }`}
@@ -2811,24 +2833,10 @@ function NetballScoreBug({
               <button
                 type="button"
                 onClick={onShowQuarterScores}
-                className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+                className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink motion-safe:active:scale-[0.97]"
                 aria-label="Show quarter-by-quarter scores"
               >
                 Q-by-Q
-              </button>
-            )}
-            {/* End-Q-early — paused-only "rescue" affordance.
-                Mirrors AFL's GameHeader behaviour. Coach paused
-                at the start of the quarter, forgot to resume,
-                game played on; this is how they recover. */}
-            {onEndQuarterEarly && paused && (
-              <button
-                type="button"
-                onClick={onEndQuarterEarly}
-                className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
-                aria-label="End the current quarter now"
-              >
-                End Q early
               </button>
             )}
           </div>
@@ -2856,11 +2864,7 @@ function NetballScoreBug({
               type="button"
               onClick={onOpponentGoal}
               disabled={isPending}
-              // active:bg-brand-200 mirrors the AFL GameHeader SCORE_CHIP
-              // treatment (PR 2 of micro-interactions rollout, 2026-05-14)
-              // — pointer-down flashes brand-coloured to confirm the tap
-              // before the player picker mounts.
-              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink active:bg-brand-200 active:text-brand-700 disabled:pointer-events-none disabled:opacity-60"
+              className={SCORE_CHIP}
               aria-label="Record opponent goal"
             >
               +G
@@ -2872,167 +2876,11 @@ function NetballScoreBug({
   );
 }
 
-// ─── Read-only court rendering ───────────────────────────────
-// Tokens stack vertically within each third (top → bottom reads
-// GS, GA, WA, C, WD, GD, GK after item 3's WA/WD-to-centre move) and
-// are subtly staggered left/right of centre for visual rhythm.
-function CourtDisplay({
-  lineup,
-  ageGroup,
-  squadById,
-  disabled,
-  onTokenTap,
-  onTokenLongPress,
-  scoringPositionIds,
-  injuredIds,
-  loanedIds,
-  nextBreakLocks,
-  playerStats,
-  playerGoals,
-  positionPulseKeys,
-  wakeUpKey,
-}: {
-  lineup: GenericLineup;
-  ageGroup: AgeGroupConfig;
-  squadById: Map<string, Player>;
-  disabled?: boolean;
-  /** Called with the playerId currently in the tapped position. */
-  onTokenTap?: (positionId: string, playerId: string | null) => void;
-  /** Called with the playerId for a long-press (≥500ms hold). */
-  onTokenLongPress?: (positionId: string, playerId: string | null) => void;
-  /**
-   * Position ids that signal "tap me to score" (GS + GA in netball). Tokens
-   * not in this set are still rendered but have no goal-affordance. The
-   * actual handler still fires on tap regardless — this only drives
-   * styling — so non-scoring positions can open the long-press menu via
-   * the same component without confusing coaches into thinking everyone
-   * shoots.
-   */
-  scoringPositionIds?: Set<string>;
-  /** Players flagged as injured this game — drives INJ badge + greyscale. */
-  injuredIds?: Set<string>;
-  /** Players lent to opposition this game — drives LENT badge + greyscale. */
-  loanedIds?: Set<string>;
-  /** Position → playerId locks for the next quarter break — drives 🔒 badge. */
-  nextBreakLocks?: Record<string, string>;
-  /** Per-player {attack, centre, defence} ms — drives the stacked bar + total under each name. */
-  playerStats?: Map<string, PlayerThirdMs>;
-  /** Per-player goals scored this game — drives the dark chip in each token's top-right corner. */
-  playerGoals?: Record<string, number>;
-  /**
-   * Per-position pulse keys — when a value is present for a
-   * positionId, the token at that position halos with the brand
-   * pulse on its next render. Driven by the parent's
-   * midQuarterSubs state so each mid-quarter sub fires exactly
-   * one halo on the position that just changed.
-   */
-  positionPulseKeys?: Record<string, string>;
-  /**
-   * Bumped by the parent on the pre-game → Q1 transition. Drives
-   * Court's `wakeUpKey` — one-shot brand halo at kickoff. Null
-   * (default) on Q-end / FT / read-only renders so the celebration
-   * fires exactly once. Mirrors AFL Field.wakeUpKey (P1.5-5).
-   */
-  wakeUpKey?: number | null;
-}) {
-  const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
-    ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
-
-  const renderThird = (positionIds: string[]) => (
-    <>
-      {positionIds.map((positionId) => {
-        const pid = lineup.positions[positionId]?.[0] ?? null;
-        const name = pid ? squadById.get(pid)?.full_name ?? null : null;
-        const stats = pid ? playerStats?.get(pid) : undefined;
-        const totalMs = stats
-          ? stats.attack + stats.centre + stats.defence
-          : undefined;
-        return (
-          <div
-            key={positionId}
-            className={`relative z-10 flex w-full ${alignClass(positionId)}`}
-          >
-            <PositionToken
-              positionId={positionId}
-              playerName={name}
-              disabled={disabled}
-              canScore={scoringPositionIds?.has(positionId) ?? false}
-              injured={injuredIds?.has(pid ?? "") ?? false}
-              loaned={loanedIds?.has(pid ?? "") ?? false}
-              locked={
-                pid != null && nextBreakLocks?.[positionId] === pid
-              }
-              stats={stats}
-              totalMs={totalMs}
-              goalCount={pid ? playerGoals?.[pid] : undefined}
-              onTap={
-                onTokenTap ? () => onTokenTap(positionId, pid) : undefined
-              }
-              onLongPress={
-                onTokenLongPress
-                  ? () => onTokenLongPress(positionId, pid)
-                  : undefined
-              }
-              pulseKey={positionPulseKeys?.[positionId]}
-            />
-          </div>
-        );
-      })}
-    </>
-  );
-
-  return (
-    <Court
-      attackThird={renderThird(byThird("attack-third"))}
-      centreThird={renderThird(byThird("centre-third"))}
-      defenceThird={renderThird(byThird("defence-third"))}
-      wakeUpKey={wakeUpKey ?? null}
-    />
-  );
-}
-
 function formatClock(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const mm = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const ss = (totalSeconds % 60).toString().padStart(2, "0");
   return `${mm}:${ss}`;
-}
-
-// ─── alignClass ─────────────────────────────────────────────
-// Position-keyed horizontal alignment within each band. Spreads tokens
-// across the full width of the court rather than stacking them in a
-// central column.
-//
-// Pure alternating zigzag down the court — left/right/left/right/left
-// /right/left for GS, GA, WA, C, WD, GD, GK respectively. C sits dead
-// centre between WA and WD as the genuine pivot. The zigzag keeps
-// every adjacent pair on OPPOSITE sides, so GA/WA sit across from each
-// other (instead of stacking on the same wing) and the same for WD/GD,
-// matching real-court geography where GA defends from the opposite
-// side to WA's attacking lane.
-//
-// AFL doesn't have an analogous concept (zones are spatial bands, not
-// named positions), so this is netball-specific and lives here rather
-// than in the shared sports config.
-function alignClass(positionId: string): string {
-  switch (positionId) {
-    case "gs":
-      return "justify-start pl-4";
-    case "ga":
-      return "justify-end pr-4";
-    case "wa":
-      return "justify-start pl-4";
-    case "c":
-      return "justify-center";
-    case "wd":
-      return "justify-end pr-4";
-    case "gd":
-      return "justify-start pl-4";
-    case "gk":
-      return "justify-end pr-4";
-    default:
-      return "justify-center";
-  }
 }
 
 // ─── applyLocks ─────────────────────────────────────────────

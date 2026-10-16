@@ -1,52 +1,38 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
+import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import type { ChipKey, ChipMode } from "@/lib/chips";
+import { getSportConfig } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Player, Sport } from "@/lib/types";
+import type { PlayerRole, RoleModel } from "@/lib/playbook/roles";
 
 interface SquadStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   players: Player[];
-  /**
-   * AFL + rugby league show jersey numbers (jersey-driven sports);
-   * netball doesn't (positions are letter-coded). Steve 2026-05-20:
-   * RL falls into the jersey-showing branch so the add-player form
-   * surfaces the jersey input that the lineup picker + tile time
-   * readouts rely on.
-   */
-  sportId?: Sport;
-  /**
-   * Team chip labels (set in the previous "How we play" step). When
-   * any label is non-null we expose the chip picker on the add-player
-   * form and surface chip indicators on existing rows, so coaches can
-   * tag cohorts as they build the squad without leaving onboarding.
-   * Steve 2026-05-20.
-   */
-  chipLabels?: { a: string | null; b: string | null; c: string | null };
-  chipModes?: Partial<Record<ChipKey, ChipMode>>;
+  /** The team's sport: it decides whether kids have jersey numbers. */
+  sportId: Sport;
+  /** How we play role sheet (from the step before); null where roles don't apply. */
+  roleModel?: RoleModel | null;
+  roles?: Record<string, PlayerRole>;
 }
 
 export function SquadStep({
   teamId,
   ageGroup,
   players,
-  sportId = "afl",
-  chipLabels,
-  chipModes,
+  sportId,
+  roleModel = null,
+  roles = {},
 }: SquadStepProps) {
-  // AFL + rugby league show jersey numbers (jersey-driven sports);
-  // netball doesn't (positions are letter-coded). RL falls into the
-  // jersey-showing branch so the add-player form surfaces the
-  // jersey input that the lineup picker + tile time readouts rely
-  // on. Steve 2026-05-20.
-  const showJersey = sportId === "afl" || sportId === "rugby_league";
+  // The sport decides (AFL and league number their kids; netball's
+  // bib is the position).
+  const showJersey = getSportConfig(sportId).jerseyNumbers;
   const maxPlayers = ageGroup.maxSquadSize;
   const activePlayers = players.filter((p) => p.is_active);
   const takenJerseys = players.map((p) => p.jersey_number).filter((n): n is number => n !== null);
-  const chipsConfigured = !!(chipLabels && (chipLabels.a || chipLabels.b || chipLabels.c));
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -64,21 +50,20 @@ export function SquadStep({
 
       <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
         <h2 className="mb-1 text-base font-semibold text-ink">Add player</h2>
-        {chipsConfigured && (
-          <p className="mb-4 text-xs text-ink-mute">
-            You have chips set up — tag each player as you go, or leave
-            the chip picker blank and assign later from the squad page.
-          </p>
-        )}
         <AddPlayerForm
           teamId={teamId}
           activeCount={activePlayers.length}
           maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
           showJersey={showJersey}
-          chipLabels={chipLabels}
-          chipModes={chipModes}
         />
+        <div className="mt-3 border-t border-hairline pt-3">
+          <BulkAddPlayers
+            teamId={teamId}
+            withJersey={showJersey}
+            room={Math.max(0, maxPlayers - activePlayers.length)}
+          />
+        </div>
       </div>
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">
@@ -88,6 +73,12 @@ export function SquadStep({
           </h2>
           <span className="text-xs text-ink-mute">max {maxPlayers}</span>
         </div>
+        {roleModel && activePlayers.length > 0 && (
+          <p className="border-b border-hairline px-4 py-2 text-xs text-ink-dim">
+            Tap Role to give a player their {roleModel.unit === "position" ? "home position and backups" : "preferred line"}.
+            You can do this later on the Squad tab.
+          </p>
+        )}
         {activePlayers.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-ink-mute">
             No players yet — add your first one above.
@@ -102,8 +93,8 @@ export function SquadStep({
                 takenJerseys={takenJerseys}
                 canEdit
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
+                roleModel={roleModel}
+                role={roles[player.id]}
               />
             ))}
           </ul>

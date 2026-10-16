@@ -104,6 +104,16 @@ const ZONE_LABELS: Record<string, string> = {
   fwd: "FORWARD",
 };
 
+// The swap row's own label: the field tiles' short words, so a 375 px
+// phone has room for the names (FORWARD overflowed its 48 px column).
+const ZONE_ROW_LABELS: Record<string, string> = {
+  back: "BACK",
+  hback: "H-BACK",
+  mid: "CENTRE",
+  hfwd: "H-FWD",
+  fwd: "FWD",
+};
+
 const ZONE_COLOR: Record<Zone, string> = {
   back: "text-zone-b",
   hback: "text-zone-b",
@@ -325,7 +335,11 @@ export function SwapCard({
                   key={`${s.zone}-${s.off_player_id}-${index}`}
                   className="rounded-sm bg-white/5"
                 >
-                  <div className="flex items-center gap-2 px-2.5 py-2">
+                  {/* On a phone, Make swap wraps to its own line before
+                      the names are cut (they were clipped to a glyph at
+                      375 px, 16 Oct 2026): the names size to their
+                      content, and the row may wrap. */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2.5 py-2">
                     <span
                       aria-hidden
                       className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[9px] font-bold tabular-nums text-warm/70"
@@ -337,9 +351,9 @@ export function SwapCard({
                         ZONE_COLOR[s.zone] ?? "text-warm/70"
                       }`}
                     >
-                      {ZONE_LABELS[s.zone] ?? s.zone}
+                      {ZONE_ROW_LABELS[s.zone] ?? s.zone}
                     </span>
-                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="flex min-w-0 flex-auto items-center gap-1.5">
                       {/* Outgoing chip — tap to pick a different same-zone field player. */}
                       <button
                         type="button"
@@ -361,7 +375,9 @@ export function SwapCard({
                               : ""
                         }`}
                       >
-                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70">
+                        {/* Initials from sm up: at 375 px they left each
+                            name a single glyph (16 Oct 2026). */}
+                        <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
                           {initials(off.full_name)}
                         </span>
                         {/* Dashed underline + chevron = "this is editable".
@@ -404,7 +420,7 @@ export function SwapCard({
                               : ""
                         }`}
                       >
-                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200">
+                        <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
                           {initials(on.full_name)}
                         </span>
                         <span
@@ -431,7 +447,7 @@ export function SwapCard({
                             revertPair(index);
                           }}
                           title="You set this — tap to revert to the auto pick"
-                          className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-brand-300/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-micro text-brand-200 transition-colors duration-fast ease-out-quart hover:bg-brand-300/25"
+                          className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-brand-300/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-micro text-brand-200 transition-colors duration-fast ease-out-quart hover:bg-brand-300/25 motion-safe:active:scale-[0.97]"
                         >
                           <svg width="8" height="8" viewBox="0 0 24 24" fill="none" aria-hidden>
                             <path
@@ -454,9 +470,9 @@ export function SwapCard({
                           e.stopPropagation();
                           onApplyOne(s);
                         }}
-                        className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                        className="ml-auto flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                       >
-                        {pending ? "…" : "Do"}
+                        {pending ? "…" : "Make swap"}
                       </button>
                     )}
                   </div>
@@ -492,7 +508,7 @@ export function SwapCard({
                                   selected
                                     ? "bg-brand-600 text-white"
                                     : "bg-white/10 text-warm/80 hover:bg-white/20"
-                                }`}
+                                } motion-safe:active:scale-[0.97]`}
                               >
                                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-black/20 font-mono text-[7px] font-bold">
                                   {p ? initials(p.full_name) : "?"}
@@ -540,7 +556,7 @@ export function SwapCard({
                 ? "Applying…"
                 : valid.length === 1
                   ? "Make this swap"
-                  : `Do all ${valid.length} swaps`}
+                  : `Make all ${valid.length} swaps`}
             </button>
           </div>
         </>

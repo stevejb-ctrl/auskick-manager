@@ -105,9 +105,26 @@ export function vestHistory(
   events: GameEvent[],
   vest: VestType,
 ): Set<string> {
+  // When each period kicked off. A plan re-made (not a replacement)
+  // before its period started was never worn — kickoff plans every
+  // period's vests, and a kid whose planned turn was handed to someone
+  // else at a break hasn't had one (Stagehand round 5).
+  const startedAt = new Map<number, string>();
+  for (const ev of events) {
+    const q = (ev.metadata as { quarter?: number } | null)?.quarter;
+    if (ev.type === "quarter_start" && typeof q === "number" && !startedAt.has(q)) startedAt.set(q, ev.created_at);
+  }
+  const mine = readVestEvents(events).filter((v) => v.vest === vest);
   const seen = new Set<string>();
-  for (const v of readVestEvents(events)) {
-    if (v.vest === vest) seen.add(v.player_id);
+  for (const v of mine) {
+    const replanned = mine.some(
+      (w) =>
+        w.period === v.period &&
+        !w.replacement &&
+        w.created_at > v.created_at &&
+        (!startedAt.has(v.period) || w.created_at < startedAt.get(v.period)!),
+    );
+    if (!replanned) seen.add(v.player_id);
   }
   return seen;
 }

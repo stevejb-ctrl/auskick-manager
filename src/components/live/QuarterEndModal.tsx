@@ -65,7 +65,7 @@ export function QuarterEndModal({
         Quarter {quarter} complete
       </h2>
       <p className="mt-1 text-center text-sm text-ink-dim">
-        {isLastQuarter ? "That's the final whistle!" : `Ready for Q${quarter + 1}?`}
+        {isLastQuarter ? "That's the final whistle!" : `Quarter break — Q${quarter + 1} is next.`}
       </p>
 
       {/* Embedded mini-scorebug — mirrors the in-play GameHeader

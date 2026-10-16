@@ -3,9 +3,13 @@ import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
+import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { BackLink } from "@/components/ui/BackLink";
 
 // Force dynamic — the page reads the user's profile + deletion
 // schedule. Even though that's a tiny query, we don't want stale
@@ -87,13 +91,7 @@ export default async function AccountPage() {
   return (
     <div className="space-y-6">
       <header>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-        >
-          <SFIcon.chevronLeft />
-          Back
-        </Link>
+        <BackLink href="/dashboard" label="My teams" />
         <Eyebrow className="mt-4">Settings</Eyebrow>
         <h1 className="mt-1.5 text-3xl font-bold tracking-tightest text-ink">
           My account
@@ -126,9 +124,7 @@ export default async function AccountPage() {
       <section className="space-y-2">
         <Eyebrow>Your teams</Eyebrow>
         {teams.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-4 text-sm text-ink-mute">
-            You&apos;re not on any teams.
-          </p>
+          <EmptyState size="compact" title="You're not on any teams." />
         ) : (
           <SFCard pad={0}>
             <ul className="divide-y divide-hairline">
@@ -140,12 +136,24 @@ export default async function AccountPage() {
                   <span className="truncate font-medium text-ink">
                     {t.name}
                   </span>
-                  <Badge variant={t.role}>{ROLE_LABEL[t.role]}</Badge>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Badge variant={t.role}>{ROLE_LABEL[t.role]}</Badge>
+                    {/* Parents have no Team tab, so this is where anyone can
+                        leave a team. */}
+                    <LeaveTeamButton teamId={t.id} teamName={t.name} size="sm" labelWithTeam />
+                  </span>
                 </li>
               ))}
             </ul>
           </SFCard>
         )}
+      </section>
+
+      {/* Personal preferences live with the account, not a team page
+          (UX plan §6) — motion is per person, per device. */}
+      <section className="space-y-2">
+        <Eyebrow>Preferences</Eyebrow>
+        <MotionPreferenceSettings />
       </section>
 
       <DeleteAccountSection

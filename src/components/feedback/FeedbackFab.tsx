@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { showsTeamBottomBar } from "@/lib/nav";
 import { usePathname } from "next/navigation";
 import { FeedbackModal, type FeedbackKind } from "./FeedbackModal";
 
@@ -66,7 +67,10 @@ export function FeedbackFab({
         // modals (z-50) so the modal still wins the hit test once it
         // opens. safe-area padding so the FAB clears the iPhone home
         // indicator on installed PWAs.
-        className="fixed bottom-4 right-4 z-40 mb-[env(safe-area-inset-bottom)] inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-warm shadow-lg transition-colors duration-fast ease-out-quart hover:bg-brand-700 active:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+        className={`fixed right-4 z-40 mb-[env(safe-area-inset-bottom)] ${
+          // Sit above the phone tab bar on team pages.
+          showsTeamBottomBar(pathname) ? "bottom-20 md:bottom-4" : "bottom-4"
+        } inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-warm shadow-lg transition-colors duration-fast ease-out-quart hover:bg-brand-700 active:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2`}
       >
         {/* Inline chat-bubble SVG — no equivalent in SFIcon set yet.
             24px viewBox matches the rest of the iconography. */}

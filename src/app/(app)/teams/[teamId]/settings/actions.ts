@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeChipMode } from "@/lib/chips";
-import type { ActionResult } from "@/lib/types";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import type { ActionResult, Sport } from "@/lib/types";
+import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -253,47 +254,120 @@ export async function deleteSong(teamId: string): Promise<ActionResult> {
 
 
 /**
- * Update the team-level chip labels and per-chip behaviour modes.
- * Empty label strings normalise to NULL; modes default to 'split'
- * to match Phase D launched behaviour.
+ * Team › Season › Age group. Validated against the team's sport; the
+ * scoring toggle and existing games are left as they are. The team's
+ * own players on the field are kept inside the new age's range.
  */
-export async function updateTeamChipSettings(
+export async function setTeamAgeGroup(
   teamId: string,
-  patch: {
-    chip_a_label: string | null;
-    chip_b_label: string | null;
-    chip_c_label: string | null;
-    chip_a_mode: import("@/lib/chips").ChipMode;
-    chip_b_mode: import("@/lib/chips").ChipMode;
-    chip_c_mode: import("@/lib/chips").ChipMode;
-  },
+  ageGroup: string,
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
-  const normLabel = (v: string | null) => {
-    const trimmed = (v ?? "").trim();
-    return trimmed === "" ? null : trimmed.slice(0, 32);
-  };
-  // Mode validation lives in @/lib/chips (single canonical
-  // version). Steve 2026-05-20: was inline as
-  // `v === "group" ? "group" : "split"` which silently dropped
-  // forward/centre/back picks — see normalizeChipMode jsdoc for
-  // the full post-mortem.
+  const { data: team } = await supabase.from("teams").select("sport, on_field_size").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  const cfg = getSportConfig(sport);
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  if (!ageCfg) {
+    return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
+  }
+
   const { error: updateError } = await supabase
     .from("teams")
     .update({
-      chip_a_label: normLabel(patch.chip_a_label),
-      chip_b_label: normLabel(patch.chip_b_label),
-      chip_c_label: normLabel(patch.chip_c_label),
-      chip_a_mode: normalizeChipMode(patch.chip_a_mode),
-      chip_b_mode: normalizeChipMode(patch.chip_b_mode),
-      chip_c_mode: normalizeChipMode(patch.chip_c_mode),
+      age_group: ageGroup,
+      on_field_size: storedOnFieldSize(ageCfg, (team as { on_field_size?: number | null }).on_field_size),
     })
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 
+  revalidatePath(`/teams/${teamId}`, "layout");
+  return { success: true };
+}
+
+/**
+ * Team › Season › Players on the field: the team's competition's size
+ * (competitions differ by state). New games start from it; NULL (or the
+ * age group's own) = the age group's default. It must be inside the age
+ * group's range.
+ */
+export async function setTeamOnFieldSize(
+  teamId: string,
+  size: number | null,
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  const ageCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  if (size !== null && (!Number.isInteger(size) || size < ageCfg.minOnFieldSize || size > ageCfg.maxOnFieldSize)) {
+    return {
+      success: false,
+      error: `${ageCfg.label} plays ${ageCfg.minOnFieldSize} to ${ageCfg.maxOnFieldSize} on the field.`,
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ on_field_size: storedOnFieldSize(ageCfg, size) })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
   revalidatePath(`/teams/${teamId}/settings`);
-  revalidatePath(`/teams/${teamId}/squad`);
+  revalidatePath(`/teams/${teamId}/games`);
+  return { success: true };
+}
+
+/** Team › Danger zone › Leave team — removes the caller's own membership. */
+export async function leaveTeam(teamId: string): Promise<ActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Unauthenticated." };
+
+  const { error: deleteError } = await supabase
+    .from("team_memberships")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("user_id", user.id);
+  if (deleteError) {
+    // guard_last_team_admin (migration 0052)
+    if (deleteError.message.includes("last_admin")) {
+      return {
+        success: false,
+        error: "You're the team's only coach. Make someone else a coach first, or delete the team.",
+      };
+    }
+    return { success: false, error: deleteError.message };
+  }
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Team › Danger zone › Delete team. Coaches only (RLS "teams: delete"),
+ * and the caller must have typed the team's name. Squad, games, events
+ * and memberships cascade.
+ */
+export async function deleteTeam(teamId: string, confirmName: string): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  if (confirmName.trim() !== (team.name as string).trim()) {
+    return { success: false, error: "Type the team name exactly to confirm." };
+  }
+
+  const { error: deleteError } = await supabase.from("teams").delete().eq("id", teamId);
+  if (deleteError) return { success: false, error: deleteError.message };
+
+  revalidatePath("/dashboard");
   return { success: true };
 }

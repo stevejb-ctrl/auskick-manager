@@ -35,10 +35,11 @@ export default function TeamsPage() {
           </li>
           <li>Enter a team name (e.g. <em>Brunswick U10s Blue</em>).</li>
           <li>
-            Choose a <strong className="text-ink">sport</strong> and{" "}
+            Choose a <strong className="text-ink">sport</strong> (AFL,
+            netball or rugby league) and an{" "}
             <strong className="text-ink">age group</strong>. These set which
-            positions appear during a live game and how rotation suggestions are
-            generated.
+            positions appear during a live game, how long each quarter or half
+            runs, and how rotation suggestions are generated.
           </li>
           <li>
             Tap <strong className="text-ink">Create team</strong>.
@@ -49,7 +50,7 @@ export default function TeamsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Renaming a team</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open the team and tap the <strong className="text-ink">Settings</strong> tab.</li>
+          <li>Open the team and tap the <strong className="text-ink">Team</strong> tab.</li>
           <li>Edit the team name field.</li>
           <li>Tap <strong className="text-ink">Save</strong>.</li>
         </ol>
@@ -59,15 +60,23 @@ export default function TeamsPage() {
         <h2 className="text-xl font-semibold text-ink">Age groups and position layouts</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           The age group sets the position layout that appears during a live game.
-          Younger football age groups use a 3-zone layout (FORWARD / CENTRE /
-          BACK); older groups expand to 5 zones with the addition of H-FWD and
-          H-BCK. Netball teams always use 7 fixed positions across three thirds:
-          GS, GA, WA, C, WD, GD, GK.
+          AFL uses three lines at every age (FORWARD / CENTRE / BACK), with
+          more players on the field as kids get older — from 6 a side at
+          Under 8 up to 18 a side (16 for girls) from Under 16. Netball uses 7
+          fixed positions across three thirds: GS, GA, WA, C, WD, GD, GK (Set
+          plays 5: GS, GA, C, GD, GK). League splits the field into Forwards
+          and Backs, from 6 a side at Under 6 up to 13 a side from Under 12.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          The rotation algorithm tracks how many minutes (or quarters, for
-          netball) each player has spent in each position so it can suggest
-          fair swaps. See{" "}
+          The age group also sets the periods. AFL and netball play four
+          quarters. League Under 6 to Under 9 plays four 8-minute quarters;
+          Under 10 and up plays two halves. From Under 13, league uses the
+          international laws (no vests or kicking rotations, and penalty and
+          field goals count).
+        </p>
+        <p className="mt-3 text-sm text-ink-dim">
+          The rotation algorithm tracks how long each player has spent in each
+          line or position so it can suggest fair swaps. See{" "}
           <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">
             Rotations
           </Link>{" "}
@@ -87,18 +96,20 @@ export default function TeamsPage() {
           <li>Invite other coaches to help manage the team</li>
         </ul>
         <HelpCallout type="note">
-          Team invitations are sent via a join link. Share the link from the
-          team&apos;s <strong>Settings</strong> page. Anyone with the link can join
-          as a game manager.
+          Team invitations are sent via an invite link. Share the link from the
+          team&apos;s <strong>Team</strong> tab, under People. Anyone with the link joins
+          as a Manager. Parents can also join with the team code.
         </HelpCallout>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Deleting a team</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          To delete a team, open the team <strong className="text-ink">Settings</strong> tab
-          and scroll to the bottom. Tap <strong className="text-ink">Delete team</strong> and
-          confirm. This permanently removes all games and stats for that team.
+          To delete a team, open the <strong className="text-ink">Team</strong> tab
+          and scroll to <strong className="text-ink">Danger zone</strong>. Tap{" "}
+          <strong className="text-ink">Delete team</strong> and type the team&apos;s
+          name to confirm. This permanently removes all games and stats for that team.
+          Anyone can leave a team from the same place, or from their account page.
         </p>
         <HelpCallout type="warning">
           Deleting a team cannot be undone. All game history and stats are permanently

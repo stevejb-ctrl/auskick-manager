@@ -14,11 +14,13 @@ import {
   recordGoal,
   recordBehind,
   recordOpponentScore,
+  undoLastScore,
   markInjury,
   markLoan,
   recordLineupSet,
   recordSwap,
   recordFieldZoneSwap,
+  recordPlayerLock,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 
 import {
@@ -40,6 +42,7 @@ import {
   recordOpponentTry,
   recordConversionAttempt,
   recordOpponentConversion,
+  recordLeagueGoal,
   undoLeagueScore,
   assignLeagueVest,
   recordKickoff,
@@ -49,7 +52,7 @@ import {
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
 // to the live-game actions so it slots in here.
-import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { setAvailability, setAvailabilityMany } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 
 // ─── Wire live-game server actions into the write queue ───────
 //
@@ -71,28 +74,30 @@ import { setAvailability } from "@/app/(app)/teams/[teamId]/games/[gameId]/actio
 // as the last positional when it dispatches, which lines up with
 // that slot. We type-erase to ActionHandler at the boundary.
 
-const handlers: Record<string, ActionHandler> = {
+const actions = {
   // ── Footy ───────────────────────────────────────────────────
-  startQuarter: startQuarter as unknown as ActionHandler,
-  endQuarter: endQuarter as unknown as ActionHandler,
-  addLateArrival: addLateArrival as unknown as ActionHandler,
-  recordGoal: recordGoal as unknown as ActionHandler,
-  recordBehind: recordBehind as unknown as ActionHandler,
-  recordOpponentScore: recordOpponentScore as unknown as ActionHandler,
-  markInjury: markInjury as unknown as ActionHandler,
-  markLoan: markLoan as unknown as ActionHandler,
-  recordLineupSet: recordLineupSet as unknown as ActionHandler,
-  recordSwap: recordSwap as unknown as ActionHandler,
-  recordFieldZoneSwap: recordFieldZoneSwap as unknown as ActionHandler,
+  startQuarter,
+  endQuarter,
+  addLateArrival,
+  recordGoal,
+  recordBehind,
+  recordOpponentScore,
+  undoLastScore,
+  markInjury,
+  markLoan,
+  // Saved holds; netball uses it too (Keep in {position}).
+  recordPlayerLock,
+  recordLineupSet,
+  recordSwap,
+  recordFieldZoneSwap,
 
   // ── Netball ─────────────────────────────────────────────────
-  periodBreakSwap: periodBreakSwap as unknown as ActionHandler,
-  startNetballQuarter: startNetballQuarter as unknown as ActionHandler,
-  endNetballQuarter: endNetballQuarter as unknown as ActionHandler,
-  recordNetballGoal: recordNetballGoal as unknown as ActionHandler,
-  recordNetballOpponentGoal:
-    recordNetballOpponentGoal as unknown as ActionHandler,
-  undoNetballScore: undoNetballScore as unknown as ActionHandler,
+  periodBreakSwap,
+  startNetballQuarter,
+  endNetballQuarter,
+  recordNetballGoal,
+  recordNetballOpponentGoal,
+  undoNetballScore,
 
   // ── Rugby League ────────────────────────────────────────────
   // Same offline-queue + idempotency contract as the other two
@@ -101,22 +106,44 @@ const handlers: Record<string, ActionHandler> = {
   // shared actions for late arrivals, injuries, and player loans
   // — `addLateArrival`, `markInjury`, `markLoan` above — since
   // those mechanics are sport-agnostic.
-  startLeagueQuarter: startLeagueQuarter as unknown as ActionHandler,
-  endLeagueQuarter: endLeagueQuarter as unknown as ActionHandler,
-  recordLeagueSwap: recordLeagueSwap as unknown as ActionHandler,
-  recordLeagueLineupSet: recordLeagueLineupSet as unknown as ActionHandler,
-  recordLeaguePositionChange:
-    recordLeaguePositionChange as unknown as ActionHandler,
-  recordTry: recordTry as unknown as ActionHandler,
-  recordOpponentTry: recordOpponentTry as unknown as ActionHandler,
-  recordConversionAttempt: recordConversionAttempt as unknown as ActionHandler,
-  recordOpponentConversion: recordOpponentConversion as unknown as ActionHandler,
-  undoLeagueScore: undoLeagueScore as unknown as ActionHandler,
-  assignLeagueVest: assignLeagueVest as unknown as ActionHandler,
-  recordKickoff: recordKickoff as unknown as ActionHandler,
+  startLeagueQuarter,
+  endLeagueQuarter,
+  recordLeagueSwap,
+  recordLeagueLineupSet,
+  recordLeaguePositionChange,
+  recordTry,
+  recordOpponentTry,
+  recordConversionAttempt,
+  recordOpponentConversion,
+  recordLeagueGoal,
+  undoLeagueScore,
+  assignLeagueVest,
+  recordKickoff,
 
   // ── Availability (pre-game RSVP) ────────────────────────────
-  setAvailability: setAvailability as unknown as ActionHandler,
+  setAvailability,
+  setAvailabilityMany,
+};
+
+const handlers = actions as unknown as Record<string, ActionHandler>;
+
+export type LiveActionKind = keyof typeof actions;
+
+// The queue appends its idempotency key as the LAST argument, so args
+// must fill every slot before the key — optional ones included (pass
+// undefined). Skipping one put the key in it: netball's and league's
+// undos both lost their key to an optional parameter (Stagehand round
+// 2). This makes that a type error.
+//
+// A handler with no optional trailing slot takes no key (it ignores the
+// extra argument): args fill every parameter.
+type KeySlot<P extends unknown[]> = P["length"] extends Required<P>["length"]
+  ? P["length"]
+  : Required<P> extends [...infer H, unknown]
+    ? H["length"]
+    : never;
+export type LiveActionArgs<K extends LiveActionKind> = Parameters<(typeof actions)[K]> & {
+  length: KeySlot<Parameters<(typeof actions)[K]>>;
 };
 
 // Register on module load. Idempotent: re-importing this file
@@ -136,9 +163,9 @@ for (const [kind, fn] of Object.entries(handlers)) {
 // The first positional after `kind` is whatever the action's
 // signature expects; the queue appends its idempotency key as
 // the final argument when it dispatches.
-export function enqueueLiveAction(
-  kind: keyof typeof handlers,
-  args: unknown[],
+export function enqueueLiveAction<K extends LiveActionKind>(
+  kind: K,
+  args: LiveActionArgs<K>,
 ): EnqueueResult {
   return useWriteQueue.getState().enqueue(kind, args);
 }

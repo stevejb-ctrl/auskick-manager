@@ -18,7 +18,18 @@
 //   * quarter_start       — optional anchor; implicit if not present
 //   * quarter_end         — closes the period's lineup count
 
+import {
+  cycleLineup,
+  netballAllowed,
+  netballRoleTerm,
+  netballSeasonTerm,
+  netballWeights,
+  type NetballPlaybookInput,
+} from "@/lib/sports/netball/engine";
+import { ruleScore } from "@/lib/playbook/ruleScore";
+import { primaryThirdFor } from "@/lib/sports/netball";
 import type { GameEvent } from "@/lib/types";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 
 /** Generic map lineup shape used by netball game_events. */
 export interface GenericLineup {
@@ -429,6 +440,12 @@ export interface NetballSuggestInput {
    * netball — the tiebreak is windowless (see `lastSubbedOnMs`).
    */
   minStintMs?: number;
+  /**
+   * How we play (UX plan Phase 5): rotation style, season balance by
+   * third or bib, player roles and rules. Omitted = today's behaviour
+   * (By thirds with a single-digit season-rarity tiebreak).
+   */
+  playbook?: NetballPlaybookInput;
 }
 
 // Same n² × 50 base AFL uses, applied per third instead of per
@@ -514,9 +531,23 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     chipByPlayerId,
     chipModeByKey,
     lastSubbedOnMs,
+    playbook,
   } = input;
   const lineup = emptyGenericLineup(positions);
   if (playerIds.length === 0) return lineup;
+
+  // Position cycle (5.2): after Q1 everyone steps one bib along.
+  if (
+    playbook?.strategy === "position-cycle" &&
+    playbook.previousLineup &&
+    Object.values(playbook.previousLineup.positions).some((ids) => ids.length > 0)
+  ) {
+    return cycleLineup(playbook.previousLineup, positions, playerIds, playbook);
+  }
+  const w = playbook ? netballWeights(playbook.strategy) : null;
+  const allowed = (pid: string, posId: string) => isAllowed(pid, posId) && netballAllowed(playbook, pid, posId);
+  const teamRules = playbook?.rules ?? [];
+
 
   // Track who's already been placed in each third as we walk the
   // candidate list. Drives tier 4 — when evaluating (X, P) we look
@@ -556,16 +587,18 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     if (candidateThird) {
       const playedThirds = thirdsPlayedThisGame[pid];
       if (!playedThirds || !playedThirds.has(candidateThird)) {
-        unplayedThirdBonus = 100000;
+        unplayedThirdBonus = w ? w.unplayedThird : 100000;
       }
     }
+    // Position by position (5.3): a bib not worn yet this game.
+    const unplayedBibBonus = w && w.unplayedBib && playedThisGameAtPos === 0 ? w.unplayedBib : 0;
 
     // Tier 2: heavy penalty for repeating the EXACT position this
     // game. With 7 positions and 4 quarters, no player ever NEEDS to
     // repeat a position — when they do it's the algorithm's last
     // resort. Stronger than the same-third-as-last-quarter penalty
     // (which is a softer "keep them moving" preference).
-    const samePositionPenalty = playedThisGameAtPos > 0 ? -50000 : 0;
+    const samePositionPenalty = playedThisGameAtPos > 0 ? (w ? w.samePosition : -50000) : 0;
 
     // Tier 3: soft preference — avoid placing them in the same third
     // they were in last quarter. Beats season rarity but bows to the
@@ -573,7 +606,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     let sameThirdAsLastPenalty = 0;
     if (candidateThird && lastQuarterThird) {
       const last = lastQuarterThird[pid];
-      if (last && last === candidateThird) sameThirdAsLastPenalty = -10000;
+      if (last && last === candidateThird) sameThirdAsLastPenalty = w ? w.sameThirdAsLast : -10000;
     }
 
     // Tier 4: split last-quarter teammates apart. For each player
@@ -605,14 +638,37 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
         const placed = placedInThird[candidateThird];
         if (placed) {
           placed.forEach((other) => {
-            if (myPrevMates.has(other)) teammateRepeatPenalty -= 150000;
+            if (myPrevMates.has(other)) teammateRepeatPenalty += w ? w.teammate : -150000;
           });
         }
       }
     }
 
-    // Tier 5: prefer positions they've played least across the season.
-    const seasonRarity = -seasonCount;
+    // Tier 5: prefer positions they've played least across the season —
+    // with How we play, W × periods owed by third or bib (§7.5).
+    const seasonRarity = playbook ? netballSeasonTerm(playbook, pid, posId, positions) : -seasonCount;
+    // Roles (home / also) and the team's rules.
+    const roleTerm = netballRoleTerm(playbook, pid, posId);
+    const ruleTerm =
+      teamRules.length && candidateThird
+        ? ruleScore(
+            teamRules,
+            pid,
+            candidateThird,
+            thirdsPlayedThisGame[pid] ?? new Set<string>(),
+            3,
+            placedInThird[candidateThird],
+            playbook?.roleUnit === "position"
+              ? primaryThirdFor(playbook.roles[pid]?.home ?? "")
+              : (playbook?.roles[pid]?.home ?? null),
+            // Netball tiers are ~100× AFL's.
+            100,
+            // Carnival day: thirds played in the day's earlier games count too.
+            playbook?.thirdsToday
+              ? new Set([...Array.from(thirdsPlayedThisGame[pid] ?? []), ...(playbook.thirdsToday[pid] ?? [])])
+              : undefined,
+          )
+        : 0;
 
     // Tier 6: cohort-chip placement preference. AFL parity, five
     // modes (Steve 2026-05-20):
@@ -660,10 +716,13 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
 
     return (
       unplayedThirdBonus +
+      unplayedBibBonus +
       samePositionPenalty +
       sameThirdAsLastPenalty +
       teammateRepeatPenalty +
       seasonRarity +
+      roleTerm +
+      ruleTerm +
       chipTerm
     );
   };
@@ -730,14 +789,61 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     return la > lb ? -1 : 1;
   };
   const shuffled = seededShuffle(playerIds, seed + 41);
+  // How we play: keep-on kids first, then (with the rule) last
+  // quarter's bench, then least time this game.
+  const keepOn = (pid: string) => (playbook?.roles[pid]?.keepOn ? 0 : 1);
+  const benchRule = teamRules.some((r) => r.kind === "max-bench-in-row");
+  const hadQuarter = !!lastQuarterThird && Object.keys(lastQuarterThird).length > 0;
+  const satOut = (pid: string) => (benchRule && hadQuarter && !lastQuarterThird![pid] ? 0 : 1);
+  // Set positions: at kickoff, girls with a home bib start in it (AFL
+  // parity, usability run). From the first break, least time sits last.
+  const kickoff = !hadQuarter && playerIds.every((pid) => sortKey(pid) === 0);
+  const homeFirst = (pid: string) =>
+    kickoff && playbook?.strategy === "set-positions" && playbook.roleUnit === "position" && playbook.roles[pid]?.home ? 0 : 1;
   shuffled.sort((a, b) => {
+    const first = keepOn(a) - keepOn(b) || satOut(a) - satOut(b);
+    if (first !== 0) return first;
     const byGameTime = sortKey(a) - sortKey(b);
     if (byGameTime !== 0) return byGameTime;
+    const home = homeFirst(a) - homeFirst(b);
+    if (home !== 0) return home;
     return recencyTiebreak(a, b);
   });
 
   const assigned = new Set<string>();
   const remaining = new Set(positions);
+
+  // Set positions (5.5): who plays is still least-time-first; then kids
+  // go to their home bib, then a backup, then whatever's left.
+  if (playbook?.strategy === "set-positions" && playbook.roleUnit === "position") {
+    const playing = shuffled.slice(0, positions.length);
+    lineup.bench.push(...shuffled.slice(positions.length));
+    const seat = (pid: string, posId: string) => {
+      lineup.positions[posId].push(pid);
+      remaining.delete(posId);
+      assigned.add(pid);
+    };
+    for (const pid of playing) {
+      const home = playbook.roles[pid]?.home;
+      if (home && remaining.has(home) && allowed(pid, home)) seat(pid, home);
+    }
+    for (const pid of playing) {
+      if (assigned.has(pid)) continue;
+      const backup = (playbook.roles[pid]?.also ?? []).find((b) => remaining.has(b) && allowed(pid, b));
+      if (backup) seat(pid, backup);
+    }
+    for (const pid of playing) {
+      if (assigned.has(pid)) continue;
+      const options = Array.from(remaining).filter((b) => allowed(pid, b));
+      if (options.length === 0) {
+        lineup.bench.push(pid);
+        continue;
+      }
+      options.sort((a, b) => owed(pid, b) - owed(pid, a));
+      seat(pid, options[0]);
+    }
+    return lineup;
+  }
 
   // Per-player count of how many times this game they've played
   // each third. Used as the tie-break when two positions score
@@ -772,7 +878,7 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     let bestThirdCount = Infinity;
     const remainingList = Array.from(remaining);
     for (const posId of remainingList) {
-      if (!isAllowed(pid, posId)) continue;
+      if (!allowed(pid, posId)) continue;
       const s = owed(pid, posId);
       const tc = thirdCountOf(pid, posId);
       // Higher score wins; tie → lower third-count wins (fresher
@@ -801,7 +907,50 @@ export function suggestNetballLineup(input: NetballSuggestInput): GenericLineup 
     }
   }
 
+  // Carnival day: the greedy pass can hand out a third's bibs before
+  // the kid who still needs that third today gets a pick, so swap
+  // them in (AFL's repairLineupForRules, for this rule).
+  if (thirdOf && playbook?.thirdsToday && teamRules.some((r) => r.kind === "every-line-per-day" && r.enabled !== false)) {
+    repairDayThirds(lineup, playbook.thirdsToday, thirdsPlayedThisGame, thirdOf, allowed);
+  }
+
   return lineup;
+}
+
+/**
+ * Carnival day repair: a kid on court in a third they've already
+ * played today swaps with a kid in a third they haven't, when that kid
+ * has already played it today and both bibs are allowed. Mutates.
+ */
+export function repairDayThirds(
+  lineup: GenericLineup,
+  earlierToday: Record<string, string[]>,
+  thisGame: Record<string, Set<string>>,
+  thirdOf: (posId: string) => string | null | undefined,
+  allowed: (pid: string, posId: string) => boolean,
+): void {
+  const bibOf = new Map<string, string>();
+  for (const [bib, ids] of Object.entries(lineup.positions)) for (const pid of ids) bibOf.set(pid, bib);
+  const today = (pid: string) => new Set([...(earlierToday[pid] ?? []), ...Array.from(thisGame[pid] ?? [])]);
+  const thirds = ["attack-third", "centre-third", "defence-third"];
+  for (const pid of Array.from(bibOf.keys())) {
+    const mine = today(pid);
+    const myBib = bibOf.get(pid)!;
+    const myThird = thirdOf(myBib);
+    if (!myThird || !mine.has(myThird)) continue;
+    for (const want of thirds.filter((t) => !mine.has(t))) {
+      const other = Array.from(bibOf.entries()).find(
+        ([o, bib]) => o !== pid && thirdOf(bib) === want && today(o).has(want) && allowed(pid, bib) && allowed(o, myBib),
+      );
+      if (!other) continue;
+      const [o, theirBib] = other;
+      lineup.positions[theirBib] = lineup.positions[theirBib].map((x) => (x === o ? pid : x));
+      lineup.positions[myBib] = lineup.positions[myBib].map((x) => (x === pid ? o : x));
+      bibOf.set(pid, theirBib);
+      bibOf.set(o, myBib);
+      break;
+    }
+  }
 }
 
 // ─── Replay one game → live state ────────────────────────────
@@ -843,8 +992,9 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
     lastSubbedOnMs: {},
   };
 
-  // score_undo: stack the last-N score events to revert.
-  const undoStack: Array<"team" | "opp" | { player: string }> = [];
+  // Scores still standing, for score_undo: an undo that names its target
+  // (Fix scores' delete) removes that one, else the latest (takeUndoTarget).
+  const standing: Array<{ id: string; side: "team" | "opp"; player: string | null }> = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
   // Netball subs only at breaks, so a bench->court transition is a
@@ -900,23 +1050,19 @@ export function replayNetballGame(events: GameEvent[]): NetballGameState {
       state.teamScore.goals++;
       if (ev.player_id) {
         state.playerGoals[ev.player_id] = (state.playerGoals[ev.player_id] ?? 0) + 1;
-        undoStack.push({ player: ev.player_id });
-      } else {
-        undoStack.push("team");
       }
+      standing.push({ id: ev.id, side: "team", player: ev.player_id ?? null });
     } else if (ev.type === "opponent_goal") {
       state.opponentScore.goals++;
-      undoStack.push("opp");
-    } else if (ev.type === "score_undo" && undoStack.length > 0) {
-      const last = undoStack.pop()!;
-      if (last === "opp") {
+      standing.push({ id: ev.id, side: "opp", player: null });
+    } else if (ev.type === "score_undo") {
+      const undone = takeUndoTarget(standing, ev.metadata);
+      if (undone?.side === "opp") {
         state.opponentScore.goals = Math.max(0, state.opponentScore.goals - 1);
-      } else if (last === "team") {
+      } else if (undone) {
         state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
-      } else {
-        state.teamScore.goals = Math.max(0, state.teamScore.goals - 1);
-        if (last.player && state.playerGoals[last.player]) {
-          state.playerGoals[last.player] = Math.max(0, state.playerGoals[last.player] - 1);
+        if (undone.player && state.playerGoals[undone.player]) {
+          state.playerGoals[undone.player] = Math.max(0, state.playerGoals[undone.player] - 1);
         }
       }
     }
@@ -988,16 +1134,49 @@ export interface QuarterSub {
   atMs: number;
 }
 
+/** One mid-quarter sub applied to the court: the out player to the bench, the in player to the position. */
+function applyQuarterSub(current: GenericLineup, sub: QuarterSub): GenericLineup {
+  const next: GenericLineup = {
+    positions: { ...current.positions },
+    bench:
+      sub.inPlayerId != null
+        ? current.bench.filter((id) => id !== sub.inPlayerId)
+        : [...current.bench],
+  };
+  const remainAtPosition = (next.positions[sub.positionId] ?? []).filter(
+    (id) => sub.outPlayerId == null || id !== sub.outPlayerId,
+  );
+  next.positions[sub.positionId] =
+    sub.inPlayerId != null
+      ? remainAtPosition.concat([sub.inPlayerId])
+      : remainAtPosition;
+  if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
+    next.bench = [...next.bench, sub.outPlayerId];
+  }
+  return next;
+}
+
+/**
+ * The court now: the quarter's starting lineup with its mid-quarter subs
+ * applied, by the same rule the time replay uses. The live screen derives
+ * its court from this (one source of truth), so a reload rebuilds it from
+ * the saved subs and a cancelled replacement can't leave a ghost on court.
+ */
+export function lineupAfterSubs(lineup: GenericLineup, subs: readonly QuarterSub[]): GenericLineup {
+  return subs.reduce(applyQuarterSub, lineup);
+}
+
 /**
  * Split a closed quarter into the time segments its mid-quarter subs
  * imply: each sub turns the quarter into more segments, each with a
  * different lineup. Returns `{ lineup, durationMs }` slices whose
  * durations sum to `periodMs`. Shared by `playerThirdMs` (whole-game
- * per-third) and `playedZoneMsByPeriod` (per-period per-third) so both
+ * per-third) and `playedZoneMsByPeriod` (per-period per-third), and by the live screen for the quarter still running
+ * (periodMs = the clock so far), so all three
  * credit IDENTICAL segments — the per-period map is a finer split of
  * the same ms, never a divergent second accumulator.
  */
-function splitQuarterSegments(
+export function splitQuarterSegments(
   lineup: GenericLineup,
   periodMs: number,
   subs: QuarterSub[],
@@ -1009,24 +1188,7 @@ function splitQuarterSegments(
   for (const sub of subs) {
     const dur = Math.max(0, Math.min(sub.atMs, periodMs) - prevMs);
     if (dur > 0) segments.push({ lineup: current, durationMs: dur });
-    const next: GenericLineup = {
-      positions: { ...current.positions },
-      bench:
-        sub.inPlayerId != null
-          ? current.bench.filter((id) => id !== sub.inPlayerId)
-          : [...current.bench],
-    };
-    const remainAtPosition = (next.positions[sub.positionId] ?? []).filter(
-      (id) => sub.outPlayerId == null || id !== sub.outPlayerId,
-    );
-    next.positions[sub.positionId] =
-      sub.inPlayerId != null
-        ? remainAtPosition.concat([sub.inPlayerId])
-        : remainAtPosition;
-    if (sub.outPlayerId != null && !next.bench.includes(sub.outPlayerId)) {
-      next.bench = [...next.bench, sub.outPlayerId];
-    }
-    current = next;
+    current = applyQuarterSub(current, sub);
     prevMs = Math.min(sub.atMs, periodMs);
   }
   const finalDur = Math.max(0, periodMs - prevMs);

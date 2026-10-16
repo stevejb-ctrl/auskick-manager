@@ -19,13 +19,21 @@
 //   * vest no-twice rule        — assignLeagueVest
 //   * conversion-kick rotation  — recordConversionAttempt (bypass with force: true)
 //   * kickoff rotation          — recordKickoff (full squad pool)
+// Both rotations are junior laws (U6–U12); U13+ plays international
+// laws without them (AgeGroupConfig.kickRotations).
+//
+// Rugby league and union share these actions: every rule is read from
+// the team's own sport and age group (rugbyTeam), and every event is
+// stamped with the team's sport.
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, isRugby, teamSport, type RugbySport } from "@/lib/sports/registry";
+import type { AgeGroupConfig } from "@/lib/sports/types";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
@@ -34,22 +42,24 @@ import { vestHistory } from "@/lib/sports/rugby_league/vests";
 import {
   conversionCycle,
   kickoffCycle,
+  unconvertedTryIds,
+  LEAGUE_GOAL_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
 async function clampOnFieldSize(
-  supabase: SupabaseClient,
-  teamId: string,
+  w: Writer,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
-  const { data: team } = await supabase
-    .from("teams")
-    .select("sport, age_group")
-    .eq("id", teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  // Clamp to the team's own rugby age group, never whatever another
+  // sport would allow.
+  const { ageCfg } = await rugbyTeamOf(w);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -88,6 +98,30 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
   return { supabase, userId, teamId: auth.teamId, error: null };
 }
 
+/**
+ * The team's own rugby sport and age group. Every rule these actions
+ * check (e.g. U13+ international laws, where the junior goal-kick §15
+ * and kickoff §16 rotations don't apply) and the sport stamped on
+ * every event are the team's: a union team is never checked against
+ * league's ages. Cached for the request, so a rule check and its
+ * insert read the team once. Read past RLS (a team's sport and age
+ * aren't secret, and resolveWriter has already checked the writer):
+ * an RLS read of a team created moments ago can come back empty.
+ */
+const rugbyTeam = cache(
+  async (teamId: string): Promise<{ sport: RugbySport; ageCfg: AgeGroupConfig }> => {
+    const { data } = await createAdminClient().from("teams").select("sport, age_group").eq("id", teamId).maybeSingle();
+    const row = data as { sport?: string | null; age_group?: string | null } | null;
+    const sport = teamSport(row?.sport);
+    if (!isRugby(sport)) throw new Error(`Team ${teamId} plays ${sport}, not rugby.`);
+    return { sport, ageCfg: getAgeGroupConfig(sport, row?.age_group ?? null) };
+  },
+);
+
+function rugbyTeamOf(w: Writer) {
+  return rugbyTeam(w.teamId);
+}
+
 async function insertEvent(
   auth: LiveAuth,
   gameId: string,
@@ -97,12 +131,13 @@ async function insertEvent(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  const { sport } = await rugbyTeamOf(w);
 
   const { error } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type,
     player_id: payload.player_id ?? null,
-    metadata: payload.metadata ?? {},
+    metadata: { ...(payload.metadata ?? {}), sport },
     created_by: w.userId,
     idempotency_key: idempotencyKey ?? null,
   });
@@ -176,11 +211,7 @@ export async function startLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    onFieldSize,
-  );
+  const { value: clampedSize } = await clampOnFieldSize(w, onFieldSize);
 
   // B1 / AVAIL-01: reconcile against availability BEFORE the vest
   // pre-flight below. The pre-flight builds `fieldSet` from
@@ -261,10 +292,11 @@ export async function startLeagueGame(
     }
   }
 
+  const { sport } = await rugbyTeamOf(w);
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup, sport: "rugby_league" },
+    metadata: { lineup, sport },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
@@ -275,7 +307,7 @@ export async function startLeagueGame(
       .insert({
         game_id: gameId,
         type: "quarter_start",
-        metadata: { quarter: 1, sport: "rugby_league" },
+        metadata: { quarter: 1, sport },
         created_by: w.userId,
       });
     if (qStartError) return { success: false, error: qStartError.message };
@@ -306,7 +338,7 @@ export async function startLeagueGame(
         vest: "fr",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -322,7 +354,7 @@ export async function startLeagueGame(
         vest: "dh",
         period: p + 1,
         replacement: false,
-        sport: "rugby_league",
+        sport,
       },
       created_by: w.userId,
     });
@@ -348,9 +380,12 @@ export async function startLeagueGame(
     status: "in_progress";
     on_field_size: number;
     sub_interval_seconds?: number;
+    playbook_snapshot: PlaybookSnapshot | null;
   } = {
     status: "in_progress",
     on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
   };
   if (subIntervalSeconds != null) {
     const clamped = Math.round(
@@ -432,7 +467,7 @@ export async function startLeagueQuarter(
     auth,
     gameId,
     "quarter_start",
-    { metadata: { quarter, sport: "rugby_league" } },
+    { metadata: { quarter } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -450,7 +485,7 @@ export async function endLeagueQuarter(
     auth,
     gameId,
     "quarter_end",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -470,19 +505,13 @@ export async function finaliseLeagueGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  // Use the team's age-group period count for the final-quarter
-  // value on the event metadata. Defaults to 4 (the AFL/Netball
-  // periodCount) — U10–U12 will overwrite to 2.
-  const { data: team } = await w.supabase
-    .from("teams")
-    .select("sport, age_group")
-    .eq("id", w.teamId)
-    .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  // The team's age-group period count is the final-quarter value on
+  // the event metadata (4 quarters at U6–U9, 2 halves from U10).
+  const { ageCfg } = await rugbyTeamOf(w);
   const finalQuarter = ageCfg.periodCount;
 
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs },
   });
   if (!finalise.success) return finalise;
 
@@ -491,6 +520,9 @@ export async function finaliseLeagueGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
@@ -525,7 +557,7 @@ export async function recordLeagueSwap(
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: { ...input, sport: "rugby_league" },
+      metadata: input,
     },
     idempotencyKey,
   );
@@ -539,13 +571,19 @@ export async function recordLeagueLineupSet(
   auth: LiveAuth,
   gameId: string,
   lineup: LeagueLineup,
+  /**
+   * When it happened, for a change mid-period (filling an empty spot,
+   * moving kids between lines). Without it a kid who came on mid-period
+   * was credited no time (sideline combos). Omitted at a break.
+   */
+  at: { quarter: number; elapsed_ms: number } | undefined,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   return insertEvent(
     auth,
     gameId,
     "lineup_set",
-    { metadata: { lineup, sport: "rugby_league" } },
+    { metadata: { lineup, ...(at ?? {}) } },
     idempotencyKey,
   );
 }
@@ -579,7 +617,6 @@ export async function recordLeaguePositionChange(
         to_zone: input.to_zone,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -604,7 +641,7 @@ export async function recordTry(
     "try",
     {
       player_id: playerId,
-      metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" },
+      metadata: { quarter, elapsed_ms: elapsedMs },
     },
     idempotencyKey,
   );
@@ -624,7 +661,7 @@ export async function recordOpponentTry(
     auth,
     gameId,
     "opponent_try",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -664,6 +701,7 @@ export async function recordConversionAttempt(
   if (w.error) return { success: false, error: w.error };
 
   const force = options.force === true;
+  let tryEventId = options.tryEventId;
   if (!force) {
     // Re-derive state from the event log so the check survives
     // offline-queue replays and out-of-order arrivals. Same data
@@ -674,7 +712,20 @@ export async function recordConversionAttempt(
       .eq("game_id", gameId)
       .order("created_at", { ascending: true });
     const priorEvents = (priorEventsRaw ?? []) as GameEvent[];
-    const state = replayLeagueGame(priorEvents);
+
+    // A kick converts a try. Stagehand round 2: a game held a made
+    // conversion and no try. Only Force (the extra kick) skips this.
+    const waiting = unconvertedTryIds(priorEvents);
+    if (waiting.length === 0) {
+      return {
+        success: false,
+        rejected: true,
+        error: "There's no try to convert. Record the try first.",
+      };
+    }
+    tryEventId ??= waiting[0];
+
+    const state = replayRugbyGame(priorEvents, rugbyPoints((await rugbyTeamOf(w)).sport));
     const onField = state.lineup
       ? [...state.lineup.forwards, ...state.lineup.backs]
       : [];
@@ -683,17 +734,21 @@ export async function recordConversionAttempt(
     if (onField.length > 0 && !onField.includes(kickerId)) {
       return {
         success: false,
+        rejected: true,
         error: "That player is not on the field — they can't take this kick.",
       };
     }
 
     // No-twice rule: kicker already attempted in the current
     // cycle. Use the subset semantics from `conversionCycle` so
-    // mid-cycle substitutions resolve correctly.
+    // mid-cycle substitutions resolve correctly. Only where the age
+    // has the junior kick rotations: under international laws (U13+)
+    // any player may kick.
     const cycle = conversionCycle(priorEvents, onField);
-    if (cycle.attempted.has(kickerId)) {
+    if (cycle.attempted.has(kickerId) && (await rugbyTeamOf(w)).ageCfg.kickRotations === true) {
       return {
         success: false,
+        rejected: true,
         error:
           "That player has already kicked in this rotation — pick a teammate or use Force for the fouled-in-act-of-scoring carve-out.",
       };
@@ -711,8 +766,7 @@ export async function recordConversionAttempt(
         elapsed_ms: elapsedMs,
         made,
         force,
-        try_event_id: options.tryEventId,
-        sport: "rugby_league",
+        try_event_id: tryEventId,
       },
     },
     idempotencyKey,
@@ -754,9 +808,12 @@ export async function recordKickoff(
   const priorEvents = (priorEventsRaw ?? []) as GameEvent[];
   const cycle = kickoffCycle(priorEvents, squadIds);
 
-  if (cycle.taken.has(kickerId)) {
+  // The rotation is a junior law; international laws (U13+) have none.
+  if (cycle.taken.has(kickerId) && (await rugbyTeamOf(w)).ageCfg.kickRotations === true) {
     return {
       success: false,
+      // A rule refusal: dropped, not retried (it would hold the game lane).
+      rejected: true,
       error:
         "That player has already taken a kickoff in this rotation — pick a teammate who hasn't yet.",
     };
@@ -768,7 +825,7 @@ export async function recordKickoff(
     "kickoff_taken",
     {
       player_id: kickerId,
-      metadata: { period, sport: "rugby_league" },
+      metadata: { period },
     },
     idempotencyKey,
   );
@@ -789,7 +846,48 @@ export async function recordOpponentConversion(
     auth,
     gameId,
     "opponent_conversion",
-    { metadata: { quarter, elapsed_ms: elapsedMs, sport: "rugby_league" } },
+    { metadata: { quarter, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
+  if (!result.success) return result;
+  return revalidateAfterMutation(auth, gameId);
+}
+
+// ─── recordLeagueGoal ────────────────────────────────────────
+// A penalty goal (2) or field goal (1), ours or theirs. International
+// laws only (U13+): the national 6–12 junior laws allow neither (Law
+// 17), so the server refuses them for those grades. kickerId credits
+// our kicker (null when the coach skips the name).
+export async function recordLeagueGoal(
+  auth: LiveAuth,
+  gameId: string,
+  kind: "penalty_goal" | "field_goal" | "opponent_penalty_goal" | "opponent_field_goal",
+  kickerId: string | null,
+  quarter: number,
+  elapsedMs: number,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const team = await rugbyTeamOf(w);
+  if (team.ageCfg.goalsFromPlay !== true) {
+    // League's junior laws forbid both kicks (Law 17); each sport says
+    // it in its own words (union's field goal is a drop goal).
+    const words = rugbyScoreWords(team.sport);
+    return {
+      success: false,
+      rejected: true,
+      error: `${words.penaltyGoal.label}s and ${words.fieldGoal.label.toLowerCase()}s don't count at ${team.ageCfg.label}.`,
+    };
+  }
+  const result = await insertEvent(
+    auth,
+    gameId,
+    kind,
+    {
+      player_id: kind.startsWith("opponent_") ? null : kickerId,
+      metadata: { quarter, elapsed_ms: elapsedMs },
+    },
     idempotencyKey,
   );
   if (!result.success) return result;
@@ -798,52 +896,45 @@ export async function recordOpponentConversion(
 
 // ─── undoLeagueScore ─────────────────────────────────────────
 // LIFO undo. Mirrors AFL `undoLastScore` / netball `undoNetballScore`
-// — emits a marker event; replay pairs score / score_undo from its
-// own stack. The optional `kind` filter lets the UI undo a specific
-// score type (e.g. only the last conversion attempt) rather than
-// the unrestricted "latest of any kind".
+// — takes back the latest score still standing and names it, which is
+// the one the replay's stack pops. There used to be an optional `kind`
+// filter before the key; the write queue appends its idempotency key as
+// the last argument, so the key landed in `kind` and every live undo
+// looked for a score of type "<uuid>" and failed (Stagehand round 2).
 export async function undoLeagueScore(
   auth: LiveAuth,
   gameId: string,
-  kind?: "try" | "opponent_try" | "conversion_attempt" | "opponent_conversion",
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  let targetQuery = w.supabase
+  const { data: rows } = await w.supabase
     .from("game_events")
     .select("id, type, metadata, player_id")
     .eq("game_id", gameId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  if (kind) {
-    targetQuery = targetQuery.eq("type", kind);
-  } else {
-    targetQuery = targetQuery.in("type", [
-      "try",
-      "opponent_try",
-      "conversion_attempt",
-      "opponent_conversion",
-    ]);
+    .in("type", ["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES, "score_undo"])
+    .order("created_at", { ascending: true });
+  type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
+  const standing: ScoreRow[] = [];
+  for (const row of (rows ?? []) as ScoreRow[]) {
+    if (row.type === "score_undo") takeUndoTarget(standing, row.metadata);
+    else standing.push(row);
   }
-
-  const { data: latest } = await targetQuery.maybeSingle();
-  if (!latest) {
-    return { success: false, error: "No score event found to undo." };
-  }
+  const latest = standing[standing.length - 1];
+  // Nothing standing: nothing to take back (and a retry won't change that).
+  if (!latest) return { success: true };
 
   const result = await insertEvent(
     auth,
     gameId,
     "score_undo",
     {
-      player_id: (latest as { player_id?: string | null }).player_id ?? null,
+      player_id: latest.player_id ?? null,
       metadata: {
-        target_event_id: (latest as { id: string }).id,
-        original_type: (latest as { type: string }).type,
-        sport: "rugby_league",
+        target_event_id: latest.id,
+        original_type: latest.type,
+        quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
       },
     },
     idempotencyKey,
@@ -891,7 +982,9 @@ export async function assignLeagueVest(
     .from("game_events")
     .select("*")
     .eq("game_id", gameId)
-    .eq("type", "vest_assigned")
+    // quarter_start too: a plan re-made before its period began was
+    // never worn, and vestHistory needs the kickoffs to tell.
+    .in("type", ["vest_assigned", "quarter_start"])
     .order("created_at", { ascending: true });
   const priorEvents = (prior ?? []) as GameEvent[];
 
@@ -905,6 +998,8 @@ export async function assignLeagueVest(
     if (used.has(playerId)) {
       return {
         success: false,
+        // A rule refusal: dropped, not retried (it would hold the game lane).
+        rejected: true,
         error: `That player has already worn the ${vest.toUpperCase()} vest this game.`,
       };
     }
@@ -920,7 +1015,6 @@ export async function assignLeagueVest(
         vest,
         period,
         replacement,
-        sport: "rugby_league",
       },
     },
     idempotencyKey,
@@ -1001,11 +1095,7 @@ export async function setLeagueOnFieldSizeMidGame(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { value: clampedSize, min, max } = await clampOnFieldSize(
-    w.supabase,
-    w.teamId,
-    input.newSize,
-  );
+  const { value: clampedSize, min, max } = await clampOnFieldSize(w, input.newSize);
 
   if (Math.floor(input.newSize) < min || Math.floor(input.newSize) > max) {
     return {
@@ -1073,12 +1163,12 @@ export async function setLeagueOnFieldSizeMidGame(
 
 // ─── Mid-game sub-interval override ──────────────────────────
 // Updates games.sub_interval_seconds for THIS game only — leaves
-// the team default untouched. Drives the SubDueModal cadence on
+// the team default untouched. Drives the sub-due banner's cadence on
 // the next router.refresh().
 //
 // Bounds: 30..600 seconds (30s minimum because anything tighter
 // is a spam vector; 600s = 10 min cap because longer than that
-// means SubDueModal effectively never fires).
+// means the sub-due banner effectively never shows).
 export async function setLeagueSubInterval(
   auth: LiveAuth,
   gameId: string,

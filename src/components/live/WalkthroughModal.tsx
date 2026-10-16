@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Modal } from "@/components/ui/Modal";
 
-interface Step {
+export interface WalkthroughStep {
   emoji: string;
   title: string;
   body: string;
 }
 
-export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
-  const steps: Step[] = [
+export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] {
+  const steps: WalkthroughStep[] = [
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1 to begin the first quarter. The clock runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
+      body: "Tap Start Q1, then Start clock when the siren goes. The clock runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
     },
     {
       emoji: "🏟️",
@@ -38,12 +39,12 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
     {
       emoji: "🔔",
       title: "Sub timer alert",
-      body: "When it's time for subs, a pop-up shows you the suggested swaps. Tap Apply subs to action them all in one go, or dismiss and do it yourself.",
+      body: "When it's time for subs, a Sub due banner appears under the top bar and the sub card opens with the suggested swaps. Tap Make all swaps to do them in one go, or do it yourself. The banner never blocks scoring.",
     },
     {
       emoji: "👇",
       title: "Long-press for player actions",
-      body: "Hold a player tile for half a second to open the actions sheet. From here you can Lock to field (never subbed), Lock to zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture, four options — works on field and bench tiles.",
+      body: "Hold a player tile for half a second to open the actions sheet. From here you can Switch player, Keep on field (never subbed), Keep in their zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture — works on field and bench tiles.",
     },
     {
       emoji: "↩️",
@@ -56,27 +57,29 @@ export function buildWalkthroughSteps(trackScoring: boolean): Step[] {
     steps.push({
       emoji: "⚽",
       title: "Recording scores",
-      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? An Undo chip appears at the top after every score — tap Undo to reverse it.",
+      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? Tap Undo on the strip above the scoreboard to take back the latest score.",
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter",
-    body: "Tap End Q1 when the quarter finishes. You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4 the game is marked complete and flows into your season stats.",
+    body: "The quarter ends when the clock runs out (or tap the clock, then End Q1 now). You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4, check the full-time review and tap Finish game so it flows into your season stats.",
   });
 
   return steps;
 }
 
 interface WalkthroughModalProps {
-  steps: Step[];
-  skipWelcome?: boolean;
+  steps: WalkthroughStep[];
   onClose: () => void;
 }
 
-export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughModalProps) {
-  const [phase, setPhase] = useState<"welcome" | "steps">(skipWelcome ? "steps" : "welcome");
+// Opens straight onto the steps. The old "Welcome to Game Manager"
+// interstitial is gone: the tour is offered on the lineup screen before
+// kickoff (WalkthroughOffer) or opened from the "?" button, and both of
+// those already ask the question (UX plan H1).
+export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
   const [idx, setIdx] = useState(0);
 
   // Direction tracking for step-content slide animations. The
@@ -93,70 +96,12 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
     prevIdxRef.current = idx;
   }, [idx]);
 
-  if (phase === "welcome") {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="wt-welcome-title"
-        // Backdrop tap dismisses — the walkthrough is purely
-        // informational and a parent on a phone shouldn't have to
-        // hunt for the Skip button. Stagehand exploration 2026-05-09
-        // also showed an agent persona tapping items on the page
-        // BEHIND this modal (because the modal looked dismissable);
-        // backdrop dismiss makes those taps register correctly on
-        // the second go.
-        onClick={onClose}
-      >
-        <div
-          className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="mb-4 text-center text-5xl">👋</div>
-          <h2 id="wt-welcome-title" className="mb-2 text-center text-xl font-bold text-ink">
-            Welcome to Game Manager
-          </h2>
-          <p className="mb-6 text-center text-sm leading-relaxed text-ink-dim">
-            You&apos;re in charge of today&apos;s game. Would you like a quick walkthrough of how it works?
-          </p>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setPhase("steps")}
-              className="w-full rounded-md bg-brand-600 py-3 text-base font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-            >
-              Yes, show me!
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full rounded-md border border-hairline py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-            >
-              Skip for now
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const step = steps[idx];
   const isFirst = idx === 0;
   const isLast = idx === steps.length - 1;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="wt-step-title"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal placement="sheet" labelledBy="wt-step-title" onClose={onClose} padding="p-6">
         {/* Progress dots */}
         <div className="mb-5 flex justify-center gap-1.5">
           {steps.map((_, i) => (
@@ -220,7 +165,6 @@ export function WalkthroughModal({ steps, skipWelcome, onClose }: WalkthroughMod
             Skip walkthrough
           </button>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }

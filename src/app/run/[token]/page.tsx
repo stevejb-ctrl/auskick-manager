@@ -2,6 +2,12 @@ import { SFButton, SFIcon } from "@/components/sf";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
+import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -11,12 +17,11 @@ import { GameInfoHeader } from "@/components/games/GameInfoHeader";
 import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, netballSport } from "@/lib/sports";
-import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
+import { withThirdsToday } from "@/lib/playbook/dayLines";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +65,8 @@ export default async function RunPage({ params }: RunPageProps) {
     .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
     .eq("id", g.team_id)
     .single();
+  // Read with the service client: no row means no such team.
+  if (!teamRow) notFound();
   const teamName = teamRow?.name ?? "Team";
   const trackScoring = teamRow?.track_scoring ?? false;
   // Netball-only: opt-in mid-quarter subs. Default false (the rule
@@ -79,7 +86,7 @@ export default async function RunPage({ params }: RunPageProps) {
     gameAllowMidQuarterSubs ?? teamAllowMidQuarterSubs;
   // Netball has no jersey numbers — hide the # input on AddFillInForm
   // (and feed the right live-game component below).
-  const sport: Sport = ((teamRow as { sport?: Sport } | null)?.sport) ?? "afl";
+  const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -128,10 +135,11 @@ export default async function RunPage({ params }: RunPageProps) {
   // Without this branch RL games fall through to the AFL LiveGame
   // (the demo-picker symptom Steve caught: clicking the RL card
   // started a game on the RL team but rendered AFL chrome).
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group) ??
-      rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group) ??
+      rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -186,7 +194,7 @@ export default async function RunPage({ params }: RunPageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStartedL = replay.lineup !== null;
 
     // Season events for the suggester + kickoff badges. Fetched the
@@ -203,6 +211,22 @@ export default async function RunPage({ params }: RunPageProps) {
           .in("game_id", otherGameIds)
       : { data: [] as GameEvent[] };
     const leagueSeasonEvents = (leagueSeasonEventsRaw ?? []) as GameEvent[];
+    // How we play for the league suggester, as on the coach's page.
+    const lg = await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null);
+    // A game in progress plays what it kicked off with (as AFL and netball).
+    const leaguePlaybook = withKickoffSnapshot(
+      sport,
+      leaguePlaybookInput(
+        lg.resolved,
+        lg.prefs,
+        lg.rules,
+        seasonTimeByUnit(sport, leagueSeasonEvents, "line", { since: lg.resolved.seasonBalanceSince }),
+        periodSeconds * 1000,
+        lg.vestStrategy,
+        seasonTimeByUnit(sport, leagueSeasonEvents, "position", { since: lg.resolved.seasonBalanceSince }),
+      ),
+      g.playbook_snapshot,
+    );
 
     // Chip labels for RL — Forward/Back are auto-seeded by the
     // 0043 trigger on team INSERT, but the picker accepts arbitrary
@@ -250,7 +274,7 @@ export default async function RunPage({ params }: RunPageProps) {
         : null;
 
       return (
-        <div className="space-y-3 p-3">
+        <div className="space-y-3 px-4 py-3">
           <RunnerWelcomeBanner
             teamName={teamName}
             trackScoring={trackScoring}
@@ -270,12 +294,13 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber
+                showJerseyNumber={rugbyCfg.jerseyNumbers}
                 requiredAvailable={ageCfgL.defaultOnFieldSize}
               />
             </section>
           ) : (
             <LeagueLineupPicker
+              sport={sport}
               auth={auth}
               gameId={g.id}
               players={availablePlayers}
@@ -283,28 +308,43 @@ export default async function RunPage({ params }: RunPageProps) {
               defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
+              // The game's own interval (see the AFL runner lineup page).
+              defaultSubMinutes={g.sub_interval_seconds / 60}
               seasonEvents={leagueSeasonEvents}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              backHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}`}
+              enforceUnbrokenPeriods={
+                (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
+                (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+                  ?.enforce_unbroken_periods ??
+                false
+              }
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
+              leaguePlaybook={leaguePlaybook}
             />
           )}
         </div>
       );
     }
 
+    // px-4 on every sport's wrapper, as the team live page's <main>: the
+    // live top bar bleeds edge to edge with -mx-4, so less padding made
+    // the page scroll sideways on a 375px phone (league had none: 16px;
+    // round 5 route crawl).
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 px-4 py-3">
         <LeagueLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
           enforceUnbrokenPeriods={
             (g as { enforce_unbroken_periods?: boolean | null })
@@ -323,6 +363,7 @@ export default async function RunPage({ params }: RunPageProps) {
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents}
           chipModes={teamChipModes}
+          leaguePlaybook={leaguePlaybook}
           // Runner-token grants restart access (same convention as
           // the netball branch — folded into LeagueLiveGame's
           // admin-utility row).
@@ -395,6 +436,28 @@ export default async function RunPage({ params }: RunPageProps) {
       : { data: [] as GameEvent[] };
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
+    // How we play for the netball suggester, as on the coach's page.
+    const nb = await loadTeamPlaybook(admin, g.team_id, "netball", teamRow?.age_group ?? null);
+    const netballPlaybook = withThirdsToday(
+      withNetballSnapshot(
+        netballPlaybookInput(
+          nb.resolved,
+          nb.prefs,
+          nb.rules,
+          seasonTimeByUnit(
+            "netball",
+            (seasonEventsNetball ?? []) as GameEvent[],
+            nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib",
+            { since: nb.resolved.seasonBalanceSince, periodSeconds: quarterLengthSeconds },
+          ),
+          quarterLengthSeconds * 1000,
+        ),
+        g.playbook_snapshot,
+      ),
+      (seasonEventsNetball ?? []) as GameEvent[],
+      (thisGameEvents ?? []) as GameEvent[],
+      quarterLengthSeconds,
+    );
     const isPreKickoff = state.lineup === null;
     // Gate the availability section on "not enough available to
     // start yet". For demo games (and any flow where availability
@@ -409,7 +472,7 @@ export default async function RunPage({ params }: RunPageProps) {
       isPreKickoff && availableIds.length < ageCfgN.positions.length;
     void hasStarted;
     return (
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
             sticky top bar (Steve 2026-05-13) — the (app) header is
             hidden on /live routes so this info lives in the
@@ -434,7 +497,7 @@ export default async function RunPage({ params }: RunPageProps) {
                 gameId={g.id}
                 canMarkAvailability
                 canManageMatch
-                showJerseyNumber={false}
+                showJerseyNumber={getSportConfig("netball").jerseyNumbers}
                 requiredAvailable={ageCfgN.positions.length}
               />
             </section>
@@ -442,6 +505,7 @@ export default async function RunPage({ params }: RunPageProps) {
         )}
         <NetballLiveGame
           auth={auth}
+          renderedAtMs={Date.now()}
           game={g}
           teamName={teamName}
           squad={squad}
@@ -461,19 +525,6 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={(seasonEventsNetball ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
-          // Steve 2026-05-15 (Stagehand finding): suppress auto-
-          // walkthrough on the runner-token URL ALWAYS, not just
-          // pre-kickoff. The previous gate (`={isPreKickoff}`)
-          // flipped false once Q1 started, which fired the
-          // walkthrough modal mid-live-play — interrupting the
-          // coach right when they're trying to score. Parent-
-          // volunteers on a runner link don't need a coach
-          // walkthrough anyway; they were handed the link with
-          // verbal instructions. The "?" button stays as a manual
-          // trigger if anyone wants to see it. Pre-kickoff
-          // rationale also still applies — the modal would block
-          // the AvailabilityList above.
-          suppressAutoWalkthrough
           // Runner-token URLs grant restart access (same behaviour
           // as the pre-2026-05-13 standalone ResetGameButton that
           // used to sit below the live UI). Folded into the
@@ -484,6 +535,7 @@ export default async function RunPage({ params }: RunPageProps) {
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
+          netballPlaybook={netballPlaybook}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
@@ -493,14 +545,13 @@ export default async function RunPage({ params }: RunPageProps) {
   }
 
   // ─── AFL branch (existing behaviour) ────────────────────────
-  const ageGroup = ageGroupOf(teamRow?.age_group);
-  const positionModel = AGE_GROUPS[ageGroup].positionModel;
+  const ageCfgSport = getAgeGroupConfig(aflBranch(sport), teamRow?.age_group ?? null);
+  const positionModel = aflPositionModel(ageCfgSport);
   // D-26 / D-27: same wiring as the team-coach branch in
   // (app)/teams/[teamId]/games/[gameId]/live/page.tsx. The runner-token
   // page renders the same <LiveGame> component for AFL games, so the
   // hooter and countdown surfaces need the same per-game/per-team-aware
   // duration. Three-level resolution: game → team → ageGroup default.
-  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
   const quarterMs = getEffectiveQuarterSeconds(
     { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
     ageCfgSport,
@@ -535,11 +586,24 @@ export default async function RunPage({ params }: RunPageProps) {
       ? await admin.from("game_events").select("*").in("game_id", priorGameIds)
       : { data: [] as GameEvent[] };
     const season = seasonZoneMinutes((allTeamEvents ?? []) as GameEvent[]);
+    // How we play for the AFL suggesters (UX plan 3.6), same as the
+    // coach's live page.
+    const { resolved: playbook, prefs: playbookPrefs, rules: playbookRules } = await loadTeamPlaybook(
+      admin,
+      g.team_id,
+      "afl",
+      teamRow?.age_group ?? null,
+    );
+    const aflPlaybook = withBalanceSeason(
+      withSnapshot(aflPlaybookInput(playbook, playbookPrefs, playbookRules), g.playbook_snapshot),
+      (allTeamEvents ?? []) as GameEvent[],
+      playbook.seasonBalanceSince,
+    );
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
 
     return (
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE LiveGame's sticky
             top bar (Steve 2026-05-13) — keep the spacer here so the
             availability section above LiveGame doesn't bleed into
@@ -549,6 +613,9 @@ export default async function RunPage({ params }: RunPageProps) {
           auth={auth}
           gameId={g.id}
           game={g}
+          // The live top bar, as league and netball runners have: Exit
+          // back to the runner page, and the sub-due banner under it.
+          exitHref={`/run/${params.token}`}
           teamName={teamName}
           opponentName={g.opponent}
           trackScoring={trackScoring}
@@ -566,20 +633,12 @@ export default async function RunPage({ params }: RunPageProps) {
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
           defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
           ageGroup={ageCfgSport}
-          // Steve 2026-05-15 (Stagehand finding): the walkthrough
-          // used to auto-open on first visit to the AFL live view,
-          // which on the runner-token path meant it opened RIGHT
-          // when the parent ran their first score attempt at Q1
-          // start. Parent-volunteers on a runner link don't need a
-          // coach walkthrough (they were handed the link with
-          // verbal instructions). Suppress here; the "?" button
-          // stays as a manual trigger.
-          suppressAutoWalkthrough
           // Runner-token URLs grant restart access (same behaviour
           // as the pre-2026-05-13 standalone ResetGameButton). The
           // button now lives inside LiveGame's admin-utility row
@@ -632,7 +691,7 @@ export default async function RunPage({ params }: RunPageProps) {
           gameId={g.id}
           canMarkAvailability
           canManageMatch
-          showJerseyNumber
+          showJerseyNumber={getSportConfig("afl").jerseyNumbers}
           // AFL needs g.on_field_size players available (12 for U10).
           // Drives the "X of 12 available" pill + helper hint.
           requiredAvailable={g.on_field_size}

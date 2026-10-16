@@ -23,10 +23,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import {
+  periodPositionLabels,
   formatGamePlan,
   projectGamePlan,
+  projectUpcomingRotation,
   swapPlayersInPeriod,
   type GamePlan,
 } from "@/lib/game-plan";
@@ -56,6 +57,14 @@ export interface GamePlanModalProps {
   players: GamePlanPlayer[];
   /** Players on field for this game (clamped to the age-group bounds). */
   onFieldSize: number;
+  /** This game's period length, when it isn't the age-group default. */
+  periodMinutes?: number;
+  /**
+   * This game's sub interval (rolling subs). Without it the plan's cadence
+   * is the age-group default and can disagree with the game's ("every
+   * 4 min" vs the lineup's "every 10m", Stagehand round 2).
+   */
+  subIntervalSeconds?: number;
   /** Coach's team name for the header + copy text. */
   teamName: string;
   /** Opponent name when known — drops the "v …" half when absent. */
@@ -68,6 +77,25 @@ export interface GamePlanModalProps {
   seasonEvents?: GameEvent[];
   /** Per-chip mode (split/group/zone) so chip-aware placement matches the lineup picker. */
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
+  /** How we play for the AFL suggester (UX plan 3.6). */
+  aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** How we play for league: lines from roles, keep-on, home positions. */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
+  /**
+   * Before kickoff, from a lineup screen: the lineup on screen, so the
+   * plan's first period IS that lineup and later ones follow from it
+   * (usability run: the two disagreed). groupId -> player ids, + bench.
+   */
+  anchor?: { groups: Record<string, string[]>; bench: string[] };
+  /** A line under the title, e.g. that this is a preview to share. */
+  note?: string;
+  /**
+   * Adjust the opening plan before it shows (a lineup screen lays over
+   * the later quarters the coach planned last time).
+   */
+  adjustInitialPlan?: (plan: GamePlan) => GamePlan;
   /** Deterministic starting seed (tests pin this; "Reshuffle" bumps it). */
   initialSeed?: number;
   /**
@@ -129,10 +157,18 @@ export function GamePlanModal({
   ageGroup,
   players,
   onFieldSize,
+  periodMinutes,
+  subIntervalSeconds,
   teamName,
   opponentName,
   seasonEvents,
   chipModeByKey = {},
+  aflPlaybook,
+  netballPlaybook,
+  leaguePlaybook,
+  anchor,
+  note,
+  adjustInitialPlan,
   initialSeed = 7,
   initialPlan,
   initialPeriodIndex = 0,
@@ -151,19 +187,45 @@ export function GamePlanModal({
         ageGroup,
         players,
         onFieldSize,
+        periodMinutes,
+        subIntervalSeconds,
         seasonEvents,
         seed,
         chipModeByKey,
+        aflPlaybook,
+        netballPlaybook,
+        leaguePlaybook,
       }),
-    [sport, ageGroup, players, onFieldSize, seasonEvents, chipModeByKey],
+    [sport, ageGroup, players, onFieldSize, periodMinutes, subIntervalSeconds, seasonEvents, chipModeByKey, aflPlaybook, netballPlaybook, leaguePlaybook],
   );
 
   const [seed, setSeed] = useState(initialSeed);
   // Seed from the handed-over plan-ahead projection when present, else a
   // fresh from-scratch projection (pre-game).
-  const [plan, setPlan] = useState<GamePlan>(
-    () => initialPlan ?? project(initialSeed),
-  );
+  const [plan, setPlan] = useState<GamePlan>(() => {
+    const opening =
+      initialPlan ??
+      (anchor
+        ? projectUpcomingRotation({
+            sport,
+            ageGroup,
+            players,
+            onFieldSize,
+            periodMinutes,
+            subIntervalSeconds,
+            seasonEvents,
+            seed: initialSeed,
+            chipModeByKey,
+            aflPlaybook,
+            netballPlaybook,
+            leaguePlaybook,
+            fromPeriodIndex: 0,
+            currentGroups: anchor.groups,
+            currentBench: anchor.bench,
+          })
+        : project(initialSeed));
+    return adjustInitialPlan ? adjustInitialPlan(opening) : opening;
+  });
   const [activePeriod, setActivePeriod] = useState(initialPeriodIndex);
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
   const [selected, setSelected] = useState<string | null>(null);
@@ -197,14 +259,23 @@ export function GamePlanModal({
     [playerById],
   );
 
+  // Set / named positions: each kid's position in each planned period,
+  // worked out as the lineup screen does (Stagehand round 3: a ruck sat
+  // under "Centre" with no position, and parents couldn't read it).
+  const positionsByPeriod = useMemo(
+    () => plan.periods.map((p) => periodPositionLabels(sport, p, { aflPlaybook, leaguePlaybook })),
+    [plan, sport, aflPlaybook, leaguePlaybook],
+  );
+
   const text = useMemo(
     () =>
       formatGamePlan(plan, {
         teamName,
         opponentName,
         playerName: displayName,
+        positionLabel: (i, id) => positionsByPeriod[i]?.[id],
       }),
-    [plan, teamName, opponentName, displayName],
+    [plan, teamName, opponentName, displayName, positionsByPeriod],
   );
 
   function handleReshuffle() {
@@ -264,6 +335,7 @@ export function GamePlanModal({
           type="button"
           onClick={() => tapPlayer(pid)}
           data-testid="game-plan-player"
+          data-player-id={pid}
           className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
             isSelected
               ? "bg-brand-50 ring-2 ring-inset ring-brand-500"
@@ -272,15 +344,18 @@ export function GamePlanModal({
         >
           <Guernsey num={p?.jersey_number ?? ""} size={32} />
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate font-medium text-ink">
-              {p?.chip && (
-                <ChipIndicator
-                  chipKey={p.chip as ChipKey}
-                  mode={chipModeByKey[p.chip]}
-                  className="mr-1.5 align-middle"
-                />
+            <span className="flex min-w-0 items-center gap-1.5">
+              {positionsByPeriod[activePeriod]?.[pid] && (
+                <span
+                  data-testid="game-plan-position"
+                  className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim"
+                >
+                  {positionsByPeriod[activePeriod][pid]}
+                </span>
               )}
-              {p?.full_name ?? pid}
+              <span className="truncate font-medium text-ink">
+                {p?.full_name ?? pid}
+              </span>
             </span>
             {/* Game context (issue: plan the next period with break-level
                 info) — total minutes + per-zone breakdown this game. */}
@@ -329,6 +404,7 @@ export function GamePlanModal({
             {plan.periods.length} {periodNoun} · ~{mins} min each{cadence} ·
             auto-suggested, tap to tweak
           </p>
+          {note && <p className="mt-1 text-xs text-ink-dim">{note}</p>}
         </div>
         <button
           type="button"
@@ -414,7 +490,7 @@ export function GamePlanModal({
                 {g.playerIds.length === 0 ? (
                   <p className="px-4 py-3 text-xs text-ink-mute">Empty</p>
                 ) : (
-                  <ul className="divide-y divide-hairline">
+                  <ul className="divide-y divide-hairline" data-testid={`game-plan-group-${g.groupId}`}>
                     {g.playerIds.map(renderRow)}
                   </ul>
                 )}
@@ -443,7 +519,7 @@ export function GamePlanModal({
                   No one resting this {plan.periodLabel}.
                 </p>
               ) : (
-                <ul className="divide-y divide-hairline">
+                <ul className="divide-y divide-hairline" data-testid="game-plan-bench">
                   {period.bench.map((pid) => renderRow(pid))}
                 </ul>
               )}

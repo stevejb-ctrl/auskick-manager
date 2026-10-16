@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { addNote, deleteNote } from "@/app/(app)/admin/actions";
 import type { ContactNote } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface NotesListProps {
   profileId: string;
@@ -42,6 +43,7 @@ export function NotesList({ profileId, notes }: NotesListProps) {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
+          aria-label="Note"
           placeholder="Add a note…"
           className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
         />
@@ -62,9 +64,7 @@ export function NotesList({ profileId, notes }: NotesListProps) {
       </div>
 
       {notes.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-3 py-4 text-center text-xs text-ink-mute">
-          No notes yet.
-        </p>
+        <EmptyState size="compact" title="No notes yet." />
       ) : (
         <ul className="space-y-2">
           {notes.map((n) => (

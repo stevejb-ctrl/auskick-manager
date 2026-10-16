@@ -27,17 +27,17 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
-import type { AgeGroup, Lineup } from "../../src/lib/types";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
 async function buildLineup(opts: {
   playerIds: string[];
   onFieldSize: number;
-  ageGroup: AgeGroup;
+  ageGroup: string;
 }): Promise<Lineup> {
-  const positionModel = positionsFor(opts.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", opts.ageGroup));
   const zoneCaps = zoneCapsFor(opts.onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
@@ -52,7 +52,7 @@ async function buildLineup(opts: {
   return lineup;
 }
 
-test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", async ({
+test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", async ({
   page,
 }) => {
   // Updated 2026-05-15 to match the post-2026-05-13 kickoff
@@ -73,7 +73,7 @@ test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -99,26 +99,29 @@ test("Q1 kickoff: Ready for Q1 → modal → Start Q1 commits in one tap each", 
   // LineupPicker renders pre-kickoff with the sticky "Ready for Q1"
   // CTA. Tap opens the StartQuarterModal in-place.
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^ready for q1$/i }).click();
+  await page.getByRole("button", { name: /^start q1$/i }).click();
 
   // Modal heading appears.
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap "Start Q1" in the modal. Single tap = server lineup_set +
   // quarter_start + local clock start.
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
-  // Modal disappears, clock pill flips to running ("Pause clock").
+  // Modal disappears, clock pill flips to running ("Clock — Q1, running").
+  // No second tap. The modal waits (spinner) for the one save + the
+  // redirect into the live game, which on a busy production build ran
+  // past the old 3 s window (failing 1 run in 2, round 5).
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
-  ).toBeHidden({ timeout: 3_000 });
+    page.getByRole("heading", { name: /^start q1$/i }),
+  ).toBeHidden({ timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
-  ).toBeVisible({ timeout: 5_000 });
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
+  ).toBeVisible({ timeout: 10_000 });
 
   // Server has exactly one quarter_start event — proving the single
   // tap persisted, not just updated the optimistic in-memory store.
@@ -159,7 +162,7 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -179,17 +182,17 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Open the modal via LineupPicker's "Ready for Q1" CTA.
-  const readyButton = page.getByRole("button", { name: /^ready for q1$/i });
+  const readyButton = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyButton).toBeVisible({ timeout: 10_000 });
   await readyButton.click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap "Back to lineup" — modal dismisses, no server write.
   await page.getByRole("button", { name: /^back to lineup$/i }).click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeHidden({ timeout: 2_000 });
 
   // No quarter_start event yet — dismissing is purely client-side.
@@ -206,9 +209,9 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   // for real.
   await expect(readyButton).toBeVisible({ timeout: 2_000 });
   await readyButton.click();
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 });
 
@@ -221,7 +224,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -269,7 +272,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
 
   // QuarterBreak's CTA is "Ready for Q2" (matches modal heading,
   // distinct from modal CTA "Start Q2").
-  const readyForQ2InBreak = page.getByRole("button", { name: /^ready for q2$/i });
+  const readyForQ2InBreak = page.getByRole("button", { name: /^start q2$/i });
   await expect(readyForQ2InBreak).toBeVisible({ timeout: 10_000 });
 
   await readyForQ2InBreak.click();
@@ -287,17 +290,17 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   //
   // Assert the modal heading is up after the LineupPicker CTA tap.
   await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
+    page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap the modal's "Start Q2" — single tap commits everything.
-  await page.getByRole("button", { name: /^start q2$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // After the commit QuarterBreak's distinctive sub-heading drops
   // (replayGame returns currentQuarter=2 + quarterEnded=false, so
   // isBetweenQuarters=false and QuarterBreak unmounts).
   await expect(
-    page.getByText(/set zones for q2/i),
+    page.getByText(/lineup for q2/i),
   ).toBeHidden({ timeout: 5_000 });
 
   // And the server should have recorded exactly one quarter_start
@@ -317,4 +320,152 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe(1);
+});
+
+// Regression (UX plan H1 / 0.8): on a coach's first visit the
+// "Welcome to Game Manager" walkthrough auto-opened the moment LiveGame
+// mounted — i.e. right after Start Q1, over a running clock. The tour is
+// now offered on the lineup screen before kickoff and never auto-opens.
+test("first-time coach is offered the walkthrough before kickoff, never over the clock", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+
+  await page.addInitScript(() => {
+    try { localStorage.removeItem("gm-walkthrough-seen"); } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  // Offered inline on the lineup screen, not as a modal.
+  await expect(page.getByText(/first game day with siren\?/i)).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({
+    timeout: 5_000,
+  });
+
+  // Nothing modal over the running clock.
+  await page.waitForTimeout(1_000);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+// UX plan 1.6 / H5: ending a quarter early used to need a pause, then a
+// ~20 px "End Q early" chip that only existed while paused. The clock
+// pill now opens a clock menu (≥ 44 pt rows): Pause / Resume and
+// End Q{n} now — reachable while the clock is running.
+test("the clock menu pauses and ends the quarter early", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+
+  const clock = page.getByRole("button", { name: /^clock — q1, running$/i });
+  await expect(clock).toBeVisible({ timeout: 10_000 });
+
+  // Pause from the menu.
+  await clock.click();
+  const menu = page.getByRole("dialog", { name: /q1 clock/i });
+  const pause = menu.getByRole("button", { name: /^pause clock$/i });
+  await expect(pause).toBeVisible();
+  expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await pause.click();
+  await expect(page.getByRole("button", { name: /^clock — q1, paused$/i })).toBeVisible();
+
+  // End Q1 from the menu (confirm), landing on the quarter break.
+  await page.getByRole("button", { name: /^clock — q1, paused$/i }).click();
+  await page
+    .getByRole("dialog", { name: /q1 clock/i })
+    .getByRole("button", { name: /^end q1 now$/i })
+    .click();
+  await page.getByRole("button", { name: /^end q1$/i }).click();
+  await expect(page.getByText(/lineup for q2/i)).toBeVisible({ timeout: 10_000 });
+});
+
+// Regression: AFL teams created before the 2026-05-20 boys/girls split
+// still store age_group "U16" / "U17". The sport registry didn't list
+// those ids, so the kickoff clamp in live/actions.ts resolved the team
+// to U8 (max 9 on field) and cut any bigger lineup down to 9.
+test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U16", sport: "afl" });
+  // 15 players is the factory's ceiling.
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await expect(
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
+  ).toBeVisible({ timeout: 10_000 });
+
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin
+          .from("games")
+          .select("on_field_size")
+          .eq("id", game.id)
+          .single();
+        return data?.on_field_size ?? 0;
+      },
+      { timeout: 5_000 },
+    )
+    // U16's legal range is 12–18. The bug clamped it to U8's max of 9.
+    .toBeGreaterThanOrEqual(12);
 });

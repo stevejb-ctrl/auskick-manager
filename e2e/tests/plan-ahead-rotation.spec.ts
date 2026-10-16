@@ -8,10 +8,10 @@
 //
 //   1. Seed an AFL game mid-Q1 (lineup_set + quarter_start) with a
 //      swappable bench, status in_progress.
-//   2. Let the clock reach the sub-due moment. The SubDueModal fires;
-//      dismiss it once. (It won't re-pop while no sub is actually made,
-//      so this leaves a clean, modal-free editing window — and the
-//      inline SwapCard stays mounted showing the live suggester pick.)
+//   2. Let the clock reach the sub-due moment. The sub-due banner
+//      shows; dismiss it once. (It won't re-show while no sub is
+//      actually made — and the inline SwapCard stays mounted showing
+//      the live suggester pick.)
 //   3. Open the shared rotation planner via "Plan ahead" and tap-to-swap
 //      a SPECIFIC on-field player (Alicia) OFF for a SPECIFIC bench
 //      player (Octavia — deliberately the LAST bench player, the one
@@ -28,10 +28,11 @@
 // (the pin never *creates* a sub — it only swaps in WHO when one is
 // already due). Reaching that state for real is the whole point.
 //
-// Why dismiss the SubDueModal BEFORE editing: it's a full-screen modal
-// whose backdrop would otherwise block the planner entry + the inline
-// SwapCard. Dismissing once is race-free because subState stays "due"
-// (no sub made yet) so the effect that opens it never re-fires.
+// Why wait for the sub-due banner's Got it before editing: it's the
+// visible sign the sub has fallen due. (It was a full-screen modal until
+// 16 Oct 2026, which had to be dismissed to reach the SwapCard.)
+// Dismissing once is race-free because subState stays "due" (no sub
+// made yet) so the effect that shows it never re-fires.
 //
 // Clock config: clock_multiplier=1 (real-time) so the 12-min Q1 hooter
 // stays ~12 minutes away — an enormous margin past this <1-min test.
@@ -40,27 +41,26 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
 // ─── Inline SwapCard override (F1 inline) ─────────────────────────
 // The same override the planner does, but WITHOUT leaving the field:
-// the coach taps the incoming chip on the SwapCard, picks a different
-// bench player from the inline picker, and that choice is pinned via
-// the SAME plannedRotation slice — the SwapCard shows it "Edited" and
-// "Do all" applies the coach's pick, not the engine's.
+// the coach taps a chip on the SwapCard, picks a different player from
+// the inline picker, and that choice is pinned via the SAME
+// plannedRotation slice — the SwapCard shows it "Edited" and "Do all"
+// applies the coach's pick, not the engine's.
 //
 //   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
-//   2. Reach the sub-due moment, dismiss the SubDueModal once.
-//   3. Expand the SwapCard, tap pair 0's incoming chip, and pick a
-//      bench option the engine did NOT already have coming on there.
-//   4. Assert: the pair shows the "Edited" badge + the "Planned sub
-//      ready" badge surfaces (the inline edit pinned, same as the
-//      planner's "Pin this sub").
-//   5. "Do all", then assert a `swap` event landed bringing the
-//      coach-picked player on — proving the inline override was
+//   2. Reach the sub-due moment, dismiss the sub-due banner once.
+//   3. Expand the SwapCard, tap pair 0's outgoing chip, and pick a
+//      teammate the engine did NOT already have coming off there.
+//   4. Assert: the pair shows the "Edited" badge (the inline edit
+//      pinned, same as the planner's "Pin this sub").
+//   5. "Do all", then assert a `swap` event landed taking the
+//      coach-picked player off — proving the inline override was
 //      honoured end-to-end.
 test("F1-inline: overriding the incoming player on the SwapCard pins it and is honoured", async ({
   page,
@@ -73,7 +73,7 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -95,7 +95,7 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     })),
   );
 
-  const positionModel = positionsFor(team.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", team.ageGroup));
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
@@ -145,17 +145,20 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
   const toggle = page.getByTestId("swapcard-toggle");
   await expect(toggle).toBeVisible({ timeout: 5_000 });
   await toggle.click();
-  await page.getByTestId("swap-pair-0-on").click();
+  // Override who comes OFF. (The incoming side has no spare: with three
+  // on the bench the suggester brings all three on, so pair 0's only
+  // "bring on instead" option is its own pick.)
+  await page.getByTestId("swap-pair-0-off").click();
 
-  // Pick a bench option the engine did NOT already have coming on here
-  // (the picker marks the current pick with bg-brand-600, so a
+  // Pick a teammate in that zone the engine did NOT already have coming
+  // off (the picker marks the current pick with bg-brand-600, so a
   // :not(.bg-brand-600) option is guaranteed to be a real change).
   const freshOption = page
     .locator('[data-testid^="swap-option-"]:not(.bg-brand-600)')
     .first();
   await expect(freshOption).toBeVisible({ timeout: 5_000 });
   const optionTestId = await freshOption.getAttribute("data-testid");
-  const chosenOnId = optionTestId!.replace("swap-option-", "");
+  const chosenOffId = optionTestId!.replace("swap-option-", "");
   await freshOption.click();
 
   // The edit pinned: the pair now wears the inline "Edited" badge. (The
@@ -166,7 +169,7 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     timeout: 5_000,
   });
 
-  // Apply everything and confirm the coach-picked player came on.
+  // Apply everything and confirm the coach-picked player came off.
   await page.getByTestId("swapcard-apply-all").click();
   await expect
     .poll(
@@ -178,8 +181,8 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
           .eq("type", "swap");
         return (data ?? []).some(
           (e) =>
-            ((e.metadata ?? {}) as { on_player_id?: string }).on_player_id ===
-            chosenOnId,
+            ((e.metadata ?? {}) as { off_player_id?: string }).off_player_id ===
+            chosenOffId,
         );
       },
       { timeout: 7_000, intervals: [200, 200, 500, 500, 1000] },
@@ -230,7 +233,7 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -244,7 +247,7 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
   // Backdating quarter_start ~12s puts us in the window on load with a
   // ~38s margin to the hooter (50s) — long enough to pin first — and
   // the auto-sub falls due at ~57s (12 + 45), AFTER the hooter, so the
-  // SubDueModal never pops to block the planner.
+  // sub-due banner never shows while the planner is open.
   await admin
     .from("games")
     .update({
@@ -263,7 +266,7 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     })),
   );
 
-  const positionModel = positionsFor(team.ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", team.ageGroup));
   const zoneCaps = zoneCapsFor(game.on_field_size, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
@@ -322,14 +325,31 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
     page.getByRole("heading", { name: /^game plan$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // Pin the projected Q2 lineup straight back to the live game (the
-  // "build next period" action). Closes the planner.
+  // Edit Q2 before pinning: swap the first back with the first player
+  // on the bench, so the pinned plan differs from the projection.
+  const backList = page.getByTestId("game-plan-group-back");
+  const benchList = page.getByTestId("game-plan-bench");
+  const movedOff = await backList.getByTestId("game-plan-player").first().getAttribute("data-player-id");
+  const movedOn = await benchList.getByTestId("game-plan-player").first().getAttribute("data-player-id");
+  await backList.locator(`[data-player-id="${movedOff}"]`).click();
+  await benchList.locator(`[data-player-id="${movedOn}"]`).click();
+  await expect(backList.locator(`[data-player-id="${movedOn}"]`)).toBeVisible();
+
+  // Pin the edited Q2 lineup to the live game (the "build next period"
+  // action). Closes the planner.
   await page.getByTestId("game-plan-pin").click();
 
   // Pin registered: the "Next period ready" badge surfaces (D-15).
   await expect(page.getByTestId("planned-next-period-badge")).toBeVisible({
     timeout: 5_000,
   });
+
+  // Reopening shows the pinned Q2, not a fresh projection (Stagehand
+  // round 2: the pinned quarter looked lost).
+  await planNextEntry.click();
+  await expect(page.getByTestId("game-plan-group-back").locator(`[data-player-id="${movedOn}"]`)).toBeVisible();
+  await expect(page.getByTestId("game-plan-bench").locator(`[data-player-id="${movedOff}"]`)).toBeVisible();
+  await page.getByTestId("game-plan-pin").click();
 
   // ─── Reach the break: hooter → confirm → QuarterBreak ───────────
   // The auto-hooter fires at ~38s and opens the QuarterEndModal; its
@@ -344,4 +364,65 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
   await expect(page.getByTestId("planned-seed-banner")).toBeVisible({
     timeout: 15_000,
   });
+});
+
+// Round 5 (runner-parent-scoring): after one "Make swap", the kid who
+// had just gone off was suggested straight back on. The live screen
+// only learnt who was benched from the server, and a mid-quarter swap
+// doesn't refresh it — so the rest guard never saw this phone's own
+// swaps. (And one suggestion per bench kid always included them.)
+test("a kid just swapped off isn't suggested straight back on", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ clock_multiplier: 1, sub_interval_seconds: 40 }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  await admin.from("game_events").insert(
+    [
+      {
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) },
+        },
+      },
+      { type: "quarter_start", metadata: { quarter: 1 } },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^got it$/i })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("button", { name: /^got it$/i }).click();
+  await page.getByTestId("swapcard-toggle").click();
+
+  // Make the first suggested swap on its own.
+  await page.getByRole("button", { name: /^make swap$/i }).first().click();
+  const swaps = async () => {
+    const { data } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "swap");
+    return (data ?? []).map((e) => (e.metadata as { off_player_id: string }).off_player_id);
+  };
+  await expect.poll(async () => (await swaps()).length, { timeout: 10_000 }).toBe(1);
+  const [offId] = await swaps();
+  const offName = players.find((p) => p.id === offId)!.full_name;
+
+  // Whatever the card suggests next, the kid who just came off isn't
+  // coming back on.
+  const toggle = page.getByTestId("swapcard-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').first()).toBeVisible();
+  await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').filter({ hasText: offName })).toHaveCount(0);
 });

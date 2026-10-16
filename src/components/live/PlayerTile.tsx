@@ -5,9 +5,9 @@ import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -47,6 +47,22 @@ interface PlayerTileProps {
    * fallback. Steve 2026-05-20.
    */
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
+  /**
+   * Header caption for planning screens — the quarter break says where
+   * each player is heading ("STAYS", "BENCH → FWD"). Shown when there's
+   * no swap header.
+   */
+  caption?: TileCaption | null;
+  /** Set positions: the named position shown instead of the zone ("CHB"). */
+  positionLabel?: string | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
+}
+
+export interface TileCaption {
+  text: string;
+  /** "move" = changing position this break; "stay" = same spot. */
+  tone: "move" | "stay";
 }
 
 function formatMinSec(ms: number): string {
@@ -71,6 +87,9 @@ function PlayerTileImpl({
   lockMode,
   score,
   chipModes,
+  caption,
+  positionLabel,
+  keepOn,
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -130,7 +149,7 @@ function PlayerTileImpl({
   const firstName = parts[0] ?? "";
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
 
-  const zoneLabel = currentZone ? ZONE_SHORT[currentZone] : null;
+  const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
 
   return (
     // P1-7 in MICRO-INTERACTIONS-PLAN.md: when this tile is part of
@@ -205,6 +224,20 @@ function PlayerTileImpl({
         </div>
       )}
 
+      {caption && !isOff && !isOn && (
+        <div
+          className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
+            caption.tone === "move"
+              ? "border-brand-700 bg-brand-600 text-white"
+              : "border-hairline bg-surface-alt text-ink-mute"
+          }`}
+        >
+          {caption.text}
+        </div>
+      )}
+
+      {keepOn && !injured && !loaned && !(score && (score.goals > 0 || score.behinds > 0)) && <KeepOnMarker />}
+
       {/* Score chip — floats above top-right corner so it never eats tile height */}
       {score && (score.goals > 0 || score.behinds > 0) && (
         <span
@@ -269,19 +302,8 @@ function PlayerTileImpl({
         </span>
       )}
 
-      {/* Name (with leading chip indicator if the player has a cohort chip).
-          Uses the shared ChipIndicator at md size so zone-mode chips
-          (forward / centre / back) surface their F / C / B letter
-          inside the dot — same affordance the lineup picker and
-          squad rows already use. Steve 2026-05-20. */}
+      {/* Name. (Cohort chips retired with How we play, UX plan 5.8.) */}
       <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
-        {player.chip && (
-          <ChipIndicator
-            chipKey={player.chip as ChipKey}
-            mode={chipModes?.[player.chip as ChipKey]}
-            size="md"
-          />
-        )}
         <span className="truncate">
           {lastInitial ? `${firstName} ${lastInitial}` : firstName}
         </span>
@@ -359,6 +381,10 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.loaned !== b.loaned) return false;
   if (a.lockMode !== b.lockMode) return false;
   if (a.compact !== b.compact) return false;
+  if (a.chipModes !== b.chipModes) return false;
+  if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
+  if (a.positionLabel !== b.positionLabel) return false;
+  if (a.keepOn !== b.keepOn) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.

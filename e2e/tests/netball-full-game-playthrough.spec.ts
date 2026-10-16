@@ -109,12 +109,11 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // Speed up the perceived clock 60×: a 10-min "go" quarter ticks
   // down in ~10s of wall-clock. Netball has period-break-only subs
-  // (no SubDueModal during a quarter) so we don't need to push out
+  // (no sub-due banner during a quarter) so we don't need to push out
   // sub_interval_seconds the way AFL does.
   await admin
     .from("games")
@@ -166,12 +165,12 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // quarter_start event. Distinct labels avoid the looping issue
   // Stagehand caught where both buttons shared an accessible name.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const readyForQ1 = page.getByRole("button", { name: /^ready for q1$/i });
+  const readyForQ1 = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
   await readyForQ1.click();
   // Modal CTA "Start Q1" — distinct from the page-level button.
   await page
-    .getByRole("button", { name: /^start q1$/i })
+    .getByRole("button", { name: /^start clock$/i })
     .click({ timeout: 5_000 });
 
   // ─── Phase 2: Q1 goal ─────────────────────────────────────
@@ -180,6 +179,12 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // — see PositionToken.tsx:84+157 (uses pos.label, the FULL name,
   // not the shortLabel).
   const scorer = players[0];
+  // Wait for Q1 to be on screen: until the quarter_start lands the court
+  // isn't live yet, and a tap on the GS doesn't open the goal dock (the
+  // test used to race it, failing about half the time).
+  await expect(
+    page.getByRole("button", { name: /^clock — q1, running$/i }),
+  ).toBeVisible({ timeout: 15_000 });
   await page
     .getByRole("button", {
       name: new RegExp(`^Goal Shooter,\\s*${scorer.full_name}`, "i"),
@@ -239,17 +244,17 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   //      NetballStartQuarterModal (heading "Ready for Q{n}").
   //   2. Modal "Start Q{n}" — fires startNetballQuarter (quarter_start).
   // Labels distinguish the two stages so the agent (and coaches) know
-  // which is which. Body text "Tap when the umpires call play" gates
+  // which is which. Body text "Tap Start clock when the umpire calls play" gates
   // the second tap.
   async function startNextQuarter(n: number): Promise<void> {
     await page
-      .getByRole("button", { name: new RegExp(`^ready for q${n}$`, "i") })
+      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
       .click();
     await page
-      .getByText(/tap when the umpires call play/i)
+      .getByText(/tap start clock when the umpire calls play/i)
       .waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .getByRole("button", { name: /^start clock$/i })
       .click();
   }
 
@@ -272,7 +277,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   for (const next of [3, 4]) {
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^ready for q${next}$`, "i"),
+        name: new RegExp(`^start q${next}$`, "i"),
       }),
     ).toBeVisible({ timeout: 25_000 });
     await startNextQuarter(next);
@@ -283,7 +288,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // currentQuarter >= 4` branch renders NetballFullTimeReview
   // (NOT another Q-break). The "Finalise game" button is the marker.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 25_000 });
 
   // Game status MUST still be in_progress at this point — the
@@ -305,7 +310,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   expect(midReviewEvents?.length ?? 0).toBe(0);
 
   // ─── Phase 8: finalise → summary ──────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // NetballGameSummaryCard's "Game summary" heading is the marker
   // (mirrors AFL's GameSummaryCard).

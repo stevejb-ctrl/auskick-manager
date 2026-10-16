@@ -57,6 +57,12 @@ interface LiveAdminUtilityRowProps {
    * not admin), the row still mounts so the extra slot can surface.
    */
   extra?: ReactNode;
+  /**
+   * The game is finalised: no Restart and no `extra` (settings for a
+   * game that's over). Restart stays on the game page's More menu for
+   * team admins; a runner link can't wipe a finished game.
+   */
+  finished?: boolean;
 }
 
 export function LiveAdminUtilityRow({
@@ -65,10 +71,13 @@ export function LiveAdminUtilityRow({
   lateArrivalPending = false,
   auth,
   gameId,
-  isAdmin = false,
-  extra,
+  isAdmin: isAdminProp = false,
+  extra: extraProp,
+  finished = false,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0;
+  const isAdmin = isAdminProp && !finished;
+  const extra = finished ? null : extraProp;
   // Row mounts whenever ANY slot has content — extra now joins
   // late-candidates and isAdmin in the "is there anything to show"
   // gate so the Game-settings button (AFL or RL) surfaces even on

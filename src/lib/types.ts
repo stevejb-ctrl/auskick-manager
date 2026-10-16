@@ -82,7 +82,7 @@ export type AgeGroup =
 export type PositionModel = "zones3" | "positions5";
 
 /** Sport identifier stored on Team. Drives SportConfig lookup. */
-export type Sport = "afl" | "netball" | "rugby_league";
+export type Sport = "afl" | "netball" | "rugby_league" | "rugby_union";
 
 export interface Team {
   id: string;
@@ -106,6 +106,11 @@ export interface Team {
    * junior netball where regions vary widely).
    */
   quarter_length_seconds: number | null;
+  /**
+   * The team's own players on the field; NULL = the age group's default
+   * (migration 0067). New games start from it (newGameDefaults).
+   */
+  on_field_size: number | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   /** Optional human labels for the three player chip slots. Coach
@@ -216,12 +221,6 @@ export interface Game {
   notes: string | null;
   status: GameStatus;
   sub_interval_seconds: number;
-  /**
-   * Within-period subs spread evenly across the period (issue 2). The
-   * live timer places N reminders at k/(N+1) of the period length.
-   * Migration 0048; default 3.
-   */
-  subs_per_quarter: number;
   share_token: string;
   on_field_size: number;
   /**
@@ -252,6 +251,8 @@ export interface Game {
   quarter_length_seconds: number | null;
   /** Multiplier applied to the clock for demo games (1 = real-time, 6 = 6× speed). */
   clock_multiplier: number;
+  /** How we play at kickoff (migration 0053); null for games not yet started. */
+  playbook_snapshot?: import("@/lib/playbook/types").PlaybookSnapshot | null;
   external_source: string | null;
   external_id: string | null;
   created_by: string;
@@ -270,6 +271,9 @@ export interface GameAvailability {
 
 export type Zone = "back" | "hback" | "mid" | "hfwd" | "fwd";
 
+// The database takes only the types each sport records: a new type
+// needs a migration adding it to sport_event_types for every sport
+// that writes it (migration 0061), or its inserts are refused.
 export type GameEventType =
   | "lineup_set"
   | "quarter_start"
@@ -285,6 +289,10 @@ export type GameEventType =
   | "score_undo"
   | "field_zone_swap"
   | "player_loan"
+  // A coach's hold on a player: Keep on / Keep in {zone} (AFL) or
+  // Keep in {position} (netball). Metadata: { lock: PlayerLock | null,
+  // quarter, elapsed_ms }; null clears it. See lib/live/locks.ts.
+  | "player_lock"
   // Mid-quarter on-field-size REDUCTION. Metadata:
   //   { remove_player_ids: string[], new_size, quarter, elapsed_ms }
   // Replays as: close each removed player's open stint, drop them
@@ -303,6 +311,12 @@ export type GameEventType =
   | "opponent_try"
   | "conversion_attempt"
   | "opponent_conversion"
+  // Rugby league goals from play, U13+ international laws only
+  // (penalty goal = 2, field goal = 1). player_id = kicker on ours.
+  | "penalty_goal"
+  | "field_goal"
+  | "opponent_penalty_goal"
+  | "opponent_field_goal"
   // Rugby league rotations. Junior Laws §15 (goal-kick) and §16 (kickoff)
   // both rotate per-team; junior Laws §12 vests rotate per-period with
   // a "no vest worn twice in one match" rule. All three are derived by
@@ -370,6 +384,12 @@ export interface LeagueLineup {
   forwards: string[];
   backs: string[];
   bench: string[];
+  /**
+   * Named positions (UX plan 5.7): on-field player id → position key,
+   * recorded with the lineup so season balance can count time in each
+   * position. A sub takes the slot of the player they replace.
+   */
+  slots?: Record<string, string>;
 }
 
 export type LeagueZone = "forward" | "back";
@@ -541,6 +561,36 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      team_playbooks: {
+        Row: import("@/lib/playbook/types").TeamPlaybookRow;
+        Insert: Partial<import("@/lib/playbook/types").TeamPlaybookRow> & { team_id: string };
+        Update: Partial<Omit<import("@/lib/playbook/types").TeamPlaybookRow, "team_id">>;
+        Relationships: [];
+      };
+      team_positions: {
+        Row: import("@/lib/playbook/types").TeamPositionRow;
+        Insert: Omit<import("@/lib/playbook/types").TeamPositionRow, "id" | "created_at" | "archived_at" | "name" | "on_field_size"> & {
+          id?: string;
+          name?: string | null;
+          on_field_size?: number | null;
+          archived_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Omit<import("@/lib/playbook/types").TeamPositionRow, "id" | "team_id" | "created_at">>;
+        Relationships: [];
+      };
+      player_position_prefs: {
+        Row: import("@/lib/playbook/types").PlayerPositionPrefRow;
+        Insert: Omit<import("@/lib/playbook/types").PlayerPositionPrefRow, "id" | "created_at" | "rank" | "position_key" | "line"> & {
+          id?: string;
+          position_key?: string | null;
+          line?: string | null;
+          rank?: number | null;
+          created_at?: string;
+        };
+        Update: Partial<Omit<import("@/lib/playbook/types").PlayerPositionPrefRow, "id" | "team_id" | "player_id" | "created_at">>;
+        Relationships: [];
+      };
       contact_preferences: {
         Row: ContactPreference;
         Insert: Omit<ContactPreference, "updated_at"> & {
@@ -564,6 +614,8 @@ export type Database = {
 // inserted row so the client can replace its temp-id placeholder) get
 // proper type narrowing on `.data`. Defaults to `unknown` for the bulk
 // of actions that just signal success/failure.
+// `rejected`: refused under a game rule, so the write queue drops the op
+// instead of retrying it (see writeQueue's ActionResult).
 export type ActionResult<T = unknown> =
   | { success: true; data?: T }
-  | { success: false; error: string };
+  | { success: false; error: string; rejected?: true };

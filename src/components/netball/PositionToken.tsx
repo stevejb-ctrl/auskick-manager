@@ -21,6 +21,7 @@ import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness"
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 interface PositionTokenProps {
   positionId: string;
@@ -58,6 +59,10 @@ interface PositionTokenProps {
    * clockPulseKey pattern on GameHeader / NetballScoreBug.
    */
   pulseKey?: string | number | null;
+  /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
+  caption?: { text: string; tone: "move" | "stay" } | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
 }
 
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
@@ -92,6 +97,8 @@ export function PositionToken({
   totalMs,
   goalCount,
   pulseKey,
+  caption,
+  keepOn = false,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
   const short = pos?.shortLabel ?? positionId.toUpperCase();
@@ -219,6 +226,8 @@ export function PositionToken({
       ].join(" ")}
       aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
     >
+      {keepOn && !injured && !loaned && !(goalCount !== undefined && goalCount > 0) && <KeepOnMarker />}
+
       {/* Goal-count chip — floats above top-right corner so it never
           eats tile height. Mirrors AFL's score chip at PlayerTile.tsx:179.
           Hidden when zero so brand-new tokens stay clean. */}
@@ -268,6 +277,18 @@ export function PositionToken({
             />
           </svg>
         </span>
+      )}
+
+      {caption && (
+        <div
+          className={`rounded-t-[5px] border-b px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
+            caption.tone === "move"
+              ? "border-brand-700 bg-brand-600 text-white"
+              : "border-hairline bg-surface-alt text-ink-mute"
+          }`}
+        >
+          {caption.text}
+        </div>
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-1">

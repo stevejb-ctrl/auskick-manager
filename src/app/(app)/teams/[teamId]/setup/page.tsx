@@ -5,12 +5,18 @@ import { ScoringStep } from "@/components/setup/ScoringStep";
 import { SquadStep } from "@/components/setup/SquadStep";
 import { GamesStep } from "@/components/setup/GamesStep";
 import { DoneStep } from "@/components/setup/DoneStep";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { SetupProgress } from "@/components/setup/SetupProgress";
+import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
+import { loadSquadRoles } from "@/lib/playbook/load";
+import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
 import type { Player, Sport } from "@/lib/types";
 
-type SetupQueryStep = "config" | "squad" | "games" | "done";
+type SetupQueryStep = "basics" | "config" | "squad" | "games" | "done";
 
-const VALID_STEPS: SetupQueryStep[] = ["config", "squad", "games", "done"];
+const VALID_STEPS: SetupQueryStep[] = ["basics", "config", "squad", "games", "done"];
 
 interface SetupPageProps {
   params: { teamId: string };
@@ -69,7 +75,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     adminClient
       .from("teams")
       .select(
-        "name, age_group, sport, track_scoring, quarter_length_seconds, playhq_url, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode",
+        "name, age_group, sport, track_scoring, quarter_length_seconds, on_field_size, playhq_url",
       )
       .eq("id", params.teamId)
       .maybeSingle(),
@@ -98,57 +104,63 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   }
 
   const teamName = team.name as string;
-  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
   // Resolve the age-group config against the team's sport so netball
   // teams get their NetSetGO/Modified config here (not U8-U17).
   const ageGroupCfg = getAgeGroupConfig(sport, team.age_group as string | null);
 
-  // Chip fields are surfaced in the config step (so coaches can opt in
-  // during onboarding) AND the squad step (so chips can be applied as
-  // each player is added). Steve 2026-05-20.
-  type ChipModeOrNull = import("@/lib/chips").ChipMode | null;
-  const teamWithChips = team as {
-    chip_a_label?: string | null;
-    chip_b_label?: string | null;
-    chip_c_label?: string | null;
-    chip_a_mode?: ChipModeOrNull;
-    chip_b_mode?: ChipModeOrNull;
-    chip_c_mode?: ChipModeOrNull;
-  };
-  const chipLabels = {
-    a: teamWithChips.chip_a_label ?? null,
-    b: teamWithChips.chip_b_label ?? null,
-    c: teamWithChips.chip_c_label ?? null,
-  };
-  const chipModes: {
-    a: import("@/lib/chips").ChipMode;
-    b: import("@/lib/chips").ChipMode;
-    c: import("@/lib/chips").ChipMode;
-  } = {
-    a: teamWithChips.chip_a_mode ?? "split",
-    b: teamWithChips.chip_b_mode ?? "split",
-    c: teamWithChips.chip_c_mode ?? "split",
-  };
-  const chipModesPartial: Partial<
-    Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>
-  > = {
-    a: teamWithChips.chip_a_mode ?? undefined,
-    b: teamWithChips.chip_b_mode ?? undefined,
-    c: teamWithChips.chip_c_mode ?? undefined,
-  };
+
+  if (step === "basics") {
+    return (
+      <div className="mx-auto max-w-xl space-y-6">
+        <SetupProgress current="basics" teamId={params.teamId} />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-ink">Team basics</h1>
+          <p className="text-sm text-ink-dim">
+            Your age group sets the default on-field size, game length, and
+            rotation rules for this team.
+          </p>
+        </div>
+        <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+          <TeamBasicsForm
+            userId={user.id}
+            defaultSport={sport}
+            existingTeam={{
+              id: params.teamId,
+              name: teamName,
+              ageGroup: (team.age_group as string | null) ?? ageGroupCfg.id,
+              onFieldSize: (team as { on_field_size?: number | null }).on_field_size ?? null,
+              periodSeconds: (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null,
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (step === "config") {
+    const [{ data: playbookRow }, { data: positionRows }] = await Promise.all([
+      adminClient
+        .from("team_playbooks")
+        .select("strategy, policy_overrides, season_balance, season_balance_since, rules, vest_strategy")
+        .eq("team_id", params.teamId)
+        .maybeSingle(),
+      adminClient
+        .from("team_positions")
+        .select("id, label, name, line, sort, archived_at")
+        .eq("team_id", params.teamId)
+        .is("archived_at", null)
+        .order("sort"),
+    ]);
     return (
       <ScoringStep
+        playbookRow={(playbookRow ?? null) as HowWePlayRow | null}
+        positions={(positionRows ?? []) as HowWePlayPosition[]}
         teamId={params.teamId}
         ageGroup={ageGroupCfg}
         initialEnabled={team.track_scoring ?? false}
         sportId={sport}
-        initialQuarterLengthSeconds={
-          (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
-        }
-        initialChipLabels={chipLabels}
-        initialChipModes={chipModes}
+        onFieldSize={teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null)}
       />
     );
   }
@@ -160,6 +172,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
       .eq("team_id", params.teamId)
       .order("jersey_number");
     const players = (playersRaw ?? []) as Player[];
+    // How we play was chosen on the step before, so players can get
+    // their positions / lines as they're added (same sheet as Squad).
+    const { roleModel, roles } = await loadSquadRoles(adminClient, params.teamId, sport, ageGroupCfg.id);
 
     return (
       <SquadStep
@@ -167,8 +182,8 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         ageGroup={ageGroupCfg}
         players={players}
         sportId={sport}
-        chipLabels={chipLabels}
-        chipModes={chipModesPartial}
+        roleModel={roleModel}
+        roles={roles}
       />
     );
   }
@@ -192,9 +207,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     return (
       <GamesStep
         teamId={params.teamId}
-        ageGroup={ageGroupCfg}
         existingExternalIds={existingExternalIds}
         playhqUrl={(team.playhq_url as string | null) ?? ""}
+        playhqTenant={PLAYHQ_TENANT[sport]}
         games={gamesRaw ?? []}
       />
     );

@@ -25,7 +25,7 @@ import { SFButton } from "@/components/sf";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { NetballStartQuarterModal } from "@/components/netball/NetballStartQuarterModal";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import {
   netballSport,
   pickNetballPositionsToFill,
@@ -42,6 +42,14 @@ import {
   lastQuarterTeammatesInThird,
 } from "@/lib/sports/netball/fairness";
 import type { GameEvent } from "@/lib/types";
+import { useLongPress } from "@/lib/live/useLongPress";
+import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
+import { KeepOnMarker, keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { netballRuleCheck } from "@/lib/sports/netball/engine";
 
 interface LineupPickerProps {
   ageGroup: AgeGroupConfig;
@@ -87,14 +95,19 @@ interface LineupPickerProps {
    * (e.g. Q-break flow where we're not in a "I picked the wrong
    * starting roster" recovery scenario).
    */
-  backHref?: string;
+  availabilityHref?: string;
+  /** First-visit tour offer (WalkthroughOffer), shown under the breadcrumb. */
+  walkthroughOffer?: React.ReactNode;
+  /** Game-day "Who's here" panel, shown under the breadcrumb. */
+  availabilityPanel?: React.ReactNode;
   /**
-   * Optional pre-game "Game plan" opener, rendered in the shared
-   * breadcrumb row above the picker. Built by the server page (via
-   * NetballLiveGame) so the planner sits in the same spot across all
-   * three sports. Omit on surfaces without a planner.
+   * The pre-game "Game plan" opener's settings (team, opponent, season,
+   * How we play), from the server page. The picker renders the button
+   * in the shared breadcrumb row, anchored on its own lineup: the plan's
+   * first period IS the lineup, and "Use this plan" puts changes back
+   * (usability run: the two disagreed, and edits went nowhere).
    */
-  gamePlanButton?: import("react").ReactNode;
+  gamePlan?: GamePlanButtonProps;
   /**
    * Optional draft-save callback — when provided, the sticky footer
    * grows to a two-row layout with a "Save plan & exit" ghost button
@@ -145,6 +158,13 @@ interface LineupPickerProps {
    * back-compat with callers pre-dating this prop.
    */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /**
+   * Player roles (How we play): long-press a player to set their home,
+   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   */
+  roleSheet?: RoleSheetConfig;
   /**
    * Team-level default for "allow mid-quarter subs" (mirrors the
    * team Settings toggle). Used as the fallback when no per-game
@@ -192,14 +212,18 @@ export function NetballLineupPicker({
   onConfirm,
   confirmLabel = "Confirm lineup",
   disabled,
-  backHref,
-  gamePlanButton,
+  availabilityHref,
+  walkthroughOffer,
+  availabilityPanel,
+  gamePlan,
   onSavePlan,
   initialSavedAt = null,
   auth,
   gameId,
   initialLoanedIds = [],
   chipModeByKey = {},
+  netballPlaybook,
+  roleSheet,
   teamAllowMidQuarterSubs = false,
   gameAllowMidQuarterSubs = null,
   currentOnFieldSize,
@@ -208,10 +232,19 @@ export function NetballLineupPicker({
   // Effective short-squad size for this picker session. When the
   // parent passes a value (game already had on_field_size set, even
   // if it's the default), we honour it; otherwise fall back to the
-  // age group's default so existing surfaces are unchanged.
-  const [onFieldSize, setOnFieldSize] = useState<number>(
-    () => currentOnFieldSize ?? ageGroup.defaultOnFieldSize,
-  );
+  // age group's default. Either way, never ask for more kids than
+  // turned up — a Set team with four kids starts four-a-side instead
+  // of showing an empty bib (AFL's picker caps the same way).
+  const [onFieldSize, setOnFieldSize] = useState<number>(() => {
+    const target = Math.min(
+      currentOnFieldSize ?? ageGroup.defaultOnFieldSize,
+      availableIds.length,
+    );
+    return Math.max(
+      ageGroup.minOnFieldSize,
+      Math.min(ageGroup.maxOnFieldSize, target),
+    );
+  });
   const sizeOptions = useMemo(() => {
     const opts: number[] = [];
     for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {
@@ -326,7 +359,8 @@ export function NetballLineupPicker({
     // prop. Together they drive the new tier-6 chip term in
     // `suggestNetballLineup`. AFL parity (Steve 2026-05-16).
     const chipByPlayerId = Object.fromEntries(
-      squad.map((p) => [p.id, p.chip ?? null]),
+      // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+      squad.map((p) => [p.id, null]),
     );
     return suggestNetballLineup({
       playerIds: eligibleIds,
@@ -344,6 +378,7 @@ export function NetballLineupPicker({
       previousTeammates: prevTeammates,
       chipByPlayerId,
       chipModeByKey,
+      playbook: netballPlaybook ? { ...netballPlaybook, previousLineup: null } : undefined,
     });
   };
 
@@ -351,6 +386,24 @@ export function NetballLineupPicker({
     if (initialLineup) return initialLineup;
     return buildLineup("suggested");
   });
+  // Rule check for the lineup about to start, as AFL's picker and both
+  // breaks show — carnival day's "still to play every third today" was
+  // invisible until the first break (round 5).
+  const ruleCheck = useMemo(() => {
+    if (!netballPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of squad) names[p.id] = p.full_name;
+    return netballRuleCheck({
+      lineup,
+      previousLineup: null,
+      names,
+      thirdMs: new Map(),
+      period: 1,
+      periodCount: ageGroup.periodCount,
+      periodMs: (defaultQuarterSeconds ?? ageGroup.periodSeconds) * 1000,
+      input: netballPlaybook,
+    });
+  }, [netballPlaybook, squad, lineup, ageGroup.periodCount, ageGroup.periodSeconds, defaultQuarterSeconds]);
 
   function handleModeChange(next: "suggested" | "manual") {
     if (next === lineupMode) return;
@@ -520,6 +573,40 @@ export function NetballLineupPicker({
     () => new Map(squad.map((p) => [p.id, p])),
     [squad],
   );
+  const playerRoles = useRoleSheet(
+    roleSheet,
+    auth?.kind === "team" ? auth.teamId : null,
+    (pid) => squadById.get(pid)?.full_name,
+  );
+  // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
+  const gamePlanButton = gamePlan ? (
+    <GamePlanButton
+      {...gamePlan}
+      // The later quarters planned last time (Stagehand round 3: they
+      // vanished, as "Use for Q1" kept only Q1).
+      adjustInitialPlan={(plan) =>
+        withPinnedPeriods(plan, {
+          pin: plannedRotation?.gameId === gameId ? plannedRotation : null,
+          fromPeriodIndex: 1,
+          availableIds: gamePlan.players.map((p) => p.id),
+        })
+      }
+      // Plan what's on screen: this lineup's size (Stagehand round 2).
+      onFieldSize={onFieldSize}
+      anchor={{ groups: lineup.positions, bench: lineup.bench }}
+      pinLabel="Use this plan"
+      onPin={(plan) => {
+        const q1 = plan.periods[0];
+        if (!q1) return;
+        if (gameId) setPlannedRotation(pinLaterPeriods(plannedRotation, gameId, plan));
+        const positions: Record<string, string[]> = Object.fromEntries(Object.keys(lineup.positions).map((k) => [k, []]));
+        for (const g of q1.groups) positions[g.groupId] = [...g.playerIds];
+        setLineup({ positions, bench: [...q1.bench] });
+      }}
+    />
+  ) : null;
 
   // Which player is currently in which position/bench. Used to find
   // where the selected player lives so a swap can put the displaced
@@ -742,6 +829,8 @@ export function NetballLineupPicker({
             if (occupantId) handleTapPlayer(occupantId);
             else handleTapEmpty(positionId);
           }}
+          onLongPress={occupantId && playerRoles.open ? () => playerRoles.open?.(occupantId) : undefined}
+          keepOn={!!occupantId && keepOnIds(playerRoles.roles).has(occupantId)}
         />
       </div>
     );
@@ -751,8 +840,14 @@ export function NetballLineupPicker({
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
-    <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <LineupPickerBreadcrumb backHref={backHref} action={gamePlanButton} />
+    <div
+      role="region"
+      aria-label="Starting lineup"
+      className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]"
+    >
+      <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
+      {availabilityPanel}
+      {walkthroughOffer}
 
       {/* ── Game settings (collapsible) ──────────────────────────
           Steve 2026-05-16: parity with the AFL pre-game picker —
@@ -780,7 +875,7 @@ export function NetballLineupPicker({
               {(() => {
                 const bits: string[] = [];
                 bits.push(
-                  lineupMode === "suggested" ? "Auto-suggested" : "Manual lineup",
+                  lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
                 );
                 // Quarter length only surfaces in the summary when it
                 // differs from the team's default (defaultQuarterSeconds
@@ -1030,7 +1125,7 @@ export function NetballLineupPicker({
                         onClick={() => handleLendToggle(p.id, false)}
                         disabled={loanPending}
                         aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                       >
                         ×
                       </button>
@@ -1040,7 +1135,7 @@ export function NetballLineupPicker({
                     type="button"
                     onClick={() => setLendPickerOpen(true)}
                     disabled={loanPending}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                   >
                     <span aria-hidden>+</span>
                     Lend a player
@@ -1057,6 +1152,8 @@ export function NetballLineupPicker({
         )}
       </div>
 
+      {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
+
       <Court
         attackThird={byThird("attack-third").map(renderTokenAt)}
         centreThird={byThird("centre-third").map(renderTokenAt)}
@@ -1072,7 +1169,10 @@ export function NetballLineupPicker({
         availableIds={availableIds}
         selectedId={selected}
         onTapPlayer={handleTapPlayer}
+        onLongPressPlayer={playerRoles.open}
+        keepOnIds={keepOnIds(playerRoles.roles)}
       />
+      {playerRoles.sheet}
 
       {/* Per-game quarter-length override moved UP into the
           "Game settings" collapse (Steve 2026-05-16) so all pre-
@@ -1119,7 +1219,8 @@ export function NetballLineupPicker({
           the modal — zero server writes, the picker is still
           editable in the background. */}
       {startModalOpen && (
-        <NetballStartQuarterModal
+        <StartQuarterModal
+          cue="umpire calls play"
           quarter={1}
           loading={saving}
           onStart={handleConfirmStart}
@@ -1192,6 +1293,8 @@ function BenchStrip({
   availableIds,
   selectedId,
   onTapPlayer,
+  onLongPressPlayer,
+  keepOnIds: keepOn,
 }: {
   bench: string[];
   onCourtIds: string[];
@@ -1200,6 +1303,8 @@ function BenchStrip({
   /** Currently-selected player id (highlighted to confirm the tap). */
   selectedId: string | null;
   onTapPlayer: (playerId: string) => void;
+  onLongPressPlayer?: (playerId: string) => void;
+  keepOnIds?: Set<string>;
 }) {
   // "Bench + unassigned" = available players who aren't currently in a
   // position. That's the explicit bench list plus anyone in availableIds
@@ -1218,6 +1323,15 @@ function BenchStrip({
         <h3 className="text-sm font-semibold text-ink-dim">Bench + unassigned</h3>
         <span className="text-xs text-ink-mute">{bench.length} benched</span>
       </div>
+      {/* Why kids sit (usability run: "no stated reason"). Netball subs
+          only at the breaks, so sitting out is a whole quarter; at
+          kickoff nobody has played yet, so it's simply turns. */}
+      {availableIds.length > onCourtIds.length && onCourtIds.length > 0 && (
+        <p className="text-xs text-ink-dim">
+          With {availableIds.length} here and {onCourtIds.length} on court,{" "}
+          {availableIds.length - onCourtIds.length} sit out each quarter and everyone takes a turn.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {all.length === 0 ? (
           <span className="text-xs italic text-ink-mute">
@@ -1227,24 +1341,57 @@ function BenchStrip({
           all.map((pid) => {
             const player = squadById.get(pid);
             if (!player) return null;
-            const isSelected = selectedId === pid;
             return (
-              <button
+              <BenchChip
                 key={pid}
-                type="button"
-                onClick={() => onTapPlayer(pid)}
-                className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                  isSelected
-                    ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
-                    : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
-                }`}
-              >
-                {player.full_name}
-              </button>
+                player={player}
+                selected={selectedId === pid}
+                onTap={() => onTapPlayer(pid)}
+                onLongPress={onLongPressPlayer ? () => onLongPressPlayer(pid) : undefined}
+                keepOn={keepOn?.has(pid) ?? false}
+              />
             );
           })
         )}
       </div>
     </div>
+  );
+}
+
+/** A bench chip: tap to pick, long-press for the player's role. */
+function BenchChip({
+  player,
+  selected,
+  onTap,
+  onLongPress,
+  keepOn = false,
+}: {
+  player: Player;
+  selected: boolean;
+  onTap: () => void;
+  onLongPress?: () => void;
+  keepOn?: boolean;
+}) {
+  const lp = useLongPress({ onLongPress });
+  return (
+    <button
+      type="button"
+      data-testid={`bench-chip-${player.id}`}
+      {...lp.handlers}
+      onClick={() => {
+        if (lp.consumedLongPress()) return;
+        onTap();
+      }}
+      className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+        selected
+          ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
+          : lp.arming
+            ? "border-brand-400 bg-surface-alt text-ink"
+            : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
+      }`}
+    >
+      {player.full_name}
+      {keepOn && <KeepOnMarker corner={false} />}
+    </button>
   );
 }

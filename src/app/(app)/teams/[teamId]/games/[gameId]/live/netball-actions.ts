@@ -17,6 +17,10 @@ import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // Same clamp as live/actions.ts — duplicated rather than imported to
 // keep these two server-action modules independent. Reads team
@@ -26,12 +30,14 @@ async function clampOnFieldSize(
   teamId: string,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
+  // This module writes netball games only: clamp to that sport's
+  // own age groups, never whatever another sport would allow.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("age_group")
     .eq("id", teamId)
     .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const ageCfg = getAgeGroupConfig("netball", team?.age_group);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -180,9 +186,16 @@ export async function startNetballGame(
   // Validate the override before writing — bounds match the picker
   // input (1..30 min). Leaves the column untouched when the picker
   // sent `null` / `undefined` (i.e. coach left the team default).
-  const update: { status: "in_progress"; on_field_size: number; quarter_length_seconds?: number | null } = {
+  const update: {
+    status: "in_progress";
+    on_field_size: number;
+    quarter_length_seconds?: number | null;
+    playbook_snapshot: PlaybookSnapshot | null;
+  } = {
     status: "in_progress",
     on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
   };
   if (quarterLengthSeconds != null) {
     if (
@@ -453,9 +466,11 @@ export async function finaliseNetballGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** Q4's mid-quarter subs: no break follows Q4 to write them. */
+  midQuarterSubs: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[] = [],
 ): Promise<ActionResult> {
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: 4, elapsed_ms: elapsedMs, sport: "netball" },
+    metadata: { quarter: 4, elapsed_ms: elapsedMs, sport: "netball", midQuarterSubs },
   });
   if (!finalise.success) return finalise;
 
@@ -466,6 +481,9 @@ export async function finaliseNetballGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     // Perf phase 6: was `, "layout"` which dragged in
@@ -529,14 +547,46 @@ export async function recordNetballOpponentGoal(
 export async function undoNetballScore(
   auth: LiveAuth,
   gameId: string,
-  targetEventId?: string,
+  // The write queue appends the idempotency key as the last argument.
+  // A targetEventId parameter before it used to swallow the key, so the
+  // undo never named its score (Stagehand round 2).
   idempotencyKey?: string,
 ): Promise<ActionResult> {
+  // Name the score being undone (the latest still standing), as AFL and
+  // league do, so the score log and the break's
+  // review grey out the right row (Stagehand round 2).
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const { data: scoring } = await w.supabase
+    .from("game_events")
+    .select("id, type, player_id, metadata")
+    .eq("game_id", gameId)
+    .in("type", ["goal", "opponent_goal", "score_undo"])
+    .order("created_at", { ascending: true });
+  const standing: { id: string; type: string; player_id: string | null; quarter: number | null }[] = [];
+  for (const row of scoring ?? []) {
+    if (row.type === "score_undo") takeUndoTarget(standing, row.metadata);
+    else
+      standing.push({
+        id: row.id as string,
+        type: row.type as string,
+        player_id: (row.player_id as string | null) ?? null,
+        quarter: ((row.metadata as { quarter?: number } | null)?.quarter as number | undefined) ?? null,
+      });
+  }
+  const target = standing[standing.length - 1] ?? null;
+  // No score standing yet (shouldn't happen now scores and undos share
+  // a queue lane): write a bare marker, which readers pair newest-first.
   const result = await insertEvent(
     auth,
     gameId,
     "score_undo",
-    { metadata: { target: targetEventId, sport: "netball" } },
+    target
+      ? {
+          player_id: target.player_id,
+          metadata: { target_event_id: target.id, original_type: target.type, quarter: target.quarter, sport: "netball" },
+        }
+      : { metadata: { sport: "netball" } },
     idempotencyKey,
   );
   if (!result.success) return result;

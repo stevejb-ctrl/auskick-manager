@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Button } from "@/components/ui/Button";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { RotationModeToggle, type RotationMode } from "@/components/quarter-break/RotationModeToggle";
@@ -16,18 +15,13 @@ import {
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Guernsey, SFButton } from "@/components/sf";
 import {
-  addRetroScore,
-  deleteScore,
-  getGameScoreLog,
   markInjury,
   markLoan,
   recordLineupSet,
   setOnFieldSize as setOnFieldSizeAction,
   startQuarter as startQuarterAction,
-  type ScoreLogEntry,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { CHIP_COLORS, type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import {
   ALL_ZONES,
@@ -51,31 +45,28 @@ import {
 } from "@/lib/types";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import { seedNextPeriodLineup } from "@/lib/game-plan";
-import { benchPlayerInLineup } from "@/lib/live/lineupOps";
+import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
+import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
+import {
+  benchPlayerInLineup,
+  benchSidelinedInLineup,
+  replaceInLineup,
+} from "@/lib/live/lineupOps";
+import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { Modal } from "@/components/ui/Modal";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { breakInsightInput } from "@/lib/player-insight";
 import { getSportConfig } from "@/lib/sports/registry";
-import { useLongPress } from "@/lib/live/useLongPress";
+import { Field, ZONE_SHORT } from "@/components/live/Field";
+import { Bench } from "@/components/live/Bench";
+import type { TileCaption } from "@/components/live/PlayerTile";
 
+import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
 
-// Format a minute count (decimal — e.g. 12.5) as M:SS. Used for the
-// per-player THIS-GAME running total beside each time bar so a coach
-// (and any parent at their shoulder) can see at a glance who's
-// played 12:30 vs 4:00 today. Netball's PlayerTile already shows
-// this; AFL was the gap. Season totals are deliberately not shown
-// — kids who miss games naturally accrue lower season minutes and
-// surfacing that just invites the wrong complaint.
-function fmtMinSec(min: number): string {
-  const totalSec = Math.max(0, Math.floor(min * 60));
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 interface QuarterBreakProps {
   auth: import("@/lib/types").LiveAuth;
@@ -106,13 +97,13 @@ interface QuarterBreakProps {
   fullPeriodMs: number;
   /** Per-chip mode (split / group) — drives the suggester's chip cost. */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", ChipMode>>;
+  /** Periods in a game (4 quarters / 2 halves), for the rule check. */
+  periodCount?: number;
   /**
-   * Demo-clock speed multiplier (default 1). Used to scale real-time
-   * stint durations into game-time when checking the "recent arrival"
-   * pin threshold, so the demo's 8× quarters don't treat every field
-   * player's whole-quarter stint as a recent sub.
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles for the AFL suggesters. Omitted = today's behaviour.
    */
-  clockMultiplier?: number;
+  aflPlaybook?: AflPlaybookInput;
   onStarted: () => void;
   /**
    * Fired SYNCHRONOUSLY when the coach taps Start (issue 1) — before the
@@ -125,26 +116,6 @@ interface QuarterBreakProps {
 }
 
 type Slot = Zone | "bench";
-
-const ZONE_BAR_COLOR: Record<Zone, string> = {
-  back: "bg-zone-b",
-  hback: "bg-zone-b/70",
-  mid: "bg-zone-c",
-  hfwd: "bg-zone-f/70",
-  fwd: "bg-zone-f",
-};
-
-// Section-header text tint — matches the per-tile colour stripes
-// so a coach scanning the Q-break can trace "BACK in blue" right
-// down to a player tile's blue bar without translating between
-// labels and colours. Steve 2026-05-23 (parent feedback follow-up).
-const ZONE_HEADER_TEXT: Record<Zone, string> = {
-  back: "text-zone-b",
-  hback: "text-zone-b",
-  mid: "text-zone-c",
-  hfwd: "text-zone-f",
-  fwd: "text-zone-f",
-};
 
 function emptyZM(): ZoneMinutes {
   return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
@@ -163,7 +134,8 @@ export function QuarterBreak({
   defaultOnFieldSize,
   fullPeriodMs,
   chipModeByKey = {},
-  clockMultiplier = 1,
+  aflPlaybook,
+  periodCount = 4,
   onStarted,
   onPrimeAudio,
 }: QuarterBreakProps) {
@@ -211,12 +183,13 @@ export function QuarterBreak({
   const loanedIds = useLiveGame((s) => s.loanedIds);
   const setLoaned = useLiveGame((s) => s.setLoaned);
   const setInjured = useLiveGame((s) => s.setInjured);
+  const addBenchPlayer = useLiveGame((s) => s.addBenchPlayer);
   // F2 plan-ahead (ROTPLAN-02): the coach may have pinned THIS upcoming
   // period's lineup during the dying minutes of the last one. Read the
   // pin so the break can open PRE-SEEDED on it (D-12), and the clearer
   // so we can consume it once the next period starts (D-14).
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
-  const clearPlannedRotation = useLiveGame((s) => s.clearPlannedRotation);
+  const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const sidelinedSet = useMemo(
     () => new Set<string>([...injuredIds, ...loanedIds]),
     [injuredIds, loanedIds]
@@ -225,10 +198,6 @@ export function QuarterBreak({
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
 
   const zones = useMemo(() => positionsFor(positionModel), [positionModel]);
-  // Per-player time-in-zone bar renders FWD → CENTRE → BACK (left →
-  // right) so it matches the forward-first card order above it AND the
-  // FWD/Centre/Back legend — one consistent direction everywhere.
-  const barZones = useMemo(() => [...zones].reverse(), [zones]);
   // Labelled zones (config-derived, age-group filtered) for the shared
   // PlayerInsightSummary — same derivation the in-game LockModal uses.
   const insightZones = useMemo(
@@ -241,16 +210,8 @@ export function QuarterBreak({
   // ─── Long-press → player insight + injury toggle (issues 8 & 9) ──
   // Mirror the in-game long-press: hold a tile to open the SAME stats
   // sheet (PlayerInsightSummary) plus mark-injured / mark-available.
-  // One press is active at a time, so a single shared useLongPress
-  // controller + a "which pid" ref is enough — no per-tile hook (which
-  // would break the rules-of-hooks inside the tile .map).
+  // The field tiles own the gesture (PlayerTile's useLongPress).
   const [insightPlayerId, setInsightPlayerId] = useState<string | null>(null);
-  const pressPidRef = useRef<string | null>(null);
-  const longPress = useLongPress({
-    onLongPress: () => {
-      if (pressPidRef.current) setInsightPlayerId(pressPidRef.current);
-    },
-  });
   // Display FWD → CENTRE → BACK (top → bottom) to match the coach's field mental model.
   const slots = useMemo<Slot[]>(() => [[...zones].reverse(), "bench"].flat() as Slot[], [zones]);
   const slotLabel = (s: Slot) => {
@@ -288,7 +249,22 @@ export function QuarterBreak({
   }, [season, currentGameZoneMins]);
 
   const [draft, setDraft] = useState<Lineup>(lineup);
+
+  // Field tiles: this game's minutes so far.
+  const gameTotalMs = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [pid, zm] of Object.entries(basePlayedZoneMs)) {
+      out[pid] = ALL_ZONES.reduce((a, z) => a + zm[z], 0);
+    }
+    return out;
+  }, [basePlayedZoneMs]);
+
   const [selected, setSelected] = useState<string | null>(null);
+  // A kid lent, hurt or marked out stops being selected (the next tap
+  // would swap them on).
+  useEffect(() => {
+    if (selected && sidelinedSet.has(selected)) setSelected(null);
+  }, [selected, sidelinedSet]);
   // Slot the coach is filling via the SlotFillSheet. Set when they
   // tap an empty zone slot; cleared when they pick or cancel. Null
   // means the sheet is closed.
@@ -324,6 +300,23 @@ export function QuarterBreak({
     () => new Map(players.map((p) => [p.id, p])),
     [players]
   );
+
+  const breakRuleCheck = useMemo(() => {
+    if (!aflPlaybook) return null;
+    const names: Record<string, string> = {};
+    for (const p of players) names[p.id] = p.full_name;
+    return aflRuleCheck({
+      lineup: draft,
+      names,
+      gameMinutes: currentGameZoneMins,
+      previousZones: lastStintZone,
+      period: currentQuarter + 1,
+      periodCount,
+      periodMs: fullPeriodMs,
+      season,
+      input: aflPlaybook,
+    });
+  }, [aflPlaybook, players, draft, currentGameZoneMins, lastStintZone, currentQuarter, periodCount, fullPeriodMs, season]);
   const availableForLineup = useMemo(() => {
     const all: string[] = [...lineup.bench];
     for (const z of ALL_ZONES) all.push(...lineup[z]);
@@ -435,15 +428,18 @@ export function QuarterBreak({
     // Injured / loaned players are parked on the bench; tapping them is
     // a no-op so a coach can't manually drag them onto the field.
     if (sidelinedSet.has(pid)) return;
-    if (!selected) {
+    // Nor can a kid selected before they were lent, hurt or marked out
+    // (they'd swap on with this tap): this tap starts a new selection.
+    const current = selected && !sidelinedSet.has(selected) ? selected : null;
+    if (!current) {
       setSelected(pid);
       return;
     }
-    if (selected === pid) {
+    if (current === pid) {
       setSelected(null);
       return;
     }
-    const a = selected;
+    const a = current;
     const b = pid;
     setDraft((prev) => {
       const sa = slotOf(a, prev);
@@ -491,16 +487,33 @@ export function QuarterBreak({
     setSelected(null);
   }
 
+  // Tile captions: where each player goes for the next quarter,
+  // against the lineup that finished this one.
+  const captionSlot = (s: Slot) => (s === "bench" ? "Bench" : ZONE_SHORT[s]);
+  const breakCaptions: Record<string, TileCaption> = {};
+  for (const s of slots) {
+    for (const pid of draft[s]) {
+      if (sidelinedSet.has(pid)) {
+        breakCaptions[pid] = { text: "Unavailable", tone: "stay" };
+        continue;
+      }
+      const prev = slotOf(pid, lineup);
+      if (!prev) continue;
+      breakCaptions[pid] =
+        prev === s
+          ? { text: "Stays", tone: "stay" }
+          : { text: `${captionSlot(prev)} → ${captionSlot(s)}`, tone: "move" };
+    }
+  }
+
   const pinnedPositions = useMemo<Record<string, Zone>>(() => {
     const pins: Record<string, Zone> = {};
-    // Recent arrivals: short last stint. Compare in GAME time, not
-    // real time — the demo's 8× clock would otherwise treat every
-    // full-quarter stint (~90s real = 12 min game) as a recent sub
-    // and pin every field player to their previous zone, blocking
-    // the auto-rotation the UI promises. Steve 2026-05-20.
+    // Recent arrivals: short last stint. Stints are in GAME time (the
+    // live store's clock), so the demo's 8× quarters don't read every
+    // full-quarter stint as a recent sub. Steve 2026-05-20.
     for (const [pid, dur] of Object.entries(lastStintMs)) {
       const z = lastStintZone[pid];
-      if (z && dur * clockMultiplier < RECENT_ARRIVAL_MS) pins[pid] = z;
+      if (z && dur < RECENT_ARRIVAL_MS) pins[pid] = z;
     }
     // Field-locked: always stay in their last zone (never go to bench)
     for (const pid of lockedIds) {
@@ -512,7 +525,7 @@ export function QuarterBreak({
       pins[pid] = z;
     }
     return pins;
-  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers, clockMultiplier]);
+  }, [lastStintMs, lastStintZone, lockedIds, zoneLockedPlayers]);
 
   // Q-just-ended teammate cohorts, keyed by player id. Built from
   // the END-of-quarter lineup (already in the live store) so it
@@ -537,7 +550,7 @@ export function QuarterBreak({
     // suggester scatters older/younger (or whatever the coach labels
     // each chip) across zones rather than bunching them.
     const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    for (const p of players) chipByPlayerId[p.id] = p.chip;
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
     const suggested = suggestStartingLineup(
       healthyForLineup,
       combinedZoneMins,
@@ -551,6 +564,7 @@ export function QuarterBreak({
       chipByPlayerId,
       chipModeByKey,
       fullPeriodMs,
+      aflPlaybook,
     );
     // Put any injured / loaned players back on the bench so they're still
     // visible to the coach but cannot be sent on.
@@ -658,6 +672,46 @@ export function QuarterBreak({
     setSelected(null);
   }, [lineupMode, suggestedLineup, rotatedLineup, manualLineup, lineup, availableForLineup.length]);
 
+  // The coach's staged lineup survives leaving the live screen (the team
+  // page and back, a reload): kept in the live store, restored here over
+  // the seed and suggestion above (declared after them, so it wins), for
+  // the kids who can still play. Shared with the netball break.
+  const stagedForStore = useMemo(
+    () => ({
+      groups: { back: draft.back, hback: draft.hback, mid: draft.mid, hfwd: draft.hfwd, fwd: draft.fwd },
+      bench: draft.bench,
+    }),
+    [draft],
+  );
+  const healthyIds = useMemo(() => healthyForLineup.map((p) => p.id), [healthyForLineup]);
+  const stagedBreakDraft = useStagedBreakDraft({
+    gameId,
+    period: nextQuarter,
+    ready: availableForLineup.length > 0,
+    groupIds: ALL_ZONES,
+    availableIds: healthyIds,
+    benchOnlyIds: sidelinedIdsInLineup,
+    staged: stagedForStore,
+    mode: lineupMode,
+    onRestore: (restored) => {
+      setDraft({
+        back: restored.groups.back ?? [],
+        hback: restored.groups.hback ?? [],
+        mid: restored.groups.mid ?? [],
+        hfwd: restored.groups.hfwd ?? [],
+        fwd: restored.groups.fwd ?? [],
+        bench: restored.bench,
+      });
+      const mode = restored.mode as RotationMode;
+      if (["suggested", "keep", "manual", "rotate"].includes(mode)) {
+        lastAppliedModeRef.current = mode;
+        setLineupMode(mode);
+      }
+      didSeedRef.current = true;
+      setSelected(null);
+    },
+  });
+
   // ─── Match-adjustment panel state ─────────────────────────────
   // The size dropdown is locally controlled — Q-break is a "stage"
   // moment, so we don't optimistically rerender the lineup picker
@@ -719,6 +773,11 @@ export function QuarterBreak({
     const addedToDraft = !nextLoaned && !wasInDraft;
     if (addedToDraft) {
       setDraft((d) => ({ ...d, bench: [...d.bench, pid] }));
+    }
+    // A kid lent at the break sits out from the next quarter, so they
+    // come off the staged field now (they used to start it on the field).
+    if (nextLoaned) {
+      setDraft((prev) => benchPlayerInLineup(prev, pid));
     }
     startLoanTransition(async () => {
       const result = await markLoan(auth, gameId, {
@@ -787,6 +846,11 @@ export function QuarterBreak({
         ? prev
         : { ...prev, bench: [...prev.bench, playerId] },
     );
+    // And in the store's lineup, as an in-game arrival is (LiveGame's
+    // handleLateArrival): the refresh doesn't re-init the store, so the
+    // break would otherwise forget them on a mode change, or when its
+    // staged draft is restored after the team page and back.
+    addBenchPlayer(playerId);
     startLoanTransition(async () => {
       const { flushed } = enqueueLiveAction("addLateArrival", [
         auth,
@@ -822,6 +886,8 @@ export function QuarterBreak({
     setOutReplacement(null);
     setLoanError(null);
     setInjured(playerId, true);
+    // Off the staged field: they used to start the next quarter on it.
+    setDraft((prev) => benchPlayerInLineup(prev, playerId));
     startLoanTransition(async () => {
       const result = await markInjury(auth, gameId, {
         player_id: playerId,
@@ -850,8 +916,9 @@ export function QuarterBreak({
     setLoanError(null);
     setInjured(outId, true);
     // Reflect the swap in the staged next-quarter draft so the coach
-    // sees the replacement take the spot before the refresh.
-    placeInZone(replacementId, zone);
+    // sees the replacement take the spot before the refresh. The out
+    // player comes off (the replacement used to be added beside them).
+    setDraft((prev) => replaceInLineup(prev, outId, replacementId, zone));
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
@@ -997,130 +1064,7 @@ export function QuarterBreak({
   const totalThem = useLiveGame((s) => s.opponentScore);
   const aflPts = (g: number, b: number) => g * 6 + b;
 
-  // ─── Fix-scores panel state ───────────────────────────────────
   const [showFixScores, setShowFixScores] = useState(false);
-  const [scoreLog, setScoreLog] = useState<ScoreLogEntry[] | null>(null);
-  const [scoreLogError, setScoreLogError] = useState<string | null>(null);
-  const [scoreLogLoading, setScoreLogLoading] = useState(false);
-  const [_scoreActionPending, startScoreActionTransition] = useTransition();
-  // Pending delete — confirmation gate so a misclick can't silently
-  // wipe a real goal during the post-Q reconcile flow. Mirrors the
-  // pattern in ScoreReviewPanel.
-  const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
-    null,
-  );
-  // Add-score form state
-  const [addOpen, setAddOpen] = useState(false);
-  const [addKind, setAddKind] = useState<
-    "goal" | "behind" | "opponent_goal" | "opponent_behind"
-  >("goal");
-  const [addPlayerId, setAddPlayerId] = useState<string>("");
-  const [addQuarter, setAddQuarter] = useState<number>(currentQuarter || 1);
-
-  async function refreshScoreLog() {
-    setScoreLogLoading(true);
-    setScoreLogError(null);
-    const result = await getGameScoreLog(auth, gameId);
-    setScoreLogLoading(false);
-    if (!result.success) {
-      setScoreLogError(result.error);
-      return;
-    }
-    setScoreLog(result.entries ?? []);
-  }
-
-  useEffect(() => {
-    if (showFixScores && scoreLog === null) refreshScoreLog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFixScores]);
-
-  function handleDeleteScore(entry: ScoreLogEntry) {
-    setScoreLogError(null);
-    // Optimistically decrement the per-quarter slot in the store
-    // alongside the cumulative. Pass the original quarter so the
-    // right slot is touched even if we're past that period now.
-    const q = entry.quarter ?? currentQuarter;
-    const isOurs = entry.type === "goal" || entry.type === "behind";
-    const kind = entry.type === "goal" || entry.type === "opponent_goal"
-      ? "goals"
-      : "behinds";
-    if (isOurs) useLiveGame.getState().undoTeamScore(kind, q);
-    else useLiveGame.getState().undoOpponentScore(kind, q);
-
-    startScoreActionTransition(async () => {
-      const result = await deleteScore(auth, gameId, entry.id);
-      if (!result.success) {
-        // Roll back optimistic.
-        if (isOurs) useLiveGame.getState().incTeam(kind, q);
-        else useLiveGame.getState().incOpponent(kind, q);
-        setScoreLogError(result.error);
-        return;
-      }
-      await refreshScoreLog();
-      reactStartTransition(() => router.refresh());
-    });
-  }
-
-  function handleAddScore() {
-    setScoreLogError(null);
-    const isOurs = addKind === "goal" || addKind === "behind";
-    if (isOurs && !addPlayerId) {
-      setScoreLogError("Pick a player.");
-      return;
-    }
-    // Optimistic store bump.
-    const kind = addKind === "goal" || addKind === "opponent_goal" ? "goals" : "behinds";
-    if (isOurs) useLiveGame.getState().incTeam(kind, addQuarter);
-    else useLiveGame.getState().incOpponent(kind, addQuarter);
-
-    startScoreActionTransition(async () => {
-      const result = await addRetroScore(auth, gameId, {
-        kind: addKind,
-        playerId: isOurs ? addPlayerId : null,
-        intendedQuarter: addQuarter,
-      });
-      if (!result.success) {
-        // Roll back.
-        if (isOurs) useLiveGame.getState().undoTeamScore(kind, addQuarter);
-        else useLiveGame.getState().undoOpponentScore(kind, addQuarter);
-        setScoreLogError(result.error);
-        return;
-      }
-      setAddOpen(false);
-      setAddPlayerId("");
-      await refreshScoreLog();
-      reactStartTransition(() => router.refresh());
-    });
-  }
-
-  // Map to scrub event lookup for "this score was already deleted by an undo".
-  const undoneEventIds = useMemo(() => {
-    if (!scoreLog) return new Set<string>();
-    const out = new Set<string>();
-    for (const e of scoreLog) {
-      if (e.type === "score_undo" && e.target_event_id) out.add(e.target_event_id);
-    }
-    return out;
-  }, [scoreLog]);
-
-  // Active scoring events grouped by quarter (newest first), filtering
-  // out ones that were already deleted via score_undo.
-  const scoreLogByQuarter = useMemo(() => {
-    if (!scoreLog) return null;
-    const groups: Record<number, ScoreLogEntry[]> = { 1: [], 2: [], 3: [], 4: [] };
-    for (const e of scoreLog) {
-      if (e.type === "score_undo") continue;
-      if (undoneEventIds.has(e.id)) continue;
-      const q = e.quarter ?? 1;
-      if (!groups[q]) groups[q] = [];
-      groups[q].push(e);
-    }
-    // Newest first within each quarter.
-    for (const q of Object.keys(groups)) {
-      groups[+q].sort((a, b) => b.created_at.localeCompare(a.created_at));
-    }
-    return groups;
-  }, [scoreLog, undoneEventIds]);
 
   function lineupsEqual(a: Lineup, b: Lineup): boolean {
     const keys: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
@@ -1181,7 +1125,12 @@ export function QuarterBreak({
     // (issue 1).
     onPrimeAudio?.();
     // Normalise draft shape before sending (defensive — always full-zones).
-    const full: Lineup = { ...emptyLineup(), ...draft };
+    // Nobody injured, lent or out starts the quarter on the field, however
+    // the draft got there (e.g. "Keep last quarter" picked after a lend).
+    const full: Lineup = benchSidelinedInLineup(
+      { ...emptyLineup(), ...draft },
+      sidelinedSet,
+    );
     startTransition(async () => {
       if (!lineupsEqual(lineup, full)) {
         const r = await recordLineupSet(auth, gameId, full);
@@ -1198,18 +1147,18 @@ export function QuarterBreak({
         setStartModalOpen(false);
         return;
       }
+      // The staged lineup is now the quarter's: nothing left to restore.
+      stagedBreakDraft.clear();
       onStarted();
       // D-14: the next-period pin has now been consumed (it seeded this
       // break's draft, which we've just committed). Clear it so it can't
       // leak into a later period. Only clear a pin that targeted THIS
       // upcoming period — an unrelated/F1 pin is left to the store's own
       // quarter-transition logic.
-      if (
-        plannedRotation &&
-        plannedRotation.gameId === gameId &&
-        plannedRotation.nextPeriodIndex === upcomingPeriodIndex
-      ) {
-        clearPlannedRotation();
+      // This period's plan (pinned mid-game or before kickoff) is used;
+      // later planned periods stay for their own breaks.
+      if (plannedRotation && plannedRotation.gameId === gameId) {
+        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
       }
       // Start the local clock right away — the modal commit is the
       // umpire's whistle, no further user action needed. Without
@@ -1246,7 +1195,7 @@ export function QuarterBreak({
           Quarter break
         </p>
         <p className="mt-0.5 text-lg font-bold text-ink">
-          Set zones for Q{nextQuarter}
+          Lineup for Q{nextQuarter}
         </p>
         {hasPlannedSeed && (
           <p
@@ -1398,7 +1347,7 @@ export function QuarterBreak({
                       onClick={() => handleLoanToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1408,7 +1357,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setLendPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Lend a player
@@ -1452,7 +1401,7 @@ export function QuarterBreak({
                       onClick={() => handleInjuryToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Mark ${p.full_name} fit`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60"
+                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1462,7 +1411,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setInjuredPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark injured
@@ -1495,7 +1444,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setAddArrivedPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Add arrived player
@@ -1504,7 +1453,7 @@ export function QuarterBreak({
                   type="button"
                   onClick={() => setMarkOutPickerOpen(true)}
                   disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   <span aria-hidden>+</span>
                   Mark a player out
@@ -1611,7 +1560,7 @@ export function QuarterBreak({
           return (
             <InjuryReplacementModal
               injuredPlayer={outPlayer}
-              zone={outReplacement.zone}
+              spotLabel={ZONE_SHORT_LABELS[outReplacement.zone]}
               candidates={outReplacementCandidates}
               onPickReplacement={(replacementId) =>
                 handleOutReplacement(
@@ -1717,172 +1666,14 @@ export function QuarterBreak({
               />
 
               <div className="border-t border-hairline pt-4">
-                <p className="text-xs font-semibold text-ink">
-                  Per-player events
-                </p>
-                <p className="mt-0.5 text-xs text-ink-mute">
-                  Delete a wrong score with ×, or add one that was missed.
-                </p>
-
-              {scoreLogLoading && (
-                <p className="mt-2 text-xs text-ink-mute">Loading…</p>
-              )}
-              {scoreLogError && (
-                <p className="mt-2 text-xs text-danger" role="alert">
-                  {scoreLogError}
-                </p>
-              )}
-
-              {scoreLogByQuarter && (
-                <div className="mt-3 space-y-3">
-                  {[1, 2, 3, 4].map((q) => {
-                    const entries = scoreLogByQuarter[q] ?? [];
-                    if (entries.length === 0) return null;
-                    return (
-                      <div key={q}>
-                        <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                          Q{q}
-                        </p>
-                        <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
-                          {entries.map((e) => {
-                            const isOurs = e.type === "goal" || e.type === "behind";
-                            const isGoal = e.type === "goal" || e.type === "opponent_goal";
-                            const playerName = e.player_id
-                              ? playersById.get(e.player_id)?.full_name ?? "—"
-                              : null;
-                            return (
-                              <li
-                                key={e.id}
-                                className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
-                              >
-                                <span className="flex items-center gap-2">
-                                  <span
-                                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                                      isOurs
-                                        ? "bg-brand-100 text-brand-700"
-                                        : "bg-warn-soft text-warn"
-                                    }`}
-                                  >
-                                    {isGoal ? "G" : "B"}
-                                  </span>
-                                  <span className="font-medium text-ink">
-                                    {isOurs ? playerName ?? "Player" : "Opposition"}
-                                  </span>
-                                  {e.retro && (
-                                    <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-micro text-ink-mute">
-                                      Added
-                                    </span>
-                                  )}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingDelete(e)}
-                                  disabled={isPending}
-                                  className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
-                                  aria-label="Delete this score"
-                                >
-                                  ×
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    );
-                  })}
-                  {[1, 2, 3, 4].every((q) => (scoreLogByQuarter[q] ?? []).length === 0) && (
-                    <p className="text-xs text-ink-mute">No scores yet.</p>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-3">
-                {!addOpen ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddOpen(true);
-                      setAddQuarter(currentQuarter || 1);
-                    }}
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:text-brand-700"
-                  >
-                    + Add a missed score
-                  </button>
-                ) : (
-                  <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
-                    <p className="text-xs font-semibold text-ink">Add missed score</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <label className="text-[11px] text-ink-mute">
-                        Type
-                        <select
-                          value={addKind}
-                          onChange={(e) =>
-                            setAddKind(e.target.value as typeof addKind)
-                          }
-                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
-                        >
-                          <option value="goal">Goal (us)</option>
-                          <option value="behind">Behind (us)</option>
-                          <option value="opponent_goal">Goal (them)</option>
-                          <option value="opponent_behind">Behind (them)</option>
-                        </select>
-                      </label>
-                      <label className="text-[11px] text-ink-mute">
-                        Quarter
-                        <select
-                          value={addQuarter}
-                          onChange={(e) => setAddQuarter(parseInt(e.target.value, 10))}
-                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
-                        >
-                          {[1, 2, 3, 4].map((q) => (
-                            <option key={q} value={q}>
-                              Q{q}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    {(addKind === "goal" || addKind === "behind") && (
-                      <label className="mt-2 block text-[11px] text-ink-mute">
-                        Player
-                        <select
-                          value={addPlayerId}
-                          onChange={(e) => setAddPlayerId(e.target.value)}
-                          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
-                        >
-                          <option value="">— pick —</option>
-                          {players.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.jersey_number != null ? `#${p.jersey_number} ` : ""}
-                              {p.full_name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleAddScore}
-                        disabled={isPending}
-                      >
-                        Add
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setAddOpen(false);
-                          setAddPlayerId("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <ScoreReviewPanel
+                  auth={auth}
+                  gameId={gameId}
+                  players={players}
+                  includeBehinds={true}
+                  defaultQuarter={currentQuarter || 1}
+                />
               </div>
-            </div>
             </div>
           )}
         </div>
@@ -1910,7 +1701,7 @@ export function QuarterBreak({
                   disabled={loanPending}
                   data-testid={`qb-recall-lent-${p.id}`}
                   aria-label={`Bring ${p.full_name} back`}
-                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
                 >
                   {p.jersey_number != null && (
                     <span className="tabular-nums font-semibold">{p.jersey_number}</span>
@@ -1965,6 +1756,15 @@ export function QuarterBreak({
         </p>
       )}
 
+      {/* Rule check + Why (UX plan 4.3) for the lineup about to start. */}
+      {breakRuleCheck && (
+        <RuleCheckBar
+          items={breakRuleCheck.items}
+          why={breakRuleCheck.why}
+          emptySpots={ALL_ZONES.reduce((n, z) => n + Math.max(0, effectiveZoneCaps[z] - draft[z].length), 0)}
+        />
+      )}
+
       {/* Colour key for the per-player time-in-zone bars below — shown
           once so a glance at any bar reads instantly (Steve 2026-06-29:
           couldn't remember which colour was Fwd/Centre/Back). */}
@@ -1977,275 +1777,58 @@ export function QuarterBreak({
         ]}
       />
 
-      {/* Single column — user feedback 2026-05-20: the prior
-          `sm:grid-cols-2` (1-col phones, 2-col tablet+) still
-          rendered 2-col inside the desktop demo phone-frame
-          (md+ viewport but only ~390px wide), where it cramped
-          player names and the STAYS / MOVES + progress bars. */}
-      <div className="grid grid-cols-1 gap-3">
-        {slots.map((slot) => (
-          <div
-            key={slot}
-            className="rounded-md border border-hairline bg-surface p-3 shadow-card"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <h3
-                className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
-                  slot === "bench" ? "text-ink-dim" : ZONE_HEADER_TEXT[slot]
-                }`}
-              >
-                {slotLabel(slot)}
-              </h3>
-              <span className="text-xs tabular-nums text-ink-mute">
-                {draft[slot].length}
-                {slot !== "bench" && ` / ${displayZoneCaps[slot]}`}
-              </span>
-            </div>
-            {draft[slot].length === 0 ? (
-              slot === "bench" ? (
-                <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
-              ) : (
-                // Tappable empty-zone placeholder. Two modes:
-                //   - With a player selected (bench OR field): MOVE
-                //     them into this zone. `placeInZone` pulls them
-                //     out of wherever they currently live and drops
-                //     them here, so a Backs-selected player moving
-                //     into an empty Forward leaves an empty slot
-                //     where they came from — exactly the blank-slot
-                //     reshuffle a short-squad coach needs.
-                //   - With nothing selected: open the SlotFillSheet
-                //     so the coach can pick a bench player without
-                //     going through the two-tap swap dance.
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selected) {
-                      placeInZone(selected, slot);
-                      setSelected(null);
-                      return;
-                    }
-                    setFillTargetZone(slot);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-3 py-2.5 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                  aria-label={
-                    selected
-                      ? `Move selected player to ${slotLabel(slot)}`
-                      : `Empty ${slotLabel(slot)} — tap to fill`
-                  }
-                >
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
-                  >
-                    +
-                  </span>
-                  <span className="font-medium">
-                    {selected ? "Move here" : "Tap to fill"}
-                  </span>
-                </button>
-              )
-            ) : (
-              <ul className="space-y-1.5">
-                {draft[slot].map((pid) => {
-                  const p = playersById.get(pid);
-                  if (!p) return null;
-                  const isSelected = selected === pid;
-                  const isInjured = injuredSet.has(pid);
-                  const isLoaned = loanedSet.has(pid);
-                  const isSidelined = isInjured || isLoaned;
-                  const zm = currentGameZoneMins[pid] ?? emptyZM();
-                  // Total played minutes drives the visible "12:30"
-                  // label — 0 keeps the label hidden rather than
-                  // showing "0:00".
-                  const realTotal = zones.reduce((a, z) => a + zm[z], 0);
-                  const prevSlot = slotOf(pid, lineup);
-                  const moved = prevSlot && prevSlot !== slot;
-                  // Per-player scoring totals across the game so
-                  // far. goals × 6 + behinds is AFL's points value,
-                  // but the badge shows "Ng·Mb" so coaches can see
-                  // both contributions at a glance. Mirrors the
-                  // netball Q-break tile's goal-count badge, scaled
-                  // up for two values.
-                  const pScore = playerScores[pid] ?? { goals: 0, behinds: 0 };
-                  const hasScored = pScore.goals > 0 || pScore.behinds > 0;
-                  return (
-                    <li key={pid} className="relative">
-                      <button
-                        type="button"
-                        // NOT `disabled` — a disabled button swallows all
-                        // pointer events, but a sidelined (injured/lent)
-                        // player must still be long-pressable to bring
-                        // them back (issue 9). Tap is no-op'd below
-                        // instead; the styling still reads disabled.
-                        aria-disabled={isSidelined}
-                        onClick={() => {
-                          if (longPress.consumedLongPress()) return;
-                          if (isSidelined) return;
-                          handleTap(pid);
-                        }}
-                        onPointerDown={(e) => {
-                          pressPidRef.current = pid;
-                          longPress.handlers.onPointerDown?.(e);
-                        }}
-                        onPointerUp={longPress.handlers.onPointerUp}
-                        onPointerCancel={longPress.handlers.onPointerCancel}
-                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
-                          isSelected
-                            ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-                            : isSidelined
-                              ? "cursor-not-allowed border-hairline bg-surface-alt opacity-60"
-                              : "border-hairline hover:bg-surface-alt"
-                        } ${
-                          longPress.arming &&
-                          pressPidRef.current === pid &&
-                          !isSelected
-                            ? "ring-2 ring-brand-300 ring-offset-1"
-                            : ""
-                        }`}
-                      >
-                        {/* Goal/behind badge — top-right corner, ink
-                            pill, mirrors netball. Hidden when zero
-                            so non-scorers stay visually clean.
-                            "Ng·Mb" packs both counts; coaches read
-                            it like a mini scorebug for that player.
-                            aria-label spells it out for SR users. */}
-                        {hasScored && (
-                          <span
-                            className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-                            aria-label={`${pScore.goals} goal${pScore.goals === 1 ? "" : "s"}, ${pScore.behinds} behind${pScore.behinds === 1 ? "" : "s"}`}
-                          >
-                            {pScore.goals}g·{pScore.behinds}b
-                          </span>
-                        )}
-                        <span className="flex items-center gap-2">
-                          <Guernsey num={p.jersey_number ?? ""} size={28} />
-                          <span className="flex flex-col items-start">
-                            <span className="flex items-center gap-1.5">
-                              <span className="font-medium text-ink">
-                                {p.chip && (
-                                  <ChipIndicator
-                                    chipKey={p.chip as ChipKey}
-                                    mode={chipModeByKey[p.chip as ChipKey]}
-                                    className="mr-1 align-middle"
-                                  />
-                                )}
-                                {p.full_name}
-                              </span>
-                              {isInjured && (
-                                <span className="rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                                  INJ
-                                </span>
-                              )}
-                              {isLoaned && !isInjured && (
-                                <span className="rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                                  LENT
-                                </span>
-                              )}
-                            </span>
-                            {moved && prevSlot && !isSidelined && (
-                              <span className="text-[10px] font-semibold uppercase tracking-micro text-brand-600">
-                                {slotLabel(prevSlot)} → {slotLabel(slot)}
-                              </span>
-                            )}
-                            {!moved && prevSlot && !isSidelined && (
-                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
-                                stays
-                              </span>
-                            )}
-                            {isSidelined && (
-                              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
-                                unavailable
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          {realTotal > 0 && !isSidelined && (
-                            <span className="nums font-mono text-[10px] font-semibold tabular-nums text-ink-dim">
-                              {fmtMinSec(realTotal)}
-                            </span>
-                          )}
-                          {/* Time-in-zone bar — one segment per zone
-                              the player has spent time in, width
-                              proportional to ms played in that zone.
-                              Steve 2026-05-13 asked for this back
-                              after my earlier per-quarter
-                              experiment: "i still can't see the
-                              coloured bar indicating how much time
-                              in each zone in the Set zones for Qx
-                              page". The proportional bar answers
-                              "how much of this kid's game has been
-                              in each zone" at a glance, which the
-                              per-quarter version didn't. Bar stays
-                              empty (just the rounded grey track)
-                              for a player who hasn't been on yet.
-                              Colour tokens match the FWD/CENTRE/
-                              BACK card headers via ZONE_BAR_COLOR. */}
-                          <span
-                            className="flex h-2.5 w-20 shrink-0 overflow-hidden rounded-full bg-surface-alt"
-                            aria-hidden
-                          >
-                            {realTotal > 0 &&
-                              barZones.map((z) => {
-                                const pct = (zm[z] / realTotal) * 100;
-                                if (pct <= 0) return null;
-                                return (
-                                  <span
-                                    key={z}
-                                    style={{ width: `${pct}%` }}
-                                    className={ZONE_BAR_COLOR[z]}
-                                    title={`${slotLabel(z)}: ${fmtMinSec(zm[z])}`}
-                                  />
-                                );
-                              })}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-                {/* Spare-capacity affordance — when a non-bench zone
-                    has fewer players than its cap, surface a "+ Add"
-                    row. With a player selected (bench OR field), tap
-                    moves them here — same blank-slot reshuffle path
-                    as the empty-zone placeholder. With nothing
-                    selected, opens the SlotFillSheet. Bench has no
-                    cap, so it never renders. */}
-                {slot !== "bench" && draft[slot].length < displayZoneCaps[slot] && (
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selected) {
-                          placeInZone(selected, slot);
-                          setSelected(null);
-                          return;
-                        }
-                        setFillTargetZone(slot);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md border-2 border-dashed border-brand-500/60 bg-brand-50 px-2.5 py-2 text-left text-sm text-brand-800 transition-colors hover:bg-brand-100"
-                      aria-label={
-                        selected
-                          ? `Move selected player to ${slotLabel(slot)}`
-                          : `Add player to ${slotLabel(slot)}`
-                      }
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-500/70 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-700"
-                      >
-                        +
-                      </span>
-                      <span className="font-medium">
-                        {selected ? "Move here" : "Add player"}
-                      </span>
-                    </button>
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-        ))}
+      {/* The same field the live game uses (UX plan principle 2: one
+          lineup, one picture). Tap two players to swap — across zones
+          or with the bench; with a player selected, an empty spot moves
+          them there; with nothing selected it opens the bench picker.
+          Each tile says where the player goes next (STAYS / BENCH → FWD)
+          and its bar is this game's time in zone. Long-press opens the
+          player sheet (stats, injured, available). */}
+      <div className="space-y-3">
+        <Field
+          playersById={playersById}
+          lineup={draft}
+          selectedPlayerId={selected}
+          dimUnselected={false}
+          onTapField={(pid, zone) => {
+            if (pid) {
+              handleTap(pid);
+              return;
+            }
+            if (selected && !sidelinedSet.has(selected)) {
+              placeInZone(selected, zone);
+              setSelected(null);
+              return;
+            }
+            setFillTargetZone(zone);
+          }}
+          onLongPress={(pid) => setInsightPlayerId(pid)}
+          zoneMsByPlayer={basePlayedZoneMs}
+          totalMsByPlayer={gameTotalMs}
+          injuredIds={injuredIds}
+          zoneCaps={effectiveZoneCaps}
+          displayZoneCaps={displayZoneCaps}
+          positionModel={positionModel}
+          chipModeByKey={chipModeByKey}
+          playerScores={playerScores}
+          captions={breakCaptions}
+          positionLabels={assignPositionLabels(draft, aflPlaybook)}
+        />
+        <Bench
+          playersById={playersById}
+          lineup={draft}
+          selectedPlayerId={selected}
+          dimUnselected={false}
+          onTapBench={handleTap}
+          onLongPress={(pid) => setInsightPlayerId(pid)}
+          zoneMsByPlayer={basePlayedZoneMs}
+          totalMsByPlayer={gameTotalMs}
+          injuredIds={injuredIds}
+          loanedIds={loanedIds}
+          playerScores={playerScores}
+          captions={breakCaptions}
+          chipModeByKey={chipModeByKey}
+        />
       </div>
 
       {error && <InlineAlert>{error}</InlineAlert>}
@@ -2260,7 +1843,7 @@ export function QuarterBreak({
           agent). */}
       <QuarterKickoffBar
         onConfirm={handleOpenStartModal}
-        confirmLabel={`Ready for Q${nextQuarter}`}
+        confirmLabel={`Start Q${nextQuarter}`}
         disabled={isPending}
       />
 
@@ -2298,60 +1881,6 @@ export function QuarterBreak({
           onCancel={() => setFillTargetZone(null)}
         />
       )}
-
-      {/* Delete-score confirmation. Same shape as the FullTimeReview
-          path's ScoreReviewPanel confirm — keeps the visual language
-          consistent and prevents an accidental tap on the × from
-          silently wiping a real goal during the Q-break reconcile. */}
-      {pendingDelete &&
-        (() => {
-          const e = pendingDelete;
-          const isOurs = e.type === "goal" || e.type === "behind";
-          const isGoal = e.type === "goal" || e.type === "opponent_goal";
-          const kindLabel = isGoal ? "goal" : "behind";
-          const playerName = e.player_id
-            ? playersById.get(e.player_id)?.full_name ?? "Player"
-            : null;
-          const subject = isOurs ? playerName ?? "Player" : "Opposition";
-          const q = e.quarter ?? currentQuarter;
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-ink/40"
-                onClick={() => setPendingDelete(null)}
-              />
-              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
-                <p className="text-center text-sm font-semibold text-ink">
-                  Delete this score?
-                </p>
-                <p className="mt-2 text-center text-xs text-ink-mute">
-                  {subject}&rsquo;s {kindLabel} in Q{q} will be removed from
-                  the scoreline.
-                </p>
-                <div className="mt-4 flex gap-2">
-                  <SFButton
-                    className="flex-1"
-                    variant="alarm"
-                    onClick={() => {
-                      const entry = pendingDelete;
-                      setPendingDelete(null);
-                      if (entry) handleDeleteScore(entry);
-                    }}
-                  >
-                    Delete
-                  </SFButton>
-                  <SFButton
-                    className="flex-1"
-                    variant="ghost"
-                    onClick={() => setPendingDelete(null)}
-                  >
-                    Cancel
-                  </SFButton>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
       {/* Long-press player sheet (issues 8 & 9): the same stats
           breakdown the in-game LockModal shows (shared
@@ -2401,6 +1930,7 @@ export function QuarterBreak({
                   zones: insightZones,
                   inGameZoneMs: basePlayedZoneMs[insightPlayerId] ?? {},
                   seasonZoneMs: season[insightPlayerId] ?? {},
+                  seasonPeriod: fullPeriodMs / 60000,
                 })}
               />
             </div>

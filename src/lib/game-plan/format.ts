@@ -24,6 +24,11 @@ export interface FormatGamePlanOptions {
    * ids fall back to the id so the plan never silently drops a player.
    */
   playerName: (playerId: string) => string;
+  /**
+   * Set / named positions: the kid's position in a period (0-based
+   * index), shown as "Ava (FF)". Omit when positions aren't in force.
+   */
+  positionLabel?: (periodIndex: number, playerId: string) => string | undefined;
 }
 
 /** "1 quarter" / "3 quarters" using the plan's resolved period noun. */
@@ -57,9 +62,16 @@ export function formatGamePlan(
   plan: GamePlan,
   opts: FormatGamePlanOptions,
 ): string {
-  const { teamName, opponentName, playerName } = opts;
-  const names = (ids: string[]) =>
-    ids.length > 0 ? ids.map(playerName).join(", ") : "—";
+  const { teamName, opponentName, playerName, positionLabel } = opts;
+  const names = (ids: string[], periodIndex?: number) =>
+    ids.length > 0
+      ? ids
+          .map((id) => {
+            const pos = periodIndex != null ? positionLabel?.(periodIndex, id) : undefined;
+            return pos ? `${playerName(id)} (${pos})` : playerName(id);
+          })
+          .join(", ")
+      : "—";
 
   const lines: string[] = [];
 
@@ -90,15 +102,15 @@ export function formatGamePlan(
   const benchLabel = plan.rotatesWithinPeriod
     ? "Interchange (on first → last)"
     : "Bench";
-  for (const period of plan.periods) {
+  plan.periods.forEach((period, i) => {
     lines.push(`\n${period.label}`);
     for (const g of period.groups) {
-      lines.push(`  ${g.groupLabel}: ${names(g.playerIds)}`);
+      lines.push(`  ${g.groupLabel}: ${names(g.playerIds, i)}`);
     }
     if (period.bench.length > 0) {
       lines.push(`  ${benchLabel}: ${names(period.bench)}`);
     }
-  }
+  });
 
   return lines.join("\n");
 }

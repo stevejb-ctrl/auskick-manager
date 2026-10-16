@@ -8,6 +8,8 @@ import {
   DELETE_CONFIRMATION_WORD,
   GRACE_DAYS,
 } from "@/lib/account/constants";
+import { Modal } from "@/components/ui/Modal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Team {
   id: string;
@@ -95,17 +97,7 @@ export function DeleteAccountModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-0 sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="delete-account-title"
-      onClick={(e) => {
-        // Click on backdrop closes (but not during pending — would lose work).
-        if (e.target === e.currentTarget && !isPending) onClose();
-      }}
-    >
-      <div className="w-full max-w-md rounded-t-2xl border border-hairline bg-surface p-5 shadow-modal sm:rounded-2xl sm:p-7">
+    <Modal size="md" placement="sheet" labelledBy="delete-account-title" onClose={isPending ? undefined : onClose} padding="p-5 sm:p-7">
         <h2
           id="delete-account-title"
           className="text-xl font-bold tracking-tightest text-ink"
@@ -115,7 +107,7 @@ export function DeleteAccountModal({
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
           Your account will be scheduled for deletion in{" "}
           <strong className="text-ink">{GRACE_DAYS} days</strong>. You can
-          keep using Siren Footy in the meantime and restore your account
+          keep using Siren in the meantime and restore your account
           any time before then.
         </p>
 
@@ -178,12 +170,9 @@ export function DeleteAccountModal({
         </label>
 
         {error && (
-          <p
-            role="alert"
-            className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
+          <InlineAlert className="mt-3">
             {error}
-          </p>
+          </InlineAlert>
         )}
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -205,7 +194,6 @@ export function DeleteAccountModal({
             {isPending ? "Scheduling…" : "Schedule deletion"}
           </SFButton>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

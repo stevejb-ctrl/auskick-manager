@@ -1,43 +1,58 @@
 "use client";
 
 // ─── LeagueScorerPicker ──────────────────────────────────────
-// Tiny bottom-sheet picker invoked by the scorebug's `+T` button.
+// Tiny bottom-sheet picker invoked by the scorebug's `+T` button
+// (and, U13+, `+PG` / `+FG` to name the kicker).
 // Lists on-field players so the coach can attribute the try
 // without first having to tap the player tile. Sibling of AFL's
 // `ScorerPickerSheet` pattern (inlined in LiveGame.tsx).
 
 import { Guernsey } from "@/components/sf";
 import type { Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
+import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import type { RugbySport } from "@/lib/sports/registry";
 
 interface LeagueScorerPickerProps {
+  /** The team's rugby sport: its goal names (union's drop goal). */
+  sport: RugbySport;
   /** On-field players, in display order. */
   onFieldPlayers: Player[];
   /** Picked → orchestrator records the try for this player. */
   onPick: (playerId: string) => void;
   onCancel: () => void;
   pending: boolean;
+  /** What was scored. Defaults to a try. */
+  score?: "try" | "penalty_goal" | "field_goal";
+}
+
+function copyFor(sport: RugbySport, score: "try" | "penalty_goal" | "field_goal") {
+  if (score === "try") {
+    return { label: "Who scored the try?", heading: "Who scored?", prompt: "Pick the player who scored the try." };
+  }
+  const words = rugbyScoreWords(sport);
+  const goal = (score === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
+  return { label: `Who kicked the ${goal}?`, heading: "Who kicked?", prompt: `Pick the player who kicked the ${goal}.` };
 }
 
 export function LeagueScorerPicker({
+  sport,
   onFieldPlayers,
   onPick,
   onCancel,
   pending,
+  score = "try",
 }: LeagueScorerPickerProps) {
+  const copy = copyFor(sport, score);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4">
-      <div
-        role="dialog"
-        aria-label="Who scored the try?"
-        className="w-full max-w-md rounded-t-2xl bg-surface p-4 shadow-modal sm:rounded-2xl"
-      >
+    <Modal size="md" placement="sheet" label={copy.label} onClose={onCancel} padding="p-4">
         <header className="mb-2 flex items-start justify-between">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
-              Who scored?
+              {copy.heading}
             </h2>
             <p className="text-xs text-ink-mute">
-              Pick the player who scored the try.
+              {copy.prompt}
             </p>
           </div>
           <button
@@ -74,7 +89,6 @@ export function LeagueScorerPicker({
             ))}
           </ul>
         )}
-      </div>
-    </div>
+      </Modal>
   );
 }

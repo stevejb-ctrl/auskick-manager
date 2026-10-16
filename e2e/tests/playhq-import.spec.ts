@@ -8,6 +8,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -32,7 +33,7 @@ test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
 
   // Stub the outbound PlayHQ call. The exact URL + response shape is
   // defined in lib/playhq.ts; adjust the matcher if that module changes.
@@ -61,6 +62,7 @@ test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
   });
 
   await page.goto(`/teams/${team.id}/games`);
+  await waitForHydration(page);
 
   await page.getByRole("button", { name: /import from playhq/i }).click();
 
@@ -80,4 +82,55 @@ test.fixme("PlayHQ preview + import creates game rows", async ({ page }) => {
     .select("opponent")
     .eq("team_id", team.id);
   expect(games?.some((g) => g.opponent === "Imported Opp 1")).toBe(true);
+});
+
+// Each sport imports from its own PlayHQ (cross-sport audit, 14 Oct
+// 2026). Every request went to AFL's tenant, and a netball team could
+// pull in an AFL club's fixtures. Both checks below stop before any
+// call to PlayHQ, so they run without the stub the test above needs.
+test("a netball team can't import an AFL club's fixtures", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+
+  await page.goto(`/teams/${team.id}/games`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: /import from playhq/i }).click();
+  await expect(page.getByLabel(/playhq team url/i)).toHaveAttribute("placeholder", /playhq\.com\/netball-australia\//);
+  await page
+    .getByLabel(/playhq team url/i)
+    .fill("https://www.playhq.com/afl/org/kotara-jfc/1a2b3c4d/u10-2026/teams/kotara-u10/9f8e7d6c");
+  await page.getByRole("button", { name: /preview fixtures/i }).click();
+  // Scoped to the import dialog: the page has other alert regions.
+  await expect(
+    page.getByRole("dialog", { name: /import fixtures from playhq/i }).getByRole("alert"),
+  ).toContainText(/that's an afl team page/i);
+});
+
+// Junior union runs its fixtures on Rugby Xplorer, not PlayHQ.
+test("a union team isn't offered a PlayHQ import", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "rugby_union" });
+
+  await page.goto(`/teams/${team.id}/games`);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: /create manually/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /import from playhq/i })).toHaveCount(0);
+  await expect(page.getByText(/playhq/i)).toHaveCount(0);
+});
+
+test("a league team isn't offered a PlayHQ import", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U11", sport: "rugby_league" });
+
+  await page.goto(`/teams/${team.id}/games`);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: /create manually/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /import from playhq/i })).toHaveCount(0);
+  await expect(page.getByText(/playhq/i)).toHaveCount(0);
 });

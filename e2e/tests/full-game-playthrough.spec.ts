@@ -35,7 +35,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { AgeGroup, Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "serial" });
@@ -68,9 +68,9 @@ function attachConsoleErrorWatcher(
 function buildDefaultLineup(
   playerIds: string[],
   onFieldSize: number,
-  ageGroup: AgeGroup,
+  ageGroup: string,
 ): Lineup {
-  const positionModel = positionsFor(ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", ageGroup));
   const zoneCaps = zoneCapsFor(onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [],
@@ -108,7 +108,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   )!.id;
 
   // ─── Setup ─────────────────────────────────────────────────
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Track scoring on so the +Goal button + score recap render.
   await admin
     .from("teams")
@@ -124,10 +124,11 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // Speed up the in-game clock + push the sub interval out past
   // the quarter length so:
   //   • a 12-min quarter ticks down in 12 real seconds (multiplier=60)
-  //   • the sub-due modal NEVER fires within a quarter — sub_interval
+  //   • the sub-due alert NEVER fires within a quarter — sub_interval
   //     900s ÷ 60 = 15s real > 12s quarter. Without this, the
-  //     SubDueModal pops up every 3s with the default 180s interval
-  //     scaled, intercepting all the test's modal clicks.
+  //     sub-due alert fires every 3s with the default 180s interval
+  //     scaled (as a modal, until 16 Oct 2026, it intercepted the
+  //     test's clicks; it's a banner now).
   await admin
     .from("games")
     .update({ clock_multiplier: 60, sub_interval_seconds: 900 })
@@ -181,12 +182,12 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page
-    .getByRole("button", { name: /^ready for q1$/i })
+    .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 10_000 });
   await expect(
-    page.getByRole("heading", { name: /^ready for q1$/i }),
+    page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
-  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await page.getByRole("button", { name: /^start clock$/i }).click();
 
   // Tap a field player and record a goal. The PlayerTile carries
   // a testid we can target deterministically — names render
@@ -248,15 +249,15 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // "Confirm lineup" → "Ready for Q{n}") so it both reads as a
   // distinct intent from the modal CTA AND matches the modal's
   // heading "Ready for Q{n}" — the transition feels continuous to a
-  // coach. The body text "Tap when the hooter goes" gates the second
+  // coach. The body text "Tap Start clock when the siren goes" gates the second
   // tap so we don't double-click before the modal mounts.
   async function startNextQuarter(n: number): Promise<void> {
     await page
-      .getByRole("button", { name: new RegExp(`^ready for q${n}$`, "i") })
-      .click();
-    await page.getByText(/tap when the hooter goes/i).waitFor({ timeout: 5_000 });
-    await page
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .click();
+    await page.getByText(/tap start clock when the siren goes/i).waitFor({ timeout: 5_000 });
+    await page
+      .getByRole("button", { name: /^start clock$/i })
       .click();
   }
 
@@ -283,7 +284,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     // is fully rendered" from "previous Q-break still mounted".
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^ready for q${next}$`, "i"),
+        name: new RegExp(`^start q${next}$`, "i"),
       }),
     ).toBeVisible({ timeout: 10_000 });
     await startNextQuarter(next);
@@ -297,7 +298,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
 
   // FullTimeReview renders. "Finalise game" button is the marker.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // Game status MUST still be in_progress at this point — the
@@ -319,7 +320,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   expect(midReviewEvents?.length ?? 0).toBe(0);
 
   // ─── Phase 6: finalise → summary ──────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // GameSummaryCard heading is visible.
   await expect(page.getByText(/game summary/i).first()).toBeVisible({
@@ -347,6 +348,15 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     .eq("game_id", game.id)
     .eq("type", "game_finalised");
   expect(finalisedEvents?.length ?? 0).toBeGreaterThanOrEqual(1);
+
+  // Finalising writes the season-time rollup (UX plan 4.5): every kid who
+  // played has time in a zone.
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("player_game_time").select("player_id, ms").eq("game_id", game.id);
+      return (data ?? []).filter((r) => r.ms > 0).length;
+    })
+    .toBeGreaterThan(0);
 
   // ─── Final guard: no console errors fired during the run ──
   // Catches the "everything looks fine but a useEffect crashed

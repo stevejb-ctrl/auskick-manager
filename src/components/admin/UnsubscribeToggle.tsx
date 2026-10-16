@@ -44,7 +44,7 @@ export function UnsubscribeToggle({
             Manual flag. Future broadcasts will skip this user.
           </div>
         </div>
-        <Toggle checked={unsubbed} onChange={onChange} disabled={pending} />
+        <Toggle checked={unsubbed} onChange={onChange} disabled={pending} label="Unsubscribed from email" />
       </div>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>

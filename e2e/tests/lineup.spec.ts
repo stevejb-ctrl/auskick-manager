@@ -20,7 +20,7 @@ test("pre-kickoff lineup renders a full field of players", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -50,7 +50,7 @@ test("pre-kickoff lineup renders a full field of players", async ({
   // QuarterBreak narrative) — the "Start Q1" button only appears
   // AFTER the lineup is committed, inside LiveGame.tsx.
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // PlayerTile renders single-word names verbatim (the factory uses
@@ -70,4 +70,53 @@ test("pre-kickoff lineup renders a full field of players", async ({
     page.getByText(/zone history appears under each player/i),
   ).toBeVisible();
   await expect(page.getByText(/season time in zone/i)).toHaveCount(0);
+});
+
+// UX plan 1.7 / H4: the AFL picker showed zone LISTS while the live
+// game showed a FIELD, so the coach re-learnt the layout at kickoff.
+// The picker now draws the same field + bench tiles; tap-tap swaps.
+test("the AFL lineup picker uses the live field and swaps by tap-tap", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const lineup = page.getByRole("region", { name: /starting lineup/i });
+  // 12 on the field + 2 on the bench, all as live-game tiles.
+  await expect(lineup.locator('[data-testid^="player-tile-"]')).toHaveCount(14, {
+    timeout: 10_000,
+  });
+
+  // Find one bench player and one field player, then swap them.
+  const benchHeader = lineup.getByText(/^Bench \(2\)$/);
+  await expect(benchHeader).toBeVisible();
+  const bench = benchHeader.locator("..");
+  const benchTile = bench.locator('[data-testid^="player-tile-"]').first();
+  const benchId = (await benchTile.getAttribute("data-testid"))!.replace("player-tile-", "");
+  // The field renders before the bench, so the first tile is on it.
+  const fieldTile = lineup.locator('[data-testid^="player-tile-"]').first();
+  const fieldId = (await fieldTile.getAttribute("data-testid"))!.replace("player-tile-", "");
+  expect(fieldId).not.toBe(benchId);
+
+  await fieldTile.click();
+  await benchTile.click();
+
+  await expect(bench.getByTestId(`player-tile-${fieldId}`)).toBeVisible();
+  await expect(bench.getByTestId(`player-tile-${benchId}`)).toHaveCount(0);
 });

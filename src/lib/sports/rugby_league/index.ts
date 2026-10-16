@@ -2,6 +2,9 @@
 // Sources:
 //   - 2026 National Junior Rugby League Laws (6–12 years).
 //     https://www.playrugbyleague.com/media/18199/2026-national-6-12-junior-league-laws.pdf
+//   - U13 and up play international laws (penalty goals, field goals;
+//     none of the junior laws below). Halves per CRRL 2026 junior
+//     competition rules.
 //
 // Junior rugby league is positionless from a roster-management point
 // of view: the coach has 6–13 kids on the field at any moment, plus a
@@ -34,10 +37,11 @@ import type {
   PositionDef,
   ScoreTypeDef,
   AgeGroupConfig,
-  ValidationResult,
-  ValidationIssue,
+  RugbyAgeGroupConfig,
 } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
+// Lineup validation is shared with rugby union.
+import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
 
 // ─── Field zones ─────────────────────────────────────────────
 // Junior RL is positionless and the field is treated as a single
@@ -58,7 +62,8 @@ const RL_POSITIONS: PositionDef[] = [
 ];
 
 // ─── Score types ─────────────────────────────────────────────
-// try = 4, conversion = 2. Opponent variants for both. U6/U7 have
+// try = 4, conversion = 2; U13+ adds penalty goal = 2, field goal = 1.
+// Opponent variants for each. U6/U7 have
 // `tracksScoreDefault: false` on the age-group so the score UI
 // hides itself — no separate "no-score" config needed.
 const RL_SCORE_TYPES: ScoreTypeDef[] = [
@@ -66,6 +71,11 @@ const RL_SCORE_TYPES: ScoreTypeDef[] = [
   { id: "conversion", label: "Conversion", shortLabel: "C", points: 2 },
   { id: "opponent_try", label: "Opponent Try", shortLabel: "+T", points: 4, opponent: true },
   { id: "opponent_conversion", label: "Opp. Conversion", shortLabel: "+C", points: 2, opponent: true },
+  // U13+ (international laws) only: AgeGroupConfig.goalsFromPlay.
+  { id: "penalty_goal", label: "Penalty goal", shortLabel: "PG", points: 2 },
+  { id: "field_goal", label: "Field goal", shortLabel: "FG", points: 1 },
+  { id: "opponent_penalty_goal", label: "Opp. Penalty goal", shortLabel: "+PG", points: 2, opponent: true },
+  { id: "opponent_field_goal", label: "Opp. Field goal", shortLabel: "+FG", points: 1, opponent: true },
 ];
 
 // ─── Age group templates ─────────────────────────────────────
@@ -84,11 +94,18 @@ const HALF_PERIOD_SECONDS = 20 * 60;
 // (1200/240 = 5) rather than the old hand-set 600.
 const QUARTER_SUB_INTERVAL = deriveSubIntervalSeconds(QUARTER_PERIOD_SECONDS, 240);
 const HALF_SUB_INTERVAL = deriveSubIntervalSeconds(HALF_PERIOD_SECONDS, 240);
+const INTL_SHORT_HALF_SECONDS = 25 * 60;
+const INTL_LONG_HALF_SECONDS = 30 * 60;
+const INTL_SHORT_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_SHORT_HALF_SECONDS, 240);
+const INTL_LONG_SUB_INTERVAL = deriveSubIntervalSeconds(INTL_LONG_HALF_SECONDS, 240);
 
-const RL_AGE_GROUPS: AgeGroupConfig[] = [
+// Each age states every law itself (RugbyAgeGroupConfig). The junior
+// laws (U6–U12): kick rotations (§15–16) and unbroken periods (§6), no
+// goals from play (§17). International laws (U13+): the reverse.
+const RL_AGE_GROUPS: RugbyAgeGroupConfig[] = [
   {
     id: "U6",
-    label: "U6 (Tag)",
+    label: "Under 6 (Tag)",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 6,
@@ -109,10 +126,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     // Tag is positionless in spirit; 3F/3B is a balanced default the
     // coach can rebalance per game.
     forwardCount: 3,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U7",
-    label: "U7 (Tag → Tackle)",
+    label: "Under 7 (Tag → Tackle)",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 6,
@@ -130,10 +151,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     kickingAllowed: false,
     minUnbrokenPeriods: 2,
     forwardCount: 3,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U8",
-    label: "U8",
+    label: "Under 8",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 8,
@@ -153,10 +178,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 2,
     // 8 on field, 4F/4B.
     forwardCount: 4,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U9",
-    label: "U9",
+    label: "Under 9",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 8,
@@ -175,10 +204,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     vestRequirements: { fr: true, dh: true },
     minUnbrokenPeriods: 2,
     forwardCount: 4,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "both-lines",
   },
   {
     id: "U10",
-    label: "U10",
+    label: "Under 10",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 11,
@@ -204,10 +237,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     // (4F/5B) scaled up — backs carry the extra body because RL adds
     // a fullback to the back line, not the forward pack.
     forwardCount: 5,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
   },
   {
     id: "U11",
-    label: "U11",
+    label: "Under 11",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 11,
@@ -226,10 +263,14 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     vestRequirements: { fr: true, dh: true },
     minUnbrokenPeriods: 1,
     forwardCount: 5,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
   },
   {
     id: "U12",
-    label: "U12",
+    label: "Under 12",
     positions: ["player"],
     zones: ["field"],
     defaultOnFieldSize: 13,
@@ -252,80 +293,154 @@ const RL_AGE_GROUPS: AgeGroupConfig[] = [
     minUnbrokenPeriods: 1,
     // 13 on field — front-row pack of 6, back-line of 7.
     forwardCount: 6,
+    goalsFromPlay: false,
+    kickRotations: true,
+    unbrokenPeriods: true,
+    recommendedStrategy: "preferred-line",
+  },
+  // U13 and up play international laws (CRRL 2026 junior competition
+  // rules: 2 × 25-min halves to U15, 2 × 30 from U16).
+  {
+    id: "U13",
+    label: "Under 13",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
+  },
+  {
+    id: "U14",
+    label: "Under 14",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
+  },
+  {
+    id: "U15",
+    label: "Under 15",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_SHORT_HALF_SECONDS,
+    subIntervalSeconds: INTL_SHORT_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 25-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
+  },
+  {
+    id: "U16",
+    label: "Under 16",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_LONG_HALF_SECONDS,
+    subIntervalSeconds: INTL_LONG_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 30-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
+  },
+  {
+    id: "U17",
+    label: "Under 17",
+    positions: ["player"],
+    zones: ["field"],
+    defaultOnFieldSize: 13,
+    minOnFieldSize: 11,
+    maxOnFieldSize: 13,
+    // NSWRL: 7 on the bench from U13 (13 + 7).
+    maxSquadSize: 20,
+    periodCount: 2,
+    periodSeconds: INTL_LONG_HALF_SECONDS,
+    subIntervalSeconds: INTL_LONG_SUB_INTERVAL,
+    subIntervalFloorSeconds: 240,
+    tracksScoreDefault: true,
+    notes: "International laws — 13-a-side, 2 × 30-min halves. Penalty goals (2) and field goals (1) count; no vests or kicking rotations.",
+    periodLabel: "half",
+    periodLabelPlural: "halves",
+    kickingAllowed: true,
+    // The junior laws' unbroken-period rule (§6) doesn't apply.
+    minUnbrokenPeriods: 0,
+    forwardCount: 6,
+    internationalLaws: true,
+    goalsFromPlay: true,
+    kickRotations: false,
+    unbrokenPeriods: false,
+    recommendedStrategy: "named-positions",
   },
 ];
-
-// ─── Lineup shape used by validateLineup ─────────────────────
-// Junior RL is positionless: `{ field: PlayerId[], bench: PlayerId[] }`.
-// Defined as `LeagueLineup` in `@/lib/types` for cross-module reuse
-// (the server actions and replay engine consume the same shape).
-import type { LeagueLineup } from "@/lib/types";
-
-function validateRugbyLeagueLineup(
-  lineup: unknown,
-  ageGroup: AgeGroupConfig,
-): ValidationResult {
-  const issues: ValidationIssue[] = [];
-  const l = lineup as LeagueLineup;
-
-  if (
-    !l ||
-    typeof l !== "object" ||
-    !Array.isArray(l.forwards) ||
-    !Array.isArray(l.backs) ||
-    !Array.isArray(l.bench)
-  ) {
-    return {
-      ok: false,
-      issues: [{ kind: "error", message: "Invalid lineup shape." }],
-    };
-  }
-
-  // On-field count = forwards + backs. Coach can ignore the
-  // position split (everyone in one bucket), but the totals still
-  // have to land inside the age-group's legal window.
-  const onFieldCount = l.forwards.length + l.backs.length;
-  if (onFieldCount > ageGroup.maxOnFieldSize) {
-    issues.push({
-      kind: "error",
-      message: `Too many players on field (${onFieldCount}); max is ${ageGroup.maxOnFieldSize}.`,
-      positionId: "player",
-    });
-  } else if (onFieldCount < ageGroup.minOnFieldSize) {
-    issues.push({
-      kind: "warn",
-      message: `Below the recommended minimum (${ageGroup.minOnFieldSize}); local-league discretion to proceed.`,
-      positionId: "player",
-    });
-  }
-
-  // No player double-booked across forwards / backs / bench (or
-  // repeated within a single pool).
-  const seen = new Map<string, string>();
-  const mark = (pid: string, slot: string) => {
-    if (!pid) return;
-    const existing = seen.get(pid);
-    if (existing && existing !== slot) {
-      issues.push({
-        kind: "error",
-        message: `Player is in both ${existing} and ${slot}.`,
-        playerId: pid,
-      });
-    } else if (existing === slot) {
-      issues.push({
-        kind: "error",
-        message: `Player listed twice in ${slot}.`,
-        playerId: pid,
-      });
-    }
-    seen.set(pid, slot);
-  };
-  for (const playerId of l.forwards) mark(playerId, "forwards");
-  for (const playerId of l.backs) mark(playerId, "backs");
-  for (const playerId of l.bench) mark(playerId, "bench");
-
-  return { ok: issues.filter((i) => i.kind === "error").length === 0, issues };
-}
 
 // ─── SportConfig export ──────────────────────────────────────
 // `brand.palette` reuses AFL's `"brand"` palette while v1 ships under
@@ -334,8 +449,9 @@ function validateRugbyLeagueLineup(
 // keyed off `sirenleague.com.au`.
 export const rugbyLeagueSport: SportConfig = {
   id: "rugby_league",
+  family: "rugby",
   name: "Rugby League",
-  shortName: "League",
+  shortName: "Rugby League",
   brand: {
     id: "rugby_league",
     // Reserved host for the future brand phase; harmless until then
@@ -358,5 +474,7 @@ export const rugbyLeagueSport: SportConfig = {
   periodLabel: "quarter",
   periodLabelPlural: "quarters",
   fairnessModel: "unbroken-period",
-  validateLineup: validateRugbyLeagueLineup,
+  jerseyNumbers: true,
+  teamSong: false,
+  validateLineup: validateRugbyLineup,
 };

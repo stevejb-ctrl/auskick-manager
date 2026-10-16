@@ -2,7 +2,6 @@ import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { AddGameSection } from "@/components/games/AddGameSection";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import type { AgeGroupConfig } from "@/lib/sports/types";
 
 interface GameSummary {
   id: string;
@@ -14,17 +13,18 @@ interface GameSummary {
 
 interface GamesStepProps {
   teamId: string;
-  ageGroup: AgeGroupConfig;
   existingExternalIds: string[];
   playhqUrl: string;
+  /** The sport's PlayHQ tenant; null where the sport isn't on PlayHQ (league). */
+  playhqTenant: string | null;
   games: GameSummary[];
 }
 
 export function GamesStep({
   teamId,
-  ageGroup,
   existingExternalIds,
   playhqUrl,
+  playhqTenant,
   games,
 }: GamesStepProps) {
   return (
@@ -34,18 +34,25 @@ export function GamesStep({
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-ink">Add games</h1>
         <p className="text-sm text-ink-dim">
-          Importing from PlayHQ pulls in rounds, opponents, and kickoff times
-          in one go and keeps them in sync if the league reschedules. Use
-          &ldquo;Create manually&rdquo; for friendlies or pre-season hit-outs.
+          {playhqTenant ? (
+            <>
+              Importing from PlayHQ pulls in rounds, opponents, and kickoff times
+              in one go and keeps them in sync if the league reschedules. Use
+              &ldquo;Create manually&rdquo; for friendlies or pre-season hit-outs.
+            </>
+          ) : (
+            <>Add the games from your fixture: opponent, round and kickoff time.</>
+          )}{" "}
           You can always add more games later from the Games tab.
         </p>
       </div>
 
       <AddGameSection
         teamId={teamId}
-        ageGroup={ageGroup}
         existingExternalIds={existingExternalIds}
         initialUrl={playhqUrl}
+        playhqTenant={playhqTenant}
+        afterCreate="stay"
       />
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">
@@ -56,7 +63,9 @@ export function GamesStep({
         </div>
         {games.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-ink-mute">
-            No games yet — import from PlayHQ or create one manually above.
+            {playhqTenant
+              ? "No games yet — import from PlayHQ or create one manually above."
+              : "No games yet — create one above."}
           </p>
         ) : (
           <ul className="divide-y divide-hairline">

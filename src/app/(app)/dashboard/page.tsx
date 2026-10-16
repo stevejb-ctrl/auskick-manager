@@ -2,9 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
-import { Eyebrow, SFButton, SFCard, SFIcon } from "@/components/sf";
+import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
+import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { ROLE_LABEL } from "@/lib/roles";
-import type { Team, TeamRole } from "@/lib/types";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import type { Sport, Team, TeamRole } from "@/lib/types";
 
 interface DashboardPageProps {
   searchParams: { welcome?: string; list?: string };
@@ -19,12 +21,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   type MembershipRow = {
     role: TeamRole;
-    teams: Pick<Team, "id" | "name"> | null;
+    teams: (Pick<Team, "id" | "name"> & { sport: Sport | null; age_group: string | null }) | null;
   };
 
-  const { data: memberships } = await createClient()
+  const supabase = createClient();
+  const { data: memberships } = await supabase
     .from("team_memberships")
-    .select("role, teams(id, name)")
+    .select("role, teams(id, name, sport, age_group)")
     .eq("user_id", user.id)
     .returns<MembershipRow[]>();
 
@@ -59,6 +62,28 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect(`/teams/${teams[0].id}`);
   }
 
+  // Next game per team, for the cards. Teams are queried in chunks so
+  // neither the URL nor PostgREST's row cap truncates a long team list.
+  const nextByTeam = new Map<string, { opponent: string; scheduled_at: string; status: string }>();
+  const ids = teams.map((t) => t.id);
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("games")
+        .select("team_id, opponent, scheduled_at, status")
+        .in("team_id", chunk)
+        .neq("status", "completed")
+        .order("scheduled_at", { ascending: true }),
+    ),
+  );
+  for (const { data: upcoming } of results) {
+    for (const g of upcoming ?? []) {
+      if (!nextByTeam.has(g.team_id)) nextByTeam.set(g.team_id, g);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header>
@@ -67,7 +92,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           My teams
         </h1>
         <p className="mt-1 text-sm text-ink-dim">
-          Select a team to open its dashboard.
+          Pick a team to open Today.
         </p>
       </header>
 
@@ -78,55 +103,59 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </p>
         </SFCard>
       ) : (
-        <SFCard pad={0}>
-          <ul className="divide-y divide-hairline">
-            {teams.map((team) => (
+        // One card per team: sport · age group, and the next game, so a
+        // coach with two teams can tell them apart at a glance (UX plan M1).
+        <ul className="space-y-2">
+          {teams.map((team) => {
+            const sport = teamSport(team.sport);
+            const sportName = getSportConfig(sport).shortName;
+            const ageLabel = getAgeGroupConfig(sport, team.age_group).label;
+            const next = nextByTeam.get(team.id);
+            return (
               <li key={team.id}>
-                <Link
-                  href={`/teams/${team.id}`}
-                  className="flex items-center justify-between gap-3 px-5 py-4 transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-                >
-                  <span className="truncate font-medium text-ink">
-                    {team.name}
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <Badge variant={team.role}>{ROLE_LABEL[team.role]}</Badge>
-                    <span className="text-ink-mute">
-                      <SFIcon.chevronRight />
-                    </span>
-                  </span>
+                <Link href={`/teams/${team.id}`} className="block">
+                  <SFCard interactive>
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-base font-semibold text-ink">{team.name}</p>
+                        <p className="text-xs text-ink-mute">
+                          {sportName} · {ageLabel}
+                        </p>
+                        <p className="mt-2 text-sm text-ink-dim">
+                          {next ? (
+                            <>
+                              {next.status === "in_progress" ? "Live now" : "Next"} · vs{" "}
+                              {next.opponent} ·{" "}
+                              <FormattedDateTime iso={next.scheduled_at} mode="short" />
+                            </>
+                          ) : (
+                            "No games scheduled"
+                          )}
+                        </p>
+                      </div>
+                      <Badge variant={team.role}>{ROLE_LABEL[team.role]}</Badge>
+                      <span className="self-center text-ink-mute">
+                        <SFIcon.chevronRight />
+                      </span>
+                    </div>
+                  </SFCard>
                 </Link>
               </li>
-            ))}
-          </ul>
-        </SFCard>
+            );
+          })}
+        </ul>
       )}
 
-      <SFButton
-        href="/teams/new"
-        variant="accent"
-        full
-        iconAfter={<SFIcon.chevronRight color="currentColor" />}
-      >
-        Create a new team
-      </SFButton>
-
-      {/* Secondary "Join with a code" CTA — same outlined-brand
-          treatment as on /welcome so a parent who reaches this
-          empty state (via ?welcome=skipped, or after leaving every
-          team they were in) sees the join-by-code path as a real
-          peer to Create, not a tucked-away fine-print link. Raw
-          <Link> rather than SFButton because SFButton's `ghost`
-          variant is neutral-grey, not outlined-brand — matching
-          /welcome's class string keeps the two surfaces visually
-          identical. */}
-      <Link
-        href="/join-team"
-        className="flex w-full items-center justify-center gap-2 rounded-md border border-brand-600 bg-surface px-5 py-3 text-base font-semibold text-brand-700 shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-50"
-      >
-        Join with a code
-        <span aria-hidden>→</span>
-      </Link>
+      {/* Creating or joining another team is a secondary action for a
+          returning coach — the primary job here is opening a team. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold">
+        <Link href="/teams/new" className="text-brand-700 hover:underline">
+          + New team
+        </Link>
+        <Link href="/join-team" className="text-brand-700 hover:underline">
+          Join with a code
+        </Link>
+      </div>
 
       {/* Secondary link to /account. Mirrors the avatar menu in the
           (app) header — same destination, two entry points so users

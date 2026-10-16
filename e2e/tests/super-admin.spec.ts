@@ -11,6 +11,7 @@
 //         + super-admin route guard from src/app/(app)/admin/layout.tsx
 
 import { test, expect } from "@playwright/test";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 import {
   createAdminClient,
   createTestUser,
@@ -32,6 +33,7 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
   await admin.from("contact_tags").delete().like("name", "Tag %");
 
   await page.goto("/admin/tags");
+  await waitForHydration(page);
 
   // ── Create ─────────────────────────────────────────────────
   // TagManager's "New tag" card has bare <label>s without htmlFor,
@@ -141,11 +143,17 @@ test("non-super-admin hitting /admin routes gets a 404", async ({
     // Email-first /login: toggle into password mode, then use the
     // testid pattern (matches auth.setup).
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(regular.email);
     await page.getByTestId("login-password").fill(regular.password);
     await page.getByTestId("login-submit").click();
-    await page.waitForURL(/\/(dashboard|teams)/, { timeout: 10_000 });
+    // A user with no teams goes on from the dashboard to /welcome. Wait
+    // for that redirect to land: opening /admin while it's in flight
+    // tears the page down mid-transition (WebKit showed "Application
+    // error" instead of the not-found page).
+    await page.waitForURL(/\/welcome/, { timeout: 15_000 });
+    await waitForHydration(page);
 
     // Navigate to an admin route. The app's route guard
     // (requireSuperAdmin in app/(app)/admin/layout.tsx) calls
@@ -159,7 +167,7 @@ test("non-super-admin hitting /admin routes gets a 404", async ({
     // even though the not-found.tsx content renders correctly.
     // What we actually care about is the user CANNOT see the
     // admin chrome — that's testable directly via the UI.
-    await page.goto("/admin");
+    await gotoStable(page, "/admin");
     await expect(
       page.getByRole("heading", { name: /^not found$/i }),
     ).toBeVisible({ timeout: 5_000 });

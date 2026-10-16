@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TeamNav } from "@/components/team/TeamNav";
+import { TeamBottomBar } from "@/components/team/TeamBottomBar";
 
 interface TeamLayoutProps {
   children: React.ReactNode;
@@ -47,8 +48,9 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
 
   return (
     <div className="space-y-6">
-      <TeamNav teamId={params.teamId} teamName={team.name} />
+      <TeamNav teamId={params.teamId} teamName={team.name} role={membership.role} />
       {children}
+      <TeamBottomBar teamId={params.teamId} role={membership.role} />
     </div>
   );
 }

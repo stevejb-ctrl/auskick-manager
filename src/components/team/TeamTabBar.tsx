@@ -1,49 +1,30 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { SegTabs, type SegTabOption } from "@/components/sf";
+import { SegTabs } from "@/components/sf";
+import { teamTabs } from "@/components/team/teamTabs";
 
 interface TeamTabBarProps {
   teamId: string;
+  role?: string | null;
 }
 
 /**
- * Per-team navigation. Pill segmented control (SF design) replacing
- * the previous underline tab strip. Routing logic preserved exactly:
- * each tab is a Next.js Link, active is determined by `usePathname`.
- *
- * The Home tab uses an exact match because every other tab path
- * starts with `/teams/[teamId]/...` and would otherwise also match
- * Home's prefix.
+ * Desktop / tablet team navigation (≥ 768 px). Phones use the bottom
+ * TeamBottomBar instead; both read the same five sections.
  */
-export function TeamTabBar({ teamId }: TeamTabBarProps) {
+export function TeamTabBar({ teamId, role }: TeamTabBarProps) {
   const pathname = usePathname();
-
-  const tabs: Array<SegTabOption & { exact?: boolean }> = [
-    { id: "home", label: "Home", href: `/teams/${teamId}`, exact: true },
-    { id: "squad", label: "Squad", href: `/teams/${teamId}/squad` },
-    { id: "games", label: "Games", href: `/teams/${teamId}/games` },
-    { id: "stats", label: "Stats", href: `/teams/${teamId}/stats` },
-    { id: "settings", label: "Settings", href: `/teams/${teamId}/settings` },
-  ];
-
+  const tabs = teamTabs(teamId, role);
   const activeId =
-    tabs.find((t) =>
-      t.exact ? pathname === t.href : pathname?.startsWith(t.href!)
-    )?.id ?? "home";
+    tabs.find((t) => (t.exact ? pathname === t.href : pathname?.startsWith(t.href)))?.id ??
+    "today";
 
   // Constrain width on desktop so the segmented control doesn't stretch
-  // across the whole 1080px content area — the design caps it ~560px
-  // and left-aligns. On phone it stretches full-width.
+  // across the whole content area — the design caps it ~560px.
   return (
-    <div className="max-w-[560px] overflow-x-auto scrollbar-none">
-      <SegTabs
-        options={tabs}
-        value={activeId}
-        size="md"
-        full
-        ariaLabel="Team sections"
-      />
+    <div className="hidden max-w-[560px] md:block">
+      <SegTabs options={tabs} value={activeId} size="md" full ariaLabel="Team sections" />
     </div>
   );
 }

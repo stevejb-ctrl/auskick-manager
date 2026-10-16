@@ -24,6 +24,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gameDefaults } from "./lib/game-defaults.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -125,6 +126,7 @@ async function createSandboxGame(team, opponentSuffix) {
       team_id: team.id,
       opponent: `${opponentSuffix} (${team.sport})`,
       scheduled_at: scheduledAt,
+      on_field_size: gameDefaults(team.sport, team.age_group).on_field_size,
       created_by: team.created_by,
       // Steve 2026-05-15: dropped from 60× to 8× after a Stagehand
       // run hit the auto-hooter mid-mission. 60× collapses a

@@ -7,6 +7,9 @@ import { ContinueToLineupButton } from "@/components/games/ContinueToLineupButto
 import { Spinner } from "@/components/ui/Spinner";
 import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
+import { BackLink } from "@/components/ui/BackLink";
+import { getSportConfig, teamSport } from "@/lib/sports";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 interface AvailabilityPageProps {
   params: { teamId: string; gameId: string };
@@ -78,17 +81,11 @@ export default async function AvailabilityPage({
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
   const canMarkAvailability = !!role;
-  const sport: Sport = (team as { sport?: Sport } | null)?.sport ?? "afl";
+  const sport: Sport = team ? teamSport((team as { sport?: Sport }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
 
   return (
     <div className="space-y-6 pb-32">
-      <Link
-        href={`/teams/${params.teamId}/games/${params.gameId}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-      >
-        <SFIcon.chevronLeft />
-        Back to game
-      </Link>
+      <BackLink href={`/teams/${params.teamId}/games/${params.gameId}`} label="Back to game" />
 
       <SFCard>
         <h1 className="text-2xl font-bold tracking-tightest text-ink">
@@ -96,7 +93,7 @@ export default async function AvailabilityPage({
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
           Mark each player In or Out. You can change this any time
-          before kickoff or add late arrivals once the game starts.
+          before the game starts, or add late arrivals once it&apos;s under way.
         </p>
       </SFCard>
 
@@ -113,7 +110,7 @@ export default async function AvailabilityPage({
           gameId={params.gameId}
           canMarkAvailability={canMarkAvailability}
           canManageMatch={canManageMatch}
-          showJerseyNumber={sport !== "netball"}
+          showJerseyNumber={getSportConfig(sport).jerseyNumbers}
         />
       </Suspense>
 

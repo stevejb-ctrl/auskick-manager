@@ -2,29 +2,36 @@
 //
 // Covers:
 //   - registry lookup + defaulting
-//   - AFL config reflects the existing AGE_GROUPS data (non-regression)
+//   - AFL age groups: on-field sizes, legacy ids, position model
 //   - Netball rules-of-play eligibility
 //   - Netball validateLineup catches common mistakes
 
 import { describe, expect, it } from "vitest";
 import {
   getSportConfig,
+  getAgeGroupConfig,
   getBrandForHost,
   getEffectiveQuarterSeconds,
   ALL_SPORT_IDS,
   aflSport,
+  aflPositionModel,
   netballSport,
   rugbyLeagueSport,
   isPositionAllowedInZone,
   pickNetballPositionsToFill,
+  teamSport,
 } from "@/lib/sports";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 describe("sport registry", () => {
-  it("returns AFL by default for unknown / missing sport", () => {
-    expect(getSportConfig(null)).toBe(aflSport);
-    expect(getSportConfig(undefined)).toBe(aflSport);
-    expect(getSportConfig("unknown")).toBe(aflSport);
+  // Sports are independent (14 Oct 2026): a missing or unknown sport is
+  // an error, never run as AFL.
+  it("throws for an unknown or missing sport instead of falling back to AFL", () => {
+    expect(() => getSportConfig(null)).toThrow(/Unknown sport/);
+    expect(() => getSportConfig(undefined)).toThrow(/Unknown sport/);
+    expect(() => getSportConfig("touch_football")).toThrow(/touch_football/);
+    expect(() => teamSport("unknown")).toThrow(/Unknown sport/);
+    expect(teamSport("netball")).toBe("netball");
   });
 
   it("returns the correct config for each registered sport", () => {
@@ -54,9 +61,9 @@ describe("AFL sport config", () => {
   it("has 14 age groups (U8-U15 + U16/U17/U18 each split Boys/Girls)", () => {
     // Steve 2026-05-20: U16+ now splits by gender — Boys play
     // 18-a-side, Girls play 16-a-side per AFL Junior Match
-    // Policy. The legacy unsplit U16 / U17 IDs are still in
-    // AGE_GROUPS for back-compat with existing teams but are
-    // excluded from AGE_GROUP_ORDER (= aflSport.ageGroups).
+    // Policy. The legacy unsplit U16 / U17 IDs live in
+    // aflSport.legacyAgeGroups for existing teams, outside the
+    // picker list.
     expect(aflSport.ageGroups).toHaveLength(14);
     expect(aflSport.ageGroups[0].id).toBe("U8");
     expect(aflSport.ageGroups[8].id).toBe("U16_boys");
@@ -83,6 +90,31 @@ describe("AFL sport config", () => {
     for (const ag of aflSport.ageGroups) {
       expect(ag.positions).toEqual(["back", "mid", "fwd"]);
     }
+  });
+
+  // Regression: teams created before the 2026-05-20 boys/girls split
+  // still read "U16" / "U17". The registry only listed the split ids,
+  // so these teams fell back to U8 (6-a-side, 4–9 on field) and
+  // kickoff clamped an 18-player lineup down to 9.
+  it.each(["U16", "U17"])("legacy %s teams resolve to their own 18-a-side config", (id) => {
+    const cfg = getAgeGroupConfig("afl", id);
+    expect(cfg.id).toBe(id);
+    expect(cfg.defaultOnFieldSize).toBe(18);
+    expect(cfg.minOnFieldSize).toBe(12);
+    expect(cfg.maxOnFieldSize).toBe(18);
+    expect(cfg.maxSquadSize).toBe(25);
+  });
+
+  it("aflPositionModel reads the 3-zone model off every AFL age group", () => {
+    for (const ag of [...aflSport.ageGroups, ...(aflSport.legacyAgeGroups ?? [])]) {
+      expect(aflPositionModel(ag)).toBe("zones3");
+    }
+  });
+
+  it("legacy U16 / U17 stay out of the new-team age list", () => {
+    const ids = aflSport.ageGroups.map((a) => a.id);
+    expect(ids).not.toContain("U16");
+    expect(ids).not.toContain("U17");
   });
 });
 
@@ -449,11 +481,35 @@ describe("getEffectiveQuarterSeconds", () => {
 });
 
 describe("rugby league sport config", () => {
-  it("has 7 age groups (U6-U12)", () => {
-    expect(rugbyLeagueSport.ageGroups).toHaveLength(7);
+  it("has 12 age groups (U6-U12 junior laws, U13-U17 international)", () => {
+    expect(rugbyLeagueSport.ageGroups).toHaveLength(12);
     expect(rugbyLeagueSport.ageGroups.map((a) => a.id)).toEqual([
-      "U6", "U7", "U8", "U9", "U10", "U11", "U12",
+      "U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17",
     ]);
+  });
+
+  it("U13-U17 play international laws: 13-a-side halves, goals from play, no junior laws", () => {
+    const byId = (id: string) => rugbyLeagueSport.ageGroups.find((a) => a.id === id)!;
+    for (const id of ["U13", "U14", "U15", "U16", "U17"]) {
+      const ag = byId(id);
+      expect(ag.internationalLaws, id).toBe(true);
+      expect(ag.defaultOnFieldSize, id).toBe(13);
+      expect(ag.maxOnFieldSize, id).toBe(13);
+      expect(ag.periodCount, id).toBe(2);
+      expect(ag.periodLabel, id).toBe("half");
+      expect(ag.kickingAllowed, id).toBe(true);
+      expect(ag.tracksScoreDefault, id).toBe(true);
+      // No vests, no unbroken-period law (both junior laws only).
+      expect(ag.vestRequirements, id).toBeUndefined();
+      expect(ag.minUnbrokenPeriods, id).toBe(0);
+    }
+    // CRRL 2026: 25-minute halves to U15, 30 from U16.
+    expect(byId("U13").periodSeconds).toBe(25 * 60);
+    expect(byId("U15").periodSeconds).toBe(25 * 60);
+    expect(byId("U16").periodSeconds).toBe(30 * 60);
+    expect(byId("U17").periodSeconds).toBe(30 * 60);
+    // The junior grades keep the junior laws.
+    for (const id of ["U6", "U8", "U10", "U12"]) expect(byId(id).internationalLaws, id).toBeFalsy();
   });
 
   it("uses rolling subs (like AFL) and the unbroken-period fairness model", () => {
@@ -461,8 +517,12 @@ describe("rugby league sport config", () => {
     expect(rugbyLeagueSport.fairnessModel).toBe("unbroken-period");
   });
 
-  it("scoring: try=4, conversion=2 (us + opponent)", () => {
-    expect(rugbyLeagueSport.scoreTypes).toHaveLength(4);
+  it("scoring: try=4, conversion=2, penalty goal=2, field goal=1 (us + opponent)", () => {
+    expect(rugbyLeagueSport.scoreTypes).toHaveLength(8);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "penalty_goal")?.points).toBe(2);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "field_goal")?.points).toBe(1);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_penalty_goal")?.opponent).toBe(true);
+    expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_field_goal")?.points).toBe(1);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "try")?.points).toBe(4);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "conversion")?.points).toBe(2);
     expect(rugbyLeagueSport.scoreTypes.find((s) => s.id === "opponent_try")?.opponent).toBe(true);

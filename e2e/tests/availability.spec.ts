@@ -11,6 +11,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -23,7 +24,7 @@ test("team admin toggles a player's availability for a game", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -81,7 +82,7 @@ test("Mark all in marks the whole squad available in one tap", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -91,6 +92,12 @@ test("Mark all in marks the whole squad available in one tap", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
 
+  // One save for the whole squad (round 5: it was one per kid, 12 round
+  // trips one after another, and on a slow line it took over 10 s).
+  const saves: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.headers()["next-action"]) saves.push(r.url());
+  });
   await page.getByRole("button", { name: /^mark all 12 in$/i }).click();
 
   // Every squad player ends up available…
@@ -107,6 +114,7 @@ test("Mark all in marks the whole squad available in one tap", async ({
       { timeout: 10_000, intervals: [300, 500, 500, 1000, 1000, 2000] },
     )
     .toBe(players.length);
+  expect(saves).toHaveLength(1);
 
   // …and the bulk button disappears (nothing left to mark).
   await expect(
@@ -135,7 +143,7 @@ test("Continue-to-lineup CTA is a button with pending state, not a plain link", 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -170,7 +178,7 @@ test("Continue-to-lineup CTA is a button with pending state, not a plain link", 
   // signal (see lineup.spec.ts for the deeper assertion).
   await expect(page).toHaveURL(/\/live$/, { timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^ready for q1$/i }),
+    page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -183,11 +191,12 @@ test("team admin adds a fill-in player for this game only", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
+  await waitForHydration(page);
 
   await page.getByText(/add fill-in/i).click();
   await page
@@ -203,4 +212,49 @@ test("team admin adds a fill-in player for this game only", async ({
     .select("id, full_name")
     .eq("game_id", game.id);
   expect(fillIns?.find((f) => f.full_name === "Guest Player")).toBeDefined();
+});
+
+// UX plan 1.3 — game day is one screen: availability lives on the
+// lineup screen ("Who's here"), so marking a no-show out doesn't mean
+// leaving the lineup. The lineup rebuilds without them.
+test("game day: marking a player out on the lineup screen drops them from the lineup", async ({
+  page,
+}) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: "available" as const,
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  const noShow = players[0];
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const lineup = page.getByRole("region", { name: /starting lineup/i });
+  await expect(lineup.getByText(noShow.full_name, { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await page.getByRole("button", { name: /who's here/i }).click();
+  await page
+    .getByRole("group", { name: `${noShow.full_name} availability` })
+    .getByRole("button", { name: /^out$/i })
+    .click();
+
+  await expect(page.getByRole("button", { name: /who's here/i })).toContainText("13 of 14 in", {
+    timeout: 10_000,
+  });
+  await expect(lineup.getByText(noShow.full_name, { exact: true })).toHaveCount(0);
 });

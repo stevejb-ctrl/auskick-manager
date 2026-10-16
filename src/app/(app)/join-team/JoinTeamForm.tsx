@@ -27,7 +27,7 @@ export function JoinTeamForm() {
     setError(null);
     const trimmed = code.trim();
     if (!trimmed) {
-      setError("Please enter your join code.");
+      setError("Please enter your team code.");
       return;
     }
     startTransition(async () => {
@@ -47,7 +47,7 @@ export function JoinTeamForm() {
       className="space-y-3 rounded-lg border border-hairline bg-surface p-5 shadow-card"
     >
       <div className="space-y-2">
-        <Label htmlFor="join-code">Join code</Label>
+        <Label htmlFor="join-code">Team code</Label>
         <Input
           id="join-code"
           name="join-code"

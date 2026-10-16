@@ -18,6 +18,7 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { Button } from "@/components/ui/Button";
 import type { LiveAuth, Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -47,6 +48,11 @@ export function ScoreReviewPanel({
   const incOpponent = useLiveGame((s) => s.incOpponent);
   const undoTeamScore = useLiveGame((s) => s.undoTeamScore);
   const undoOpponentScore = useLiveGame((s) => s.undoOpponentScore);
+  // The scorer’s own tally moves with the team total — the live store
+  // doesn’t re-hydrate on router.refresh(), so without these the full-
+  // time summary kept a deleted behind against the kid who “kicked” it.
+  const incPlayerScore = useLiveGame((s) => s.incPlayerScore);
+  const undoPlayerScore = useLiveGame((s) => s.undoPlayerScore);
 
   const playersById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -99,14 +105,17 @@ export function ScoreReviewPanel({
       entry.type === "goal" || entry.type === "opponent_goal"
         ? "goals"
         : "behinds";
+    const scorer = isOurs ? entry.player_id : null;
     if (isOurs) undoTeamScore(kind, q);
     else undoOpponentScore(kind, q);
+    if (scorer) undoPlayerScore(scorer, kind);
 
     startTransitionFn(async () => {
       const result = await deleteScore(auth, gameId, entry.id);
       if (!result.success) {
         if (isOurs) incTeam(kind, q);
         else incOpponent(kind, q);
+        if (scorer) incPlayerScore(scorer, kind);
         setScoreLogError(result.error);
         return;
       }
@@ -126,6 +135,7 @@ export function ScoreReviewPanel({
       addKind === "goal" || addKind === "opponent_goal" ? "goals" : "behinds";
     if (isOurs) incTeam(kind, addQuarter);
     else incOpponent(kind, addQuarter);
+    if (isOurs) incPlayerScore(addPlayerId, kind);
 
     startTransitionFn(async () => {
       const result = await addRetroScore(auth, gameId, {
@@ -136,6 +146,7 @@ export function ScoreReviewPanel({
       if (!result.success) {
         if (isOurs) undoTeamScore(kind, addQuarter);
         else undoOpponentScore(kind, addQuarter);
+        if (isOurs) undoPlayerScore(addPlayerId, kind);
         setScoreLogError(result.error);
         return;
       }
@@ -232,7 +243,7 @@ export function ScoreReviewPanel({
                         <button
                           type="button"
                           onClick={() => setPendingDelete(e)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
+                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
                           aria-label="Delete this score"
                         >
                           ×
@@ -355,12 +366,7 @@ export function ScoreReviewPanel({
           const subject = isOurs ? playerName ?? "Player" : "Opposition";
           const q = e.quarter ?? defaultQuarter;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-ink/40"
-                onClick={() => setPendingDelete(null)}
-              />
-              <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+            <Modal label="Delete this score?" onClose={() => setPendingDelete(null)}>
                 <p className="text-center text-sm font-semibold text-ink">
                   Delete this score?
                 </p>
@@ -388,8 +394,7 @@ export function ScoreReviewPanel({
                     Cancel
                   </Button>
                 </div>
-              </div>
-            </div>
+              </Modal>
           );
         })()}
     </div>

@@ -2,6 +2,9 @@
 // SPA uses (no API key). Works anonymously as long as we send browser-like
 // headers (CloudFront blocks requests missing Origin / User-Agent).
 
+import { getSportConfig } from "@/lib/sports";
+import type { Sport } from "@/lib/types";
+
 const PLAYHQ_GRAPHQL = "https://api.playhq.com/graphql";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
@@ -61,13 +64,39 @@ export interface PlayHQTeamPage {
 }
 
 export type ParsedPlayhqUrl =
-  | { ok: true; teamId: string }
+  | { ok: true; teamId: string; tenant: string }
   | { ok: false; reason: string };
+
+/**
+ * Where each sport's fixtures live on PlayHQ: the tenant in a team
+ * page's URL (playhq.com/<tenant>/org/...), which the API is asked under
+ * too (checked 14 Oct 2026: PlayHQ finds a netball team under
+ * "netball-australia" and not under "afl"). League has none: Australian
+ * junior league runs its fixtures on MySideline, and junior union on
+ * Rugby Xplorer, not PlayHQ. Sports never borrow another's tenant.
+ */
+export const PLAYHQ_TENANT: Record<Sport, string | null> = {
+  afl: "afl",
+  netball: "netball-australia",
+  rugby_league: null,
+  rugby_union: null,
+};
+
+const TENANT_SPORT: Record<string, string> = {
+  afl: "an AFL",
+  "netball-australia": "a netball",
+};
 
 // Team URLs look like:
 //   https://www.playhq.com/afl/org/<club-slug>/<orgId>/<comp-slug>/teams/<team-slug>/<teamId>
-// The final path segment is the teamID the GraphQL API wants.
-export function parsePlayhqUrl(raw: string): ParsedPlayhqUrl {
+// The segment before "org" is the tenant (the sport); the final path
+// segment is the teamID the GraphQL API wants. Only the team's own
+// sport's pages are accepted.
+export function parsePlayhqUrl(raw: string, sport: Sport): ParsedPlayhqUrl {
+  const expected = PLAYHQ_TENANT[sport];
+  if (!expected) {
+    return { ok: false, reason: `PlayHQ import isn't available for ${getSportConfig(sport).shortName}. Add your games manually.` };
+  }
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -89,7 +118,16 @@ export function parsePlayhqUrl(raw: string): ParsedPlayhqUrl {
   if (!/^[a-z0-9]{6,}$/i.test(teamId)) {
     return { ok: false, reason: "Couldn't find a team ID in that URL." };
   }
-  return { ok: true, teamId };
+  const orgIdx = parts.indexOf("org");
+  const tenant = orgIdx > 0 ? parts[orgIdx - 1].toLowerCase() : null;
+  if (tenant !== expected) {
+    const whose = tenant ? (TENANT_SPORT[tenant] ?? "another sport's") : "another sport's";
+    return {
+      ok: false,
+      reason: `That's ${whose} team page. Paste your ${getSportConfig(sport).shortName} team's page (playhq.com/${expected}/…).`,
+    };
+  }
+  return { ok: true, teamId, tenant };
 }
 
 interface GqlTeam {
@@ -213,14 +251,14 @@ function combineDateTime(date: string | null, time: string | null): string | nul
   return wallClockToUTC(date, time, DEFAULT_PLAYHQ_TIMEZONE);
 }
 
-export async function fetchPlayhqTeamPage(teamId: string): Promise<PlayHQTeamPage> {
+export async function fetchPlayhqTeamPage(teamId: string, tenant: string): Promise<PlayHQTeamPage> {
   const res = await fetch(PLAYHQ_GRAPHQL, {
     method: "POST",
     cache: "no-store",
     signal: AbortSignal.timeout(8000),
     headers: {
       "content-type": "application/json",
-      "tenant": "afl",
+      "tenant": tenant,
       "origin": "https://www.playhq.com",
       "referer": "https://www.playhq.com/",
       "user-agent": UA,

@@ -6,6 +6,7 @@ import { restoreAccount } from "@/app/(app)/account/actions";
 import { SFButton, SFCard } from "@/components/sf";
 import { GRACE_DAYS } from "@/lib/account/constants";
 import { DeleteAccountModal } from "./DeleteAccountModal";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface Team {
   id: string;
@@ -74,16 +75,13 @@ export function DeleteAccountSection({
         <p className="mt-2 text-sm leading-relaxed text-warn/90">
           Your account and personal data will be permanently deleted on{" "}
           <strong className="font-semibold">{formatted}</strong>. Until then
-          you can keep using Siren Footy and restore your account at any
+          you can keep using Siren and restore your account at any
           time.
         </p>
         {error && (
-          <p
-            role="alert"
-            className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
+          <InlineAlert className="mt-3">
             {error}
-          </p>
+          </InlineAlert>
         )}
         <div className="mt-4">
           <SFButton

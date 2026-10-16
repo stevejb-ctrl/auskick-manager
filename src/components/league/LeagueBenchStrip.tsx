@@ -23,6 +23,8 @@ interface LeagueBenchStripProps {
    *  at the bottom of each tile. Pass undefined to hide. */
   zoneMsByPlayer?: Record<string, import("@/lib/sports/rugby_league/fairness").LeagueZoneMs>;
   vestByPlayer?: Record<string, VestType>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
   injuredIds?: Set<string>;
@@ -54,6 +56,7 @@ export function LeagueBenchStrip({
   totalMsByPlayer,
   zoneMsByPlayer,
   vestByPlayer,
+  keepOnIds,
   conversionByPlayer,
   kickoffTakerIds,
   injuredIds,
@@ -67,7 +70,7 @@ export function LeagueBenchStrip({
   disabled,
 }: LeagueBenchStripProps) {
   return (
-    <div className="rounded-md border border-hairline bg-surface p-2 shadow-card">
+    <div role="group" aria-label="Bench" className="rounded-md border border-hairline bg-surface p-2 shadow-card">
       <p className="mb-1.5 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
         Bench ({players.length})
       </p>
@@ -88,6 +91,7 @@ export function LeagueBenchStrip({
               kickedOff={kickoffTakerIds?.has(p.id) ?? false}
               injured={injuredIds?.has(p.id) ?? false}
               loaned={loanedIds?.has(p.id) ?? false}
+              keepOn={keepOnIds?.has(p.id) ?? false}
               selected={selectedPlayerId === p.id}
               swap={
                 swapOns?.has(p.id)
@@ -99,7 +103,17 @@ export function LeagueBenchStrip({
                   : null
               }
               chipModes={chipModes}
-              onClick={onPlayerClick ? () => onPlayerClick(p.id) : undefined}
+              onClick={
+                injuredIds?.has(p.id) || loanedIds?.has(p.id)
+                  ? // Can't be subbed on, so a tap opens the actions
+                    // ("Back on" / "Bring back") — as on AFL's Bench.
+                    onPlayerLongPress
+                    ? () => onPlayerLongPress(p.id)
+                    : undefined
+                  : onPlayerClick
+                    ? () => onPlayerClick(p.id)
+                    : undefined
+              }
               onLongPress={
                 onPlayerLongPress
                   ? () => onPlayerLongPress(p.id)

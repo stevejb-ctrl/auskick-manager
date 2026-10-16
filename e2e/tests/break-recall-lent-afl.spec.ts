@@ -37,7 +37,7 @@ test("AFL: a player lent before kickoff can be recalled at the quarter break", a
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL,
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -119,7 +119,7 @@ test("AFL: a player lent before kickoff can be recalled at the quarter break", a
     await selectTeamBtn.click({ timeout: 10_000 });
   }
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // The lent player is visible in the always-on recall strip (pre-fix: absent).

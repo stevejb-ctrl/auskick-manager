@@ -1,13 +1,25 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
 import { getSeasonEvents } from "@/lib/season";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
+import { withThirdsToday } from "@/lib/playbook/dayLines";
+import { replayLocks } from "@/lib/live/locks";
+import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
+import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
+import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
+import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { LineupPicker } from "@/components/live/LineupPicker";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
-import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { ParentScoreboard } from "@/components/live/ParentScoreboard";
+import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -15,12 +27,13 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, netballSport, rugbyLeagueSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
-import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -28,6 +41,17 @@ import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib
  * one into that shape. Their ids stay unique UUIDs so game_events can
  * reference them directly.
  */
+/** The lineup's player role sheet: coaches only, and only when How we play has roles. */
+function coachRoleSheet(
+  isAdmin: boolean,
+  resolved: Parameters<typeof roleModelFor>[0],
+  prefs: Parameters<typeof rolesFromPrefs>[0],
+): RoleSheetConfig | undefined {
+  if (!isAdmin) return undefined;
+  const model = roleModelFor(resolved);
+  return model ? { model, roles: rolesFromPrefs(prefs, model.unit) } : undefined;
+}
+
 function fillInToPlayer(f: FillIn, teamId: string): Player {
   return {
     id: f.id,
@@ -146,13 +170,6 @@ export default async function LivePage({ params }: LivePageProps) {
 
   const isAdmin = membership?.role === "admin";
   const canRun = isAdmin || membership?.role === "game_manager";
-  if (!canRun) {
-    return (
-      <div className="rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
-        Only admins and game managers can run a live game.
-      </div>
-    );
-  }
 
   const [{ data: game }, { data: teamRow }, { data: thisGameEvents }] = await Promise.all([
     supabase
@@ -175,7 +192,7 @@ export default async function LivePage({ params }: LivePageProps) {
   if (!game) notFound();
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
-  const sport: Sport = (teamRow?.sport as Sport | undefined) ?? "afl";
+  const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   // track_scoring is sport-agnostic — both AFL and netball flows
   // honour it. Hoisted ABOVE the netball branch (was nested inside
   // the AFL branch) so plan 04-04's NetballLiveGame can consume it.
@@ -184,6 +201,26 @@ export default async function LivePage({ params }: LivePageProps) {
   // gate, score-bug numeric gate, walkthrough scoring-step gate,
   // and the summary-card result+goals-line gate.
   const trackScoring = teamRow?.track_scoring ?? false;
+
+  // Parents follow the game read-only: a self-refreshing scoreboard,
+  // not the old "only coaches and managers" dead end (UX plan §6).
+  if (!canRun) {
+    const periodLabel = (getAgeGroupConfig(sport, teamRow?.age_group ?? null).periodLabel ??
+      "quarter") as "quarter" | "half" | "period";
+    return (
+      <div className="space-y-4">
+        <LiveTopBar exitHref={`/teams/${params.teamId}/games/${params.gameId}`} game={g} />
+        <ParentScoreboard
+          sport={sport}
+          teamName={teamName}
+          opponent={g.opponent}
+          events={(thisGameEvents ?? []) as GameEvent[]}
+          trackScoring={trackScoring}
+          periodLabel={periodLabel}
+        />
+      </div>
+    );
+  }
   // Netball-only: opt-in mid-quarter subs. Default false so existing
   // teams keep the break-only sub behaviour they've always had.
   // AFL ignores this — AFL has its own interchange flow.
@@ -253,10 +290,11 @@ export default async function LivePage({ params }: LivePageProps) {
   // 4-5; Phase 3 ships the core flow without them). The branch
   // forks here so none of the AFL zone-minutes / netball position-
   // count helpers below run for an RL game.
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
+    const rugbyCfg = getSportConfig(sport);
     const ageCfgL =
-      rugbyLeagueSport.ageGroups.find((a) => a.id === teamRow?.age_group)
-        ?? rugbyLeagueSport.ageGroups.find((a) => a.id === "U10")!;
+      rugbyCfg.ageGroups.find((a) => a.id === teamRow?.age_group)
+        ?? rugbyCfg.ageGroups.find((a) => a.id === "U10")!;
     const periodSeconds = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -265,6 +303,21 @@ export default async function LivePage({ params }: LivePageProps) {
       ageCfgL,
       { quarter_length_seconds: g.quarter_length_seconds },
     );
+    // Game → team → false. Newly-created games have a null override so
+    // they inherit the team's standing preference; the mid-game toggle
+    // writes the per-game value as a true override (Steve 2026-05-26).
+    const leagueEnforceUnbroken =
+      (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
+      (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
+        ?.enforce_unbroken_periods ??
+      false;
+    // Same fallback for "Track forward/back time" — prior behaviour read
+    // only game.track_zone_time, so new games never inherited the team
+    // setting (Steve 2026-05-26).
+    const leagueTrackZoneTime =
+      (g as { track_zone_time?: boolean | null }).track_zone_time ??
+      (teamRow as { track_zone_time?: boolean | null } | null)?.track_zone_time ??
+      false;
 
     const [
       { data: avail },
@@ -306,7 +359,7 @@ export default async function LivePage({ params }: LivePageProps) {
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
 
-    const replay = replayLeagueGame((thisGameEvents ?? []) as GameEvent[]);
+    const replay = replayRugbyGame((thisGameEvents ?? []) as GameEvent[], rugbyPoints(sport));
     const hasStarted = replay.lineup !== null;
 
     // Season events (this-game-excluded) — drives the lineup-picker's
@@ -317,6 +370,33 @@ export default async function LivePage({ params }: LivePageProps) {
     const allLeagueSeasonEvents = await getSeasonEvents(params.teamId);
     const leagueSeasonEvents = allLeagueSeasonEvents.filter(
       (e) => e.game_id !== params.gameId,
+    );
+    // How we play for the league suggester (UX plan 5.6): lines from
+    // roles and season balance, the vest strategy, keep-on.
+    const lg = await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null);
+    const lgAge = getAgeGroupConfig(sport, teamRow?.age_group ?? null);
+    const lgPeriodSeconds = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+      lgAge,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    // A game in progress plays what it kicked off with (as AFL and netball).
+    const leaguePlaybook = withKickoffSnapshot(
+      sport,
+      leaguePlaybookInput(
+        lg.resolved,
+        lg.prefs,
+        lg.rules,
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "line", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+        lgPeriodSeconds * 1000,
+        lg.vestStrategy,
+        seasonTimeByUnit(sport, leagueSeasonEvents as GameEvent[], "position", {
+          since: lg.resolved.seasonBalanceSince,
+        }),
+      ),
+      g.playbook_snapshot,
     );
 
     if (!hasStarted) {
@@ -363,6 +443,19 @@ export default async function LivePage({ params }: LivePageProps) {
         return out;
       })();
 
+      const leagueAvailabilityPanel = (
+        <GameDayAvailabilityPanel
+          auth={{ kind: "team", teamId: params.teamId }}
+          teamId={params.teamId}
+          gameId={params.gameId}
+          squad={(players ?? []) as Player[]}
+          availableIds={availableIds}
+          fillInCount={fillInsForLive.length}
+          canManageMatch
+          showJerseyNumber={rugbyCfg.jerseyNumbers}
+        />
+      );
+
       return (
         <div className="space-y-4">
           <LiveTopBar
@@ -370,15 +463,20 @@ export default async function LivePage({ params }: LivePageProps) {
             game={g}
           />
           {availablePlayers.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-              No players marked available — go back and set availability first.
-            </p>
+            <>
+              {leagueAvailabilityPanel}
+              <EmptyState title="Mark who's here to build the lineup." />
+            </>
           ) : (
             // Pre-game lineup picker — rugby pitch + bench strip
             // + LockModal long-press menu. Spike promoted to
             // default (Steve 2026-05-19, see LeagueLineupPicker.tsx
             // header for the interaction model).
             <LeagueLineupPicker
+              sport={sport}
+              // Rebuild the suggestion when who's-here changes.
+              key={Array.from(availableIds).sort().join(",")}
+              availabilityPanel={leagueAvailabilityPanel}
               auth={{ kind: "team", teamId: params.teamId }}
               gameId={params.gameId}
               players={availablePlayers}
@@ -387,27 +485,44 @@ export default async function LivePage({ params }: LivePageProps) {
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               defaultSubMinutes={g.sub_interval_seconds / 60}
-              gamePlanButton={
-                <GamePlanButton
-                  sport={sport}
-                  ageGroup={ageCfgL}
-                  players={availablePlayers}
-                  onFieldSize={g.on_field_size}
-                  teamName={teamName}
-                  opponentName={g.opponent}
-                  seasonEvents={leagueSeasonEvents as GameEvent[]}
-                  chipModeByKey={teamChipModes}
-                />
-              }
+              gamePlan={{
+                sport,
+                ageGroup: ageCfgL,
+                players: availablePlayers,
+                onFieldSize: g.on_field_size,
+                periodMinutes: lgPeriodSeconds / 60,
+                subIntervalSeconds: g.sub_interval_seconds,
+                teamName,
+                opponentName: g.opponent,
+                seasonEvents: leagueSeasonEvents as GameEvent[],
+                chipModeByKey: teamChipModes,
+                leaguePlaybook,
+              }}
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              backHref={`/teams/${params.teamId}/games/${params.gameId}`}
+              enforceUnbrokenPeriods={leagueEnforceUnbroken}
+              walkthroughOffer={
+                <LeagueWalkthroughOffer
+                  sport={sport}
+                  trackScoring={trackScoring}
+                  periodLabel={periodLabels(sport, ageCfgL).label}
+                  vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
+                  kickingAllowed={ageCfgL.kickingAllowed === true}
+                  goalsFromPlay={ageCfgL.goalsFromPlay === true}
+                  kickRotations={ageCfgL.kickRotations === true}
+                  unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
+                  trackZoneTime={leagueTrackZoneTime}
+                  enforceUnbrokenPeriods={leagueEnforceUnbroken}
+                />
+              }
               chipLabels={{
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,
               }}
               chipModes={teamChipModes}
+              leaguePlaybook={leaguePlaybook}
+              roleSheet={coachRoleSheet(isAdmin, lg.resolved, lg.prefs)}
             />
           )}
         </div>
@@ -418,45 +533,22 @@ export default async function LivePage({ params }: LivePageProps) {
       <div className="space-y-3">
         <LeagueLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
           ageGroup={ageCfgL}
           periodSeconds={periodSeconds}
           subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
-          enforceUnbrokenPeriods={
-            // Game → team → false fallback. Same shape as
-            // trackZoneTime above — newly-created games have a null
-            // override so they should inherit the team's standing
-            // preference. Mid-game toggle writes the per-game value
-            // as a true override (Steve 2026-05-26 — paired with
-            // the trackZoneTime fix in this commit).
-            (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
-            (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
-              ?.enforce_unbroken_periods ??
-            false
-          }
-          trackZoneTime={
-            // Fall back game → team → false so a coach who turns on
-            // "Track forward/back time" at the team level sees the
-            // in-game bar without having to re-flip it per game.
-            // The mid-game Game-Settings toggle writes
-            // games.track_zone_time directly (true/false) — once
-            // set, the per-game value overrides the team default
-            // (Steve 2026-05-26 — prior behaviour read only
-            // game.track_zone_time and ignored the team setting,
-            // so newly-created games never inherited the team's
-            // standing preference).
-            (g as { track_zone_time?: boolean | null }).track_zone_time ??
-            (teamRow as { track_zone_time?: boolean | null } | null)
-              ?.track_zone_time ??
-            false
-          }
+          enforceUnbrokenPeriods={leagueEnforceUnbroken}
+          trackZoneTime={leagueTrackZoneTime}
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}
           seasonEvents={leagueSeasonEvents as GameEvent[]}
           chipModes={teamChipModes}
+          leaguePlaybook={leaguePlaybook}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
@@ -553,6 +645,29 @@ export default async function LivePage({ params }: LivePageProps) {
 
     const state = replayNetballGame((thisGameEvents ?? []) as GameEvent[]);
 
+    // How we play for the netball suggester (UX plan Phase 5): style,
+    // roles, rules and season balance by third or bib (since a reset).
+    const nb = await loadTeamPlaybook(supabase, params.teamId, "netball", teamRow?.age_group ?? null);
+    const nbUnit = nb.resolved.strategy.balanceUnit === "third" ? "third" : "bib";
+    const netballPlaybook = withThirdsToday(
+      withNetballSnapshot(
+        netballPlaybookInput(
+          nb.resolved,
+          nb.prefs,
+          nb.rules,
+          seasonTimeByUnit("netball", seasonEvents as GameEvent[], nbUnit, {
+            since: nb.resolved.seasonBalanceSince,
+            periodSeconds: quarterLengthSeconds,
+          }),
+          quarterLengthSeconds * 1000,
+        ),
+        g.playbook_snapshot,
+      ),
+      seasonEvents as GameEvent[],
+      (thisGameEvents ?? []) as GameEvent[],
+      quarterLengthSeconds,
+    );
+
     // Pre-game lineup draft (netball) — saved by Save plan & exit
     // from inside NetballLineupPicker. Cleared at kickoff by
     // startNetballGame. Steve 2026-05-13 sport-parity fix —
@@ -640,10 +755,23 @@ export default async function LivePage({ params }: LivePageProps) {
             in-game chrome itself. */}
         <NetballLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          renderedAtMs={Date.now()}
           game={g}
           teamName={teamName}
           squad={squad}
           availableIds={availableIds}
+          availabilityPanel={
+            <GameDayAvailabilityPanel
+              auth={{ kind: "team", teamId: params.teamId }}
+              teamId={params.teamId}
+              gameId={params.gameId}
+              squad={(players ?? []) as Player[]}
+              availableIds={availableIds}
+              fillInCount={fillInsForLive.length}
+              canManageMatch
+              showJerseyNumber={getSportConfig("netball").jerseyNumbers}
+            />
+          }
           ageGroup={ageCfgN}
           quarterLengthSeconds={quarterLengthSeconds}
           initialLineup={state.lineup}
@@ -665,22 +793,26 @@ export default async function LivePage({ params }: LivePageProps) {
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
           chipModeByKey={teamChipModes}
+          netballPlaybook={netballPlaybook}
+          roleSheet={coachRoleSheet(isAdmin, nb.resolved, nb.prefs)}
           songUrl={songUrlTop}
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
-          gamePlanButton={
-            isPreKickoff ? (
-              <GamePlanButton
-                sport={sport}
-                ageGroup={ageCfgN}
-                players={squad.filter((p) => availableIds.includes(p.id))}
-                onFieldSize={g.on_field_size}
-                teamName={teamName}
-                opponentName={g.opponent}
-                seasonEvents={seasonEvents as GameEvent[]}
-                chipModeByKey={teamChipModes}
-              />
-            ) : undefined
+          gamePlan={
+            isPreKickoff
+              ? {
+                  sport,
+                  ageGroup: ageCfgN,
+                  players: squad.filter((p) => availableIds.includes(p.id)),
+                  onFieldSize: g.on_field_size,
+                  periodMinutes: quarterLengthSeconds / 60,
+                  teamName,
+                  opponentName: g.opponent,
+                  seasonEvents: seasonEvents as GameEvent[],
+                  chipModeByKey: teamChipModes,
+                  netballPlaybook,
+                }
+              : undefined
           }
         />
         {/* ResetGameButton is now rendered INSIDE NetballLiveGame's
@@ -696,32 +828,36 @@ export default async function LivePage({ params }: LivePageProps) {
   // (`trackScoring` is hoisted above the netball branch so both
   // sports share the same source — see the const at the top of
   // this function.)
-  const ageGroup = ageGroupOf(teamRow?.age_group);
   const songEnabled = teamRow?.song_enabled ?? true;
   const songUrl = songEnabled ? (teamRow?.song_url ?? null) : null;
   const songStartSeconds = teamRow?.song_start_seconds ?? 0;
   const songDurationSeconds = teamRow?.song_duration_seconds ?? 15;
-  const positionModel = AGE_GROUPS[ageGroup].positionModel;
-  void getSportConfig; // exported for future use; keep import alive.
+  const ageCfg = getAgeGroupConfig(aflBranch(sport), teamRow?.age_group ?? null);
+  const positionModel = aflPositionModel(ageCfg);
 
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
 
-  const ageCfg = AGE_GROUPS[ageGroup];
   // D-26 / D-27: compute the effective quarter length (seconds → ms) so
   // LiveGame's countdown cap and hooter trigger respect per-team and
   // per-game overrides instead of a hardcoded constant. Mirrors the
   // netball branch's call above. Three-level resolution, most specific
   // wins: game.quarter_length_seconds → team.quarter_length_seconds →
-  // ageGroup.periodSeconds (= 12 min for AFL U10). Uses the sport-config
-  // AgeGroupConfig (not the legacy AGE_GROUPS record) because
-  // getEffectiveQuarterSeconds expects the sport-config shape.
-  const ageCfgSport = getAgeGroupConfig("afl", ageGroup);
+  // ageGroup.periodSeconds (= 12 min for AFL U10).
   const quarterMs = getEffectiveQuarterSeconds(
     { quarter_length_seconds: (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
-    ageCfgSport,
+    ageCfg,
     { quarter_length_seconds: g.quarter_length_seconds },
   ) * 1000;
   const zoneCaps = zoneCapsFor(g.on_field_size, positionModel);
+  // How we play (UX plan 3.6): strategy, roles and season balance for
+  // the AFL suggesters.
+  const { resolved: playbook, prefs: playbookPrefs, rules: playbookRules } = await loadTeamPlaybook(
+    supabase,
+    params.teamId,
+    "afl",
+    teamRow?.age_group ?? null,
+  );
+  const aflPlaybookBase = aflPlaybookInput(playbook, playbookPrefs, playbookRules);
 
   if (hasStarted) {
     const state = replayGame((thisGameEvents ?? []) as GameEvent[]);
@@ -760,6 +896,11 @@ export default async function LivePage({ params }: LivePageProps) {
       (e) => e.game_id !== params.gameId,
     );
     const season = seasonZoneMinutes(allTeamEvents);
+    const aflPlaybook = withBalanceSeason(
+      withSnapshot(aflPlaybookBase, g.playbook_snapshot),
+      allTeamEvents,
+      playbook.seasonBalanceSince,
+    );
     const loanMins = seasonLoanMinutes(allTeamEvents);
     const seasonAvail = seasonAvailability(allTeamEvents);
     // Page-level sticky-bar clearance — kicks in at a Q-break
@@ -771,7 +912,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const isAtQbreak =
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
-      state.currentQuarter < ageCfgSport.periodCount;
+      state.currentQuarter < ageCfg.periodCount;
     const isLivePlay =
       state.currentQuarter >= 1 &&
       !state.quarterEnded &&
@@ -821,17 +962,18 @@ export default async function LivePage({ params }: LivePageProps) {
           zoneCaps={zoneCaps}
           positionModel={positionModel}
           currentOnFieldSize={g.on_field_size}
-          minOnFieldSize={ageCfgSport.minOnFieldSize}
-          maxOnFieldSize={ageCfgSport.maxOnFieldSize}
-          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          minOnFieldSize={ageCfg.minOnFieldSize}
+          maxOnFieldSize={ageCfg.maxOnFieldSize}
+          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           isAdmin={isAdmin}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
-          ageGroup={ageCfgSport}
+          ageGroup={ageCfg}
           clockMultiplier={g.clock_multiplier ?? 1}
         />
         {/* ResetGameButton is now rendered INSIDE LiveGame's
@@ -883,6 +1025,18 @@ export default async function LivePage({ params }: LivePageProps) {
   const availableIds = new Set((avail ?? []).map((a) => a.player_id));
   for (const f of fillInsForPicker) availableIds.add(f.id);
   const availablePlayers = allActive.filter((p) => availableIds.has(p.id));
+  const aflAvailabilityPanel = (
+    <GameDayAvailabilityPanel
+      auth={{ kind: "team", teamId: params.teamId }}
+      teamId={params.teamId}
+      gameId={params.gameId}
+      squad={(players ?? []) as Player[]}
+      availableIds={availableIds}
+      fillInCount={fillInsForPicker.length}
+      canManageMatch
+      showJerseyNumber={getSportConfig("afl").jerseyNumbers}
+    />
+  );
 
   // Season events: all events for this team's prior games.
   const otherGameIds = (teamGames ?? [])
@@ -896,6 +1050,11 @@ export default async function LivePage({ params }: LivePageProps) {
     : { data: [] as GameEvent[] };
 
   const season = seasonZoneMinutes((seasonEvents ?? []) as GameEvent[]);
+  const aflPlaybook = withBalanceSeason(
+    aflPlaybookBase,
+    (seasonEvents ?? []) as GameEvent[],
+    playbook.seasonBalanceSince,
+  );
 
   // Pre-game saved lineup. Picker pre-populates from this if present;
   // null/missing falls back to the fairness suggester.
@@ -954,11 +1113,15 @@ export default async function LivePage({ params }: LivePageProps) {
         game={g}
       />
       {availablePlayers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-          No players marked available — go back and set availability first.
-        </p>
+        <>
+          {aflAvailabilityPanel}
+          <EmptyState title="Mark who's here to build the lineup." />
+        </>
       ) : (
         <LineupPicker
+          // Rebuild the suggestion when who's-here changes on game day.
+          key={Array.from(availableIds).sort().join(",")}
+          availabilityPanel={aflAvailabilityPanel}
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
           players={availablePlayers}
@@ -967,25 +1130,30 @@ export default async function LivePage({ params }: LivePageProps) {
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.quarterSeconds * ageCfgSport.periodCount) / 60}
+          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
-          gamePlanButton={
-            <GamePlanButton
-              sport={sport}
-              ageGroup={ageCfgSport}
-              players={availablePlayers}
-              onFieldSize={g.on_field_size}
-              teamName={teamName}
-              opponentName={g.opponent}
-              seasonEvents={(seasonEvents ?? []) as GameEvent[]}
-              chipModeByKey={teamChipModes}
-            />
-          }
+          walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
+          gamePlan={{
+            sport,
+            ageGroup: ageCfg,
+            players: availablePlayers,
+            onFieldSize: g.on_field_size,
+            periodMinutes: quarterMs / 60_000,
+            subIntervalSeconds: g.sub_interval_seconds,
+            teamName,
+            opponentName: g.opponent,
+            seasonEvents: (seasonEvents ?? []) as GameEvent[],
+            chipModeByKey: teamChipModes,
+            aflPlaybook,
+          }}
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
+          aflPlaybook={aflPlaybook}
+          roleSheet={coachRoleSheet(isAdmin, playbook, playbookPrefs)}
           initialLoanedIds={initialLoanedIds}
+          initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
         />
       )}
     </div>

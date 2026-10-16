@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { clearGameRollup } from "@/lib/playbook/rollupStore";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
@@ -58,6 +59,21 @@ export async function setAvailability(
   playerId: string,
   status: AvailabilityStatus
 ): Promise<ActionResult> {
+  return setAvailabilityMany(auth, gameId, [playerId], status);
+}
+
+/**
+ * The same, for several players in one write: "Mark all in". It used to
+ * send one setAvailability per kid, one after another (12 round trips;
+ * over 10 s on a slow line, round 5).
+ */
+export async function setAvailabilityMany(
+  auth: LiveAuth,
+  gameId: string,
+  playerIds: string[],
+  status: AvailabilityStatus
+): Promise<ActionResult> {
+  if (playerIds.length === 0) return { success: true };
   if (auth.kind === "token") {
     const admin = createAdminClient();
     const { data: game } = await admin
@@ -68,13 +84,14 @@ export async function setAvailability(
     if (!game || game.share_token !== auth.token) {
       return { success: false, error: "Invalid share link." };
     }
+    const now = new Date().toISOString();
     const { error } = await admin.from("game_availability").upsert(
-      {
+      playerIds.map((playerId) => ({
         game_id: gameId,
         player_id: playerId,
         status,
-        updated_at: new Date().toISOString(),
-      },
+        updated_at: now,
+      })),
       { onConflict: "game_id,player_id" }
     );
     if (error) return { success: false, error: error.message };
@@ -116,14 +133,15 @@ export async function setAvailability(
   // to bypass RLS when the caller is super-admin — auth was
   // verified server-side above, so the admin escape is safe.
   const writer = membership ? supabase : createAdminClient();
+  const now = new Date().toISOString();
   const { error } = await writer.from("game_availability").upsert(
-    {
+    playerIds.map((playerId) => ({
       game_id: gameId,
       player_id: playerId,
       status,
       updated_by: userId,
-      updated_at: new Date().toISOString(),
-    },
+      updated_at: now,
+    })),
     { onConflict: "game_id,player_id" }
   );
 
@@ -245,11 +263,20 @@ export async function resetGame(
   if (auth.kind === "token") {
     const { data: game } = await admin
       .from("games")
-      .select("id, team_id, share_token")
+      .select("id, team_id, share_token, status")
       .eq("id", gameId)
       .maybeSingle();
     if (!game || game.share_token !== auth.token) {
       return { success: false, error: "Invalid share link." };
+    }
+    // A finished game is the season's record. Share links get passed
+    // around group chats, so they can't wipe one — a team admin can,
+    // from the game page.
+    if (game.status === "completed") {
+      return {
+        success: false,
+        error: "This game is finished. Only a team admin can restart it, from the game page.",
+      };
     }
     teamId = game.team_id;
   } else {
@@ -281,6 +308,8 @@ export async function resetGame(
     .delete()
     .eq("game_id", gameId);
   if (delError) return { success: false, error: delError.message };
+  // The game's time goes with its events (UX plan 4.5).
+  await clearGameRollup(admin, gameId);
 
   const { error: updError } = await admin
     .from("games")

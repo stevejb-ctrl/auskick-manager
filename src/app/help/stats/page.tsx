@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Stats · Help · Siren",
   description:
-    "Per-player stats, minutes equity, combinations, chemistry, and more.",
+    "Per-player stats, season balance, and the cards each sport adds: AFL scoring, netball chemistry, league laws.",
   alternates: { canonical: "/help/stats" },
 };
 
@@ -19,38 +19,48 @@ export default function StatsPage() {
       <h1 className="text-2xl font-bold text-ink">Stats</h1>
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         The Stats tab builds up over the course of your season. It draws on every
-        completed game to show how fairly the squad is being used, which player
-        combinations win, and much more.
+        finished game to show how fairly the squad is being used, who&apos;s
+        scoring, and much more. The cards differ by sport: AFL, netball and
+        league each show what matters for their game.
       </p>
       <p className="mt-2 text-sm text-ink-dim">
-        Stats only appear for <strong className="text-ink">completed</strong> games
-        (all four quarters ended). In-progress game data is excluded.
+        Stats only appear for <strong className="text-ink">finished</strong> games:
+        every quarter or half played out, then{" "}
+        <strong className="text-ink">Finish game</strong> tapped in the
+        full-time review. In-progress game data is excluded.
       </p>
 
       <HelpFigure
         src="/help-screenshots/stats-overview.png"
-        alt="The Stats tab overview showing multiple stat cards including minutes equity and player stats table"
-        caption="The Stats tab. Cards fill in as you complete more games."
+        alt="The AFL Stats tab overview showing several stat cards"
+        caption="The Stats tab (AFL shown). Cards fill in as you finish more games."
       />
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Player stats</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          A table showing every player&apos;s totals across the season:
+          Every player&apos;s totals across the season:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
-          <li>Total games played</li>
-          <li>Total minutes on the playing area (excluding bench time)</li>
           <li>
-            Minutes per position area — football breaks down by zone (FORWARD /
-            CENTRE / BACK and the half-zones); netball breaks down by third
-            (Attack / Centre / Defence) with per-position GS / GA / etc.
-            percentages
+            AFL: games played, total and average minutes, share of team time,
+            goals and behinds, and a Fwd / Cen / Back split
           </li>
-          <li>Scoring totals (if scoring was tracked)</li>
+          <li>
+            Netball: games, minutes, the Attack / Centre / Defence split with
+            per-position percentages (e.g. GS 40% · GA 20%), and goals
+          </li>
+          <li>
+            League: games played, tries and conversions (made / attempted).
+            Under 6 to Under 12 also show turns in the FR and DH vests,
+            kickoffs taken, and games where the unbroken-period rule was met;
+            from Under 13 these are replaced by penalty goals and field goals.
+            A row of team totals sits above the table: games, tries and
+            points, conversions made and points conceded
+          </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> At least one completed
+          <strong className="text-ink">Needs:</strong> At least one finished
           game. Scoring columns only populate if{" "}
           <Link href="/help/track-scoring" className="font-medium underline">
             Track scoring
@@ -60,107 +70,111 @@ export default function StatsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Minutes equity</h2>
+        <h2 className="text-xl font-semibold text-ink">Season balance</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          A visual breakdown of how total minutes on the playing area are
-          distributed across the squad. An even spread means every player is
-          getting similar game time. The coloured bars match the position
-          colour coding used in the live view.
+          Every sport has this card. It shows each player&apos;s minutes this
+          season in each line or position — AFL Fwd / Cen / Back; netball Att
+          / Cen / Def, or GS to GK if your team balances by position; league
+          Fwds / Backs, or your named positions — and tints any spot where a
+          kid is owed at
+          least a quarter (a half, for league from Under 10). The line at the
+          top counts how many kids are within a quarter (or half) of even.
+          Sort by <strong className="text-ink">Biggest gap</strong> to see
+          who&apos;s owed the most.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> At least one completed
-          game with rotation data (games that were started and ended properly).
+          <strong className="text-ink">Needs:</strong> At least one finished
+          game.
         </p>
 
         <HelpFigure
           src="/help-screenshots/stats-minutes-equity.png"
-          alt="The minutes equity chart showing stacked per-position bars for each player"
-          caption="Minutes equity: each bar shows a player's position breakdown for the season."
+          alt="AFL stats cards before any games are finished, each showing a No data yet note"
+          caption="Before your first finished game, each card shows a No data yet note."
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Winning combinations</h2>
+        <h2 className="text-xl font-semibold text-ink">Unbroken-period shortfalls (league)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Shows which player groupings have the best win rate when on the
-          playing area together in the same area. Combinations are ranked by
-          position and filtered to pairs/trios that have played enough together
-          to be meaningful.
+          League Under 6 to Under 12 only. If any player has finished a game
+          without banking the unbroken quarters or half that Junior Laws §6
+          asks for, a panel lists them with how many games they missed out, so
+          you can plan rotations so every player hits the minimum.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> Multiple completed games
-          with scoring tracked, so the app has enough win/loss data per
-          combination.
-        </p>
-
-        <HelpFigure
-          src="/help-screenshots/stats-combinations.png"
-          alt="The winning combinations card showing player pairs ranked by win rate per position"
-          caption="Winning combinations by position: who plays well together in each area."
-        />
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player chemistry</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Measures how often two players are on the playing area at the same
-          time and how the team performs during those stints. High chemistry
-          scores suggest a pairing that works well together.
-        </p>
-        <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> Multiple games with rotation
-          and scoring data.
+          <strong className="text-ink">Needs:</strong> At least one finished
+          game.
         </p>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Position fit</h2>
+        <h2 className="text-xl font-semibold text-ink">Player chemistry (netball)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Rates each player&apos;s effectiveness in each position, based on how
-          the team performs while they&apos;re there. Use this to identify
-          which players thrive in which positions.
+          The top pairs of players who&apos;ve spent the most minutes in the
+          same third together this season. Handy for spotting duos who end up
+          together week after week.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> Multiple completed games
+          <strong className="text-ink">Needs:</strong> Finished games where
+          players have shared a third for at least a quarter.
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Position fit (AFL)</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Rates each player&apos;s effectiveness in each line, based on how
+          the team scores while they&apos;re there. Use this to identify
+          which players thrive where.
+        </p>
+        <p className="mt-3 text-sm text-ink-dim">
+          <strong className="text-ink">Needs:</strong> Multiple finished games
           with scoring enabled.
         </p>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Head-to-head</h2>
+        <h2 className="text-xl font-semibold text-ink">Head-to-head by opponent (AFL and netball)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Compare any two players directly: their per-position minute split,
-          scoring totals, and win rate when on the playing area together vs.
-          apart.
+          Your record against each team you&apos;ve played this season: games,
+          wins, draws, losses, and scores for and against.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> At least two completed games
-          involving both players.
+          <strong className="text-ink">Needs:</strong> Finished games with
+          scoring tracked.
         </p>
+
+        <HelpFigure
+          src="/help-screenshots/stats-combinations.png"
+          alt="The AFL Position fit, Head-to-head by opponent, Quarter-by-quarter scoring and Attendance cards, before any games are finished"
+          caption="The lower AFL cards: Position fit, Head-to-head, Quarter-by-quarter scoring and Attendance."
+        />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Quarter-by-quarter scoring</h2>
+        <h2 className="text-xl font-semibold text-ink">Quarter-by-quarter scoring (AFL)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          A breakdown of how your team&apos;s scoring changed across each quarter of
-          the season. Useful for identifying patterns. For example, if you
+          Average goals scored and conceded in each quarter across the
+          season. Useful for identifying patterns. For example, if you
           consistently leak goals in Q3.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> Completed games with scoring
-          tracked.
+          <strong className="text-ink">Needs:</strong> Finished games with
+          scoring tracked.
         </p>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Attendance</h2>
+        <h2 className="text-xl font-semibold text-ink">Attendance (AFL and netball)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           A table showing each player&apos;s attendance record across the season:
-          how many games they were marked available and how many they missed.
+          how many of the finished games they played, as a number and a
+          percentage.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          <strong className="text-ink">Needs:</strong> At least one completed game
-          with availability marked.
+          <strong className="text-ink">Needs:</strong> At least one finished
+          game with availability marked.
         </p>
       </section>
 
@@ -173,12 +187,12 @@ export default function StatsPage() {
       </section>
 
       <HelpCallout type="tip">
-        Stats that depend on scoring (combinations, chemistry, position fit,
-        quarter scoring) require the{" "}
+        Stats that depend on scoring (AFL position fit and quarter-by-quarter
+        scoring, head-to-head, and the scoring columns in every sport) need{" "}
         <Link href="/help/track-scoring" className="font-medium underline">
           Track scoring
         </Link>{" "}
-        toggle to be on for those games.
+        to be on for those games.
       </HelpCallout>
     </HelpPage>
   );

@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
+import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow, SFCard } from "@/components/sf";
+import { loadSquadRoles } from "@/lib/playbook/load";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface PlayerListProps {
   teamId: string;
@@ -22,7 +26,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group, sport, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("age_group, sport")
       .eq("id", teamId)
       .single(),
   ]);
@@ -30,36 +34,16 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   // Resolve age-group config against the team's sport so netball teams
   // pick up NetSetGO max-squad limits (16) instead of falling through
   // to AFL U10's defaults.
-  const sport = ((team as { sport?: string | null } | null)?.sport ?? "afl") as Sport;
+  const sport = team ? teamSport((team as { sport?: string | null }).sport) : ((await teamSportById(teamId)) ?? notFound());
   const ageGroupCfg = getAgeGroupConfig(
     sport,
     (team as { age_group?: string | null } | null)?.age_group ?? null,
   );
   const maxPlayers = ageGroupCfg.maxSquadSize;
-  const showJersey = sport === "afl";
-  const teamRow = team as
-    | {
-        chip_a_label: string | null;
-        chip_b_label: string | null;
-        chip_c_label: string | null;
-        chip_a_mode?: import("@/lib/chips").ChipMode | null;
-        chip_b_mode?: import("@/lib/chips").ChipMode | null;
-        chip_c_mode?: import("@/lib/chips").ChipMode | null;
-      }
-    | null;
-  const chipLabels = {
-    a: teamRow?.chip_a_label ?? null,
-    b: teamRow?.chip_b_label ?? null,
-    c: teamRow?.chip_c_label ?? null,
-  };
-  // Threaded into PlayerRow so the chip indicator surfaces the
-  // zone-preference letter (F / C / B) when the chip mode is
-  // forward / centre / back. Steve 2026-05-20.
-  const chipModes: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>> = {
-    a: teamRow?.chip_a_mode ?? undefined,
-    b: teamRow?.chip_b_mode ?? undefined,
-    c: teamRow?.chip_c_mode ?? undefined,
-  };
+  // Player roles (How we play): what the role sheet offers depends on
+  // how the team plays — null at AFL zoned ages.
+  const { roleModel, roles } = await loadSquadRoles(supabase, teamId, sport, ageGroupCfg.id);
+  const showJersey = getSportConfig(sport).jerseyNumbers;
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -82,9 +66,15 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               maxPlayers={maxPlayers}
               takenJerseys={takenJerseys}
               showJersey={showJersey}
-              chipLabels={chipLabels}
-              chipModes={chipModes}
+              
             />
+            <div className="mt-3 border-t border-hairline pt-3">
+              <BulkAddPlayers
+                teamId={teamId}
+                withJersey={showJersey}
+                room={Math.max(0, maxPlayers - activePlayers.length)}
+              />
+            </div>
           </div>
         </SFCard>
       )}
@@ -110,8 +100,8 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
+                roleModel={roleModel}
+                role={roles[player.id]}
               />
             ))}
           </ul>
@@ -135,8 +125,6 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 takenJerseys={takenJerseys}
                 canEdit={isAdmin}
                 showJersey={showJersey}
-                chipLabels={chipLabels}
-                chipModes={chipModes}
               />
             ))}
           </ul>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { TagChip, TAG_COLORS } from "@/components/admin/TagChip";
 import { createTag, deleteTag, updateTag } from "@/app/(app)/admin/actions";
 import type { ContactTag } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface TagManagerProps {
   initialTags: ContactTag[];
@@ -100,10 +101,11 @@ export function TagManager({ initialTags }: TagManagerProps) {
         <h3 className="text-sm font-semibold text-ink">New tag</h3>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-name" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
               Name
             </label>
             <input
+              id="new-tag-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
@@ -111,10 +113,10 @@ export function TagManager({ initialTags }: TagManagerProps) {
             />
           </div>
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-colour" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
               Colour
             </label>
-            <ColorSelect value={color} onChange={setColor} />
+            <ColorSelect id="new-tag-colour" value={color} onChange={setColor} />
           </div>
           <Button
             size="sm"
@@ -131,9 +133,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
       {/* List */}
       <div className="space-y-2">
         {tags.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-6 text-center text-sm text-ink-mute">
-            No tags yet. Create one above.
-          </p>
+          <EmptyState title="No tags yet." description="Create one above." />
         ) : (
           <ul className="divide-y divide-hairline rounded-lg border border-hairline bg-surface">
             {tags.map((t) => {
@@ -143,6 +143,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
                   {editing ? (
                     <div className="flex flex-1 items-center gap-2">
                       <input
+                        aria-label="Tag name"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         maxLength={40}
@@ -189,14 +190,18 @@ export function TagManager({ initialTags }: TagManagerProps) {
 }
 
 function ColorSelect({
+  id,
   value,
   onChange,
 }: {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
     <select
+      id={id}
+      aria-label={id ? undefined : "Colour"}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="mt-1 rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"

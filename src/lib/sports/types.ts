@@ -8,7 +8,14 @@
 // substitution rule, period structure, and field/court UI.
 
 /** Stable identifier for a sport. New sports extend this union. */
-export type SportId = "afl" | "netball" | "rugby_league";
+export type SportId = "afl" | "netball" | "rugby_league" | "rugby_union";
+
+/**
+ * Sports that share an engine. Rugby league (and, next, rugby union)
+ * share the rugby engine — live game, replay, fairness — each with its
+ * own rules. Ask `isRugby(sport)`, never `sport === "rugby_league"`.
+ */
+export type SportFamily = "afl" | "netball" | "rugby";
 
 /** Identifier for one on-field position within a sport (e.g. "gs", "mid"). */
 export type PositionId = string;
@@ -130,6 +137,54 @@ export interface AgeGroupConfig {
    * forwards and the rest backs.
    */
   forwardCount?: number;
+  /**
+   * Rugby: forwards at each on-field size the age group plays, when the
+   * sport states one (union: Hunter's by-laws from 10 a side). Without
+   * it, `forwardCount` holds at every size (league).
+   */
+  forwardsBySize?: Record<number, number>;
+  /**
+   * Rugby league only — the grade plays international (open-age) laws
+   * rather than the national 6–12 junior laws (U13 and up). It names
+   * the law set; the knobs below say what those laws do, so a sport
+   * with other laws (union) can mix them.
+   */
+  internationalLaws?: boolean;
+  /**
+   * Rugby: penalty goals and field (drop) goals score. League's junior
+   * laws forbid both (Law 17); its international grades allow them.
+   */
+  goalsFromPlay?: boolean;
+  /**
+   * Rugby league junior laws §15–16: the goal-kick and kickoff
+   * rotations (nobody kicks twice until everyone has had a turn).
+   */
+  kickRotations?: boolean;
+  /**
+   * Rugby league junior laws §6: the unbroken-period rule applies at
+   * this age (`minUnbrokenPeriods` says how many periods).
+   */
+  unbrokenPeriods?: boolean;
+  /** Rugby: How we play's suggested strategy for this age (★). */
+  recommendedStrategy?: RugbyStrategyId;
+}
+
+/** Rugby How we play strategies (rugby_league/playbook.ts). */
+export type RugbyStrategyId = "both-lines" | "preferred-line" | "named-positions";
+
+/**
+ * A rugby age group states every rugby rule itself (sports are
+ * independent): nothing is left to a default or borrowed from another
+ * rugby sport.
+ */
+export interface RugbyAgeGroupConfig extends AgeGroupConfig {
+  kickingAllowed: boolean;
+  minUnbrokenPeriods: number;
+  forwardCount: number;
+  goalsFromPlay: boolean;
+  kickRotations: boolean;
+  unbrokenPeriods: boolean;
+  recommendedStrategy: RugbyStrategyId;
 }
 
 // ─── Brand (domain) config ───────────────────────────────────
@@ -170,6 +225,8 @@ export interface ValidationResult {
 // ─── SportConfig ─────────────────────────────────────────────
 export interface SportConfig {
   id: SportId;
+  /** The engine this sport runs on (see SportFamily). */
+  family: SportFamily;
   name: string;
   /** Customer-facing short name (e.g. "AFL" / "Netball"). */
   shortName: string;
@@ -177,7 +234,14 @@ export interface SportConfig {
   zones: ZoneDef[];
   allPositions: PositionDef[];
   scoreTypes: ScoreTypeDef[];
+  /** Age groups a new or edited team can pick, in picker order. */
   ageGroups: AgeGroupConfig[];
+  /**
+   * Retired ids that existing teams may still store (e.g. AFL's unsplit
+   * "U16" / "U17"). `getAgeGroupConfig` resolves them; pickers never
+   * offer them.
+   */
+  legacyAgeGroups?: AgeGroupConfig[];
   substitutionRule: "rolling" | "period-break-only";
   periodLabel: "quarter" | "half" | "period";
   periodLabelPlural: "quarters" | "halves" | "periods";
@@ -191,6 +255,17 @@ export interface SportConfig {
    *     age-group's `minUnbrokenPeriods` requirement.
    */
   fairnessModel: "zone-minutes" | "position-count-per-game" | "unbroken-period";
+  /**
+   * Kids wear numbers the coach records (AFL guernseys, league jerseys).
+   * Netball doesn't: the bib is the position. Every squad, availability
+   * and live surface reads this — none decides for itself.
+   */
+  jerseyNumbers: boolean;
+  /**
+   * The live screen plays the team song when the team scores (AFL and
+   * netball goals). League's doesn't, so its settings don't offer one.
+   */
+  teamSong: boolean;
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /**

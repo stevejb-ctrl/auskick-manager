@@ -1,13 +1,7 @@
 "use client";
 
-import type { Player, Zone } from "@/lib/types";
-import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
-
-/** AFL Zone ids (back | hback | mid | hfwd | fwd) widen to string so
- *  other sports (rugby league: "forward" | "back") can pass their own
- *  zone ids. The component falls back to capitalising the raw string
- *  when the id isn't in ZONE_SHORT_LABELS. */
-type ZoneOrString = Zone | string;
+import type { Player } from "@/lib/types";
+import { Modal } from "@/components/ui/Modal";
 
 export interface InjuryReplacementCandidate {
   player: Player;
@@ -18,10 +12,12 @@ export interface InjuryReplacementCandidate {
 interface InjuryReplacementModalProps {
   /** The player about to be marked injured (currently on field). */
   injuredPlayer: Player;
-  /** Zone they're vacating — shown so the coach knows which spot to fill.
-   *  Accepts an AFL Zone id OR a plain string (e.g. "forward" / "back"
-   *  for rugby league). Non-AFL zone ids are capitalised as a fallback. */
-  zone: ZoneOrString;
+  /**
+   * The spot they're vacating, in the sport's own words (AFL "Back",
+   * league "Forward", netball "GS"), so the coach knows which to fill.
+   * Each sport labels its own spots; the modal never guesses.
+   */
+  spotLabel: string;
   /**
    * Bench candidates eligible to take the spot, ALREADY SORTED by ascending
    * totalMs (least played first). The top of the list is rendered as the
@@ -51,29 +47,16 @@ function formatMinSec(ms: number): string {
  */
 export function InjuryReplacementModal({
   injuredPlayer,
-  zone,
+  spotLabel,
   candidates,
   onPickReplacement,
   onSkipReplacement,
   onCancel,
 }: InjuryReplacementModalProps) {
   const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
-  // AFL zones map to short labels via ZONE_SHORT_LABELS. Non-AFL zones
-  // (e.g. "forward" / "back" for rugby league) get capitalised as a
-  // fallback so the modal copy is readable for any sport.
-  const zoneLabel
-    = zone in ZONE_SHORT_LABELS
-      ? ZONE_SHORT_LABELS[zone as Zone]
-      : String(zone).charAt(0).toUpperCase() + String(zone).slice(1);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="injury-replacement-title"
-    >
-      <div className="flex max-h-[85vh] w-full max-w-sm flex-col rounded-lg border border-hairline bg-surface shadow-modal">
+    <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
         <div className="px-5 pt-5">
           <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-danger">
             Marking {firstName} injured
@@ -82,7 +65,7 @@ export function InjuryReplacementModal({
             id="injury-replacement-title"
             className="mb-1 text-center text-base font-bold text-ink"
           >
-            Who comes on at {zoneLabel}?
+            Who comes on at {spotLabel}?
           </h2>
           <p className="mb-4 text-center text-xs text-ink-dim">
             Pick a player from the bench. Suggested = least field time so far.
@@ -149,7 +132,6 @@ export function InjuryReplacementModal({
             Cancel
           </button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

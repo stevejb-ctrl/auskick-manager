@@ -10,6 +10,10 @@ import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
+import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
+import { kickoffSnapshot } from "@/lib/playbook/snapshot";
+import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -22,12 +26,14 @@ async function clampOnFieldSize(
   teamId: string,
   requested: number,
 ): Promise<{ value: number; min: number; max: number }> {
+  // This module writes afl games only: clamp to that sport's
+  // own age groups, never whatever another sport would allow.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group")
+    .select("age_group")
     .eq("id", teamId)
     .maybeSingle();
-  const ageCfg = getAgeGroupConfig(team?.sport, team?.age_group);
+  const ageCfg = getAgeGroupConfig("afl", team?.age_group);
   const min = ageCfg.minOnFieldSize;
   const max = ageCfg.maxOnFieldSize;
   const value = Math.max(min, Math.min(max, Math.floor(requested)));
@@ -202,6 +208,8 @@ export async function startGame(
       status: "in_progress",
       sub_interval_seconds: subIntervalSeconds,
       on_field_size: clampedSize,
+      // How we play at kickoff (UX plan 3.7).
+      playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
     })
     .eq("id", gameId);
 
@@ -449,11 +457,11 @@ export async function setOnFieldSizeMidGame(
 
 /**
  * Mid-game override of the sub-interval cadence (AFL only — drives
- * the SubDueModal reminder). Coach realises mid-quarter that the
+ * the sub-due banner). Coach realises mid-quarter that the
  * pre-game guess was wrong (kids gassed at 4m, or barely warm at
  * 6m) — this lets them dial it without restarting the game or
  * waiting for the next break. The live page's RSC SELECT picks up
- * the new value on the next refresh and the SubDueModal retimes
+ * the new value on the next refresh and the sub-due banner retimes
  * from the new cadence.
  *
  * Validation matches the pre-game LineupPicker input: integer or
@@ -487,39 +495,6 @@ export async function setSubInterval(
   const { error } = await w.supabase
     .from("games")
     .update({ sub_interval_seconds: rounded })
-    .eq("id", gameId);
-  if (error) return { success: false, error: error.message };
-
-  if (auth.kind === "team") {
-    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
-  } else {
-    revalidatePath(`/run/${auth.token}`, "layout");
-  }
-  return { success: true };
-}
-
-/**
- * Issue 2: set how many within-period subs to spread evenly across the
- * period (the live timer places them at k/(N+1) of the period length).
- */
-export async function setSubsPerQuarter(
-  auth: LiveAuth,
-  gameId: string,
-  subsPerQuarter: number,
-): Promise<ActionResult> {
-  const w = await resolveWriter(auth, gameId);
-  if (w.error) return { success: false, error: w.error };
-
-  if (!Number.isInteger(subsPerQuarter)) {
-    return { success: false, error: "Subs per quarter must be a whole number." };
-  }
-  if (subsPerQuarter < 1 || subsPerQuarter > 10) {
-    return { success: false, error: "Subs per quarter must be between 1 and 10." };
-  }
-
-  const { error } = await w.supabase
-    .from("games")
-    .update({ subs_per_quarter: subsPerQuarter })
     .eq("id", gameId);
   if (error) return { success: false, error: error.message };
 
@@ -620,6 +595,9 @@ export async function finaliseGame(
     .update({ status: "completed" })
     .eq("id", gameId);
   if (updateError) return { success: false, error: updateError.message };
+
+  // Season time rollup for stats and season balance (UX plan 4.5).
+  await writeGameRollup(w.supabase, gameId);
 
   if (auth.kind === "team") {
     // Perf phase 6: finalising affects the game detail page (status
@@ -825,6 +803,41 @@ export async function markLoan(
   );
 }
 
+/**
+ * Save a coach's hold on a player (Keep on / Keep in {zone} / Keep in
+ * {position}); a null lock clears it. Replayed by lib/live/locks.ts so
+ * the hold survives a reload and shows on a co-manager's phone.
+ */
+export async function recordPlayerLock(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_id: string;
+    lock: PlayerLock | null;
+    quarter: number;
+    elapsed_ms: number;
+  },
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (input.lock !== null && !isPlayerLock(input.lock)) {
+    return { success: false, error: "That hold isn't one we know." };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "player_lock",
+    {
+      player_id: input.player_id,
+      metadata: {
+        lock: input.lock,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
+    },
+    idempotencyKey,
+  );
+}
+
 export async function recordLineupSet(
   auth: LiveAuth,
   gameId: string,
@@ -861,6 +874,10 @@ export async function recordSwap(
   );
 }
 
+// Takes back the latest score of this kind still standing. It runs on
+// the game's write-queue lane (it used to bypass the queue, so it could
+// land before its goal), and a second undo no longer re-targets a score
+// already undone. Nothing standing: nothing to do (a retry won't help).
 export async function undoLastScore(
   auth: LiveAuth,
   gameId: string,
@@ -868,30 +885,38 @@ export async function undoLastScore(
     kind: "goal" | "behind" | "opponent_goal" | "opponent_behind";
     quarter: number;
     playerId: string | null;
-  }
+  },
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { data: latest } = await w.supabase
+  const scoreTypes = ["goal", "behind", "opponent_goal", "opponent_behind"];
+  const { data: rows } = await w.supabase
     .from("game_events")
-    .select("id")
+    .select("id, type, metadata")
     .eq("game_id", gameId)
-    .eq("type", input.kind)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in("type", [...scoreTypes, "score_undo"])
+    .order("created_at", { ascending: true });
+  const events = (rows ?? []) as { id: string; type: string; metadata: unknown }[];
+  const undone = new Set(pairScoreUndos(events, new Set(scoreTypes)).values());
+  const latest = [...events].reverse().find((e) => e.type === input.kind && !undone.has(e.id));
+  if (!latest) return { success: true };
 
-  if (!latest) return { success: false, error: "No score event found to undo." };
-
-  return insertEvent(auth, gameId, "score_undo", {
-    player_id: input.playerId,
-    metadata: {
-      target_event_id: latest.id,
-      original_type: input.kind,
-      quarter: input.quarter,
+  return insertEvent(
+    auth,
+    gameId,
+    "score_undo",
+    {
+      player_id: input.playerId,
+      metadata: {
+        target_event_id: latest.id,
+        original_type: input.kind,
+        quarter: input.quarter,
+      },
     },
-  });
+    idempotencyKey,
+  );
 }
 
 // ─── Score-log fetch / delete-any / retro-add ────────────────
@@ -947,6 +972,15 @@ export async function getGameScoreLog(
       created_at: row.created_at as string,
     };
   });
+  // Older netball undos don't name their target; pair them the way the
+  // replay does (pairScoreUndos), so the review matches the header.
+  const pairs = pairScoreUndos(
+    (data ?? []).map((row) => ({ id: row.id as string, type: row.type as string, metadata: row.metadata })),
+    new Set(["goal", "behind", "opponent_goal", "opponent_behind"]),
+  );
+  for (const e of entries) {
+    if (e.type === "score_undo" && !e.target_event_id) e.target_event_id = pairs.get(e.id) ?? null;
+  }
   return { success: true, entries };
 }
 

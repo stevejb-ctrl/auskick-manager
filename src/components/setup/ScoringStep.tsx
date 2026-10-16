@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
-import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
-import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
-import type { ChipMode } from "@/lib/chips";
+import {
+  HowWePlayCard,
+  type HowWePlayPosition,
+  type HowWePlayRow,
+} from "@/components/playbook/HowWePlayCard";
+import { noSportBranch, periodLabels } from "@/lib/sports";
+import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -11,41 +15,33 @@ interface ScoringStepProps {
   teamId: string;
   ageGroup: AgeGroupConfig;
   initialEnabled: boolean;
-  /**
-   * Sport-aware copy around scoring. AFL and rugby_league use the
-   * "track goals & behinds / track tries" framing in the default
-   * branch; netball gets its own copy below. Rugby-league-specific
-   * blurb lands in the team-setup phase (Phase 2 of the RL plan).
-   */
-  sportId?: Sport;
-  /** Current quarter-length override in seconds, or null to use age-group default. */
-  initialQuarterLengthSeconds?: number | null;
-  /**
-   * Existing chip labels and modes on the team. A freshly-created team
-   * has all-null labels (which the chip card treats as "off"); coaches
-   * who opt in during onboarding fill them in here and the SquadStep
-   * picks them up so chips can be applied as players are added. Steve
-   * 2026-05-20.
-   */
-  initialChipLabels?: { a: string | null; b: string | null; c: string | null };
-  initialChipModes?: { a: ChipMode; b: ChipMode; c: ChipMode };
+  /** The team's sport: each has its own scoring copy below. */
+  sportId: Sport;
+  /** The team's players on the field (its own, else the age group's): named positions are drawn for it. */
+  onFieldSize: number;
+  /** Saved How we play, or null for a new team (age-group defaults). */
+  playbookRow?: HowWePlayRow | null;
+  /** The team's own named positions (AFL open ages). */
+  positions?: HowWePlayPosition[];
 }
 
 export function ScoringStep({
   teamId,
   ageGroup,
   initialEnabled,
-  sportId = "afl",
-  initialQuarterLengthSeconds = null,
-  initialChipLabels = { a: null, b: null, c: null },
-  initialChipModes = { a: "split", b: "split", c: "split" },
+  sportId,
+  onFieldSize,
+  playbookRow = null,
+  positions = [],
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
-  // U6/U7 are tag (no scoreboard, ever), U8+ play modified tackle
-  // with tries + conversions tracked. createTeam pre-flips
+  // U6/U7 are tag (no scoreboard, ever), U8–U12 play modified tackle
+  // with tries + conversions tracked, and U13+ plays international laws
+  // (penalty and field goals too). createTeam pre-flips
   // track_scoring to match, so this step has nothing to toggle —
-  // we just explain what's happening and move on. AFL and netball
-  // keep the explicit toggle below.
+  // we just explain what's happening and move on. AFL, netball and
+  // union keep the explicit toggle below (union's pathway keeps no
+  // score to U11, but a competition can).
   const isRugbyLeague = sportId === "rugby_league";
   const rlScoringOn = isRugbyLeague && ageGroup.tracksScoreDefault === true;
 
@@ -56,12 +52,22 @@ export function ScoringStep({
         groups and switch it on once the kids move up. Flip this on if your
         league keeps a scoreboard —{" "}
         <strong className="text-ink">
-          you can update it later in Settings if you change your mind
+          you can change it later on the Team tab
         </strong>
         .
       </>
     ) : isRugbyLeague ? (
-      rlScoringOn ? (
+      rlScoringOn && ageGroup.goalsFromPlay ? (
+        // U13+ (Stagehand round 3: an Under 14 coach was told "modified
+        // tackle, tries and conversions").
+        <>
+          {ageGroup.label} plays international laws, so tries (4 points),
+          conversions (2 points), penalty goals (2 points) and field goals
+          (1 point) are tracked automatically. The live screen will surface
+          the score buttons and the post-game summary will include the
+          result.
+        </>
+      ) : rlScoringOn ? (
         <>
           {ageGroup.label} plays modified tackle, so tries (4 points) and
           conversions (2 points) are tracked automatically. The live screen
@@ -72,19 +78,23 @@ export function ScoringStep({
         <>
           {ageGroup.label} is tag rugby — the laws ban scoring at this age.
           No scoreboard, no conversions. The live screen will hide the
-          scoring buttons. Move up an age group from Settings if you
+          scoring buttons. Move up an age group from the Team tab if you
           switch to modified tackle.
         </>
       )
-    ) : (
+    ) : sportId === "rugby_union" ? (
+      <UnionScoringBlurb ageGroup={ageGroup} />
+    ) : sportId === "afl" ? (
       <>
         Most AFL juniors don&apos;t keep score up to U10, then scoring comes in
         around U11. Flip this on if your league keeps a scoreboard —{" "}
         <strong className="text-ink">
-          you can update it later in Settings if you change your mind
+          you can change it later on the Team tab
         </strong>
         .
       </>
+    ) : (
+      noSportBranch(sportId, "ScoringStep")
     );
 
   return (
@@ -93,6 +103,28 @@ export function ScoringStep({
 
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-ink">How we play</h1>
+        <p className="text-sm text-ink-dim">
+          What {ageGroup.label} requires, and how you want kids to rotate. Change it any
+          time from the Team tab.
+        </p>
+      </div>
+
+      <HowWePlayCard
+        teamId={teamId}
+        sport={sportId}
+        ageGroup={ageGroup.id}
+        ageLabel={ageGroup.label}
+        onFieldSize={onFieldSize}
+        maxOnFieldSize={ageGroup.maxOnFieldSize}
+        periodWord={periodLabels(sportId, ageGroup).label}
+        row={playbookRow}
+        positions={positions}
+        isAdmin
+        inWizard
+      />
+
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold text-ink">Scoring</h2>
         <p className="text-sm text-ink-dim">{blurb}</p>
         {!isRugbyLeague && (
           <p className="text-xs text-ink-mute">
@@ -110,36 +142,7 @@ export function ScoringStep({
         />
       )}
 
-      {/* Quarter-length override is a netball-only knob today — junior
-          netball leagues vary so much region-to-region that the
-          age-group default rarely fits everyone. AFL keeps its
-          age-group quarters as the source of truth. */}
-      {sportId === "netball" && (
-        <QuarterLengthInput
-          teamId={teamId}
-          ageGroupDefaultSeconds={ageGroup.periodSeconds}
-          initialOverrideSeconds={initialQuarterLengthSeconds}
-        />
-      )}
 
-      {/* Optional player chips — coaches who want to tag cohorts
-          within the squad (older / younger, mates, position-locked
-          regulars) can configure them here. Rendered open by
-          default because the previous dashed-border <details>
-          collapse was a custom UI element we never used elsewhere
-          and read as unclickable. The card defaults to Off so a
-          coach who doesn't engage with it leaves at "no chips" and
-          can come back later via Team Settings. Steve 2026-05-20:
-          replaces the <details> wrapper. */}
-      <CohortChipsSettings
-        teamId={teamId}
-        initialLabels={initialChipLabels}
-        initialModes={initialChipModes}
-        isAdmin
-        sport={sportId}
-        ageGroup={ageGroup.id}
-        hideSaveButton
-      />
 
       <div className="flex justify-end">
         <Link
@@ -162,5 +165,26 @@ export function ScoringStep({
         </Link>
       </div>
     </div>
+  );
+}
+
+/** Union's scoring copy, in its own points. */
+function UnionScoringBlurb({ ageGroup }: { ageGroup: AgeGroupConfig }) {
+  const pts = rugbyPoints("rugby_union");
+  const goals = ageGroup.goalsFromPlay
+    ? `, penalty goals (${pts.penaltyGoal}) and drop goals (${pts.fieldGoal})`
+    : "";
+  return ageGroup.tracksScoreDefault ? (
+    <>
+      {ageGroup.label} keeps score: tries ({pts.try} points), conversions ({pts.conversion}){goals}. The live
+      screen shows the score buttons and the post-game summary includes the result.
+    </>
+  ) : (
+    <>
+      Rugby Australia&apos;s pathway keeps no score before Under 12, so {ageGroup.label} starts with no
+      scoreboard. Flip this on if your competition keeps one: tries ({pts.try} points),
+      conversions ({pts.conversion}){goals} —{" "}
+      <strong className="text-ink">you can change it later on the Team tab</strong>.
+    </>
   );
 }

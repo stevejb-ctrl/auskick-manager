@@ -1,21 +1,29 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { TeamSongSettings } from "@/components/team/TeamSongSettings";
 import { TeamNameSettings } from "@/components/team/TeamNameSettings";
-import { CohortChipsSettings } from "@/components/team/CohortChipsSettings";
 import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
+import { OnFieldSizeInput } from "@/components/team/OnFieldSizeInput";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
 import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
 import { TrackZoneTimeToggle } from "@/components/team/TrackZoneTimeToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
-import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { SettingsSection } from "@/components/team/SettingsSection";
+import { AgeGroupSettings } from "@/components/team/AgeGroupSettings";
+import { DangerZone } from "@/components/team/DangerZone";
+import {
+  HowWePlayCard,
+  type HowWePlayPosition,
+  type HowWePlayRow,
+} from "@/components/playbook/HowWePlayCard";
 import {
   TeamMembersSettings,
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig } from "@/lib/sports";
-import { normalizeChipMode } from "@/lib/chips";
+import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { centreVest } from "@/lib/sports/rugby/zoneTime";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -32,7 +40,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -46,6 +54,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   ]);
 
   if (!team) notFound();
+  // Parents follow the team read-only — no Team tab (UX plan §6).
+  if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
 
   // Read `join_code` in its own query so a deploy that beats the
   // migration to prod still renders the rest of the page. Migration
@@ -66,9 +76,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   const isAdmin = membership?.role === "admin";
-  const sport = ((team.sport as string | null) ?? "afl") as Sport;
+  const sport = teamSport(team.sport);
 
   // Members: joined to profiles so we can show names/emails.
+  // team_memberships has two FKs to profiles (user_id, invited_by), so
+  // the embed must name the user_id FK — an unqualified profiles(...)
+  // is ambiguous (PGRST201) and returns no rows at all.
   type RawMembership = {
     user_id: string;
     role: TeamRole;
@@ -76,7 +89,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   };
   const { data: rawMembers } = await supabase
     .from("team_memberships")
-    .select("user_id, role, profiles(full_name, email)")
+    .select("user_id, role, profiles!team_memberships_user_id_fkey(full_name, email)")
     .eq("team_id", params.teamId)
     .returns<RawMembership[]>();
 
@@ -110,126 +123,159 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     invites = (rawInvites ?? []) as PendingInvite[];
   }
 
+  const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
+    supabase
+      .from("team_playbooks")
+      .select("strategy, policy_overrides, season_balance, season_balance_since, rules, vest_strategy")
+      .eq("team_id", params.teamId)
+      .maybeSingle(),
+    supabase
+      .from("team_positions")
+      .select("id, label, name, line, sort, archived_at")
+      .eq("team_id", params.teamId)
+      .is("archived_at", null)
+      .order("sort"),
+    supabase
+      .from("players")
+      .select("id, full_name")
+      .eq("team_id", params.teamId)
+      .eq("is_active", true)
+      .order("full_name"),
+  ]);
+  const ageOptions = getSportConfig(sport).ageGroups.map((a) => ({ id: a.id, label: a.label, notes: a.notes }));
+
+  // Team tab sections (UX plan §6 "Where each setting goes"): what the
+  // coach changes about how the team plays, who's on it, the season, the
+  // game-day extras, and the danger zone — instead of one long stack.
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
         isAdmin={isAdmin}
       />
-      <TeamMembersSettings
-        teamId={params.teamId}
-        isAdmin={isAdmin}
-        members={members}
-        invites={invites}
-        joinCode={joinCode}
-      />
-      <TrackScoringToggle
-        teamId={params.teamId}
-        initialEnabled={team.track_scoring ?? false}
-        isAdmin={isAdmin}
-        sportId={sport}
-      />
-      {/* Netball-only knobs: quarter-length override + mid-quarter
-          subs gate. Junior netball formats vary so much across
-          leagues (10-min, 12-min, 7-min depending on weather and
-          double-headers), and the mid-Q sub feature is a Steve-
-          requested opt-in for the minority of teams that use
-          rolling subs. AFL keeps its existing age-group quarters
-          as the source of truth — no override needed — and uses
-          its own interchange flow that doesn't read these
-          columns. */}
-      {/* Rugby-league-only: unbroken-period enforcement toggle.
-          §6 Junior Laws — each player must play two full unbroken
-          quarters (U6–U9) or one full half (U10–U12). Off by default
-          for casual comps; coaches whose league enforces it flip once
-          and all games for the team plan with the rule respected. */}
-      {sport === "rugby_league" && (
-        <UnbrokenPeriodsToggle
+
+      <SettingsSection
+        title="How we play"
+        description="How your team rotates on game day."
+      >
+        <HowWePlayCard
           teamId={params.teamId}
-          initialEnabled={
-            (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
-          }
+          sport={sport}
+          ageGroup={ageGroupCfg.id}
+          ageLabel={ageGroupCfg.label}
+          onFieldSize={teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null)}
+          maxOnFieldSize={ageGroupCfg.maxOnFieldSize}
+          periodWord={periodLabels(sport, ageGroupCfg).label}
+          row={(playbookRow ?? null) as HowWePlayRow | null}
+          positions={(positionRows ?? []) as HowWePlayPosition[]}
+          players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
         />
-      )}
-      {/* Rugby-league-only: zone-time tracking bar (AFL F/C/B
-          equivalent, with FR / DH vest time mapped to "centre").
-          Off by default. */}
-      {sport === "rugby_league" && (
-        <TrackZoneTimeToggle
+        {/* Rugby league §6 Junior Laws: each player plays two full
+            unbroken quarters (U6–U9) or one full half (U10–U12). Off by
+            default for casual comps. U13+ plays international laws:
+            no such rule, so no toggle. */}
+        {isRugby(sport) && (ageGroupCfg.minUnbrokenPeriods ?? 0) > 0 && (
+          <UnbrokenPeriodsToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
+            }
+            isAdmin={isAdmin}
+          />
+        )}
+        {/* Rugby zone-time bar (AFL F/C/B equivalent). */}
+        {isRugby(sport) && (
+          <TrackZoneTimeToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
+            }
+            isAdmin={isAdmin}
+            centreVest={centreVest(ageGroupCfg.vestRequirements)}
+          />
+        )}
+        {/* Netball's opt-in rolling subs (Steve-requested). */}
+        {sport === "netball" && (
+          <MidQuarterSubsToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ?? false
+            }
+            isAdmin={isAdmin}
+          />
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="People">
+        <TeamMembersSettings
           teamId={params.teamId}
-          initialEnabled={
-            (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
-          }
+          isAdmin={isAdmin}
+          members={members}
+          invites={invites}
+          joinCode={joinCode}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Season">
+        <AgeGroupSettings
+          teamId={params.teamId}
+          current={ageGroupCfg.id}
+          options={ageOptions}
           isAdmin={isAdmin}
         />
-      )}
-      {sport === "netball" && (() => {
-        const ageGroup = getAgeGroupConfig(
-          sport,
-          (team as { age_group?: string | null }).age_group ?? null,
-        );
-        return (
-          <>
-            <QuarterLengthInput
-              teamId={params.teamId}
-              ageGroupDefaultSeconds={ageGroup.periodSeconds}
-              initialOverrideSeconds={
-                (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
-              }
-              isAdmin={isAdmin}
-            />
-            <MidQuarterSubsToggle
-              teamId={params.teamId}
-              initialEnabled={
-                (team as { allow_mid_quarter_subs?: boolean | null }).allow_mid_quarter_subs ?? false
-              }
-              isAdmin={isAdmin}
-            />
-          </>
-        );
-      })()}
-      <CohortChipsSettings
-        teamId={params.teamId}
-        initialLabels={{
-          a:
-            (team as { chip_a_label?: string | null }).chip_a_label ?? null,
-          b:
-            (team as { chip_b_label?: string | null }).chip_b_label ?? null,
-          c:
-            (team as { chip_c_label?: string | null }).chip_c_label ?? null,
-        }}
-        initialModes={{
-          a: normalizeChipMode(
-            (team as { chip_a_mode?: string | null }).chip_a_mode,
-          ),
-          b: normalizeChipMode(
-            (team as { chip_b_mode?: string | null }).chip_b_mode,
-          ),
-          c: normalizeChipMode(
-            (team as { chip_c_mode?: string | null }).chip_c_mode,
-          ),
-        }}
-        isAdmin={isAdmin}
-        sport={sport}
-        ageGroup={(team as { age_group?: string | null }).age_group ?? null}
-      />
-      <TeamSongSettings
-        teamId={params.teamId}
-        currentSongUrl={team.song_url ?? null}
-        currentStartSeconds={team.song_start_seconds ?? 0}
-        currentDurationSeconds={team.song_duration_seconds ?? 15}
-        currentEnabled={team.song_enabled ?? true}
-        isAdmin={isAdmin}
-      />
-      {/* P2-10: per-user motion preference toggle. Not gated on
-          isAdmin — this is a personal accessibility setting, every
-          team member should be able to opt themselves out of
-          animations regardless of role. Writes to localStorage
-          (per-device, per-browser) so the choice doesn't leak
-          across users sharing a device. */}
-      <MotionPreferenceSettings />
+        {/* The team's competition's size and period length (competitions
+            differ by state), for every sport. A game can still override
+            both. */}
+        <OnFieldSizeInput
+          // Fresh after an age change: its range and saved size move.
+          // Not keyed on the saved size: its own save would remount it
+          // and drop the "Saved." confirmation. (Its own prefix: the
+          // period-length card beside it is keyed on the age too.)
+          key={`on-field:${ageGroupCfg.id}`}
+          teamId={params.teamId}
+          ageGroupDefault={ageGroupCfg.defaultOnFieldSize}
+          min={ageGroupCfg.minOnFieldSize}
+          max={ageGroupCfg.maxOnFieldSize}
+          initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
+          isAdmin={isAdmin}
+        />
+        <QuarterLengthInput
+          key={ageGroupCfg.id}
+          teamId={params.teamId}
+          ageGroupDefaultSeconds={ageGroupCfg.periodSeconds}
+          initialOverrideSeconds={
+            (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
+          }
+          periodWord={periodLabels(sport, ageGroupCfg).label === "half" ? "Half" : "Quarter"}
+          isAdmin={isAdmin}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Game-day extras">
+        <TrackScoringToggle
+          teamId={params.teamId}
+          initialEnabled={team.track_scoring ?? false}
+          isAdmin={isAdmin}
+          sportId={sport}
+        />
+        {getSportConfig(sport).teamSong && (
+          <TeamSongSettings
+            teamId={params.teamId}
+            currentSongUrl={team.song_url ?? null}
+            currentStartSeconds={team.song_start_seconds ?? 0}
+            currentDurationSeconds={team.song_duration_seconds ?? 15}
+            currentEnabled={team.song_enabled ?? true}
+            isAdmin={isAdmin}
+          />
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="Danger zone" tone="danger">
+        <DangerZone teamId={params.teamId} teamName={team.name} isAdmin={isAdmin} />
+      </SettingsSection>
     </div>
   );
 }

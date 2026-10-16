@@ -22,6 +22,7 @@
 import { useState } from "react";
 import type { Player } from "@/lib/types";
 import { netballSport } from "@/lib/sports/netball";
+import { Modal } from "@/components/ui/Modal";
 
 interface Props {
   player: Player;
@@ -103,17 +104,7 @@ export function NetballPlayerActions({
     emptyPositions.length > 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="netball-actions-title"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-xs rounded-lg border border-hairline bg-surface p-5 shadow-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal size="xs" labelledBy="netball-actions-title" onClose={onClose}>
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
@@ -198,11 +189,11 @@ export function NetballPlayerActions({
           {positionId && (
             isLockedForNextBreak ? (
               <ActionButton variant="ghost" onClick={onUnlock}>
-                🔓 Unlock for next break
+                🔓 Let rotate next break
               </ActionButton>
             ) : (
               <ActionButton variant="ghost" onClick={onLockForNextBreak}>
-                🔒 Keep at {positionLabel} next break
+                🔒 Keep in {positionLabel} next break
               </ActionButton>
             )
           )}
@@ -211,7 +202,7 @@ export function NetballPlayerActions({
               auto-prompt a replacement when toggling on. */}
           {isInjured ? (
             <ActionButton variant="ghost" onClick={onUnInjury}>
-              🩹 Mark recovered
+              🩹 Back on
             </ActionButton>
           ) : (
             <ActionButton variant="warn" onClick={onMarkInjured}>
@@ -223,7 +214,7 @@ export function NetballPlayerActions({
               the opposition when their numbers are short). */}
           {isLoaned ? (
             <ActionButton variant="ghost" onClick={onUnLoan}>
-              ↩️ Bring back from loan
+              ↩️ Bring back
             </ActionButton>
           ) : (
             <ActionButton variant="warn" onClick={onMarkLoaned}>
@@ -237,8 +228,7 @@ export function NetballPlayerActions({
           </>
           )}
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }
 

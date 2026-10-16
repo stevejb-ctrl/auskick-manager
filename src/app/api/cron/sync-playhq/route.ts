@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPlayhqTeamPage, parsePlayhqUrl } from "@/lib/playhq";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
+import { teamSport } from "@/lib/sports";
 
 // Allow up to 60 s — one PlayHQ fetch per team, sequential.
 export const maxDuration = 60;
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const { data: teams, error: teamsError } = await supabase
     .from("teams")
-    .select("id, age_group, playhq_url")
+    .select("id, sport, age_group, on_field_size, playhq_url")
     .not("playhq_url", "is", null);
 
   if (teamsError) {
@@ -57,17 +58,30 @@ export async function GET(req: NextRequest) {
 
 async function syncTeam(
   supabase: ReturnType<typeof createAdminClient>,
-  team: { id: string; age_group: string | null; playhq_url: string | null },
+  team: {
+    id: string;
+    sport: string | null;
+    age_group: string | null;
+    on_field_size: number | null;
+    playhq_url: string | null;
+  },
   now: number
 ): Promise<TeamSyncResult> {
   const base = { teamId: team.id, imported: 0, updated: 0, skipped: 0 };
 
-  const parsed = parsePlayhqUrl(team.playhq_url ?? "");
+  // One team with a bad sport mustn't stop the others syncing.
+  let sport;
+  try {
+    sport = teamSport(team.sport);
+  } catch (err) {
+    return { ...base, error: err instanceof Error ? err.message : "Unknown sport" };
+  }
+  const parsed = parsePlayhqUrl(team.playhq_url ?? "", sport);
   if (!parsed.ok) return { ...base, error: parsed.reason };
 
   let page: Awaited<ReturnType<typeof fetchPlayhqTeamPage>>;
   try {
-    page = await fetchPlayhqTeamPage(parsed.teamId);
+    page = await fetchPlayhqTeamPage(parsed.teamId, parsed.tenant);
   } catch (err) {
     return { ...base, error: err instanceof Error ? err.message : "PlayHQ fetch failed" };
   }
@@ -92,7 +106,7 @@ async function syncTeam(
   );
 
   // Resolve team config for defaults on new games.
-  const cfg = AGE_GROUPS[ageGroupOf(team.age_group ?? undefined)];
+  const defaults = newGameDefaults(team.sport, team.age_group, team.on_field_size);
 
   // Active-player lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the
@@ -145,8 +159,7 @@ async function syncTeam(
           location: f.venue,
           round_number: f.round,
           notes: null,
-          on_field_size: cfg.defaultOnFieldSize,
-          sub_interval_seconds: cfg.subIntervalSeconds,
+          ...defaults,
           external_source: "playhq",
           external_id: f.externalId,
           created_by: adminRow.user_id,

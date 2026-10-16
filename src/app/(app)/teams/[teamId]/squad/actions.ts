@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import type { ActionResult } from "@/lib/types";
+import { getAgeGroupConfig, teamSport } from "@/lib/sports";
+import type { ParsedPlayer } from "@/lib/squadPaste";
+import type { ActionResult, Sport } from "@/lib/types";
+import { teamSportById } from "@/lib/sports/teamSportById";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -31,13 +33,71 @@ async function squadCapFor(
   supabase: ReturnType<typeof createClient>,
   teamId: string
 ): Promise<number> {
+  // The team's own sport config — the AFL-only AGE_GROUPS map gave
+  // netball and league teams AFL U10's cap (20) whatever their age.
   const { data: team } = await supabase
     .from("teams")
-    .select("age_group")
+    .select("sport, age_group")
     .eq("id", teamId)
     .single();
-  const ageGroup = ageGroupOf((team as { age_group?: string } | null)?.age_group);
-  return AGE_GROUPS[ageGroup].maxSquadSize;
+  const row = team as { sport?: Sport | null; age_group?: string | null } | null;
+  const sport = row ? teamSport(row.sport) : await teamSportById(teamId);
+  // No such team: no room in its squad.
+  if (!sport) return 0;
+  return getAgeGroupConfig(sport, row?.age_group).maxSquadSize;
+}
+
+/**
+ * Add several players at once (the pasted-list path). All or nothing:
+ * checks the squad cap and taken jersey numbers first so a coach never
+ * ends up with half a list added.
+ */
+export async function addPlayers(
+  teamId: string,
+  players: ParsedPlayer[],
+): Promise<ActionResult & { added?: number }> {
+  const { supabase, user, error } = await getAuthedAdmin(teamId);
+  if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
+  if (players.length === 0) return { success: false, error: "No players to add." };
+
+  const maxPlayers = await squadCapFor(supabase, teamId);
+  const { data: active } = await supabase
+    .from("players")
+    .select("jersey_number")
+    .eq("team_id", teamId)
+    .eq("is_active", true);
+  const activeCount = (active ?? []).length;
+  if (activeCount + players.length > maxPlayers) {
+    const room = Math.max(0, maxPlayers - activeCount);
+    return {
+      success: false,
+      error: `That's ${players.length} players but there's room for ${room} (squad max ${maxPlayers}).`,
+    };
+  }
+  const taken = new Set((active ?? []).map((p) => p.jersey_number).filter((n) => n != null));
+  const clash = players.find((p) => p.jersey_number != null && taken.has(p.jersey_number));
+  if (clash) {
+    return { success: false, error: `Jersey #${clash.jersey_number} is already taken.` };
+  }
+
+  const { error: insertError } = await supabase.from("players").insert(
+    players.map((p) => ({
+      team_id: teamId,
+      full_name: p.full_name,
+      jersey_number: p.jersey_number,
+      created_by: user.id,
+    })),
+  );
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return { success: false, error: "One of those jersey numbers is already taken." };
+    }
+    return { success: false, error: insertError.message };
+  }
+
+  revalidatePath(`/teams/${teamId}/squad`);
+  revalidatePath(`/teams/${teamId}/setup`);
+  return { success: true, added: players.length };
 }
 
 export async function addPlayer(

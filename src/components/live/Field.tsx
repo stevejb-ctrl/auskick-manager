@@ -2,10 +2,10 @@
 
 import { Fragment } from "react";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
-import type { Player, PositionModel, Zone } from "@/lib/types";
+import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
-import { positionsFor } from "@/lib/ageGroups";
-import { PlayerTile } from "@/components/live/PlayerTile";
+import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
+import { PlayerTile, type TileCaption } from "@/components/live/PlayerTile";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface FieldProps {
@@ -47,6 +47,27 @@ interface FieldProps {
    * MICRO-INTERACTIONS-PLAN.md.
    */
   wakeUpKey?: number | null;
+  /**
+   * Planning screens (lineup picker, quarter break) draw their own draft
+   * on the same field the live game uses (UX plan principle 2: one
+   * lineup, one picture). Omit to read the live store.
+   */
+  lineup?: Lineup;
+  /** The selected player; omit to read the live store's selection. */
+  selectedPlayerId?: string | null;
+  /** An empty slot the coach aimed at first — its zone's empties glow. */
+  primedEmptyZone?: Zone | null;
+  /**
+   * Dim the other field tiles while one is selected. Live play dims
+   * (field → field is a zone swap); planning screens swap freely.
+   */
+  dimUnselected?: boolean;
+  /** Per-player tile captions ("STAYS", "BENCH → FWD"). */
+  captions?: Record<string, TileCaption>;
+  /** Set positions: playerId → position label shown on the tile. */
+  positionLabels?: Record<string, string>;
+  /** Kids with a season keep-on role (lineup screens). */
+  keepOnIds?: Set<string>;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -82,6 +103,13 @@ export function Field({
   playerScores,
   totalPairs,
   wakeUpKey = null,
+  lineup: lineupProp,
+  selectedPlayerId,
+  primedEmptyZone = null,
+  dimUnselected = true,
+  captions,
+  positionLabels,
+  keepOnIds,
 }: FieldProps) {
   // displayCaps drives the rendered slot count; zoneCaps drives the
   // suggester / placement rules. They diverge only when on-field
@@ -91,8 +119,17 @@ export function Field({
   const displayCaps = displayZoneCaps ?? zoneCaps;
   const injuredSet = new Set(injuredIds ?? []);
   const lockedSet = new Set(lockedIds ?? []);
-  const lineup = useLiveGame((s) => s.lineup);
-  const selected = useLiveGame((s) => s.selected);
+  const storeLineup = useLiveGame((s) => s.lineup);
+  const storeSelected = useLiveGame((s) => s.selected);
+  const lineup = lineupProp ?? storeLineup;
+  const selectedFieldId =
+    selectedPlayerId !== undefined
+      ? selectedPlayerId
+      : storeSelected?.kind === "field"
+        ? storeSelected.playerId
+        : null;
+  const anySelected =
+    selectedPlayerId !== undefined ? selectedPlayerId !== null : storeSelected !== null;
 
   // Render attacking up the page: fwd first → back last.
   const zones = positionsFor(positionModel).slice().reverse();
@@ -227,18 +264,26 @@ export function Field({
               {showDivider && (
                 <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
               )}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Named group per zone so screen readers (and specs)
+                  can tell which line a tile is on. */}
+              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2">
                 {Array.from({ length: slotCount }).map((_, slot) => {
                   const isOrphan = slot === orphanIdx;
                   const pid = ids[slot];
                   if (!pid) {
+                    const primed = primedEmptyZone === key;
                     const button = (
                       <button
                         type="button"
                         onClick={() => onTapField("", key)}
-                        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro text-white/60 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
+                        aria-label={`Empty ${ZONE_SHORT[key]} spot`}
+                        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
+                          primed
+                            ? "border-warn bg-warn/20 text-white"
+                            : "border-white/40 bg-white/5 text-white/60 hover:border-white/70 hover:bg-white/15"
+                        }`}
                       >
-                        Empty
+                        {primed ? "Tap a player" : anySelected ? "Move here" : "Empty"}
                       </button>
                     );
                     return isOrphan ? (
@@ -251,14 +296,15 @@ export function Field({
                   }
                   const player = playersById.get(pid);
                   if (!player) return null;
-                  const isSelected =
-                    selected?.kind === "field" && selected.playerId === pid;
+                  const isSelected = selectedFieldId === pid;
                   const dimmed =
-                    selected?.kind === "field" ? !isSelected : false;
+                    dimUnselected && selectedFieldId !== null ? !isSelected : false;
                   const tile = (
                     <PlayerTile
                       player={player}
                       currentZone={key}
+                      positionLabel={positionLabels?.[pid]}
+                      keepOn={keepOnIds?.has(pid)}
                       onClick={injuredSet.has(pid) ? undefined : () => onTapField(pid, key)}
                       onLongPress={onLongPress ? () => onLongPress(pid) : undefined}
                       selected={isSelected}
@@ -280,6 +326,7 @@ export function Field({
                       }
                       score={playerScores?.[pid]}
                       chipModes={chipModeByKey}
+                      caption={captions?.[pid]}
                     />
                   );
                   return isOrphan ? (

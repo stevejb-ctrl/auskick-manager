@@ -10,7 +10,7 @@
 // long-form marketing prose, no duplication.
 
 import type { MarketingSportId } from "@/lib/sports/marketing-sports";
-import { type BrandCopy, getBrandCopy } from "@/lib/sports/brand-copy";
+import { type BrandCopy, getBrandCopy, UNION_MARKETING_COPY } from "@/lib/sports/brand-copy";
 
 // Platform-wide social-proof numbers (1,200+ coaches, 38k games, …)
 // moved to content/marketing/home.json (CMS-editable via Pages CMS).
@@ -24,9 +24,8 @@ import { type BrandCopy, getBrandCopy } from "@/lib/sports/brand-copy";
  *   - afl     → afl
  *   - league  → rugby_league   (id name differs across the two systems)
  *   - netball → netball
- *   - union   → falls back to AFL — no dedicated Union copy yet.
- *               Add a UNION_COPY block to brand-copy.ts when ready
- *               and update this switch.
+ *   - union   → union's own copy (content/marketing/brands/union.json).
+ *               Union has no site of its own, so it isn't a brand.
  */
 export function getMarketingCopy(id: MarketingSportId): BrandCopy {
   switch (id) {
@@ -37,11 +36,7 @@ export function getMarketingCopy(id: MarketingSportId): BrandCopy {
     case "netball":
       return getBrandCopy("netball");
     case "union":
-      // No Rugby Union BrandCopy entry yet — fall back to AFL so
-      // the picker doesn't render an empty section. Replace this
-      // line with `getBrandCopy("rugby_union")` (and add the SportId
-      // + UNION_COPY block) once Steve provides union content.
-      return getBrandCopy("afl");
+      return UNION_MARKETING_COPY;
   }
 }
 

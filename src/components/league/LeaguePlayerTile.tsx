@@ -24,13 +24,13 @@ import { memo, useRef, useState } from "react";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
-import { ChipIndicator } from "@/components/squad/ChipIndicator";
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import type { LeagueZoneMs } from "@/lib/sports/rugby_league/fairness";
 import { PlayerVestBadge } from "./PlayerVestBadge";
 import { PlayerKickBadge } from "./PlayerKickBadge";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 interface LeaguePlayerTileProps {
   player: Player;
@@ -91,6 +91,10 @@ interface LeaguePlayerTileProps {
   onLongPress?: () => void;
   /** Optional disable gate during a pending mutation. */
   disabled?: boolean;
+  /** Named positions (Mod League): the kid's position, e.g. "HK". */
+  positionLabel?: string | null;
+  /** Season role "Keep on, every game" (lineup screens). */
+  keepOn?: boolean;
 }
 
 function formatMinSec(ms: number): string {
@@ -118,6 +122,8 @@ function LeaguePlayerTileImpl({
   onClick,
   onLongPress,
   disabled = false,
+  positionLabel = null,
+  keepOn = false,
 }: LeaguePlayerTileProps) {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const armingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,6 +238,8 @@ function LeaguePlayerTileImpl({
         </span>
       )}
 
+      {keepOn && !injured && !loaned && !(tries > 0) && <KeepOnMarker />}
+
       {/* Tries chip — floats above top-right corner. Mirrors AFL's
           score chip placement so the visual hierarchy reads the same
           across sports. */}
@@ -249,6 +257,14 @@ function LeaguePlayerTileImpl({
             name (previously absolute top-left, which overlapped the
             centered name on narrow tiles). Only one badge shows at
             a time, in priority order. */}
+        {positionLabel && !vest && !injured && !loaned && (
+          <span
+            className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-ink-dim"
+            aria-label={`Position ${positionLabel}`}
+          >
+            {positionLabel}
+          </span>
+        )}
         {(vest || injured || loaned) && (
           <span className="inline-flex h-3.5 items-center">
             {injured ? (
@@ -280,13 +296,6 @@ function LeaguePlayerTileImpl({
             plain coloured dot — same as the legacy look. Steve
             2026-05-20. */}
         <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
-          {player.chip && (
-            <ChipIndicator
-              chipKey={player.chip as ChipKey}
-              mode={chipModes?.[player.chip as ChipKey]}
-              size="md"
-            />
-          )}
           <span className="truncate">
             {lastInitial ? `${firstName} ${lastInitial}` : firstName}
           </span>
@@ -365,6 +374,8 @@ function areEqual(a: LeaguePlayerTileProps, b: LeaguePlayerTileProps): boolean {
   if (a.kickedOff !== b.kickedOff) return false;
   if (a.injured !== b.injured) return false;
   if (a.loaned !== b.loaned) return false;
+  if (a.positionLabel !== b.positionLabel) return false;
+  if (a.keepOn !== b.keepOn) return false;
   // `swap` is an object — shallow compare the fields. Without this
   // the memo would never invalidate when the next-sub suggestion
   // moves on or off this tile.

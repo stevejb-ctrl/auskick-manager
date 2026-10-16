@@ -1,12 +1,15 @@
 import { Suspense } from "react";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AddGameSection } from "@/components/games/AddGameSection";
+import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { GameList } from "@/components/games/GameList";
 import { GamesFilter, type GamesFilterValue } from "@/components/games/GamesFilter";
 import { Spinner } from "@/components/ui/Spinner";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { Eyebrow } from "@/components/sf";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { notFound } from "next/navigation";
 
 interface GamesPageProps {
   params: { teamId: string };
@@ -47,8 +50,7 @@ export default async function GamesPage({
 
   const isAdmin = membershipResult.data?.role === "admin";
   const team = teamResult.data;
-  const sport = ((team as { sport?: string | null } | null)?.sport ?? "afl") as Sport;
-  const ageGroupCfg = getAgeGroupConfig(sport, team?.age_group as string | null);
+  const sport = team ? teamSport((team as { sport?: string | null }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
 
   let existingExternalIds: string[] = [];
   if (isAdmin) {
@@ -77,11 +79,11 @@ export default async function GamesPage({
       {isAdmin && (
         <AddGameSection
           teamId={params.teamId}
-          ageGroup={ageGroupCfg}
           existingExternalIds={existingExternalIds}
           initialUrl={
             (team as { playhq_url?: string | null } | null)?.playhq_url ?? ""
           }
+          playhqTenant={PLAYHQ_TENANT[sport]}
         />
       )}
 

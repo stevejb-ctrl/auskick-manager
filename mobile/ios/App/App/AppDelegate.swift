@@ -142,13 +142,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // src/components/ui/WarmUpPhrases.tsx — both surfaces are the
     // same loading moment from the user's perspective.
     private static let warmUpPhrases: [String] = [
-        "Lacing the boots…",
+        "Lacing up…",
         "Star jumps…",
         "Stretching the hammies…",
-        "Practising marks…",
+        "Passing drills…",
         "Spreading the cones…",
         "High knees…",
-        "Pumping up the footy…",
+        "Pumping up the ball…",
         "Limbering up…",
         "Coach's pre-game chat…",
         "Tossing the coin…",

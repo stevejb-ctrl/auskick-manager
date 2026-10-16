@@ -12,6 +12,15 @@
 // ============================================================
 
 import {
+  repairLineupForRules,
+  rotatedZone,
+  ruleScore,
+  seasonOwedByZone,
+  strategyWeights,
+  type AflPlaybookInput,
+  type AflSwapPlaybook,
+} from "@/lib/sports/afl/engine";
+import {
   emptyLineup,
   normalizeLineup,
   type GameEvent,
@@ -21,6 +30,7 @@ import {
   type Zone,
 } from "@/lib/types";
 import { positionsFor } from "@/lib/ageGroups";
+import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import {
   type ChipKey,
   type ChipMode,
@@ -168,122 +178,20 @@ function activeZones(caps: ZoneCaps): Zone[] {
   return ALL_ZONES.filter((z) => caps[z] > 0);
 }
 
-// ─── Replay one game's events → per-player zone minutes ──────
+// ─── One game's events → per-player zone minutes ─────────────
+// Read from replayGame (closed stints only): the one replay the live
+// game uses, so season zone time follows the same sideline rules (a
+// mid-quarter zone switch, an injury then its replacement, a swap that
+// lands after the hooter). It used to be a second, older walker that
+// missed all three.
 export function gameZoneMinutes(events: GameEvent[]): PlayerZoneMinutes {
-  const sorted = [...events].sort((a, b) =>
-    a.created_at.localeCompare(b.created_at)
-  );
   const result: PlayerZoneMinutes = {};
-  const add = (pid: string, zone: Zone, ms: number) => {
-    if (ms <= 0) return;
-    result[pid] ??= emptyZM();
-    result[pid][zone] += ms / 60000;
-  };
-
-  let lineup: Lineup | null = null;
-  let stintStart: Record<string, number> = {};
-  let stintZ: Record<string, Zone> = {};
-
-  for (const ev of sorted) {
-    const meta = ev.metadata as {
-      elapsed_ms?: number;
-      quarter?: number;
-      lineup?: Partial<Lineup>;
-      off_player_id?: string;
-      on_player_id?: string;
-      zone?: Zone;
-    };
-    const elapsed = meta.elapsed_ms ?? 0;
-
-    if (ev.type === "lineup_set" && meta.lineup) {
-      lineup = normalizeLineup(meta.lineup);
-    } else if (ev.type === "quarter_start") {
-      stintStart = {};
-      stintZ = {};
-      if (lineup) {
-        for (const z of ALL_ZONES) {
-          for (const p of lineup[z]) {
-            stintStart[p] = 0;
-            stintZ[p] = z;
-          }
-        }
-      }
-    } else if (ev.type === "swap" && lineup && meta.on_player_id && meta.zone) {
-      const off = meta.off_player_id ?? "";
-      const on = meta.on_player_id;
-      const z = meta.zone;
-      if (off) {
-        const sz = stintZ[off] ?? z;
-        add(off, sz, elapsed - (stintStart[off] ?? 0));
-        delete stintStart[off];
-        delete stintZ[off];
-        lineup[z] = lineup[z].map((p) => (p === off ? on : p));
-        lineup.bench = [...lineup.bench.filter((p) => p !== on), off];
-      } else {
-        lineup[z] = [...lineup[z], on];
-        lineup.bench = lineup.bench.filter((p) => p !== on);
-      }
-      stintStart[on] = elapsed;
-      stintZ[on] = z;
-    } else if (ev.type === "quarter_end" && lineup) {
-      for (const [pid, start] of Object.entries(stintStart)) {
-        const z = stintZ[pid];
-        if (z) add(pid, z, elapsed - start);
-      }
-      stintStart = {};
-      stintZ = {};
-    } else if (ev.type === "player_arrived" && lineup && ev.player_id) {
-      if (!lineup.bench.includes(ev.player_id)) lineup.bench.push(ev.player_id);
-    } else if (ev.type === "injury" && lineup && ev.player_id) {
-      const pid = ev.player_id;
-      const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
-      if (injured) {
-        const z = zoneOf(lineup, pid);
-        if (z) {
-          const sz = stintZ[pid] ?? z;
-          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-          delete stintStart[pid];
-          delete stintZ[pid];
-          lineup[z] = lineup[z].filter((p) => p !== pid);
-          if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-        }
-      }
-    } else if (ev.type === "player_loan" && lineup && ev.player_id) {
-      const pid = ev.player_id;
-      const loaned = (ev.metadata as { loaned?: boolean }).loaned ?? true;
-      if (loaned) {
-        // Starting a loan — if on-field, close zone stint and move to bench.
-        const z = zoneOf(lineup, pid);
-        if (z) {
-          const sz = stintZ[pid] ?? z;
-          add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-          delete stintStart[pid];
-          delete stintZ[pid];
-          lineup[z] = lineup[z].filter((p) => p !== pid);
-          if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-        }
-      }
-    } else if (ev.type === "roster_shrink" && lineup) {
-      // Mid-quarter on-field-size reduction. Metadata carries the
-      // list of players to drop from their zones; for each one we
-      // close the open stint and push them to bench. Mirrors the
-      // injury / player_loan handlers but acts on multiple players
-      // in one event. Steve 2026-05-20.
-      const ids = ((ev.metadata as { remove_player_ids?: string[] })
-        .remove_player_ids ?? []) as string[];
-      for (const pid of ids) {
-        const z = zoneOf(lineup, pid);
-        if (!z) continue;
-        const sz = stintZ[pid] ?? z;
-        add(pid, sz, elapsed - (stintStart[pid] ?? 0));
-        delete stintStart[pid];
-        delete stintZ[pid];
-        lineup[z] = lineup[z].filter((p) => p !== pid);
-        if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
-      }
-    }
+  for (const [pid, zm] of Object.entries(replayGame(events).basePlayedZoneMs)) {
+    if (!ALL_ZONES.some((z) => zm[z] > 0)) continue;
+    const minutes = emptyZM();
+    for (const z of ALL_ZONES) minutes[z] = zm[z] / 60000;
+    result[pid] = minutes;
   }
-
   return result;
 }
 
@@ -590,9 +498,17 @@ export function suggestStartingLineup(
    * the threshold tracks this game's actual clock (D-03).
    */
   fullPeriodMs: number = 12 * 60 * 1000,
+  /**
+   * How we play (UX plan 3.6): strategy, season balance and player
+   * roles. Omitted = today's behaviour exactly (legacy tiers, binary
+   * SEASON_DIVERSITY).
+   */
+  playbook?: AflPlaybookInput,
 ): Lineup {
   const lineup = emptyLineup();
   if (availablePlayers.length === 0) return lineup;
+  const roles = playbook?.roles ?? {};
+  const weights = strategyWeights(playbook?.strategy);
 
   const zones = activeZones(zoneCaps);
   const zoneFill: ZoneCaps = emptyCaps();
@@ -617,7 +533,7 @@ export function suggestStartingLineup(
     return total / (zm.length * zones.length);
   })();
 
-  const IN_GAME_DIVERSITY = 1000;
+  const IN_GAME_DIVERSITY = weights.inGameDiversity;
   // 500 < 1000 so an in-game-fresh zone always beats a season-fresh-but-
   // already-played-this-game zone. (Season diversity nudges, in-game forces.)
   const SEASON_DIVERSITY = 500;
@@ -625,14 +541,16 @@ export function suggestStartingLineup(
   // is still subordinate to playing a fresh-this-game zone — but it's strong
   // enough to break ties cleanly when in-game diversity is even (e.g. mid-
   // game in Q3 when all zones have already been played).
-  const SAME_AS_LAST_Q = 800;
+  const SAME_AS_LAST_Q = weights.sameAsLastQ;
+  // Set positions: staying in last quarter's line, under a backup line.
+  const SET_POSITIONS_STAY = 1000;
   // Per-teammate penalty for partnership avoidance. Tuned so one prior-
   // quarter mate already in a target zone flips the preference: with
   // IN_GAME_DIVERSITY (+1000) and SAME_AS_LAST_Q (-800), a fresh zone with
   // one mate scores 1000-2000=-1000, losing to a stale zone with no mates
   // (-800). A fresh zone with NO mates still wins clearly (+1000 vs -800).
   // Two mates (-4000) make the target essentially unreachable.
-  const PARTNERSHIP_PENALTY = 2000;
+  const PARTNERSHIP_PENALTY = weights.partnership;
 
   // WR-01: the season map is in MINUTES (gameZoneMinutes divides ms by
   // 60000), but `fullPeriodMs` is in MILLISECONDS. Comparing the two
@@ -643,16 +561,64 @@ export function suggestStartingLineup(
   // is minutes-to-minutes ("played this zone for >= a full period all
   // season").
   const fullPeriodMins = fullPeriodMs / 60000;
+  // How we play season balance (§7.5): W_season × periods owed, against
+  // the player's target split, replacing the binary SEASON_DIVERSITY
+  // nudge and the small fairness term. Memoised per player.
+  const owedCache = new Map<string, Record<string, number>>();
+  const seasonOwed = (pid: string, z: Zone) => {
+    let owedByZone = owedCache.get(pid);
+    if (!owedByZone) {
+      owedByZone = seasonOwedByZone(pid, playbook?.balanceSeason ?? season, zones, roles[pid], fullPeriodMs);
+      owedCache.set(pid, owedByZone);
+    }
+    return owedByZone[z] ?? 0;
+  };
+  const lineOf = (z: Zone): Zone => (z === "hback" ? "back" : z === "hfwd" ? "fwd" : z);
+  // Zoned "Rotate lines" / "Keep last quarter" (and Manual, which keeps
+  // the last quarter for the coach to change): the rule's zone wins.
+  const RULE_ZONE_BONUS = 4000;
+  const ruleZone = (pid: string): Zone | null => {
+    const prev = previousQuarterZones[pid];
+    if (!prev || !playbook) return null;
+    if (playbook.strategy === "rotate") return rotatedZone(prev, zones);
+    if (playbook.strategy === "keep" || playbook.strategy === "manual") return prev;
+    return null;
+  };
+  // How we play rules (UX plan 4.2): lines still to play this game,
+  // players kept apart / together, kids who stay home.
+  const teamRules = playbook?.rules ?? [];
+  const ruleLines = Array.from(new Set(zones.map((z) => lineOf(z))));
+  const linesPlayed = (pid: string) =>
+    new Set(zones.filter((z) => (currentGame[pid]?.[z] ?? 0) > 0).map((z) => lineOf(z)));
   const owed = (pid: string, z: Zone) => {
     const gameMins = currentGame[pid]?.[z] ?? 0;
     const seasonMins = season[pid]?.[z] ?? 0;
     const inGameBonus = gameMins === 0 ? IN_GAME_DIVERSITY : 0;
+    const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
+    if (playbook) {
+      const role = roles[pid];
+      const roleBonus =
+        role?.home === lineOf(z) ? weights.home : role?.also.includes(lineOf(z)) ? weights.also : 0;
+      const rule = ruleZone(pid) === z ? RULE_ZONE_BONUS : 0;
+      // Set positions promises a like-for-like bench: a kid who stays on
+      // keeps their line (below a home or backup line). Without it a kid
+      // with no home scored the same everywhere and was shuffled between
+      // lines at every break (Stagehand round 5).
+      const prevZone = previousQuarterZones[pid];
+      const stay =
+        playbook.strategy === "set-positions" && prevZone && lineOf(prevZone) === lineOf(z)
+          ? SET_POSITIONS_STAY
+          : 0;
+      const teamRule = teamRules.length
+        ? ruleScore(teamRules, pid, lineOf(z), linesPlayed(pid), ruleLines.length, placedByZone.get(z), role?.home ?? null)
+        : 0;
+      return inGameBonus + sameAsLastQ + roleBonus + rule + stay + teamRule + playbook.seasonWeight * seasonOwed(pid, z);
+    }
     // The effective per-game period length (fullPeriodMs) is passed by
     // production callers so the season-diversity nudge tracks THIS game's
     // clock; the back-compat default (12 min) keeps unit callers unchanged
     // (D-02/D-03).
     const seasonBonus = seasonMins < fullPeriodMins ? SEASON_DIVERSITY : 0;
-    const sameAsLastQ = previousQuarterZones[pid] === z ? -SAME_AS_LAST_Q : 0;
     const fairnessTerm = Math.max(0, avgPerZone - seasonMins);
     return inGameBonus + seasonBonus + sameAsLastQ + fairnessTerm;
   };
@@ -731,14 +697,58 @@ export function suggestStartingLineup(
 
   const remaining = availablePlayers.filter((p) => !pinnedIds.has(p.id));
   const shuffled = seededShuffle(remaining, seed + 17);
+  // Keep-on players (How we play roles) are placed first, so they're
+  // never the ones left over for the bench.
+  const keepOn = (pid: string) => (roles[pid]?.keepOn ? 0 : 1);
+  // "Nobody sits out twice in a row": last quarter's bench goes on first.
+  const benchRule = playbook?.rules?.some((r) => r.kind === "max-bench-in-row");
+  const hadQuarter = Object.keys(previousQuarterZones).length > 0;
+  const satOut = (pid: string) => (benchRule && hadQuarter && !previousQuarterZones[pid] ? 0 : 1);
+  // Set positions: at kickoff, kids with a home position start in it
+  // (usability run: the full forward sat out Q1 while another kid wore
+  // FF). From the first break the usual rotation decides who sits.
+  const kickoff = !hadQuarter && availablePlayers.every((p) => inGameTotal(p.id) === 0);
+  const homeFirst = (pid: string) => (kickoff && playbook?.positionRoles?.[pid]?.home ? 0 : 1);
   const sortedPlayers = shuffled.sort(
-    (a, b) => inGameTotal(a.id) - inGameTotal(b.id),
+    (a, b) =>
+      keepOn(a.id) - keepOn(b.id) ||
+      satOut(a.id) - satOut(b.id) ||
+      inGameTotal(a.id) - inGameTotal(b.id) ||
+      homeFirst(a.id) - homeFirst(b.id),
   );
+  // Set positions: the order above decides WHO plays; WHERE goes kids with
+  // a home first, then those with backup spots, so a kid with no home
+  // can't fill a home kid's line before their turn (Stagehand round 4:
+  // the full back played centre in Q4). Then kids staying on (they keep
+  // their line), and last the kids coming on, who fill the lines left
+  // open — like-for-like (round 5).
+  let placementOrder = sortedPlayers;
+  if (playbook?.strategy === "set-positions") {
+    const capacity = zones.reduce((n, z) => n + Math.max(0, zoneCaps[z] - zoneFill[z]), 0);
+    const homeRank = (pid: string) =>
+      roles[pid]?.home ? 0 : roles[pid]?.also.length ? 1 : previousQuarterZones[pid] ? 2 : 3;
+    placementOrder = [
+      ...sortedPlayers.slice(0, capacity).sort((a, b) => homeRank(a.id) - homeRank(b.id)),
+      ...sortedPlayers.slice(capacity),
+    ];
+  }
+  // "Never plays" is a hard filter; a player with no allowed zone open
+  // waits, and only fills a gap nobody else can.
+  const deferred: string[] = [];
+  const isNever = (pid: string, z: Zone) => {
+    const never = roles[pid]?.never;
+    return !!never && (never.includes(z) || never.includes(lineOf(z)));
+  };
 
-  for (const p of sortedPlayers) {
-    const openZones = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
-    if (openZones.length === 0) {
+  for (const p of placementOrder) {
+    const anyOpen = zones.filter((z) => zoneFill[z] < zoneCaps[z]);
+    if (anyOpen.length === 0) {
       lineup.bench.push(p.id);
+      continue;
+    }
+    const openZones = anyOpen.filter((z) => !isNever(p.id, z));
+    if (openZones.length === 0) {
+      deferred.push(p.id);
       continue;
     }
     const shuffledZones = seededShuffle(openZones, seed + p.id.charCodeAt(0));
@@ -755,6 +765,17 @@ export function suggestStartingLineup(
     trackPlaced(p.id, chosen);
   }
 
+  for (const pid of deferred) {
+    const z = zones.find((zz) => zoneFill[zz] < zoneCaps[zz]);
+    if (z) {
+      lineup[z].push(pid);
+      zoneFill[z]++;
+    } else {
+      lineup.bench.push(pid);
+    }
+  }
+
+  if (playbook?.rules?.length) repairLineupForRules(lineup, playbook, zones, pinnedIds);
   return lineup;
 }
 
@@ -916,10 +937,20 @@ export function suggestSwaps(
    * report). Trailing-optional with an inert default so legacy callers are
    * unchanged.
    */
-  lastSubbedOffMs: Record<string, number> = {}
+  lastSubbedOffMs: Record<string, number> = {},
+  /**
+   * How we play (UX plan 3.6): never-plays zones are skipped, keep-on
+   * players stay on, set positions sub like-for-like into the home
+   * line, and rolling subs pay down season balance. Omitted = today's
+   * behaviour.
+   */
+  playbook?: AflSwapPlaybook,
 ): SwapSuggestion[] {
   const injured = new Set(injuredIds);
   const locked = new Set(lockedIds);
+  const roles = playbook?.roles ?? {};
+  // "Subs only at the breaks": no rolling-sub suggestions.
+  if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const fitBench = lineup.bench.filter((p) => !injured.has(p) && !locked.has(p));
   if (fitBench.length === 0) return [];
 
@@ -936,7 +967,7 @@ export function suggestSwaps(
   for (const z of ALL_ZONES) fieldByZone[z] = [];
   for (const z of activeZoneList) {
     fieldByZone[z] = seededShuffle(
-      lineup[z].filter((p) => !injured.has(p) && !locked.has(p)),
+      lineup[z].filter((p) => !injured.has(p) && !locked.has(p) && !roles[p]?.keepOn),
       tieBreak + 131 * (ALL_ZONES.indexOf(z) + 1)
     );
     fieldByZone[z].sort((a, b) => gameMin(b) - gameMin(a));
@@ -957,14 +988,41 @@ export function suggestSwaps(
   const benchByGameMin = seededShuffle(fitBench, tieBreak).sort(
     (a, b) => gameMin(a) - gameMin(b)
   );
-  // Soft recency partition (mirror of the field side): a player just
-  // subbed off rotates back on LAST, so they actually get a rest instead
-  // of being re-picked a minute later because their total is low. Stays
-  // eligible (no deadlock when the whole bench is freshly benched).
-  const benchSorted = [
-    ...benchByGameMin.filter((p) => !recentlyBenched(p)),
-    ...benchByGameMin.filter((p) => recentlyBenched(p)),
-  ];
+  // ON-side recency: a player just subbed off waits for a rest instead
+  // of being re-picked a minute later because their total is low. While
+  // anyone on the bench HAS rested, the just-benched sit this rotation
+  // out — one suggestion per bench kid otherwise always included them,
+  // last but there (round 5: "Do all 3 swaps" put Ava straight back
+  // on). Still eligible when the whole bench is freshly benched, so it
+  // never deadlocks.
+  const rested = benchByGameMin.filter((p) => !recentlyBenched(p));
+  const benchSorted = rested.length > 0 ? rested : benchByGameMin;
+  if (playbook) {
+    // Keep-on players come back on first.
+    benchSorted.sort((a, b) => (roles[a]?.keepOn ? 0 : 1) - (roles[b]?.keepOn ? 0 : 1));
+  }
+  const lineOfZone = (z: Zone): Zone => (z === "hback" ? "back" : z === "hfwd" ? "fwd" : z);
+  const seasonOwedCache = new Map<string, Record<string, number>>();
+  const zoneRank = (pid: string, z: Zone) => {
+    const role = roles[pid];
+    const line = lineOfZone(z);
+    const roleRank = role?.home === line ? 2 : role?.also.includes(line) ? 1 : 0;
+    let owed = 0;
+    if (playbook?.season && playbook.seasonWeight > 0 && playbook.periodMs) {
+      let byZone = seasonOwedCache.get(pid);
+      if (!byZone) {
+        byZone = seasonOwedByZone(pid, playbook.balanceSeason ?? playbook.season, activeZoneList, role, playbook.periodMs);
+        seasonOwedCache.set(pid, byZone);
+      }
+      owed = byZone[z] ?? 0;
+    }
+    // Role first (home > also > other), then season debt (±2 periods).
+    return roleRank * 10 + owed;
+  };
+  const allowedFor = (pid: string, z: Zone) => {
+    const never = roles[pid]?.never;
+    return !never || (!never.includes(z) && !never.includes(lineOfZone(z)));
+  };
 
   const zoneOrder = seededShuffle(activeZoneList, tieBreak + 77);
   const zoneCursor = emptyCaps();
@@ -981,6 +1039,22 @@ export function suggestSwaps(
         pickZone = forcedZone;
       }
       if (!pickZone) continue; // no one to rotate out of that zone right now
+    } else if (playbook) {
+      const rotation = Array.from({ length: zoneOrder.length }, (_, k) => zoneOrder[(i + k) % zoneOrder.length]);
+      const open = rotation
+        .filter((z) => allowedFor(on, z) && fieldByZone[z][zoneCursor[z]])
+        .sort((a, b) => zoneRank(on, b) - zoneRank(on, a));
+      const role = roles[on];
+      const likeForLike =
+        (playbook.strategy === "set-positions" || playbook.rules?.some((r) => r.kind === "like-for-like")) &&
+        role?.home;
+      // Set positions sub like-for-like (home line, then also-plays);
+      // otherwise a zone they haven't played this game comes first.
+      const first = likeForLike
+        ? open.filter((z) => lineOfZone(z) === role.home || role.also.includes(lineOfZone(z)))
+        : open.filter((z) => !hasPlayedZone(on, z));
+      pickZone = first[0] ?? open[0] ?? null;
+      if (!pickZone) continue; // nobody they may replace right now
     } else {
       // First pass: prefer a zone this player hasn't played yet this game.
       for (let k = 0; k < zoneOrder.length; k++) {
@@ -1114,6 +1188,12 @@ export interface GameState {
   basePlayedLoanMs: Record<string, number>;
   /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
   quarterStartedAt: string | null;
+  /**
+   * Saved holds (Keep on / Keep in {zone}) from player_lock events.
+   * Undefined when the game has none, so a game started before holds
+   * were saved keeps the ones on the coach's phone.
+   */
+  locks?: Record<string, PlayerLock>;
 }
 
 // Empty per-quarter score record. Used both during replay and by the
@@ -1187,6 +1267,25 @@ export function replayGame(events: GameEvent[]): GameState {
     if (ms <= 0) return;
     state.basePlayedLoanMs[pid] = (state.basePlayedLoanMs[pid] ?? 0) + ms;
   };
+  // A player's open stint is credited once. Events can land out of
+  // order (each action kind had its own queue lane), so an "off" that
+  // arrives after the hooter, or after an injury already took the
+  // player off, has no stint left — it must not credit the quarter again
+  // (sideline combos: double-credited time).
+  const closeStint = (pid: string, fallbackZone: Zone, elapsed: number) => {
+    const start = state.stintStartMs[pid];
+    if (start === undefined) return;
+    addPlayed(pid, state.stintZone[pid] ?? fallbackZone, elapsed - start);
+    delete state.stintStartMs[pid];
+    delete state.stintZone[pid];
+  };
+  const openStint = (pid: string, zone: Zone, elapsed: number) => {
+    if (state.quarterEnded || state.currentQuarter < 1) return;
+    state.stintStartMs[pid] = elapsed;
+    state.stintZone[pid] = zone;
+  };
+  const inLineup = (pid: string) =>
+    !!state.lineup && (state.lineup.bench.includes(pid) || zoneOf(state.lineup, pid) != null);
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -1279,15 +1378,17 @@ export function replayGame(events: GameEvent[]): GameState {
     ) {
       const off = meta.off_player_id ?? "";
       const on = meta.on_player_id;
-      const z = meta.zone;
-      if (off) {
-        const offZone = state.stintZone[off] ?? z;
-        addPlayed(off, offZone, elapsed - (state.stintStartMs[off] ?? 0));
-        delete state.stintStartMs[off];
-        delete state.stintZone[off];
-        state.lineup[z] = state.lineup[z].map((p) => (p === off ? on : p));
+      // The zone the off player is actually in (a zone swap may have
+      // moved them since the event's zone was read).
+      const offZone = off ? zoneOf(state.lineup, off) : null;
+      const z = offZone ?? meta.zone;
+      if (zoneOf(state.lineup, on)) {
+        // Already on (a replayed duplicate): nothing to do.
+      } else if (off && offZone) {
+        closeStint(off, offZone, elapsed);
+        state.lineup[offZone] = state.lineup[offZone].map((p) => (p === off ? on : p));
         state.lineup.bench = [
-          ...state.lineup.bench.filter((p) => p !== on),
+          ...state.lineup.bench.filter((p) => p !== on && p !== off),
           off,
         ];
         // Recency (issue: a just-benched player came back on ~1 min
@@ -1297,11 +1398,14 @@ export function replayGame(events: GameEvent[]): GameState {
         // them.
         state.lastSubbedOffMs[off] = state.completedQuarterMs + elapsed;
       } else {
+        // Fill: an empty slot, or the off player already left the field
+        // (their injury or loan landed first — sideline combos: the
+        // replacement used to vanish and the injured kid sat on the bench
+        // twice).
         state.lineup[z] = [...state.lineup[z], on];
         state.lineup.bench = state.lineup.bench.filter((p) => p !== on);
       }
-      state.stintStartMs[on] = elapsed;
-      state.stintZone[on] = z;
+      openStint(on, zoneOf(state.lineup, on) ?? z, elapsed);
       // B4 recency: a mid-quarter sub-on is a bench->field transition.
       // Stamp the absolute frame so it survives the next quarter_start
       // reset (which only zeroes the per-quarter stintStartMs).
@@ -1335,8 +1439,7 @@ export function replayGame(events: GameEvent[]): GameState {
           [pidA, zoneA],
           [pidB, zoneB],
         ] as [string, Zone][]) {
-          const fromZ = state.stintZone[pid] ?? fromZone;
-          addPlayed(pid, fromZ, elapsed - (state.stintStartMs[pid] ?? 0));
+          closeStint(pid, fromZone, elapsed);
         }
         // Swap the two players in the lineup arrays.
         state.lineup[zoneA] = state.lineup[zoneA].map((p) =>
@@ -1346,27 +1449,23 @@ export function replayGame(events: GameEvent[]): GameState {
           p === pidB ? pidA : p,
         );
         // Open new stints at the swapped zones.
-        state.stintStartMs[pidA] = elapsed;
-        state.stintZone[pidA] = zoneB;
-        state.stintStartMs[pidB] = elapsed;
-        state.stintZone[pidB] = zoneA;
+        openStint(pidA, zoneB, elapsed);
+        openStint(pidB, zoneA, elapsed);
       } else if (pidA && zoneA && zoneB && !pidB) {
         // Move-into-empty (short-squad blank-slot reshuffle). pidA
         // leaves zoneA, lands in zoneB; the blank slot moves the
         // other way. Mirror the store's applyFieldZoneSwap empty
         // branch so a cold replay rebuilds the same lineup the live
         // store has been tracking client-side.
-        const fromZ = state.stintZone[pidA] ?? zoneA;
-        addPlayed(pidA, fromZ, elapsed - (state.stintStartMs[pidA] ?? 0));
+        closeStint(pidA, zoneA, elapsed);
         state.lineup[zoneA] = state.lineup[zoneA].filter((p) => p !== pidA);
         state.lineup[zoneB] = [...state.lineup[zoneB], pidA];
-        state.stintStartMs[pidA] = elapsed;
-        state.stintZone[pidA] = zoneB;
+        openStint(pidA, zoneB, elapsed);
       }
     } else if (ev.type === "player_arrived" && state.lineup && ev.player_id) {
-      if (!state.lineup.bench.includes(ev.player_id)) {
-        state.lineup.bench.push(ev.player_id);
-      }
+      // Not if they're already in the lineup — on the field included (an
+      // arrival can land after the break lineup that fielded them).
+      if (!inLineup(ev.player_id)) state.lineup.bench.push(ev.player_id);
     } else if (ev.type === "injury" && state.lineup && ev.player_id) {
       const pid = ev.player_id;
       const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
@@ -1374,10 +1473,7 @@ export function replayGame(events: GameEvent[]): GameState {
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
         const z = zoneOf(state.lineup, pid);
         if (z) {
-          const sz = state.stintZone[pid] ?? z;
-          addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-          delete state.stintStartMs[pid];
-          delete state.stintZone[pid];
+          closeStint(pid, z, elapsed);
           state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
           if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
         }
@@ -1398,16 +1494,16 @@ export function replayGame(events: GameEvent[]): GameState {
         if (state.lineup) {
           const z = zoneOf(state.lineup, pid);
           if (z) {
-            const sz = state.stintZone[pid] ?? z;
-            addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-            delete state.stintStartMs[pid];
-            delete state.stintZone[pid];
+            closeStint(pid, z, elapsed);
             state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
             if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
           }
         }
       } else {
         state.loanedIds = state.loanedIds.filter((p) => p !== pid);
+        // Back from the other team: on the bench, as the live store does
+        // (a kid lent before kickoff isn't in the lineup yet).
+        if (state.lineup && !inLineup(pid)) state.lineup.bench.push(pid);
         const start = state.loanStartMs[pid];
         if (start !== undefined) {
           addLoan(pid, elapsed - start);
@@ -1424,10 +1520,7 @@ export function replayGame(events: GameEvent[]): GameState {
       for (const pid of ids) {
         const z = zoneOf(state.lineup, pid);
         if (!z) continue;
-        const sz = state.stintZone[pid] ?? z;
-        addPlayed(pid, sz, elapsed - (state.stintStartMs[pid] ?? 0));
-        delete state.stintStartMs[pid];
-        delete state.stintZone[pid];
+        closeStint(pid, z, elapsed);
         state.lineup[z] = state.lineup[z].filter((p) => p !== pid);
         if (!state.lineup.bench.includes(pid)) state.lineup.bench.push(pid);
       }
@@ -1515,6 +1608,7 @@ export function replayGame(events: GameEvent[]): GameState {
 
   if (state.lineup) state.lineup = normalizeLineup(state.lineup);
   state.quarterStartedAt = quarterStartedAt;
+  if (sorted.some((ev) => ev.type === "player_lock")) state.locks = replayLocks(sorted);
 
   return state;
 }

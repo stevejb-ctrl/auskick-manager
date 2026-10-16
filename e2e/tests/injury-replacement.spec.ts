@@ -25,7 +25,7 @@ test("injuring an on-field player prompts for a bench replacement and persists b
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // U10's defaultOnFieldSize is 12 (per src/lib/ageGroups.ts) — so for
   // a non-empty bench we need >12 players. 15 = 12 on field + 3 bench.
   const players = await makePlayers(admin, {
@@ -110,14 +110,16 @@ test("injuring an on-field player prompts for a bench replacement and persists b
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
 
-  // Both server actions (markInjury + recordSwap) run in parallel
-  // inside startTransition; poll until both events have landed.
+  // Both writes (markInjury, then recordSwap) go down the game's one
+  // write-queue lane, so they land in that order (sideline combos: in
+  // separate lanes the swap could overtake the injury, and the replay
+  // lost the replacement). Poll until both have landed, in order.
   await expect
     .poll(
       async () => {
         const { data } = await admin
           .from("game_events")
-          .select("type, player_id, metadata")
+          .select("type, player_id, metadata, created_at")
           .eq("game_id", game.id)
           .in("type", ["injury", "swap"]);
         const inj = (data ?? []).find(
@@ -135,9 +137,9 @@ test("injuring an on-field player prompts for a bench replacement and persists b
               replacement.id &&
             (e.metadata as { zone?: string })?.zone === "mid",
         );
-        return Boolean(inj) && Boolean(sw);
+        return Boolean(inj) && Boolean(sw) && inj!.created_at < sw!.created_at;
       },
-      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
+      { timeout: 10_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe(true);
 });
@@ -151,7 +153,7 @@ test("injuring an on-field player when the bench is empty falls through to the o
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Exactly on_field_size (12 for U10) players → no bench candidates.
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -224,4 +226,47 @@ test("injuring an on-field player when the bench is empty falls through to the o
     .eq("game_id", game.id)
     .eq("type", "swap");
   expect(swapEvents?.length ?? 0).toBe(0);
+});
+
+// UX plan 1.6 / H5: injure / lend / keep-on used to be reachable only by
+// a 500 ms long-press. A plain tap on a player now opens the dock, whose
+// "Player actions" button opens the same sheet — here on a team that
+// doesn't keep score, where a tap used to show only a hint banner.
+test("tapping a player reaches Mark injured without a long-press", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: false }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const onField = players.slice(0, game.on_field_size);
+  const third = Math.floor(game.on_field_size / 3);
+  const lineup = {
+    back: onField.slice(0, third).map((p) => p.id),
+    hback: [],
+    mid: onField.slice(third, third * 2).map((p) => p.id),
+    hfwd: [],
+    fwd: onField.slice(third * 2).map((p) => p.id),
+    bench: players.slice(game.on_field_size).map((p) => p.id),
+  };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByTestId(`player-tile-${onField[0].id}`).click();
+  await page.getByRole("button", { name: /^player actions$/i }).click();
+
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("button", { name: /mark injured/i })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /keep on field/i })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /keep in back/i })).toBeVisible();
 });

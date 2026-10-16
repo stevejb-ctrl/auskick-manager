@@ -1,21 +1,33 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { getSportConfig } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, isRugby, isSportId } from "@/lib/sports";
+import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
   sendTelegramNotification,
 } from "@/lib/notifications/telegram";
+import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+
+/**
+ * What the coach set on the Basics step: their competition's players on
+ * the field and period length (competitions differ by state). Omitted
+ * or the age group's own = the age group's default.
+ */
+export interface TeamGameShape {
+  onFieldSize?: number | null;
+  periodSeconds?: number | null;
+}
 
 export async function createTeam(
   userId: string,
   name: string,
-  ageGroup: string = "U10",
-  sport: Sport = "afl"
-): Promise<ActionResult> {
+  ageGroup: string,
+  sport: Sport,
+  shape: TeamGameShape = {},
+): Promise<ActionResult<{ setupUrl: string }>> {
   const supabase = createClient();
 
   const {
@@ -27,12 +39,18 @@ export async function createTeam(
     return { success: false, error: "Unauthenticated." };
   }
 
+  // A server action takes anything a client posts: check the sport
+  // before looking it up (an unknown one is never filed under AFL).
+  if (!isSportId(sport)) {
+    console.error("[createTeam] unknown sport", { sport });
+    return { success: false, error: "Pick a sport for the team." };
+  }
   // Validate age_group belongs to the chosen sport. The DB has no
   // per-sport CHECK (intentional — sport configs own the set), so
   // guard here before writing garbage.
   const cfg = getSportConfig(sport);
-  const validAgeGroup = cfg.ageGroups.some((a) => a.id === ageGroup);
-  if (!validAgeGroup) {
+  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
+  if (!ageCfg) {
     console.error("[createTeam] invalid age group for sport", { sport, ageGroup });
     return {
       success: false,
@@ -47,16 +65,13 @@ export async function createTeam(
   // RLS policy.
   const teamId = crypto.randomUUID();
 
-  // Rugby league bakes the scoring rule into the laws: tag at U6/U7
-  // (no scoreboard), modified tackle at U8+ (tries + conversions).
-  // Pre-set `track_scoring` to match the age-group default so a
-  // brand-new U8+ RL team can record tries from the first whistle
-  // without the coach having to remember to toggle it on. AFL and
-  // netball keep the explicit toggle in ScoringStep (DB default
-  // `false` preserved for them — same contract as before).
-  const ageCfg = cfg.ageGroups.find((a) => a.id === ageGroup);
-  const initialTrackScoring
-    = sport === "rugby_league" && ageCfg?.tracksScoreDefault === true;
+  // Start the scoreboard on or off per the age-group default, for
+  // every sport. The wizard's "How we play" step shows that default
+  // ("Default for Under 14: on") next to the toggle, so storing
+  // anything else made the step contradict itself (UX plan C4).
+  // Rugby league follows its laws: tag at U6/U7 (no scoreboard),
+  // modified tackle at U8+ (tries + conversions).
+  const initialTrackScoring = defaultTrackScoring(sport, ageGroup);
 
   console.log("[createTeam] inserting team", {
     teamId,
@@ -86,9 +101,24 @@ export async function createTeam(
     chip_b_label?: string;
     chip_a_mode?: import("@/lib/chips").ChipMode;
     chip_b_mode?: import("@/lib/chips").ChipMode;
-  } = { id: teamId, name, created_by: user.id, age_group: ageGroup, sport };
+    on_field_size: number | null;
+    quarter_length_seconds: number | null;
+  } = {
+    id: teamId,
+    name,
+    created_by: user.id,
+    age_group: ageGroup,
+    sport,
+    on_field_size: storedOnFieldSize(ageCfg, shape.onFieldSize),
+    quarter_length_seconds: null,
+  };
+  try {
+    insertRow.quarter_length_seconds = storedPeriodSeconds(ageCfg, shape.periodSeconds);
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
   if (initialTrackScoring) insertRow.track_scoring = true;
-  if (sport === "rugby_league") {
+  if (isRugby(sport)) {
     insertRow.chip_a_label = "Forward";
     insertRow.chip_b_label = "Back";
     insertRow.chip_a_mode = "forward";
@@ -103,6 +133,17 @@ export async function createTeam(
     console.error("[createTeam] insert failed", insertError);
     return { success: false, error: insertError.message };
   }
+
+  // A new team starts on its age group's suggested way to play (Set
+  // positions at U15, say), so the wizard's "Suggested" and its
+  // selection agree. Teams with no row keep the older fallback, which
+  // is why this is written here rather than defaulted in the resolver.
+  // Not fatal: the coach can still pick in the wizard.
+  const suggested = getSportPlaybook(sport).recommendedStrategy(effectivePolicy(sport, ageGroup));
+  const { error: playbookError } = await supabase
+    .from("team_playbooks")
+    .insert({ team_id: teamId, strategy: suggested });
+  if (playbookError) console.error("[createTeam] playbook insert failed", playbookError);
 
   console.log("[createTeam] insert succeeded, redirecting", {
     teamId,
@@ -123,7 +164,9 @@ export async function createTeam(
   sendTelegramNotification(text).catch(() => {});
 
   revalidatePath("/dashboard");
-  // redirect() throws NEXT_REDIRECT; must be OUTSIDE any try/catch
-  // block so Next.js's action handler can propagate the redirect.
-  redirect(`/teams/${teamId}/setup?step=config`);
+  // The form replaces /teams/new with the setup (router.replace), so
+  // Back leaves the wizard instead of landing on a blank create form
+  // whose Continue makes a second team (round 5). A server-action
+  // redirect() always pushes in Next 14, whatever its RedirectType.
+  return { success: true, data: { setupUrl: `/teams/${teamId}/setup?step=config` } };
 }

@@ -23,12 +23,20 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { NetballDashboardShell } from "@/components/dashboard/NetballDashboardShell";
 import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShell";
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
-import { netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig } from "@/lib/sports";
+import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
+import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadTeamPlaybook } from "@/lib/playbook/load";
+import { loadRollup } from "@/lib/playbook/rollupStore";
+import { seasonFromRollup } from "@/lib/playbook/rollup";
+import { gridUnits, seasonBalanceGrid } from "@/lib/playbook/seasonGrid";
+import type { SeasonBalanceSectionProps } from "@/components/dashboard/SeasonBalanceGrid";
 
 interface StatsPageProps {
   params: { teamId: string };
-  searchParams: { season?: string };
+  searchParams: { season?: string; balance?: string };
 }
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
@@ -42,7 +50,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     .single();
 
   if (!team) notFound();
-  const sport: Sport = (team as { sport?: Sport } | null)?.sport ?? "afl";
+  const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =
@@ -129,13 +137,60 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     eventsByGame.set(ev.game_id, arr);
   }
 
+  // ─── Season balance (UX plan 4.4 / 4.5) ───────────────────
+  // Players × units from the per-game rollup (backfilled here for games
+  // finalised before it existed), in the unit the team's strategy
+  // balances; "Since reset" when the coach has reset season balance.
+  const { resolved: playbook } = await loadTeamPlaybook(supabase, params.teamId, sport, team.age_group);
+  const balanceAgeCfg = getAgeGroupConfig(sport, team.age_group);
+  const seasonGameById = new Map(seasonGames.map((g) => [g.id, g]));
+  const periodSecondsOf = (gameId: string) =>
+    getEffectiveQuarterSeconds(
+      { quarter_length_seconds: team.quarter_length_seconds ?? null },
+      balanceAgeCfg,
+      { quarter_length_seconds: seasonGameById.get(gameId)?.quarter_length_seconds ?? null },
+    );
+  const rollupRows = await loadRollup(
+    supabase,
+    createAdminClient(),
+    sport,
+    params.teamId,
+    eventsByGame,
+    periodSecondsOf,
+  );
+  const balanceSince = playbook.seasonBalanceSince;
+  const useSince = searchParams.balance === "since" && !!balanceSince;
+  const { unit: gridUnit, columns: gridColumns } = gridUnits(sport, playbook.strategy.balanceUnit, playbook.positions);
+  const seasonBalance: SeasonBalanceSectionProps = {
+    grid: seasonBalanceGrid({
+      time: seasonFromRollup(rollupRows, gridUnit, useSince ? balanceSince : null),
+      players: players.map((p) => ({ id: p.id, name: p.full_name })),
+      columns: gridColumns,
+      periodMs:
+        getEffectiveQuarterSeconds(
+          { quarter_length_seconds: team.quarter_length_seconds ?? null },
+          balanceAgeCfg,
+        ) * 1000,
+    }),
+    periodWord: periodLabels(sport, balanceAgeCfg).label,
+    reset: balanceSince
+      ? {
+          since: useSince,
+          sinceLabel: new Date(balanceSince).toLocaleDateString("en-AU", { day: "numeric", month: "short" }),
+          wholeHref: `?season=${selectedYear}`,
+          sinceHref: `?season=${selectedYear}&balance=since`,
+        }
+      : undefined,
+  };
+
   // ─── Rugby league branch ──────────────────────────────────
   // Junior RL stats are shaped by the laws: tries (4) + conversions
   // (2), FR/DH vest history, kickoff rotation, and §6 unbroken-
-  // period compliance. The shared aggregator pipes through the
-  // same replay engines the live UI uses so live ↔ post-game
-  // numbers stay consistent.
-  if (sport === "rugby_league") {
+  // period compliance. U13+ (international laws) adds penalty and
+  // field goals and drops the junior laws. The shared aggregator
+  // pipes through the same replay engines the live UI uses so
+  // live ↔ post-game numbers stay consistent.
+  if (isRugby(sport)) {
     const eventsByGameRecord: Record<string, GameEvent[]> = {};
     eventsByGame.forEach((evs, gid) => {
       eventsByGameRecord[gid] = evs;
@@ -156,6 +211,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         playerNames={playerNames}
         aggregate={aggregate}
         totalGames={seasonGames.length}
+        seasonBalance={seasonBalance}
+        columns={leagueStatsColumns(balanceAgeCfg)}
+        words={rugbyScoreWords(sport)}
       />
     );
   }
@@ -215,6 +273,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         hasPlayData={hasPlayData}
         hasScoringData={hasScoringData}
         hasAvailabilityData={hasAvailabilityData}
+        seasonBalance={seasonBalance}
       />
     );
   }
@@ -234,7 +293,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     // Nominal quarter length per game — clamps a runaway clock so a
     // quarter left running past the hooter can't inflate minutes /
     // AVG/G. Resolves game override → team default → age default.
-    const aflAgeCfg = getAgeGroupConfig("afl", team.age_group);
+    const aflAgeCfg = getAgeGroupConfig(aflBranch(sport), team.age_group);
     const gameById = new Map(seasonGames.map((g) => [g.id, g]));
     snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) => {
       const g = gameById.get(gid);
@@ -306,6 +365,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       totalGames={seasonGames.length}
       hasZoneData={hasZoneData}
       hasScoringData={hasScoringData}
+      seasonBalance={seasonBalance}
     />
   );
 }

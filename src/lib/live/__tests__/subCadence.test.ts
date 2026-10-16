@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
+import { isFinalSubWindow, canPlanNextPeriod, subMinutesFrom } from "@/lib/live/subCadence";
 
 // 12-min quarter, 4-min sub interval → final window opens at 8 min.
 const Q = 12 * 60_000;
@@ -54,5 +54,22 @@ describe("canPlanNextPeriod", () => {
   it("is never offered on the last period or outside live play", () => {
     expect(canPlanNextPeriod({ ...base, isLastPeriod: true, hasSwappableBench: false })).toBe(false);
     expect(canPlanNextPeriod({ ...base, isLivePlay: false, inFinalWindow: true })).toBe(false);
+  });
+});
+
+// The lineup box shows the minutes the game uses (Stagehand
+// sideline-chaos-union, 16 Oct 2026: it said 15, the game used 10).
+describe("subMinutesFrom", () => {
+  it("clamps to 1–10 minutes", () => {
+    expect(subMinutesFrom("15", 4)).toBe(10);
+    expect(subMinutesFrom("0.5", 4)).toBe(1);
+    expect(subMinutesFrom("-3", 4)).toBe(1);
+    expect(subMinutesFrom("6.5", 4)).toBe(6.5);
+  });
+
+  it("falls back where the box isn't a number", () => {
+    expect(subMinutesFrom("", 4)).toBe(4);
+    expect(subMinutesFrom("0", 4)).toBe(4);
+    expect(subMinutesFrom("abc", 12)).toBe(10);
   });
 });

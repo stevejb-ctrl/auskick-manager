@@ -5,8 +5,7 @@ import { addPlayer } from "@/app/(app)/teams/[teamId]/squad/actions";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { ChipPicker } from "@/components/squad/ChipPicker";
-import type { ChipKey, ChipMode } from "@/lib/chips";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -19,14 +18,6 @@ interface AddPlayerFormProps {
    * preserve AFL behaviour.
    */
   showJersey?: boolean;
-  /** Optional team-defined labels for the three chip slots. */
-  chipLabels?: { a: string | null; b: string | null; c: string | null };
-  /**
-   * Optional per-chip modes — passed straight through to ChipPicker
-   * so the swatch colours match the in-game zone palette when the
-   * team has linked chips to positions. Steve 2026-05-20.
-   */
-  chipModes?: Partial<Record<ChipKey, ChipMode>>;
 }
 
 export function AddPlayerForm({
@@ -35,12 +26,9 @@ export function AddPlayerForm({
   maxPlayers,
   takenJerseys,
   showJersey = true,
-  chipLabels,
-  chipModes,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
-  const [chip, setChip] = useState<"a" | "b" | "c" | "">("");
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -83,14 +71,13 @@ export function AddPlayerForm({
         teamId,
         name.trim(),
         jerseyValue,
-        chip === "" ? null : chip,
+        null,
       );
       if (!result.success) {
         setServerError(result.error);
       } else {
         setName("");
         setJersey("");
-        setChip("");
       }
     });
   }
@@ -112,7 +99,11 @@ export function AddPlayerForm({
             id="player-name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              // Clear as they type, not on the next Add.
+              setNameError(undefined);
+            }}
             placeholder="e.g. Sam Smith"
             error={nameError}
             disabled={isPending}
@@ -127,7 +118,10 @@ export function AddPlayerForm({
               min={1}
               max={99}
               value={jersey}
-              onChange={(e) => setJersey(e.target.value)}
+              onChange={(e) => {
+                setJersey(e.target.value);
+                setJerseyError(undefined);
+              }}
               placeholder="Optional"
               error={jerseyError}
               disabled={isPending}
@@ -136,24 +130,10 @@ export function AddPlayerForm({
         )}
       </div>
 
-      {chipLabels &&
-        (chipLabels.a || chipLabels.b || chipLabels.c) && (
-          <ChipPicker
-            value={chip}
-            onChange={setChip}
-            labels={chipLabels}
-            modes={chipModes}
-            disabled={isPending}
-          />
-        )}
-
       {serverError && (
-        <p
-          className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert>
           {serverError}
-        </p>
+        </InlineAlert>
       )}
 
       <SFButton type="submit" loading={isPending} size="md">

@@ -7,6 +7,8 @@ import { NotesList } from "@/components/admin/NotesList";
 import { TagPicker } from "@/components/admin/TagPicker";
 import { UnsubscribeToggle } from "@/components/admin/UnsubscribeToggle";
 import { getUserDetail, listAllTags } from "@/lib/admin/queries";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface PageProps {
   params: { profileId: string };
@@ -24,12 +26,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin/users"
-          className="text-xs font-medium text-brand-600 hover:text-brand-700"
-        >
-          ← All users
-        </Link>
+        <BackLink href="/admin/users" label="All users" />
       </div>
 
       {/* Identity card */}
@@ -56,9 +53,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           Teams &amp; roles
         </h3>
         {detail.memberships.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-hairline bg-surface-alt px-4 py-4 text-sm text-ink-mute">
-            Not on any teams.
-          </p>
+          <EmptyState size="compact" title="Not on any teams." />
         ) : (
           <ul className="divide-y divide-hairline rounded-lg border border-hairline bg-surface">
             {detail.memberships.map((m) => (

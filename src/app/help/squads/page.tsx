@@ -23,7 +23,7 @@ export default function SquadsPage() {
 
       <HelpFigure
         src="/help-screenshots/squads-player-list.png"
-        alt="The squad page showing a list of players with jersey numbers and names"
+        alt="An AFL squad page showing a list of players with jersey numbers and names"
         caption="The Squad tab shows your full active roster."
       />
 
@@ -32,30 +32,32 @@ export default function SquadsPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Add player</strong> at the top of the list.
+            Find <strong className="text-ink">Add player</strong> at the top of the page.
           </li>
           <li>
-            Enter the player&apos;s <strong className="text-ink">full name</strong> and
-            their <strong className="text-ink">jersey number</strong>. Jersey numbers
-            are optional — netball squads typically leave them blank.
+            Enter the player&apos;s <strong className="text-ink">full name</strong>.
+            AFL and league squads can also add a{" "}
+            <strong className="text-ink">jersey number</strong> (optional).
+            Netball squads don&apos;t use numbers, so there&apos;s no number
+            field.
           </li>
           <li>
-            Tap <strong className="text-ink">Save</strong>. The player appears in the
-            active squad list.
+            Tap <strong className="text-ink">Add player</strong>. The player
+            appears in the active squad list.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/squads-add-player.png"
-          alt="The add player form open at the top of the squad list, showing name and jersey number fields"
-          caption="Fill in name and jersey number, then tap Save."
+          alt="The AFL add player form open at the top of the squad list, showing name and jersey number fields"
+          caption="Fill in the name (and a jersey number for AFL or league), then tap Add player."
         />
 
         <HelpCallout type="tip">
-          Jersey numbers help you identify football players quickly during a live
-          game. You can use any number; it does not need to be unique. Netball
-          uses bib position codes (GS, GA, etc.) instead, so jersey numbers can
-          be left blank.
+          In AFL and league, jersey numbers show on player tiles so you can
+          spot players quickly during a live game. Each number can only be
+          used once in the squad. Netball players wear position bibs (GS, GA,
+          etc.) instead, so Siren doesn&apos;t ask for numbers.
         </HelpCallout>
       </section>
 
@@ -63,7 +65,8 @@ export default function SquadsPage() {
         <h2 className="text-xl font-semibold text-ink">Editing a player</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Tap a player&apos;s row in the squad list to open the edit form. Change the name
-          or jersey number and tap <strong className="text-ink">Save</strong>.
+          (or, for AFL and league, the jersey number) and tap{" "}
+          <strong className="text-ink">Save</strong>.
         </p>
       </section>
 
@@ -82,92 +85,71 @@ export default function SquadsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player chips — mixing or grouping kids</h2>
+        <h2 className="text-xl font-semibold text-ink">Player roles — where each kid plays</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Chips are coloured tags you can attach to any player. The lineup
-          suggester reads them when it builds a starting lineup or rebalances
-          at a quarter break. You decide both <strong className="text-ink">what
-          each chip means</strong> and <strong className="text-ink">how the
-          suggester should treat chip-mates</strong>:
+          Each player on the squad has a <strong className="text-ink">Role</strong>.
+          What it offers depends on how your team plays (Team tab › How we play):
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-ink-dim">
           <li>
-            <strong className="text-ink">Split</strong> spreads chip-mates
-            across zones / positions. Use this when you want a mix in every
-            line — for example, label one chip <em>older</em> and another{" "}
-            <em>younger</em>, and Siren will put older and younger kids in
-            each zone rather than bunching all the older ones in mid.
+            <strong className="text-ink">Home</strong> — their position (AFL
+            or netball Set positions, netball Partners, league Named
+            positions) or their preferred line (AFL and league) or third
+            (netball).
           </li>
           <li>
-            <strong className="text-ink">Group</strong> keeps chip-mates
-            together. Use this when a player needs to be paired with familiar
-            teammates — for example, a kid with social needs who plays better
-            next to their best mate. Tag both with the same chip and Siren
-            will put them in the same zone where it can.
+            <strong className="text-ink">Also plays</strong> — backups Siren
+            uses when home is taken.
+          </li>
+          <li>
+            <strong className="text-ink">Never plays</strong> — Siren won&apos;t
+            suggest it for them.
+          </li>
+          <li>
+            <strong className="text-ink">Keep on</strong> — they play as much as
+            the rules allow.
           </li>
         </ul>
-
-        <h3 className="mt-5 text-base font-semibold text-ink">Step 1 — name your chips</h3>
-        <ol className="mt-2 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open <strong className="text-ink">Settings</strong> on your team.</li>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
+          <li>Open the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
-            Scroll to the <strong className="text-ink">Player chips</strong> card.
+            Tap <strong className="text-ink">Role</strong> on a player, choose, and
+            tap <strong className="text-ink">Save role</strong>. Their role shows
+            under their name.
           </li>
-          <li>
-            For each chip you want to use, type a label (e.g.{" "}
-            <em>Older</em>, <em>Younger</em>, <em>Stays with friends</em>) and
-            pick <strong className="text-ink">Split</strong> or{" "}
-            <strong className="text-ink">Group</strong>.
-          </li>
-          <li>Tap <strong className="text-ink">Save chip settings</strong>.</li>
         </ol>
-        <p className="mt-2 text-xs text-ink-mute">
-          Leave a label blank to hide that chip slot — only labelled chips
-          appear in the player picker.
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          To mix or group kids — older with younger, or a kid who plays best
+          next to a mate — add a <strong className="text-ink">Keep apart</strong>{" "}
+          or <strong className="text-ink">Keep together</strong> rule under Team ›
+          How we play › Rules.
         </p>
 
-        <h3 className="mt-5 text-base font-semibold text-ink">Step 2 — tag your players</h3>
-        <ol className="mt-2 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>
-            Go back to <strong className="text-ink">Squad</strong>. The chip
-            row now appears in the Add player form.
-          </li>
-          <li>
-            For an existing player, tap their row to open the edit form. Pick
-            a chip swatch (or leave it on <em>Any</em>) and tap{" "}
-            <strong className="text-ink">Save</strong>.
-          </li>
-          <li>
-            A small coloured dot now appears before the player&apos;s name in
-            the squad list, on the lineup picker, on the live-game tile —
-            anywhere they show up.
-          </li>
-        </ol>
-
         <HelpCallout type="tip">
-          Chips are a soft constraint. They influence the suggester but never
-          block a placement, so you can always tap-tap to override. If a chip
-          isn&apos;t doing what you want, change its mode in Settings — no
-          need to retag every player.
+          Player chips have become roles and rules: a chip linked to a line
+          is now that kid&apos;s home line, and split or group chips are now
+          Keep apart / Keep together rules. Nothing to redo.
         </HelpCallout>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Setting availability before a game</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Before starting a live game, you&apos;ll be asked to mark which players are
-          available that day. Only available players are included in the lineup
-          picker and rotation suggestions.
+          Only available players are included in the lineup and rotation
+          suggestions. You can set availability the night before, or fix it on
+          the day.
         </p>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
-          <li>Open the game from the <strong className="text-ink">Games</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">Start game</strong>. The availability
-            screen appears.
+            The night before: open the game and tap{" "}
+            <strong className="text-ink">Availability</strong>. Mark each player in
+            or out, then tap <strong className="text-ink">Continue to lineup</strong>.
           </li>
-          <li>Tap each player who is present to mark them available.</li>
           <li>
-            Tap <strong className="text-ink">Continue to lineup</strong> when done.
+            On the day: tap <strong className="text-ink">Start game day</strong>.
+            The <strong className="text-ink">Who&apos;s here</strong> line at the
+            top of the lineup shows who&apos;s in; open it to mark a no-show out and
+            the lineup rebuilds without them.
           </li>
         </ol>
 
@@ -178,8 +160,8 @@ export default function SquadsPage() {
         />
 
         <HelpCallout type="tip">
-          You can add a late-arriving player during a live game using the{" "}
-          <strong>Late arrival</strong> menu on the live game screen. See{" "}
+          You can add a late-arriving player during a live game using{" "}
+          <strong>+ Add late arrival</strong> on the live game screen. See{" "}
           <Link href="/help/live-game" className="font-medium underline">
             Live Game
           </Link>{" "}

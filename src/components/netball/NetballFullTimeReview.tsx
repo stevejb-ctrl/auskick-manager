@@ -15,6 +15,7 @@ import { SFButton } from "@/components/sf";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface NetballFullTimeReviewProps {
   auth: LiveAuth;
@@ -35,6 +36,11 @@ interface NetballFullTimeReviewProps {
   players: Player[];
   /** ms elapsed at full time — passed to game_finalised event. */
   finalisedElapsedMs: number;
+  /**
+   * Q4's mid-quarter subs. There's no break after Q4 to write them, so
+   * finalise does (they were lost: a Q4 replacement got no time).
+   */
+  midQuarterSubs?: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[];
   /** Display names for the per-quarter table headers. */
   teamName?: string;
   opponentName?: string;
@@ -49,6 +55,7 @@ export function NetballFullTimeReview({
   scoreByQuarter,
   players,
   finalisedElapsedMs,
+  midQuarterSubs = [],
   teamName = "Us",
   opponentName = "Them",
 }: NetballFullTimeReviewProps) {
@@ -59,7 +66,7 @@ export function NetballFullTimeReview({
   function handleFinalise() {
     setFinaliseError(null);
     startFinaliseTransition(async () => {
-      const result = await finaliseNetballGame(auth, gameId, finalisedElapsedMs);
+      const result = await finaliseNetballGame(auth, gameId, finalisedElapsedMs, midQuarterSubs);
       if (!result.success) {
         setFinaliseError(result.error);
         return;
@@ -128,12 +135,9 @@ export function NetballFullTimeReview({
       )}
 
       {finaliseError && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {finaliseError}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-4 border-t border-hairline pt-3">
@@ -143,7 +147,7 @@ export function NetballFullTimeReview({
           onClick={handleFinalise}
           loading={finalisePending}
         >
-          Finalise game
+          Finish game
         </SFButton>
         <p className="mt-2 text-center text-[11px] text-ink-mute">
           Locks the score and shows the summary you can share.

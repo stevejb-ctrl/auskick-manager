@@ -124,7 +124,7 @@ const NETBALL_AGE_GROUPS: AgeGroupConfig[] = [
     // hand-set 600.
     subIntervalSeconds: deriveSubIntervalSeconds(10 * 60, 240),
     subIntervalFloorSeconds: 240,
-    tracksScoreDefault: true,
+    tracksScoreDefault: false,
     notes: "NetSetGO Set: 5-a-side, skill-focused, no scores kept. 10-min quarters by default — adjust in team settings if your league plays shorter.",
   },
   {
@@ -446,6 +446,7 @@ export function primaryThirdFor(positionId: string): string | null {
 
 export const netballSport: SportConfig = {
   id: "netball",
+  family: "netball",
   name: "Netball",
   shortName: "Netball",
   brand: {
@@ -464,5 +465,7 @@ export const netballSport: SportConfig = {
   periodLabel: "quarter",
   periodLabelPlural: "quarters",
   fairnessModel: "position-count-per-game",
+  jerseyNumbers: false,
+  teamSong: true,
   validateLineup: validateNetballLineup,
 };

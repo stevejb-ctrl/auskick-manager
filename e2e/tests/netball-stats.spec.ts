@@ -71,7 +71,6 @@ async function seedFinalisedNetballGame(opts: { trackScoring: boolean }) {
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
 
   // Build a 7-position netball lineup; bench the remaining players.
@@ -148,7 +147,8 @@ test("NETBALL-05: stats dashboard renders all 5 sections after a finalised netba
   // section ordering changed.
   const sectionTitles = [
     /player statistics/i,
-    /minutes equity/i,
+    // Season balance replaced "Game time" minutes equity (UX plan 4.4).
+    /^season balance$/i,
     /player chemistry/i,
     /head-to-head/i,
     /attendance/i,

@@ -64,7 +64,7 @@ interface LineupPickerFooterProps {
 
   // ─── Primary CTA ────────────────────────────────────────────
   onConfirm: () => void;
-  /** Button label. AFL passes "Ready for Q1"; netball passes its `confirmLabel` prop. */
+  /** Button label, e.g. "Start Q1" (every sport passes its own). */
   confirmLabel: string;
   /** Disable gate for the primary CTA — typically `onFieldCount === 0 || isPending`. */
   confirmDisabled?: boolean;

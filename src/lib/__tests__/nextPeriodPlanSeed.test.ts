@@ -22,8 +22,15 @@
 // forwards/backs. This spec pins that contract before the helper exists.
 
 import { describe, it, expect } from "vitest";
-import { seedNextPeriodLineup } from "@/lib/game-plan";
-import type { PlannedRotation } from "@/lib/game-plan";
+import {
+  consumePeriodPin,
+  hasPinnedPeriod,
+  pinLaterPeriods,
+  seedNextPeriodLineup,
+  withPinnedPeriods,
+  withoutSubPin,
+} from "@/lib/game-plan";
+import type { GamePlan, PlannedRotation } from "@/lib/game-plan";
 
 // ─── Cross-sport fixtures ──────────────────────────────────────────
 // Each sport: its expected groupIds, a fully-pinned next-period lineup,
@@ -188,5 +195,144 @@ describe("seedNextPeriodLineup — purity", () => {
 
     expect(a).toEqual(b);
     expect(JSON.stringify(pin)).toBe(snapshot);
+  });
+});
+
+// ─── withPinnedNextPeriod ──────────────────────────────────────────
+// Stagehand round 2: reopening Game plan mid-game always projected
+// afresh, so the next quarter the coach had pinned looked lost.
+
+describe("withPinnedPeriods (a period pinned mid-game)", () => {
+  const plan: GamePlan = {
+    sport: "netball",
+    periods: [
+      { period: 2, label: "Q2", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["a"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["b"] }], bench: ["c", "d"] },
+      { period: 3, label: "Q3", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["c"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["d"] }], bench: ["a", "b"] },
+      { period: 4, label: "Q4", groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["a"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["b"] }], bench: ["c", "d"] },
+    ],
+    totals: [],
+    periodLabel: "quarter",
+    periodLabelPlural: "quarters",
+    periodMinutes: 10,
+    rotatesWithinPeriod: false,
+  };
+  const pin: PlannedRotation = {
+    gameId: "g1",
+    nextPeriodIndex: 2,
+    nextPeriodGroups: { gs: ["d"], gk: ["a"] },
+    nextPeriodBench: ["b"],
+  };
+
+  it("shows the pinned next quarter, leaving the others as projected", () => {
+    const shown = withPinnedPeriods(plan, { pin, fromPeriodIndex: 2, availableIds: ["a", "b", "c", "d"] });
+    expect(shown.periods[1].groups.map((g) => g.playerIds)).toEqual([["d"], ["a"]]);
+    // c wasn't placed by the pin but is still here: on the bench.
+    expect(shown.periods[1].bench).toEqual(["b", "c"]);
+    expect(shown.periods[0]).toEqual(plan.periods[0]);
+    expect(shown.periods[2]).toEqual(plan.periods[2]);
+  });
+
+  it("drops a pinned kid who's no longer available", () => {
+    const shown = withPinnedPeriods(plan, { pin, fromPeriodIndex: 2, availableIds: ["b", "c", "d"] });
+    expect(shown.periods[1].groups.map((g) => g.playerIds)).toEqual([["d"], []]);
+    expect(shown.periods[1].bench).toEqual(["b", "c"]);
+  });
+
+  it("leaves the projection alone with no pin, or one for an earlier quarter", () => {
+    expect(withPinnedPeriods(plan, { pin: null, fromPeriodIndex: 2, availableIds: ["a"] })).toBe(plan);
+    expect(withPinnedPeriods(plan, { pin: { ...pin, nextPeriodIndex: 1 }, fromPeriodIndex: 2, availableIds: ["a"] })).toBe(plan);
+  });
+});
+
+// ─── Later periods planned before kickoff ──────────────────────────
+// Stagehand round 3: "Use for Q1" kept only Q1; edits to Q2–Q4 in the
+// pre-kickoff Game plan silently vanished. The plan's later periods now
+// ride on the pin (`laterPeriods`) and seed each break.
+
+describe("later periods on the pin", () => {
+  const pin: PlannedRotation = {
+    gameId: "g1",
+    laterPeriods: {
+      1: { groups: { gs: ["d"], gk: ["a"] }, bench: ["b", "c"] },
+      3: { groups: { gs: ["a"], gk: ["b"] }, bench: ["c", "d"] },
+    },
+  };
+
+  it("seed the break they lead into", () => {
+    const seed = seedNextPeriodLineup({ pin, periodIndex: 1, availableIds: ["a", "b", "c", "d"], groupIds: ["gs", "gk"] });
+    expect(seed).toEqual({ groups: { gs: ["d"], gk: ["a"] }, bench: ["b", "c"] });
+    expect(seedNextPeriodLineup({ pin, periodIndex: 2, availableIds: ["a"], groupIds: ["gs"] })).toBeNull();
+    expect(hasPinnedPeriod(pin, 1)).toBe(true);
+    expect(hasPinnedPeriod(pin, 2)).toBe(false);
+  });
+
+  it("a period pinned mid-game wins over the pre-kickoff plan for it", () => {
+    const both: PlannedRotation = { ...pin, nextPeriodIndex: 1, nextPeriodGroups: { gs: ["c"], gk: ["d"] }, nextPeriodBench: ["a", "b"] };
+    expect(seedNextPeriodLineup({ pin: both, periodIndex: 1, availableIds: ["a", "b", "c", "d"], groupIds: ["gs", "gk"] })?.groups).toEqual({ gs: ["c"], gk: ["d"] });
+  });
+
+  it("starting a period consumes only its own plan", () => {
+    const both: PlannedRotation = { ...pin, nextPeriodIndex: 1, nextPeriodGroups: { gs: ["c"] }, nextPeriodBench: [] };
+    const after = consumePeriodPin(both, 1);
+    expect(after?.nextPeriodGroups).toBeUndefined();
+    expect(after?.laterPeriods).toEqual({ 3: pin.laterPeriods![3] });
+    // Nothing left: no pin at all.
+    expect(consumePeriodPin({ gameId: "g1", laterPeriods: { 1: pin.laterPeriods![1] } }, 1)).toBeNull();
+  });
+
+  it("applying a pinned sub keeps the planned periods", () => {
+    const withSub: PlannedRotation = { ...pin, pinnedForPeriod: 1, pinnedSwaps: [] };
+    expect(withoutSubPin(withSub)).toEqual(pin);
+    expect(withoutSubPin({ gameId: "g1", pinnedForPeriod: 1, pinnedSwaps: [] })).toBeNull();
+  });
+
+  it("reopening the planner shows every pinned period from there on", () => {
+    const plan: GamePlan = {
+      sport: "netball",
+      periods: [1, 2, 3, 4].map((n) => ({
+        period: n,
+        label: `Q${n}`,
+        groups: [{ groupId: "gs", groupLabel: "GS", playerIds: ["a"] }, { groupId: "gk", groupLabel: "GK", playerIds: ["b"] }],
+        bench: ["c", "d"],
+      })),
+      totals: [],
+      periodLabel: "quarter",
+      periodLabelPlural: "quarters",
+      periodMinutes: 10,
+      rotatesWithinPeriod: false,
+    };
+    const shown = withPinnedPeriods(plan, { pin, fromPeriodIndex: 1, availableIds: ["a", "b", "c", "d"] });
+    expect(shown.periods[0]).toEqual(plan.periods[0]);
+    expect(shown.periods[1].groups.map((g) => g.playerIds)).toEqual([["d"], ["a"]]);
+    expect(shown.periods[2]).toEqual(plan.periods[2]);
+    expect(shown.periods[3].groups.map((g) => g.playerIds)).toEqual([["a"], ["b"]]);
+  });
+});
+
+describe("pinLaterPeriods", () => {
+  it("pins Q2 on from a pre-kickoff plan, keeping a pinned sub, replacing old plans", () => {
+    const plan: GamePlan = {
+      sport: "netball",
+      periods: [1, 2, 3].map((n) => ({
+        period: n,
+        label: `Q${n}`,
+        groups: [{ groupId: "gs", groupLabel: "GS", playerIds: [`s${n}`] }],
+        bench: [`b${n}`],
+      })),
+      totals: [],
+      periodLabel: "quarter",
+      periodLabelPlural: "quarters",
+      periodMinutes: 10,
+      rotatesWithinPeriod: false,
+    };
+    const prior: PlannedRotation = { gameId: "g1", pinnedForPeriod: 1, pinnedSwaps: [], laterPeriods: { 5: { groups: {}, bench: [] } } };
+    expect(pinLaterPeriods(prior, "g1", plan)).toEqual({
+      gameId: "g1",
+      pinnedForPeriod: 1,
+      pinnedSwaps: [],
+      laterPeriods: { 1: { groups: { gs: ["s2"] }, bench: ["b2"] }, 2: { groups: { gs: ["s3"] }, bench: ["b3"] } },
+    });
+    // Another game's pin isn't carried over.
+    expect(pinLaterPeriods({ ...prior, gameId: "other" }, "g1", plan).pinnedForPeriod).toBeUndefined();
   });
 });

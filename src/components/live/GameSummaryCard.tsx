@@ -5,6 +5,7 @@ import { ALL_ZONES } from "@/lib/fairness";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
+import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
 
 const ZONE_ABBREV: Record<string, string> = {
   back: "BCK",
@@ -79,6 +80,7 @@ function buildSummary(
   playersById: Map<string, PlayerLike>,
   swapCount: number,
   basePlayedZoneMs: Record<string, ZoneMs>,
+  presentIds: readonly string[],
 ): string {
   const lines: string[] = [];
 
@@ -131,14 +133,16 @@ function buildSummary(
   // came on (e.g. lent to opp before kickoff, or set up but not played).
   const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
   const playedCount = playerStats.length;
+  // Kids who were there but never got on stay in the list (Stagehand
+  // round 3: the one How we played flagged was missing), and in the
+  // headline, so it matches the list (round 4).
+  const satOut = didntGetOn(presentIds, playerStats.map((ps) => ps.id)).filter((id) => playersById.has(id));
 
-  const stats: string[] = [
-    `${playedCount} player${playedCount !== 1 ? "s" : ""}`,
-  ];
+  const stats: string[] = [playersHeadline(playedCount, satOut.length)];
   if (swapCount > 0) stats.push(`${swapCount} subs`);
   lines.push(`\n👟 ${stats.join(" · ")}`);
 
-  if (playerStats.length > 0) {
+  if (playerStats.length > 0 || satOut.length > 0) {
     lines.push(`\n⏱ Game time`);
     for (const ps of playerStats) {
       const zoneStr = ps.zones.map((z) => `${z.label} ${z.pct}%`).join(" · ");
@@ -146,6 +150,11 @@ function buildSummary(
       lines.push(
         `${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}`,
       );
+    }
+    for (const id of satOut) {
+      const p = playersById.get(id)!;
+      const prefix = p.jersey_number != null ? `#${p.jersey_number} ` : "";
+      lines.push(`${prefix}${p.full_name.split(" ")[0]} — ${DIDNT_GET_ON}`);
     }
   }
 
@@ -170,6 +179,8 @@ export interface GameSummaryViewProps {
   playersById: Map<string, PlayerLike>;
   swapCount: number;
   basePlayedZoneMs: Record<string, ZoneMs>;
+  /** Everyone at the game (presentPlayerIds), so kids who never got on show at 0:00. */
+  presentIds?: readonly string[];
   /**
    * Whether to wrap with SirenPulseHalo (the "final siren" arrival
    * pulse). The live page mounts this card the moment full time
@@ -190,6 +201,7 @@ export function GameSummaryView({
   playersById,
   swapCount,
   basePlayedZoneMs,
+  presentIds = [],
   showArrivalPulse = false,
 }: GameSummaryViewProps) {
   const summary = buildSummary(
@@ -202,6 +214,7 @@ export function GameSummaryView({
     playersById,
     swapCount,
     basePlayedZoneMs,
+    presentIds,
   );
 
   const card = (
@@ -240,6 +253,8 @@ interface GameSummaryCardProps {
   opponentName: string;
   trackScoring: boolean;
   playersById: Map<string, Player>;
+  /** Everyone at the game, so kids who never got on show at 0:00. */
+  presentIds?: readonly string[];
 }
 
 export function GameSummaryCard({
@@ -247,6 +262,7 @@ export function GameSummaryCard({
   opponentName,
   trackScoring,
   playersById,
+  presentIds,
 }: GameSummaryCardProps) {
   const teamScore = useLiveGame((s) => s.teamScore);
   const opponentScore = useLiveGame((s) => s.opponentScore);
@@ -265,6 +281,7 @@ export function GameSummaryCard({
       playersById={playersById}
       swapCount={swapCount}
       basePlayedZoneMs={basePlayedZoneMs}
+      presentIds={presentIds}
       showArrivalPulse
     />
   );

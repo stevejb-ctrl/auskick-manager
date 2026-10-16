@@ -8,6 +8,7 @@ import {
   kickoffRecordedForPeriod,
   kickoffTakers,
   seasonKickoffCountsByPlayer,
+  unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, GameEventType } from "@/lib/types";
 
@@ -421,5 +422,71 @@ describe("seasonKickoffCountsByPlayer", () => {
       ev("conversion_attempt", { made: true, force: false }, "p1"),
     ];
     expect(seasonKickoffCountsByPlayer(events)).toEqual({ p1: 1 });
+  });
+});
+
+// ─── unconvertedTryIds ───────────────────────────────────────
+// Stagehand round 2: a game held a made conversion and no try. A kick
+// (bar a forced one) needs a try still waiting for its conversion.
+
+describe("unconvertedTryIds", () => {
+  it("a try waits for its conversion; the kick takes it", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    expect(unconvertedTryIds([t])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, conversion("p2", true)])).toEqual([]);
+  });
+
+  it("no try means nothing to convert", () => {
+    reset();
+    expect(unconvertedTryIds([])).toEqual([]);
+    expect(unconvertedTryIds([conversion("p2", true)])).toEqual([]);
+  });
+
+  it("a forced extra kick after the conversion doesn't eat the next try", () => {
+    reset();
+    const t1 = ev("try", {}, "p1");
+    const events = [t1, conversion("p2", true), conversion("p1", true, { force: true })];
+    expect(unconvertedTryIds(events)).toEqual([]);
+    const t2 = ev("try", {}, "p3");
+    expect(unconvertedTryIds([...events, t2])).toEqual([t2.id]);
+  });
+
+  it("opponent tries aren't ours to convert", () => {
+    reset();
+    expect(unconvertedTryIds([ev("opponent_try")])).toEqual([]);
+  });
+
+  it("undoing the kick leaves the try waiting; undoing the try leaves nothing", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    const k = conversion("p2", true);
+    expect(unconvertedTryIds([t, k, ev("score_undo", { target_event_id: k.id })])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, ev("score_undo", { target_event_id: t.id })])).toEqual([]);
+  });
+
+  it("goals from play neither convert a try nor get undone in its place", () => {
+    reset();
+    const t = ev("try", {}, "p1");
+    const pg = ev("penalty_goal", {}, "p2");
+    // The penalty goal is the latest score: the undo takes it, not the try.
+    expect(unconvertedTryIds([t, pg])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, pg, ev("score_undo")])).toEqual([t.id]);
+    expect(unconvertedTryIds([t, ev("field_goal", {}, "p2"), ev("opponent_penalty_goal")])).toEqual([t.id]);
+  });
+
+  it("an undo of a goal from play leaves the conversion standing", () => {
+    reset();
+    const onField = ["p1", "p2", "p3"];
+    const events = [ev("try", {}, "p1"), conversion("p2", true), ev("field_goal", {}, "p3"), ev("score_undo")];
+    expect(conversionCycle(events, onField).attempted.has("p2")).toBe(true);
+  });
+
+  it("two tries in a row: the earlier waits first", () => {
+    reset();
+    const t1 = ev("try", {}, "p1");
+    const t2 = ev("try", {}, "p3");
+    expect(unconvertedTryIds([t1, t2])).toEqual([t1.id, t2.id]);
+    expect(unconvertedTryIds([t1, t2, conversion("p2", false)])).toEqual([t2.id]);
   });
 });

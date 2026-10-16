@@ -8,6 +8,7 @@ import {
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { PulsingNumber } from "@/components/live/PulsingNumber";
+import { SCORE_CHIP } from "@/components/live/scoreChip";
 
 interface GameHeaderProps {
   teamName: string;
@@ -66,15 +67,6 @@ interface GameHeaderProps {
    */
   onShowQuarterScores?: () => void;
   /**
-   * Tap the small "End Q early" chip that appears under the clock
-   * pill ONLY when the clock is paused mid-quarter. Steve's real-
-   * game scenario: paused at the start of the quarter, forgot to
-   * resume, game continued without the clock; needs a way to skip
-   * to the Q-break. Parent owns the confirmation flow so the
-   * destructive action requires an explicit tap.
-   */
-  onEndQuarterEarly?: () => void;
-  /**
    * Strip the outer card chrome (rounded corners, surface bg, drop
    * shadow). Used when the header is nested inside a sticky-bottom
    * wrapper (Steve 2026-05-13) — the wrapper carries its own bar
@@ -90,21 +82,6 @@ function points(s: { goals: number; behinds: number }) {
   return s.goals * 6 + s.behinds;
 }
 
-// Score-record chip styling — shared by all four +G/+B buttons
-// (own-team goal, own-team behind, opponent goal, opponent behind).
-// Lives once here rather than copy-pasted across the four call sites.
-// `active:bg-brand-200 active:text-brand-700` is the brief tap-down
-// signal: a brand-coloured flash that confirms the chip registered
-// the tap before the player-picker mounts. Higher contrast than the
-// hover step because score-record is a deliberate, consequential
-// action (it opens a picker, mutates state) — pointer-down deserves
-// to feel weightier than mere hover.
-const SCORE_CHIP =
-  "rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim " +
-  "transition-colors duration-fast ease-out-quart " +
-  "hover:bg-hairline hover:text-ink " +
-  "active:bg-brand-200 active:text-brand-700 " +
-  "disabled:pointer-events-none disabled:opacity-60";
 
 /**
  * The unified top header: BRUNSWICK 3.2 (20) ·  Q2 ⏸ 8:14  · COBURG 2.4 (16).
@@ -127,7 +104,6 @@ export function GameHeader({
   isPending = false,
   clockPulseKey = null,
   onShowQuarterScores,
-  onEndQuarterEarly,
   flat = false,
 }: GameHeaderProps) {
   const team = useLiveGame((s) => s.teamScore);
@@ -143,8 +119,8 @@ export function GameHeader({
     return () => window.clearInterval(id);
   }, [startedAt]);
 
-  const rawElapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs });
-  const elapsed = rawElapsed * clockMultiplier;
+  // Game ms, the store's frame (accumulatedMs is already scaled).
+  const elapsed = clockElapsedMs({ clockStartedAt: startedAt, accumulatedMs, clockMultiplier });
   const remaining = Math.max(0, quarterMs - elapsed);
   const overtime = elapsed > quarterMs;
 
@@ -209,7 +185,8 @@ export function GameHeader({
         )}
       </div>
 
-      {/* Center: dark clock pill (tap to pause/resume). Wrapped in
+      {/* Center: dark clock pill (tap opens the clock menu — pause /
+          resume / end the quarter now; UX plan H5). Wrapped in
           SirenPulseHalo so it briefly halos at sirenic moments
           (quarter-end hooter, FT). When clockPulseKey is null the
           halo span is omitted entirely — no animation, no DOM cost. */}
@@ -220,7 +197,7 @@ export function GameHeader({
             onClick={onClockTap}
             disabled={isPreGame || isFinished || !onClockTap}
             className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-            aria-label={running ? "Pause clock" : "Resume clock"}
+            aria-label={`Clock — ${quarterLabel}, ${running ? "running" : "paused"}`}
           >
             <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
               <span>{quarterLabel}</span>
@@ -247,25 +224,10 @@ export function GameHeader({
           <button
             type="button"
             onClick={onShowQuarterScores}
-            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink"
+            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink motion-safe:active:scale-[0.97]"
             aria-label="Show quarter-by-quarter scores"
           >
             Q-by-Q
-          </button>
-        )}
-        {/* End-Q-early — paused-only "rescue" affordance. Surfaces
-            beside Q-by-Q only when the clock is paused mid-quarter
-            so it stays out of the way during normal play, but the
-            coach who paused at the start of the quarter and forgot
-            to resume has somewhere obvious to recover to. */}
-        {onEndQuarterEarly && !running && !isPreGame && !isFinished && (
-          <button
-            type="button"
-            onClick={onEndQuarterEarly}
-            className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-warn transition-colors duration-fast ease-out-quart hover:border-warn hover:bg-warn/15"
-            aria-label="End the current quarter now"
-          >
-            End Q early
           </button>
         )}
       </div>

@@ -8,7 +8,7 @@
 // game or waiting for the next break.
 //
 // Steve 2026-05-20: now carries two knobs:
-//   1. Sub interval — drives the AFL SubDueModal reminder cadence.
+//   1. Sub interval — drives the sub-due banner's cadence.
 //   2. Players on field — coach can grow or shrink the on-field
 //      count mid-quarter. Growing just bumps games.on_field_size
 //      (empty slots appear via displayZoneCaps, the coach drags
@@ -34,8 +34,9 @@ import {
   setOnFieldSizeMidGame,
   setSubInterval,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
-import { useLiveGame } from "@/lib/stores/liveGameStore";
+import { clockElapsedMs, useLiveGame } from "@/lib/stores/liveGameStore";
 import type { LiveAuth, Player } from "@/lib/types";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface LiveGameSettingsButtonProps {
   auth: LiveAuth;
@@ -270,12 +271,9 @@ function LiveGameSettingsModal({
       </div>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">
@@ -372,11 +370,9 @@ function ShrinkPickerModal({
     startTransition(async () => {
       // Compute elapsed_ms from the live store. We read it imperatively
       // (not via subscribe) so the value reflects the moment the coach
-      // taps Confirm, not the moment they opened the picker.
-      const state = useLiveGame.getState();
-      const elapsedMs =
-        state.accumulatedMs +
-        (state.clockStartedAt ? Date.now() - state.clockStartedAt : 0);
+      // taps Confirm, not the moment they opened the picker. Game ms, like
+      // every other saved elapsed_ms.
+      const elapsedMs = clockElapsedMs(useLiveGame.getState());
 
       const res = await setOnFieldSizeMidGame(auth, gameId, {
         newSize,
@@ -444,12 +440,9 @@ function ShrinkPickerModal({
       </p>
 
       {error && (
-        <p
-          className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          role="alert"
-        >
+        <InlineAlert className="mt-3">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <div className="mt-5 space-y-2">

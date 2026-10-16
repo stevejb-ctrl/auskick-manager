@@ -13,8 +13,8 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
-import { positionsFor } from "../../src/lib/ageGroups";
-import type { AgeGroup, Lineup } from "../../src/lib/types";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -29,7 +29,7 @@ async function startGameInDb(opts: {
   gameId: string;
   playerIds: string[];
   onFieldSize: number;
-  ageGroup: AgeGroup;
+  ageGroup: string;
   createdBy: string;
 }) {
   const { admin, gameId, playerIds, onFieldSize, ageGroup, createdBy } = opts;
@@ -37,7 +37,7 @@ async function startGameInDb(opts: {
   // Build the same `Lineup` shape startGame writes — `{back, hback, mid,
   // hfwd, fwd, bench}`. Zone caps come from the team's age group
   // position model so the seed matches whatever the live page expects.
-  const positionModel = positionsFor(ageGroup);
+  const positionModel = aflPositionModel(getAgeGroupConfig("afl", ageGroup));
   const zoneCaps = zoneCapsFor(onFieldSize, positionModel);
   const lineup: Lineup = {
     back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [],
@@ -80,7 +80,7 @@ test("record a goal via the live UI and see it in game_events", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Score buttons render only when canScore is true, which requires
   // team.track_scoring (see src/components/live/LiveGame.tsx ~ line
   // 848). makeTeam doesn't enable it; flip it explicitly here.
@@ -144,7 +144,7 @@ test("record an unattributed goal via 'Didn't see who'", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, {
     teamId: team.id,
@@ -167,6 +167,13 @@ test("record an unattributed goal via 'Didn't see who'", async ({
   // Our team's +G chip on the scorebug (first of the two) opens the
   // who-scored picker.
   await page.getByRole("button", { name: /^\+G$/ }).first().click();
+  // Round 5 (afl-u13, afl-u14): the picker labelled centre kids "MID"
+  // while their tiles say "CEN". Same short labels as the field.
+  const centreKid = page
+    .getByRole("dialog", { name: /who scored/i })
+    .getByRole("button", { name: new RegExp(players[4].full_name) });
+  await expect(centreKid).toContainText("CEN");
+  await expect(centreKid).not.toContainText("MID");
   await page
     .getByRole("button", { name: /didn't see who/i })
     .click();
@@ -198,7 +205,7 @@ test("undo last score removes the most recent goal from the tally", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Required for canScore — see comment on the goal test above.
   await admin
     .from("teams")
@@ -252,4 +259,42 @@ test("undo last score removes the most recent goal from the tally", async ({
       { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBeGreaterThanOrEqual(1);
+});
+
+// Round 5 (runner-parent-scoring, score-reconciler): the Q-by-Q row for
+// the quarter in play showed dashes while the scoreboard already counted
+// its goals — so a score fixed in that quarter looked like it did
+// nothing. The row shows the quarter so far, still tagged "in play".
+test("Q-by-Q shows the score of the quarter in play", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+  await admin.from("game_events").insert(
+    [
+      { type: "goal", player_id: players[8].id },
+      { type: "behind", player_id: players[8].id },
+      { type: "opponent_goal", player_id: null },
+    ].map((e) => ({ ...e, game_id: game.id, metadata: { quarter: 1 }, created_by: ownerId })),
+  );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByRole("button", { name: /show quarter-by-quarter scores/i }).click();
+  const q1 = page.getByRole("row").filter({ hasText: /Q1/ });
+  await expect(q1).toContainText(/in play/i);
+  await expect(q1).toContainText("1.1");
+  await expect(q1).toContainText("1.0");
 });

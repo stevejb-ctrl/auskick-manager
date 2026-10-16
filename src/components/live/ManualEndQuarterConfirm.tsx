@@ -31,6 +31,7 @@
 
 import { Button } from "@/components/ui/Button";
 
+import { Modal } from "@/components/ui/Modal";
 interface ManualEndQuarterConfirmProps {
   /** Period number being ended, interpolated into the heading + button. */
   quarter: number;
@@ -62,12 +63,7 @@ export function ManualEndQuarterConfirm({
 }: ManualEndQuarterConfirmProps) {
   const abbr = periodLabel.charAt(0).toUpperCase();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-ink/40"
-        onClick={onCancel}
-      />
-      <div className="relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-5 shadow-modal">
+    <Modal label={`End ${abbr}${quarter} now?`} onClose={onCancel}>
         <p className="text-center text-sm font-semibold text-ink">
           End {abbr}{quarter} now?
         </p>
@@ -96,7 +92,6 @@ export function ManualEndQuarterConfirm({
             Cancel
           </Button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

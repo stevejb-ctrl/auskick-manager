@@ -30,7 +30,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   const players = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
@@ -106,15 +106,13 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // suggester chose — the test's contract is "what you see here is
   // what you get in Q2", not "the suggester picked X".
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // Time-in-zone colour key (Steve 2026-06-29): the per-player bars
   // encode zone by colour alone, so a shared legend must render once
   // on the break with the Fwd/Centre/Back labels in field order.
-  const breakLegend = page.locator(
-    '[aria-label="Time-in-zone colour key"]',
-  );
+  const breakLegend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(breakLegend).toBeVisible();
   await expect(breakLegend).toContainText("Fwd");
   await expect(breakLegend).toContainText("Centre");
@@ -142,19 +140,16 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // ~L158 — "fwd" → "Forward" to match the "Centre" treatment).
   // The selector previously looked for `has-text("Fwd")` which is
   // NOT a substring of "Forward" (different letters after the F).
+  // The break draws the live field; each zone is a named group.
   const fwdNamesInBreak = await page
-    .locator('h3:has-text("Forward")')
+    .getByRole("group", { name: "Forward", exact: true })
     .first()
-    .locator("xpath=../following-sibling::ul[1]")
-    .locator("li button")
+    .locator('[data-testid^="player-tile-"]')
     .evaluateAll((btns, names) => {
       const re = new RegExp(`(${(names as string[]).join("|")})`);
       return btns
         .map((b) => (b.textContent ?? "").trim())
-        .map((t) => {
-          const m = t.match(re);
-          return m ? m[1] : "";
-        })
+        .map((t) => t.match(re)?.[1] ?? "")
         .filter((s) => s.length > 0);
     }, SQUAD_NAMES);
   expect(
@@ -166,24 +161,26 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   // the snapshot + opens the modal; the modal's "Start Q2" CTA
   // actually kicks off the clock. The Q-break label matches the
   // modal heading; the modal CTA stays distinct.
-  await page.getByRole("button", { name: /^ready for q2$/i }).click();
-  await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /^start q2$/i }).click();
   await expect(
-    page.getByRole("heading", { name: /^ready for q2$/i }),
-  ).toBeHidden({ timeout: 3_000 });
+    page.getByRole("heading", { name: /^start q2$/i }),
+  ).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: /^start clock$/i }).click();
+  // The modal waits for the break's saves (lineup + quarter start); on a
+  // busy production build that ran past the old 3 s window (round 5).
+  await expect(
+    page.getByRole("heading", { name: /^start q2$/i }),
+  ).toBeHidden({ timeout: 10_000 });
 
   // Q2 is now live. The Field component renders the lineup with
   // FWD/CENTRE/BACK columns. Read the FWD column's player tiles.
   await expect(
-    page.getByRole("button", { name: /^pause clock$/i }),
+    page.getByRole("button", { name: /^clock — q2, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
   // The colour key also renders on the live field above the tiles, so
   // a mid-game glance at a bar stays legible.
-  const liveLegend = page.locator('[aria-label="Time-in-zone colour key"]');
+  const liveLegend = page.getByRole("group", { name: /^Colour key:/ });
   await expect(liveLegend).toBeVisible();
   await expect(liveLegend).toContainText("Fwd");
   await expect(liveLegend).toContainText("Centre");
@@ -240,7 +237,7 @@ test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the 
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Only 10 kids turned up — fewer than U10's default 12 on-field size.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10 });
   const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size = 12
@@ -279,23 +276,22 @@ test("AFL: a short squad's 3/4/3 split (10 kids in a 12-slot game) survives the 
     .getByRole("button", { name: /select team for q2/i })
     .click({ timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^ready for q2$/i }),
+    page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // Count PLAYER tiles per zone card (a zone card is <h3>ZONE</h3> then a
-  // sibling <ul>). Filter to tiles carrying a known squad name so the
-  // "+ Add" spare-capacity rows (present because displayZoneCaps still
-  // shows /4 slots) don't inflate the count.
+  // Count PLAYER tiles per zone (each zone row on the field is a named
+  // group). Filter to tiles carrying a known squad name so the "Empty"
+  // spots (present because displayZoneCaps still shows 4 slots) don't
+  // inflate the count.
   const SQUAD_NAMES = [
     "Alicia", "Brendan", "Camille", "Damian", "Elena",
     "Felix", "Gemma", "Harvey", "Ingrid", "Joaquin",
   ];
   const countZone = (heading: string) =>
     page
-      .locator(`h3:has-text("${heading}")`)
+      .getByRole("group", { name: heading, exact: true })
       .first()
-      .locator("xpath=../following-sibling::ul[1]")
-      .locator("li button")
+      .locator('[data-testid^="player-tile-"]')
       .evaluateAll((btns, names) => {
         const re = new RegExp(`(${(names as string[]).join("|")})`);
         return btns.filter((b) => re.test(b.textContent ?? "")).length;
@@ -322,7 +318,7 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
     (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
   )!.id;
 
-  const team = await makeTeam(admin, { ownerId, ageGroup: "U10" });
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
   // Full 12-a-side squad → clean 4/4/4, so the rotation has no overflow.
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
   const game = await makeGame(admin, { teamId: team.id, ownerId }); // on_field_size 12
@@ -342,20 +338,19 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /select team for q2/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^ready for q2$/i })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
 
   // The rotation toggle lives inside the collapsed "Game settings" card.
   await page.getByRole("button", { name: /game settings/i }).click();
   // Switch to the rotate mode.
-  await page.getByRole("button", { name: /rotate lines/i }).click();
+  await page.getByRole("radio", { name: /rotate lines/i }).click();
 
   // Read the BACK zone's player tiles — after the rotation, last
   // quarter's FORWARD line should be there (Fwd → Back).
   const backNames = await page
-    .locator('h3:has-text("Back")')
+    .getByRole("group", { name: "Back", exact: true })
     .first()
-    .locator("xpath=../following-sibling::ul[1]")
-    .locator("li button")
+    .locator('[data-testid^="player-tile-"]')
     .evaluateAll((btns, names) => {
       const re = new RegExp(`(${(names as string[]).join("|")})`);
       return btns

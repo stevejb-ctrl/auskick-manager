@@ -26,6 +26,11 @@
 // events. No DB columns. Pure functions, fully unit-tested.
 
 import type { GameEvent } from "@/lib/types";
+import { pairScoreUndos } from "@/lib/live/scoreUndo";
+
+/** U13+ penalty and field goals (ours and theirs) — scores, not kicks. */
+export const LEAGUE_GOAL_TYPES = ["penalty_goal", "field_goal", "opponent_penalty_goal", "opponent_field_goal"] as const;
+const LEAGUE_GOALS_FROM_PLAY: ReadonlySet<string> = new Set(LEAGUE_GOAL_TYPES);
 
 // ─── Conversion attempts ─────────────────────────────────────
 
@@ -89,6 +94,7 @@ function survivingConversionEvents(events: GameEvent[]): ConversionEvent[] {
       ev.type === "try"
       || ev.type === "opponent_try"
       || ev.type === "opponent_conversion"
+      || LEAGUE_GOALS_FROM_PLAY.has(ev.type)
     ) {
       stack.push({ kind: "other", index: -1, kept: true });
     } else if (ev.type === "conversion_attempt" && ev.player_id) {
@@ -126,6 +132,32 @@ function survivingConversionEvents(events: GameEvent[]): ConversionEvent[] {
     }
   }
   return survivors;
+}
+
+/**
+ * Our tries still waiting for a conversion, oldest first. Each kick
+ * (made or missed) takes the oldest waiting try; a kick with nothing
+ * waiting is a forced extra kick (laws §15, fouled try-scorer) and
+ * takes nothing. Undone scores don't count. Stagehand round 2: a game
+ * held a made conversion and no try.
+ */
+export function unconvertedTryIds(events: GameEvent[]): string[] {
+  const sorted = [...events].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  const undone = new Set(
+    pairScoreUndos(
+      sorted,
+      new Set<string>(["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES]),
+    ).values(),
+  );
+  const waiting: string[] = [];
+  for (const ev of sorted) {
+    if (undone.has(ev.id)) continue;
+    if (ev.type === "try") waiting.push(ev.id);
+    else if (ev.type === "conversion_attempt") waiting.shift();
+  }
+  return waiting;
 }
 
 export interface ConversionCycleInfo {

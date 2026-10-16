@@ -28,7 +28,7 @@ export function buildNetballWalkthroughSteps(opts: {
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1 to begin the first quarter. The clock counts down and ends the quarter automatically when it hits zero. Tap the clock pill to pause if there's a stoppage in play, then tap it again to resume.",
+      body: "Tap Start Q1, then Start clock when the umpire calls play. The clock counts down and ends the quarter automatically when it hits zero. Tap the clock pill to pause if there's a stoppage in play, then tap it again to resume.",
     },
     {
       emoji: "🏐",
@@ -58,7 +58,7 @@ export function buildNetballWalkthroughSteps(opts: {
     {
       emoji: "👋",
       title: "Late arrivals & fill-ins",
-      body: "If a regular squad member shows up after the umpire's first whistle, tap + Add late arrival under the bench strip to slot them in. Fill-ins (someone who isn't on the permanent squad but joins for the day) are added on the game-detail page before kick-off.",
+      body: "If a regular squad member shows up after the umpire's first whistle, tap + Add late arrival under the bench strip to slot them in. Fill-ins (someone who isn't on the permanent squad but joins for the day) are added on the game-detail page before the game starts.",
     },
   ];
 
@@ -73,7 +73,7 @@ export function buildNetballWalkthroughSteps(opts: {
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter & the post-game summary",
-    body: "When the clock hits zero the Q-break screen appears with the suggested next-quarter lineup. After Q4 the game is marked complete and a summary card appears at full time — total minutes per player, per-third %, top scorers, and a Copy for group chat button so you can paste it into the team thread.",
+    body: "When the clock hits zero the Q-break screen appears with the suggested next-quarter lineup. After Q4, check the full-time review and tap Finish game; a summary card then shows — total minutes per player, per-third %, top scorers, and a Copy for group chat button so you can paste it into the team thread.",
   });
 
   return steps;

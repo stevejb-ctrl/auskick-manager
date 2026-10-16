@@ -13,6 +13,7 @@
 
 import type { Player } from "@/lib/types";
 import { netballSport, isPositionAllowedInZone } from "@/lib/sports/netball";
+import { Modal } from "@/components/ui/Modal";
 
 interface Props {
   /** Position id of the slot the vacating player just left. */
@@ -49,17 +50,7 @@ export function PickReplacementSheet({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-ink/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="replace-title"
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal size="md" placement="sheet" labelledBy="replace-title" onClose={onCancel} padding="p-0">
         <div className="border-b border-hairline px-5 py-4">
           <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
             {isFillEmpty ? "Fill" : "Replace"}
@@ -104,7 +95,6 @@ export function PickReplacementSheet({
               : "Cancel — leave position empty for now"}
           </button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

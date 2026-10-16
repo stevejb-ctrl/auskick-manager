@@ -28,7 +28,7 @@ import {
   type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
-import { getSportConfig } from "@/lib/sports/registry";
+import { getSportConfig, isRugby, noSportBranch } from "@/lib/sports/registry";
 import type { AgeGroupConfig, SportConfig } from "@/lib/sports/types";
 import type { Lineup, Player, PlayerChip, Zone, PositionModel } from "@/lib/types";
 import type {
@@ -38,6 +38,9 @@ import type {
   GamePlanPlayerTotal,
   ProjectGamePlanInput,
 } from "./types";
+import { assignLeagueLines } from "@/lib/sports/rugby_league/engine";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
+import { periodLabels } from "@/lib/sports";
 
 // ─── Small deterministic shuffle (local; engine ones aren't exported) ──
 function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
@@ -62,15 +65,6 @@ function clampOnField(ageGroup: AgeGroupConfig, onFieldSize: number): number {
   );
 }
 
-function resolvePeriodLabels(
-  cfg: SportConfig,
-  ageGroup: AgeGroupConfig,
-): { label: "quarter" | "half" | "period"; plural: "quarters" | "halves" | "periods" } {
-  return {
-    label: ageGroup.periodLabel ?? cfg.periodLabel,
-    plural: ageGroup.periodLabelPlural ?? cfg.periodLabelPlural,
-  };
-}
 
 // Per-player start tally across the projected periods: how many periods
 // each player begins on the field. Every input player appears —
@@ -116,7 +110,8 @@ function resolveChips(input: ProjectGamePlanInput): {
 } {
   const chipByPlayerId =
     input.chipByPlayerId ??
-    Object.fromEntries(input.players.map((p) => [p.id, p.chip ?? null]));
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    {};
   return { chipByPlayerId, chipModeByKey: input.chipModeByKey ?? {} };
 }
 
@@ -143,7 +138,7 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const model: PositionModel = ag.zones.length >= 5 ? "positions5" : "zones3";
@@ -218,6 +213,7 @@ function projectAflGamePlan(input: ProjectGamePlanInput): GamePlan {
       // so this tracks the planned game's clock. (Plan named a non-existent
       // `input.periodSeconds`; the input field is `periodMinutes`.)
       periodMinutes * 60_000,
+      input.aflPlaybook,
     );
 
     // Accumulate this quarter's whole-period minutes so the next
@@ -321,7 +317,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const periodMs = periodMinutes * 60_000;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const positions = pickNetballPositionsToFill(ag, onFieldSize);
@@ -358,6 +354,7 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
       thisGameTotalMs,
       chipByPlayerId,
       chipModeByKey,
+      playbook: input.netballPlaybook ? { ...input.netballPlaybook, previousLineup: prevLineup } : undefined,
     });
 
     // Accumulate appearance counts + on-court ms so the next quarter
@@ -414,19 +411,19 @@ function projectNetballGamePlan(input: ProjectGamePlanInput): GamePlan {
 //     age-group's `forwardCount`; the split is re-shuffled per block
 //     so a kid isn't always a forward.
 function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
-  const cfg = getSportConfig("rugby_league");
+  const cfg = getSportConfig(input.sport);
   const ag = input.ageGroup;
   const periodCount = input.periodCount ?? ag.periodCount;
   const periodMinutes = input.periodMinutes ?? ag.periodSeconds / 60;
   const onFieldSize = clampOnField(ag, input.onFieldSize);
-  const { label, plural } = resolvePeriodLabels(cfg, ag);
+  const { label, plural } = periodLabels(cfg.id, ag);
   const short = periodShortLabel(label);
 
   const ids = input.players.map((p) => p.id);
   const seed = input.seed ?? 0;
   const fwdCount = Math.min(
     onFieldSize,
-    ag.forwardCount ?? Math.floor(onFieldSize / 2),
+    rugbyForwards(ag, onFieldSize),
   );
   const blockSize = Math.max(1, ag.minUnbrokenPeriods ?? 1);
 
@@ -440,19 +437,30 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   while (p <= periodCount) {
     const periodsInBlock = Math.min(blockSize, periodCount - p + 1);
 
-    // Choose this block's on-field set: fewest periods banked first,
-    // seeded shuffle to break ties deterministically.
+    // Choose this block's on-field set: keep-on kids first (How we
+    // play), then fewest periods banked, and at kickoff kids with a home
+    // position (as the lineup does); seeded shuffle breaks ties.
+    const pb = input.leaguePlaybook;
+    const keepOn = (id: string) => (pb?.roles[id]?.keepOn ? 0 : 1);
+    const homeFirst = (id: string) => (blockIndex === 0 && pb?.positionRoles?.[id]?.home ? 0 : 1);
     const ordered = seededShuffle(ids, seed + 101 + blockIndex).sort(
-      (a, b) => periodsPlayed[a] - periodsPlayed[b],
+      (a, b) => keepOn(a) - keepOn(b) || periodsPlayed[a] - periodsPlayed[b] || homeFirst(a) - homeFirst(b),
     );
     const onFieldIds = ordered.slice(0, onFieldSize);
     const benchIds = ordered.slice(onFieldSize);
 
-    // Split forwards / backs; re-shuffle per block so the same kids
+    // Split forwards / backs: by the kids' roles with How we play (the
+    // same as the lineup), else re-shuffled per block so the same kids
     // aren't always forwards.
-    const splitShuffled = seededShuffle(onFieldIds, seed + 211 + blockIndex);
-    const forwards = splitShuffled.slice(0, fwdCount);
-    const backs = splitShuffled.slice(fwdCount);
+    let forwards: string[];
+    let backs: string[];
+    if (pb) {
+      ({ forwards, backs } = assignLeagueLines(onFieldIds, fwdCount, onFieldIds.length - fwdCount, pb));
+    } else {
+      const splitShuffled = seededShuffle(onFieldIds, seed + 211 + blockIndex);
+      forwards = splitShuffled.slice(0, fwdCount);
+      backs = splitShuffled.slice(fwdCount);
+    }
 
     for (let k = 0; k < periodsInBlock; k++) {
       periods.push({
@@ -472,7 +480,7 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
   }
 
   return {
-    sport: "rugby_league",
+    sport: input.sport,
     periods,
     totals: computeTotals(periods, ids),
     periodLabel: label,
@@ -491,13 +499,9 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
  * component on every tweak / reshuffle.
  */
 export function projectGamePlan(input: ProjectGamePlanInput): GamePlan {
-  switch (input.sport) {
-    case "netball":
-      return projectNetballGamePlan(input);
-    case "rugby_league":
-      return projectLeagueGamePlan(input);
-    case "afl":
-    default:
-      return projectAflGamePlan(input);
-  }
+  const { sport } = input;
+  if (sport === "netball") return projectNetballGamePlan(input);
+  if (isRugby(sport)) return projectLeagueGamePlan(input);
+  if (sport === "afl") return projectAflGamePlan(input);
+  return noSportBranch(sport, "projectGamePlan");
 }

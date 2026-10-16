@@ -9,6 +9,7 @@
 //   U9       →  8  (FR + DH)
 //   U10 / U11 → 11 (FR + DH)
 //   U12      → 13  (FR + DH)
+//   U13+     → 13  (no vests, international laws)
 //
 // Each formation must have:
 //   * EXACTLY onFieldSize slots — no surplus, no shortfall.
@@ -22,6 +23,7 @@ import {
   pickBestForSlot,
   slotMismatchScore,
 } from "@/lib/sports/rugby_league/fieldFormation";
+import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 
 interface AgeCase {
   age: string;
@@ -37,6 +39,8 @@ const AGE_CASES: AgeCase[] = [
   { age: "U10", onFieldSize: 11, vestRequirements: { fr: true, dh: true } },
   { age: "U11", onFieldSize: 11, vestRequirements: { fr: true, dh: true } },
   { age: "U12", onFieldSize: 13, vestRequirements: { fr: true, dh: true } },
+  // U13+ international laws: 13-a-side, no vests (6 forwards, 7 backs).
+  { age: "U13", onFieldSize: 13, vestRequirements: { fr: false, dh: false } },
 ];
 
 describe("getFieldSlots — per-age-group formations", () => {
@@ -79,13 +83,24 @@ describe("getFieldSlots — per-age-group formations", () => {
     });
   }
 
-  it("falls back to the 11-player layout for unknown sizes", () => {
-    // Defensive — if a future age group lands with size 9 / 10 / 12,
-    // we don't crash. The 11-player formation is the canonical RL
-    // shape so it's the safest default until a real layout is added.
-    const slots = getFieldSlots(10, { fr: true, dh: true });
-    expect(slots).toHaveLength(11);
-  });
+  // Every size a coach can pick ("Players on field", a short squad, a
+  // kid lent so both sides play one down) gets exactly that many slots.
+  // Sizes without a hand-made layout used to get the 11-slot one: a
+  // 12-a-side field drew 11 and hid a kid on the field (sideline
+  // combos), and 9 or 10 a side drew empty spots to fill past the cap.
+  for (const age of rugbyLeagueSport.ageGroups) {
+    for (let n = age.minOnFieldSize; n <= age.maxOnFieldSize; n++) {
+      it(`${age.id} at ${n} on field: ${n} slots, vests and one fullback`, () => {
+        const vests = age.vestRequirements ?? { fr: false, dh: false };
+        const slots = getFieldSlots(n, vests);
+        expect(slots).toHaveLength(n);
+        expect(slots.some((s) => s.role === "fr")).toBe(vests.fr);
+        expect(slots.some((s) => s.role === "dh")).toBe(vests.dh);
+        expect(slots.filter((s) => s.role === "fullback")).toHaveLength(1);
+        expect(new Set(slots.map((s) => s.id)).size).toBe(n);
+      });
+    }
+  }
 
   it("defaults to no-vests shape when vestRequirements omitted", () => {
     const slots = getFieldSlots(6);

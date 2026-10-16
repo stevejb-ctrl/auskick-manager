@@ -3,26 +3,21 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
-import { AGE_GROUPS } from "@/lib/ageGroups";
 import { netballSport } from "@/lib/sports";
-import { getSportConfig } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig, isRugby } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
 // league, netball, union) map to the in-app SportId space that's
 // used in the DB and rule modules. The picker URL/form sends the
 // marketing id; this server action translates.
-type MarketingSportId = "afl" | "league" | "netball" | "union";
+type MarketingSportId = "afl" | "league" | "union" | "netball";
 
 const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
   afl: "afl",
   league: "rugby_league",
+  union: "rugby_union",
   netball: "netball",
-  // Rugby Union has no in-app sport yet — it's a coming-soon
-  // placeholder on the picker. The picker disables the union card
-  // so this entry is for type completeness only; runDemoGame
-  // refuses union before reaching this map.
-  union: "afl",
 };
 
 /**
@@ -31,7 +26,7 @@ const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
  * immediately.
  *
  * Flow:
- *   1. Validate the marketing sport id (reject union — coming-soon).
+ *   1. Validate the marketing sport id.
  *   2. Find the seeded `is_demo=true` team for that sport. If
  *      missing, return early with a clear message (the seed-demo
  *      cron should have created it; manual seed via
@@ -60,13 +55,8 @@ export async function runDemoGame(formData: FormData): Promise<void> {
   // Whitelist the input. Rejecting an unknown sport here means a
   // malicious form post can't smuggle arbitrary strings into the
   // DB sport column.
-  const allowedMarketingIds: MarketingSportId[] = [
-    "afl",
-    "league",
-    "netball",
-  ];
-  if (!allowedMarketingIds.includes(rawSport as MarketingSportId)) {
-    // union explicitly excluded; unknown strings same path.
+  if (!Object.hasOwn(MARKETING_TO_SPORT, rawSport)) {
+    // Unknown strings.
     throw new Error(`Demo not available for sport: ${rawSport}`);
   }
   const marketingSportId = rawSport as MarketingSportId;
@@ -197,11 +187,11 @@ function buildDemoGamePayload({
     };
   }
 
-  if (sport === "rugby_league") {
-    // Rugby League U10 — pull from the registered sport config so
-    // we get the half-based sub interval (10 min) + 11-on-field
-    // default rather than AFL's quarter values.
-    const cfg = getSportConfig("rugby_league");
+  if (isRugby(sport)) {
+    // Rugby (league and union) U10 — pull from the sport's own config
+    // so we get its half-based sub interval and on-field default
+    // rather than AFL's quarter values.
+    const cfg = getSportConfig(sport);
     const ageCfg =
       cfg.ageGroups.find((a) => a.id === teamAgeGroup) ??
       cfg.ageGroups.find((a) => a.id === "U10")!;
@@ -212,10 +202,8 @@ function buildDemoGamePayload({
     };
   }
 
-  // AFL — legacy AGE_GROUPS table (still the source of truth for
-  // AFL's on_field_size + sub_interval since AFL hasn't moved to
-  // the per-sport registry yet for these fields).
-  const cfg = AGE_GROUPS["U10"];
+  // AFL — the demo always plays U10.
+  const cfg = getAgeGroupConfig(aflBranch(sport), "U10");
   return {
     ...base,
     on_field_size: cfg.defaultOnFieldSize,

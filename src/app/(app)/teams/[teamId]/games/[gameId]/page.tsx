@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
-import { ShareRunnerLink } from "@/components/games/ShareRunnerLink";
-import { ResetGameButton } from "@/components/games/ResetGameButton";
-import { DeleteGameButton } from "@/components/games/DeleteGameButton";
+import { GameMoreMenu } from "@/components/games/GameMoreMenu";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import {
   Eyebrow,
@@ -13,8 +11,10 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { AGE_GROUPS, ageGroupOf } from "@/lib/ageGroups";
-import { getAgeGroupConfig } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, teamSport } from "@/lib/sports";
+import { scorersFromEvents } from "@/lib/results";
+import { getSeasonEvents } from "@/lib/season";
+import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { replayGame } from "@/lib/fairness";
 import {
   playerThirdMs,
@@ -24,11 +24,25 @@ import { primaryThirdFor } from "@/lib/sports/netball";
 import { GameSummaryView } from "@/components/live/GameSummaryCard";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
+import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, Sport } from "@/lib/types";
+import { BackLink } from "@/components/ui/BackLink";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { teamSportById } from "@/lib/sports/teamSportById";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
 }
+
+/** The scorer card's words, per sport. */
+const SCORER_WORDS: Record<Sport, { eyebrow: string; heading: string }> = {
+  afl: { eyebrow: "Goal kickers", heading: "Who put it through" },
+  netball: { eyebrow: "Goal shooters", heading: "Who put it in" },
+  rugby_league: { eyebrow: "Scorers", heading: "Who put points on the board" },
+  rugby_union: { eyebrow: "Scorers", heading: "Who put points on the board" },
+};
 
 export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const supabase = createClient();
@@ -60,17 +74,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, name, track_scoring")
+      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size")
       .eq("id", params.teamId)
       .single(),
+    // Every event: each sport's replay tallies the scorers, honouring
+    // score_undo (a raw goal / behind count kept undone scores).
     supabase
       .from("game_events")
-      .select("type, player_id")
+      .select("*")
       .eq("game_id", params.gameId)
-      .in("type", ["goal", "behind"]),
+      .order("created_at", { ascending: true }),
     supabase
       .from("players")
-      .select("id, full_name, jersey_number, chip")
+      .select("id, full_name, jersey_number, chip, is_active")
       .eq("team_id", params.teamId),
   ]);
 
@@ -93,42 +109,71 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const role = membership?.role;
   const canManageMatch = role === "admin" || role === "game_manager";
   const canRun = canManageMatch;
-  const ageGroup = ageGroupOf(
-    (team as { age_group?: string } | null)?.age_group,
-  );
-  const ageCfg = AGE_GROUPS[ageGroup];
   // Netball has no jersey numbers — hide the # input on AddFillInForm.
-  const sport: Sport = ((team as { sport?: Sport } | null)?.sport) ?? "afl";
+  const sport: Sport = team ? teamSport((team as { sport?: Sport }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
   const teamName = (team as { name?: string } | null)?.name ?? "Us";
-  // Sport-config age-group shape (positions / zones / period count)
-  // for the pre-game planner — distinct from the legacy AFL-only
-  // `ageCfg` above, which the rest of this AFL-centric page uses.
+  // Sport-config age-group shape (label, on-field size, positions,
+  // zones, period count). Always the team's own sport — never the
+  // AFL-only AGE_GROUPS map, which mislabelled netball and league
+  // games (UX plan H3).
   const planAgeCfg = getAgeGroupConfig(
     sport,
     (team as { age_group?: string } | null)?.age_group,
   );
 
-  const tallies = new Map<string, { goals: number; behinds: number }>();
-  for (const ev of (scoringEvents ?? []) as { type: string; player_id: string | null }[]) {
-    if (!ev.player_id) continue;
-    const cur = tallies.get(ev.player_id) ?? { goals: 0, behinds: 0 };
-    if (ev.type === "goal") cur.goals++;
-    else if (ev.type === "behind") cur.behinds++;
-    tallies.set(ev.player_id, cur);
-  }
   const playerById = new Map(
     ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map(
       (p) => [p.id, p],
     ),
   );
-  const scorerRows = Array.from(tallies.entries())
-    .map(([pid, t]) => ({ player: playerById.get(pid), ...t }))
-    .filter((r) => r.player)
-    .sort((a, b) => b.goals - a.goals || b.behinds - a.behinds);
+  const scorerRows = scorersFromEvents(sport, (scoringEvents ?? []) as GameEvent[])
+    .map((t) => ({ player: playerById.get(t.playerId), ...t }))
+    .filter((r) => r.player);
+  const scorerWords = SCORER_WORDS[sport];
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
+  // AFL and netball render the full-time summary card on this page.
+  const hasInlineSummary = sport === "afl" || sport === "netball";
+  // "Game day" from six hours before kickoff: the primary reads "Start
+  // game day" instead of "Plan lineup" (same screen, different intent).
+  const isGameDay =
+    g.status === "upcoming" &&
+    Date.now() >= new Date(g.scheduled_at).getTime() - 6 * 60 * 60 * 1000;
   const isUp = g.status === "upcoming";
+
+  // Game plan from here is a preview to share: the active kids marked
+  // available (everyone active until someone's marked), the game's own
+  // field size, season history and How we play, as the lineup uses.
+  const planInput = isUp
+    ? await (async () => {
+        const [{ data: avail }, seasonAll] = await Promise.all([
+          supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),
+          getSeasonEvents(params.teamId),
+        ]);
+        const active = (players ?? []).filter((p) => (p as { is_active?: boolean }).is_active !== false);
+        const available = new Set((avail ?? []).filter((a) => a.status === "available").map((a) => a.player_id as string));
+        const seasonEvents = seasonAll.filter((e) => e.game_id !== params.gameId);
+        const periodSeconds = getEffectiveQuarterSeconds(
+          { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+          planAgeCfg,
+          { quarter_length_seconds: g.quarter_length_seconds },
+        );
+        return {
+          players: available.size > 0 ? active.filter((p) => available.has(p.id)) : active,
+          seasonEvents,
+          periodMinutes: periodSeconds / 60,
+          playbooks: await gamePlanPlaybooks(
+            supabase,
+            params.teamId,
+            sport,
+            (team as { age_group?: string } | null)?.age_group ?? null,
+            seasonEvents,
+            periodSeconds,
+          ),
+        };
+      })()
+    : null;
 
   // Full event log for the post-completion summary card. Fetched
   // for both AFL and netball when the game is final — both sports
@@ -145,15 +190,27 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     summaryEvents = (data ?? []) as GameEvent[];
   }
 
+  // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  const howWePlayed =
+    isFinal && summaryEvents
+      ? await buildGameReport(
+          supabase,
+          {
+            id: params.teamId,
+            sport,
+            age_group: (team as { age_group?: string | null } | null)?.age_group ?? null,
+            quarter_length_seconds:
+              (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null,
+          },
+          g,
+          summaryEvents,
+          Object.fromEntries(Array.from(playerById.values()).map((p) => [p.id, p.full_name])),
+        )
+      : null;
+
   return (
     <div className="space-y-6">
-      <Link
-        href={`/teams/${params.teamId}/games`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-      >
-        <SFIcon.chevronLeft />
-        Games
-      </Link>
+      <BackLink href={`/teams/${params.teamId}/games`} label="Games" />
 
       {/* ── Hero card — status-aware ─────────────────────────────────── */}
       {isLive ? (
@@ -186,6 +243,18 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               )}
             </div>
           </div>
+          {!canRun && (
+            <div className="border-t border-hairline bg-surface px-5 py-4 sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/live`}
+                variant="alarm"
+                iconAfter={<SFIcon.chevronRight color="white" />}
+                className="w-full sm:w-auto"
+              >
+                Watch live
+              </SFButton>
+            </div>
+          )}
           {canRun && (
             <div className="flex flex-col gap-2 border-t border-hairline bg-surface px-5 py-4 sm:flex-row sm:px-7">
               <SFButton
@@ -194,21 +263,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 iconAfter={<SFIcon.chevronRight color="white" />}
                 className="w-full sm:w-auto"
               >
-                Open live game
+                Back to live game
               </SFButton>
-              <ShareRunnerLink token={g.share_token} />
-              {role === "admin" && (
-                <ResetGameButton
-                  auth={{ kind: "team", teamId: params.teamId }}
-                  gameId={params.gameId}
-                />
-              )}
-              {role === "admin" && (
-                <DeleteGameButton
-                  teamId={params.teamId}
-                  gameId={params.gameId}
-                />
-              )}
+              <GameMoreMenu
+                teamId={params.teamId}
+                gameId={params.gameId}
+                shareToken={g.share_token}
+                canRestart={role === "admin"}
+                canDelete={role === "admin"}
+              />
             </div>
           )}
         </SFCard>
@@ -220,7 +283,6 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {g.round_number != null
                   ? `Round ${String(g.round_number).padStart(2, "0")}`
                   : "Game"}
-                {g.location && ` · Home`}
               </Eyebrow>
               <StatusPill status={isFinal ? "final" : "upcoming"} />
             </div>
@@ -241,9 +303,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 )}
               </div>
               <p className="mt-3 text-xs text-ink-mute">
-                {ageCfg.label} ·{" "}
-                {isUp ? ageCfg.defaultOnFieldSize : g.on_field_size} on field
-                {!isUp && g.on_field_size < ageCfg.defaultOnFieldSize && (
+                {/* The game's own size: it starts at the team's (its
+                    competition's), else the age group's. */}
+                {planAgeCfg.label} · {g.on_field_size} on field
+                {!isUp &&
+                  g.on_field_size <
+                    teamOnFieldSize(planAgeCfg, (team as { on_field_size?: number | null } | null)?.on_field_size ?? null) && (
                   <span className="ml-1 font-medium text-warn">(short-handed)</span>
                 )}
               </p>
@@ -256,55 +321,44 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           </div>
           {canRun && (
             <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
-              {/* Three-tier visual hierarchy (Steve 2026-05-13):
-                    primary (filled black)  → hero CTA: Start / Open
-                    ghost (border, no fill) → Set lineup AND Share —
-                                              same treatment so they
-                                              read as a matched pair
-                    danger (red border)     → Reset / Delete
-                  Previously every secondary affordance was rendered
-                  with a different button library + override classes,
-                  giving the page four visually distinct treatments
-                  for four near-equivalent actions. */}
+              {/* Game hub (UX plan §6): one primary action per state —
+                    upcoming → Plan lineup (Start game day on the day)
+                    live     → Back to live game
+                    final    → Summary
+                  Secondary actions are ghost buttons; everything else
+                  (game-day link, edit, restart, delete) is in More. */}
               <div className="flex flex-col gap-2">
                 {isUp ? (
                   <>
-                    {/* Upcoming games route through /availability first,
-                        which then forwards to /live for the lineup
-                        picker. Two-step pre-game flow: roster ➔ lineup.
-                        Live and completed games skip availability (the
-                        roster is already locked at kickoff). */}
+                    {/* One door into the lineup screen. It used to be
+                        two buttons ("Start game", "Set lineup") that
+                        both opened availability (UX plan H2). Availability
+                        stays one tap away for the night before. */}
                     <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                      href={`/teams/${params.teamId}/games/${params.gameId}/live`}
                       variant="primary"
                       iconAfter={<SFIcon.chevronRight color="currentColor" />}
                       className="w-full sm:w-auto"
                     >
-                      Start game
+                      {isGameDay ? "Start game day" : "Plan lineup"}
                     </SFButton>
-                    <SFButton
-                      href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
-                      variant="ghost"
-                      className="w-full sm:w-auto"
-                    >
-                      {planSavedAt ? "Edit lineup plan" : "Set lineup"}
-                    </SFButton>
-                    {/* Pre-game rotation planner — auto-suggests a fair
-                        full-game rotation the coach can tweak and copy
-                        into the team chat. Pure client compute; no DB
-                        write, doesn't touch how the live game runs. */}
-                    <GamePlanButton
-                      sport={sport}
-                      ageGroup={planAgeCfg}
-                      players={players ?? []}
-                      onFieldSize={planAgeCfg.defaultOnFieldSize}
-                      teamName={teamName}
-                      opponentName={g.opponent}
-                      variant="ghost"
-                      size="md"
-                      className="w-full sm:w-auto"
-                    />
                   </>
+                ) : isFinal ? (
+                  // A final game's one job is its summary (UX plan H3).
+                  // AFL and netball render it on this page; league's
+                  // full-time screen is the summary until it gets one here.
+                  <SFButton
+                    href={
+                      hasInlineSummary
+                        ? "#summary"
+                        : `/teams/${params.teamId}/games/${params.gameId}/live`
+                    }
+                    variant="primary"
+                    iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                    className="w-full sm:w-auto"
+                  >
+                    Summary
+                  </SFButton>
                 ) : (
                   <SFButton
                     href={`/teams/${params.teamId}/games/${params.gameId}/live`}
@@ -312,15 +366,14 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     iconAfter={<SFIcon.chevronRight color="currentColor" />}
                     className="w-full sm:w-auto"
                   >
-                    Open live game
+                    Back to live game
                   </SFButton>
                 )}
               </div>
 
-              {/* Secondary affordances — Share link, plan-saved chip,
-                  Reset / Delete (admin). Wraps to a row on desktop. */}
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
-                <ShareRunnerLink token={g.share_token} />
+              {/* Secondary actions share one row under the primary —
+                  equal thirds on a phone, natural widths from sm. */}
+              <div className="mt-2 space-y-2">
                 {/* Pre-game lineup-plan indicator. Surfaces only when
                     the coach has saved a draft and the game's still
                     upcoming. Cleared automatically at kickoff. */}
@@ -333,35 +386,79 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     Plan saved
                   </span>
                 )}
-                {role === "admin" && !isUp && (
-                  <ResetGameButton
-                    auth={{ kind: "team", teamId: params.teamId }}
-                    gameId={params.gameId}
+                <div className="grid grid-flow-col auto-cols-fr gap-2 sm:flex sm:flex-wrap">
+                {isUp && (
+                  <SFButton
+                    href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                    variant="ghost"
+                    className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"
+                  >
+                    Availability
+                  </SFButton>
+                )}
+                {/* Pre-game rotation planner — auto-suggests a fair
+                    full-game rotation the coach can tweak and copy into
+                    the team chat. Pure client compute; no DB write. */}
+                {isUp && planInput && (
+                  <GamePlanButton
+                    sport={sport}
+                    ageGroup={planAgeCfg}
+                    players={planInput.players}
+                    onFieldSize={g.on_field_size ?? planAgeCfg.defaultOnFieldSize}
+                    periodMinutes={planInput.periodMinutes}
+                    subIntervalSeconds={g.sub_interval_seconds}
+                    teamName={teamName}
+                    opponentName={g.opponent}
+                    seasonEvents={planInput.seasonEvents}
+                    {...planInput.playbooks}
+                    note="A preview to share. Set the lineup on game day."
+                    variant="ghost"
+                    size="md"
+                    className="w-full whitespace-nowrap !px-2 sm:w-auto sm:!px-[18px]"
                   />
                 )}
-                {role === "admin" && (
-                  <DeleteGameButton
-                    teamId={params.teamId}
-                    gameId={params.gameId}
-                  />
-                )}
+                <GameMoreMenu
+                  teamId={params.teamId}
+                  gameId={params.gameId}
+                  shareToken={g.share_token}
+                  edit={
+                    isUp && role === "admin"
+                      ? {
+                          game: {
+                            id: g.id,
+                            opponent: g.opponent,
+                            scheduled_at: g.scheduled_at,
+                            location: g.location,
+                            round_number: g.round_number,
+                            notes: g.notes,
+                          },
+                        }
+                      : undefined
+                  }
+                  liveHref={
+                    isFinal && hasInlineSummary
+                      ? `/teams/${params.teamId}/games/${params.gameId}/live`
+                      : undefined
+                  }
+                  canRestart={role === "admin" && !isUp}
+                  canDelete={role === "admin"}
+                />
+                </div>
               </div>
             </div>
           )}
         </SFCard>
       )}
 
-      {/* ── Scorers (sport-aware: AFL = goal kickers w/ behinds + Guernsey;
-            netball = goal shooters, goals only, no jersey numbers) ─────── */}
+      {/* ── Scorers, in each sport's words (AFL goals + behinds, netball
+            goals, league tries + kicks); numbers where the sport has them ── */}
       {scorerRows.length > 0 && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Eyebrow>
-                {sport === "netball" ? "Goal shooters" : "Goal kickers"}
-              </Eyebrow>
+              <Eyebrow>{scorerWords.eyebrow}</Eyebrow>
               <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">
-                {sport === "netball" ? "Who put it in" : "Who put it through"}
+                {scorerWords.heading}
               </h3>
             </div>
             <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
@@ -382,7 +479,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  {sport !== "netball" && (
+                  {getSportConfig(sport).jerseyNumbers && (
                     <Guernsey num={r.player!.jersey_number} size={32} />
                   )}
                   <span className="font-semibold text-ink">
@@ -390,20 +487,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
-                  {sport === "netball" ? (
+                  <span className="font-bold text-ink">{r.detail}</span>
+                  {r.showPoints && (
                     <>
-                      <span className="font-bold text-ink">{r.goals}</span>
-                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
-                        {r.goals === 1 ? "goal" : "goals"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold text-ink">{r.goals}</span> g ·{" "}
-                      <span className="font-bold text-ink">{r.behinds}</span> b
-                      <span className="ml-2 font-bold text-ink">
-                        {r.goals * 6 + r.behinds}
-                      </span>
+                      <span className="ml-2 font-bold text-ink">{r.points}</span>
                       <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
                         pts
                       </span>
@@ -430,7 +517,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           | { name?: string; track_scoring?: boolean }
           | null;
         return (
-          <SFCard>
+          <SFCard id="summary">
             <GameSummaryView
               teamName={teamRow?.name ?? "Us"}
               opponentName={g.opponent}
@@ -441,6 +528,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               playersById={playerById}
               swapCount={swapCount}
               basePlayedZoneMs={replay.basePlayedZoneMs}
+              presentIds={presentPlayerIds(summaryEvents)}
             />
           </SFCard>
         );
@@ -483,7 +571,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           ) => "attack-third" | "centre-third" | "defence-third" | null,
         );
         return (
-          <SFCard>
+          <SFCard id="summary">
             <NetballGameSummaryCard
               teamName={teamRow?.name ?? "Us"}
               opponentName={g.opponent}
@@ -495,10 +583,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 (players ?? []) as { id: string; full_name: string }[]
               }
               trackScoring={teamRow?.track_scoring ?? false}
+              presentIds={presentPlayerIds(summaryEvents)}
             />
           </SFCard>
         );
       })()}
+
+      {howWePlayed && (
+        <SFCard>
+          <HowWePlayedCard report={howWePlayed} />
+        </SFCard>
+      )}
 
       {/* Availability list moved to its own page — see
           ./availability/page.tsx. The "Start game" / "Set lineup"

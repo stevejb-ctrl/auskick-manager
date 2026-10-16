@@ -36,7 +36,65 @@ import { isNative } from "@/lib/platform";
 // has the unflushed ops on relaunch. Lane state (inFlightKinds /
 // pausedKinds) is runtime-only.
 
-export type ActionResult = { success: boolean; error?: string };
+/**
+ * `rejected`: the server refused the write under a game rule (e.g. a
+ * conversion with no try). Retrying can't help, so the op is dropped
+ * straight away and its `flushed` rejects with the error, rather than
+ * pausing the lane (which would stall every score behind it).
+ */
+export type ActionResult = { success: boolean; error?: string; rejected?: boolean };
+
+/**
+ * Every live-game action shares one lane, so a game's events land in the
+ * order the coach acted. Separate lanes let a replacement swap overtake
+ * its injury, a swap land after the hooter, or an undo beat its score,
+ * and the replay then showed a different game (Stagehand round 2;
+ * sideline-combos walks). Anything else (pre-game availability) keeps
+ * its own lane.
+ */
+const GAME_LANE = new Set([
+  // AFL (several shared by netball and league)
+  "startQuarter",
+  "endQuarter",
+  "addLateArrival",
+  "recordGoal",
+  "recordBehind",
+  "recordOpponentScore",
+  "undoLastScore",
+  "markInjury",
+  "markLoan",
+  "recordPlayerLock",
+  "recordLineupSet",
+  "recordSwap",
+  "recordFieldZoneSwap",
+  // Netball
+  "periodBreakSwap",
+  "startNetballQuarter",
+  "endNetballQuarter",
+  "recordNetballGoal",
+  "recordNetballOpponentGoal",
+  "undoNetballScore",
+  // Rugby league
+  "startLeagueQuarter",
+  "endLeagueQuarter",
+  "recordLeagueSwap",
+  "recordLeagueLineupSet",
+  "recordLeaguePositionChange",
+  "recordTry",
+  "recordOpponentTry",
+  "recordConversionAttempt",
+  "recordOpponentConversion",
+  "recordLeagueGoal",
+  "undoLeagueScore",
+  "assignLeagueVest",
+  "recordKickoff",
+]);
+// The bulk availability write shares the per-row lane, so a row tap and
+// "Mark all in" land in the order the coach made them.
+const SHARED_LANE: Record<string, string> = { setAvailabilityMany: "setAvailability" };
+export function laneOf(kind: string): string {
+  return GAME_LANE.has(kind) ? "game" : SHARED_LANE[kind] ?? kind;
+}
 
 /**
  * Handler signature: receives the caller's positional args plus
@@ -129,9 +187,9 @@ export function registerActionHandler(
   // queued before the handler loaded should now proceed. Clear
   // any pause on this kind and kick a drain.
   const store = useWriteQueue.getState();
-  if (store.pausedKinds.includes(kind)) {
+  if (store.pausedKinds.includes(laneOf(kind))) {
     useWriteQueue.setState((s) => ({
-      pausedKinds: s.pausedKinds.filter((k) => k !== kind),
+      pausedKinds: s.pausedKinds.filter((k) => k !== laneOf(kind)),
     }));
     void store.drain();
   }
@@ -202,8 +260,8 @@ export const useWriteQueue = create<WriteQueueState>()(
           const scheduledKinds = new Set<string>(state.inFlightKinds);
           const batch: QueueOp[] = [];
           for (const op of state.queue) {
-            if (scheduledKinds.has(op.kind)) continue;
-            if (state.pausedKinds.includes(op.kind)) continue;
+            if (scheduledKinds.has(laneOf(op.kind))) continue;
+            if (state.pausedKinds.includes(laneOf(op.kind))) continue;
             const handler = handlers[op.kind];
             if (!handler) {
               // Missing handler ⇒ pause this kind. Other kinds
@@ -213,15 +271,15 @@ export const useWriteQueue = create<WriteQueueState>()(
                 `[writeQueue] no handler for kind=${op.kind} — pausing lane at op id=${op.id}`,
               );
               set((s) => ({
-                pausedKinds: s.pausedKinds.includes(op.kind)
+                pausedKinds: s.pausedKinds.includes(laneOf(op.kind))
                   ? s.pausedKinds
-                  : [...s.pausedKinds, op.kind],
+                  : [...s.pausedKinds, laneOf(op.kind)],
               }));
-              scheduledKinds.add(op.kind); // skip subsequent same-kind ops this pass
+              scheduledKinds.add(laneOf(op.kind)); // skip subsequent same-lane ops this pass
               continue;
             }
             batch.push(op);
-            scheduledKinds.add(op.kind);
+            scheduledKinds.add(laneOf(op.kind));
           }
           if (batch.length === 0) break;
 
@@ -229,7 +287,7 @@ export const useWriteQueue = create<WriteQueueState>()(
           // yielding to await — protects against a concurrent
           // drain() picking up the same op.
           set((s) => ({
-            inFlightKinds: [...s.inFlightKinds, ...batch.map((o) => o.kind)],
+            inFlightKinds: [...s.inFlightKinds, ...batch.map((o) => laneOf(o.kind))],
           }));
 
           await Promise.all(batch.map((op) => dispatchOp(op)));
@@ -246,6 +304,8 @@ export const useWriteQueue = create<WriteQueueState>()(
         // Drop any flushed-promise resolvers too, otherwise they'd
         // leak (their ops are gone, no one ever resolves them).
         flushedResolvers.clear();
+        retryTimers.forEach((t) => clearTimeout(t));
+        retryTimers.clear();
         set({ queue: [], inFlightKinds: [], pausedKinds: [] });
       },
     }),
@@ -261,6 +321,23 @@ export const useWriteQueue = create<WriteQueueState>()(
     },
   ),
 );
+
+// ─── Backoff retry for a paused lane ──────────────────────────
+// 1s, 2s, 4s, … (capped at 30s) after each failed attempt; the op is
+// dropped at MAX_OP_ATTEMPTS as before. One timer per lane.
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function scheduleLaneRetry(lane: string, attempt: number): void {
+  if (retryTimers.has(lane)) return;
+  const delay = Math.min(30_000, 1000 * 2 ** Math.max(0, attempt - 1));
+  retryTimers.set(
+    lane,
+    setTimeout(() => {
+      retryTimers.delete(lane);
+      useWriteQueue.setState((s) => ({ pausedKinds: s.pausedKinds.filter((k) => k !== lane) }));
+      void useWriteQueue.getState().drain();
+    }, delay),
+  );
+}
 
 // Helper used by drain(). Runs a handler, post-processes the
 // queue + lane state, and returns when the dispatch is fully
@@ -299,7 +376,7 @@ async function dispatchOp(op: QueueOp): Promise<void> {
 
   // Always remove from in-flight.
   useWriteQueue.setState((s) => {
-    const idx = s.inFlightKinds.indexOf(op.kind);
+    const idx = s.inFlightKinds.indexOf(laneOf(op.kind));
     if (idx === -1) return s;
     const next = s.inFlightKinds.slice();
     next.splice(idx, 1);
@@ -322,8 +399,8 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     }));
   } else {
     const nextAttempt = op.attemptCount + 1;
-    if (nextAttempt >= MAX_OP_ATTEMPTS) {
-      // Hit the cap — give up on this op so the caller can roll
+    if (result.rejected || nextAttempt >= MAX_OP_ATTEMPTS) {
+      // Refused under a rule, or hit the cap — give up on this op so the caller can roll
       // back any optimistic UI. Without this, a permanent failure
       // (auth rejected, validation error) leaves the optimistic
       // flip spinning forever. Reject BEFORE popping the queue so
@@ -344,12 +421,16 @@ async function dispatchOp(op: QueueOp): Promise<void> {
         // Don't keep the kind paused — other ops of the same kind
         // should still get a chance. The next op's success will
         // clear any lingering state.
-        pausedKinds: s.pausedKinds.filter((k) => k !== op.kind),
+        pausedKinds: s.pausedKinds.filter((k) => k !== laneOf(op.kind)),
       }));
     } else {
       // Transient failure: bump attemptCount, pause this kind. The
       // op stays at its position so when resume() clears the
-      // pause, drain picks it up again from the same place.
+      // pause, drain picks it up again from the same place. The lane
+      // also retries itself after a backoff: with one game lane, a
+      // single hiccup used to hold every later sideline action until
+      // the phone went offline and back, or reloaded.
+      scheduleLaneRetry(laneOf(op.kind), nextAttempt);
       useWriteQueue.setState((s) => ({
         queue: s.queue.map((q) =>
           q.id === op.id
@@ -360,9 +441,9 @@ async function dispatchOp(op: QueueOp): Promise<void> {
               }
             : q,
         ),
-        pausedKinds: s.pausedKinds.includes(op.kind)
+        pausedKinds: s.pausedKinds.includes(laneOf(op.kind))
           ? s.pausedKinds
-          : [...s.pausedKinds, op.kind],
+          : [...s.pausedKinds, laneOf(op.kind)],
       }));
     }
   }

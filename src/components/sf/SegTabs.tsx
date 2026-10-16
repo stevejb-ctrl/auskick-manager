@@ -31,9 +31,10 @@ interface SegTabsProps {
   ariaLabel?: string;
 }
 
+// Every size is a 44 pt target (UX plan Phase 6); size sets the type.
 const HEIGHT: Record<Size, string> = {
-  sm: "h-[32px] text-[12px]",
-  md: "h-[38px] text-[13px]",
+  sm: "h-11 text-[12px]",
+  md: "h-11 text-[13px]",
   lg: "h-11 text-sm",
 };
 
@@ -58,9 +59,11 @@ export function SegTabs({
   className = "",
   ariaLabel,
 }: SegTabsProps) {
+  const routed = options.some((o) => o.href);
+  const Container = routed ? "nav" : "div";
   return (
-    <div
-      role="tablist"
+    <Container
+      role={routed ? undefined : "tablist"}
       aria-label={ariaLabel}
       className={`
         inline-flex items-stretch gap-0.5 rounded-full bg-surface-alt p-[3px]
@@ -106,8 +109,7 @@ export function SegTabs({
             <Link
               key={opt.id}
               href={opt.href}
-              role="tab"
-              aria-selected={active}
+              aria-current={active ? "page" : undefined}
               className={tabClasses}
             >
               {inner}
@@ -128,6 +130,6 @@ export function SegTabs({
           </button>
         );
       })}
-    </div>
+    </Container>
   );
 }

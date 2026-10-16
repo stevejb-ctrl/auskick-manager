@@ -121,6 +121,12 @@ export interface ProjectGamePlanInput {
   chipByPlayerId?: Record<string, PlayerChip | null | undefined>;
   /** Per-chip mode (split/group/forward/centre/back). */
   chipModeByKey?: Partial<Record<PlayerChip, ChipMode>>;
+  /** How we play for the AFL suggester (UX plan 3.6); ignored by other sports. */
+  aflPlaybook?: import("@/lib/sports/afl/engine").AflPlaybookInput;
+  /** How we play for the netball suggester (UX plan Phase 5). */
+  netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
+  /** How we play for league: lines from roles, keep-on, home positions. */
+  leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   /**
    * The coach's CURRENT on-field shape (groupId -> player ids), when the
    * plan is projected mid-game from live reality (see

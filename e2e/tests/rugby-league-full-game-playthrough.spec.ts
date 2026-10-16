@@ -4,9 +4,11 @@
 // end-to-end so the regression net catches any drift across the
 // LeagueLiveGame orchestrator + server actions + replay engine.
 //
-// Junior RL at U10 plays 2 × 20-min halves. With
-// `clock_multiplier=60`, each half ticks down in ~20s of wall
-// clock so the spec fits comfortably under a 180s timeout.
+// Junior RL at U10 plays 2 × 20-min halves. The spec ends each half
+// by hand, so it runs at real speed: at a sped-up clock (which league
+// now honours) the siren and the sub-due prompt would race the try and
+// conversion steps. The sped-up clock has its own spec
+// (sped-up-clock.spec.ts).
 //
 // Flow exercised:
 //   1. Seed lineup_set + status=in_progress directly (skips the
@@ -14,9 +16,8 @@
 //   2. Start H1 via the "Ready for half 1" page-level button.
 //   3. Record a try via the on-field player tile + score buttons,
 //      then walk through the conversion dialog (laws §15 rotation).
-//   4. Auto-hooter at the 20-min mark fires endLeagueQuarter →
-//      Q-break shell renders.
-//   5. Start H2 ("Ready for half 2"), let the clock run, hooter.
+//   4. End H1 from the clock menu → Q-break shell renders.
+//   5. Start H2 ("Ready for half 2"), end it from the clock menu.
 //   6. Tap "Finalise game" → game_finalised lands + status=completed.
 //   7. Server-side assertions confirm the event log matches.
 
@@ -90,14 +91,13 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
-    ageGroup: "U10",
   });
   // makeGame uses AFL's AGE_GROUPS (defaultOnFieldSize=12 for U10).
   // Override to RL's 11 so the lineup we seed matches the legal
-  // window. clock_multiplier=60 ticks a 20-min half down in ~20s.
+  // window.
   await admin
     .from("games")
-    .update({ on_field_size: 11, clock_multiplier: 60 })
+    .update({ on_field_size: 11 })
     .eq("id", game.id);
 
   // Mark every player available.
@@ -232,19 +232,12 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .toBeGreaterThanOrEqual(1);
 
   // ─── Phase 4: End H1 via manual hooter ────────────────────
-  // The auto-hooter in LeagueLiveGame uses real wall-clock time, so
-  // we end the period deterministically via the manual affordance.
-  // That affordance lives on the scorebug clock pill and is a
-  // *paused-only* rescue control: "End half early" only renders
-  // when the clock is paused (`!running`) — see LeagueScoreBug. So
-  // the sequence is: tap the clock pill to pause → the "End half
-  // early" chip drops in → click it → confirm in
-  // ManualEndQuarterConfirm. The chip text has no period number
-  // ("End half early", not "End half 1 early").
-  await page.getByRole("button", { name: /pause clock/i }).click();
-  await page
-    .getByRole("button", { name: /end half early/i })
-    .click();
+  // The half runs at real speed, so we end the period
+  // deterministically via the manual affordance.
+  // Tapping the scorebug clock pill opens the clock menu; "End H1 now"
+  // opens ManualEndQuarterConfirm (UX plan H5 — no pause needed).
+  await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
+  await page.getByRole("button", { name: /^end h1 now$/i }).click();
   // ManualEndQuarterConfirm modal — confirm with the destructive
   // "End H{n}" button (U10 plays halves; the shared modal now
   // reads the periodLabel from the age-group config and renders
@@ -253,13 +246,13 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .getByRole("button", { name: /^end\s*[qh]\s*1$/i })
     .click();
   // Ending H1 fires LeagueLiveGame's qbreak auto-open effect, which
-  // pops StartQuarterModal ("Ready for H2" → confirm with "Start H2")
-  // on top of the inline "Ready for half 2" break card. That modal
+  // pops StartQuarterModal ("Start H2" → confirm with "Start clock")
+  // on top of the inline "Start H2" break card. That modal
   // (z-50) covers the inline button, so we drive H2 straight from the
-  // modal's "Start H2" CTA. Wait for it so Phase 5 doesn't race the
+  // modal's "Start clock" CTA. Wait for it so Phase 5 doesn't race the
   // auto-open.
   await expect(
-    page.getByRole("button", { name: /^start\s*[qh]\s*2$/i }),
+    page.getByRole("button", { name: /^start clock$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
@@ -271,29 +264,26 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // full-time branch one period early: the "Finalise game" CTA (the
   // full-time/review surface) must be absent at the H1 boundary.
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeHidden();
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await page
-    .getByRole("button", { name: /^start\s*[qh]\s*2$/i })
+    .getByRole("button", { name: /^start clock$/i })
     .click();
-  // H2 now active. Same paused-only flow as Phase 4: pause the clock
-  // to surface the end-early chip, then end + confirm. An inline
+  // H2 now active. Same clock-menu flow as Phase 4. An inline
   // KickoffPicker may render for H2, but it's a non-blocking
   // <section> (not an overlay), so it never covers the clock pill.
-  await page.getByRole("button", { name: /pause clock/i }).click();
-  await expect(
-    page.getByRole("button", { name: /end half early/i }),
-  ).toBeVisible({ timeout: 10_000 });
-  await page
-    .getByRole("button", { name: /end half early/i })
-    .click();
+  await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
+  await expect(page.getByRole("button", { name: /^end h2 now$/i })).toBeVisible({
+    timeout: 10_000,
+  });
+  await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*2$/i })
     .click();
   await expect(
-    page.getByRole("button", { name: /finalise game/i }),
+    page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // Pre-finalise the game must still be in_progress — coach hasn't
@@ -306,7 +296,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   expect(midReviewGame?.status).toBe("in_progress");
 
   // ─── Phase 6: Finalise ────────────────────────────────────
-  await page.getByRole("button", { name: /finalise game/i }).click();
+  await page.getByRole("button", { name: /finish game/i }).click();
 
   // game_finalised event + status flip.
   await expect

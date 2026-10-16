@@ -220,25 +220,29 @@ export function LeagueNextSubCard({
       {open && (
         <>
           <ul className="space-y-1.5 px-3 pb-3">
-            {valid.map(({ s, off, on }) => (
+            {valid.map(({ s, off, on }, i) => (
+              // As AFL's SwapCard: on a phone Make swap wraps to its own
+              // line before the names are cut ("Bren… → Qu…" at 375 px),
+              // and the initials show from sm up.
               <li
                 key={s.on.playerId}
-                className="flex items-center gap-2 rounded-sm bg-white/5 px-2.5 py-2"
+                data-testid={`league-swap-pair-${i}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-sm bg-white/5 px-2.5 py-2"
               >
                 <span
                   className={`w-12 font-mono text-[9px] font-bold uppercase tracking-micro ${ZONE_COLOR[s.zone]}`}
                 >
                   {ZONE_LABEL[s.zone]}
                 </span>
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70">
+                <span className="flex min-w-0 flex-auto items-center gap-1.5">
+                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
                     {initials(off.full_name)}
                   </span>
                   <span className="truncate text-xs font-semibold text-warm/70">
                     {first(off.full_name)}
                   </span>
                   <span className="text-warm/40">→</span>
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200">
+                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
                     {initials(on.full_name)}
                   </span>
                   <span className="truncate text-xs font-bold text-brand-300">
@@ -257,9 +261,9 @@ export function LeagueNextSubCard({
                       // the coach can see the field update immediately.
                       setOpen(false);
                     }}
-                    className="flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                    className="ml-auto flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
-                    {pending ? "…" : "Do"}
+                    {pending ? "…" : "Make swap"}
                   </button>
                 )}
               </li>
@@ -294,7 +298,9 @@ export function LeagueNextSubCard({
               </svg>
               {pending
                 ? "Applying…"
-                : `Do all ${valid.length} swap${valid.length > 1 ? "s" : ""}`}
+                : valid.length === 1
+                  ? "Make this swap"
+                  : `Make all ${valid.length} swaps`}
             </button>
           </div>
         </>

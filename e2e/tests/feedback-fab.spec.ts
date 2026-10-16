@@ -29,7 +29,7 @@ import {
   deleteTestUser,
 } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { gotoStable } from "../helpers/navigation";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -58,7 +58,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
     // /dashboard` assertion below. Mirrors the in-game cases: makeTeam
     // + deleteTestUser cleanup, no explicit team delete (the auth-user
     // delete cascades).
-    await makeTeam(admin, { ownerId: user.id });
+    await makeTeam(admin, { ownerId: user.id, sport: "afl" });
 
     // Fresh context so we don't inherit the chromium project's
     // super-admin session — this case is specifically about a regular
@@ -66,6 +66,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(user.email);
     await page.getByTestId("login-password").fill(user.password);
@@ -73,6 +74,7 @@ test("authenticated feedback: FAB submit persists kind='feedback' + user_id", as
     await page.waitForURL(/\/(dashboard|teams\/new|welcome)/, {
       timeout: 15_000,
     });
+    await waitForHydration(page);
 
     // ?list=1 escape hatch: a single-team user is auto-redirected off
     // bare /dashboard to /teams/{id} (see dashboard/page.tsx). The
@@ -131,6 +133,7 @@ test("presales: anonymous visitor FAB submit persists kind='presales' with NULL 
 
   try {
     await page.goto("/");
+    await waitForHydration(page);
     await page.getByTestId("feedback-fab-presales").click();
 
     const replyEmail = `prospect-${sessionStamp}@example.com`;
@@ -185,13 +188,14 @@ test("on /live the floating FAB is hidden and the LiveTopBar header button takes
   });
 
   try {
-    const team = await makeTeam(admin, { ownerId: user.id });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
     const game = await makeGame(admin, { teamId: team.id, ownerId: user.id });
 
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(user.email);
     await page.getByTestId("login-password").fill(user.password);
@@ -199,11 +203,12 @@ test("on /live the floating FAB is hidden and the LiveTopBar header button takes
     await page.waitForURL(/\/(dashboard|teams\/new|welcome)/, {
       timeout: 15_000,
     });
+    await waitForHydration(page);
 
     // Confirm the floating FAB IS visible on /dashboard first — guards
     // against a false-negative on the /live absence assertion (e.g. a
     // component-name typo would silently pass).
-    await page.goto("/dashboard");
+    await gotoStable(page, "/dashboard");
     await expect(page.getByTestId("feedback-fab-feedback")).toBeVisible({
       timeout: 5_000,
     });
@@ -250,13 +255,14 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
   });
 
   try {
-    const team = await makeTeam(admin, { ownerId: user.id });
+    const team = await makeTeam(admin, { ownerId: user.id, sport: "afl" });
     await makePlayers(admin, { teamId: team.id, ownerId: user.id });
     const game = await makeGame(admin, { teamId: team.id, ownerId: user.id });
 
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     await page.goto("/login");
+    await waitForHydration(page);
     await page.getByTestId("login-mode-toggle").click();
     await page.getByTestId("login-email").fill(user.email);
     await page.getByTestId("login-password").fill(user.password);
@@ -264,6 +270,7 @@ test("feedback submitted from /live writes a DB row whose page_url carries the t
     await page.waitForURL(/\/(dashboard|teams\/new|welcome)/, {
       timeout: 15_000,
     });
+    await waitForHydration(page);
 
     await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
     // In-game uses the header button (the floating FAB is hidden on
@@ -365,6 +372,7 @@ test("honeypot: filled `website` field silently succeeds with NO DB row", async 
 
   try {
     await page.goto("/");
+    await waitForHydration(page);
     await page.getByTestId("feedback-fab-presales").click();
 
     const replyEmail = `bot-${sessionStamp}@example.com`;

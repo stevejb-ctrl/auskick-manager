@@ -81,11 +81,8 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     modeWord: "league",
     periods: "2 halves",
     // Junior rugby league leafy green — distinct from AFL alarm
-    // orange and netball purple. Note Union below is also green
-    // (darker forest); the two read similarly side-by-side but
-    // Union is coming-soon (disabled card) so they don't actively
-    // compete for the eye. If Union launches with a similar
-    // palette, retint one of the two.
+    // orange and netball purple. Union below is a darker forest
+    // green.
     accent: "#2F8C45",
     accentSoft: "#DEEFE3",
     fieldTintOpacity: 0.10,
@@ -93,11 +90,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     heroScreenshotAlt:
       "Rugby League live game — Bangles JRL U10 vs Stockton Seahawks, half 1",
   },
-  // Netball sits in slot 3 so the three shipped sports (AFL,
-  // League, Netball) cluster in positions 1-3 and the coming-soon
-  // Union card lands in slot 4 — the disabled/dimmed card is the
-  // visual "last in the row" rather than a gap in the middle of
-  // the active sports. Reorder if Union's order shifts post-launch.
+  // Netball sits in slot 3 and Union, the newest, in slot 4.
   {
     id: "netball",
     code: "NB",
@@ -123,7 +116,6 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     fieldTintOpacity: 0.12,
     heroScreenshot: null,
     heroScreenshotAlt: "Rugby union live game view",
-    comingSoon: true,
   },
 ] as const;
 

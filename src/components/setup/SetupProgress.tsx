@@ -5,15 +5,14 @@ export type SetupStep = "basics" | "config" | "squad" | "games" | "done";
 interface StepDef {
   id: SetupStep;
   label: string;
-  short: string;
 }
 
 const STEPS: StepDef[] = [
-  { id: "basics", label: "Team basics", short: "Basics" },
-  { id: "config", label: "How we play", short: "Play" },
-  { id: "squad", label: "Add the squad", short: "Squad" },
-  { id: "games", label: "Add games", short: "Games" },
-  { id: "done", label: "All set", short: "Done" },
+  { id: "basics", label: "Team basics" },
+  { id: "config", label: "How we play" },
+  { id: "squad", label: "Add the squad" },
+  { id: "games", label: "Add games" },
+  { id: "done", label: "All set" },
 ];
 
 interface SetupProgressProps {
@@ -26,16 +25,55 @@ interface SetupProgressProps {
 }
 
 function stepHref(teamId: string, step: SetupStep): string {
-  if (step === "basics") return "/teams/new";
+  // Basics edits the team that already exists — never /teams/new,
+  // which would create a second team (UX plan C3).
   return `/teams/${teamId}/setup?step=${step}`;
 }
 
 export function SetupProgress({ current, teamId }: SetupProgressProps) {
   const currentIndex = STEPS.findIndex((s) => s.id === current);
 
+  const currentStep = STEPS[currentIndex];
+
   return (
     <div className="space-y-2">
-      <ol className="flex items-center gap-1.5 sm:gap-2">
+      {/* Phones: "Step n of 5 · label" over a segment bar — five pills
+          truncated to "B…", "P…" at 375 px (UX plan M2). Completed
+          segments still link back. */}
+      <div className="sm:hidden">
+        <p className="text-sm font-semibold text-ink">
+          Step {currentIndex + 1} of {STEPS.length} · {currentStep?.label}
+        </p>
+        <ol className="mt-1.5 flex gap-1">
+          {STEPS.map((step, i) => {
+            const bar = (
+              <span
+                className={`block h-1.5 rounded-full ${
+                  i < currentIndex ? "bg-brand-600" : i === currentIndex ? "bg-brand-400" : "bg-hairline"
+                }`}
+              />
+            );
+            return (
+              <li key={step.id} className="flex-1">
+                {i < currentIndex && teamId ? (
+                  <Link
+                    href={stepHref(teamId, step.id)}
+                    aria-label={`Back to ${step.label}`}
+                    className="block py-2"
+                  >
+                    {bar}
+                  </Link>
+                ) : (
+                  <span className="block py-2" aria-current={i === currentIndex ? "step" : undefined}>
+                    {bar}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <ol className="hidden items-center gap-2 sm:flex">
         {STEPS.map((step, i) => {
           const isCurrent = i === currentIndex;
           const isDone = i < currentIndex;
@@ -68,8 +106,7 @@ export function SetupProgress({ current, teamId }: SetupProgressProps) {
           const content = (
             <>
               {numberBubble}
-              <span className="hidden truncate sm:inline">{step.label}</span>
-              <span className="truncate sm:hidden">{step.short}</span>
+              <span className="truncate">{step.label}</span>
             </>
           );
 

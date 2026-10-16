@@ -33,9 +33,12 @@ import {
 } from "@/lib/sports/rugby_league/vests";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
+import { periodLabels, type RugbySport } from "@/lib/sports";
 
 interface VestAssignmentCardProps {
   auth: LiveAuth;
+  /** The team's rugby sport: its words for the period. */
+  sport: RugbySport;
   gameId: string;
   /** All squad players (used to look up names for the picker rows). */
   squad: Player[];
@@ -49,10 +52,17 @@ interface VestAssignmentCardProps {
   period: number;
   /** Optional dismiss handler when the card is rendered as a modal/overlay. */
   onDone?: () => void;
+  /**
+   * Just this vest, with its replacement picker open: the "a vest
+   * wearer left the field" prompt. Showing both rows there read as the
+   * other wearer being off too (Stagehand round 4).
+   */
+  vest?: VestType;
 }
 
 export function VestAssignmentCard({
   auth,
+  sport,
   gameId,
   squad,
   onFieldPlayerIds,
@@ -60,11 +70,12 @@ export function VestAssignmentCard({
   ageGroup,
   period,
   onDone,
+  vest: onlyVest,
 }: VestAssignmentCardProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pendingVest, setPendingVest] = useState<VestType | null>(null);
-  const [replacingVest, setReplacingVest] = useState<VestType | null>(null);
+  const [replacingVest, setReplacingVest] = useState<VestType | null>(onlyVest ?? null);
 
   const reqs = ageGroup.vestRequirements;
   // U6/U7 have no vest requirement — render nothing.
@@ -100,8 +111,14 @@ export function VestAssignmentCard({
     const wearer = wearerId ? playerById.get(wearerId) ?? null : null;
     const isReplacing = replacingVest === vest;
     const isPending = pendingVest === vest;
+    // At a break (not the mid-period replace prompt), a planned wearer who
+    // isn't on the field — subbed off, hurt or lent since kickoff planned
+    // every period — needs someone else for that period: picker open.
+    // Without it the period kicked off with the vest on the bench
+    // (Stagehand round 5).
+    const plannedOff = !!wearerId && !onlyVest && !onFieldPlayerIds.includes(wearerId);
 
-    if (wearer && !isReplacing) {
+    if (wearer && !isReplacing && !plannedOff) {
       return (
         <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-3 py-2.5">
           <div className="flex items-center gap-2">
@@ -150,8 +167,8 @@ export function VestAssignmentCard({
             <PlayerVestBadge vest={vest} />
             <span className="text-sm font-semibold text-ink">
               {isReplacing
-                ? `Replace ${label} (injury, this ${ageGroup.periodLabel ?? "period"} only)`
-                : `Assign ${label} for ${ageGroup.periodLabel ?? "period"} ${period}`}
+                ? `Replace ${label} (this ${periodLabels(sport, ageGroup).label} only)`
+                : `Assign ${label} for ${periodLabels(sport, ageGroup).label} ${period}`}
             </span>
           </div>
           {isReplacing && (
@@ -165,6 +182,11 @@ export function VestAssignmentCard({
             </SFButton>
           )}
         </div>
+        {plannedOff && wearer && !isReplacing && (
+          <p className="text-xs text-ink-dim">
+            {wearer.full_name} isn&rsquo;t on the field. Pick who wears it.
+          </p>
+        )}
 
         {candidates.length === 0 ? (
           <p className="text-xs text-ink-mute">
@@ -206,13 +228,13 @@ export function VestAssignmentCard({
           Vests
         </h2>
         <p className="text-xs text-ink-mute">
-          Rotate each {ageGroup.periodLabel ?? "period"} — no player wears the same
+          Rotate each {periodLabels(sport, ageGroup).label} — no player wears the same
           vest twice in a game.
         </p>
       </header>
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-      {reqs.fr && renderRow("fr", "First Receiver")}
-      {reqs.dh && renderRow("dh", "Dummy Half")}
+      {reqs.fr && (!onlyVest || onlyVest === "fr") && renderRow("fr", "First Receiver")}
+      {reqs.dh && (!onlyVest || onlyVest === "dh") && renderRow("dh", "Dummy Half")}
     </section>
   );
 }
