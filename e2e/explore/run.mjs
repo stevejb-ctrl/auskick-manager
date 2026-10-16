@@ -488,7 +488,9 @@ async function seedTeam(admin, email, name, origin) {
       team: { name: "Randwick Rams", age_group: "U10", sport: "rugby_union" },
       opponent: "Coogee Crabs",
       playbook: { strategy: "preferred-line" },
-      squad: 15,
+      // 15 here and one who turns up late (sideline-chaos-union).
+      squad: 16,
+      late: 1,
       onField: 12,
     },
   };
@@ -627,7 +629,10 @@ async function seedTeam(admin, email, name, origin) {
     .select("id, share_token")
     .single();
   if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
-  const lateIds = new Set(s.live?.late ? ids.slice(-s.live.late) : []);
+  // Kids not marked available (they turn up late): a live seed's, or a
+  // game-day seed's own `late`.
+  const lateCount = s.live?.late ?? s.late ?? 0;
+  const lateIds = new Set(lateCount ? ids.slice(-lateCount) : []);
   await admin.from("game_availability").insert(
     ids.map((pid) => ({
       game_id: game.id,
