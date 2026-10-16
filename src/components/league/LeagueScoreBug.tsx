@@ -2,6 +2,7 @@
 
 import { rugbyScoreWords, type LeagueScore, type RugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { RugbySport } from "@/lib/sports/registry";
+import { SCORE_CHIP } from "@/components/live/scoreChip";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
 // Rugby-league scoreboard contents rendered inside the shared
@@ -78,15 +79,6 @@ function ScoreLine({ score, testId, words }: { score: LeagueScore; testId: strin
   );
 }
 
-// Mirrors AFL's `SCORE_CHIP` token shape so the buttons read the
-// same in both sports. Brief active flash on tap so the chip
-// confirms the tap before the player picker mounts.
-const SCORE_CHIP
-  = "rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim "
-  + "transition-colors duration-fast ease-out-quart "
-  + "hover:bg-hairline hover:text-ink "
-  + "active:bg-brand-200 active:text-brand-700 "
-  + "disabled:pointer-events-none disabled:opacity-60";
 
 export function LeagueScoreBug({
   sport,

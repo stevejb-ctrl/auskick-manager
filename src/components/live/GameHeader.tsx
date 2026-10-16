@@ -8,6 +8,7 @@ import {
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { PulsingNumber } from "@/components/live/PulsingNumber";
+import { SCORE_CHIP } from "@/components/live/scoreChip";
 
 interface GameHeaderProps {
   teamName: string;
@@ -81,21 +82,6 @@ function points(s: { goals: number; behinds: number }) {
   return s.goals * 6 + s.behinds;
 }
 
-// Score-record chip styling — shared by all four +G/+B buttons
-// (own-team goal, own-team behind, opponent goal, opponent behind).
-// Lives once here rather than copy-pasted across the four call sites.
-// `active:bg-brand-200 active:text-brand-700` is the brief tap-down
-// signal: a brand-coloured flash that confirms the chip registered
-// the tap before the player-picker mounts. Higher contrast than the
-// hover step because score-record is a deliberate, consequential
-// action (it opens a picker, mutates state) — pointer-down deserves
-// to feel weightier than mere hover.
-const SCORE_CHIP =
-  "rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim " +
-  "transition-colors duration-fast ease-out-quart " +
-  "hover:bg-hairline hover:text-ink " +
-  "active:bg-brand-200 active:text-brand-700 " +
-  "disabled:pointer-events-none disabled:opacity-60";
 
 /**
  * The unified top header: BRUNSWICK 3.2 (20) ·  Q2 ⏸ 8:14  · COBURG 2.4 (16).
