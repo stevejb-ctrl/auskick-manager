@@ -110,7 +110,7 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
 
   // Tap "Start Q1" in the modal. Single tap = server lineup_set +
   // quarter_start + local clock start.
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Modal disappears, clock pill flips to running ("Clock — Q1, running").
   // No second tap. The modal waits (spinner) for the one save + the
@@ -209,7 +209,7 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
   // for real.
   await expect(readyButton).toBeVisible({ timeout: 2_000 });
   await readyButton.click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(
     page.getByRole("button", { name: /^clock — q1, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
@@ -294,7 +294,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   ).toBeVisible({ timeout: 3_000 });
 
   // Tap the modal's "Start Q2" — single tap commits everything.
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // After the commit QuarterBreak's distinctive sub-heading drops
   // (replayGame returns currentQuarter=2 + quarterEnded=false, so
@@ -357,7 +357,7 @@ test("first-time coach is offered the walkthrough before kickoff, never over the
   });
 
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({
     timeout: 5_000,
   });
@@ -394,7 +394,7 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const clock = page.getByRole("button", { name: /^clock — q1, running$/i });
   await expect(clock).toBeVisible({ timeout: 10_000 });
@@ -449,7 +449,7 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(
     page.getByRole("button", { name: /^clock — q1, running$/i }),
   ).toBeVisible({ timeout: 10_000 });

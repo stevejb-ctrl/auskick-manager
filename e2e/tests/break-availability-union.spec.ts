@@ -142,7 +142,7 @@ test("rugby union at 15 a side: at the break a kid arrives, a forward goes out, 
 
   // ─── 4. Start H2 ────────────────────────────────────────────────
   await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   const evs = await events();

@@ -63,7 +63,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
   // No kickoff rotation in union.
   await expect(page.getByText(/kicking off this period/i)).toHaveCount(0);
@@ -120,7 +120,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();

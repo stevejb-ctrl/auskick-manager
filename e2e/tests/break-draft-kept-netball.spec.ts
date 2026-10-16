@@ -135,7 +135,7 @@ test("netball: two swaps staged at the break are still there after the team page
 
   // Start Q2: the committed lineup is the staged one.
   await startQ2.click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   let q2: { positions: Record<string, string[]>; bench: string[] } | null = null;
   await expect
     .poll(

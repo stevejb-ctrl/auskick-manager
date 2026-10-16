@@ -35,7 +35,7 @@ function expectTargets(boxes: Box[]) {
 
 async function kickOff(page: Page, period: "q" | "h") {
   await page.getByRole("button", { name: new RegExp(`^start ${period}1$`, "i") }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: new RegExp(`^clock — ${period}1, running$`, "i") })).toBeVisible({ timeout: 15_000 });
 }
 

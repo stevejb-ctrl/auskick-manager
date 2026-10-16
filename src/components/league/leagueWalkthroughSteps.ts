@@ -158,7 +158,7 @@ export function buildLeagueWalkthroughSteps(opts: {
   steps.push({
     emoji: "🏁",
     title: `Ending the ${periodWord} & full time`,
-    body: `When the clock hits zero the ${periodWord}-break view appears with the score and a "Start ${abbr}2" button — tap it, then Start clock when the siren goes for the next ${periodWord}. After the final ${periodWord} the Full-Time review opens so you can fix any score errors before tapping Finish game, then the share card appears with a "Copy for group chat" button.`,
+    body: `When the clock hits zero the ${periodWord}-break view appears with the score and a "Start ${abbr}2" button — tap it, then confirm when the siren goes for the next ${periodWord}. After the final ${periodWord} the Full-Time review opens so you can fix any score errors before tapping Finish game, then the share card appears with a "Copy for group chat" button.`,
   });
 
   return steps;

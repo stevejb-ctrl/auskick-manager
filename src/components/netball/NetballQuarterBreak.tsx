@@ -1968,10 +1968,11 @@ export function NetballQuarterBreak({
 
           Two-stage kickoff narrative preserved:
             Q-break button     "Start Q{n}"
-            StartQuarterModal  heading "Start Q{n}", button "Start clock"
-                                body    "Tap when the umpires call play."
-                                CTA     "Start Q{n}"
-          Distinct labels so each tap signals a different intent
+            StartQuarterModal  heading "Start Q{n}", primary "Start Q{n} now"
+                                body "Tap when the umpire calls play —
+                                the clock starts then."
+          One action name through the flow (UI polish audit §15); the
+          "now" suffix marks the second tap as the moment
           (commit-lineup → start-clock-on-whistle). */}
       <QuarterKickoffBar
         onConfirm={handleStart}

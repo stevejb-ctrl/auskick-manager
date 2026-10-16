@@ -242,7 +242,7 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
     await page.getByRole("button", { name: new RegExp(`^clock — h${half}, running$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end h${half} now$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end\\s*[qh]\\s*${half}$`, "i") }).click();
-    if (half === 1) await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 10_000 });
+    if (half === 1) await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   }
   await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("0T · 0C · 1PG · 1FG").first()).toBeVisible();

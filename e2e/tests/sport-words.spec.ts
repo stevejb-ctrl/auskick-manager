@@ -34,7 +34,7 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  const startClock = page.getByRole("button", { name: /^start clock$/i });
+  const startClock = page.getByRole("button", { name: /^start [qh]\d+ now$/i });
   // Start always opens the "Start clock" step. isVisible() doesn't wait,
   // so checking it raced the dialog and sometimes skipped the tap.
   await startClock.click({ timeout: 10_000 });

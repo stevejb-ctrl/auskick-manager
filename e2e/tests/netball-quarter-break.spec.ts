@@ -388,7 +388,7 @@ test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", asy
   await expect(
     page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Rule-1 fix from the plan source: periodBreakSwap is called with
   // `nextQuarter` (= 2), and netball-actions.ts:160-167 writes
@@ -574,7 +574,7 @@ test("Position cycle: the break moves everyone along the cycle", async ({ page }
 
   await page.getByRole("button", { name: /^start q2$/i }).click();
   await expect(page.getByRole("heading", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Q1: players 0–6 at GS…GK, 7 and 8 on the bench. Two steps along:
   // 7 and 8 come on at GS and GA, everyone moves up two, 5 and 6 sit.

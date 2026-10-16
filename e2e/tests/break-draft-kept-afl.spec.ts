@@ -191,7 +191,7 @@ test("AFL: a swap staged at the break is still there after the team page and bac
 
   // Start Q2: the committed lineup is the staged one.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(q2.fwd).toContain(comingOn);
   expect(q2.bench).toContain(goingOff);
@@ -246,7 +246,7 @@ test("AFL: a kid hurt while the coach was away isn't restored onto the staged fi
 
   // Nobody hurt starts Q2 on the field.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(ALL_ZONES.flatMap((z) => q2[z])).not.toContain(comingOn);
   expect(q2.bench).toContain(comingOn);
@@ -299,7 +299,7 @@ test("AFL: a kid who arrived at the break is still on the staged bench after the
 
   // Start Q2: the arrival starts it on the bench.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(q2.bench).toContain(arrival.id);
 });

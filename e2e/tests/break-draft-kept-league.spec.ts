@@ -145,7 +145,7 @@ test("rugby league: a swap made at the break is still there after the team page 
 
   // Start H2: the second half begins with the swap.
   await page.getByRole("button", { name: /^start h2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   let events: GameEvent[] = [];
   await expect
     .poll(

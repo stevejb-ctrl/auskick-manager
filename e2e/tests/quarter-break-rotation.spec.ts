@@ -165,7 +165,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   await expect(
     page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   // The modal waits for the break's saves (lineup + quarter start); on a
   // busy production build that ran past the old 3 s window (round 5).
   await expect(
