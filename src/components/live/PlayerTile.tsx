@@ -57,6 +57,16 @@ interface PlayerTileProps {
   positionLabel?: string | null;
   /** Season role "Keep on, every game" (lineup screens). */
   keepOn?: boolean;
+  /**
+   * How loudly the zone-time bar speaks (UI polish audit §2).
+   * "ambient" (default, live play): thin, softened — the bar is
+   * context, the game is the content. At full saturation on every
+   * tile the field read as a bar chart before it read as a team,
+   * and early in a quarter every bar was a solid single-colour
+   * block. "full": the quarter-break planning tiles, where time
+   * balance IS the decision being made.
+   */
+  barEmphasis?: "ambient" | "full";
 }
 
 export interface TileCaption {
@@ -90,6 +100,7 @@ function PlayerTileImpl({
   caption,
   positionLabel,
   keepOn,
+  barEmphasis = "ambient",
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -320,21 +331,27 @@ function PlayerTileImpl({
         </span>
       ) : null}
 
-      {/* Zone-minute stacked bar — shows current-game time distribution */}
+      {/* Zone-minute stacked bar — shows current-game time
+          distribution. Ambient (live play) keeps it thin and
+          softened so the field doesn't read as a bar chart; full
+          (quarter break) returns the saturated planning bar. */}
       {zoneMs && (() => {
         const total = zoneMs.back + zoneMs.hback + zoneMs.mid + zoneMs.hfwd + zoneMs.fwd;
         if (total <= 0) return null;
         const pct = (v: number) => `${(v / total) * 100}%`;
+        const full = barEmphasis === "full";
         return (
           <span
-            className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
+            className={`mt-0.5 flex w-full overflow-hidden rounded-full bg-surface-alt ${
+              full ? "h-1.5" : "h-1"
+            }`}
             aria-label={`Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`}
           >
-            <span style={{ width: pct(zoneMs.fwd) }} className="bg-zone-f" />
-            <span style={{ width: pct(zoneMs.hfwd) }} className="bg-zone-f/70" />
-            <span style={{ width: pct(zoneMs.mid) }} className="bg-zone-c" />
-            <span style={{ width: pct(zoneMs.hback) }} className="bg-zone-b/70" />
-            <span style={{ width: pct(zoneMs.back) }} className="bg-zone-b" />
+            <span style={{ width: pct(zoneMs.fwd) }} className={full ? "bg-zone-f" : "bg-zone-f/60"} />
+            <span style={{ width: pct(zoneMs.hfwd) }} className={full ? "bg-zone-f/70" : "bg-zone-f/40"} />
+            <span style={{ width: pct(zoneMs.mid) }} className={full ? "bg-zone-c" : "bg-zone-c/60"} />
+            <span style={{ width: pct(zoneMs.hback) }} className={full ? "bg-zone-b/70" : "bg-zone-b/40"} />
+            <span style={{ width: pct(zoneMs.back) }} className={full ? "bg-zone-b" : "bg-zone-b/60"} />
           </span>
         );
       })()}
@@ -385,6 +402,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
   if (a.positionLabel !== b.positionLabel) return false;
   if (a.keepOn !== b.keepOn) return false;
+  if (a.barEmphasis !== b.barEmphasis) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.
