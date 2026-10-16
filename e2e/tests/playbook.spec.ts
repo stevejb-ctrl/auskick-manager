@@ -310,10 +310,11 @@ test("a league U12 coach creates the team's preferred positions", async ({ page 
   await expect(field.getByRole("button", { name: "Rake (RAKE)" })).toBeVisible();
 
   // The line control speaks rugby: Forwards and Backs, no AFL Centre.
+  // (exact — the strategy radios' blurbs also say "forwards".)
   await field.getByRole("button", { name: "Fullback (FB)" }).click();
-  await expect(page.getByRole("radio", { name: "Forwards" })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "Backs" })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "Centre" })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "Forwards", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Backs", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Centre", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("button", { name: "Save positions" }).click();
