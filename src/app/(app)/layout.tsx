@@ -4,7 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { ConnectedWordmark } from "@/components/brand/ConnectedWordmark";
 import { NativeNotificationsBridge } from "@/components/notifications/NativeNotificationsBridge";
 import { MotionPreferenceBridge } from "@/components/preferences/MotionPreferenceBridge";
-import { AppHeaderShell } from "@/components/layout/AppHeaderShell";
+import { AppFooterShell, AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { TeamSwitcher, type SwitcherTeam } from "@/components/layout/TeamSwitcher";
@@ -158,11 +158,16 @@ export default async function AppLayout({
           top of the 1rem base so the Help link doesn't sit under
           the indicator on iOS. Resolves to plain 1rem on devices
           without an inset. */}
-      <footer className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute">
-        <Link href="/help" className="hover:text-ink-dim">
-          Help
-        </Link>
-      </footer>
+      {/* Hidden on /live routes (AppFooterShell): the in-game fixed
+          bars cover the viewport bottom, so this footer was pure
+          ghost scroll there; the live top bar's "?" carries help. */}
+      <AppFooterShell>
+        <footer className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute">
+          <Link href="/help" className="hover:text-ink-dim">
+            Help
+          </Link>
+        </footer>
+      </AppFooterShell>
     </div>
   );
 }
