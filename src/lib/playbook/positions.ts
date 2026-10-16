@@ -1,19 +1,22 @@
-// AFL open ages: editing a team's named positions (UX plan 3.4).
+// Editing a team's named positions (UX plan 3.4): AFL open ages and
+// rugby's named-position ages. Lines are the sport's own (AFL
+// back/mid/fwd, rugby forwards/backs), so drafts carry plain ids.
 
-import type { PositionDef } from "@/lib/playbook/types";
+import type { LineDef, PositionDef } from "@/lib/playbook/types";
 
+/** @deprecated AFL's line ids; drafts now carry any sport's line. */
 export type AflLine = "back" | "mid" | "fwd";
 
 export interface DraftPosition {
-  /** team_positions.id, a default key ("chb", "bp1") or "new-…". */
+  /** team_positions.id, a default key ("chb", "bp1", "ru-9") or "new-…". */
   key: string;
   label: string;
   name: string;
-  line: AflLine;
+  line: string;
 }
 
 export function toDraft(p: PositionDef): DraftPosition {
-  return { key: p.key, label: p.label, name: p.name, line: p.line as AflLine };
+  return { key: p.key, label: p.label, name: p.name, line: p.line };
 }
 
 /**
@@ -31,7 +34,7 @@ export function resetToDefaults(current: DraftPosition[], defaults: DraftPositio
 }
 
 /** The line with the fewest positions — where a new one goes first. */
-export function sparsestLine(draft: DraftPosition[]): AflLine {
-  const count = (line: AflLine) => draft.filter((p) => p.line === line).length;
-  return (["fwd", "mid", "back"] as const).reduce((a, b) => (count(b) < count(a) ? b : a));
+export function sparsestLine(draft: DraftPosition[], lines: LineDef[]): string {
+  const count = (line: string) => draft.filter((p) => p.line === line).length;
+  return lines.map((l) => l.id).reduce((a, b) => (count(b) < count(a) ? b : a));
 }

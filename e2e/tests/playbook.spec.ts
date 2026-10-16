@@ -275,6 +275,60 @@ test("an AFL U14 coach names the team's positions on the field", async ({ page }
   await expect(page.getByRole("group", { name: "Team positions" }).getByRole("button")).toHaveCount(14);
 });
 
+// Steve 2026-10-16: a new rugby team choosing "Named positions" had no
+// way to create its preferred positions — the standard catalogue
+// applied silently with no editor (AFL open ages had one). Rugby's
+// named-position ages now get the same editor, seeded from the
+// standard list, saving on rugby's own forwards/backs lines.
+test("a league U12 coach creates the team's preferred positions", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "rugby_league" });
+  const activePositions = async () => {
+    const { data } = await admin
+      .from("team_positions")
+      .select("label, name, line, sort")
+      .eq("team_id", team.id)
+      .is("archived_at", null)
+      .order("sort");
+    return data ?? [];
+  };
+
+  await page.goto(`/teams/${team.id}/settings`);
+  // Positions appear once the strategy uses them.
+  await expect(page.getByRole("group", { name: "Team positions" })).toHaveCount(0);
+  await rotation(page).getByRole("radio", { name: /Named positions/ }).click();
+  const field = page.getByRole("group", { name: "Team positions" });
+  // U12 Mod League: the 13-a-side standard catalogue seeds the list.
+  await expect(field.getByRole("button")).toHaveCount(13);
+
+  // Rename the hooker to the club's own word for it.
+  await field.getByRole("button", { name: "Hooker (HK)" }).click();
+  await page.getByLabel("Short label (up to 4 letters)").fill("rake");
+  await page.getByLabel("Full name (optional)").fill("Rake");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(field.getByRole("button", { name: "Rake (RAKE)" })).toBeVisible();
+
+  // The line control speaks rugby: Forwards and Backs, no AFL Centre.
+  await field.getByRole("button", { name: "Fullback (FB)" }).click();
+  await expect(page.getByRole("radio", { name: "Forwards" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Backs" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Centre" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Save positions" }).click();
+  await expect.poll(async () => (await activePositions()).length).toBe(13);
+  await expect(page.getByText("Positions saved.")).toBeVisible();
+  const saved = await activePositions();
+  expect(saved.find((p) => p.label === "RAKE")).toMatchObject({ name: "Rake", line: "forwards" });
+
+  // Survives a reload, laid out on the pitch.
+  await page.reload();
+  await expect(
+    page.getByRole("group", { name: "Team positions" }).getByRole("button", { name: "Rake (RAKE)" }),
+  ).toBeVisible({ timeout: 15_000 });
+});
+
 test("a coach sets a player's role from the squad", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);

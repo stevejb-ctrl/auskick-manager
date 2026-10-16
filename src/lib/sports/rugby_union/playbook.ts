@@ -77,4 +77,8 @@ export const unionPlaybook = rugbyPlaybook("rugby_union", {
   namedPositionAges: new Set(["U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18"]),
   catalogue: unionCatalogue,
   namedPositions: NAMED_POSITIONS,
+  // Union labels carry the jersey number ("LK4", "HB9"); the full side
+  // knows the standard ones, a coach's own label is its own name.
+  positionName: (label) =>
+    FULL_SIDE.find((p) => `${p.short}${p.no}` === label)?.name ?? label,
 });

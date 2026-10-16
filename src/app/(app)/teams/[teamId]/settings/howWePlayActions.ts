@@ -158,7 +158,8 @@ export async function saveTeamPositions(
   const ageGroup = team.age_group as string;
   const policy = effectivePolicy(sport, ageGroup, (row?.policy_overrides ?? {}) as PolicyOverrides);
   const ageCfg = getAgeGroupConfig(sport, ageGroup);
-  if (getSportPlaybook(sport).positionModel(policy, ageCfg.defaultOnFieldSize).kind !== "custom") {
+  const model = getSportPlaybook(sport).positionModel(policy, ageCfg.defaultOnFieldSize);
+  if (model.kind !== "custom") {
     return { success: false, error: "This team's positions are set by its age group." };
   }
 
@@ -176,7 +177,9 @@ export async function saveTeamPositions(
     if (p.label.length < 1 || p.label.length > 4) {
       return { success: false, error: "Position labels are 1 to 4 characters." };
     }
-    if (p.line !== "back" && p.line !== "mid" && p.line !== "fwd") {
+    // The sport's own lines (AFL back/mid/fwd, rugby forwards/backs) —
+    // the DB's position_line_for_sport trigger refuses the rest too.
+    if (!model.lines.some((l) => l.id === p.line)) {
       return { success: false, error: "Unknown line." };
     }
     if (p.name && p.name.length > 40) return { success: false, error: "Position names are up to 40 characters." };
@@ -206,7 +209,7 @@ export async function saveTeamPositions(
       team_id: teamId,
       label: p.label,
       name: p.name,
-      line: p.line as "back" | "mid" | "fwd",
+      line: p.line,
       sort,
       on_field_size: ageCfg.defaultOnFieldSize,
     };

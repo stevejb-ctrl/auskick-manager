@@ -10,19 +10,12 @@ import { Modal } from "@/components/ui/Modal";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { saveTeamPositions } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
-import { aflPositionName, layoutAflPositions } from "@/lib/sports/afl/playbook";
 import {
   resetToDefaults,
   sparsestLine,
-  type AflLine,
   type DraftPosition,
 } from "@/lib/playbook/positions";
-
-const LINE_OPTIONS: { id: AflLine; label: string }[] = [
-  { id: "fwd", label: "Forward" },
-  { id: "mid", label: "Centre" },
-  { id: "back", label: "Back" },
-];
+import type { LineDef, PositionDef } from "@/lib/playbook/types";
 
 interface PositionsEditorProps {
   initial: DraftPosition[];
@@ -30,14 +23,23 @@ interface PositionsEditorProps {
   teamId: string;
   onFieldSize: number;
   maxPositions: number;
+  /** The sport's lines, in display order (AFL F/C/B, rugby forwards/backs). */
+  lines: LineDef[];
+  /** Lays the draft out on the sport's field (the model's own layout). */
+  layout: (list: Omit<PositionDef, "x" | "y">[]) => PositionDef[];
+  /** The sport's full name for a standard label ("CHB" → "Centre half back"). */
+  positionName: (label: string) => string;
+  /** Which field to draw behind the spots. */
+  field: "afl" | "rugby";
   disabled?: boolean;
 }
 
 /**
- * AFL open ages: name the team's positions on the field (UX plan §7.9
- * W2). Tap a spot to rename it (≤ 4 characters), give it a full name or
- * move it to another line; add or remove spots; reset to the default
- * formation for the team's on-field size.
+ * Name the team's positions on the field (UX plan §7.9 W2): AFL open
+ * ages and rugby's named-position ages (Steve 2026-10-16). Tap a spot
+ * to rename it (≤ 4 characters), give it a full name or move it to
+ * another line; add or remove spots; reset to the sport's standard
+ * list for the team's on-field size.
  */
 export function PositionsEditor({
   initial,
@@ -45,6 +47,10 @@ export function PositionsEditor({
   teamId,
   onFieldSize,
   maxPositions,
+  lines,
+  layout,
+  positionName,
+  field,
   disabled = false,
 }: PositionsEditorProps) {
   const router = useRouter();
@@ -60,12 +66,12 @@ export function PositionsEditor({
   const labelTyped = useRef(false);
   const [nextId, setNextId] = useState(1);
 
-  const laidOut = useMemo(() => layoutAflPositions(draft), [draft]);
+  const laidOut = useMemo(() => layout(draft), [layout, draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const diff = draft.length - onFieldSize;
 
   function openNew() {
-    const line = sparsestLine(draft);
+    const line = sparsestLine(draft, lines);
     setEditing({ index: draft.length, value: { key: `new-${nextId}`, label: "", name: "", line }, isNew: true });
     setNextId((n) => n + 1);
   }
@@ -134,13 +140,15 @@ export function PositionsEditor({
         <PositionsField
           ariaLabel="Team positions"
           positions={laidOut}
+          field={field}
+          lines={lines}
           renderPosition={(p) => {
             const index = draft.findIndex((d) => d.key === p.key);
             return (
               <button
                 type="button"
                 disabled={disabled}
-                aria-label={`${p.name || aflPositionName(p.label)} (${p.label})`}
+                aria-label={`${p.name || positionName(p.label)} (${p.label})`}
                 onClick={() => setEditing({ index, value: draft[index], isNew: false })}
                 className="min-h-[44px] min-w-[44px] rounded-md bg-surface/95 px-2 font-mono text-xs font-bold text-ink shadow-card transition-transform duration-fast ease-out-quart active:scale-95 disabled:cursor-default"
               >
@@ -210,7 +218,7 @@ export function PositionsEditor({
                 id="position-name"
                 value={editing.value.name}
                 maxLength={40}
-                placeholder={editing.value.label ? aflPositionName(editing.value.label.toUpperCase()) : ""}
+                placeholder={editing.value.label ? positionName(editing.value.label.toUpperCase()) : ""}
                 autoComplete="off"
                 onChange={(e) => setEditing({ ...editing, value: { ...editing.value, name: e.target.value } })}
               />
@@ -219,7 +227,7 @@ export function PositionsEditor({
               <p className="text-sm font-medium text-ink">Line</p>
               <SegmentedControl
                 label="Line"
-                options={LINE_OPTIONS}
+                options={lines.map((l) => ({ id: l.id, label: l.label }))}
                 value={editing.value.line}
                 onChange={(line) => setEditing({ ...editing, value: { ...editing.value, line } })}
               />

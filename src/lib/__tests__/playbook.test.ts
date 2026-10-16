@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { effectivePolicy, effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
-import { defaultAflPositions } from "@/lib/sports/afl/playbook";
+import { AFL_LINES, defaultAflPositions } from "@/lib/sports/afl/playbook";
 import { leagueCatalogue } from "@/lib/sports/rugby_league/playbook";
 import { playbookSnapshot, resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 import { resetToDefaults, sparsestLine, toDraft } from "@/lib/playbook/positions";
@@ -170,8 +170,11 @@ describe("rugby league", () => {
       "preferred-line",
     ]);
     const u12 = league.positionModel(effectivePolicy("rugby_league", "U12"), 13);
-    expect(u12.kind).toBe("catalogue");
-    expect(u12.canRename).toBe(false);
+    // The standard catalogue seeds the list and the coach may edit it
+    // (Steve 2026-10-16: create a rugby team's preferred positions).
+    expect(u12.kind).toBe("custom");
+    expect(u12.canRename).toBe(true);
+    expect(u12.canAddRemove).toBe(true);
     // Pairs are left and right as drawn, so every position is its own.
     expect(u12.defaults.map((p) => p.label)).toEqual([
       "LPR", "HK", "RPR", "L2R", "R2R", "LK", "FB", "HB", "5/8", "LCE", "RCE", "RWG", "LWG",
@@ -182,7 +185,7 @@ describe("rugby league", () => {
   it("U13 and up (international laws) get named positions too, and lean to them", () => {
     const league = getSportPlaybook("rugby_league");
     const u15 = effectivePolicy("rugby_league", "U15");
-    expect(league.positionModel(u15, 13).kind).toBe("catalogue");
+    expect(league.positionModel(u15, 13).kind).toBe("custom");
     expect(league.positionModel(u15, 13).defaults).toHaveLength(13);
     expect(league.strategies(u15).map((s) => s.id)).toContain("named-positions");
     expect(league.recommendedStrategy(u15)).toBe("named-positions");
@@ -211,6 +214,34 @@ describe("rugby league", () => {
     const ps = leagueCatalogue(11, 5);
     expect(ps).toHaveLength(11);
     expect(new Set(ps.map((p) => p.key)).size).toBe(11);
+  });
+
+  // Steve 2026-10-16: a new rugby team choosing "Named positions"
+  // couldn't create its own — resolve only honoured AFL's saved rows
+  // and the model refused edits. The team's rows now win, laid out on
+  // rugby's own lines.
+  it("resolves a league team's own saved positions, laid out on the pitch", () => {
+    const r = resolveTeamPlaybook({
+      sport: "rugby_league",
+      ageGroup: "U12",
+      onFieldSize: 13,
+      row: { strategy: "named-positions", policy_overrides: {}, season_balance: null, season_balance_since: null },
+      positions: [
+        { id: "a1", label: "PR", name: "Prop", line: "forwards", sort: 0, archived_at: null },
+        { id: "a2", label: "HK", name: null, line: "forwards", sort: 1, archived_at: null },
+        { id: "a3", label: "HB", name: "Halfback", line: "backs", sort: 2, archived_at: null },
+        { id: "a4", label: "OLD", name: "Archived", line: "backs", sort: 3, archived_at: "2026-10-01" },
+      ],
+    });
+    expect(r.customPositions).toBe(true);
+    expect(r.positions.map((p) => p.label)).toEqual(["PR", "HK", "HB"]);
+    // The sport's standard name fills a missing one.
+    expect(r.positions.find((p) => p.label === "HK")?.name).toBe("Hooker");
+    // Forwards sit in the top band, backs in the lower, on 0–1 coords.
+    const hb = r.positions.find((p) => p.label === "HB")!;
+    const pr = r.positions.find((p) => p.label === "PR")!;
+    expect(pr.y).toBeLessThan(0.5);
+    expect(hb.y).toBeGreaterThan(0.5);
   });
 });
 
@@ -322,7 +353,7 @@ describe("positions editor helpers", () => {
 
   it("adds new positions to the thinnest line", () => {
     const noForwards = defaults.filter((p) => p.line !== "fwd");
-    expect(sparsestLine(noForwards)).toBe("fwd");
+    expect(sparsestLine(noForwards, AFL_LINES)).toBe("fwd");
   });
 });
 
