@@ -737,8 +737,12 @@ export default async function LivePage({ params }: LivePageProps) {
     const stickyPb = "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (
+      // md:max-w-md — the live views are phone-shaped objects; scaled
+      // unclamped to a desktop width the court grew ~1500px tall with
+      // tokens metres apart (UI polish audit §12). On md+ the column
+      // stays phone-sized, centred, with the page breathing around it.
       <div
-        className={`space-y-3${
+        className={`space-y-3 md:mx-auto md:max-w-md${
           hasStickyBottom ? ` ${stickyPb}` : ""
         }`}
       >
@@ -923,8 +927,10 @@ export default async function LivePage({ params }: LivePageProps) {
     const stickyPb = "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (
+      // md:max-w-md — phone-shaped object, phone-sized on desktop
+      // too (UI polish audit §12; see the netball branch's note).
       <div
-        className={`space-y-3${
+        className={`space-y-3 md:mx-auto md:max-w-md${
           hasStickyBottom ? ` ${stickyPb}` : ""
         }`}
       >
