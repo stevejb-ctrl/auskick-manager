@@ -2489,6 +2489,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ...(onCourt.positions.gs ?? []),
           ...(onCourt.positions.ga ?? []),
         ];
+        // Dressed rows, not bare text (UI polish audit §11): the
+        // AFL who-scored picker gives each row a number circle and
+        // a position caption; a netball goal deserves the same
+        // moment. The bib label rides in the circle (netball has no
+        // jersey numbers) and the full position name captions it.
         const candidates = eligibleIds
           .map((pid) => {
             const player = squadById.get(pid);
@@ -2496,10 +2501,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
             return {
               id: pid,
-              name: `${player.full_name} (${positionId})`,
+              name: player.full_name,
+              jerseyNumber: positionId,
+              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
             };
           })
-          .filter((c): c is { id: string; name: string } => !!c);
+          .filter((c): c is NonNullable<typeof c> => !!c);
         return (
           <SlotFillSheet
             slotLabel="goal"
