@@ -2762,11 +2762,15 @@ function NetballScoreBug({
             tile on the court. Steve 2026-05-16. */}
         {onTeamGoal && (
           <div className="mt-1 flex gap-2">
+            {/* SCORE_CHIP token (not a hand-rolled copy): the one
+                shared chip across every sport, 44pt minimum — this
+                side had drifted to a 36px-tall duplicate while the
+                opponent side used the token (UI polish audit §10). */}
             <button
               type="button"
               onClick={onTeamGoal}
               disabled={isPending}
-              className="rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink active:bg-brand-200 active:text-brand-700 disabled:pointer-events-none disabled:opacity-60"
+              className={SCORE_CHIP}
               aria-label="Record our goal"
             >
               +G
@@ -2787,8 +2791,13 @@ function NetballScoreBug({
       {(() => {
         const inner = (
           <>
-            <span className="font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-              {quarterLabel}
+            <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+              <span>{quarterLabel}</span>
+              {/* Running-state glyph — AFL's pill shows ⏸ while the
+                  clock runs; netball only flagged the PAUSED state
+                  (▶ badge below), hiding the running state (UI
+                  polish audit §10). */}
+              {onClockTap && !paused && <span>⏸</span>}
             </span>
             <span
               className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
