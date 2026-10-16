@@ -25,3 +25,14 @@ export function AppHeaderShell({ children }: { children: React.ReactNode }) {
   if (isLiveRoute) return null;
   return <>{children}</>;
 }
+
+/**
+ * Same live-route hiding for the (app) layout's footer. During live
+ * play the fixed scorebug covers the viewport bottom, so the in-flow
+ * Help footer could never be seen — it only added ghost scroll below
+ * the content (Steve 2026-10-16: "the scroll goes too low, big
+ * gaps"). Help stays reachable in-game through the top bar's "?".
+ */
+export function AppFooterShell({ children }: { children: React.ReactNode }) {
+  return <AppHeaderShell>{children}</AppHeaderShell>;
+}

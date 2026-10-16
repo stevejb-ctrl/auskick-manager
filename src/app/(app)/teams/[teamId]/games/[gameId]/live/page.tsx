@@ -724,24 +724,17 @@ export default async function LivePage({ params }: LivePageProps) {
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
       state.currentQuarter < ageCfgN.periodCount;
-    const isLivePlay =
-      state.currentQuarter >= 1 &&
-      !state.quarterEnded &&
-      !state.finalised;
-    const hasStickyBottom = isPreKickoff || isAtQbreak || isLivePlay;
-    // pb depends on which sticky bar is showing — the scorebug
-    // during live play is significantly taller than the simple
-    // Ready button, so live play uses more. Safe-area inset stacks
-    // on top. Steve 2026-05-13: tightened from 12rem to 9rem to
-    // close out the "huge blank space under Restart game" gap.
-    // 9rem covers the scorebug (~95px) + optional undo strip
-    // (~32px) + bar padding (~10px) snugly; if the undo strip
-    // isn't rendered (no lastScore yet) there's a hair of slack
-    // but no overlap, which was the failure mode the old comment
-    // was guarding against.
-    const stickyPb = isLivePlay
-      ? "pb-[calc(9rem+env(safe-area-inset-bottom))]"
-      : "pb-[calc(6rem+env(safe-area-inset-bottom))]";
+    // Page-level clearance exists ONLY for the Q-break's fixed
+    // "Ready for Q{n+1}" CTA, which reserves no flow space of its
+    // own (Steve 2026-10-16: "the scroll goes too low, big gaps").
+    //   - Live play is NOT here: the shared LiveStickyScoreBar
+    //     renders a measured in-flow spacer of the bar's height.
+    //   - Pre-kickoff is NOT here: the picker's Save/Start footer
+    //     is sticky — in flow at the end of the picker — so there
+    //     is nothing to clear (mirrors the AFL branch, which never
+    //     reserved for its picker).
+    const hasStickyBottom = isAtQbreak;
+    const stickyPb = "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (
       <div
@@ -913,28 +906,21 @@ export default async function LivePage({ params }: LivePageProps) {
       state.quarterEnded &&
       state.currentQuarter >= 1 &&
       state.currentQuarter < ageCfg.periodCount;
-    const isLivePlay =
-      state.currentQuarter >= 1 &&
-      !state.quarterEnded &&
-      !state.finalised;
-    // Three states now mount a sticky-bottom bar (Steve 2026-05-13):
-    //   - live play  → scorebug
-    //   - Q-break    → "Ready for Q{n+1}" CTA
-    //   - finalised  → "Finish game" CTA (back to dashboard)
+    // Page-level clearance exists ONLY for fixed bars that don't
+    // reserve their own flow space (Steve 2026-10-16: "the scroll
+    // goes too low, big gaps"):
+    //   - Q-break    → "Ready for Q{n+1}" CTA (QuarterKickoffBar,
+    //                  fixed on phones, no spacer of its own)
+    //   - finalised  → "Finish game" CTA (same)
+    // Live play is NOT here: LiveStickyScoreBar renders a measured
+    // in-flow spacer of exactly the bar's height, so a page pb on
+    // top of it was pure dead scroll (~144px of it).
     // FT review (post-Q4, pre-finalise) is intentionally excluded —
     // the user is still reconciling scores there and we don't want
     // a competing CTA at the bottom.
     const isFinalised = state.finalised;
-    const hasStickyBottom = isAtQbreak || isLivePlay || isFinalised;
-    // pb size depends on which sticky bar is showing — the live-
-    // play scorebug is the tallest, the Q-break and finalised
-    // single-button bars are shorter. Safe-area inset stacks on top.
-    // 9rem covers scorebug (~95-130px depending on undo strip) +
-    // bar padding snugly without the dead space the old 12rem
-    // value created.
-    const stickyPb = isLivePlay
-      ? "pb-[calc(9rem+env(safe-area-inset-bottom))]"
-      : "pb-[calc(6rem+env(safe-area-inset-bottom))]";
+    const hasStickyBottom = isAtQbreak || isFinalised;
+    const stickyPb = "pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
     return (
       <div
