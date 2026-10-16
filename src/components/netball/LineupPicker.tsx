@@ -840,10 +840,15 @@ export function NetballLineupPicker({
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
+    // No bottom padding: the Save/Start footer (LineupPickerFooter) is
+    // sticky — in flow at the end of this column — so reserving under
+    // it only added ghost scroll. The pb-[6rem] here dated from when
+    // the footer was fixed (Steve 2026-10-16: "scroll goes too low");
+    // AFL's picker shed its equivalent padding at the same extraction.
     <div
       role="region"
       aria-label="Starting lineup"
-      className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      className="flex flex-col gap-4"
     >
       <LineupPickerBreadcrumb availabilityHref={availabilityHref} action={gamePlanButton} />
       {availabilityPanel}
