@@ -2141,18 +2141,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           2026-05-13). Mirrors AFL. NETBALL-04 trackScoring gate
           applies down there. */}
 
-      {/* Colour key for the per-player time-by-third bars on the court
-          tokens + bench tiles — one shared key keeps a mid-game glance
-          legible (Steve 2026-06-29). Same palette as AFL/league. */}
-      <ZoneTimeLegend
-        className="px-1"
-        items={[
-          { label: "Attack", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
-          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
-          { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
-        ]}
-      />
-
+      {/* No colour key here (UI polish audit §13): on the live court
+          each token's bib chip reads in its third's colour right
+          above the bar, and the bands name themselves. The key stays
+          on the quarter-break and picker screens, where bare bars are
+          the decision aid (Steve 2026-06-29). */}
       <CourtDisplay
         lineup={onCourt}
         ageGroup={ageGroup}
