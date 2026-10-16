@@ -18,7 +18,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { waitForHydration } from "../helpers/navigation";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "serial" });
 
@@ -137,7 +137,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
     expect((e.metadata as { sport?: string }).sport, e.type as string).toBe("rugby_union");
   }
 
-  await page.goto(`/teams/${team.id}/stats`);
+  // Finishing the game navigates the live page; on WebKit that can still
+  // be landing, and a plain goto is interrupted by it.
+  await gotoStable(page, `/teams/${team.id}/stats`);
   await waitForHydration(page);
   await expect(page.getByRole("group", { name: "Tries" })).toContainText("13 pts", { timeout: 15_000 });
   await expect(page.getByRole("group", { name: "Drop goals" })).toContainText("1");
