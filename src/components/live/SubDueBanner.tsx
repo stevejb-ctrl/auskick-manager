@@ -28,8 +28,9 @@ export function SubDueBanner({ onAcknowledge }: SubDueBannerProps) {
         <PulseMark size={16} pulsing />
       </span>
       <p className="min-w-0 flex-1 text-sm text-ink-dim">
+        {/* Short enough for one line beside Got it on a 375 px phone. */}
         <strong className="font-semibold text-ink">Sub due</strong>
-        {" — "}time to rotate a player off the field.
+        {" — "}rotate a player off
       </p>
       <SFButton size="md" variant="ghost" onClick={onAcknowledge} className="shrink-0">
         Got it

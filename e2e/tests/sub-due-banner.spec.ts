@@ -9,6 +9,9 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 
+// A phone: the banner's message fits one line beside Got it.
+test.use({ viewport: { width: 375, height: 740 } });
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     // Count the sub-due beeps: a stand-in AudioContext that records each
@@ -68,6 +71,7 @@ async function subDueGame(sport: "afl" | "rugby_union") {
 async function expectBannerNotModal(page: Page, chip: string) {
   const banner = page.getByRole("alert").filter({ hasText: /sub due/i });
   await expect(banner).toBeVisible({ timeout: 20_000 });
+  expect((await banner.locator("p").boundingBox())!.height).toBeLessThan(30);
   // It beeps as it appears, in every sport (league and union were silent).
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
   // Nothing modal over the screen: the score chip would take the tap
