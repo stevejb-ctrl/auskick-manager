@@ -303,6 +303,8 @@ export const aflPlaybook: SportPlaybook = {
       defaults: defaultAflPositions(onFieldSize),
       canRename: true,
       canAddRemove: true,
+      layout: layoutAflPositions,
+      positionName: aflPositionName,
     };
   },
 

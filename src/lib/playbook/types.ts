@@ -82,16 +82,26 @@ export interface PositionDef {
 
 export interface PositionModel {
   /**
-   * none      — lines only (AFL zoned ages, RL without named positions)
-   * fixed     — set by the rules of play (netball bibs)
-   * catalogue — pick from a standard list, no renaming (RL Mod League)
-   * custom    — coach names, adds and removes positions (AFL open ages)
+   * none   — lines only (AFL zoned ages, rugby without named positions)
+   * fixed  — set by the rules of play (netball bibs)
+   * custom — the coach names, adds and removes positions, seeded from
+   *          the sport's standard list (AFL open ages, rugby's named-
+   *          position ages — Steve 2026-10-16: a rugby coach creates
+   *          their own preferred positions, as an AFL coach does)
    */
-  kind: "none" | "fixed" | "catalogue" | "custom";
+  kind: "none" | "fixed" | "custom";
   lines: LineDef[];
   defaults: PositionDef[];
   canRename: boolean;
   canAddRemove: boolean;
+  /**
+   * Lays coach-edited positions out on the sport's own field (custom
+   * kind only): AFL's oval bands, rugby's forwards-up pitch. Without
+   * it the defaults' coordinates are the only layout.
+   */
+  layout?(list: Omit<PositionDef, "x" | "y">[]): PositionDef[];
+  /** The sport's full name for a standard label ("CHB" → "Centre half back"). */
+  positionName?(label: string): string;
 }
 
 /** The unit season balance evens out for a strategy (§7.5). */
@@ -190,7 +200,8 @@ export interface TeamPositionRow {
   team_id: string;
   label: string;
   name: string | null;
-  line: "back" | "mid" | "fwd";
+  /** The team's sport's own line id (0062's trigger refuses the rest). */
+  line: string;
   sort: number;
   on_field_size: number | null;
   archived_at: string | null;

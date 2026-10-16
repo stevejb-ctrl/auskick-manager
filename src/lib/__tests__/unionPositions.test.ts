@@ -76,7 +76,8 @@ describe("union's How we play", () => {
     const u12 = effectivePolicy("rugby_union", "U12");
     expect(unionPlaybook.strategies(u12).map((s) => s.id)).toContain("named-positions");
     const model = unionPlaybook.positionModel(u12, 15);
-    expect(model.kind).toBe("catalogue");
+    // Seeded from the standard side and coach-editable (2026-10-16).
+    expect(model.kind).toBe("custom");
     expect(model.defaults.map((p) => p.key)).toEqual(unionCatalogue(15).map((p) => p.key));
   });
 

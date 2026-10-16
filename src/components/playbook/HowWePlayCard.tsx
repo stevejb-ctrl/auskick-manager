@@ -185,16 +185,28 @@ export function HowWePlayCard({
         />
       </div>
 
-      {resolved.strategy.usesPositions && resolved.positionModel.kind === "custom" && (
-        <PositionsEditor
-          teamId={teamId}
-          initial={resolved.positions.map(toDraft)}
-          defaults={resolved.positionModel.defaults.map(toDraft)}
-          onFieldSize={onFieldSize}
-          maxPositions={maxOnFieldSize}
-          disabled={disabled}
-        />
-      )}
+      {/* Coach-named positions: AFL open ages AND rugby's named-position
+          ages (Steve 2026-10-16 — choosing "Named positions" on a new
+          rugby team offered no way to create the team's own). The model
+          carries the sport's lines, layout and standard names; the
+          standard catalogue is the starting point. */}
+      {resolved.strategy.usesPositions &&
+        resolved.positionModel.kind === "custom" &&
+        resolved.positionModel.layout &&
+        resolved.positionModel.positionName && (
+          <PositionsEditor
+            teamId={teamId}
+            initial={resolved.positions.map(toDraft)}
+            defaults={resolved.positionModel.defaults.map(toDraft)}
+            onFieldSize={onFieldSize}
+            maxPositions={maxOnFieldSize}
+            lines={resolved.positionModel.lines}
+            layout={resolved.positionModel.layout}
+            positionName={resolved.positionModel.positionName}
+            field={isRugby(sport) ? "rugby" : "afl"}
+            disabled={disabled}
+          />
+        )}
 
       {isRugby(sport) && (resolved.policy.vests.fr || resolved.policy.vests.dh) && (
         <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">

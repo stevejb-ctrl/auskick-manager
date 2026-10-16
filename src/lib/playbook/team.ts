@@ -3,7 +3,6 @@
 // the wizard, the engines and the kickoff snapshot all agree.
 
 import { effectivePolicy, effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
-import { aflPositionName, layoutAflPositions } from "@/lib/sports/afl/playbook";
 import type { Sport } from "@/lib/types";
 import type {
   EffectivePolicy,
@@ -70,15 +69,17 @@ export function resolveTeamPlaybook({
   const live = positions
     .filter((p) => !p.archived_at)
     .sort((a, b) => a.sort - b.sort);
-  // Coach-named positions are AFL's (open ages) and are laid out on
-  // AFL's field; no other sport's model is "custom".
-  const customPositions = sport === "afl" && positionModel.kind === "custom" && live.length > 0;
+  // Coach-named positions, laid out on the sport's own field (AFL open
+  // ages, rugby's named-position ages — each custom model carries its
+  // layout and standard names).
+  const customPositions =
+    positionModel.kind === "custom" && !!positionModel.layout && live.length > 0;
   const resolvedPositions = customPositions
-    ? layoutAflPositions(
+    ? positionModel.layout!(
         live.map((p) => ({
           key: p.id,
           label: p.label,
-          name: p.name ?? aflPositionName(p.label),
+          name: p.name ?? positionModel.positionName?.(p.label) ?? p.label,
           line: p.line,
         })),
       )

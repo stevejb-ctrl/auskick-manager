@@ -54,6 +54,35 @@ export interface RugbyPlaybookRules {
   catalogue(onFieldSize: number, forwardCount: number): PositionDef[];
   /** Its "Named positions" strategy (blurb and fit in its own words). */
   namedPositions: StrategyDef;
+  /** Its full name for a standard label ("HK" → "Hooker"), label otherwise. */
+  positionName(label: string): string;
+}
+
+/**
+ * Lays coach-edited positions on the rugby pitch: forwards in rows of
+ * up to three near the top, backs the same below — the shape the
+ * standard catalogues draw, applied to whatever list the coach keeps.
+ * (A coach's own list can't reuse the catalogue's bespoke spots — a
+ * second hooker has no law-book coordinate — so rows are the honest
+ * general layout, as AFL's layoutAflPositions is for the oval.)
+ */
+export function layoutRugbyPositions(list: Omit<PositionDef, "x" | "y">[]): PositionDef[] {
+  const bands: Record<string, [number, number]> = {
+    forwards: [0.12, 0.38],
+    backs: [0.58, 0.9],
+  };
+  const out: PositionDef[] = [];
+  for (const line of ["forwards", "backs"]) {
+    const items = list.filter((p) => p.line === line);
+    const [top, bottom] = bands[line];
+    const rows: (typeof items)[] = [];
+    for (let i = 0; i < items.length; i += 3) rows.push(items.slice(i, i + 3));
+    rows.forEach((row, r) => {
+      const y = rows.length === 1 ? (top + bottom) / 2 : top + ((bottom - top) * r) / (rows.length - 1);
+      row.forEach((p, c) => out.push({ ...p, x: (c + 0.5) / row.length, y }));
+    });
+  }
+  return out;
 }
 
 export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): SportPlaybook {
@@ -112,12 +141,18 @@ export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): Spo
         return { kind: "none", lines: RUGBY_LINES, defaults: [], canRename: false, canAddRemove: false };
       }
       const cfg = getAgeGroupConfig(sport, policy.ageGroup);
+      // The standard catalogue seeds the list; the coach may keep it,
+      // rename spots or run their own (Steve 2026-10-16 — a new rugby
+      // team couldn't create its preferred positions; the DB took
+      // rugby lines since 0062/0066 but no editor was offered).
       return {
-        kind: "catalogue",
+        kind: "custom",
         lines: RUGBY_LINES,
         defaults: rules.catalogue(onFieldSize, rugbyForwards(cfg, onFieldSize)),
-        canRename: false,
-        canAddRemove: false,
+        canRename: true,
+        canAddRemove: true,
+        layout: layoutRugbyPositions,
+        positionName: rules.positionName,
       };
     },
 

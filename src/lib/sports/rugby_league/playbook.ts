@@ -77,4 +77,5 @@ export const leaguePlaybook = rugbyPlaybook("rugby_league", {
   namedPositionAges: NAMED_POSITION_AGES,
   catalogue: leagueCatalogue,
   namedPositions: NAMED_POSITIONS,
+  positionName: (label) => NAMES[label] ?? label,
 });
