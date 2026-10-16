@@ -106,3 +106,26 @@ test("union: sub due is a banner, and +T still takes the tap", async ({ page }) 
   await waitForHydration(page);
   await expectBannerNotModal(page, "Record a try for our team");
 });
+
+// The banner's screenshots (16 Oct 2026) showed the sub card's swap rows
+// at 375 px clipping names: AFL's to a single glyph ("D [ ⌄ → O ( ⌄"),
+// union's to "Bren… → Qu…". Make swap now wraps to its own line first.
+for (const { sport, rows } of [
+  { sport: "afl" as const, rows: '[data-testid^="swap-pair-"][data-testid$="-off"], [data-testid^="swap-pair-"][data-testid$="-on"]' },
+  { sport: "rugby_union" as const, rows: '[data-testid^="league-swap-pair-"]' },
+]) {
+  test(`${sport}: at 375 px the sub card's swap rows show whole names`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto((await subDueGame(sport)).coach);
+    await waitForHydration(page);
+    await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
+    const clipped = await page.evaluate((selector) => {
+      const names = Array.from(document.querySelectorAll(selector)).flatMap((row) =>
+        Array.from(row.querySelectorAll("span.truncate")),
+      ) as HTMLElement[];
+      return { count: names.length, clipped: names.filter((n) => n.scrollWidth > n.clientWidth).map((n) => n.textContent) };
+    }, rows);
+    expect(clipped.count).toBeGreaterThan(0);
+    expect(clipped.clipped).toEqual([]);
+  });
+}
