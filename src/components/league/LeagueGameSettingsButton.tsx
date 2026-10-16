@@ -22,7 +22,8 @@
 //
 //   4. Track forward / back time — toggles the AFL-style F/C/B
 //      stacked time bar on every LeaguePlayerTile. "Centre" maps
-//      to time wearing the FR or DH vest. Writes
+//      to time wearing the grade's vest; with no vest (union,
+//      league U6–U7) the bar is forwards and backs only. Writes
 //      games.track_zone_time. Off by default for casual teams.
 
 import { useMemo, useState, useTransition } from "react";
@@ -63,6 +64,11 @@ interface LeagueGameSettingsButtonProps {
   unbrokenRule: string | null;
   /** Whether the F/C/B zone-time bar renders on every player tile. */
   trackZoneTime: boolean;
+  /**
+   * The vest the bar's centre segment counts ("the FR or DH vest"),
+   * or null where none is worn — then the bar is forwards and backs.
+   */
+  centreVest: string | null;
   /** Current period — needed for the roster_shrink event metadata. */
   currentQuarter: number;
   /** Live elapsed ms — written into the roster_shrink event. */
@@ -80,6 +86,7 @@ export function LeagueGameSettingsButton({
   enforceUnbrokenPeriods,
   unbrokenRule,
   trackZoneTime,
+  centreVest,
   currentQuarter,
   elapsedMs,
 }: LeagueGameSettingsButtonProps) {
@@ -110,6 +117,7 @@ export function LeagueGameSettingsButton({
           enforceUnbrokenPeriods={enforceUnbrokenPeriods}
           unbrokenRule={unbrokenRule}
           trackZoneTime={trackZoneTime}
+          centreVest={centreVest}
           currentQuarter={currentQuarter}
           elapsedMs={elapsedMs}
           onClose={() => setOpen(false)}
@@ -139,6 +147,7 @@ function LeagueGameSettingsModal({
   enforceUnbrokenPeriods,
   unbrokenRule,
   trackZoneTime,
+  centreVest,
   currentQuarter,
   elapsedMs,
   onClose,
@@ -360,8 +369,9 @@ function LeagueGameSettingsModal({
               Track forward and back time
             </p>
             <p className="text-[11px] text-ink-mute">
-              Adds an F/C/B time bar to every player tile. Centre =
-              time wearing the FR or DH vest.
+              {centreVest
+                ? `Adds an F/C/B time bar to every player tile. Centre = time wearing ${centreVest}.`
+                : "Adds a forwards / backs time bar to every player tile."}
             </p>
           </div>
           <Toggle

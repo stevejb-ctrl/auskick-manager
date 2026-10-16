@@ -23,6 +23,7 @@ import {
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
 import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { centreVest } from "@/lib/sports/rugby/zoneTime";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -185,7 +186,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             isAdmin={isAdmin}
           />
         )}
-        {/* Rugby league zone-time bar (AFL F/C/B equivalent). */}
+        {/* Rugby zone-time bar (AFL F/C/B equivalent). */}
         {isRugby(sport) && (
           <TrackZoneTimeToggle
             teamId={params.teamId}
@@ -193,6 +194,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
               (team as { track_zone_time?: boolean | null }).track_zone_time ?? false
             }
             isAdmin={isAdmin}
+            centreVest={centreVest(ageGroupCfg.vestRequirements)}
           />
         )}
         {/* Netball's opt-in rolling subs (Steve-requested). */}

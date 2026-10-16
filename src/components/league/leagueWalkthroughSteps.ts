@@ -23,6 +23,7 @@
 
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import { centreVest } from "@/lib/sports/rugby/zoneTime";
 
 export interface WalkthroughStep {
   emoji: string;
@@ -128,12 +129,13 @@ export function buildLeagueWalkthroughSteps(opts: {
   if (opts.trackZoneTime) {
     // The Centre segment is vest time, so it only shows where vests are
     // worn (league U8+); union has no vests.
+    const vest = centreVest(opts.vests);
     steps.push(
-      opts.vests.fr || opts.vests.dh
+      vest
         ? {
             emoji: "📊",
             title: "Forward / Centre / Back time",
-            body: "Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards zone, blue is Backs, and the brand-coloured Centre segment is time wearing the FR or DH vest. Turn this off in Game settings if you don't rotate the vest as a real position.",
+            body: `Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards zone, blue is Backs, and the brand-coloured Centre segment is time wearing ${vest}. Turn this off in Game settings if you don't rotate the vest as a real position.`,
           }
         : {
             emoji: "📊",

@@ -99,6 +99,7 @@ import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { periodLabels } from "@/lib/sports";
+import { centreVest } from "@/lib/sports/rugby/zoneTime";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
   /** The team's rugby sport: its own config, points and rules. */
@@ -1995,13 +1996,16 @@ export function LeagueLiveGame({
         <>
           {/* Colour key for the per-tile time-in-zone bars — only when
               zone-time tracking is on (bars render); same palette and
-              forward-first order as the AFL/netball legend. */}
+              forward-first order as the AFL/netball legend. Centre is
+              vest time, so it's keyed only where a vest is worn. */}
           {trackZoneTime && (
             <ZoneTimeLegend
               className="px-1"
               items={[
                 { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
-                { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
+                ...(vestRequired
+                  ? [{ label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" }]
+                  : []),
                 { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
               ]}
             />
@@ -2327,6 +2331,7 @@ export function LeagueLiveGame({
                   : null
               }
               trackZoneTime={trackZoneTime}
+              centreVest={centreVest(ageGroup.vestRequirements)}
               currentQuarter={state.currentQuarter}
               elapsedMs={elapsedMs}
             />
