@@ -72,6 +72,7 @@ import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 import { periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 // Sub-minute formula from the previous picker — kept inline so the
@@ -319,10 +320,7 @@ export function LeagueLineupPicker({
   const [subMinInput, setSubMinInput] = useState<string>(
     String(suggestedSubMin),
   );
-  const subIntervalSeconds = Math.round(
-    Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedSubMin))
-      * 60,
-  );
+  const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, suggestedSubMin) * 60);
 
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -1141,10 +1139,12 @@ export function LeagueLineupPicker({
                 type="number"
                 inputMode="decimal"
                 step={0.5}
-                min={1}
-                max={10}
+                min={SUB_MINUTES_MIN}
+                max={SUB_MINUTES_MAX}
                 value={subMinInput}
                 onChange={(e) => setSubMinInput(e.target.value)}
+                // Show the minutes the game will use (1–10).
+                onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, suggestedSubMin)))}
                 className="w-32"
               />
               <p className="text-[11px] text-ink-mute">

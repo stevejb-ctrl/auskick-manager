@@ -42,6 +42,7 @@ import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRol
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
+import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -603,9 +604,7 @@ export function LineupPicker({
     defaultSubMinutes ?? suggestedSubMinutes(benchCount, totalCount, gameMinutes);
   const effectiveOnFieldTarget = Math.min(onFieldSize, totalCount);
   const effectiveSubMin =
-    subMinInput === null
-      ? suggestedMin
-      : Math.min(10, Math.max(1, parseFloat(subMinInput) || suggestedMin));
+    subMinInput === null ? suggestedMin : subMinutesFrom(subMinInput, suggestedMin);
   // Pre-kickoff Game plan: its later quarters ride on the pinned plan.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
@@ -973,11 +972,15 @@ export function LineupPicker({
                   <Input
                     id="sub-minutes"
                     type="number"
-                    min={1}
-                    max={10}
+                    min={SUB_MINUTES_MIN}
+                    max={SUB_MINUTES_MAX}
                     step={0.5}
                     value={subMinInput ?? String(suggestedMin)}
                     onChange={(e) => setSubMinInput(e.target.value)}
+                    // Show the minutes the game will use (1–10).
+                    onBlur={() => {
+                      if (subMinInput !== null) setSubMinInput(String(effectiveSubMin));
+                    }}
                     disabled={isPending}
                   />
                 </div>

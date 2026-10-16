@@ -70,3 +70,18 @@ export function canPlanNextPeriod(input: CanPlanNextPeriodInput): boolean {
   if (!isLivePlay || isLastPeriod) return false;
   return inFinalWindow || subPastHooter || !hasSwappableBench;
 }
+
+/** The lineup's sub interval box, in minutes (every sport). */
+export const SUB_MINUTES_MIN = 1;
+export const SUB_MINUTES_MAX = 10;
+
+/**
+ * The sub interval, in minutes, that a typed value gives: clamped to
+ * 1–10, the fallback where it isn't a number. The box shows this once
+ * the coach leaves it, so it never says 15 while the game uses 10
+ * (Stagehand sideline-chaos-union, 16 Oct 2026).
+ */
+export function subMinutesFrom(typed: string, fallback: number): number {
+  const minutes = parseFloat(typed) || fallback;
+  return Math.min(SUB_MINUTES_MAX, Math.max(SUB_MINUTES_MIN, minutes));
+}
