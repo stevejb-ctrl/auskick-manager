@@ -472,6 +472,8 @@ async function seedTeam(admin, email, name, origin) {
     // numbers, union's own keys), the hooker and halfback set.
     "union-u12-gameday": {
       team: { name: "Randwick Rams", age_group: "U12", sport: "rugby_union" },
+      // The union missions play the Coogee Crabs.
+      opponent: "Coogee Crabs",
       playbook: { strategy: "named-positions" },
       squad: 19,
       onField: 15,
@@ -484,6 +486,7 @@ async function seedTeam(admin, email, name, origin) {
     // Union U10 on the pathway: 12 a side, forwards and backs.
     "union-u10-gameday": {
       team: { name: "Randwick Rams", age_group: "U10", sport: "rugby_union" },
+      opponent: "Coogee Crabs",
       playbook: { strategy: "preferred-line" },
       squad: 15,
       onField: 12,
@@ -612,7 +615,7 @@ async function seedTeam(admin, email, name, origin) {
     .from("games")
     .insert({
       team_id: team.id,
-      opponent: "Sandringham Sharks",
+      opponent: s.opponent ?? "Sandringham Sharks",
       scheduled_at: new Date(Date.now() + (s.gameIn ?? 30) * 60_000).toISOString(),
       round_number: (s.pastGames ?? 0) + 4,
       created_by: ownerId,
