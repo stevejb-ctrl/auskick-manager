@@ -62,7 +62,7 @@ async function subDueGame(sport: "afl" | "rugby_union") {
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
   if (evErr) throw new Error(evErr.message);
-  return { coach: `/teams/${team.id}/games/${game.id}/live` };
+  return { coach: `/teams/${team.id}/games/${game.id}/live`, runner: `/run/${game.share_token}` };
 }
 
 async function expectBannerNotModal(page: Page, chip: string) {
@@ -83,6 +83,16 @@ test("AFL: sub due is a banner, and +G still takes the tap", async ({ page }) =>
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).coach);
   await waitForHydration(page);
+  await expectBannerNotModal(page, "+G");
+});
+
+// The runner link gets the same live top bar (and so the banner) as the
+// coach, as league and netball runners already did.
+test("AFL runner: sub due is the same banner", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("afl")).runner);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: "Exit live game" })).toBeVisible({ timeout: 15_000 });
   await expectBannerNotModal(page, "+G");
 });
 

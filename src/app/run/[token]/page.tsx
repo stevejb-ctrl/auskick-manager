@@ -613,6 +613,9 @@ export default async function RunPage({ params }: RunPageProps) {
           auth={auth}
           gameId={g.id}
           game={g}
+          // The live top bar, as league and netball runners have: Exit
+          // back to the runner page, and the sub-due banner under it.
+          exitHref={`/run/${params.token}`}
           teamName={teamName}
           opponentName={g.opponent}
           trackScoring={trackScoring}
