@@ -2733,7 +2733,10 @@ function NetballScoreBug({
     >
       {/* Left: home team */}
       <div className="min-w-0">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+        {/* tracking-normal below sm so two-word club names fit the
+            side column instead of clipping mid-word — mirrors
+            GameHeader (UI polish audit §1). */}
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
           {teamName}
         </p>
         <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
@@ -2845,7 +2848,7 @@ function NetballScoreBug({
 
       {/* Right: opponent — mirror layout */}
       <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">

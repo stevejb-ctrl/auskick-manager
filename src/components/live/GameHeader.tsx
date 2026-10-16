@@ -143,7 +143,14 @@ export function GameHeader({
           coach can attribute the score to whoever just scored
           without first having to tap the player tile. */}
       <div className="min-w-0">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+        {/* tracking-normal below sm: with letterspacing on, a
+            two-word club name ("BRUNSWICK MAGPIES", 17ch ≈ 122px)
+            overruns the ~123px side column of a 390px scorebug and
+            clipped mid-word ("BRUNSWICK MAGPI…") — the first line of
+            the most-watched component (UI polish audit §1). Plain
+            tracking buys ~20px, so real club names fit; the ellipsis
+            stays only for genuinely long ones. */}
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
           {teamName}
         </p>
         <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
@@ -234,7 +241,7 @@ export function GameHeader({
 
       {/* Right: opponent — mirror: BIG total first, then small G·B */}
       <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
           {opponentName}
         </p>
         <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
