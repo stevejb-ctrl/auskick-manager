@@ -41,8 +41,10 @@ async function unionGameInH1(admin: SupabaseClient, opts: { count: number; avail
   const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12", name: `${opts.name} ${Date.now()}` });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: opts.count });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
-  // No rotation prompt mid-half (it would cover the field).
-  await admin.from("games").update({ sub_interval_seconds: 1500, status: "in_progress" }).eq("id", game.id);
+  // No rotation prompt mid-half (it would cover the field): the longest
+  // interval the games table takes (15 min).
+  const { error } = await admin.from("games").update({ sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
   const available = players.slice(0, opts.available);
   await admin.from("game_availability").insert(
     available.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
