@@ -1554,29 +1554,40 @@ export function LiveGame({
           on appearance. The toast is conditionally rendered (mounts +
           unmounts each swap), so a constant triggerKey is enough — the
           halo's inner span re-mounts with the wrapper and the
-          animation restarts each time. */}
+          animation restarts each time.
+
+          OVERLAY, not in flow (UI polish audit §7): rendered in-flow
+          it pushed the whole field ~44px down on mount and snapped
+          back 2.5s later — twice per sub, right as the coach's eye is
+          on the two tiles that changed. The zero-height relative
+          wrapper keeps the document where it is; the toast floats
+          over the content below. */}
       {swapToast && !isPreGame && !isFinished && (
-        <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
-          {/* slide-in-bottom (220ms) so the toast rises from below
-              instead of popping in. The SirenPulseHalo wraps it and
-              fires its own one-shot halo on the same beat. Exit is a
-              hard cut at 2.5s — coach is on to the next moment, no
-              value in animating the disappearance. P1-6 in
-              MICRO-INTERACTIONS-PLAN.md. */}
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-card motion-safe:animate-slide-in-bottom"
-          >
-            <span
-              aria-hidden
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
-            >
-              ✓
-            </span>
-            <span className="text-xs font-semibold">{swapToast}</span>
+        <div className="relative z-30 h-0">
+          <div className="absolute inset-x-0 top-0">
+            <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
+              {/* slide-in-bottom (220ms) so the toast rises from below
+                  instead of popping in. The SirenPulseHalo wraps it and
+                  fires its own one-shot halo on the same beat. Exit is a
+                  hard cut at 2.5s — coach is on to the next moment, no
+                  value in animating the disappearance. P1-6 in
+                  MICRO-INTERACTIONS-PLAN.md. */}
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-pop motion-safe:animate-slide-in-bottom"
+              >
+                <span
+                  aria-hidden
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
+                >
+                  ✓
+                </span>
+                <span className="text-xs font-semibold">{swapToast}</span>
+              </div>
+            </SirenPulseHalo>
           </div>
-        </SirenPulseHalo>
+        </div>
       )}
 
       {/* Undo strip is rendered inside the sticky-bottom bar
