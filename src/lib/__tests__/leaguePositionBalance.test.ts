@@ -9,7 +9,7 @@ import {
   withLeagueSlots,
   type LeaguePlaybookInput,
 } from "@/lib/sports/rugby_league/engine";
-import { playerSlotMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { leagueSlotsNow, playerSlotMsOnField } from "@/lib/sports/rugby_league/fairness";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import type { GameEvent, GameEventType } from "@/lib/types";
 
@@ -117,5 +117,47 @@ describe("playerSlotMsOnField", () => {
       ev("quarter_end", { quarter: 1, elapsed_ms: 20 * MIN }),
     ];
     expect(seasonTimeByUnit("rugby_league", events, "position")).toEqual({ a: { pr2: 20 * MIN }, c: { fb: 20 * MIN } });
+  });
+});
+
+// Stagehand whole-game-union (16 Oct 2026): the hooker was hurt and the
+// replacement came on, but the tiles re-dealt every position — the sub
+// showed as a prop and another forward moved to hooker. Mid-period a
+// sub takes over the slot of the kid they replace, as the season count
+// already says; only kids without a held slot are dealt a free one.
+describe("held slots mid-period", () => {
+  const start = ev("lineup_set", {
+    lineup: { forwards: ["a", "b", "c"], backs: ["x"], bench: ["s"], slots: { a: "pr", b: "hk", c: "lk", x: "fb" } },
+  });
+
+  it("the sub takes over the hurt kid's slot", () => {
+    const events = [
+      start,
+      ev("quarter_start", { quarter: 1 }),
+      ev("injury", { injured: true, quarter: 1, elapsed_ms: 6 * MIN }, "b"),
+      ev("swap", { quarter: 1, elapsed_ms: 6 * MIN, off_player_id: "b", on_player_id: "s" }, "s"),
+    ];
+    const held = leagueSlotsNow(events);
+    expect(held).toEqual({ a: "pr", s: "hk", c: "lk", x: "fb" });
+    // The sub has played hooker all season: a fresh deal moves them.
+    const pb = input({ seasonPositions: { s: { hk: 60 * MIN } } });
+    const field = { forwards: ["a", "s", "c"], backs: ["x"] };
+    expect(assignLeaguePositionLabels(field, pb).s).not.toBe("HK");
+    expect(assignLeaguePositionLabels(field, pb, held)).toEqual({ a: "PR", s: "HK", c: "LK", x: "FB" });
+  });
+
+  it("a kid moved to the other line is dealt a free spot there", () => {
+    const events = [
+      start,
+      ev("quarter_start", { quarter: 1 }),
+      ev("league_position_change", { quarter: 1, elapsed_ms: 4 * MIN, to_zone: "back" }, "c"),
+    ];
+    const held = leagueSlotsNow(events);
+    expect(held).toEqual({ a: "pr", b: "hk", x: "fb" });
+    expect(assignLeaguePositions({ forwards: ["a", "b"], backs: ["x", "c"] }, input(), held)).toEqual({ a: "pr", b: "hk", x: "fb", c: "wg" });
+  });
+
+  it("a held slot from the wrong line is ignored", () => {
+    expect(assignLeaguePositions({ forwards: ["a"], backs: ["x"] }, input(), { a: "fb", x: "pr" })).toEqual({ a: "pr", x: "fb" });
   });
 });

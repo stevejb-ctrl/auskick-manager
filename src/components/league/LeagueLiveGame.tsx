@@ -71,6 +71,7 @@ import {
   kickoffRecordedForPeriod,
 } from "@/lib/sports/rugby_league/kicks";
 import {
+  leagueSlotsNow,
   playedZoneMsByPeriod,
   playerMsOnField,
   playerZoneMsOnField,
@@ -449,6 +450,13 @@ export function LeagueLiveGame({
     [isAtQbreak, state.lineup, state.currentQuarter, pinForThisGame, squad, injuredSet, loanedSet],
   );
   const lineup = breakPlan ?? state.lineup;
+  // Named positions mid-period: the slot each kid holds (a sub takes
+  // over the replaced kid's), so a sub never re-deals the field. A
+  // break deals the next period afresh (season balance), so none then.
+  const heldSlots = useMemo(
+    () => (breakPlan ? undefined : leagueSlotsNow(thisGameEvents)),
+    [breakPlan, thisGameEvents],
+  );
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -1220,8 +1228,9 @@ export function LeagueLiveGame({
     return enqueueLiveAction("recordLeagueLineupSet", [
       auth,
       game.id,
-      // Named positions: record each kid's slot (UX plan 5.7).
-      withLeagueSlots(next, leaguePlaybook),
+      // Named positions: record each kid's slot (UX plan 5.7), the
+      // field keeping theirs.
+      withLeagueSlots(next, leaguePlaybook, heldSlots),
       { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
     ]).flushed;
   }
@@ -2027,6 +2036,7 @@ export function LeagueLiveGame({
                 ? assignLeaguePositionLabels(
                     { forwards: lineup.forwards, backs: lineup.backs },
                     leaguePlaybook,
+                    heldSlots,
                   )
                 : undefined
             }

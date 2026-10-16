@@ -189,10 +189,17 @@ export function nextInOrder(
  * Named positions (UX plan 5.7, Mod League): who wears which catalogue
  * position within each line — home first, then also-plays, then the
  * line's positions in formation order. playerId → label for the tiles.
+ *
+ * `held`: mid-period, the slots kids already hold (leagueSlotsNow — a
+ * sub takes over the slot of the kid they replace). They keep them, and
+ * only the rest are dealt the free spots, so a sub doesn't re-deal the
+ * field (Stagehand whole-game-union, 16 Oct 2026). A held slot from the
+ * other line (the kid has moved) is ignored.
  */
 export function assignLeaguePositions(
   lineup: { forwards: string[]; backs: string[] },
   input: LeaguePlaybookInput | null | undefined,
+  held?: Record<string, string>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   if (!input?.positions || input.positions.length === 0) return out;
@@ -211,6 +218,10 @@ export function assignLeaguePositions(
       taken.add(key);
       return true;
     };
+    for (const pid of players) {
+      const slot = held?.[pid];
+      if (slot) place(pid, slot);
+    }
     for (const pid of players) {
       const home = roles[pid]?.home;
       if (home) place(pid, home);
@@ -246,10 +257,11 @@ export function assignLeaguePositions(
 export function assignLeaguePositionLabels(
   lineup: { forwards: string[]; backs: string[] },
   input: LeaguePlaybookInput | null | undefined,
+  held?: Record<string, string>,
 ): Record<string, string> {
   const labelOf = new Map((input?.positions ?? []).map((p) => [p.key, p.label]));
   const out: Record<string, string> = {};
-  for (const [pid, key] of Object.entries(assignLeaguePositions(lineup, input))) out[pid] = labelOf.get(key) ?? key;
+  for (const [pid, key] of Object.entries(assignLeaguePositions(lineup, input, held))) out[pid] = labelOf.get(key) ?? key;
   return out;
 }
 
@@ -257,7 +269,8 @@ export function assignLeaguePositionLabels(
 export function withLeagueSlots<T extends { forwards: string[]; backs: string[] }>(
   lineup: T,
   input: LeaguePlaybookInput | null | undefined,
+  held?: Record<string, string>,
 ): T & { slots?: Record<string, string> } {
-  const slots = assignLeaguePositions(lineup, input);
+  const slots = assignLeaguePositions(lineup, input, held);
   return Object.keys(slots).length > 0 ? { ...lineup, slots } : lineup;
 }

@@ -169,6 +169,79 @@ for (const { ageGroup, size, plays, notPlays } of [
   });
 }
 
+// Stagehand whole-game-union (16 Oct 2026): the hooker was hurt and the
+// replacement came on as a prop while another forward moved to hooker —
+// the tiles re-dealt every position from season balance. The sub takes
+// the hurt kid's spot and nobody else moves.
+test("union named positions: the hooker's replacement plays hooker and nobody else moves", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12", name: `RU-HOOKER ${Date.now()}` });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 17 });
+  const ids = players.map((p) => p.id);
+  const hooker = players[1];
+  const replacement = players[15];
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+
+  // Last week the replacement played a half at hooker, so a fresh deal
+  // (season balance) would put them anywhere but.
+  const lastWeek = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ status: "completed" }).eq("id", lastWeek.id);
+  const lastLineup = { forwards: [replacement.id, ...ids.slice(2, 9)], backs: ids.slice(9, 15).concat(ids[0]), bench: [ids[16]], slots: { [replacement.id]: "ru-2" } };
+  const { error: lastErr } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup: lastLineup, sport: "rugby_union" }, created_at: t(7 * 86400) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_union" }, created_at: t(7 * 86400 - 1) },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 1_500_000, sport: "rugby_union" }, created_at: t(7 * 86400 - 2) },
+    ].map((e) => ({ ...e, game_id: lastWeek.id, created_by: ownerId })),
+  );
+  if (lastErr) throw new Error(lastErr.message);
+
+  // Today: number i wears ru-(i+1); the replacement is on the bench.
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const { error } = await admin.from("games").update({ sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const slots = Object.fromEntries(ids.slice(0, 15).map((id, i) => [id, `ru-${i + 1}`]));
+  const lineup = { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: ids.slice(15), slots };
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_union" }, created_at: t(20) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_union" }, created_at: t(19) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  const labels = ["LHP1", "HK2", "THP3", "LK4", "LK5", "BF6", "OF7", "N8", "HB9", "FE10", "LW11", "IC12", "OC13", "RW14", "FB15"];
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
+  for (let i = 0; i < 15; i++) await expect(tile(ids[i]).getByText(labels[i], { exact: true })).toBeVisible({ timeout: 15_000 });
+
+  await tile(hooker.id).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  await page
+    .getByRole("dialog", { name: /who comes on at/i })
+    .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
+    .click();
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
+      return (data ?? []).some((e) => (e.metadata as { on_player_id?: string }).on_player_id === replacement.id);
+    }, { timeout: 15_000 })
+    .toBe(true);
+
+  await expect(tile(replacement.id).getByText("HK2", { exact: true })).toBeVisible({ timeout: 15_000 });
+  for (let i = 0; i < 15; i++) {
+    if (i === 1) continue;
+    await expect(tile(ids[i]).getByText(labels[i], { exact: true }), players[i].full_name).toBeVisible();
+  }
+});
+
 test("a union home position is union's own: LK4, never league's lock", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);

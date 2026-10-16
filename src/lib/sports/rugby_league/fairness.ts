@@ -1998,11 +1998,24 @@ export function playerSlotMsOnField(events: GameEvent[]): Record<string, Record<
   return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).slots;
 }
 
+/**
+ * Named positions: the slot each kid holds now (playerId → position
+ * key), by the same walk — the latest lineup's slots, a sub taking over
+ * the slot of the kid they replace, a forward/back move dropping it.
+ */
+export function leagueSlotsNow(events: GameEvent[]): Record<string, string> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).slotOf;
+}
+
 function walkLeagueStints(
   events: GameEvent[],
   currentQuarter: number,
   currentElapsedMs: number,
-): { zones: Record<string, LeagueZoneMs>; slots: Record<string, Record<string, number>> } {
+): {
+  zones: Record<string, LeagueZoneMs>;
+  slots: Record<string, Record<string, number>>;
+  slotOf: Record<string, string>;
+} {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -2285,7 +2298,7 @@ function walkLeagueStints(
     }
   }
 
-  return { zones: total, slots: slotTotal };
+  return { zones: total, slots: slotTotal, slotOf };
 }
 
 // ─── Whole-bench rotation suggestion ──────────────────────────
