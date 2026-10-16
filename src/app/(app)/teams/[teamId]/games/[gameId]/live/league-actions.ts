@@ -1163,12 +1163,12 @@ export async function setLeagueOnFieldSizeMidGame(
 
 // ─── Mid-game sub-interval override ──────────────────────────
 // Updates games.sub_interval_seconds for THIS game only — leaves
-// the team default untouched. Drives the SubDueModal cadence on
+// the team default untouched. Drives the sub-due banner's cadence on
 // the next router.refresh().
 //
 // Bounds: 30..600 seconds (30s minimum because anything tighter
 // is a spam vector; 600s = 10 min cap because longer than that
-// means SubDueModal effectively never fires).
+// means the sub-due banner effectively never shows).
 export async function setLeagueSubInterval(
   auth: LiveAuth,
   gameId: string,

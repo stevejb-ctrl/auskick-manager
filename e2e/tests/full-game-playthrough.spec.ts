@@ -124,10 +124,11 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // Speed up the in-game clock + push the sub interval out past
   // the quarter length so:
   //   • a 12-min quarter ticks down in 12 real seconds (multiplier=60)
-  //   • the sub-due modal NEVER fires within a quarter — sub_interval
+  //   • the sub-due alert NEVER fires within a quarter — sub_interval
   //     900s ÷ 60 = 15s real > 12s quarter. Without this, the
-  //     SubDueModal pops up every 3s with the default 180s interval
-  //     scaled, intercepting all the test's modal clicks.
+  //     sub-due alert fires every 3s with the default 180s interval
+  //     scaled (as a modal, until 16 Oct 2026, it intercepted the
+  //     test's clicks; it's a banner now).
   await admin
     .from("games")
     .update({ clock_multiplier: 60, sub_interval_seconds: 900 })

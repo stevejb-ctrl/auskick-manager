@@ -28,7 +28,8 @@ import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { ClockMenu } from "@/components/live/ClockMenu";
-import { SubDueModal } from "@/components/live/SubDueModal";
+import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
@@ -120,56 +121,6 @@ import { UndoStrip } from "@/components/live/UndoStrip";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
-
-// Module-level singleton AudioContext for the sub-due beep. Modern
-// browsers (mobile Safari especially) create AudioContexts in
-// "suspended" state and silently no-op until a user gesture
-// resume()s them. The previous implementation created a FRESH
-// context inside playBeep() on each call — and because playBeep()
-// runs from a useEffect (sub-state transition), there's no user
-// gesture in the call stack and the context stays suspended.
-// Steve reported 2026-05-09: the sub-due sound used to play but
-// no longer does.
-//
-// Fix: keep a single context across the page lifetime, and unlock
-// it on the first user pointerdown anywhere on the page (see the
-// useEffect inside LiveGame). After that the context's `state`
-// flips to "running" and subsequent oscillator plays are audible.
-let _audioCtx: AudioContext | null = null;
-function getOrCreateAudioCtx(): AudioContext | null {
-  if (_audioCtx) return _audioCtx;
-  if (typeof window === "undefined") return null;
-  const Ctx =
-    (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctx) return null;
-  _audioCtx = new Ctx();
-  return _audioCtx;
-}
-
-function playBeep() {
-  const ctx = getOrCreateAudioCtx();
-  if (!ctx) return;
-  try {
-    // Re-attempt resume in case the context drifted back to
-    // suspended (some browsers do this on tab-blur / inactivity).
-    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const now = ctx.currentTime;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.3, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
-    osc.start(now);
-    osc.stop(now + 0.45);
-  } catch {
-    // ignore — some browsers block before user interaction
-  }
-}
 
 interface LiveGameProps {
   auth: import("@/lib/types").LiveAuth;
@@ -440,7 +391,7 @@ export function LiveGame({
   const [fillZone, setFillZone] = useState<Zone | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
-  const [subModalOpen, setSubModalOpen] = useState(false);
+  const [subDueOpen, setSubDueOpen] = useState(false);
   // Plan-ahead rotation (F1): true while the shared planner is open over
   // the live game so the coach can edit the upcoming sub before it falls
   // due. Pinning closes it.
@@ -1194,26 +1145,9 @@ export function LiveGame({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentQuarter, quarterEnded, finalised]);
 
-  // Unlock the singleton AudioContext on the first user pointer-
-  // down anywhere on the page. Modern browsers start AudioContexts
-  // in "suspended" state and only honour resume() when called
-  // from inside a user-gesture handler. Without this the
-  // sub-due beep silently no-ops (Steve's bug report 2026-05-09).
-  // Subscribed once per LiveGame mount; cleaned up on unmount so
-  // a stale listener doesn't survive navigation.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    function unlock() {
-      const ctx = getOrCreateAudioCtx();
-      if (ctx && ctx.state === "suspended") {
-        void ctx.resume().catch(() => {});
-      }
-    }
-    document.addEventListener("pointerdown", unlock, { passive: true });
-    return () => {
-      document.removeEventListener("pointerdown", unlock);
-    };
-  }, []);
+  // Unlock the sub-due beep's AudioContext on the first tap (shared
+  // with league and union; see subDueBeep.ts).
+  useSubDueAudioUnlock();
 
   // Game ms, like quarterMs and every stint stamp.
   const nowMs = currentElapsedMs();
@@ -1285,18 +1219,16 @@ export function LiveGame({
       : "idle";
 
   useEffect(() => {
-    // Picker-race guard: don't open the SubDueModal on top of an
-    // active score-attribution picker. The coach is mid-pick;
-    // dropping the sub modal over them would either dismiss the
-    // picker or steal focus, in either case losing the goal
-    // attribution. The sub-due state stays "due" while the picker
-    // is open — once the coach resolves attribution and the
-    // picker closes, the modal opens automatically (subState
-    // didn't change, prevSubStateRef is still "due", but we
-    // re-check on every render via this effect's deps).
+    // Picker-race guard: hold the sub-due alert (beep, haptic,
+    // banner) while the score-attribution picker is open, so it
+    // doesn't jolt the coach mid-pick. The sub-due state stays "due"
+    // while the picker is open — once the coach resolves attribution
+    // and the picker closes, the alert fires (subState didn't change,
+    // prevSubStateRef is still "due", but we re-check on every render
+    // via this effect's deps).
     if (pickScorerKind !== null) return;
     if (subState === "due" && prevSubStateRef.current !== "due") {
-      playBeep();
+      playSubDueBeep();
       // Heavy impact — sub-due is "this needs your attention" but
       // not the urgency of a hooter (which gets hapticSiren below).
       // The medium-vs-heavy distinction is meaningful on iOS Taptic.
@@ -1304,18 +1236,18 @@ export function LiveGame({
       // P1-12 in MICRO-INTERACTIONS-PLAN.md: stagger the modal
       // open by 130ms so the beep + haptic land first (drawing
       // the coach's attention to the clock + their hand), then
-      // the modal slides in. Without the delay, all three events
+      // the banner slides in. Without the delay, all three events
       // fire on the same frame and read as one undifferentiated
       // jolt. The setTimeout is cancelled by the effect's cleanup
       // if subState or pickScorerKind changes mid-delay.
       prevSubStateRef.current = subState;
       const t = window.setTimeout(() => {
-        setSubModalOpen(true);
+        setSubDueOpen(true);
       }, 130);
       return () => window.clearTimeout(t);
     }
     if (subState !== "due") {
-      setSubModalOpen(false);
+      setSubDueOpen(false);
     }
     prevSubStateRef.current = subState;
   }, [subState, pickScorerKind]);
@@ -1336,8 +1268,8 @@ export function LiveGame({
     };
   }, []);
 
-  function handleSubModalAcknowledge() {
-    setSubModalOpen(false);
+  function handleSubDueAcknowledge() {
+    setSubDueOpen(false);
   }
 
   useEffect(() => {
@@ -1393,7 +1325,15 @@ export function LiveGame({
   // entirely (Steve 2026-05-13). Extracted to LiveTopBar component
   // so the AFL pre-kickoff page can render the same bar.
   const liveTopBar = exitHref ? (
-    <LiveTopBar exitHref={exitHref} game={game} isLive={!isPreGame} onHelp={handleOpenWalkthrough} />
+    <LiveTopBar
+      exitHref={exitHref}
+      game={game}
+      isLive={!isPreGame}
+      onHelp={handleOpenWalkthrough}
+      // Sub due is a banner under the bar, not a modal (Steve 16 Oct
+      // 2026): the field and the score chips stay tappable.
+      banner={subDueOpen ? <SubDueBanner onAcknowledge={handleSubDueAcknowledge} /> : null}
+    />
   ) : null;
 
   // Walkthrough modal — same instance for all branches so the ?
@@ -1697,7 +1637,7 @@ export function LiveGame({
                 lockedIds={lockedIds}
                 pending={isPending}
                 subState={subState}
-                forceOpen={subModalOpen}
+                forceOpen={subDueOpen}
                 msUntilDue={msUntilDue}
                 subIntervalMs={subIntervalMs}
                 pastHooterCarry={pastHooterCarry}
@@ -1735,7 +1675,7 @@ export function LiveGame({
                   // applied — consume it so it can't re-fire next window.
                   // Planned periods stay.
                   setPlannedRotation(withoutSubPin(pinForThisGame));
-                  handleSubModalAcknowledge();
+                  handleSubDueAcknowledge();
                 }}
                 onApplyOne={(s) => {
                   persistSwap(s.off_player_id, s.on_player_id, s.zone);
@@ -1867,7 +1807,7 @@ export function LiveGame({
             finished={finalised}
             // Steve 2026-05-20: mid-game settings affordance —
             // currently just the sub-interval override (drives
-            // the SubDueModal reminder cadence), but the modal
+            // the sub-due reminder cadence), but the settings modal
             // is set up to take more knobs over time without
             // adding new buttons to this row. AFL-only — the
             // netball live shell doesn't pass this slot because
@@ -2086,10 +2026,6 @@ export function LiveGame({
           modal commits both writes atomically before redirecting
           into LiveGame's auto-resume clock path, so by the time
           LiveGame mounts the clock is already running. */}
-
-      {subModalOpen && (
-        <SubDueModal onAcknowledge={handleSubModalAcknowledge} />
-      )}
 
       {/* F1 (override the upcoming sub) is no longer a modal — it's the
           inline SwapCard override (issue 3 + issue 6). The old

@@ -113,7 +113,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
 
   // Speed up the perceived clock 60×: a 10-min "go" quarter ticks
   // down in ~10s of wall-clock. Netball has period-break-only subs
-  // (no SubDueModal during a quarter) so we don't need to push out
+  // (no sub-due banner during a quarter) so we don't need to push out
   // sub_interval_seconds the way AFL does.
   await admin
     .from("games")

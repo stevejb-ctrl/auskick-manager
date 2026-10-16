@@ -8,10 +8,10 @@
 //
 //   1. Seed an AFL game mid-Q1 (lineup_set + quarter_start) with a
 //      swappable bench, status in_progress.
-//   2. Let the clock reach the sub-due moment. The SubDueModal fires;
-//      dismiss it once. (It won't re-pop while no sub is actually made,
-//      so this leaves a clean, modal-free editing window — and the
-//      inline SwapCard stays mounted showing the live suggester pick.)
+//   2. Let the clock reach the sub-due moment. The sub-due banner
+//      shows; dismiss it once. (It won't re-show while no sub is
+//      actually made — and the inline SwapCard stays mounted showing
+//      the live suggester pick.)
 //   3. Open the shared rotation planner via "Plan ahead" and tap-to-swap
 //      a SPECIFIC on-field player (Alicia) OFF for a SPECIFIC bench
 //      player (Octavia — deliberately the LAST bench player, the one
@@ -28,10 +28,11 @@
 // (the pin never *creates* a sub — it only swaps in WHO when one is
 // already due). Reaching that state for real is the whole point.
 //
-// Why dismiss the SubDueModal BEFORE editing: it's a full-screen modal
-// whose backdrop would otherwise block the planner entry + the inline
-// SwapCard. Dismissing once is race-free because subState stays "due"
-// (no sub made yet) so the effect that opens it never re-fires.
+// Why wait for the sub-due banner's Got it before editing: it's the
+// visible sign the sub has fallen due. (It was a full-screen modal until
+// 16 Oct 2026, which had to be dismissed to reach the SwapCard.)
+// Dismissing once is race-free because subState stays "due" (no sub
+// made yet) so the effect that shows it never re-fires.
 //
 // Clock config: clock_multiplier=1 (real-time) so the 12-min Q1 hooter
 // stays ~12 minutes away — an enormous margin past this <1-min test.
@@ -53,7 +54,7 @@ test.describe.configure({ mode: "parallel" });
 // applies the coach's pick, not the engine's.
 //
 //   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
-//   2. Reach the sub-due moment, dismiss the SubDueModal once.
+//   2. Reach the sub-due moment, dismiss the sub-due banner once.
 //   3. Expand the SwapCard, tap pair 0's outgoing chip, and pick a
 //      teammate the engine did NOT already have coming off there.
 //   4. Assert: the pair shows the "Edited" badge (the inline edit
@@ -246,7 +247,7 @@ test("F2: a pinned next-period lineup pre-seeds the quarter break", async ({
   // Backdating quarter_start ~12s puts us in the window on load with a
   // ~38s margin to the hooter (50s) — long enough to pin first — and
   // the auto-sub falls due at ~57s (12 + 45), AFTER the hooter, so the
-  // SubDueModal never pops to block the planner.
+  // sub-due banner never shows while the planner is open.
   await admin
     .from("games")
     .update({

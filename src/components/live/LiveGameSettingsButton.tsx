@@ -8,7 +8,7 @@
 // game or waiting for the next break.
 //
 // Steve 2026-05-20: now carries two knobs:
-//   1. Sub interval — drives the AFL SubDueModal reminder cadence.
+//   1. Sub interval — drives the sub-due banner's cadence.
 //   2. Players on field — coach can grow or shrink the on-field
 //      count mid-quarter. Growing just bumps games.on_field_size
 //      (empty slots appear via displayZoneCaps, the coach drags

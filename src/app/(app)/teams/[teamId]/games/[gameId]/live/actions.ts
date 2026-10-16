@@ -457,11 +457,11 @@ export async function setOnFieldSizeMidGame(
 
 /**
  * Mid-game override of the sub-interval cadence (AFL only — drives
- * the SubDueModal reminder). Coach realises mid-quarter that the
+ * the sub-due banner). Coach realises mid-quarter that the
  * pre-game guess was wrong (kids gassed at 4m, or barely warm at
  * 6m) — this lets them dial it without restarting the game or
  * waiting for the next break. The live page's RSC SELECT picks up
- * the new value on the next refresh and the SubDueModal retimes
+ * the new value on the next refresh and the sub-due banner retimes
  * from the new cadence.
  *
  * Validation matches the pre-game LineupPicker input: integer or

@@ -104,7 +104,7 @@ export function Modal({
 
           P0-4 from .planning/MICRO-INTERACTIONS-PLAN.md — Steve
           2026-05-15 added the modal slide-up sweep. Every modal in
-          the app (StartQuarterModal, QuarterEndModal, SubDueModal,
+          the app (StartQuarterModal, QuarterEndModal,
           LockModal, WalkthroughModal, SwapConfirmDialog,
           InjuryReplacementModal, QuarterScoreModal, FeedbackModal)
           inherits this behaviour from the Modal primitive — no

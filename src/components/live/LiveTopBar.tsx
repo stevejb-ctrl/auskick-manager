@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, type ReactNode } from "react";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
@@ -31,6 +31,12 @@ interface LiveTopBarProps {
    * rather than relying on the Link fallback.
    */
   onHelp?: () => void;
+  /**
+   * A strip under the bar, inside its sticky container, so it stays on
+   * screen without covering the field or the score bar: the shared
+   * SubDueBanner while a sub is due, in every sport.
+   */
+  banner?: ReactNode;
 }
 
 /**
@@ -44,7 +50,7 @@ interface LiveTopBarProps {
  * Negative inset-x compensates for the parent layout's `px-4` so the
  * bar runs edge-to-edge regardless of which page is hosting it.
  */
-export function LiveTopBar({ exitHref, game, isLive = false, onHelp }: LiveTopBarProps) {
+export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
   // some device/cache combos (Steve saw it in production: tap
@@ -136,6 +142,7 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp }: LiveTopBa
           )}
         </div>
       </div>
+      {banner}
     </div>
   );
 }

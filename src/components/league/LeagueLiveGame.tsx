@@ -34,7 +34,9 @@ const GamePlanModal = dynamic(
   () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
   { ssr: false },
 );
-import { SubDueModal } from "@/components/live/SubDueModal";
+import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { hapticTap } from "@/lib/haptics";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { LongPressHint } from "@/components/live/LongPressHint";
@@ -751,6 +753,20 @@ export function LeagueLiveGame({
   useEffect(() => {
     setSubAckedAtBaseMs(null);
   }, [state.currentQuarter]);
+
+  // The sub-due banner beeps and buzzes as it appears, as AFL's does
+  // (league and union were silent; a banner is easier to miss than the
+  // modal it replaced).
+  const subDueShowing = subIsDue && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
+  useSubDueAudioUnlock();
+  const subDueShowingRef = useRef(false);
+  useEffect(() => {
+    if (subDueShowing && !subDueShowingRef.current) {
+      playSubDueBeep();
+      void hapticTap("heavy");
+    }
+    subDueShowingRef.current = subDueShowing;
+  }, [subDueShowing]);
 
   // ── Next-sub suggestion ──────────────────────────────────────
   // FR / DH wearers are excluded from the off-candidate pool so the
@@ -1897,6 +1913,14 @@ export function LeagueLiveGame({
         game={game}
         isLive={state.currentQuarter > 0}
         onHelp={handleOpenWalkthrough}
+        // Sub due is a banner under the bar, not a modal, as in AFL
+        // (Steve 16 Oct 2026): the field and the score chips stay
+        // tappable.
+        banner={
+          subDueShowing ? (
+            <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
+          ) : null
+        }
       />
       {walkthroughOpen && (
         <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
@@ -2669,12 +2693,6 @@ export function LeagueLiveGame({
           // age-group config carries the right label so the modal
           // reads "End H2" instead of "End Q2" at U10+.
           periodLabel={periodLabel}
-        />
-      )}
-
-      {subIsDue && subAckedAtBaseMs !== lastSwapOrPeriodElapsed && (
-        <SubDueModal
-          onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)}
         />
       )}
 

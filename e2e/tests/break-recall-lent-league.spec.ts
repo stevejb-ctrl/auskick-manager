@@ -56,7 +56,7 @@ test("rugby league: a player lent before kickoff can be recalled during the game
   const benchIds = fielded.slice(onFieldCount).map((p) => p.id);
 
   // Kick off a minute ago: long enough to be mid-half, short of the
-  // first rolling sub, so the "Sub due!" modal can't cover the strip.
+  // first rolling sub, so no sub falls due during the test.
   const loanAt = new Date(Date.now() - 2 * 60_000).toISOString();
   const startAt = new Date(Date.now() - 60_000).toISOString();
   await admin.from("game_events").insert([

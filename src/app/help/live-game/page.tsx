@@ -233,8 +233,10 @@ export default function LiveGamePage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           In AFL and league, when the sub interval timer reaches zero the swap
           card shows <strong className="text-ink">NOW</strong> and expands
-          automatically to show the suggested swaps, and a pop-up reminds you
-          it&apos;s time to rotate. The sub interval (1 to 10 minutes) is set
+          automatically to show the suggested swaps, and a banner under the
+          top bar reminds you it&apos;s time to rotate. It doesn&apos;t
+          block the screen, so you can still record a score; tap{" "}
+          <strong className="text-ink">Got it</strong> to clear it. The sub interval (1 to 10 minutes) is set
           under <strong className="text-ink">Game settings</strong> on the
           lineup screen, or with the Game settings button below the field
           during the game.

@@ -77,7 +77,7 @@ export function buildLeagueWalkthroughSteps(opts: {
     {
       emoji: "🔔",
       title: "Sub timer alert",
-      body: `When the sub interval is up, a pop-up shows the suggested swaps for the whole bench. Tap "Make all swaps" to rotate everyone in one go, or dismiss and pick your own. The interval is configurable per team and per ${periodWord} in Game settings.`,
+      body: `When the sub interval is up, a Sub due banner appears under the top bar and the sub card opens with the suggested swaps for the whole bench. Tap "Make all swaps" to rotate everyone in one go, or pick your own. The banner never blocks scoring. The interval is configurable per team and per ${periodWord} in Game settings.`,
     },
     {
       emoji: "👇",

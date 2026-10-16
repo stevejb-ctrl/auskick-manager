@@ -39,7 +39,7 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     {
       emoji: "🔔",
       title: "Sub timer alert",
-      body: "When it's time for subs, a pop-up shows you the suggested swaps. Tap Make all swaps to do them in one go, or dismiss and do it yourself.",
+      body: "When it's time for subs, a Sub due banner appears under the top bar and the sub card opens with the suggested swaps. Tap Make all swaps to do them in one go, or do it yourself. The banner never blocks scoring.",
     },
     {
       emoji: "👇",
