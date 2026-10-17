@@ -81,6 +81,32 @@ const config: Config = {
         "zone-c":       "#047857",   // centre — emerald-700
         "zone-b":       "#1D4ED8",   // back — royal blue
 
+        // ── In-game re-skin (design session, 17 Oct 2026) ──────────
+        // Zone-time BAR fills only (labels keep zone-f/c/b). Stepped
+        // light / mid / dark so the three zones survive greyscale and
+        // sun glare — FWD #C2410C and CEN #047857 sit at near-equal
+        // lightness and merged.
+        "zone-f-fill":  "#F08A4B",
+        "zone-c-fill":  "#047857",
+        "zone-b-fill":  "#1E3A8A",
+        "bar-track":    "#ECE8E1",
+        // Zone labels on the dark sub card (≥4.5:1 on ink).
+        "zone-f-dark":  "#F08A4B",
+        "zone-c-dark":  "#3FBF95",
+        "zone-b-dark":  "#8FA9F2",
+        // Sub-due amber: #C8751F carried white text at 3.5:1; this
+        // carries it at 5.1:1.
+        due:            "#A8590F",
+        "due-tint":     "#FBF1E6",
+        "due-dark":     "#F2A65A",   // amber text / ring on the dark card
+        // Score-button fill (was surface-alt #EFECE6).
+        well:           "#F1EEE8",
+        // Running-clock dot + live countdown ring.
+        mint:           "#9ACC9B",
+        // Netball court centre third (court + court-line above now
+        // carry the re-skin's saturated values via globals.css).
+        "court-mid":    "var(--court-mid)",
+
         // Thirds (netball domain language). Additive — not a rename
         // of the zone-* AFL tokens. Centre is violet (not fuchsia)
         // so the trio still satisfies the colourblind-safe constraint
@@ -127,14 +153,23 @@ const config: Config = {
         card: "0 1px 2px rgba(26,30,26,0.06)",
         pop:  "0 4px 12px rgba(26,30,26,0.08)",
         modal:"0 12px 32px rgba(26,30,26,0.12)",
+        // Elevation for cards that sit ON a playing surface — a
+        // hairline border vanishes on green / blue, a lift doesn't.
+        "lift-field": "0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(15,45,25,0.18)",
+        "lift-court": "0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,40,70,0.28)",
       },
       transitionTimingFunction: {
+        // Also the re-skin's --ease-snap.
         "out-quart": "cubic-bezier(0.2, 0.8, 0.2, 1)",
       },
       transitionDuration: {
         fast: "120ms",
         base: "200ms",
         slow: "320ms",
+        // Re-skin motion tokens.
+        tap: "80ms",
+        move: "240ms",
+        confirm: "600ms",
       },
       keyframes: {
         slideUp: {

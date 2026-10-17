@@ -41,8 +41,11 @@
      `court` is the netball community-court sky blue; `court-line`
      paints the thirds + goal semicircles + centre circle white. */
   --field: #3C8050;
-  --court: #4A9FD1;
-  --court-line: #FFFFFF;
+  /* In-game re-skin (17 Oct 2026): a saturated court so white tokens
+     pop, the same logic as the AFL oval; lines at 70% white. */
+  --court: #2A74A8;
+  --court-mid: #2F7AAF;
+  --court-line: rgba(255, 255, 255, 0.7);
 
   /* Thirds palette (netball domain language). Centre is violet
      (#7B5AA6) — kept distinct from court-blue + defensive royal-
