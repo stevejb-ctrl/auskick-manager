@@ -6,12 +6,25 @@
 // coach's tap meant for +T landed between it and +PG when they were
 // 36 px tall (Stagehand union game day, 16 Oct 2026).
 //
-// `active:bg-brand-200 active:text-brand-700` is the brief tap-down
-// flash that confirms the chip registered before the picker mounts.
+// Press (design session 17 Oct 2026): 80ms to scale .94 on the
+// hairline fill, springing back on the ease-snap curve — confirms the
+// chip registered before the picker mounts.
+//
+// Re-skin (design session 17 Oct 2026): ink 700 label on the well
+// fill — the chips are the scorebug's actions, so they read as
+// buttons rather than greyed hints.
 export const SCORE_CHIP =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center " +
-  "rounded-md bg-surface-alt px-3 py-2 font-mono text-sm font-semibold text-ink-dim " +
-  "transition-colors duration-fast ease-out-quart " +
-  "hover:bg-hairline hover:text-ink " +
-  "active:bg-brand-200 active:text-brand-700 " +
+  "rounded-md bg-well px-3 py-2 font-mono text-sm font-bold text-ink " +
+  "transition-[background-color,transform] duration-tap ease-out-quart " +
+  "hover:bg-hairline " +
+  "active:bg-hairline motion-safe:active:scale-[0.94] " +
   "disabled:pointer-events-none disabled:opacity-60";
+
+// The team names above each scorebug total, in every sport. They wrap
+// to a second line rather than truncate: at 375 the canvas's 0.12em
+// tracking cut "BRUNSWICK MAGPIES" mid-word. The columns are
+// bottom-aligned, so a wrapped name grows upward and the totals keep
+// one baseline.
+export const SCORE_TEAM_NAME =
+  "line-clamp-2 break-words font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim";

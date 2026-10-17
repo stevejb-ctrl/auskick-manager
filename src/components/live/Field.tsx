@@ -68,12 +68,8 @@ interface FieldProps {
   positionLabels?: Record<string, string>;
   /** Kids with a season keep-on role (lineup screens). */
   keepOnIds?: Set<string>;
-  /**
-   * Zone-time bar volume on the tiles (UI polish audit §2):
-   * "ambient" (default) for live play, "full" on planning screens
-   * (quarter break) where time balance is the decision being made.
-   */
-  barEmphasis?: "ambient" | "full";
+  /** The sub card is in its SUB DUE state — outgoing tiles go to the due ring + tint. */
+  swapDue?: boolean;
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -116,7 +112,7 @@ export function Field({
   captions,
   positionLabels,
   keepOnIds,
-  barEmphasis,
+  swapDue = false,
 }: FieldProps) {
   // displayCaps drives the rendered slot count; zoneCaps drives the
   // suggester / placement rules. They diverge only when on-field
@@ -141,16 +137,15 @@ export function Field({
   // Render attacking up the page: fwd first → back last.
   const zones = positionsFor(positionModel).slice().reverse();
 
-  // Figure out which side-groups have content for the vertical labels.
-  const groupsPresent = new Set(zones.map(sideGroupOf));
-  const sideLabels = (["FORWARD", "CENTRE", "BACK"] as const).filter((g) =>
-    groupsPresent.has(g)
-  );
-
+  // In-game re-skin (design session 17 Oct 2026): a flatter 12% oval
+  // with a hairline inset edge instead of a drop shadow, a boundary
+  // and centre circle drawn like paint, tighter padding (tiles 135 →
+  // 151px wide at 390), and no vertical side rails — every tile names
+  // its zone and the dividers split the lines.
   return (
     <div
-      className="relative bg-field shadow-card"
-      style={{ borderRadius: "50% / 15%" }}
+      className="relative bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+      style={{ borderRadius: "50% / 12%" }}
     >
       {/* Q1-kickoff wake-up halo. Fires a one-shot brand pulse
           around the field's oval perimeter when `wakeUpKey`
@@ -177,7 +172,7 @@ export function Field({
           className="siren-pulse-once pointer-events-none absolute inset-0"
           style={
             {
-              borderRadius: "50% / 15%",
+              borderRadius: "50% / 12%",
               "--siren-pulse-r": "40px",
             } as React.CSSProperties
           }
@@ -185,58 +180,23 @@ export function Field({
       )}
       <div
         className="relative overflow-hidden"
-        style={{ borderRadius: "50% / 15%" }}
+        style={{ borderRadius: "50% / 12%" }}
       >
-      {/* Oval pitch boundary marking — real fields have a painted
-          boundary; at white/10 it was nearly invisible and the
-          oval's silhouette read fuzzy against the warm page
-          (UI polish audit §4). */}
+      {/* Oval pitch boundary marking. */}
       <div
-        className="pointer-events-none absolute inset-x-5 inset-y-3 border-[1.5px] border-white/25"
+        className="pointer-events-none absolute inset-x-3 inset-y-2.5 border-[1.5px] border-white/[0.22]"
         style={{ borderRadius: "50%" }}
         aria-hidden
       />
       {/* Centre circle */}
       <div
-        className="pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-white/[0.16]"
         aria-hidden
       />
 
-      {/* Vertical side labels — left and right — split evenly by side-group */}
-      <div
-        className="pointer-events-none absolute inset-y-6 left-1 flex flex-col justify-around"
-        aria-hidden
-      >
-        {sideLabels.map((label) => (
-          <span
-            key={`l-${label}`}
-            className="font-mono text-[9px] font-bold uppercase tracking-micro text-white/50"
-            style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-      <div
-        className="pointer-events-none absolute inset-y-6 right-1 flex flex-col justify-around"
-        aria-hidden
-      >
-        {sideLabels.map((label) => (
-          <span
-            key={`r-${label}`}
-            className="font-mono text-[9px] font-bold uppercase tracking-micro text-white/50"
-            style={{ writingMode: "vertical-rl" }}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-
-      {/* Zone rows — generous horizontal padding pulls corner tiles away
-          from the oval's inward curve so floating badges (score chip,
-          swap header) never get clipped. Vertical padding clears the
-          top/bottom arcs as well. */}
-      <div className="relative space-y-2 px-10 py-9">
+      {/* Zone rows. Chips live inside the tiles now (no overhangs),
+          so 24px sides clear the oval; 32px top/bottom clear the arcs. */}
+      <div className="relative space-y-2 px-6 py-8">
         {zones.map((key, idx) => {
           const ids = lineup[key];
           const cap = zoneCaps[key] ?? 0;
@@ -272,7 +232,7 @@ export function Field({
           return (
             <Fragment key={key}>
               {showDivider && (
-                <div className="relative -mx-10 h-px bg-white/30" aria-hidden />
+                <div className="relative -mx-6 h-px bg-white/[0.28]" aria-hidden />
               )}
               {/* Named group per zone so screen readers (and specs)
                   can tell which line a tile is on. */}
@@ -337,15 +297,18 @@ export function Field({
                       score={playerScores?.[pid]}
                       chipModes={chipModeByKey}
                       caption={captions?.[pid]}
-                      barEmphasis={barEmphasis}
+                      swapDue={swapDue}
                     />
                   );
                   return isOrphan ? (
-                    <div key={pid} className={orphanWrapClass}>
+                    // Keyed by slot, not player: on a swap the same tile
+                    // stays mounted and hands over (OFF n → ✓, the names
+                    // roll) instead of one tile vanishing for another.
+                    <div key={`slot-${slot}`} className={orphanWrapClass}>
                       {tile}
                     </div>
                   ) : (
-                    <Fragment key={pid}>{tile}</Fragment>
+                    <Fragment key={`slot-${slot}`}>{tile}</Fragment>
                   );
                 })}
               </div>

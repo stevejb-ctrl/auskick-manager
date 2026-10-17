@@ -153,10 +153,15 @@ export function CourtDisplay({
 // AFL doesn't have an analogous concept (zones are spatial bands, not
 // named positions), so this is netball-specific and lives here rather
 // than in the shared sports config.
+//
+// Re-skin (design session 17 Oct 2026): three lanes — left 16, centre,
+// right 16 (x 16 / 117 / 218 at 390 with the 124px token) — at the
+// classic centre-pass spots: GS and GK in their circles, C on the
+// centre circle, GA / WD right, WA / GD left.
 function alignClass(positionId: string): string {
   switch (positionId) {
     case "gs":
-      return "justify-start pl-4";
+      return "justify-center";
     case "ga":
       return "justify-end pr-4";
     case "wa":
@@ -168,7 +173,7 @@ function alignClass(positionId: string): string {
     case "gd":
       return "justify-start pl-4";
     case "gk":
-      return "justify-end pr-4";
+      return "justify-center";
     default:
       return "justify-center";
   }

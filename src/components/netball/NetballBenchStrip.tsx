@@ -62,7 +62,7 @@ export function NetballBenchStrip({
         <h3 className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
           Bench
         </h3>
-        <span className="text-[10px] tabular-nums text-ink-mute">
+        <span className="text-[10px] tabular-nums text-ink-dim">
           {entries.length}
         </span>
       </div>
@@ -202,7 +202,7 @@ function BenchTile({
       )}
 
       {/* Status label (small) above the name — "BENCH", "INJURED", "LENT". */}
-      <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-ink-mute">
+      <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-ink-dim">
         {status === "bench" ? "Bench" : status === "injured" ? "Injured" : "On loan"}
       </span>
       <span className="mt-0.5 truncate text-sm font-bold leading-tight text-ink">

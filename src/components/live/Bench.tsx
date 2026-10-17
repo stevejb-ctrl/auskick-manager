@@ -72,7 +72,7 @@ export function Bench({
         Bench ({lineup.bench.length})
       </p>
       {lineup.bench.length === 0 ? (
-        <p className="px-1 py-2 text-xs text-ink-mute">Nobody on the bench</p>
+        <p className="px-1 py-2 text-xs text-ink-dim">Nobody on the bench</p>
       ) : (
         <div className="grid grid-cols-4 gap-1.5">
           {lineup.bench.map((pid) => {

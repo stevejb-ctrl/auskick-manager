@@ -81,6 +81,32 @@ const config: Config = {
         "zone-c":       "#047857",   // centre — emerald-700
         "zone-b":       "#1D4ED8",   // back — royal blue
 
+        // ── In-game re-skin (design session, 17 Oct 2026) ──────────
+        // Zone-time BAR fills only (labels keep zone-f/c/b). Stepped
+        // light / mid / dark so the three zones survive greyscale and
+        // sun glare — FWD #C2410C and CEN #047857 sit at near-equal
+        // lightness and merged.
+        "zone-f-fill":  "#F08A4B",
+        "zone-c-fill":  "#047857",
+        "zone-b-fill":  "#1E3A8A",
+        "bar-track":    "#ECE8E1",
+        // Zone labels on the dark sub card (≥4.5:1 on ink).
+        "zone-f-dark":  "#F08A4B",
+        "zone-c-dark":  "#3FBF95",
+        "zone-b-dark":  "#8FA9F2",
+        // Sub-due amber: #C8751F carried white text at 3.5:1; this
+        // carries it at 5.1:1.
+        due:            "#A8590F",
+        "due-tint":     "#FBF1E6",
+        "due-dark":     "#F2A65A",   // amber text / ring on the dark card
+        // Score-button fill (was surface-alt #EFECE6).
+        well:           "#F1EEE8",
+        // Running-clock dot + live countdown ring.
+        mint:           "#9ACC9B",
+        // Netball court centre third (court + court-line above now
+        // carry the re-skin's saturated values via globals.css).
+        "court-mid":    "var(--court-mid)",
+
         // Thirds (netball domain language). Additive — not a rename
         // of the zone-* AFL tokens. Centre is violet (not fuchsia)
         // so the trio still satisfies the colourblind-safe constraint
@@ -127,16 +153,62 @@ const config: Config = {
         card: "0 1px 2px rgba(26,30,26,0.06)",
         pop:  "0 4px 12px rgba(26,30,26,0.08)",
         modal:"0 12px 32px rgba(26,30,26,0.12)",
+        // Elevation for cards that sit ON a playing surface — a
+        // hairline border vanishes on green / blue, a lift doesn't.
+        "lift-field": "0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(15,45,25,0.18)",
+        "lift-court": "0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,40,70,0.28)",
       },
       transitionTimingFunction: {
+        // Also the re-skin's --ease-snap.
         "out-quart": "cubic-bezier(0.2, 0.8, 0.2, 1)",
       },
       transitionDuration: {
         fast: "120ms",
         base: "200ms",
         slow: "320ms",
+        // Re-skin motion tokens.
+        tap: "80ms",
+        move: "240ms",
+        confirm: "600ms",
       },
       keyframes: {
+        // ── In-game re-skin motion (design session 17 Oct 2026) ──
+        // Slot roll for scorebug numbers: old out the top, new in from
+        // below (reversed for a decrease). Transform only.
+        "roll-out-up":   { from: { transform: "translateY(0)" },     to: { transform: "translateY(-100%)" } },
+        "roll-in-up":    { from: { transform: "translateY(100%)" },  to: { transform: "translateY(0)" } },
+        "roll-out-down": { from: { transform: "translateY(0)" },     to: { transform: "translateY(100%)" } },
+        "roll-in-down":  { from: { transform: "translateY(-100%)" }, to: { transform: "translateY(0)" } },
+        // Reduced-motion stand-in for rolls and slides.
+        "xfade-in":      { from: { opacity: "0" }, to: { opacity: "1" } },
+        // '+6' / '+1' rising off the score button.
+        "ghost-rise": {
+          "0%":   { opacity: "0", transform: "translateY(0)" },
+          "15%":  { opacity: "1", transform: "translateY(-4px)" },
+          "100%": { opacity: "0", transform: "translateY(-20px)" },
+        },
+        "ghost-fade": {
+          "0%":   { opacity: "0" },
+          "15%":  { opacity: "1" },
+          "100%": { opacity: "0" },
+        },
+        // OFF n → ✓ chip on a committed swap.
+        "chip-pop": {
+          "0%":   { opacity: "0", transform: "scale(0.6)" },
+          "65%":  { opacity: "1", transform: "scale(1.15)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "chip-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        // The next period's label rising into the clock pill.
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to:   { opacity: "1", transform: "translateY(0)" },
+        },
+        // The sub card folding away after a swap.
+        "collapse-y": {
+          from: { maxHeight: "640px", opacity: "1" },
+          to:   { maxHeight: "0px", opacity: "0" },
+        },
         slideUp: {
           from: { transform: "translateY(72px)", opacity: "0" },
           to:   { transform: "translateY(0)",    opacity: "1" },
@@ -245,6 +317,19 @@ const config: Config = {
         },
       },
       animation: {
+        // Re-skin motion — durations from the tap/move/confirm tokens,
+        // the out-quart (ease-snap) curve.
+        "roll-out-up":   "roll-out-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-in-up":    "roll-in-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-out-down": "roll-out-down 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-in-down":  "roll-in-down 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "xfade-in":      "xfade-in 120ms ease-out both",
+        "ghost-rise":    "ghost-rise 600ms ease-out 100ms both",
+        "ghost-fade":    "ghost-fade 600ms ease-out 100ms both",
+        "chip-pop":      "chip-pop 120ms ease-out both",
+        "chip-out":      "chip-out 200ms ease-out 1200ms both",
+        "rise-in":       "rise-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "collapse-y":    "collapse-y 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         // Used by GameSummaryCard to announce itself at full time.
         "slide-up":   "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
         // Used by PulseMark — the siren-red halo ripple.
