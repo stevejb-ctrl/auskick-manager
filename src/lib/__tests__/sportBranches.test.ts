@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { aflBranch, noSportBranch, sportNotBuilt } from "@/lib/sports";
-import { getSportPlaybook } from "@/lib/playbook";
+import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { scoreFromEvents } from "@/lib/results";
 import { projectGamePlan } from "@/lib/game-plan/project";
 import { gridUnits } from "@/lib/playbook/seasonGrid";
@@ -62,7 +62,25 @@ describe("Football (soccer)'s unbuilt surfaces", () => {
 
   it("never plans, grids or plays soccer under another sport's rules", () => {
     expect(() => projectGamePlan({ sport: "soccer" } as never)).toThrow(unbuilt("projectGamePlan"));
-    expect(() => gridUnits("soccer", "line")).toThrow(unbuilt("gridUnits"));
-    expect(() => getSportPlaybook("soccer")).toThrow(unbuilt("How we play"));
+  });
+
+  it("grids soccer's own lines for season balance", () => {
+    expect(gridUnits("soccer", "line").columns.map((c) => c.key)).toEqual(["att", "mid", "def"]);
+  });
+
+  it("has soccer's own How we play: keeper strategies, goal roles, MiniRoos laws", () => {
+    const playbook = getSportPlaybook("soccer");
+    expect(playbook.sport).toBe("soccer");
+    const policy = effectivePolicy("soccer", "U9", {});
+    expect(playbook.strategies(policy).map((s) => s.id)).toEqual(["turns", "keepers"]);
+    expect(playbook.recommendedStrategy(policy)).toBe("turns");
+    expect(playbook.positionModel(policy, 7).lines.map((l) => l.id)).toEqual(["gk"]);
+    expect(playbook.lawRules(policy, playbook.agePolicy("U9")).map((r) => r.id)).toContain("miniroos-scores");
+    const u6 = effectivePolicy("soccer", "U6", {});
+    expect(playbook.strategies(u6).map((s) => s.id)).toEqual(["minutes"]);
+    expect(playbook.positionModel(u6, 4).lines).toEqual([]);
+    const u14 = effectivePolicy("soccer", "U14", {});
+    expect(playbook.recommendedStrategy(u14)).toBe("keepers");
+    expect(playbook.lawRules(u14, playbook.agePolicy("U14"))).toEqual([]);
   });
 });

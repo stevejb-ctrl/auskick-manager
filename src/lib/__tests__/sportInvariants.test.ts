@@ -27,14 +27,14 @@ describe("every sport", () => {
       });
 
       it("has its own playbook, with rules its engine acts on", () => {
-        // Football (soccer)'s How we play is phase 3 of the soccer plan:
-        // until then asking for it fails, rather than lending another's.
-        if (sport.id === "soccer") {
-          expect(() => getSportPlaybook(sport.id)).toThrow("How we play: Football (soccer) isn't built yet");
-          return;
-        }
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
+        // Football (soccer)'s engine acts on no catalogue rule yet, so its
+        // Rules editor offers none rather than rules that do nothing.
+        if (sport.id === "soccer") {
+          expect(playbook.engineRuleKinds).toEqual([]);
+          return;
+        }
         expect(playbook.engineRuleKinds.length).toBeGreaterThan(0);
       });
     });
