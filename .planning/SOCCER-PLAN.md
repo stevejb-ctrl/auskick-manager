@@ -406,6 +406,38 @@ half-time keeper change, and its e2e playthrough is green.
 If the schedule slips, windows mode moves to after the beta: rolling
 subs cover MiniRoos and Queensland.
 
+## Build status (17 Oct 2026)
+
+Built on branch `soccer-phase-2` (phase 1's branch merged in), not
+pushed or merged to `main`:
+
+- **Phase 1:** the sport, migration 0068, the engine.
+- **Phase 2:** the live game for coaches and runner links (picker,
+  pitch, keeper, half-time plan, full time); the game page opens for
+  soccer.
+- **Phase 3:**
+  - the Beta setup pill and team creation;
+  - How we play (keeper strategies, goal roles, MiniRoos laws);
+  - stats, season balance and the game report;
+  - Help;
+  - the demo and homepage card, kept "Coming soon".
+- **Phase 4:** soccer e2e specs (a full game, sideline combos, team
+  pages, 4 and 11 a side) on Chromium and WebKit, and Stagehand
+  missions (not yet run). The full suite passes apart from AFL specs
+  this branch doesn't touch.
+
+Not built yet:
+
+- **Windows mode as a team setting.** The engine and live screen
+  support it; a coach can't choose it yet (every age is rolling).
+  After the beta, as the schedule allows.
+- **The game-plan preview** (the shared planner) for soccer; the game
+  page skips it.
+- **Mid-game game settings** (sub interval, players on the field) and
+  a **walkthrough** for soccer.
+- **Launch marketing:** soccer's own homepage copy, the `why-siren`
+  rewrite, and flipping the homepage and demo card from "Coming soon".
+
 ## Still to confirm
 
 - **Unverified research:**
