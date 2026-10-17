@@ -1708,6 +1708,7 @@ export function LiveGame({
               playersById={playersById}
               onTapField={handleTapField}
               swapOffs={swapOffs}
+              swapDue={subState === "due"}
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               displayZoneCaps={displayZoneCaps}

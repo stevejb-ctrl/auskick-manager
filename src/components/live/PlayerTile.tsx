@@ -58,15 +58,11 @@ interface PlayerTileProps {
   /** Season role "Keep on, every game" (lineup screens). */
   keepOn?: boolean;
   /**
-   * How loudly the zone-time bar speaks (UI polish audit §2).
-   * "ambient" (default, live play): thin, softened — the bar is
-   * context, the game is the content. At full saturation on every
-   * tile the field read as a bar chart before it read as a team,
-   * and early in a quarter every bar was a solid single-colour
-   * block. "full": the quarter-break planning tiles, where time
-   * balance IS the decision being made.
+   * The sub card is in its SUB DUE state: an outgoing tile turns from
+   * a 1.5px amber ring into a 2px ring on the warm due tint, so the
+   * field says "now" in the same voice as the card.
    */
-  barEmphasis?: "ambient" | "full";
+  swapDue?: boolean;
 }
 
 export interface TileCaption {
@@ -82,6 +78,15 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
+// Top-row chips share one shape: 16px tall mono caps.
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+
+// In-game re-skin (design session 17 Oct 2026, canvas "Siren in-game
+// UI"): three left-aligned rows on the 4px grid — 8 + 16 + 20 + 16 + 8
+// = 68px. Row 1 carries the labels (zone, #num) and any status chip
+// (OFF n, score, INJ / LENT / lock); row 2 the name, the one thing a
+// glance needs; row 3 the zone-time bar and the time. A lift shadow
+// replaces the hairline border, which vanished on the green.
 function PlayerTileImpl({
   player,
   currentZone,
@@ -96,11 +101,10 @@ function PlayerTileImpl({
   loaned,
   lockMode,
   score,
-  chipModes,
   caption,
   positionLabel,
   keepOn,
-  barEmphasis = "ambient",
+  swapDue = false,
 }: PlayerTileProps) {
   // P1-9 / P1-10 in MICRO-INTERACTIONS-PLAN.md: the 300ms arming
   // pre-cue ring + 500ms fire + haptic + hint-dismiss all live in the
@@ -122,8 +126,9 @@ function PlayerTileImpl({
   const isOff = showSwap && swap.role === "off";
   const isOn = showSwap && swap.role === "on";
   const showPairNumber = (swap?.totalPairs ?? 0) > 1;
+  const hasScore = !!score && (score.goals > 0 || score.behinds > 0);
 
-  // Zone-accent colour for the zone chip and badges.
+  // Zone-accent colour for the zone label.
   const zoneAccent = currentZone
     ? currentZone === "fwd" || currentZone === "hfwd"
       ? "text-zone-f"
@@ -132,7 +137,7 @@ function PlayerTileImpl({
         : "text-zone-b"
     : "text-ink-dim";
 
-  // Accent class for the bench "→ ZONE" / "N → ZONE" chip, derived from target zone.
+  // Accent class for the bench "→ ZONE" strip, derived from target zone.
   const swapZoneAccent =
     swap?.zone === "fwd" || swap?.zone === "hfwd"
       ? "border-zone-f/40 bg-zone-f/15 text-zone-f"
@@ -140,21 +145,25 @@ function PlayerTileImpl({
         ? "border-zone-c/40 bg-zone-c/15 text-zone-c"
         : "border-zone-b/40 bg-zone-b/15 text-zone-b";
 
+  // Surface + edge per state. Edges are inset rings (not borders) so
+  // every state keeps the same 68px box and the lift shadow.
   const baseBg = selected
-    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500 shadow-pop"
+    ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
-      ? "border-warn bg-warn-soft shadow-card"
+      ? swapDue
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
-        ? "border-brand-500 bg-brand-50 shadow-card"
+        ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured
-          ? "border-danger/40 bg-surface"
+          ? "bg-surface shadow-lift-field ring-1 ring-inset ring-danger/40"
           : loaned
-            ? "border-warn/40 bg-surface"
+            ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/40"
             : lockMode === "field"
-            ? "border-brand-300 bg-surface"
-            : lockMode === "zone"
-              ? "border-warn/50 bg-surface"
-              : "border-hairline bg-surface hover:border-ink-mute";
+              ? "bg-surface shadow-lift-field ring-1 ring-inset ring-brand-300"
+              : lockMode === "zone"
+                ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
+                : "bg-surface shadow-lift-field";
 
   const parts = player.full_name.trim().split(/\s+/);
   const firstName = parts[0] ?? "";
@@ -185,7 +194,7 @@ function PlayerTileImpl({
       {...longPressHandlers}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex w-full flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
+        "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left transition-all duration-fast ease-out-quart",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
         injured || loaned ? "grayscale" : "",
@@ -206,16 +215,7 @@ function PlayerTileImpl({
           : "",
       ].join(" ")}
     >
-      {/* Swap header bar — prominent, full-width, top of tile. Shows pair order + target zone. */}
-      {isOff && (
-        <div
-          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-warn/40 bg-warn px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
-          aria-label={`Coming off next, pair ${swap.pair}`}
-        >
-          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
-          <span>↑ OFF NEXT</span>
-        </div>
-      )}
+      {/* Bench tile going on — target-zone strip (planning, not on the field). */}
       {isOn && swap?.zone && (
         <div
           className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
@@ -240,121 +240,116 @@ function PlayerTileImpl({
           className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
             caption.tone === "move"
               ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-mute"
+              : "border-hairline bg-surface-alt text-ink-dim"
           }`}
         >
           {caption.text}
         </div>
       )}
 
-      {keepOn && !injured && !loaned && !(score && (score.goals > 0 || score.behinds > 0)) && <KeepOnMarker />}
+      {keepOn && !injured && !loaned && !hasScore && <KeepOnMarker />}
 
-      {/* Score chip — floats above top-right corner so it never eats tile height */}
-      {score && (score.goals > 0 || score.behinds > 0) && (
-        <span
-          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-          aria-label={`${score.goals} goals, ${score.behinds} behinds`}
-        >
-          <span>{score.goals}.{score.behinds}</span>
+      <div className="flex flex-1 flex-col px-[10px] py-2">
+        {/* Row 1 · labels left, status chip right. */}
+        <span className="flex h-4 items-center gap-1.5">
+          {zoneLabel && (
+            <span className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${zoneAccent}`}>
+              {zoneLabel}
+            </span>
+          )}
+          {player.jersey_number != null && (
+            <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">
+              #{player.jersey_number}
+            </span>
+          )}
+          <span className="flex-1" />
+          {isOff && (
+            <span
+              className={`${CHIP} bg-due tracking-[0.08em] text-white`}
+              aria-label={`Coming off next, pair ${swap.pair}`}
+            >
+              OFF {swap.pair}
+            </span>
+          )}
+          {hasScore && (
+            <span
+              className={`${CHIP} nums bg-ink text-warm`}
+              aria-label={`${score.goals} goals, ${score.behinds} behinds`}
+            >
+              {score.goals}.{score.behinds}
+            </span>
+          )}
+          {injured && (
+            <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
+              INJ
+            </span>
+          )}
+          {loaned && !injured && (
+            <span className={`${CHIP} bg-warn tracking-micro text-white`} aria-label="Lent to opposition">
+              LENT
+            </span>
+          )}
+          {lockMode && !injured && !loaned && (
+            <span
+              className={`${CHIP} text-white ${lockMode === "field" ? "bg-brand-600" : "bg-warn"}`}
+              aria-label={lockMode === "field" ? "Field locked" : "Zone locked"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-2.5 w-2.5"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </span>
+          )}
         </span>
-      )}
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
-
-      {/* Injury badge */}
-      {injured && (
-        <span
-          className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-          aria-label="Injured"
-        >
-          INJ
-        </span>
-      )}
-
-      {/* Loan badge — lent to opposition */}
-      {loaned && !injured && (
-        <span
-          className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-          aria-label="Lent to opposition"
-        >
-          LENT
-        </span>
-      )}
-
-      {/* Lock badge */}
-      {lockMode && !injured && !loaned && (
-        <span
-          className={`absolute left-1 top-1 rounded-xs p-0.5 leading-none text-white ${
-            lockMode === "field" ? "bg-brand-600" : "bg-warn"
-          }`}
-          aria-label={lockMode === "field" ? "Field locked" : "Zone locked"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="h-2.5 w-2.5"
-          >
-            <path
-              fillRule="evenodd"
-              d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </span>
-      )}
-
-      {/* Zone label */}
-      {zoneLabel && (
-        <span
-          className={`font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${zoneAccent}`}
-        >
-          {zoneLabel}
-        </span>
-      )}
-
-      {/* Name. (Cohort chips retired with How we play, UX plan 5.8.) */}
-      <span className="inline-flex items-center gap-1 truncate text-sm font-bold leading-tight text-ink">
-        <span className="truncate">
+        {/* Row 2 · the name. (Cohort chips retired with How we play, UX plan 5.8.) */}
+        <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
           {lastInitial ? `${firstName} ${lastInitial}` : firstName}
         </span>
-      </span>
 
-      {/* Jersey + time */}
-      {totalMs !== undefined ? (
-        <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
-          {player.jersey_number != null ? `#${player.jersey_number} · ` : ""}{formatMinSec(totalMs)}
-        </span>
-      ) : player.jersey_number != null ? (
-        <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
-          #{player.jersey_number}
-        </span>
-      ) : null}
-
-      {/* Zone-minute stacked bar — shows current-game time
-          distribution. Ambient (live play) keeps it thin and
-          softened so the field doesn't read as a bar chart; full
-          (quarter break) returns the saturated planning bar. */}
-      {zoneMs && (() => {
-        const total = zoneMs.back + zoneMs.hback + zoneMs.mid + zoneMs.hfwd + zoneMs.fwd;
-        if (total <= 0) return null;
-        const pct = (v: number) => `${(v / total) * 100}%`;
-        const full = barEmphasis === "full";
-        return (
-          <span
-            className={`mt-0.5 flex w-full overflow-hidden rounded-full bg-surface-alt ${
-              full ? "h-1.5" : "h-1"
-            }`}
-            aria-label={`Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`}
-          >
-            <span style={{ width: pct(zoneMs.fwd) }} className={full ? "bg-zone-f" : "bg-zone-f/60"} />
-            <span style={{ width: pct(zoneMs.hfwd) }} className={full ? "bg-zone-f/70" : "bg-zone-f/40"} />
-            <span style={{ width: pct(zoneMs.mid) }} className={full ? "bg-zone-c" : "bg-zone-c/60"} />
-            <span style={{ width: pct(zoneMs.hback) }} className={full ? "bg-zone-b/70" : "bg-zone-b/40"} />
-            <span style={{ width: pct(zoneMs.back) }} className={full ? "bg-zone-b" : "bg-zone-b/60"} />
+        {/* Row 3 · zone-time bar, then the time. Solid stepped fills
+            with 1px gaps so the zones read apart even in greyscale. */}
+        {totalMs !== undefined && (
+          <span className="flex h-4 items-center gap-2">
+            <span
+              className="flex h-1 flex-1 gap-px overflow-hidden rounded-full bg-bar-track"
+              aria-label={
+                zoneMs
+                  ? `Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`
+                  : undefined
+              }
+            >
+              {zoneMs && (() => {
+                const total = zoneMs.back + zoneMs.hback + zoneMs.mid + zoneMs.hfwd + zoneMs.fwd;
+                if (total <= 0) return null;
+                const segs: { ms: number; cls: string }[] = [
+                  { ms: zoneMs.fwd, cls: "bg-zone-f-fill" },
+                  { ms: zoneMs.hfwd, cls: "bg-zone-f-fill" },
+                  { ms: zoneMs.mid, cls: "bg-zone-c-fill" },
+                  { ms: zoneMs.hback, cls: "bg-zone-b-fill" },
+                  { ms: zoneMs.back, cls: "bg-zone-b-fill" },
+                ];
+                return segs
+                  .filter((s) => s.ms > 0)
+                  .map((s, i) => (
+                    <span key={i} style={{ width: `${(s.ms / total) * 100}%` }} className={`h-full ${s.cls}`} />
+                  ));
+              })()}
+            </span>
+            <span className="nums font-mono text-xs font-semibold tabular-nums text-ink">
+              {formatMinSec(totalMs)}
+            </span>
           </span>
-        );
-      })()}
+        )}
       </div>
     </button>
     </SirenPulseHalo>
@@ -402,7 +397,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
   if (a.positionLabel !== b.positionLabel) return false;
   if (a.keepOn !== b.keepOn) return false;
-  if (a.barEmphasis !== b.barEmphasis) return false;
+  if (a.swapDue !== b.swapDue) return false;
 
   // swap is an object that LiveGame creates per render. Compare
   // shallowly so a deep-equal swap doesn't trigger re-render.
