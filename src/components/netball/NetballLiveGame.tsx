@@ -2182,7 +2182,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <div className="flex items-center justify-between gap-2 px-1">
           <SFButton
             variant="ghost"
-            size="sm"
+            size="md"
             data-testid="plan-next-period-entry"
             onClick={() => setPlanNextOpen(true)}
             icon={<SFIcon.whistle />}
