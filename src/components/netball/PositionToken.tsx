@@ -288,7 +288,7 @@ export function PositionToken({
           className={`rounded-t-[5px] border-b px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
             caption.tone === "move"
               ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-mute"
+              : "border-hairline bg-surface-alt text-ink-dim"
           }`}
         >
           {caption.text}

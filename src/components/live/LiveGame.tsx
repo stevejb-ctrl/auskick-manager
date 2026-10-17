@@ -1520,7 +1520,9 @@ export function LiveGame({
   );
 
   return (
-    <div className="ui-nonselect space-y-3">
+    // 16px section rhythm on the 4/8/16/24/32 scale (design session
+    // 17 Oct 2026; was 12).
+    <div className="ui-nonselect space-y-4">
       {liveTopBar}
 
       {/* Top-anchored scorebug — only when NOT in live play. During
@@ -1781,7 +1783,7 @@ export function LiveGame({
                     type="button"
                     data-testid="plan-next-clear"
                     onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
                   >
                     Clear
                   </button>
@@ -2664,7 +2666,7 @@ export function LiveGame({
             <p className="text-sm font-semibold text-ink">
               All done — thanks for running today&apos;s game!
             </p>
-            <p className="mt-0.5 text-xs text-ink-mute">
+            <p className="mt-0.5 text-xs text-ink-dim">
               Everything&apos;s saved. You can close this tab.
             </p>
           </div>

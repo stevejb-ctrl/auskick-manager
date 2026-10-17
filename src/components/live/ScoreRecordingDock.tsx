@@ -75,7 +75,7 @@ export function ScoreRecordingDock({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute hover:text-ink-dim"
+            className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink-dim"
           >
             {cancelLabel}
           </button>
@@ -92,7 +92,7 @@ export function ScoreRecordingDock({
             className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline"
           >
             Player actions
-            <span className="font-normal text-ink-mute">· injury, lend, lock</span>
+            <span className="font-normal text-ink-dim">· injury, lend, lock</span>
           </button>
         )}
       </div>

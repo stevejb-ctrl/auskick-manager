@@ -1852,7 +1852,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               <p className="text-sm font-semibold text-ink">
                 All done — thanks for running today&apos;s game!
               </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
+              <p className="mt-0.5 text-xs text-ink-dim">
                 Everything&apos;s saved. You can close this tab.
               </p>
             </div>
@@ -2203,7 +2203,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
               >
                 Clear
               </button>
@@ -2350,7 +2350,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         finished={finalised}
       />
 
-      <p className="text-center text-xs text-ink-mute">
+      <p className="text-center text-xs text-ink-dim">
         {trackScoring
           ? "Tap GS or GA to score (with confirm). Long-press any player for actions. The quarter ends automatically when the clock reaches zero."
           : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}
