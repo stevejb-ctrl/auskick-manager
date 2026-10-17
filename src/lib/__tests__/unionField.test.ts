@@ -50,6 +50,17 @@ describe("union's field", () => {
     }
   });
 
+  it("with six backs, stands the fullback between the last two (12 a side: left wing, fullback, right wing)", () => {
+    const slots = unionFieldSlots(12, 6);
+    const backs = slots.filter((s) => s.role === "back");
+    const fullback = slots.find((s) => s.role === "fullback")!;
+    const rows = Array.from(new Set(backs.map((s) => s.y)));
+    expect(rows).toHaveLength(2);
+    expect(backs.filter((s) => s.y === rows[0]).map((s) => s.x)).toEqual([22, 50, 78]);
+    expect(backs.filter((s) => s.y === rows[1]).map((s) => s.x)).toEqual([22, 78]);
+    expect(fullback).toMatchObject({ x: 50, y: rows[1] });
+  });
+
   it("keeps tiles apart and on the pitch", () => {
     for (const n of sizes) {
       const slots = unionFieldSlots(n, Math.floor(n / 2));

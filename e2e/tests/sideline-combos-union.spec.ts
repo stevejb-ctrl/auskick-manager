@@ -8,7 +8,8 @@
 //     replay must agree, on union's points.
 //   - Named positions follow the side size: U10 at 12 a side plays N8,
 //     both wings and one centre, and no flankers; U12 at 15 plays all
-//     fifteen.
+//     fifteen. A U11 lineup's backline reads Halfback / Centre /
+//     Five-eighth, then Left wing / Fullback / Right wing.
 //   - A union role is union's: home "2R4" (the 2nd row) is stored as
 //     union's key, never league's.
 //   - A 15-a-side field fits a 375 px phone without sideways scroll.
@@ -244,6 +245,46 @@ test("union named positions: the hooker's replacement plays hooker and nobody el
     if (i === 1) continue;
     await expect(tile(ids[i]).getByText(labels[i], { exact: true }), players[i].full_name).toBeVisible();
   }
+});
+
+// Steve, 17 Oct 2026: setting up a U11 side, the lineup should draw the
+// backline as Halfback / Centre / Five-eighth, then Left wing / Fullback /
+// Right wing, and the forwards front row first, then the 2nd row and N8.
+test("union U11 lineup: each kid stands in their position's spot, row by row", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U11", name: `RU-U11-ROWS ${Date.now()}` });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  expect(game.on_field_size).toBe(12);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const field = page.getByRole("region", { name: "On field" });
+  await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(12, { timeout: 15_000 });
+  const at = async (label: string) => {
+    const box = await field.locator("[data-testid^='league-player-tile-']").filter({ has: page.getByText(label, { exact: true }) }).boundingBox();
+    expect(box, label).not.toBeNull();
+    return { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+  };
+  const row = async (labels: string[]) => {
+    const spots = await Promise.all(labels.map(at));
+    for (const s of spots) expect(Math.abs(s.y - spots[0].y), labels.join(" ")).toBeLessThan(4);
+    for (let i = 1; i < spots.length; i++) expect(spots[i].x, labels.join(" ")).toBeGreaterThan(spots[i - 1].x);
+    return spots[0].y;
+  };
+  const front = await row(["LHP1", "HK2", "THP3"]);
+  const second = await row(["2R4", "2R5", "N8"]);
+  const halves = await row(["HB9", "C12", "FE10"]);
+  const back = await row(["LW11", "FB15", "RW14"]);
+  expect(front).toBeLessThan(second);
+  expect(second).toBeLessThan(halves);
+  expect(halves).toBeLessThan(back);
 });
 
 test("a union home position is union's own: 2R4, never league's second row", async ({ page }) => {
