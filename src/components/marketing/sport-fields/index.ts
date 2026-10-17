@@ -6,4 +6,5 @@ export { AflOvalField } from "./AflOvalField";
 export { LeagueRectField } from "./LeagueRectField";
 export { RugbyUnionField } from "./RugbyUnionField";
 export { NetballCourtField } from "./NetballCourtField";
+export { SoccerPitchField } from "./SoccerPitchField";
 export { FieldShell } from "./FieldShell";

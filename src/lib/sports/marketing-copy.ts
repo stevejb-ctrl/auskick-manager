@@ -37,6 +37,11 @@ export function getMarketingCopy(id: MarketingSportId): BrandCopy {
       return getBrandCopy("netball");
     case "union":
       return UNION_MARKETING_COPY;
+    case "football":
+      // Coming soon on the homepage (it can't be picked yet): the main
+      // brand's copy, which soccer's config points at, until it has
+      // its own.
+      return getBrandCopy("soccer");
   }
 }
 

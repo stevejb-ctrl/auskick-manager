@@ -8,6 +8,7 @@ import {
   LeagueRectField,
   NetballCourtField,
   RugbyUnionField,
+  SoccerPitchField,
 } from "@/components/marketing/sport-fields";
 
 // Card for ONE sport in the demo picker. Lives in a client
@@ -179,5 +180,7 @@ function FieldForSport({ sport }: { sport: MarketingSportConfig }) {
       return <NetballCourtField accent={sport.accent} tintOpacity={0} />;
     case "union":
       return <RugbyUnionField accent={sport.accent} tintOpacity={0} />;
+    case "football":
+      return <SoccerPitchField accent={sport.accent} tintOpacity={0} />;
   }
 }

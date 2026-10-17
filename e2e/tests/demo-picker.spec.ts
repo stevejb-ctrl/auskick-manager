@@ -177,6 +177,16 @@ test.describe("Demo picker", () => {
     });
   }
 
+  // Football (soccer) is in beta in the app but not on the homepage yet:
+  // its card says so and starts nothing (marketing-sports comingSoon).
+  test("the football (soccer) card is coming soon: shown, not startable", async ({ page }) => {
+    await page.goto("/demo");
+    const card = page.getByTestId("demo-card-football");
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute("aria-disabled", "true");
+    await expect(card).toHaveAttribute("aria-label", /football \(soccer\) — coming soon/i);
+  });
+
   test("the union demo plays union: its own team, sized from union U10", async ({ page }) => {
     await page.goto("/demo");
     await page.getByTestId("demo-card-union").click();
