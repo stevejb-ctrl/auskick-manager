@@ -25,7 +25,10 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, isSoccer, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
+import { SoccerDashboardShell } from "@/components/dashboard/SoccerDashboardShell";
+import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
+import { soccerAgeGroup } from "@/lib/sports/soccer";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -51,8 +54,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   if (!team) notFound();
   const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
-  // Football (soccer)'s stats are phase 3 (.planning/SOCCER-PLAN.md).
-  if (isSoccer(sport)) sportNotBuilt(sport, "Stats");
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =
@@ -184,6 +185,24 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         }
       : undefined,
   };
+
+  // ─── Football (soccer) branch ─────────────────────────────
+  // Goals, the result (when scoring is on), minutes and time in goal,
+  // through soccer's own replay.
+  if (isSoccer(sport)) {
+    return (
+      <SoccerDashboardShell
+        seasons={seasons}
+        selectedYear={selectedYear}
+        playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
+        aggregate={aggregateSoccerSeason(seasonGames, eventsByGame)}
+        totalGames={seasonGames.length}
+        trackScoring={team.track_scoring ?? false}
+        withKeeper={soccerAgeGroup(balanceAgeCfg.id).keeper !== "none"}
+        seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
+      />
+    );
+  }
 
   // ─── Rugby league branch ──────────────────────────────────
   // Junior RL stats are shaped by the laws: tries (4) + conversions

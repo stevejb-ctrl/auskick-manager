@@ -193,10 +193,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     summaryEvents = (data ?? []) as GameEvent[];
   }
 
-  // How we played (UX plan 4.4): rules kept and season balance, every
-  // sport but soccer so far (its report is phase 3).
+  // How we played (UX plan 4.4): rules kept and season balance, every sport.
   const howWePlayed =
-    isFinal && summaryEvents && !isSoccer(sport)
+    isFinal && summaryEvents
       ? await buildGameReport(
           supabase,
           {

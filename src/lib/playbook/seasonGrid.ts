@@ -7,7 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -76,9 +76,19 @@ export function gridUnits(
       ],
     };
   }
-  // Football (soccer)'s season grid is phase 3 (lines and goal, and
-  // 4 a side's one line, need its stats screen).
-  if (isSoccer(sport)) return sportNotBuilt(sport, "gridUnits");
+  if (isSoccer(sport)) {
+    // The lines season balance evens out. Time in goal isn't one: the
+    // keeper strategy shares goal (turns, or the named keepers), so it
+    // shows in the game report rather than as a debt here.
+    return {
+      unit: "line",
+      columns: [
+        { key: "att", label: "Att" },
+        { key: "mid", label: "Mid" },
+        { key: "def", label: "Def" },
+      ],
+    };
+  }
   return noSportBranch(sport, "gridUnits");
 }
 
