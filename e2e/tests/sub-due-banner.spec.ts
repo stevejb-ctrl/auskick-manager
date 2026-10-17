@@ -83,21 +83,39 @@ async function expectBannerNotModal(page: Page, chip: string) {
   await expect(banner).toHaveCount(0);
 }
 
-test("AFL: sub due is a banner, and +G still takes the tap", async ({ page }) => {
+// AFL: one event, one voice (design session 17 Oct 2026). The swap card
+// IS the sub-due alert — amber ring, SUB DUE eyebrow, role="alert" — and
+// the separate banner is gone, so exactly one alert is on screen. It
+// still beeps, nothing modal covers the chips, and Collapse folds it.
+async function expectCardIsTheAlert(page: Page) {
+  const alerts = page.getByRole("alert");
+  await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+  await expect(alerts).toHaveCount(1);
+  const card = alerts.first();
+  await expect(card).toContainText("Rotate a player off");
+  await expect(card.getByTestId("swapcard-apply-all")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: /^add goal, /i }).first().click({ trial: true, timeout: 5_000 });
+  await card.getByRole("button", { name: "Collapse" }).click();
+  await expect(card.getByTestId("swapcard-apply-all")).toHaveCount(0);
+}
+
+test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).coach);
   await waitForHydration(page);
-  await expectBannerNotModal(page, "+G");
+  await expectCardIsTheAlert(page);
 });
 
-// The runner link gets the same live top bar (and so the banner) as the
-// coach, as league and netball runners already did.
-test("AFL runner: sub due is the same banner", async ({ page }) => {
+// The runner link gets the same live screen (and so the same card) as
+// the coach.
+test("AFL runner: sub due is the same card", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).runner);
   await waitForHydration(page);
   await expect(page.getByRole("button", { name: "Exit live game" })).toBeVisible({ timeout: 15_000 });
-  await expectBannerNotModal(page, "+G");
+  await expectCardIsTheAlert(page);
 });
 
 test("union: sub due is a banner, and +T still takes the tap", async ({ page }) => {
@@ -120,9 +138,11 @@ for (const { sport, rows } of [
     await waitForHydration(page);
     await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
     const clipped = await page.evaluate((selector) => {
-      const names = Array.from(document.querySelectorAll(selector)).flatMap((row) =>
-        Array.from(row.querySelectorAll("span.truncate")),
-      ) as HTMLElement[];
+      // League rows truncate a name span; AFL's name buttons ARE the names.
+      const names = Array.from(document.querySelectorAll(selector)).flatMap((row) => {
+        const spans = Array.from(row.querySelectorAll("span.truncate"));
+        return spans.length > 0 ? spans : [row];
+      }) as HTMLElement[];
       return { count: names.length, clipped: names.filter((n) => n.scrollWidth > n.clientWidth).map((n) => n.textContent) };
     }, rows);
     expect(clipped.count).toBeGreaterThan(0);

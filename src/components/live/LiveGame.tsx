@@ -1330,9 +1330,6 @@ export function LiveGame({
       game={game}
       isLive={!isPreGame}
       onHelp={handleOpenWalkthrough}
-      // Sub due is a banner under the bar, not a modal (Steve 16 Oct
-      // 2026): the field and the score chips stay tappable.
-      banner={subDueOpen ? <SubDueBanner onAcknowledge={handleSubDueAcknowledge} /> : null}
     />
   ) : null;
 
@@ -1523,7 +1520,23 @@ export function LiveGame({
     // 16px section rhythm on the 4/8/16/24/32 scale (design session
     // 17 Oct 2026; was 12).
     <div className="ui-nonselect space-y-4">
-      {liveTopBar}
+      {/* Sub due: the swap card is the one alert (design session 17
+          Oct 2026 — one event, one voice). The banner under the bar
+          shows only in the rare due moment with no card on screen
+          (no renderable suggestion), so there's always exactly one. */}
+      {exitHref ? (
+        <LiveTopBar
+          exitHref={exitHref}
+          game={game}
+          isLive={!isPreGame}
+          onHelp={handleOpenWalkthrough}
+          banner={
+            subDueOpen && suggestions.length === 0 ? (
+              <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
+            ) : null
+          }
+        />
+      ) : null}
 
       {/* Top-anchored scorebug — only when NOT in live play. During
           live play it gets re-rendered as a fixed bottom bar below
