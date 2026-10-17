@@ -17,7 +17,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState, use
 import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
-import { PulsingNumber } from "@/components/live/PulsingNumber";
+import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
 import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
@@ -109,7 +109,7 @@ import { UndoStrip } from "@/components/live/UndoStrip";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
-import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -1852,7 +1852,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               <p className="text-sm font-semibold text-ink">
                 All done — thanks for running today&apos;s game!
               </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
+              <p className="mt-0.5 text-xs text-ink-dim">
                 Everything&apos;s saved. You can close this tab.
               </p>
             </div>
@@ -2182,7 +2182,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         <div className="flex items-center justify-between gap-2 px-1">
           <SFButton
             variant="ghost"
-            size="sm"
+            size="md"
             data-testid="plan-next-period-entry"
             onClick={() => setPlanNextOpen(true)}
             icon={<SFIcon.whistle />}
@@ -2203,7 +2203,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
               >
                 Clear
               </button>
@@ -2350,7 +2350,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         finished={finalised}
       />
 
-      <p className="text-center text-xs text-ink-mute">
+      <p className="text-center text-xs text-ink-dim">
         {trackScoring
           ? "Tap GS or GA to score (with confirm). Long-press any player for actions. The quarter ends automatically when the clock reaches zero."
           : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}
@@ -2725,53 +2725,60 @@ function NetballScoreBug({
    */
   flat?: boolean;
 }) {
+  // Motion (design session 17 Oct 2026): totals roll one slot, a "+1"
+  // ghost rises off the side that scored, a light haptic on touch-down.
+  const teamGhost = useScoreGhost(team.goals);
+  const oppGhost = useScoreGhost(opponent.goals);
+  const tapDown = () => void hapticTap("light");
   return (
     <div
-      className={`grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-4 py-3 ${
+      className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3 ${
         flat ? "" : "rounded-md bg-surface shadow-card"
       }`}
     >
-      {/* Left: home team */}
-      <div className="min-w-0">
-        {/* tracking-normal below sm so two-word club names fit the
-            side column instead of clipping mid-word — mirrors
-            GameHeader (UI polish audit §1). */}
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
-          {teamName}
-        </p>
-        <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
-          {/* Pre-Q1 the scoreboard renders "—" instead of zero so a
-              freshly-mounted game doesn't look like it's already
-              0-0 (visually identical to a finished 0-0 result).
-              Once Q1 starts (showScores=true), PulsingNumber takes
-              over and counts up + halos on each goal. P0-6 from
-              MICRO-INTERACTIONS-PLAN.md. */}
-          {showScores ? (
-            <PulsingNumber
-              value={team.goals}
-              className="text-[36px] font-bold tracking-tightest"
-            />
-          ) : (
-            <span className="text-[36px] font-bold tracking-tightest">—</span>
-          )}
-        </p>
+      {/* Left: home team. Re-skin (design session 17 Oct 2026):
+          mirrors GameHeader — total 44/700 tabular, names recede,
+          one baseline across the three columns. */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="min-w-0">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
+            {teamName}
+          </p>
+          <p className="nums mt-1 font-mono tabular-nums text-ink">
+            {/* Pre-Q1 the scoreboard renders "—" instead of zero so a
+                freshly-mounted game doesn't look like it's already
+                0-0 (visually identical to a finished 0-0 result).
+                Once Q1 starts (showScores=true), RollingNumber takes
+                over and rolls one slot on each goal. */}
+            {showScores ? (
+              <RollingNumber
+                value={team.goals}
+                className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
+              />
+            ) : (
+              <span className="text-[44px] font-bold leading-10 tracking-[-0.04em]">—</span>
+            )}
+          </p>
+        </div>
         {/* Own-team +G chip. Mirrors the opponent +G on the right
             side and AFL GameHeader's onTeam("goal") chip. Tap
             opens a player picker (parent owns UI) so the coach can
             attribute the goal without first hunting for the GS/GA
             tile on the court. Steve 2026-05-16. */}
         {onTeamGoal && (
-          <div className="mt-1 flex gap-2">
-            {/* SCORE_CHIP token (not a hand-rolled copy): the one
-                shared chip across every sport, 44pt minimum — this
-                side had drifted to a 36px-tall duplicate while the
-                opponent side used the token (UI polish audit §10). */}
+          <div className="relative flex">
+            {teamGhost && (
+              <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
+                {teamGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={onTeamGoal}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
-              aria-label="Record our goal"
+              className={`${SCORE_CHIP} w-12`}
+              aria-label={`Add goal, ${teamName}`}
             >
               +G
             </button>
@@ -2791,16 +2798,16 @@ function NetballScoreBug({
       {(() => {
         const inner = (
           <>
-            <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
+            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+              {/* Running: the mint live dot, as AFL's pill. Paused keeps
+                  its ▶ badge + ring below. */}
+              {onClockTap && !paused && (
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
+              )}
               <span>{quarterLabel}</span>
-              {/* Running-state glyph — AFL's pill shows ⏸ while the
-                  clock runs; netball only flagged the PAUSED state
-                  (▶ badge below), hiding the running state (UI
-                  polish audit §10). */}
-              {onClockTap && !paused && <span>⏸</span>}
             </span>
             <span
-              className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
+              className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm"
               suppressHydrationWarning
             >
               {clockText}
@@ -2808,7 +2815,7 @@ function NetballScoreBug({
           </>
         );
         const baseClass =
-          "relative self-center flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop";
+          "relative flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)]";
         const pill = !onClockTap ? (
           <div className={baseClass}>{inner}</div>
         ) : (
@@ -2837,15 +2844,16 @@ function NetballScoreBug({
         // immediately below the pill (mirrors AFL GameHeader's
         // arrangement).
         return (
-          <div className="flex flex-col items-center gap-1 self-center">
+          <div className="flex flex-col items-center">
             <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
               {pill}
             </SirenPulseHalo>
+            {/* 44pt text button (the old bordered 9px pill was ~20px). */}
             {onShowQuarterScores && (
               <button
                 type="button"
                 onClick={onShowQuarterScores}
-                className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink motion-safe:active:scale-[0.97]"
+                className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
                 aria-label="Show quarter-by-quarter scores"
               >
                 Q-by-Q
@@ -2856,28 +2864,36 @@ function NetballScoreBug({
       })()}
 
       {/* Right: opponent — mirror layout */}
-      <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
-          {opponentName}
-        </p>
-        <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-          {showScores ? (
-            <PulsingNumber
-              value={opponent.goals}
-              className="text-[36px] font-bold tracking-tightest"
-            />
-          ) : (
-            <span className="text-[36px] font-bold tracking-tightest">—</span>
-          )}
-        </p>
+      <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+        <div className="min-w-0 max-w-full">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
+            {opponentName}
+          </p>
+          <p className="nums mt-1 font-mono tabular-nums text-ink">
+            {showScores ? (
+              <RollingNumber
+                value={opponent.goals}
+                className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
+              />
+            ) : (
+              <span className="text-[44px] font-bold leading-10 tracking-[-0.04em]">—</span>
+            )}
+          </p>
+        </div>
         {onOpponentGoal && (
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="relative flex justify-end">
+            {oppGhost && (
+              <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
+                {oppGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={onOpponentGoal}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
-              aria-label="Record opponent goal"
+              className={`${SCORE_CHIP} w-12`}
+              aria-label={`Add goal, ${opponentName}`}
             >
               +G
             </button>

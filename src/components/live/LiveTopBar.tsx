@@ -72,20 +72,23 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
     });
   };
   return (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/70">
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-2 sm:px-3">
+    // Re-skin (design session 17 Oct 2026): a 48px bar, EXIT and the
+    // icon rings in ink-dim (the old #8A948C was 3.0:1), the live title
+    // in ink 15/600.
+    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
+      <div className="mx-auto flex h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
         <button
           type="button"
           onClick={handleExit}
           disabled={exiting}
           aria-label="Exit live game"
-          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-xs font-bold uppercase tracking-micro text-ink-mute transition-colors hover:bg-ink/5 hover:text-ink-dim active:bg-ink/10 disabled:opacity-60"
+          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-60"
         >
           {exiting ? "Exiting…" : "Exit"}
         </button>
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-mute">
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-dim">
           {isLive ? (
-            <span className="truncate text-sm font-semibold text-ink-dim">
+            <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
               vs {game.opponent}
             </span>
           ) : (
@@ -135,7 +138,7 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
               className="group inline-flex h-11 w-11 shrink-0 items-center justify-center"
               aria-label="Open walkthrough"
             >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline font-mono text-xs font-bold text-ink-dim transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink group-active:bg-ink/5">
                 ?
               </span>
             </button>

@@ -38,7 +38,7 @@ export function FeedbackHeaderButton() {
         aria-label="Send feedback"
         data-testid="feedback-header-button"
       >
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline text-ink-mute transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink-dim group-active:bg-ink/5">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline text-ink-dim transition-colors duration-fast ease-out-quart group-hover:border-ink-dim group-hover:text-ink group-active:bg-ink/5">
           {/* Chat-bubble glyph at 14px so it sits comfortably inside
               the 28pt pill. Same icon as the FAB so the affordance
               reads consistently across surfaces. */}

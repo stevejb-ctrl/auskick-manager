@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   clockElapsedMs,
   formatClock,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
-import { PulsingNumber } from "@/components/live/PulsingNumber";
-import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
+import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
+import { hapticTap } from "@/lib/haptics";
+
+/** What the break after this period is called. */
+function breakName(quarter: number, periodCount: number): string {
+  if (quarter >= periodCount) return "Full time";
+  if (periodCount === 2) return "Half time";
+  if (periodCount === 4) {
+    if (quarter === 1) return "Quarter time";
+    if (quarter === 2) return "Half time";
+    return "Three-quarter time";
+  }
+  return "Break";
+}
 
 interface GameHeaderProps {
   teamName: string;
@@ -129,62 +142,83 @@ export function GameHeader({
     : isFinished || quarter > periodCount
       ? "FT"
       : `Q${quarter}`;
-  const stateIcon = isPreGame || isFinished ? null : running ? "⏸" : "▶";
+  // Running: a mint "live" dot before the period — the old ⏸ glyph in
+  // a running clock read as "paused". Paused keeps its ▶.
+  const live = !isPreGame && !isFinished && running;
+  const pausedIcon = !isPreGame && !isFinished && !running ? "▶" : null;
+
+  // The hooter has gone and the clock holds at 0:00 until the coach
+  // taps through (existing behaviour): the pill speaks up — widens,
+  // fills amber, and names the break.
+  const atHooter = !isPreGame && !isFinished && !running && elapsed >= quarterMs;
+
+  // The next period's label rises in when the quarter changes (not on
+  // first paint).
+  const firstQuarterRef = useRef(quarter);
+  const quarterChanged = quarter !== firstQuarterRef.current;
+
+  const teamGhost = useScoreGhost(points(team));
+  const oppGhost = useScoreGhost(points(opp));
+  const tapDown = () => void hapticTap("light");
+
+  // In-game re-skin (design session 17 Oct 2026): numbers up, chrome
+  // down. Totals 44/700, clock 28/700, all tabular; team names and
+  // G·B recede to ink-dim. align-items end puts one baseline across
+  // all three columns — totals line up with the pill, buttons with
+  // Q-BY-Q.
+  const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
+  const TALLY = "text-[13px] font-medium text-ink-dim";
+  const CHIP = `${SCORE_CHIP} w-12`;
 
   return (
     <div
-      className={`grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-4 py-3 ${
+      className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3 ${
         flat ? "" : "rounded-md bg-surface shadow-card"
       }`}
     >
-      {/* Left: home team — total points dominate, like a broadcast scorebug.
+      {/* Left: home team — total first, then G·B on its baseline.
           +G/+B chips mirror the opponent side; tapping opens a
           player picker (the parent owns the picker UI) so the
           coach can attribute the score to whoever just scored
           without first having to tap the player tile. */}
-      <div className="min-w-0">
-        {/* tracking-normal below sm: with letterspacing on, a
-            two-word club name ("BRUNSWICK MAGPIES", 17ch ≈ 122px)
-            overruns the ~123px side column of a 390px scorebug and
-            clipped mid-word ("BRUNSWICK MAGPI…") — the first line of
-            the most-watched component (UI polish audit §1). Plain
-            tracking buys ~20px, so real club names fit; the ellipsis
-            stays only for genuinely long ones. */}
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
-          {teamName}
-        </p>
-        <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
-          <span className="text-sm font-semibold text-ink-dim">
-            {team.goals}
-            <span className="text-ink-mute">·</span>
-            {team.behinds}
-          </span>
-          {/* PulsingNumber: count-up + halo on the points total when
-              the team scores. The G·B detail above stays static —
-              animating multiple digits at once reads as noise. The
-              points total is the eye-catcher (36px, ink-dark) so
-              the moment is communicated by the most prominent
-              element. P0-6 from MICRO-INTERACTIONS-PLAN.md. */}
-          <PulsingNumber
-            value={points(team)}
-            className="text-[36px] font-bold tracking-tightest"
-          />
-        </p>
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="min-w-0">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{teamName}</p>
+          <p className="nums mt-1 flex items-baseline gap-2 font-mono tabular-nums text-ink">
+            {/* The total rolls up one slot on a score; the tally trails
+                it by 40ms. */}
+            <RollingNumber value={points(team)} className={TOTAL} />
+            <RollingNumber value={`${team.goals}·${team.behinds}`} className={TALLY} delayMs={40} />
+          </p>
+        </div>
         {onTeam && trackScoring && (
-          <div className="mt-1 flex gap-2">
+          <div className="relative flex gap-2">
+            {teamGhost && (
+              <span
+                key={teamGhost.key}
+                aria-hidden
+                className={`${SCORE_GHOST} left-3`}
+              >
+                {teamGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onTeam("goal")}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
+              className={CHIP}
+              aria-label={`Add goal, ${teamName}`}
             >
               +G
             </button>
             <button
               type="button"
               onClick={() => onTeam("behind")}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
+              className={CHIP}
+              aria-label={`Add behind, ${teamName}`}
             >
               +B
             </button>
@@ -197,41 +231,58 @@ export function GameHeader({
           SirenPulseHalo so it briefly halos at sirenic moments
           (quarter-end hooter, FT). When clockPulseKey is null the
           halo span is omitted entirely — no animation, no DOM cost. */}
-      <div className="flex flex-col items-center gap-1 self-center">
+      <div className="flex flex-col items-center">
         <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
           <button
             type="button"
             onClick={onClockTap}
             disabled={isPreGame || isFinished || !onClockTap}
-            className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-            aria-label={`Clock — ${quarterLabel}, ${running ? "running" : "paused"}`}
+            className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart disabled:opacity-80 ${
+              atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90"
+            }`}
+            aria-label={`Clock — ${quarterLabel}, ${atHooter ? breakName(quarter, periodCount) : running ? "running" : "paused"}`}
           >
-            <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-              <span>{quarterLabel}</span>
-              {stateIcon && <span>{stateIcon}</span>}
-            </span>
-            <span
-              className={`nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest ${
-                overtime ? "text-warn" : "text-warm"
-              }`}
-            >
-              {formatClock(remaining)}
-            </span>
+            {atHooter ? (
+              // Label crossfades to the break: END Q2 / Half time.
+              <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
+                <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+                  End {quarterLabel}
+                </span>
+                <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
+                  {breakName(quarter, periodCount)}
+                </span>
+              </span>
+            ) : (
+              <span
+                key={`q-${quarter}`}
+                className={`flex flex-col items-center ${
+                  quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""
+                }`}
+              >
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+                  {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
+                  <span>{quarterLabel}</span>
+                  {pausedIcon && <span>{pausedIcon}</span>}
+                </span>
+                <span
+                  className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
+                    overtime ? "text-warn" : "text-warm"
+                  }`}
+                >
+                  {formatClock(remaining)}
+                </span>
+              </span>
+            )}
           </button>
         </SirenPulseHalo>
-        {/* Quarter-by-quarter trigger. Sits directly under the clock
-            pill so it reads as part of the centre score-and-clock
-            cluster. Tap → opens QuarterScoreModal with the full
-            breakdown + cumulative running totals. Steve's user
-            feedback 2026-05-09 (after the QuarterScoreStrip below
-            the scorebug shipped): "There's room in the in-game
-            scorebug under the score to open a quarter by quarter
-            modal" — the strip is a glance, this is drill-down. */}
+        {/* Quarter-by-quarter trigger: a 44pt text button under the
+            pill (the old 9px bordered pill was a ~20px target).
+            Tap → QuarterScoreModal with the full breakdown. */}
         {onShowQuarterScores && (
           <button
             type="button"
             onClick={onShowQuarterScores}
-            className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:border-ink-dim hover:bg-surface-alt hover:text-ink motion-safe:active:scale-[0.97]"
+            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
             aria-label="Show quarter-by-quarter scores"
           >
             Q-by-Q
@@ -239,37 +290,43 @@ export function GameHeader({
         )}
       </div>
 
-      {/* Right: opponent — mirror: BIG total first, then small G·B */}
-      <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-normal text-ink-dim sm:tracking-micro">
-          {opponentName}
-        </p>
-        <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-          <PulsingNumber
-            value={points(opp)}
-            className="text-[36px] font-bold tracking-tightest"
-          />
-          <span className="text-sm font-semibold text-ink-dim">
-            {opp.goals}
-            <span className="text-ink-mute">·</span>
-            {opp.behinds}
-          </span>
-        </p>
+      {/* Right: opponent — mirror: G·B, then the total. */}
+      <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+        <div className="min-w-0 max-w-full">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{opponentName}</p>
+          <p className="nums mt-1 flex items-baseline justify-end gap-2 font-mono tabular-nums text-ink">
+            <RollingNumber value={`${opp.goals}·${opp.behinds}`} className={TALLY} delayMs={40} />
+            <RollingNumber value={points(opp)} className={TOTAL} />
+          </p>
+        </div>
         {onOpponent && trackScoring && (
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="relative flex justify-end gap-2">
+            {oppGhost && (
+              <span
+                key={oppGhost.key}
+                aria-hidden
+                className={`${SCORE_GHOST} right-3`}
+              >
+                {oppGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onOpponent("goal")}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
+              className={CHIP}
+              aria-label={`Add goal, ${opponentName}`}
             >
               +G
             </button>
             <button
               type="button"
               onClick={() => onOpponent("behind")}
+              onPointerDown={tapDown}
               disabled={isPending}
-              className={SCORE_CHIP}
+              className={CHIP}
+              aria-label={`Add behind, ${opponentName}`}
             >
               +B
             </button>

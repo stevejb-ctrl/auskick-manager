@@ -166,7 +166,7 @@ test("record an unattributed goal via 'Didn't see who'", async ({
 
   // Our team's +G chip on the scorebug (first of the two) opens the
   // who-scored picker.
-  await page.getByRole("button", { name: /^\+G$/ }).first().click();
+  await page.getByRole("button", { name: /^add goal, /i }).first().click();
   // Round 5 (afl-u13, afl-u14): the picker labelled centre kids "MID"
   // while their tiles say "CEN". Same short labels as the field.
   const centreKid = page

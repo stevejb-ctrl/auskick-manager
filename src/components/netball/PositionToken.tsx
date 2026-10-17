@@ -65,24 +65,17 @@ interface PositionTokenProps {
   keepOn?: boolean;
 }
 
-// Softened to /60 — the live court is play, not planning, so the
-// time bar speaks at ambient volume like AFL's live tiles (UI polish
-// audit §2/§9). The netball quarter break's own tiles keep their
-// full-saturation planning bars.
+// Bar fills: the stepped zone fills AFL uses, so thirds read apart in
+// greyscale and glare. Disc fills: the third hues (labels palette).
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
-  attack: "bg-zone-f/60",
-  centre: "bg-zone-c/60",
-  defence: "bg-zone-b/60",
+  attack: "bg-zone-f-fill",
+  centre: "bg-zone-c-fill",
+  defence: "bg-zone-b-fill",
 };
-// Same palette as the time-bar segments above, but as text colours
-// — so the position chip on a token reads in the same colour as the
-// third's slice in the time bar. Lets a coach scan a card and
-// instantly map "purple chip = centre time, blue chip = defence time"
-// without remembering the legend.
-const THIRD_TEXT_COLOR: Record<"attack" | "centre" | "defence", string> = {
-  attack: "text-zone-f",
-  centre: "text-zone-c",
-  defence: "text-zone-b",
+const THIRD_DISC: Record<"attack" | "centre" | "defence", string> = {
+  attack: "bg-zone-f",
+  centre: "bg-zone-c",
+  defence: "bg-zone-b",
 };
 
 export function PositionToken({
@@ -172,22 +165,31 @@ export function PositionToken({
       : firstName
     : "—";
 
-  // Container styling — rounded rectangle, hairline border, hover-aware.
-  // Selected state borrows the AFL brand-ring; canScore borrows an amber
-  // halo to read as "tap me to record a goal". Solid bg-white + shadow
-  // on every state so cards POP off the sky-50 court bg (the previous
-  // bg-surface token was visually too washed out against the blue).
+  // Re-skin (design session 17 Oct 2026): a white card that sits ON
+  // the court — no border, the court lift shadow — laid out as a row:
+  // the bib as a 32px disc in its third's colour (it reads as a bib,
+  // not a label), then the name over the bar + time. Edges are inset
+  // rings so every state keeps the same box. The old GS/GA "shooter"
+  // outline is gone; tapping a shooter still records a goal.
   const baseBg = selected
-    ? "border-brand-600 bg-white ring-2 ring-brand-500 shadow-pop"
+    ? "bg-white ring-2 ring-brand-500 shadow-pop"
     : injured
-    ? "border-danger/40 bg-white shadow-card"
+    ? "bg-white shadow-lift-court ring-1 ring-inset ring-danger/40"
     : loaned
-    ? "border-warn/40 bg-white shadow-card"
+    ? "bg-white shadow-lift-court ring-1 ring-inset ring-warn/40"
     : ineligible
-    ? "border-hairline bg-surface-alt"
-    : canScore
-    ? "border-sky-700 bg-white ring-1 ring-amber-300/70 shadow-card hover:bg-amber-50"
-    : "border-hairline bg-white shadow-card hover:border-ink-mute";
+    ? "bg-surface-alt shadow-lift-court"
+    : "bg-white shadow-lift-court";
+
+  const third = (() => {
+    const t = primaryThirdFor(positionId);
+    if (t === "attack-third") return "attack" as const;
+    if (t === "centre-third") return "centre" as const;
+    if (t === "defence-third") return "defence" as const;
+    return null;
+  })();
+
+  const goals = goalCount ?? 0;
 
   // The button is what visually IS the tile. SirenPulseHalo wraps
   // it so a brand halo can fire when this position takes a sub
@@ -195,10 +197,6 @@ export function PositionToken({
   // sub commits). When pulseKey is null/undefined the halo
   // wrapper's halo span is omitted entirely — zero DOM cost on
   // tiles that haven't been subbed this quarter.
-  //
-  // `rounded-md` on the wrapper matches the button's `rounded-md`
-  // so the halo's box-shadow follows the tile's curve instead of
-  // emanating from a square wrapper.
   return (
     <SirenPulseHalo triggerKey={pulseKey} size="sm" className="rounded-md">
     <button
@@ -209,7 +207,7 @@ export function PositionToken({
       onPointerCancel={onLongPress ? cancelLongPress : undefined}
       disabled={disabled}
       className={[
-        "relative flex w-24 flex-col items-stretch rounded-md border text-center transition-all duration-fast ease-out-quart",
+        "relative flex w-[124px] flex-col rounded-md text-left transition-all duration-fast ease-out-quart",
         baseBg,
         injured || loaned ? "grayscale" : "",
         disabled ? "cursor-not-allowed" : "",
@@ -228,28 +226,29 @@ export function PositionToken({
           ? "ring-2 ring-brand-300 ring-offset-1"
           : "",
       ].join(" ")}
-      aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}`}
+      aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}${
+        goals > 0 ? `, ${goals} goal${goals === 1 ? "" : "s"}` : ""
+      }`}
     >
-      {keepOn && !injured && !loaned && !(goalCount !== undefined && goalCount > 0) && <KeepOnMarker />}
+      {keepOn && !injured && !loaned && goals === 0 && <KeepOnMarker />}
 
-      {/* Goal-count chip — floats above top-right corner so it never
-          eats tile height. Mirrors AFL's score chip at PlayerTile.tsx:179.
-          Hidden when zero so brand-new tokens stay clean. */}
-      {goalCount !== undefined && goalCount > 0 && (
+      {/* Goal count — an 18px ink pill on a white ring, over the
+          top-right corner. Hidden at zero so new tokens stay clean. */}
+      {goals > 0 && (
         <span
-          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-          aria-label={`${goalCount} goal${goalCount === 1 ? "" : "s"}`}
+          className="nums absolute -right-1.5 -top-1.5 z-10 h-[18px] min-w-[18px] rounded-full bg-ink px-[5px] text-center font-mono text-[10px] font-bold leading-[18px] text-warm shadow-[0_0_0_2px_#FFFFFF]"
+          aria-hidden
         >
-          <span>{goalCount}</span>
+          {goals}
         </span>
       )}
 
-      {/* Status badges floated top-left, mirrors AFL PlayerTile. Stacked
+      {/* Status badges floated over the top-left corner. Stacked
           priority: INJ > LENT > LOCK so coaches see the highest-impact
           flag first. */}
       {injured && (
         <span
-          className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-4 tracking-micro text-white"
           aria-label="Injured"
         >
           INJ
@@ -257,7 +256,7 @@ export function PositionToken({
       )}
       {loaned && !injured && (
         <span
-          className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
+          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-4 tracking-micro text-white"
           aria-label="Lent to opposition"
         >
           LENT
@@ -265,7 +264,7 @@ export function PositionToken({
       )}
       {locked && !injured && !loaned && (
         <span
-          className="absolute left-1 top-1 rounded-xs bg-brand-600 p-0.5 leading-none text-white"
+          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-brand-600 p-0.5 leading-none text-white"
           aria-label="Locked at this position for the next quarter break"
         >
           <svg
@@ -273,6 +272,7 @@ export function PositionToken({
             viewBox="0 0 24 24"
             fill="currentColor"
             className="h-2.5 w-2.5"
+            aria-hidden
           >
             <path
               fillRule="evenodd"
@@ -285,63 +285,58 @@ export function PositionToken({
 
       {caption && (
         <div
-          className={`rounded-t-[5px] border-b px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
+          className={`rounded-t-[11px] border-b px-1 py-0.5 text-center font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
             caption.tone === "move"
               ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-mute"
+              : "border-hairline bg-surface-alt text-ink-dim"
           }`}
         >
           {caption.text}
         </div>
       )}
 
-      <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-1">
-        {/* Position chip — text colour matches the third's time-bar
-            colour (forward=orange, centre=purple, defence=blue) so
-            the legend is implicit. Falls back to neutral ink-dim
-            when the position has no third (shouldn't happen in
-            netball, but keeps the type-narrowing tidy). */}
+      <div className="flex min-h-[52px] items-center gap-2 py-2 pl-1.5 pr-2">
+        {/* Bib disc — white mono on the third's colour (5.2–6.7:1). */}
         <span
-          className={`font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
-            (() => {
-              const t = primaryThirdFor(positionId);
-              if (t === "attack-third") return THIRD_TEXT_COLOR.attack;
-              if (t === "centre-third") return THIRD_TEXT_COLOR.centre;
-              if (t === "defence-third") return THIRD_TEXT_COLOR.defence;
-              return "text-ink-dim";
-            })()
+          aria-hidden
+          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tracking-[0.04em] text-white ${
+            third ? THIRD_DISC[third] : "bg-ink-dim"
           }`}
         >
           {short}
         </span>
 
-        {/* Player name — first + last initial, bold, truncated */}
-        <span className="truncate text-sm font-bold leading-tight text-ink">
-          {display}
-        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          {/* Player name — first + last initial, ellipsis. */}
+          <span className="truncate text-sm font-semibold leading-[18px] tracking-[-0.01em] text-ink">
+            {display}
+          </span>
 
-        {/* Time + colour-coded bar share a single row to keep token
-            height compact (the centre band has to fit three tokens
-            inside one third of the court). */}
-        {stats && totalMs !== undefined && totalMs > 0 && (() => {
-          const total = totalMs || 1;
-          const pct = (v: number) => `${(v / total) * 100}%`;
-          return (
-            <span className="mt-0.5 flex w-full items-center gap-1">
-              <span className="nums font-mono text-[9px] font-semibold leading-none text-ink-dim">
-                {formatMinSec(totalMs)}
+          {/* Bar then time — the same solid stepped fills as AFL's tile. */}
+          {stats && totalMs !== undefined && totalMs > 0 && (() => {
+            const total = totalMs || 1;
+            const segs = [
+              { ms: stats.attack, cls: THIRD_BAR_COLOR.attack },
+              { ms: stats.centre, cls: THIRD_BAR_COLOR.centre },
+              { ms: stats.defence, cls: THIRD_BAR_COLOR.defence },
+            ].filter((s) => s.ms > 0);
+            return (
+              <span className="flex h-3.5 items-center gap-1.5">
+                <span
+                  className="flex h-[3px] flex-1 gap-px overflow-hidden rounded-full bg-bar-track"
+                  aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
+                >
+                  {segs.map((s, i) => (
+                    <span key={i} style={{ width: `${(s.ms / total) * 100}%` }} className={`h-full ${s.cls}`} />
+                  ))}
+                </span>
+                <span className="nums font-mono text-[11px] font-semibold leading-none tabular-nums text-ink">
+                  {formatMinSec(totalMs)}
+                </span>
               </span>
-              <span
-                className="flex h-1 flex-1 overflow-hidden rounded-full bg-surface-alt"
-                aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
-              >
-                <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
-                <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
-                <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
-              </span>
-            </span>
-          );
-        })()}
+            );
+          })()}
+        </span>
       </div>
     </button>
     </SirenPulseHalo>
