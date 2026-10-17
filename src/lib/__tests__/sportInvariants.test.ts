@@ -27,6 +27,12 @@ describe("every sport", () => {
       });
 
       it("has its own playbook, with rules its engine acts on", () => {
+        // Football (soccer)'s How we play is phase 3 of the soccer plan:
+        // until then asking for it fails, rather than lending another's.
+        if (sport.id === "soccer") {
+          expect(() => getSportPlaybook(sport.id)).toThrow("How we play: Football (soccer) isn't built yet");
+          return;
+        }
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
         expect(playbook.engineRuleKinds.length).toBeGreaterThan(0);
@@ -39,6 +45,7 @@ describe("every sport", () => {
     expect(getSportConfig("netball")).toMatchObject({ jerseyNumbers: false, teamSong: true });
     expect(getSportConfig("rugby_league")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("rugby_union")).toMatchObject({ jerseyNumbers: true, teamSong: false });
-    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null, rugby_union: null });
+    expect(getSportConfig("soccer")).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null, rugby_union: null, soccer: null });
   });
 });

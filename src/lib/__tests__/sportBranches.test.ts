@@ -4,9 +4,13 @@
 // "everything else is league" (season time), so a sport without its own
 // branch would have run under another sport's rules without a word.
 // Touch football stands in for a sport Siren doesn't know.
+//
+// Football (soccer) is known but its screens aren't built yet (soccer
+// plan, phases 2–3): each of those branches fails for it by name.
 
 import { describe, expect, it } from "vitest";
-import { aflBranch, noSportBranch } from "@/lib/sports";
+import { aflBranch, noSportBranch, sportNotBuilt } from "@/lib/sports";
+import { getSportPlaybook } from "@/lib/playbook";
 import { scoreFromEvents } from "@/lib/results";
 import { projectGamePlan } from "@/lib/game-plan/project";
 import { gridUnits } from "@/lib/playbook/seasonGrid";
@@ -46,5 +50,19 @@ describe("sport dispatchers", () => {
 
   it("never time an unknown sport as league", () => {
     expect(() => gameTimeByUnit(UNKNOWN, [event], "line", 600)).toThrow(/touch_football/);
+  });
+});
+
+describe("Football (soccer)'s unbuilt surfaces", () => {
+  const unbuilt = (where: string) => `${where}: Football (soccer) isn't built yet`;
+
+  it("says which surface isn't built, by the sport's name", () => {
+    expect(() => sportNotBuilt("soccer", "The live game")).toThrow(unbuilt("The live game"));
+  });
+
+  it("never plans, grids or plays soccer under another sport's rules", () => {
+    expect(() => projectGamePlan({ sport: "soccer" } as never)).toThrow(unbuilt("projectGamePlan"));
+    expect(() => gridUnits("soccer", "line")).toThrow(unbuilt("gridUnits"));
+    expect(() => getSportPlaybook("soccer")).toThrow(unbuilt("How we play"));
   });
 });

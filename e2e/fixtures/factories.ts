@@ -27,6 +27,7 @@ const DEFAULT_AGE_GROUP: Record<SportId, string> = {
   netball: "go",
   rugby_league: "U10",
   rugby_union: "U10",
+  soccer: "U10",
 };
 
 export async function makeTeam(

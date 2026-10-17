@@ -6,7 +6,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { noSportBranch, periodLabels } from "@/lib/sports";
+import { isSoccer, noSportBranch, periodLabels, sportNotBuilt } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -34,6 +34,9 @@ export function ScoringStep({
   playbookRow = null,
   positions = [],
 }: ScoringStepProps) {
+  // Football (soccer)'s setup copy is phase 3 (.planning/SOCCER-PLAN.md).
+  if (isSoccer(sportId)) sportNotBuilt(sportId, "ScoringStep");
+
   // Rugby league has zero coach discretion on the scoring rule:
   // U6/U7 are tag (no scoreboard, ever), U8–U12 play modified tackle
   // with tries + conversions tracked, and U13+ plays international laws

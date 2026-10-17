@@ -7,7 +7,7 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, periodLabels, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, isSoccer, periodLabels, sportNotBuilt, teamSport } from "@/lib/sports";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -31,7 +31,7 @@ const LABELS: Record<string, string> = {
 };
 
 /** Whether the after-game report compares season balance, per sport. */
-const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false };
+const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false, soccer: true };
 
 export async function buildGameReport(
   supabase: SupabaseClient<any, any, any>,
@@ -42,6 +42,8 @@ export async function buildGameReport(
 ): Promise<GameReport | null> {
   if (events.length === 0) return null;
   const sport = teamSport(team.sport);
+  // Football (soccer)'s game report is phase 3 (.planning/SOCCER-PLAN.md).
+  if (isSoccer(sport)) return sportNotBuilt(sport, "The game report");
   const ageCfg = getAgeGroupConfig(sport, team.age_group);
   const periods = periodLabels(sport, ageCfg);
   const periodSeconds = getEffectiveQuarterSeconds(

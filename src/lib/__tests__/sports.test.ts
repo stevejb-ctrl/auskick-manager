@@ -17,6 +17,8 @@ import {
   aflPositionModel,
   netballSport,
   rugbyLeagueSport,
+  rugbyUnionSport,
+  soccerSport,
   isPositionAllowedInZone,
   pickNetballPositionsToFill,
   teamSport,
@@ -38,12 +40,13 @@ describe("sport registry", () => {
     expect(getSportConfig("afl")).toBe(aflSport);
     expect(getSportConfig("netball")).toBe(netballSport);
     expect(getSportConfig("rugby_league")).toBe(rugbyLeagueSport);
+    expect(getSportConfig("rugby_union")).toBe(rugbyUnionSport);
+    expect(getSportConfig("soccer")).toBe(soccerSport);
   });
 
-  it("ALL_SPORT_IDS includes afl, netball, and rugby_league", () => {
-    expect(ALL_SPORT_IDS).toContain("afl");
-    expect(ALL_SPORT_IDS).toContain("netball");
-    expect(ALL_SPORT_IDS).toContain("rugby_league");
+  it("ALL_SPORT_IDS lists every sport, soccer included", () => {
+    expect(ALL_SPORT_IDS).toEqual(["afl", "netball", "rugby_league", "rugby_union", "soccer"]);
+    expect(teamSport("soccer")).toBe("soccer");
   });
 
   it("resolves brand from host header", () => {

@@ -63,6 +63,20 @@ export const GAME_DEFAULTS = {
     U17: [15, 300],
     U18: [15, 300],
   },
+  soccer: {
+    U6: [4, 240],
+    U7: [4, 240],
+    U8: [7, 240],
+    U9: [7, 240],
+    U10: [9, 250],
+    U11: [9, 250],
+    U12: [9, 300],
+    U13: [9, 300],
+    U14: [11, 300],
+    U15: [11, 240],
+    U16: [11, 240],
+    U17: [11, 240],
+  },
 };
 
 /** { on_field_size, sub_interval_seconds } for a team's sport + age group. */

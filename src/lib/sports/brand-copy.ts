@@ -103,6 +103,9 @@ const COPY: Record<SportId, BrandCopy> = {
   // so a brand lookup for it reads the main brand's copy. The
   // homepage's union sport section reads marketing-copy.ts.
   rugby_union: AFL_COPY,
+  // Football (soccer) too: the main brand's copy. Its homepage section
+  // is phase 3.
+  soccer: AFL_COPY,
 };
 
 /**

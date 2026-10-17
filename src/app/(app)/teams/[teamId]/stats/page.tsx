@@ -25,7 +25,7 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, isSoccer, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -51,6 +51,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   if (!team) notFound();
   const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
+  // Football (soccer)'s stats are phase 3 (.planning/SOCCER-PLAN.md).
+  if (isSoccer(sport)) sportNotBuilt(sport, "Stats");
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =

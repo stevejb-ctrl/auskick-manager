@@ -42,16 +42,19 @@ const NAME_EXAMPLE: Record<Sport, string> = {
   netball: "e.g. Kingsway Flyers",
   rugby_league: "e.g. Kingsway Tigers",
   rugby_union: "e.g. Kingsway Rams",
+  soccer: "e.g. Kingsway United",
 };
 
 // Default age group per sport: a "common entry" rather than the first
 // id in the catalog — most clubs start at U10 for AFL and both rugbys,
-// and at NetSetGO "go" for netball.
+// and at NetSetGO "go" for netball. Soccer isn't a pill yet (phase 2
+// adds it); U10 is MiniRoos' 9 a side.
 const DEFAULT_AGE: Record<Sport, string> = {
   afl: "U10",
   netball: "go",
   rugby_league: "U10",
   rugby_union: "U10",
+  soccer: "U10",
 };
 
 export function TeamBasicsForm({

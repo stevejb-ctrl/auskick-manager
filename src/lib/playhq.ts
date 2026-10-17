@@ -80,6 +80,8 @@ export const PLAYHQ_TENANT: Record<Sport, string | null> = {
   netball: "netball-australia",
   rugby_league: null,
   rugby_union: null,
+  // Junior soccer's team sheets live in Dribl and Squadi, not PlayHQ.
+  soccer: null,
 };
 
 const TENANT_SPORT: Record<string, string> = {

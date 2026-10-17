@@ -27,7 +27,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -193,6 +193,9 @@ export default async function LivePage({ params }: LivePageProps) {
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
+  // Football (soccer)'s live game is phase 2 (.planning/SOCCER-PLAN.md).
+  // Until then a soccer game stops here, never on another sport's screen.
+  if (isSoccer(sport)) sportNotBuilt(sport, "The live game");
   // track_scoring is sport-agnostic — both AFL and netball flows
   // honour it. Hoisted ABOVE the netball branch (was nested inside
   // the AFL branch) so plan 04-04's NetballLiveGame can consume it.

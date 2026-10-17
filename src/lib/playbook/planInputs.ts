@@ -10,7 +10,7 @@ import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { aflPlaybookInput, withBalanceSeason, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, type NetballPlaybookInput } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
-import { isRugby, noSportBranch } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 
 export interface GamePlanPlaybooks {
   aflPlaybook?: AflPlaybookInput;
@@ -43,6 +43,8 @@ export async function gamePlanPlaybooks(
       ),
     };
   }
+  // Football (soccer)'s How we play is phase 3.
+  if (isSoccer(sport)) return sportNotBuilt(sport, "gamePlanPlaybooks");
   if (!isRugby(sport)) return noSportBranch(sport, "gamePlanPlaybooks");
   return {
     leaguePlaybook: leaguePlaybookInput(

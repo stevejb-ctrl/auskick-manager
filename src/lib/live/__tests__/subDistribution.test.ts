@@ -4,6 +4,7 @@ import {
   nextSubBoundaryMs,
   subSpacingMs,
   subIntervalStartFloor,
+  inSubCutoff,
 } from "@/lib/live/subDistribution";
 
 const MIN = 60_000;
@@ -57,6 +58,66 @@ describe("subSpacingMs", () => {
   it("is one slab = quarterMs/(N+1)", () => {
     expect(subSpacingMs({ quarterMs: Q12, subsPerQuarter: 3 })).toBe(3 * MIN);
     expect(subSpacingMs({ quarterMs: Q12, subsPerQuarter: 2 })).toBe(4 * MIN);
+  });
+});
+
+// Sub windows (soccer plan): N windows a half, none in the final M
+// minutes. The cutoff is shared, so any sport can use it; without one
+// nothing changes.
+describe("sub windows with a final-minutes cutoff", () => {
+  const H30 = 30 * MIN;
+  const H20 = 20 * MIN;
+
+  it("changes nothing without a cutoff", () => {
+    for (const quarterMs of [Q12, H20, H30, 10 * MIN + 7]) {
+      for (let n = 1; n <= 8; n++) {
+        const was = subDueBoundariesMs({ quarterMs, subsPerQuarter: n });
+        expect(subDueBoundariesMs({ quarterMs, subsPerQuarter: n, cutoffMs: 0 })).toEqual(was);
+        expect(subSpacingMs({ quarterMs, subsPerQuarter: n, cutoffMs: 0 })).toBe(subSpacingMs({ quarterMs, subsPerQuarter: n }));
+      }
+    }
+  });
+
+  it("keeps the even spread while its last window clears the cutoff (Tasmania: 3 a half, none in the last 2)", () => {
+    expect(subDueBoundariesMs({ quarterMs: H30, subsPerQuarter: 3, cutoffMs: 2 * MIN })).toEqual([
+      7.5 * MIN,
+      15 * MIN,
+      22.5 * MIN,
+    ]);
+    expect(subSpacingMs({ quarterMs: H30, subsPerQuarter: 3, cutoffMs: 2 * MIN })).toBe(7.5 * MIN);
+  });
+
+  it("pulls the windows in to end at the cutoff when the even spread would cross it", () => {
+    // Six windows in a 20-min half would land the last at 17:09, inside
+    // a 3-minute cutoff: they spread across the open 17 minutes instead.
+    const bs = subDueBoundariesMs({ quarterMs: H20, subsPerQuarter: 6, cutoffMs: 3 * MIN });
+    expect(bs).toHaveLength(6);
+    expect(bs[bs.length - 1]).toBe(17 * MIN);
+    expect(bs[0]).toBeCloseTo((17 * MIN) / 6);
+    expect(subSpacingMs({ quarterMs: H20, subsPerQuarter: 6, cutoffMs: 3 * MIN })).toBeCloseTo((17 * MIN) / 6);
+    // The spread is the same at the edge of the rule: 3 windows exactly
+    // a slab (5 min) before the hooter.
+    expect(subDueBoundariesMs({ quarterMs: H20, subsPerQuarter: 3, cutoffMs: 5 * MIN })).toEqual([5 * MIN, 10 * MIN, 15 * MIN]);
+  });
+
+  it("has no windows when the cutoff leaves no time open", () => {
+    expect(subDueBoundariesMs({ quarterMs: H20, subsPerQuarter: 3, cutoffMs: H20 })).toEqual([]);
+    expect(subDueBoundariesMs({ quarterMs: H20, subsPerQuarter: 3, cutoffMs: H20 + MIN })).toEqual([]);
+    expect(subSpacingMs({ quarterMs: H20, subsPerQuarter: 3, cutoffMs: H20 })).toBe(0);
+  });
+
+  it("offers no window after the last one before the cutoff", () => {
+    const half = { quarterMs: H20, subsPerQuarter: 6, cutoffMs: 3 * MIN };
+    expect(nextSubBoundaryMs({ ...half, nowMs: 16 * MIN })).toBe(17 * MIN);
+    expect(nextSubBoundaryMs({ ...half, nowMs: 17 * MIN })).toBeNull();
+  });
+
+  it("says when the clock is inside the cutoff (its edge is still open)", () => {
+    const half = { quarterMs: H20, cutoffMs: 2 * MIN };
+    expect(inSubCutoff({ ...half, nowMs: 17 * MIN })).toBe(false);
+    expect(inSubCutoff({ ...half, nowMs: 18 * MIN })).toBe(false);
+    expect(inSubCutoff({ ...half, nowMs: 18 * MIN + 1 })).toBe(true);
+    expect(inSubCutoff({ quarterMs: H20, nowMs: H20 - 1 })).toBe(false);
   });
 });
 
