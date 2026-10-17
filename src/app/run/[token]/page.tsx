@@ -13,6 +13,7 @@ import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
 import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -164,9 +165,16 @@ export default async function RunPage({ params }: RunPageProps) {
     const { data: seasonRaw } = otherGameIds.length
       ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
       : { data: [] as GameEvent[] };
+    // How we play, as on the coach's page (a game under way plays what it
+    // kicked off with).
+    const howWePlay = soccerHowWePlay(
+      await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      ageCfgS.id,
+      g.playbook_snapshot,
+    );
     const season: SoccerSeasonBalance = {
-      time: seasonTimeByUnit(sport, (seasonRaw ?? []) as GameEvent[], "line"),
-      weight: seasonBalanceWeight(sport, "balanced"),
+      time: seasonTimeByUnit(sport, (seasonRaw ?? []) as GameEvent[], "line", { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
 
@@ -210,6 +218,8 @@ export default async function RunPage({ params }: RunPageProps) {
               onFieldSize={g.on_field_size}
               defaultSubMinutes={g.sub_interval_seconds / 60}
               season={season}
+              keeperStrategy={howWePlay.keeperStrategy}
+              keeperPrefs={howWePlay.prefs}
               initialDraft={
                 draftRow
                   ? {
@@ -242,6 +252,8 @@ export default async function RunPage({ params }: RunPageProps) {
           trackScoring={trackScoring}
           events={events}
           season={season}
+          keeperStrategy={howWePlay.keeperStrategy}
+          keeperPrefs={howWePlay.prefs}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}

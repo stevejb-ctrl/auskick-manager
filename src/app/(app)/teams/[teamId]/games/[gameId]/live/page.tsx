@@ -21,6 +21,7 @@ import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
 import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
@@ -318,13 +319,20 @@ export default async function LivePage({ params }: LivePageProps) {
       ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
     ]);
     const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // How we play: the keeper strategy, keen keepers and kids who'd
+    // rather not go in goal, and season balance (a game under way plays
+    // what it kicked off with).
+    const howWePlay = soccerHowWePlay(
+      await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null),
+      ageCfgS.id,
+      g.playbook_snapshot,
+    );
     // Season time per line and in goal (this game left out) feeds the
     // suggestions: the keeper by season keeper minutes, lines by debt.
     const seasonEvents = (await getSeasonEvents(params.teamId)).filter((e) => e.game_id !== params.gameId);
     const season: SoccerSeasonBalance = {
-      time: seasonTimeByUnit(sport, seasonEvents as GameEvent[], "line"),
-      // How we play sets the strength from phase 3; balanced until then.
-      weight: seasonBalanceWeight(sport, "balanced"),
+      time: seasonTimeByUnit(sport, seasonEvents as GameEvent[], "line", { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
 
@@ -382,6 +390,8 @@ export default async function LivePage({ params }: LivePageProps) {
               onFieldSize={g.on_field_size}
               defaultSubMinutes={g.sub_interval_seconds / 60}
               season={season}
+              keeperStrategy={howWePlay.keeperStrategy}
+              keeperPrefs={howWePlay.prefs}
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={soccerAvailabilityPanel}
@@ -405,6 +415,8 @@ export default async function LivePage({ params }: LivePageProps) {
           trackScoring={trackScoring}
           events={events}
           season={season}
+          keeperStrategy={howWePlay.keeperStrategy}
+          keeperPrefs={howWePlay.prefs}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

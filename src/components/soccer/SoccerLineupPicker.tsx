@@ -46,7 +46,8 @@ import {
   placeInSoccerLineup,
   swapInSoccerLineup,
 } from "@/lib/sports/soccer/live";
-import type { SoccerAgeGroupConfig, SoccerUnit } from "@/lib/sports/soccer/types";
+import type { SoccerAgeGroupConfig, SoccerKeeperStrategy, SoccerUnit } from "@/lib/sports/soccer/types";
+import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
@@ -64,6 +65,9 @@ interface SoccerLineupPickerProps {
   defaultSubMinutes: number;
   /** Season time per line and in goal, for the suggestion. */
   season?: SoccerSeasonBalance;
+  /** How we play: who goes in goal, and who'd rather not. */
+  keeperStrategy?: SoccerKeeperStrategy;
+  keeperPrefs?: SoccerKeeperPrefs;
   initialDraft: { lineup: SoccerLineup; updated_at: string } | null;
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
@@ -78,6 +82,8 @@ export function SoccerLineupPicker({
   onFieldSize: initialSize,
   defaultSubMinutes,
   season,
+  keeperStrategy,
+  keeperPrefs,
   initialDraft,
   initialLoanedIds,
   availabilityPanel,
@@ -98,7 +104,15 @@ export function SoccerLineupPicker({
   const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const suggest = (size: number, shape: string | null, kids: string[]) =>
-    suggestSoccerLineup({ ageGroup, onFieldSize: size, formationId: shape, players: kids, season });
+    suggestSoccerLineup({
+      ageGroup,
+      onFieldSize: size,
+      formationId: shape,
+      players: kids,
+      season,
+      keeperStrategy,
+      prefs: keeperPrefs,
+    });
 
   const [lineup, setLineup] = useState<SoccerLineup>(() => {
     if (initialDraft) {
@@ -377,7 +391,7 @@ export function SoccerLineupPicker({
           to={lineup.keeper ? playerById.get(lineup.keeper) ?? null : null}
           candidates={players.filter((p) => !loanedIds.has(p.id))}
           suggestedId={suggestedKeeper}
-          strategyNote={soccerKeeperNote(ageGroup.keeper)}
+          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
           onPick={pickKeeper}
           pending={isPending}
         />

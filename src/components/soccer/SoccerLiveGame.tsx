@@ -84,8 +84,10 @@ import {
   SOCCER_LINES,
   type SoccerAgeGroupConfig,
   type SoccerFormation,
+  type SoccerKeeperStrategy,
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
+import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { SoccerScoreBug } from "./SoccerScoreBug";
@@ -111,6 +113,9 @@ interface SoccerLiveGameProps {
   events: GameEvent[];
   /** Season time per line and in goal, for the half-time plan. */
   season?: SoccerSeasonBalance;
+  /** How we play: who goes in goal, and who'd rather not. */
+  keeperStrategy?: SoccerKeeperStrategy;
+  keeperPrefs?: SoccerKeeperPrefs;
   isAdmin: boolean;
   exitHref: string;
 }
@@ -178,6 +183,8 @@ export function SoccerLiveGame({
   trackScoring,
   events,
   season,
+  keeperStrategy,
+  keeperPrefs,
   isAdmin,
   exitHref,
 }: SoccerLiveGameProps) {
@@ -269,9 +276,11 @@ export function SoccerLiveGame({
             onFieldSize: game.on_field_size,
             formationId: shapeOf(ageGroup, lastSetLineup(events), game.on_field_size).id,
             season,
+            keeperStrategy,
+            prefs: keeperPrefs,
           })
         : null,
-    [isAtBreak, base, ageGroup, game.on_field_size, events, season],
+    [isAtBreak, base, ageGroup, game.on_field_size, events, season, keeperStrategy, keeperPrefs],
   );
   const [storedDraft, setBreakDraftState] = useState<SoccerLineup | null>(null);
   useEffect(() => {
@@ -689,7 +698,7 @@ export function SoccerLiveGame({
               (soccerUnitOf(breakDraft, p.id) !== null || breakDraft.bench.includes(p.id)),
           )}
           suggestedId={halfTimePlan?.keeper.to ?? null}
-          strategyNote={soccerKeeperNote(ageGroup.keeper)}
+          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
           onPick={(pid) => {
             if (breakDraft.keeper === pid) return;
             setBreakDraft(
