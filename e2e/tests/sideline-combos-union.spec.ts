@@ -6,10 +6,12 @@
 //     the bench, a back is hurt and replaced, a late arrival joins the
 //     bench; at the break the lent kid comes back; H2 starts. The
 //     replay must agree, on union's points.
-//   - Named positions follow the side size: U10 at 12 a side plays N8
-//     and no flankers; U12 at 15 plays all fifteen.
-//   - A union role is union's: home "LK4" is stored as union's key, never
-//     league's lock.
+//   - Named positions follow the side size: U10 at 12 a side plays N8,
+//     both wings and one centre, and no flankers; U12 at 15 plays all
+//     fifteen. A U11 lineup's backline reads Halfback / Centre /
+//     Five-eighth, then Left wing / Fullback / Right wing.
+//   - A union role is union's: home "2R4" (the 2nd row) is stored as
+//     union's key, never league's.
 //   - A 15-a-side field fits a 375 px phone without sideways scroll.
 
 import { test, expect, type Page } from "@playwright/test";
@@ -146,7 +148,8 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
 });
 
 for (const { ageGroup, size, plays, notPlays } of [
-  { ageGroup: "U10", size: 12, plays: ["N8", "HB9", "FE10", "LK4", "LK5"], notPlays: ["BF6", "OF7", "RW14"] },
+  // 12 a side: both wings, one centre; the locks are the 2nd row (Steve, 17 Oct 2026).
+  { ageGroup: "U10", size: 12, plays: ["N8", "HB9", "FE10", "2R4", "2R5", "LW11", "C12", "RW14", "FB15"], notPlays: ["BF6", "OF7", "IC12", "OC13", "LK4"] },
   { ageGroup: "U12", size: 15, plays: ["LHP1", "BF6", "OF7", "N8", "RW14", "FB15"], notPlays: [] as string[] },
 ]) {
   test(`union ${ageGroup} named positions at ${size} a side`, async ({ page }) => {
@@ -216,7 +219,7 @@ test("union named positions: the hooker's replacement plays hooker and nobody el
       { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_union" }, created_at: t(19) },
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
-  const labels = ["LHP1", "HK2", "THP3", "LK4", "LK5", "BF6", "OF7", "N8", "HB9", "FE10", "LW11", "IC12", "OC13", "RW14", "FB15"];
+  const labels = ["LHP1", "HK2", "THP3", "2R4", "2R5", "BF6", "OF7", "N8", "HB9", "FE10", "LW11", "IC12", "OC13", "RW14", "FB15"];
 
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
@@ -244,7 +247,47 @@ test("union named positions: the hooker's replacement plays hooker and nobody el
   }
 });
 
-test("a union home position is union's own: LK4, never league's lock", async ({ page }) => {
+// Steve, 17 Oct 2026: setting up a U11 side, the lineup should draw the
+// backline as Halfback / Centre / Five-eighth, then Left wing / Fullback /
+// Right wing, and the forwards front row first, then the 2nd row and N8.
+test("union U11 lineup: each kid stands in their position's spot, row by row", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U11", name: `RU-U11-ROWS ${Date.now()}` });
+  await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  expect(game.on_field_size).toBe(12);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const field = page.getByRole("region", { name: "On field" });
+  await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(12, { timeout: 15_000 });
+  const at = async (label: string) => {
+    const box = await field.locator("[data-testid^='league-player-tile-']").filter({ has: page.getByText(label, { exact: true }) }).boundingBox();
+    expect(box, label).not.toBeNull();
+    return { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+  };
+  const row = async (labels: string[]) => {
+    const spots = await Promise.all(labels.map(at));
+    for (const s of spots) expect(Math.abs(s.y - spots[0].y), labels.join(" ")).toBeLessThan(4);
+    for (let i = 1; i < spots.length; i++) expect(spots[i].x, labels.join(" ")).toBeGreaterThan(spots[i - 1].x);
+    return spots[0].y;
+  };
+  const front = await row(["LHP1", "HK2", "THP3"]);
+  const second = await row(["2R4", "2R5", "N8"]);
+  const halves = await row(["HB9", "C12", "FE10"]);
+  const back = await row(["LW11", "FB15", "RW14"]);
+  expect(front).toBeLessThan(second);
+  expect(second).toBeLessThan(halves);
+  expect(halves).toBeLessThan(back);
+});
+
+test("a union home position is union's own: 2R4, never league's second row", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);
   const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12", name: `RU-ROLE ${Date.now()}` });
@@ -255,11 +298,11 @@ test("a union home position is union's own: LK4, never league's lock", async ({ 
   await waitForHydration(page);
   await page.getByRole("button", { name: `Role for ${kid.full_name}` }).click();
   const home = page.getByRole("radiogroup", { name: "Home position" });
-  // Union's full side: its locks are 4 and 5, its halves 9 and 10.
-  await expect(home.getByRole("radio", { name: "Lock (LK4)" })).toBeVisible();
-  await expect(home.getByRole("radio", { name: "Lock (LK5)" })).toBeVisible();
-  await expect(home.getByRole("radio", { name: /Second row|\(2R\)|\(LK\)$/ })).toHaveCount(0);
-  await home.getByRole("radio", { name: "Lock (LK4)" }).click();
+  // Union's full side: its 2nd row is 4 and 5, its halves 9 and 10.
+  await expect(home.getByRole("radio", { name: "2nd row (2R4)" })).toBeVisible();
+  await expect(home.getByRole("radio", { name: "2nd row (2R5)" })).toBeVisible();
+  await expect(home.getByRole("radio", { name: /Second row|\(2R\)|Lock/ })).toHaveCount(0);
+  await home.getByRole("radio", { name: "2nd row (2R4)" }).click();
   await page.getByRole("button", { name: "Save role" }).click();
 
   await expect

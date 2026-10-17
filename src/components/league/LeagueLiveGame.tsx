@@ -99,6 +99,7 @@ import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/type
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { periodLabels } from "@/lib/sports";
@@ -2064,6 +2065,7 @@ export function LeagueLiveGame({
                   )
                 : undefined
             }
+            positionOrder={linePositionOrder(leaguePlaybook?.positions)}
             conversionByPlayer={conversionByPlayer}
             kickoffTakerIds={kickoffTakerIds}
             injuredIds={injuredSet}

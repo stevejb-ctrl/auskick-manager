@@ -67,6 +67,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
@@ -1269,6 +1270,7 @@ export function LeagueLineupPicker({
               { forwards: forwardIds, backs: backIds },
               leaguePlaybook,
             )}
+            positionOrder={linePositionOrder(leaguePlaybook?.positions)}
             keepOnIds={keepOnIds(playerRoles.roles)}
             selectedPlayerId={selectedPlayerId}
             chipModes={chipModes}

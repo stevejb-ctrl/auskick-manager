@@ -235,13 +235,20 @@ function rowSizes(count: number): number[] {
 
 const ROW_XS: Record<number, number[]> = { 1: [50], 2: [32, 68], 3: [22, 50, 78] };
 
-/** One spot per player: `forwards` forwards, the rest backs, a fullback last. */
+/**
+ * One spot per player: `forwards` forwards, the rest backs, a fullback
+ * last in the list. When the backs (fullback included) fill rows of three,
+ * the fullback stands in the middle of the last row (12 a side: left wing,
+ * fullback, right wing — Steve, 17 Oct 2026); otherwise alone behind them.
+ */
 export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlot[] {
   const size = Math.max(1, Math.round(onFieldSize));
   const fwd = Math.max(0, Math.min(size - 1, Math.round(forwards)));
+  const backCount = size - fwd;
+  const fullbackInRow = backCount >= 3 && backCount % 3 === 0;
   const forwardRows = rowSizes(fwd);
-  const backRows = rowSizes(size - fwd - 1);
-  const rowCount = forwardRows.length + backRows.length + 1;
+  const backRows = fullbackInRow ? rowSizes(backCount) : rowSizes(backCount - 1);
+  const rowCount = forwardRows.length + backRows.length + (fullbackInRow ? 0 : 1);
   const yOf = (row: number) => (rowCount === 1 ? 50 : 13 + ((90 - 13) * row) / (rowCount - 1));
   const slots: FieldSlot[] = [];
   let row = 0;
@@ -251,10 +258,15 @@ export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlo
     row++;
   }
   let b = 0;
-  for (const n of backRows) {
-    for (const x of ROW_XS[n]) slots.push({ id: `back-${++b}`, role: "back", x, y: yOf(row) });
+  let fullback: FieldSlot = { id: "fullback", role: "fullback", x: 50, y: yOf(row + backRows.length) };
+  backRows.forEach((n, r) => {
+    const last = r === backRows.length - 1;
+    for (const x of ROW_XS[n]) {
+      if (fullbackInRow && last && x === 50) fullback = { id: "fullback", role: "fullback", x, y: yOf(row) };
+      else slots.push({ id: `back-${++b}`, role: "back", x, y: yOf(row) });
+    }
     row++;
-  }
-  slots.push({ id: "fullback", role: "fullback", x: 50, y: yOf(row) });
+  });
+  slots.push(fullback);
   return slots;
 }

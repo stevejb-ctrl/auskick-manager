@@ -33,6 +33,7 @@ import {
   type FieldSlot,
 } from "@/lib/sports/rugby_league/fieldFormation";
 import type { RugbySport } from "@/lib/sports/registry";
+import { placeByPosition } from "@/lib/sports/rugby/fieldPositions";
 
 /**
  * Each rugby sport's pitch markings. League: 10 m and 20 m lines;
@@ -210,6 +211,13 @@ interface LeagueFieldProps {
   vestByPlayer?: Record<string, VestType>;
   /** Named positions: playerId → position label on the tile. */
   positionLabels?: Record<string, string>;
+  /**
+   * Named positions: each line's labels in their listed order. Union
+   * stands each kid in their position's spot, row by row (a U11 backline:
+   * Halfback / Centre / Five-eighth, then Left wing / Fullback / Right
+   * wing). League keeps its own formation routing (vest slots).
+   */
+  positionOrder?: Record<"forwards" | "backs", string[]>;
   /** Kids with a season keep-on role (lineup screens). */
   keepOnIds?: Set<string>;
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
@@ -281,6 +289,7 @@ export function LeagueField({
   zoneMsByPlayer,
   vestByPlayer,
   positionLabels,
+  positionOrder,
   keepOnIds,
   conversionByPlayer,
   kickoffTakerIds,
@@ -437,13 +446,28 @@ export function LeagueField({
             const slots = forwardsBySize
               ? unionFieldSlots(size, forwardsBySize[size] ?? Math.floor(size / 2))
               : getFieldSlots(size, vestRequirements);
-            const arrangement = arrangeFieldSlots(
-              players,
-              vestByPlayer ?? {},
-              slots,
-              forwardPlayers,
-              backPlayers,
-            );
+            // Union with named positions: each kid in their position's
+            // spot (fieldPositions.ts). Otherwise the lineup-order routing.
+            const placed =
+              forwardsBySize && positionOrder && positionLabels && forwardPlayers && backPlayers
+                ? placeByPosition(
+                    slots,
+                    forwardPlayers.map((p) => p.id),
+                    backPlayers.map((p) => p.id),
+                    positionLabels,
+                    positionOrder,
+                  )
+                : null;
+            const byId = new Map([...players, ...(forwardPlayers ?? []), ...(backPlayers ?? [])].map((p) => [p.id, p]));
+            const arrangement = placed
+              ? slots.map((slot) => ({ slot, player: byId.get(placed[slot.id] ?? "") ?? null }))
+              : arrangeFieldSlots(
+                  players,
+                  vestByPlayer ?? {},
+                  slots,
+                  forwardPlayers,
+                  backPlayers,
+                );
             return arrangement.map(({ slot, player }) => {
               const slotStyle: React.CSSProperties = {
                 left: `${slot.x}%`,
