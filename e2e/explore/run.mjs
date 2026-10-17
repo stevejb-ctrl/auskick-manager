@@ -493,6 +493,30 @@ async function seedTeam(admin, email, name, origin) {
       late: 1,
       onField: 12,
     },
+    // Football (soccer) MiniRoos U9: 7 a side with a keeper, everyone
+    // has a turn in goal. Kid 2 is a keen keeper; kid 5 would rather
+    // not go in goal. 10 here (7 + 3 on the bench).
+    "soccer-u9-gameday": {
+      team: { name: "Kingsway United", age_group: "U9", sport: "soccer" },
+      opponent: "Coogee Crabs",
+      playbook: { strategy: "turns" },
+      squad: 10,
+      onField: 7,
+      prefs: [
+        [2, { line: "gk", kind: "home" }],
+        [5, { line: "gk", kind: "never" }],
+      ],
+    },
+    // The same side with one more kid who turns up late
+    // (sideline-chaos-soccer).
+    "soccer-u9-sideline": {
+      team: { name: "Kingsway United", age_group: "U9", sport: "soccer" },
+      opponent: "Coogee Crabs",
+      playbook: { strategy: "turns" },
+      squad: 11,
+      late: 1,
+      onField: 7,
+    },
   };
   // Each age group's usual on-field size. Games have no size default
   // (migration 0063), so every seeded game takes its team's. Also
@@ -504,6 +528,7 @@ async function seedTeam(admin, email, name, origin) {
     netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
     rugby_league: { U6: 6, U7: 6, U8: 8, U9: 8, U10: 11, U11: 11, U12: 13, U13: 13, U14: 13, U15: 13, U16: 13, U17: 13 },
     rugby_union: { U6: 7, U7: 7, U8: 7, U9: 10, U10: 12, U11: 12, U12: 15, U13: 15, U14: 15, U15: 15, U16: 15, U17: 15, U18: 15 },
+    soccer: { U6: 4, U7: 4, U8: 7, U9: 7, U10: 9, U11: 9, U12: 9, U13: 9, U14: 11, U15: 11, U16: 11, U17: 11 },
   };
   const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
