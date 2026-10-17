@@ -20,3 +20,11 @@ export const SCORE_CHIP =
   "hover:bg-hairline " +
   "active:bg-hairline motion-safe:active:scale-[0.94] " +
   "disabled:pointer-events-none disabled:opacity-60";
+
+// The team names above each scorebug total, in every sport. They wrap
+// to a second line rather than truncate: at 375 the canvas's 0.12em
+// tracking cut "BRUNSWICK MAGPIES" mid-word. The columns are
+// bottom-aligned, so a wrapped name grows upward and the totals keep
+// one baseline.
+export const SCORE_TEAM_NAME =
+  "line-clamp-2 break-words font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim";

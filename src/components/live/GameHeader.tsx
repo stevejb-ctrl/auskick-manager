@@ -8,7 +8,7 @@ import {
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
-import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { hapticTap } from "@/lib/haptics";
 
 /** What the break after this period is called. */
@@ -166,7 +166,6 @@ export function GameHeader({
   // G·B recede to ink-dim. align-items end puts one baseline across
   // all three columns — totals line up with the pill, buttons with
   // Q-BY-Q.
-  const NAME = "truncate font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim";
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
   const TALLY = "text-[13px] font-medium text-ink-dim";
   const CHIP = `${SCORE_CHIP} w-12`;
@@ -184,7 +183,7 @@ export function GameHeader({
           without first having to tap the player tile. */}
       <div className="flex min-w-0 flex-col gap-2">
         <div className="min-w-0">
-          <p className={NAME}>{teamName}</p>
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{teamName}</p>
           <p className="nums mt-1 flex items-baseline gap-2 font-mono tabular-nums text-ink">
             {/* The total rolls up one slot on a score; the tally trails
                 it by 40ms. */}
@@ -294,7 +293,7 @@ export function GameHeader({
       {/* Right: opponent — mirror: G·B, then the total. */}
       <div className="flex min-w-0 flex-col items-end gap-2 text-right">
         <div className="min-w-0 max-w-full">
-          <p className={NAME}>{opponentName}</p>
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{opponentName}</p>
           <p className="nums mt-1 flex items-baseline justify-end gap-2 font-mono tabular-nums text-ink">
             <RollingNumber value={`${opp.goals}·${opp.behinds}`} className={TALLY} delayMs={40} />
             <RollingNumber value={points(opp)} className={TOTAL} />

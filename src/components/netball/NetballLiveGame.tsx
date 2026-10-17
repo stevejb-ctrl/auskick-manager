@@ -109,7 +109,7 @@ import { UndoStrip } from "@/components/live/UndoStrip";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
-import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -2741,7 +2741,7 @@ function NetballScoreBug({
           one baseline across the three columns. */}
       <div className="flex min-w-0 flex-col gap-2">
         <div className="min-w-0">
-          <p className="truncate font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
             {teamName}
           </p>
           <p className="nums mt-1 font-mono tabular-nums text-ink">
@@ -2866,7 +2866,7 @@ function NetballScoreBug({
       {/* Right: opponent — mirror layout */}
       <div className="flex min-w-0 flex-col items-end gap-2 text-right">
         <div className="min-w-0 max-w-full">
-          <p className="truncate font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim">
+          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
             {opponentName}
           </p>
           <p className="nums mt-1 font-mono tabular-nums text-ink">
