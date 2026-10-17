@@ -147,6 +147,22 @@ export function benchInSoccerLineup(lineup: SoccerLineup, pid: string): SoccerLi
 }
 
 /**
+ * A draft made earlier (say, the half-time plan before a late arrival)
+ * with every kid in the game now: anyone in `current` the draft doesn't
+ * place goes to the end of its bench. Starting the half with the draft
+ * as it was would have dropped them from the game.
+ */
+export function withEveryoneInSoccerLineup(draft: SoccerLineup, current: SoccerLineup): SoccerLineup {
+  const placed = new Set([...soccerOnFieldIds(draft), ...draft.bench]);
+  const missing = [...soccerOnFieldIds(current), ...current.bench].filter((id) => !placed.has(id));
+  return missing.length === 0 ? draft : { ...draft, bench: [...draft.bench, ...missing] };
+}
+
+function soccerOnFieldIds(lu: SoccerLineup): string[] {
+  return [...(lu.keeper ? [lu.keeper] : []), ...Object.values(lu.lines).flat()];
+}
+
+/**
  * The draft with every kid who can't play (`out`: hurt, lent, gone)
  * moved off the field to the end of the bench, places left empty.
  */

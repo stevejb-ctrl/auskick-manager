@@ -5,6 +5,7 @@ import {
   placeInSoccerLineup,
   soccerSubDue,
   swapInSoccerLineup,
+  withEveryoneInSoccerLineup,
 } from "@/lib/sports/soccer/live";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 
@@ -109,6 +110,19 @@ describe("placeInSoccerLineup", () => {
   it("won't put a second kid in goal", () => {
     const before = lineup();
     expect(placeInSoccerLineup(before, "b1", "gk")).toBe(before);
+  });
+});
+
+describe("withEveryoneInSoccerLineup", () => {
+  it("puts a kid who arrived after the plan was made on its bench", () => {
+    const plan = lineup();
+    const now = { ...lineup(), bench: ["b1", "b2", "late"] };
+    expect(withEveryoneInSoccerLineup(plan, now).bench).toEqual(["b1", "b2", "late"]);
+  });
+
+  it("leaves a plan that already places everyone as it is", () => {
+    const plan = swapInSoccerLineup(lineup(), "b1", "a1");
+    expect(withEveryoneInSoccerLineup(plan, lineup())).toBe(plan);
   });
 });
 
