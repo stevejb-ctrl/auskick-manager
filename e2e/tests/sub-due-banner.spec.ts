@@ -90,8 +90,11 @@ async function expectBannerNotModal(page: Page, chip: string) {
 async function expectCardIsTheAlert(page: Page) {
   const alerts = page.getByRole("alert");
   await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
-  await expect(alerts).toHaveCount(1);
-  const card = alerts.first();
+  // Next's route announcer is an empty role="alert"; count the ones
+  // that say something.
+  const spoken = alerts.filter({ hasText: /\S/ });
+  await expect(spoken).toHaveCount(1);
+  const card = spoken.first();
   await expect(card).toContainText("Rotate a player off");
   await expect(card.getByTestId("swapcard-apply-all")).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);

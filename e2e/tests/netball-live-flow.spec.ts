@@ -579,15 +579,17 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
     .getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i })
     .click({ timeout: 5_000 });
 
-  // PositionToken renders a chip with aria-label "1 goal" when the
-  // player's playerGoals count hits 1 (PositionToken.tsx:162-167).
-  // Pre-fix, playerGoals stays empty and the chip never renders, so
+  // PositionToken appends ", 1 goal" to its accessible name (and
+  // shows the goal chip) once the player's playerGoals count hits 1.
+  // Pre-fix, playerGoals stays empty and the suffix never appears, so
   // this assertion fails red within the timeout.
   await expect(
-    page.getByLabel(/^1 goal$/i),
+    page.getByRole("button", {
+      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}, 1 goal$`, "i"),
+    }),
   ).toBeVisible({ timeout: 3_000 });
 
-  // The scorebug's team-total integer renders inside a 36px span.
+  // The scorebug's team-total integer renders inside a 44px span.
   // Pre-fix, team.goals stays 0 and "1" never appears in that span.
   // Post-fix, the integer flips to "1" once router.refresh() lands.
   // Use a class-based locator so the team name (which can also
@@ -595,7 +597,7 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
   // doesn't accidentally match.
   await expect(
     page
-      .locator('span.text-\\[36px\\]')
+      .locator('span.text-\\[44px\\]')
       .filter({ hasText: /^1$/ }),
   ).toBeVisible({ timeout: 3_000 });
 });

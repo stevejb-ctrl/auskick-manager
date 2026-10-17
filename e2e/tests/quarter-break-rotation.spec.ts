@@ -188,19 +188,18 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
 
   // PlayerTile buttons in the live Field render their accessible
   // name from concatenated child text — starting with the zone
-  // short label "FWD"/"CEN"/"BCK" then first name then jersey/time.
+  // short label "FWD"/"CEN"/"BCK" then jersey, first name and time.
   // Match by accessible-name prefix and extract the first name.
   const fwdNamesInLive = await page
-    .getByRole("button", { name: /^FWD\s/ })
+    .getByRole("button", { name: /^FWD/ })
     .evaluateAll((btns) =>
       btns
         .map((b) => (b.textContent ?? "").trim())
-        // Text content is "FWD<First>#N · <time>..." with no
-        // separators between tokens — split on whitespace OR # to
-        // pull the first name reliably.
+        // Text content is "FWD#N<First><time>..." with no
+        // separators between tokens.
         .map((text) => {
-          // Strip the leading "FWD" then take the next alphabetic run.
-          const stripped = text.replace(/^FWD\s*/, "");
+          // Strip the leading "FWD" and jersey, then take the next alphabetic run.
+          const stripped = text.replace(/^FWD\s*/, "").replace(/^#\d+\s*/, "");
           const m = stripped.match(/^([A-Za-z]+)/);
           return m ? m[1] : "";
         })
