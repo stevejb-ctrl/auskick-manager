@@ -108,7 +108,7 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   await fillSheet.getByRole("button", { name: new RegExp(lent.full_name, "i") }).click();
 
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The game as it replays ─────────────────────────────────────

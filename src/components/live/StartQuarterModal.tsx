@@ -45,15 +45,23 @@ export function StartQuarterModal({
   const abbr = periodLabel.charAt(0).toUpperCase();
   return (
     <Modal>
+      {/* The action keeps its name through the whole flow (UI polish
+          audit §15): the button that opened this modal says "Start
+          Q{n}" and the primary here used to rename itself to "Start
+          clock". Now it's "Start Q{n} now" — same action name, and
+          "now" is the moment ("tap when the siren goes"), rhyming
+          with the clock menu's "End Q{n} now". The suffix also keeps
+          the accessible name unique against the CTA behind the
+          scrim. */}
       <h2 className="text-center text-lg font-bold text-ink">
         Start {abbr}{quarter}
       </h2>
       <p className="mt-1 text-center text-sm text-ink-dim">
-        Tap Start clock when the {cue}.
+        Tap when the {cue} — the clock starts then.
       </p>
       <div className="mt-4 space-y-2">
         <SFButton variant="accent" size="lg" full onClick={onStart} loading={loading}>
-          Start clock
+          Start {abbr}{quarter} now
         </SFButton>
         {onCancel && (
           <SFButton variant="ghost" size="md" full onClick={onCancel} disabled={loading}>

@@ -165,7 +165,7 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
   await expect(
     page.getByRole("heading", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   // The modal waits for the break's saves (lineup + quarter start); on a
   // busy production build that ran past the old 3 s window (round 5).
   await expect(
@@ -178,13 +178,13 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     page.getByRole("button", { name: /^clock — q2, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // The colour key also renders on the live field above the tiles, so
-  // a mid-game glance at a bar stays legible.
-  const liveLegend = page.getByRole("group", { name: /^Colour key:/ });
-  await expect(liveLegend).toBeVisible();
-  await expect(liveLegend).toContainText("Fwd");
-  await expect(liveLegend).toContainText("Centre");
-  await expect(liveLegend).toContainText("Back");
+  // No colour key on the LIVE screen (UI polish audit §13): zone
+  // identity is already told in place there — each tile's zone label
+  // sits in the zone colour above its bar, and the field rails name
+  // the lines. The key belongs to the break (asserted above).
+  await expect(
+    page.getByRole("group", { name: /^Colour key:/ }),
+  ).toHaveCount(0);
 
   // PlayerTile buttons in the live Field render their accessible
   // name from concatenated child text — starting with the zone

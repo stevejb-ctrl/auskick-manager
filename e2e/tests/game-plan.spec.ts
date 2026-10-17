@@ -445,7 +445,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
 
   // Play Q1, end it: the break opens on the planned Q2.
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await page.getByRole("button", { name: /^clock — q1, running$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^end q1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*q\s*1$/i }).click();

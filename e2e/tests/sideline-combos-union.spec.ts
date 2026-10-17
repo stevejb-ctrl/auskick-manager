@@ -121,7 +121,7 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
     evs.some((e) => e.type === "player_loan" && e.player_id === lent.id && (e.metadata as { loaned?: boolean }).loaned === false),
   );
   await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The replay agrees ──────────────────────────────────────────

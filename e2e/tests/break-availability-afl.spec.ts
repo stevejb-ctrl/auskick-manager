@@ -439,7 +439,7 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
 
   // Start Q2.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await waitFor((evs) =>
     evs.some(
       (e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2,

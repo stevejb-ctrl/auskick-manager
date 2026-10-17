@@ -1790,6 +1790,9 @@ export function QuarterBreak({
           lineup={draft}
           selectedPlayerId={selected}
           dimUnselected={false}
+          // Planning screen: time balance IS the decision here, so
+          // the zone-time bars keep full saturation (audit §2).
+          barEmphasis="full"
           onTapField={(pid, zone) => {
             if (pid) {
               handleTap(pid);

@@ -136,7 +136,7 @@ test("AFL: a player marked unavailable pre-game is dropped from the kickoff line
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const ids = await latestLineupSetIds(admin, game.id);
   expect(ids).not.toContain(X.id);
@@ -208,7 +208,7 @@ test("netball: a player marked unavailable pre-game is dropped from the kickoff 
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const ids = await latestLineupSetIds(admin, game.id);
   expect(ids).not.toContain(X.id);
@@ -279,7 +279,7 @@ test("rugby league: a player marked unavailable pre-game is dropped from the kic
   await page
     .getByRole("button", { name: /^start (h1|half 1|q1)$/i })
     .click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const ids = await latestLineupSetIds(admin, game.id);
   expect(ids).not.toContain(X.id);

@@ -38,11 +38,15 @@ export function ClockMenu({
       : { id: "resume", label: "Resume clock", onSelect: onResume },
   ];
   if (onEndEarly) {
+    // Default tone, not danger: ending a period is a routine
+    // every-game action (its confirm went green for the same reason,
+    // Steve 2026-07-08) and the helper line already carries the
+    // caution. Red stays reserved for destructive rows like Restart
+    // game (UI polish audit §6).
     actions.push({
       id: "end",
       label: `End ${periodAbbr} now`,
       description: "When the siren beats the app's clock.",
-      tone: "danger",
       onSelect: onEndEarly,
     });
   }

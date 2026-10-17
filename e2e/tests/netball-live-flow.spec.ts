@@ -303,7 +303,7 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — both events defe
   expect(preEvents ?? []).toHaveLength(0);
 
   // Modal CTA "Start Q1" — fires the atomic commit.
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Both events land now in the same server round-trip.
   await expect
@@ -1002,7 +1002,7 @@ test("a NetSetGO Set team can kick off four-a-side", async ({ page }) => {
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   await expect
     .poll(
@@ -1180,7 +1180,7 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
   await expect(token("Goal Shooter", ga.full_name)).toBeVisible();
 
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const events = async () => {
     const { data } = await admin.from("game_events").select("*").eq("game_id", game.id).order("created_at", { ascending: true });

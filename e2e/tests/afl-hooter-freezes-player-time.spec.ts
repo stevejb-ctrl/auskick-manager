@@ -62,7 +62,7 @@ test("AFL: player tile time freezes at the auto-hooter", async ({ page }) => {
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 10_000 });
   await page
-    .getByRole("button", { name: /^start clock$/i })
+    .getByRole("button", { name: /^start [qh]\d+ now$/i })
     .click({ timeout: 3_000 });
 
   // Wait for the QuarterEndModal to appear (the hooter fires +

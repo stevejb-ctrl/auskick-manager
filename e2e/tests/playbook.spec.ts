@@ -461,7 +461,7 @@ test("kickoff freezes How we play onto the game", async ({ page }) => {
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: /^start q1$/i })).toBeVisible();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const snapshot = async () => {
     const { data } = await admin.from("games").select("playbook_snapshot").eq("id", game.id).single();
@@ -840,7 +840,7 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   const lineupSet = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
@@ -1143,7 +1143,7 @@ test("league named positions: lineups record positions, and stats count time by 
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   const recorded = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
     return (data?.[0]?.metadata as { lineup?: { forwards: string[]; backs: string[]; slots?: Record<string, string> } })?.lineup ?? null;
@@ -1280,6 +1280,6 @@ test("AFL: keep a kid on the field from the lineup, and it carries into the game
 
   // Start the game: the hold is still there on the live field.
   await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(page.getByTestId(`player-tile-${pid}`).getByLabel("Field locked")).toBeVisible({ timeout: 15_000 });
 });

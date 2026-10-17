@@ -81,6 +81,10 @@ export function ScoreRecordingDock({
           </button>
         </div>
         {actions}
+        {/* The label keeps the system's name ("Player actions" is
+            also the sheet's title and what the help pages teach)
+            but now carries a scent of what's inside — it was the
+            only vague wording on the dock (UI polish audit §5). */}
         {onPlayerActions && (
           <button
             type="button"
@@ -88,6 +92,7 @@ export function ScoreRecordingDock({
             className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline"
           >
             Player actions
+            <span className="font-normal text-ink-mute">· injury, lend, lock</span>
           </button>
         )}
       </div>

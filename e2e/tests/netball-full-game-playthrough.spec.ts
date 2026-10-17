@@ -170,7 +170,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   await readyForQ1.click();
   // Modal CTA "Start Q1" — distinct from the page-level button.
   await page
-    .getByRole("button", { name: /^start clock$/i })
+    .getByRole("button", { name: /^start [qh]\d+ now$/i })
     .click({ timeout: 5_000 });
 
   // ─── Phase 2: Q1 goal ─────────────────────────────────────
@@ -251,10 +251,10 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
       .click();
     await page
-      .getByText(/tap start clock when the umpire calls play/i)
+      .getByText(/tap when the umpire calls play/i)
       .waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: /^start clock$/i })
+      .getByRole("button", { name: /^start [qh]\d+ now$/i })
       .click();
   }
 

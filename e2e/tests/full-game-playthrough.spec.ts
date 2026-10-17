@@ -187,7 +187,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   await expect(
     page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Tap a field player and record a goal. The PlayerTile carries
   // a testid we can target deterministically — names render
@@ -255,9 +255,9 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     await page
       .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
       .click();
-    await page.getByText(/tap start clock when the siren goes/i).waitFor({ timeout: 5_000 });
+    await page.getByText(/tap when the siren goes/i).waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: /^start clock$/i })
+      .getByRole("button", { name: /^start [qh]\d+ now$/i })
       .click();
   }
 

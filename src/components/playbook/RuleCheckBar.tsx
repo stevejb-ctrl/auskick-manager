@@ -48,6 +48,23 @@ export function RuleCheckBar({ items: ruleItems, why = [], emptySpots = 0, spotW
   if (items.length === 0) return null;
   const summary = summariseCheck(items);
   const extra = items.filter((i) => i.status !== "ok").length;
+  // Collapsed copy (UI polish audit §14): with several findings the
+  // old header clipped the first sentence mid-word ("Theo Russo is 2
+  // quarters short at…") with a "+1" chip — a rendering accident as
+  // the card's resting state. Several findings collapse to a count
+  // ("1 rule broken · 2 warnings"); a single finding keeps its own
+  // short sentence.
+  const failCount = items.filter((i) => i.status === "fail").length;
+  const warnCount = items.filter((i) => i.status === "warn").length;
+  const headerText =
+    extra > 1
+      ? [
+          failCount > 0 && `${failCount} rule${failCount === 1 ? "" : "s"} broken`,
+          warnCount > 0 && `${warnCount} warning${warnCount === 1 ? "" : "s"}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : summary.text;
   // The routine reasons (fresh line this game, fair time) go last; the
   // ones a coach wouldn't guess — season debt, home, rules — first.
   const routine = (r: string) => /^(Hasn't played|Fair )/.test(r);
@@ -70,13 +87,8 @@ export function RuleCheckBar({ items: ruleItems, why = [], emptySpots = 0, spotW
           {ICON[summary.status]}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm text-ink" data-testid="rule-check-summary">
-          {summary.text}
+          {headerText}
         </span>
-        {extra > 1 && (
-          <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 font-mono text-[10px] font-bold text-ink-dim">
-            +{extra - 1}
-          </span>
-        )}
         <span aria-hidden className={`text-ink-mute transition-transform duration-fast ${open ? "rotate-180" : ""}`}>
           ▾
         </span>

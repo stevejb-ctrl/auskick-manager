@@ -377,7 +377,7 @@ test("netball: lending at the break takes the kid off court, and a kid brought b
   // Start Q2: the committed lineup has the recalled kid at GS and
   // nobody lost (everyone but the lent GS is on court or the bench).
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   let q2: { positions: Record<string, string[]>; bench: string[] } | null = null;
   await expect
     .poll(

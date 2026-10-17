@@ -252,7 +252,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // modal's "Start clock" CTA. Wait for it so Phase 5 doesn't race the
   // auto-open.
   await expect(
-    page.getByRole("button", { name: /^start clock$/i }),
+    page.getByRole("button", { name: /^start [qh]\d+ now$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
@@ -269,7 +269,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await page
-    .getByRole("button", { name: /^start clock$/i })
+    .getByRole("button", { name: /^start [qh]\d+ now$/i })
     .click();
   // H2 now active. Same clock-menu flow as Phase 4. An inline
   // KickoffPicker may render for H2, but it's a non-blocking

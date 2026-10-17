@@ -60,20 +60,27 @@ function formatCountdown(ms: number): string {
 }
 
 /** Small ring + countdown badge — merged from the old NextSubBar. */
+// The countdown is the card's whole reason to exist — at 32px with
+// 9px digits and a near-invisible arc it was the least legible thing
+// on it (UI polish audit §3). 40px ring, amber arc on a brighter
+// track, 11px digits: readable at a mid-play glance.
 function TimerRing({ msUntilDue, subIntervalMs }: { msUntilDue: number; subIntervalMs: number }) {
   const due = msUntilDue <= 0;
   const progress = Math.max(0, Math.min(1, 1 - msUntilDue / subIntervalMs));
-  const r = 12;
+  const r = 16;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - progress);
-  const ringColor = due ? "#FFB366" : "#7CAA7D";
+  // Green while counting, amber once due — the hue change IS the
+  // state signal, so only the brightness came up from the old muted
+  // #7CAA7D that vanished against the dark card.
+  const ringColor = due ? "#FFB366" : "#9ACC9B";
   return (
-    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center" aria-hidden>
-      <svg width="32" height="32" viewBox="0 0 32 32" className="absolute inset-0">
-        <circle cx="16" cy="16" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+    <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center" aria-hidden>
+      <svg width="40" height="40" viewBox="0 0 40 40" className="absolute inset-0">
+        <circle cx="20" cy="20" r={r} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2.5" />
         <circle
-          cx="16"
-          cy="16"
+          cx="20"
+          cy="20"
           r={r}
           fill="none"
           stroke={ringColor}
@@ -81,12 +88,12 @@ function TimerRing({ msUntilDue, subIntervalMs }: { msUntilDue: number; subInter
           strokeDasharray={circ}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          transform="rotate(-90 16 16)"
+          transform="rotate(-90 20 20)"
           style={{ transition: "stroke-dashoffset 400ms linear" }}
         />
       </svg>
       <span
-        className={`nums font-mono text-[9px] font-bold leading-none ${
+        className={`nums font-mono text-[11px] font-bold leading-none ${
           due ? "animate-pulse text-warn" : "text-warm"
         }`}
       >

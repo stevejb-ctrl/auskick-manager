@@ -68,6 +68,12 @@ interface FieldProps {
   positionLabels?: Record<string, string>;
   /** Kids with a season keep-on role (lineup screens). */
   keepOnIds?: Set<string>;
+  /**
+   * Zone-time bar volume on the tiles (UI polish audit §2):
+   * "ambient" (default) for live play, "full" on planning screens
+   * (quarter break) where time balance is the decision being made.
+   */
+  barEmphasis?: "ambient" | "full";
 }
 
 /** Bucket fine-grained zones into the three side-label groups shown on the pitch. */
@@ -110,6 +116,7 @@ export function Field({
   captions,
   positionLabels,
   keepOnIds,
+  barEmphasis,
 }: FieldProps) {
   // displayCaps drives the rendered slot count; zoneCaps drives the
   // suggester / placement rules. They diverge only when on-field
@@ -180,9 +187,12 @@ export function Field({
         className="relative overflow-hidden"
         style={{ borderRadius: "50% / 15%" }}
       >
-      {/* Oval pitch boundary marking */}
+      {/* Oval pitch boundary marking — real fields have a painted
+          boundary; at white/10 it was nearly invisible and the
+          oval's silhouette read fuzzy against the warm page
+          (UI polish audit §4). */}
       <div
-        className="pointer-events-none absolute inset-x-5 inset-y-3 border border-white/10"
+        className="pointer-events-none absolute inset-x-5 inset-y-3 border-[1.5px] border-white/25"
         style={{ borderRadius: "50%" }}
         aria-hidden
       />
@@ -327,6 +337,7 @@ export function Field({
                       score={playerScores?.[pid]}
                       chipModes={chipModeByKey}
                       caption={captions?.[pid]}
+                      barEmphasis={barEmphasis}
                     />
                   );
                   return isOrphan ? (

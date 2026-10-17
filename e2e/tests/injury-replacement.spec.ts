@@ -263,7 +263,7 @@ test("tapping a player reaches Mark injured without a long-press", async ({ page
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
-  await page.getByRole("button", { name: /^player actions$/i }).click();
+  await page.getByRole("button", { name: /^player actions/i }).click();
 
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByRole("button", { name: /mark injured/i })).toBeVisible();

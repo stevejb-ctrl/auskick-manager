@@ -50,7 +50,7 @@ for (const sport of ["afl", "rugby_league"] as const) {
       if (await cont.isVisible({ timeout: 5_000 }).catch(() => false)) await cont.click();
     }
     await page.getByRole("button", { name: /^start (q|h)1$/i }).click({ timeout: 15_000 });
-    const startClock = page.getByRole("button", { name: /^start clock$/i });
+    const startClock = page.getByRole("button", { name: /^start [qh]\d+ now$/i });
     // Start always opens the "Start clock" step. isVisible() doesn't wait,
     // so checking it raced the dialog and sometimes skipped the tap.
     await startClock.click({ timeout: 10_000 });

@@ -379,7 +379,7 @@ test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // The break pops the start modal; start the second half.
-  await page.getByRole("button", { name: /^start clock$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 15_000 });
 
   let started: { forwards: string[]; backs: string[]; bench: string[] } | null = null;
   await expect
@@ -503,7 +503,7 @@ test("rugby league: the break shows the planned half, and a swap made there is i
 
   // Start H2: it begins with the plan AND the swap.
   await page.getByRole("button", { name: /^start h2$/i }).click();
-  await page.getByRole("button", { name: /^start clock$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   let events: GameEvent[] = [];
   await expect
     .poll(

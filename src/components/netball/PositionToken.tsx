@@ -65,10 +65,14 @@ interface PositionTokenProps {
   keepOn?: boolean;
 }
 
+// Softened to /60 — the live court is play, not planning, so the
+// time bar speaks at ambient volume like AFL's live tiles (UI polish
+// audit §2/§9). The netball quarter break's own tiles keep their
+// full-saturation planning bars.
 const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
-  attack: "bg-zone-f",
-  centre: "bg-zone-c",
-  defence: "bg-zone-b",
+  attack: "bg-zone-f/60",
+  centre: "bg-zone-c/60",
+  defence: "bg-zone-b/60",
 };
 // Same palette as the time-bar segments above, but as text colours
 // — so the position chip on a token reads in the same colour as the
