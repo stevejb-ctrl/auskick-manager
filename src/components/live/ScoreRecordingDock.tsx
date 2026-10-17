@@ -81,11 +81,11 @@ export function ScoreRecordingDock({
           </button>
         </div>
         {actions}
+        {/* The label keeps the system's name ("Player actions" is
+            also the sheet's title and what the help pages teach)
+            but now carries a scent of what's inside — it was the
+            only vague wording on the dock (UI polish audit §5). */}
         {onPlayerActions && (
-          {/* The label keeps the system's name ("Player actions" is
-              also the sheet's title and what the help pages teach)
-              but now carries a scent of what's inside — it was the
-              only vague wording on the dock (UI polish audit §5). */}
           <button
             type="button"
             onClick={onPlayerActions}
