@@ -18,7 +18,8 @@ import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
-import { isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { replaySoccerGame } from "@/lib/sports/soccer/replay";
+import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -110,7 +111,16 @@ export function gameTimeByUnit(
     return out;
   }
 
-  if (isSoccer(sport)) return sportNotBuilt(sport, "gameTimeByUnit");
+  if (isSoccer(sport)) {
+    // Soccer: each line, and goal ("gk") apart from them. Named
+    // positions come with soccer's How we play (phase 3).
+    if (unit !== "line") return out;
+    for (const [pid, units] of Object.entries(replaySoccerGame(events).ms)) {
+      for (const [key, ms] of Object.entries(units)) add(out, pid, key, ms ?? 0);
+    }
+    return out;
+  }
+
   if (!isRugby(sport)) return noSportBranch(sport, "gameTimeByUnit");
   // Rugby: forwards / backs, with vest wearers' periods in
   // "centre" (the duty, not a line). Named positions come from the

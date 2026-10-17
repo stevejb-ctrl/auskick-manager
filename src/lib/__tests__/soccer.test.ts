@@ -20,6 +20,10 @@ import {
 } from "@/lib/sports";
 import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
+import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
+import { gameTimeByUnit, seasonTimeByUnit } from "@/lib/playbook/seasonTime";
+import { BASE_UNIT, gameRollupRows, seasonFromRollup } from "@/lib/playbook/rollup";
+import type { GameEvent } from "@/lib/types";
 import {
   SOCCER_AGE_GROUPS,
   SOCCER_WINDOWS_PRESET,
@@ -157,6 +161,67 @@ describe("Football (soccer) formations", () => {
   it("takes the nearest size the age group plays", () => {
     expect(ids("U8", 11)).toEqual(ids("U8", 7));
     expect(ids("U14", 2)).toEqual(ids("U14", 9));
+  });
+});
+
+// Scores and season time come from soccer's own replay, never AFL's
+// goals × 6 or league's lines.
+describe("Football (soccer) results and season time", () => {
+  const MIN = 60_000;
+  const lineup = {
+    keeper: "k",
+    lines: { def: ["d1", "d2"], mid: ["m1", "m2", "m3"], att: ["a1"], field: [] },
+    bench: ["b1"],
+  };
+  const events = (gameId: string): GameEvent[] =>
+    [
+      ["lineup_set", { lineup }, null],
+      ["quarter_start", { quarter: 1 }, null],
+      ["goal", {}, "a1"],
+      ["swap", { off_player_id: "m1", on_player_id: "b1", elapsed_ms: 10 * MIN }, null],
+      ["opponent_goal", {}, null],
+      ["goal", {}, "a1"],
+      ["goal", {}, "d2"],
+      ["quarter_end", { quarter: 1, elapsed_ms: 20 * MIN }, null],
+    ].map(([type, metadata, player_id], i) => ({
+      id: `${gameId}-${i}`,
+      game_id: gameId,
+      type: type as GameEvent["type"],
+      player_id: player_id as string | null,
+      metadata: metadata as Record<string, unknown>,
+      created_by: "u1",
+      created_at: new Date(Date.UTC(2026, 9, gameId === "g1" ? 17 : 24, 9, 0, i)).toISOString(),
+    }));
+
+  it("scores goals as points, with no AFL-style detail", () => {
+    expect(scoreFromEvents("soccer", events("g1"))).toEqual({ us: 3, them: 1 });
+  });
+
+  it("lists scorers by goals, most first", () => {
+    expect(scorersFromEvents("soccer", events("g1"))).toEqual([
+      { playerId: "a1", detail: "2 goals", points: 2, showPoints: false },
+      { playerId: "d2", detail: "1 goal", points: 1, showPoints: false },
+    ]);
+  });
+
+  it("times each kid in each line and in goal, game by game and over the season", () => {
+    const game = gameTimeByUnit("soccer", events("g1"), "line");
+    expect(game.k).toEqual({ gk: 20 * MIN });
+    expect(game.m1).toEqual({ mid: 10 * MIN });
+    expect(game.b1).toEqual({ mid: 10 * MIN });
+    // Named positions come with How we play (phase 3).
+    expect(gameTimeByUnit("soccer", events("g1"), "position")).toEqual({});
+
+    const season = seasonTimeByUnit("soccer", [...events("g1"), ...events("g2")], "line");
+    expect(season.k).toEqual({ gk: 40 * MIN });
+    expect(season.d1).toEqual({ def: 40 * MIN });
+  });
+
+  it("stores lines and goal in the rollup, and reads them back", () => {
+    expect(BASE_UNIT.soccer).toBe("line");
+    const rows = gameRollupRows("soccer", "g1", "t1", events("g1"), 20 * 60);
+    expect(rows.find((r) => r.player_id === "k")).toMatchObject({ unit_kind: "line", unit_key: "gk", ms: 20 * MIN, periods: 1 });
+    expect(seasonFromRollup(rows, "line")).toEqual(gameTimeByUnit("soccer", events("g1"), "line"));
   });
 });
 
