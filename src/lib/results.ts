@@ -6,7 +6,7 @@ import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { GameEvent, Sport } from "@/lib/types";
-import { isRugby, noSportBranch } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 
 export interface GameScore {
   us: number;
@@ -38,6 +38,7 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
       themDetail: `${r.opponentScore.goals}.${r.opponentScore.behinds}`,
     };
   }
+  if (isSoccer(sport)) return sportNotBuilt(sport, "scoreFromEvents");
   return noSportBranch(sport, "scoreFromEvents");
 }
 
@@ -86,6 +87,8 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
       ].filter(Boolean);
       rows.push({ playerId, detail: parts.join(" · "), points, showPoints: true });
     }
+  } else if (isSoccer(sport)) {
+    return sportNotBuilt(sport, "scorersFromEvents");
   } else {
     return noSportBranch(sport, "scorersFromEvents");
   }

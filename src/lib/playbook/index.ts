@@ -6,6 +6,7 @@ import { netballPlaybook } from "@/lib/sports/netball/playbook";
 import { leaguePlaybook } from "@/lib/sports/rugby_league/playbook";
 import { unionPlaybook } from "@/lib/sports/rugby_union/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
+import { sportNotBuilt } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 import type {
   EffectivePolicy,
@@ -18,16 +19,19 @@ export * from "@/lib/playbook/types";
 export { resolvePolicy } from "@/lib/playbook/resolve";
 
 // One entry per sport: a new sport fails to compile until it has its own
-// How we play, rather than silently getting AFL's.
-const PLAYBOOKS: Record<Sport, SportPlaybook> = {
+// How we play, rather than silently getting AFL's. Null = not built yet:
+// Football (soccer)'s How we play is phase 3 of .planning/SOCCER-PLAN.md.
+const PLAYBOOKS: Record<Sport, SportPlaybook | null> = {
   afl: aflPlaybook,
   netball: netballPlaybook,
   rugby_league: leaguePlaybook,
   rugby_union: unionPlaybook,
+  soccer: null,
 };
 
 export function getSportPlaybook(sport: Sport): SportPlaybook {
   const playbook = PLAYBOOKS[sport];
+  if (playbook === null) return sportNotBuilt(sport, "How we play");
   if (!playbook) throw new Error(`No How we play for sport "${sport}"`);
   return playbook;
 }

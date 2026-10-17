@@ -18,7 +18,7 @@ import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
-import { isRugby, noSportBranch } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -110,6 +110,7 @@ export function gameTimeByUnit(
     return out;
   }
 
+  if (isSoccer(sport)) return sportNotBuilt(sport, "gameTimeByUnit");
   if (!isRugby(sport)) return noSportBranch(sport, "gameTimeByUnit");
   // Rugby: forwards / backs, with vest wearers' periods in
   // "centre" (the duty, not a line). Named positions come from the

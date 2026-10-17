@@ -29,12 +29,17 @@ export const BALANCE_STRENGTHS: { id: BalanceStrength; label: string }[] = [
  * (−800 ≈ 2.7 periods at Balanced) only when a kid is well short.
  * Netball: a real tier below "unplayed third this game" (+100,000) and
  * above same-third-as-last-quarter (−10,000).
+ * Soccer: periods of this game's time in a line that a period owed is
+ * worth. A half already played in a line counts −1, so Balanced tops
+ * out at 0.8 (2 × 0.4) and a line not played this game still wins;
+ * Strong (1.6) can outweigh it.
  */
 export const SEASON_BALANCE_WEIGHT: Record<SportId, Record<BalanceStrength, number>> = {
   afl: { light: 150, balanced: 300, strong: 600 },
   netball: { light: 10_000, balanced: 20_000, strong: 40_000 },
   rugby_league: { light: 150, balanced: 300, strong: 600 },
   rugby_union: { light: 150, balanced: 300, strong: 600 },
+  soccer: { light: 0.2, balanced: 0.4, strong: 0.8 },
 };
 
 export const OWED_CAP_PERIODS = 2;
