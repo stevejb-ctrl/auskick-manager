@@ -11,7 +11,7 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isSoccer, teamSport } from "@/lib/sports";
 import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
@@ -146,7 +146,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // Game plan from here is a preview to share: the active kids marked
   // available (everyone active until someone's marked), the game's own
   // field size, season history and How we play, as the lineup uses.
-  const planInput = isUp
+  // Football (soccer)'s game plan comes with its How we play (phase 3
+  // of .planning/SOCCER-PLAN.md); until then its game page has none.
+  const planInput = isUp && !isSoccer(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
           supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),
@@ -191,9 +193,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     summaryEvents = (data ?? []) as GameEvent[];
   }
 
-  // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  // How we played (UX plan 4.4): rules kept and season balance, every
+  // sport but soccer so far (its report is phase 3).
   const howWePlayed =
-    isFinal && summaryEvents
+    isFinal && summaryEvents && !isSoccer(sport)
       ? await buildGameReport(
           supabase,
           {
