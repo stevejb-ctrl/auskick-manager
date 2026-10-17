@@ -343,7 +343,7 @@ test("NETBALL-04 (live-shell): track_scoring=true shows +G button in score bug",
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   await expect(
-    page.getByRole("button", { name: /record opponent goal/i }),
+    page.getByRole("button", { name: /^add goal, /i }).last(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -368,7 +368,7 @@ test("NETBALL-04 (live-shell): track_scoring=false hides +G button in score bug"
   // passes onOpponentGoal=undefined and NetballScoreBug's
   // `{onOpponentGoal && (...)}` branch hides the affordance).
   await expect(
-    page.getByRole("button", { name: /record opponent goal/i }),
+    page.getByRole("button", { name: /^add goal, /i }),
   ).toHaveCount(0);
   // ...and the score bar says why, with a way to turn scoring on.
   await expect(page.getByText("Scoring is off")).toBeVisible();

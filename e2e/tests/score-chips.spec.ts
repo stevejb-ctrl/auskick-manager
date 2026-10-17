@@ -81,5 +81,5 @@ test("AFL: +G and +B are 44 pt targets", async ({ page }) => {
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await kickOff(page, "q");
-  expectTargets(await boxesOf([page.getByRole("button", { name: "+G" }).first(), page.getByRole("button", { name: "+B" }).first()]));
+  expectTargets(await boxesOf([page.getByRole("button", { name: /^add goal, /i }).first(), page.getByRole("button", { name: /^add behind, /i }).first()]));
 });
