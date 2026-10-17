@@ -2,14 +2,16 @@
 
 ## Reuse before you fork — cross-sport consistency
 
-Siren ships three sports (AFL, netball, rugby league) that share the
-same coach. Anywhere the UX rule is the same across sports, the
-component MUST be shared — coaches who run a footy team AND a league
-team should feel muscle memory, not a re-skin.
+Siren ships five sports (AFL, netball, rugby league, rugby union and
+Football (soccer)) that share the same coach. Anywhere the UX rule is
+the same across sports, the component MUST be shared — coaches who run
+a footy team AND a league team should feel muscle memory, not a
+re-skin.
 
 **Before adding any new component under `src/components/<sport>/`,
 search `src/components/{live,lineup,quarter-break,sf,ui}/` and the
-two sibling sport directories first.** If a near-fit already exists,
+sibling sport directories (`netball/`, `league/`, which union also
+uses, and `soccer/`) first.** If a near-fit already exists,
 reuse it (extend its props if needed). Only fork when the behaviour
 genuinely diverges.
 
