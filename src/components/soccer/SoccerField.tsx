@@ -156,7 +156,7 @@ export function SoccerField({
     : [];
 
   return (
-    <div className="relative rounded-[18px] bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+    <div role="region" aria-label="On field" className="relative rounded-[18px] bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
       {wakeUpKey !== null && (
         <span
           key={wakeUpKey}
