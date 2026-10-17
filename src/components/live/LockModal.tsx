@@ -51,6 +51,11 @@ interface LockModalProps {
   vestReplaceLabel?: string;
   onReplaceVest?: () => void;
   /**
+   * The line under the replace button. Defaults to league's vest
+   * words; soccer's keeper passes its own.
+   */
+  vestReplaceHint?: string;
+  /**
    * Rugby league position override. When supplied, surfaces a
    * "Move to {moveToLabel}" button that flips the player between
    * the forwards and backs buckets without changing field
@@ -127,6 +132,7 @@ export function LockModal({
   onSwitch,
   vestReplaceLabel,
   onReplaceVest,
+  vestReplaceHint = "Pick a different player to take the vest this period",
   moveToLabel,
   onMovePosition,
   onAssignFr,
@@ -279,7 +285,7 @@ export function LockModal({
                     Replace {vestReplaceLabel}
                   </span>
                   <span className="mt-0.5 text-xs opacity-80">
-                    Pick a different player to take the vest this period
+                    {vestReplaceHint}
                   </span>
                 </button>
               )}
