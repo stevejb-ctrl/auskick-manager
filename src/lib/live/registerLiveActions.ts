@@ -48,6 +48,17 @@ import {
   recordKickoff,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 
+import {
+  startSoccerHalf,
+  endSoccerHalf,
+  recordSoccerLineupSet,
+  recordSoccerSwap,
+  recordSoccerMove,
+  recordSoccerGoal,
+  recordSoccerOpponentGoal,
+  undoSoccerScore,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/soccer-actions";
+
 // setAvailability is invoked from AvailabilityRow's optimistic-flip
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
@@ -119,6 +130,19 @@ const actions = {
   undoLeagueScore,
   assignLeagueVest,
   recordKickoff,
+
+  // ── Football (soccer) ───────────────────────────────────────
+  // Same contract again. Soccer shares the sideline actions above
+  // (late arrivals, injuries, loans) and the saved holds: the
+  // keeper's "Keep in goal" is a recordPlayerLock.
+  startSoccerHalf,
+  endSoccerHalf,
+  recordSoccerLineupSet,
+  recordSoccerSwap,
+  recordSoccerMove,
+  recordSoccerGoal,
+  recordSoccerOpponentGoal,
+  undoSoccerScore,
 
   // ── Availability (pre-game RSVP) ────────────────────────────
   setAvailability,
