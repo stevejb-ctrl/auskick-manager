@@ -6,7 +6,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { noSportBranch, periodLabels } from "@/lib/sports";
+import { isSoccer, noSportBranch, periodLabels } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -84,6 +84,20 @@ export function ScoringStep({
       )
     ) : sportId === "rugby_union" ? (
       <UnionScoringBlurb ageGroup={ageGroup} />
+    ) : isSoccer(sportId) ? (
+      ageGroup.tracksScoreDefault ? (
+        <>
+          Junior competitions keep score from about Under 12, so {ageGroup.label} starts with the
+          scoreboard on: goals for both sides, and who scored. Flip this off if yours doesn&apos;t —{" "}
+          <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      ) : (
+        <>
+          MiniRoos keeps no scores or ladders, so {ageGroup.label} starts with no scoreboard. Flip
+          this on if your competition keeps one —{" "}
+          <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      )
     ) : sportId === "afl" ? (
       <>
         Most AFL juniors don&apos;t keep score up to U10, then scoring comes in

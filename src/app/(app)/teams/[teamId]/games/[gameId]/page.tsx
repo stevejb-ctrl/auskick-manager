@@ -11,7 +11,7 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isSoccer, teamSport } from "@/lib/sports";
 import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
@@ -42,6 +42,7 @@ const SCORER_WORDS: Record<Sport, { eyebrow: string; heading: string }> = {
   netball: { eyebrow: "Goal shooters", heading: "Who put it in" },
   rugby_league: { eyebrow: "Scorers", heading: "Who put points on the board" },
   rugby_union: { eyebrow: "Scorers", heading: "Who put points on the board" },
+  soccer: { eyebrow: "Goal scorers", heading: "Who found the net" },
 };
 
 export default async function GameDetailPage({ params }: GameDetailPageProps) {
@@ -145,7 +146,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // Game plan from here is a preview to share: the active kids marked
   // available (everyone active until someone's marked), the game's own
   // field size, season history and How we play, as the lineup uses.
-  const planInput = isUp
+  // Football (soccer)'s game plan comes with its How we play (phase 3
+  // of .planning/SOCCER-PLAN.md); until then its game page has none.
+  const planInput = isUp && !isSoccer(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
           supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),

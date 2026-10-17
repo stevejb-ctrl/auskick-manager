@@ -27,13 +27,16 @@ export default function LiveGamePage() {
         Here&apos;s how to use it.
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-        The exact controls vary by sport. AFL, league and union use rolling
-        subs, so a sub timer and a swap card suggest who comes on during
-        play. Netball subs at the breaks, so it shows the next-quarter
-        reshuffle at every break instead. League also tracks its junior laws:
-        FR and DH vests, goal-kick turns and kickoff turns; union has none of
-        them. Every sport has a lineup picker, scoring buttons and a
-        long-press player-actions sheet.
+        The exact controls vary by sport. AFL, league, union and football
+        (soccer) use rolling subs, so a sub timer and a swap card suggest who
+        comes on during play. Netball subs at the breaks, so it shows the
+        next-quarter reshuffle at every break instead. League also tracks its
+        junior laws: FR and DH vests, goal-kick turns and kickoff turns; union
+        has none of them. Football keeps its keeper in goal for the whole
+        half: at half-time Siren plans the next half, starting with who takes
+        the keeper top, and <strong className="text-ink">Replace keeper</strong>{" "}
+        (long-press the keeper) changes it mid-half. Every sport has a lineup
+        picker, scoring buttons and a long-press player-actions sheet.
       </p>
 
       <section className="mt-8">

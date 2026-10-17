@@ -6,8 +6,14 @@ import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
-import { withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
+import { seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
+import { SoccerLiveGame } from "@/components/soccer/SoccerLiveGame";
+import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
+import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
+import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
+import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -18,7 +24,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -125,6 +131,136 @@ export default async function RunPage({ params }: RunPageProps) {
   const songUrlTop = songEnabledTop ? (teamRow?.song_url ?? null) : null;
   const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
   const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
+
+  // ─── Football (soccer) branch ────────────────────────────────
+  // The runner-token flow mirrors the coach's: before kick-off the
+  // soccer lineup picker, after it the soccer live game.
+  if (isSoccer(sport)) {
+    const ageCfgS = getAgeGroupConfig(sport, teamRow?.age_group ?? null) as SoccerAgeGroupConfig;
+    const periodSecondsS = getEffectiveQuarterSeconds(
+      {
+        quarter_length_seconds:
+          (teamRow as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null,
+      },
+      ageCfgS,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
+      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("games").select("id").eq("team_id", g.team_id),
+      admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
+    ]);
+    const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, g.team_id));
+    const squad = [...((players ?? []) as Player[]), ...fillIns];
+    const events = (thisGameEvents ?? []) as GameEvent[];
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillIns.map((f) => f.id),
+      ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // Season events, read with the service client (no writer context here).
+    const otherGameIds = (teamGames ?? []).map((t) => t.id).filter((id) => id !== g.id);
+    const { data: seasonRaw } = otherGameIds.length
+      ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
+      : { data: [] as GameEvent[] };
+    // How we play, as on the coach's page (a game under way plays what it
+    // kicked off with).
+    const howWePlay = soccerHowWePlay(
+      await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      ageCfgS.id,
+      g.playbook_snapshot,
+    );
+    const season: SoccerSeasonBalance = {
+      time: seasonTimeByUnit(sport, (seasonRaw ?? []) as GameEvent[], "line", { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
+      periodMs: periodSecondsS * 1000,
+    };
+
+    if (!hasStarted) {
+      const { data: draftRow } = await admin
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", g.id)
+        .maybeSingle();
+      const lent = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of events) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = (ev.metadata as { loaned?: boolean } | null)?.loaned ?? true;
+        const cur = lent.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) lent.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+      return (
+        <div className="space-y-3 px-4 py-3">
+          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
+          {availablePlayers.length === 0 ? (
+            <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                Who&apos;s here today?
+              </h3>
+              <AvailabilityList
+                auth={auth}
+                teamId={g.team_id}
+                gameId={g.id}
+                canMarkAvailability
+                canManageMatch
+                showJerseyNumber={getSportConfig(sport).jerseyNumbers}
+                requiredAvailable={ageCfgS.defaultOnFieldSize}
+              />
+            </section>
+          ) : (
+            <SoccerLineupPicker
+              auth={auth}
+              gameId={g.id}
+              players={availablePlayers}
+              ageGroup={ageCfgS}
+              onFieldSize={g.on_field_size}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
+              season={season}
+              keeperStrategy={howWePlay.keeperStrategy}
+              keeperPrefs={howWePlay.prefs}
+              initialDraft={
+                draftRow
+                  ? {
+                      lineup: (draftRow as { lineup: unknown }).lineup as SoccerLineup,
+                      updated_at: (draftRow as { updated_at: string }).updated_at,
+                    }
+                  : null
+              }
+              initialLoanedIds={Array.from(lent.entries())
+                .filter(([, v]) => v.loaned)
+                .map(([id]) => id)}
+              availabilityHref={`/run/${params.token}`}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 px-4 py-3">
+        <SoccerLiveGame
+          auth={auth}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgS}
+          periodSeconds={periodSecondsS}
+          subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
+          trackScoring={trackScoring}
+          events={events}
+          season={season}
+          keeperStrategy={howWePlay.keeperStrategy}
+          keeperPrefs={howWePlay.prefs}
+          // A runner token can run the whole game, as in the other sports.
+          isAdmin
+          exitHref={`/run/${params.token}`}
+        />
+      </div>
+    );
+  }
 
   // ─── Rugby League branch ─────────────────────────────────────
   // Junior RL uses rolling subs (like AFL) but on a rectangular

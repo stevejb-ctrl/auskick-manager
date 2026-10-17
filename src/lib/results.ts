@@ -5,8 +5,9 @@
 import { replayGame } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
+import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import type { GameEvent, Sport } from "@/lib/types";
-import { isRugby, noSportBranch } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 export interface GameScore {
   us: number;
@@ -38,16 +39,20 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
       themDetail: `${r.opponentScore.goals}.${r.opponentScore.behinds}`,
     };
   }
+  if (isSoccer(sport)) {
+    const r = replaySoccerGame(events);
+    return { us: r.teamScore.goals, them: r.opponentScore.goals };
+  }
   return noSportBranch(sport, "scoreFromEvents");
 }
 
 /** One player's scoring in a game, in their sport's words. */
 export interface ScorerTally {
   playerId: string;
-  /** "2 g · 1 b" (AFL), "3 goals" (netball), "1T · 2C" (league). */
+  /** "2 g · 1 b" (AFL), "3 goals" (netball, soccer), "1T · 2C" (league). */
   detail: string;
   points: number;
-  /** Show the points beside the detail (not for netball: goals are points). */
+  /** Show the points beside the detail (not for netball or soccer: goals are points). */
   showPoints: boolean;
 }
 
@@ -85,6 +90,10 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
         field > 0 && `${field}${words.fieldGoal.short}`,
       ].filter(Boolean);
       rows.push({ playerId, detail: parts.join(" · "), points, showPoints: true });
+    }
+  } else if (isSoccer(sport)) {
+    for (const [playerId, goals] of Object.entries(replaySoccerGame(events).playerGoals)) {
+      if (goals > 0) rows.push({ playerId, detail: `${goals} ${goals === 1 ? "goal" : "goals"}`, points: goals, showPoints: false });
     }
   } else {
     return noSportBranch(sport, "scorersFromEvents");

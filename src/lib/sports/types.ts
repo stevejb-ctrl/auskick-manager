@@ -8,14 +8,16 @@
 // substitution rule, period structure, and field/court UI.
 
 /** Stable identifier for a sport. New sports extend this union. */
-export type SportId = "afl" | "netball" | "rugby_league" | "rugby_union";
+export type SportId = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer";
 
 /**
- * Sports that share an engine. Rugby league (and, next, rugby union)
- * share the rugby engine — live game, replay, fairness — each with its
- * own rules. Ask `isRugby(sport)`, never `sport === "rugby_league"`.
+ * Sports that share an engine. Rugby league and rugby union share the
+ * rugby engine — live game, replay, fairness — each with its own rules.
+ * Ask `isRugby(sport)`, never `sport === "rugby_league"`. Football
+ * (soccer) is a family of its own (keeper slot, lines, sub windows);
+ * ask `isSoccer(sport)`.
  */
-export type SportFamily = "afl" | "netball" | "rugby";
+export type SportFamily = "afl" | "netball" | "rugby" | "soccer";
 
 /** Identifier for one on-field position within a sport (e.g. "gs", "mid"). */
 export type PositionId = string;

@@ -7,7 +7,9 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, periodLabels, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, isSoccer, periodLabels, teamSport } from "@/lib/sports";
+import { replaySoccerGame } from "@/lib/sports/soccer/replay";
+import { soccerAgeGroup } from "@/lib/sports/soccer";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -29,9 +31,17 @@ const LABELS: Record<string, string> = {
   "centre-third": "Centre",
   "defence-third": "Defence",
 };
+/** Soccer's own words: its "mid" is midfield, never AFL's centre. */
+const SOCCER_LABELS: Record<string, string> = {
+  gk: "Keeper",
+  def: "Defence",
+  mid: "Midfield",
+  att: "Attack",
+  field: "Field",
+};
 
 /** Whether the after-game report compares season balance, per sport. */
-const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false };
+const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false, soccer: true };
 
 export async function buildGameReport(
   supabase: SupabaseClient<any, any, any>,
@@ -79,6 +89,20 @@ export async function buildGameReport(
     // the breaks) has nothing to report after the game.
     lines = ["field"];
     Object.assign(byPeriod, leagueByPeriod(events));
+  } else if (isSoccer(sport)) {
+    // Time in each line and in goal, per half, from soccer's replay. 4 a
+    // side plays one line ("field") and no keeper.
+    lines = soccerAgeGroup(ageCfg.id).keeper === "none" ? ["field"] : ["gk", "def", "mid", "att"];
+    for (const [pid, periods] of Object.entries(replaySoccerGame(events).msByPeriod)) {
+      for (const [p, units] of Object.entries(periods)) {
+        for (const [u, ms] of Object.entries(units)) {
+          if (!(ms && ms > 0)) continue;
+          byPeriod[pid] ??= {};
+          byPeriod[pid][Number(p)] ??= {};
+          byPeriod[pid][Number(p)][u] = (byPeriod[pid][Number(p)][u] ?? 0) + ms;
+        }
+      }
+    }
   } else {
     const unknown: never = sport;
     throw new Error(`No game report for sport "${String(unknown)}"`);
@@ -130,7 +154,7 @@ export async function buildGameReport(
     present,
     periodPlayedMs,
     lines,
-    lineLabel: (k) => LABELS[k] ?? k,
+    lineLabel: (k) => (isSoccer(sport) ? SOCCER_LABELS[k] : LABELS[k]) ?? k,
     lineWord: getSportPlaybook(sport).unitWord,
     periodLabel: (n) => (periods.label === "quarter" ? `Q${n}` : `${periods.label} ${n}`),
     periodCount: ageCfg.periodCount,

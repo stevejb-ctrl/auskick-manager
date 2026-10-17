@@ -15,10 +15,13 @@ export {
   teamSport,
   noSportBranch,
   aflBranch,
+  sportNotBuilt,
   isRugby,
   RUGBY_SPORT_IDS,
+  isSoccer,
+  SOCCER_SPORT_IDS,
 } from "@/lib/sports/registry";
-export type { RugbySport } from "@/lib/sports/registry";
+export type { RugbySport, SoccerSport } from "@/lib/sports/registry";
 export { aflSport, aflPositionModel } from "@/lib/sports/afl";
 export {
   netballSport,
@@ -28,6 +31,7 @@ export {
 } from "@/lib/sports/netball";
 export { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 export { rugbyUnionSport } from "@/lib/sports/rugby_union";
+export { soccerSport } from "@/lib/sports/soccer";
 
 /**
  * Resolve the effective quarter duration (in seconds) for a game.

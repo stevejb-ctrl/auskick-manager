@@ -8,7 +8,7 @@
 // without pulling React. Order here is the order the sports render
 // in the picker on the homepage.
 
-export type MarketingSportId = "afl" | "league" | "union" | "netball";
+export type MarketingSportId = "afl" | "league" | "union" | "netball" | "football";
 
 export interface MarketingSportConfig {
   id: MarketingSportId;
@@ -116,6 +116,25 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     fieldTintOpacity: 0.12,
     heroScreenshot: null,
     heroScreenshotAlt: "Rugby union live game view",
+  },
+  // Football (soccer), in beta in the app (open to every coach, 17 Oct
+  // 2026) but not on the homepage yet: Coming soon until Steve launches
+  // it. Flip comingSoon off to show it and open its demo.
+  {
+    id: "football",
+    code: "FB",
+    short: "Football",
+    label: "Football (soccer)",
+    modeWord: "football",
+    periods: "2 halves",
+    // A pitch-line blue, apart from AFL's orange, league's and union's
+    // greens and netball's purple.
+    accent: "#1F5FA8",
+    accentSoft: "#DFE8F4",
+    fieldTintOpacity: 0.10,
+    heroScreenshot: null,
+    heroScreenshotAlt: "Football (soccer) live game view",
+    comingSoon: true,
   },
 ] as const;
 

@@ -11,6 +11,7 @@ import {
   LeagueRectField,
   NetballCourtField,
   RugbyUnionField,
+  SoccerPitchField,
 } from "@/components/marketing/sport-fields";
 
 interface MultiSportSectionProps {
@@ -46,6 +47,10 @@ function FieldForSport({
     case "netball":
       return (
         <NetballCourtField accent={sport.accent} tintOpacity={tintOpacity} />
+      );
+    case "football":
+      return (
+        <SoccerPitchField accent={sport.accent} tintOpacity={tintOpacity} />
       );
   }
 }

@@ -7,7 +7,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
   title: "Track Scoring · Help · Siren",
-  description: "The scoring switch for AFL, netball, league and union, and what it unlocks.",
+  description: "The scoring switch for AFL, netball, league, union and football (soccer), and what it unlocks.",
   alternates: { canonical: "/help/track-scoring" },
 };
 
@@ -26,12 +26,14 @@ export default function TrackScoringPage() {
         and conversions (2 points), plus penalty goals (2) and field goals (1)
         from Under 13, where the international laws apply; rugby union games
         record tries (5 points) and conversions (2), plus penalty goals (3) and
-        drop goals (3) from Under 10. The switch behaves the same way in every
-        sport — turn it on for your team, and the live screen shows the right
-        scoring controls for your sport. It starts off for the youngest age
-        groups (AFL Under 8 to Under 10, netball Set, league Under 6 and Under
-        7, which are tag games with no scoreboard, and union Under 6 to Under
-        11, where the national pathway keeps no score) and on for the rest.
+        drop goals (3) from Under 10; football (soccer) games record goals for
+        each side. The switch behaves the same way in every sport — turn it on
+        for your team, and the live screen shows the right scoring controls for
+        your sport. It starts off for the youngest age groups (AFL Under 8 to
+        Under 10, netball Set, league Under 6 and Under 7, which are tag games
+        with no scoreboard, union Under 6 to Under 11, where the national
+        pathway keeps no score, and football&apos;s MiniRoos ages, Under 6 to
+        Under 11, which keep no scores or ladders) and on for the rest.
       </p>
 
       <section className="mt-8">
@@ -45,9 +47,9 @@ export default function TrackScoringPage() {
             Under <strong className="text-ink">Game-day extras</strong>, turn
             the scoring switch on. It reads{" "}
             <strong className="text-ink">Track goals &amp; behinds</strong>{" "}
-            (AFL), <strong className="text-ink">Track goals</strong> (netball)
-            or <strong className="text-ink">Track points</strong> (league and
-            union).
+            (AFL), <strong className="text-ink">Track goals</strong> (netball
+            and football) or <strong className="text-ink">Track points</strong>{" "}
+            (league and union).
           </li>
           <li>
             The setting is saved immediately and applies to all of the

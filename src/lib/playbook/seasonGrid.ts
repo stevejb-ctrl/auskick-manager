@@ -7,7 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { isRugby, noSportBranch } from "@/lib/sports/registry";
+import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -73,6 +73,19 @@ export function gridUnits(
         { key: "fwd", label: "Fwd" },
         { key: "mid", label: "Cen" },
         { key: "back", label: "Back" },
+      ],
+    };
+  }
+  if (isSoccer(sport)) {
+    // The lines season balance evens out. Time in goal isn't one: the
+    // keeper strategy shares goal (turns, or the named keepers), so it
+    // shows in the game report rather than as a debt here.
+    return {
+      unit: "line",
+      columns: [
+        { key: "att", label: "Att" },
+        { key: "mid", label: "Mid" },
+        { key: "def", label: "Def" },
       ],
     };
   }

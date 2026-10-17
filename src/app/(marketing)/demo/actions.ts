@@ -4,20 +4,21 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
-import { aflBranch, getAgeGroupConfig, getSportConfig, isRugby } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig, isRugby, isSoccer } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
 // league, netball, union) map to the in-app SportId space that's
 // used in the DB and rule modules. The picker URL/form sends the
 // marketing id; this server action translates.
-type MarketingSportId = "afl" | "league" | "union" | "netball";
+type MarketingSportId = "afl" | "league" | "union" | "netball" | "football";
 
 const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
   afl: "afl",
   league: "rugby_league",
   union: "rugby_union",
   netball: "netball",
+  football: "soccer",
 };
 
 /**
@@ -195,6 +196,16 @@ function buildDemoGamePayload({
     const ageCfg =
       cfg.ageGroups.find((a) => a.id === teamAgeGroup) ??
       cfg.ageGroups.find((a) => a.id === "U10")!;
+    return {
+      ...base,
+      on_field_size: ageCfg.defaultOnFieldSize,
+      sub_interval_seconds: ageCfg.subIntervalSeconds,
+    };
+  }
+
+  if (isSoccer(sport)) {
+    // The team's own soccer age group (the demo plays MiniRoos U9).
+    const ageCfg = getAgeGroupConfig(sport, teamAgeGroup);
     return {
       ...base,
       on_field_size: ageCfg.defaultOnFieldSize,

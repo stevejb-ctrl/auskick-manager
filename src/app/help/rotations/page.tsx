@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball, league and union: badges, position colours, keeping players on, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league, union and football (soccer): badges, position colours, keeping players on, the keeper, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -170,6 +170,44 @@ export default function RotationsPage() {
           other sport. Kids play forwards or backs to Under 9; from Under 10
           you can give them named positions, numbered as on the jersey (LK4,
           HB9, N8 and so on).
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in football (soccer)</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Junior football uses rolling subs: kids come on and off at any
+          time, as MiniRoos allows. When the sub interval runs out, the swap
+          card suggests a bench rotation that evens out everyone&apos;s
+          minutes, and over the season Siren moves kids through defence,
+          midfield and attack so nobody is always stuck at the back. Under 6
+          and Under 7 play 4 a side with no keeper and no lines: Siren just
+          evens out minutes.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">The keeper</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          From Under 8 one kid keeps goal for the whole half. Rolling subs
+          never take the keeper off; to change keeper mid-half, long-press
+          the keeper and tap <strong className="text-ink">Replace keeper</strong>.
+          At half-time Siren plans the next half, starting with who takes the
+          keeper top. Choose how in <strong className="text-ink">How we play</strong>:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            <strong className="text-ink">Everyone has a turn in goal</strong>{" "}
+            (the default to Under 11): the fewest keeper minutes this season
+            go in next, and last half&apos;s keeper plays out in the field.
+          </li>
+          <li>
+            <strong className="text-ink">Keepers</strong> (the default from
+            Under 12): you name your keepers and they share goal.
+          </li>
+        </ul>
+        <p className="mt-2 text-sm text-ink-dim">
+          On the Squad tab, set a kid&apos;s home to Keeper to mark a keen
+          keeper (or one of your named keepers), or mark Keeper as somewhere
+          they&apos;d rather not play.
         </p>
       </section>
 

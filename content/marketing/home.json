@@ -8,7 +8,8 @@
     "afl": "Built for junior AFL",
     "league": "Built for junior rugby league",
     "netball": "Built for junior netball",
-    "union": "Built for junior rugby union"
+    "union": "Built for junior rugby union",
+    "football": "Built for junior football (soccer)"
   },
   "trustBand": [
     { "stat": "1,200+", "label": "Coaches" },

@@ -29,6 +29,12 @@ describe("every sport", () => {
       it("has its own playbook, with rules its engine acts on", () => {
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
+        // Football (soccer)'s engine acts on no catalogue rule yet, so its
+        // Rules editor offers none rather than rules that do nothing.
+        if (sport.id === "soccer") {
+          expect(playbook.engineRuleKinds).toEqual([]);
+          return;
+        }
         expect(playbook.engineRuleKinds.length).toBeGreaterThan(0);
       });
     });
@@ -39,6 +45,7 @@ describe("every sport", () => {
     expect(getSportConfig("netball")).toMatchObject({ jerseyNumbers: false, teamSong: true });
     expect(getSportConfig("rugby_league")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("rugby_union")).toMatchObject({ jerseyNumbers: true, teamSong: false });
-    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null, rugby_union: null });
+    expect(getSportConfig("soccer")).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    expect(PLAYHQ_TENANT).toEqual({ afl: "afl", netball: "netball-australia", rugby_league: null, rugby_union: null, soccer: null });
   });
 });

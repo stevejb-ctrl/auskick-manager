@@ -3,7 +3,7 @@
 // ~1,500 rows a season instead of a walk over every event. Written at
 // finalise, deleted on restart, and backfilled on read for any final
 // game that has none. One base unit is stored per sport — AFL zones,
-// netball bibs, league lines — and coarser units fold from it.
+// netball bibs, rugby and soccer lines — and coarser units fold from it.
 
 import type { GameEvent, Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
@@ -27,6 +27,8 @@ export const BASE_UNIT: Record<Sport, BalanceUnit> = {
   netball: "bib",
   rugby_league: "line",
   rugby_union: "line",
+  // Lines and goal (gk).
+  soccer: "line",
 };
 
 /**
@@ -39,6 +41,8 @@ const STORED_UNITS: Record<Sport, BalanceUnit[]> = {
   netball: ["bib"],
   rugby_league: ["line", "position"],
   rugby_union: ["line", "position"],
+  // Named positions come with soccer's How we play (phase 3).
+  soccer: ["line"],
 };
 
 export function gameRollupRows(

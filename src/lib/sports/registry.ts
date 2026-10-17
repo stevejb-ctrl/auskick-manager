@@ -9,21 +9,24 @@ import { aflSport } from "@/lib/sports/afl";
 import { netballSport } from "@/lib/sports/netball";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import { rugbyUnionSport } from "@/lib/sports/rugby_union";
+import { soccerSport } from "@/lib/sports/soccer";
 
 const REGISTRY: Record<SportId, SportConfig> = {
   afl: aflSport,
   netball: netballSport,
   rugby_league: rugbyLeagueSport,
   rugby_union: rugbyUnionSport,
+  soccer: soccerSport,
 };
 
-export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport];
+export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport, soccerSport];
 
-export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union"];
+export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union", "soccer"];
 
 /**
- * The sports with a site (brand) of their own. Rugby union lives under
- * the main Siren brand, so no host or brand id resolves to it.
+ * The sports with a site (brand) of their own. Rugby union and Football
+ * (soccer) live under the main Siren brand, so no host or brand id
+ * resolves to them.
  */
 const SITE_SPORTS: SportConfig[] = ALL_SPORTS.filter((cfg) => cfg.brand.id === cfg.id);
 
@@ -61,6 +64,17 @@ export function aflBranch(sport: "afl"): "afl" {
   return sport;
 }
 
+/**
+ * A per-sport branch for a surface the sport doesn't have yet (Football
+ * (soccer)'s live game, stats and How we play come in phases 2 and 3 of
+ * .planning/SOCCER-PLAN.md). It throws rather than running the sport
+ * under another's rules or screens. Search for it to find what's left
+ * to build.
+ */
+export function sportNotBuilt(sport: SportId, where: string): never {
+  throw new Error(`${where}: ${REGISTRY[sport]?.name ?? String(sport)} isn't built yet`);
+}
+
 export function getSportConfig(sport: SportId | string | null | undefined): SportConfig {
   return REGISTRY[teamSport(sport)];
 }
@@ -79,6 +93,22 @@ export type RugbySport = (typeof RUGBY_SPORT_IDS)[number];
  */
 export function isRugby(sport: SportId): sport is RugbySport {
   return getSportConfig(sport).family === "rugby";
+}
+
+/**
+ * The sports that run on the soccer engine (only Football (soccer)
+ * today; futsal could join it). Typed so `isSoccer` narrows; a test
+ * checks it matches the configs' `family`.
+ */
+export const SOCCER_SPORT_IDS = ["soccer"] as const satisfies readonly SportId[];
+export type SoccerSport = (typeof SOCCER_SPORT_IDS)[number];
+
+/**
+ * The one way to ask "is this soccer?", beside isRugby: the sport's own
+ * config says so. Each soccer sport still reads its own rules.
+ */
+export function isSoccer(sport: SportId): sport is SoccerSport {
+  return getSportConfig(sport).family === "soccer";
 }
 
 /**

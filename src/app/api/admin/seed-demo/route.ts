@@ -47,12 +47,14 @@ async function handle(req: NextRequest) {
       "rugby_league",
     );
     const unionResult = await seedDemoTeam(admin, superAdmin.id, "rugby_union");
+    const soccerResult = await seedDemoTeam(admin, superAdmin.id, "soccer");
     return NextResponse.json({
       ok: true,
       afl: aflResult,
       netball: netballResult,
       rugby_league: leagueResult,
       rugby_union: unionResult,
+      soccer: soccerResult,
     });
   } catch (e) {
     return NextResponse.json(
@@ -74,7 +76,7 @@ interface SeedResult {
   players?: number;
 }
 
-type SeedableSport = "afl" | "netball" | "rugby_league" | "rugby_union";
+type SeedableSport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer";
 
 // Per-sport seed config. Centralised so adding a fourth sport (e.g.
 // Rugby Union when it launches) is one entry, not a new branch.
@@ -216,6 +218,30 @@ const SPORT_SEED: Record<
       { name: "Darcy Keane", jersey: 13 },
       { name: "Ethan Burke", jersey: 14 },
       { name: "Monty Shaw", jersey: 15 },
+    ],
+  },
+
+  // ─── Football (soccer) ──────────────────────────────────────
+  // MiniRoos U9: 7 a side with a keeper, 2 × 20-min halves, and
+  // "Everyone has a turn in goal", so a visitor sees the keeper top
+  // change hands at half-time. 10 players (= 7 + 3 bench). Scores on
+  // to show the scorebug (MiniRoos itself keeps none). Names distinct
+  // from the other demos.
+  soccer: {
+    teamName: "Demo Football",
+    ageGroup: "U9",
+    settings: {},
+    players: [
+      { name: "Mia Torres", jersey: 1 },
+      { name: "Leo Nguyen", jersey: 2 },
+      { name: "Zara Kowalski", jersey: 3 },
+      { name: "Noah Petrakis", jersey: 4 },
+      { name: "Ruby Okafor", jersey: 5 },
+      { name: "Eli Haddad", jersey: 6 },
+      { name: "Ava Lindqvist", jersey: 7 },
+      { name: "Kian Patel", jersey: 8 },
+      { name: "Sienna Rossi", jersey: 9 },
+      { name: "Theo Barker", jersey: 10 },
     ],
   },
 };

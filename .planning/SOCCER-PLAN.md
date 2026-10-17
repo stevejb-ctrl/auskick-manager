@@ -333,8 +333,6 @@ Done when the engine's unit tests pass, the cross-sport guards
 
 ### 2. The live game
 
-- **Setup:** the setup wizard's sport pill (hidden behind beta access
-  until launch) and default age.
 - **Before kick-off:** `SoccerLineupPicker`, `SoccerPitch` at every
   size, tiles and the bench.
 - **During the game:**
@@ -353,8 +351,10 @@ half-time keeper change, and its e2e playthrough is green.
 
 ### 3. Every other surface
 
-- **Setup and settings:** `ScoringStep` copy, team settings (sub mode,
-  windows, formation).
+- **Setup and settings:** the setup wizard's sport pill, marked "Beta"
+  (moved from phase 2; open to every coach), `createTeam` accepting
+  soccer, `ScoringStep` copy, team settings (sub mode, windows,
+  formation).
 - **How we play:** soccer's playbook, with keeper strategies,
   formations and law notes.
 - **Stats:** the stats dashboard, season balance and game report.
@@ -406,18 +406,40 @@ half-time keeper change, and its e2e playthrough is green.
 If the schedule slips, windows mode moves to after the beta: rolling
 subs cover MiniRoos and Queensland.
 
-## To confirm before or during phase 1
+## Build status (17 Oct 2026)
 
-- **What the beta coaches play this summer.** Summer formats weren't
-  researched.
-  - Outdoor 7s or 9s are covered by the team overrides.
-  - **Futsal** (5 a side, indoor) is out of v1. If they play futsal, it
-    would likely be an age table on the soccer engine, but that's a
-    scope change.
-- **How beta coaches get soccer:** a per-account flag on the setup
-  wizard's sport pill, or open to all and marked "Beta". Merging to
-  `main` runs the production migration (`db-push.yml`), so the flag
-  matters if the branch merges before 4 Dec.
+Built on branch `soccer-phase-2` (phase 1's branch merged in), not
+pushed or merged to `main`:
+
+- **Phase 1:** the sport, migration 0068, the engine.
+- **Phase 2:** the live game for coaches and runner links (picker,
+  pitch, keeper, half-time plan, full time); the game page opens for
+  soccer.
+- **Phase 3:**
+  - the Beta setup pill and team creation;
+  - How we play (keeper strategies, goal roles, MiniRoos laws);
+  - stats, season balance and the game report;
+  - Help;
+  - the demo and homepage card, kept "Coming soon".
+- **Phase 4:** soccer e2e specs (a full game, sideline combos, team
+  pages, 4 and 11 a side) on Chromium and WebKit, and Stagehand
+  missions (not yet run). The full suite passes apart from AFL specs
+  this branch doesn't touch.
+
+Not built yet:
+
+- **Windows mode as a team setting.** The engine and live screen
+  support it; a coach can't choose it yet (every age is rolling).
+  After the beta, as the schedule allows.
+- **The game-plan preview** (the shared planner) for soccer; the game
+  page skips it.
+- **Mid-game game settings** (sub interval, players on the field) and
+  a **walkthrough** for soccer.
+- **Launch marketing:** soccer's own homepage copy, the `why-siren`
+  rewrite, and flipping the homepage and demo card from "Coming soon".
+
+## Still to confirm
+
 - **Unverified research:**
   - the MiniRoos keeper-change rule;
   - WA metro junior rules;
@@ -430,7 +452,9 @@ subs cover MiniRoos and Queensland.
 - **US and UK presets:** AYSO's quarters and 50 % (some regions 75 %)
   floor, and the FA's 5v5/7v7. The engine handles quarters, so this is
   an age-table and copy job if overseas demand shows up.
-- **Futsal**, unless the beta coaches need it (see above).
+- **Futsal:** parked as an option to add later (decided 17 Oct 2026).
+  It would be an age table (5 a side, a keeper, rolling subs) on the
+  soccer engine.
 - **Dribl and Squadi export:** later, as "Copy team sheet".
 - **Heading limits, retreat lines and offside:** law notes only.
 - **The 5-minute sit-out.**
@@ -456,6 +480,46 @@ subs cover MiniRoos and Queensland.
 9. **Game time:** equal time is the target, with a 50 % floor the coach
    can change.
 10. **Timing:** start now, beta in summer comps from early December.
+
+Later the same day, during the build:
+
+11. **Beta access:** soccer is open to every coach, its setup pill
+    marked "Beta", rather than flagged per account.
+12. **Summer format:** the beta coaches play outdoor (7s, 9s or 11s),
+    which the team overrides cover. Futsal is parked (see Out of scope).
+13. **Phase 1's calls**, which the plan had left open, all accepted:
+    - a side can play one or two short (U12–U13 up to 11 a side); a
+      squad is the most on the field plus the plan's bench;
+    - shapes for short sides (5, 6, 8 and 10 with a keeper);
+    - the keeper follows the age group, not the size (a U7 side playing
+      7 a side has no keeper unless the coach picks U8);
+    - keeper ties: fewest keeper minutes, then a keen keeper, then the
+      least time this game, then squad order;
+    - last half's keeper plays out only under "Everyone has a turn";
+    - with none of the named keepers at the game, everyone has a turn;
+    - at kick-off the kids with the most season minutes start on the
+      bench;
+    - when the cutoff catches the last window, the windows pull in to
+      end at the cutoff rather than one being dropped;
+    - season balance weights 0.2 / 0.4 / 0.8 (light / balanced /
+      strong);
+    - every age defaults to rolling subs; windows mode starts from
+      Tasmania's 3 a half, none in the last 2 minutes;
+    - no `roster_shrink` event (a mid-game field shrink would need a
+      migration row);
+    - an injured kid leaves the field as in AFL, and their replacement
+      takes their spot;
+    - Football Victoria's three-lines rule is a warning, at U12–U13;
+    - the setup wizard's default age is U10.
+
+Built differently from the plan (phase 2):
+
+- **No "Keep in goal" hold event.** The engine never subs the keeper
+  off, so the keeper is held by the lineup's shape; a `player_lock` adds
+  nothing. "Replace keeper" is the deliberate change.
+- **The half-time plan lives in session storage** while the coach edits
+  it, not the shared live store; Start commits it as one `lineup_set`,
+  with anyone who arrived since added to its bench.
 
 ## Sources
 

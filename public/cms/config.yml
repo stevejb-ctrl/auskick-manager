@@ -189,6 +189,9 @@ collections:
               - name: union
                 label: Rugby Union
                 widget: string
+              - name: football
+                label: Football (soccer)
+                widget: string
 
           - name: trustBand
             label: Trust band
