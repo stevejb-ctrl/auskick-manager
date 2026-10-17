@@ -196,6 +196,15 @@ export function TeamBasicsForm({
               title="Junior Rugby Union"
               subtitle="U6–U18. Manage subs, forwards and backs or named positions, scoring and more."
             />
+            {/* Open to every coach while it's in beta (Steve, 17 Oct 2026). */}
+            <SportPill
+              active={sport === "soccer"}
+              onClick={() => handleSportChange("soccer")}
+              disabled={isPending}
+              title="Junior Football (soccer)"
+              subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
+              badge="Beta"
+            />
           </div>
         </div>
       )}
@@ -304,12 +313,15 @@ function SportPill({
   disabled,
   title,
   subtitle,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   disabled: boolean;
   title: string;
   subtitle: string;
+  /** A small tag beside the title, e.g. "Beta". */
+  badge?: string;
 }) {
   return (
     <button
@@ -327,7 +339,14 @@ function SportPill({
           : "border-hairline bg-surface text-ink hover:border-brand-600/50",
       ].join(" ")}
     >
-      <div className="font-semibold">{title}</div>
+      <div className="flex items-center gap-2 font-semibold">
+        {title}
+        {badge && (
+          <span className="rounded-xs bg-warn-soft px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
+            {badge}
+          </span>
+        )}
+      </div>
       <div className="mt-0.5 text-xs text-ink-dim">{subtitle}</div>
     </button>
   );
