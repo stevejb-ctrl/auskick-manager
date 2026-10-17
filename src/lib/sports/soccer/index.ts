@@ -28,6 +28,7 @@
 import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
+import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
 import type {
   SoccerAgeGroupConfig,
   SoccerFormation,
@@ -188,4 +189,5 @@ export const soccerSport: SportConfig = {
   jerseyNumbers: true,
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
+  validateLineup: validateSoccerLineup,
 };
