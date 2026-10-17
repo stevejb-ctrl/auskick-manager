@@ -22,8 +22,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SFButton, Guernsey } from "@/components/sf";
-import { InlineAlert } from "@/components/ui/InlineAlert";
+import {
+  RoleHandoverCard,
+  type HandoverRow,
+} from "@/components/quarter-break/RoleHandoverCard";
 import { PlayerVestBadge } from "./PlayerVestBadge";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import {
@@ -106,42 +108,22 @@ export function VestAssignmentCard({
     onDone?.();
   }
 
-  function renderRow(vest: VestType, label: string) {
+  // One handover row per vest. The rules stay here (who may wear it,
+  // what the server records); RoleHandoverCard draws the row.
+  function rowFor(vest: VestType, label: string): HandoverRow {
     const wearerId = vest === "fr" ? current.fr : current.dh;
     const wearer = wearerId ? playerById.get(wearerId) ?? null : null;
     const isReplacing = replacingVest === vest;
-    const isPending = pendingVest === vest;
     // At a break (not the mid-period replace prompt), a planned wearer who
     // isn't on the field — subbed off, hurt or lent since kickoff planned
     // every period — needs someone else for that period: picker open.
     // Without it the period kicked off with the vest on the bench
     // (Stagehand round 5).
     const plannedOff = !!wearerId && !onlyVest && !onFieldPlayerIds.includes(wearerId);
-
-    if (wearer && !isReplacing && !plannedOff) {
-      return (
-        <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <PlayerVestBadge vest={vest} />
-            <span className="text-sm font-medium text-ink">
-              {wearer.full_name}
-            </span>
-          </div>
-          <SFButton
-            size="sm"
-            variant="ghost"
-            onClick={() => setReplacingVest(vest)}
-            disabled={isPending}
-          >
-            Replace
-          </SFButton>
-        </div>
-      );
-    }
-
     // Picker mode — either no wearer yet for this period, OR the
     // coach tapped Replace mid-period.
-    //
+    const picking = !wearer || isReplacing || plannedOff;
+
     // Replace mode uses `replacement: true` and ignores the
     // no-twice gate (laws §12 carve-out). The eligibility check
     // for the fresh-period path uses `eligibleForVest`.
@@ -160,81 +142,39 @@ export function VestAssignmentCard({
       )
       .filter((p) => p.id !== otherVestWearer);
 
-    return (
-      <div className="space-y-2 rounded-lg border border-brand-500/30 bg-brand-50 p-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <PlayerVestBadge vest={vest} />
-            <span className="text-sm font-semibold text-ink">
-              {isReplacing
-                ? `Replace ${label} (this ${periodLabels(sport, ageGroup).label} only)`
-                : `Assign ${label} for ${periodLabels(sport, ageGroup).label} ${period}`}
-            </span>
-          </div>
-          {isReplacing && (
-            <SFButton
-              size="sm"
-              variant="ghost"
-              onClick={() => setReplacingVest(null)}
-              disabled={isPending}
-            >
-              Cancel
-            </SFButton>
-          )}
-        </div>
-        {plannedOff && wearer && !isReplacing && (
-          <p className="text-xs text-ink-dim">
-            {wearer.full_name} isn&rsquo;t on the field. Pick who wears it.
-          </p>
-        )}
-
-        {candidates.length === 0 ? (
-          <p className="text-xs text-ink-mute">
-            No eligible players on the field for the {label} vest. Sub
-            someone fresh on first.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {candidates.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                disabled={isPending}
-                onClick={() => assign(vest, p.id, isReplacing)}
-                className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-2.5 py-2 text-left text-sm transition-colors hover:border-brand-600 active:scale-[0.97] disabled:opacity-50"
-              >
-                <Guernsey
-                  num={p.jersey_number != null ? String(p.jersey_number) : ""}
-                  size={26}
-                />
-                <span className="min-w-0 flex-1 truncate text-ink">
-                  {p.full_name}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    return {
+      key: vest,
+      badge: <PlayerVestBadge vest={vest} />,
+      holder: wearer,
+      picking,
+      heading: isReplacing
+        ? `Replace ${label} (this ${periodWord} only)`
+        : `Assign ${label} for ${periodWord} ${period}`,
+      note:
+        plannedOff && wearer && !isReplacing
+          ? `${wearer.full_name} isn’t on the field. Pick who wears it.`
+          : null,
+      emptyText: `No eligible players on the field for the ${label} vest. Sub someone fresh on first.`,
+      candidates: candidates.map((player) => ({ player })),
+      pending: pendingVest === vest,
+      onReplace: () => setReplacingVest(vest),
+      onCancel: isReplacing ? () => setReplacingVest(null) : undefined,
+      onPick: (playerId) => assign(vest, playerId, isReplacing),
+    };
   }
 
+  const periodWord = periodLabels(sport, ageGroup).label;
+  const rows: HandoverRow[] = [];
+  if (reqs.fr && (!onlyVest || onlyVest === "fr")) rows.push(rowFor("fr", "First Receiver"));
+  if (reqs.dh && (!onlyVest || onlyVest === "dh")) rows.push(rowFor("dh", "Dummy Half"));
+
   return (
-    <section
-      aria-label="Vest assignment"
-      className="space-y-3 rounded-xl border border-hairline bg-surface p-3 shadow-card"
-    >
-      <header className="px-1">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-ink-dim">
-          Vests
-        </h2>
-        <p className="text-xs text-ink-mute">
-          Rotate each {periodLabels(sport, ageGroup).label} — no player wears the same
-          vest twice in a game.
-        </p>
-      </header>
-      {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-      {reqs.fr && (!onlyVest || onlyVest === "fr") && renderRow("fr", "First Receiver")}
-      {reqs.dh && (!onlyVest || onlyVest === "dh") && renderRow("dh", "Dummy Half")}
-    </section>
+    <RoleHandoverCard
+      ariaLabel="Vest assignment"
+      title="Vests"
+      subtitle={`Rotate each ${periodWord} — no player wears the same vest twice in a game.`}
+      error={error}
+      rows={rows}
+    />
   );
 }
