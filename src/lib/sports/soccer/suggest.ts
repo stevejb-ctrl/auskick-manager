@@ -18,6 +18,7 @@
 
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import { periodsOwed } from "@/lib/playbook/seasonBalance";
+import { subDueBoundariesMs } from "@/lib/live/subDistribution";
 import { soccerFormations } from "@/lib/sports/soccer";
 import { pickSoccerKeeper, type SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { soccerOnField, soccerOutfield, soccerUnitOf, type SoccerLineup } from "@/lib/sports/soccer/lineup";
@@ -29,6 +30,7 @@ import {
   type SoccerFormation,
   type SoccerKeeperStrategy,
   type SoccerLine,
+  type SoccerSubMode,
 } from "@/lib/sports/soccer/types";
 
 /** Season balance, as How we play sets it. */
@@ -245,6 +247,22 @@ export function suggestSoccerRollingSub(input: SuggestSoccerSubInput): SoccerSub
     }
   }
   return null;
+}
+
+/**
+ * When a half's sub windows fall, in ms from the start of the half:
+ * the shared even spread (lib/live/subDistribution) with the mode's
+ * final-minutes cutoff. Rolling subs have no windows. `periodMs` is the
+ * half's effective length (clock multiplier applied); the mode's cutoff,
+ * in real seconds, is scaled by the same `clockMultiplier`.
+ */
+export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockMultiplier = 1): number[] {
+  if (mode.kind !== "windows") return [];
+  return subDueBoundariesMs({
+    quarterMs: periodMs,
+    subsPerQuarter: mode.perHalf,
+    cutoffMs: (mode.cutoffSeconds * 1000) / clockMultiplier,
+  });
 }
 
 /**

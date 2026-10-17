@@ -11,8 +11,10 @@ import {
   suggestSoccerLineup,
   suggestSoccerRollingSub,
   suggestSoccerWindowBatch,
+  soccerSubWindowsMs,
   type SoccerSeasonBalance,
 } from "@/lib/sports/soccer/suggest";
+import { SOCCER_WINDOWS_PRESET } from "@/lib/sports/soccer";
 import { MIN, SEVEN, game } from "./soccerGame";
 
 const NINE_KIDS = ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"];
@@ -183,6 +185,27 @@ describe("suggestSoccerRollingSub", () => {
     const outfield = ["d1", "d2", "m1", "m2", "m3", "a1", "b1", "b2", "b3"].map((p) => soccerGameMs(s, p) / MIN);
     // Six outfield places × 20 min shared by nine kids: 13⅓ each.
     expect(Math.max(...outfield) - Math.min(...outfield)).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("soccerSubWindowsMs", () => {
+  it("has no windows for rolling subs", () => {
+    expect(soccerSubWindowsMs({ kind: "rolling" }, HALF)).toEqual([]);
+  });
+
+  it("spreads Tasmania's three windows through a half, clear of the last 2 minutes", () => {
+    expect(soccerSubWindowsMs(SOCCER_WINDOWS_PRESET, 30 * MIN)).toEqual([7.5 * MIN, 15 * MIN, 22.5 * MIN]);
+  });
+
+  it("pulls the windows in when the cutoff would catch the last", () => {
+    const windows = soccerSubWindowsMs({ kind: "windows", perHalf: 4, cutoffSeconds: 300 }, HALF);
+    expect(windows).toEqual([3.75 * MIN, 7.5 * MIN, 11.25 * MIN, 15 * MIN]);
+  });
+
+  it("scales the cutoff with a sped-up clock", () => {
+    // 8× demo clock: a 20-minute half lasts 2.5 minutes, the 5-minute cutoff 37.5 s.
+    const fast = soccerSubWindowsMs({ kind: "windows", perHalf: 4, cutoffSeconds: 300 }, HALF / 8, 8);
+    expect(fast).toEqual([3.75, 7.5, 11.25, 15].map((m) => (m * MIN) / 8));
   });
 });
 
