@@ -172,6 +172,43 @@ const config: Config = {
         confirm: "600ms",
       },
       keyframes: {
+        // ── In-game re-skin motion (design session 17 Oct 2026) ──
+        // Slot roll for scorebug numbers: old out the top, new in from
+        // below (reversed for a decrease). Transform only.
+        "roll-out-up":   { from: { transform: "translateY(0)" },     to: { transform: "translateY(-100%)" } },
+        "roll-in-up":    { from: { transform: "translateY(100%)" },  to: { transform: "translateY(0)" } },
+        "roll-out-down": { from: { transform: "translateY(0)" },     to: { transform: "translateY(100%)" } },
+        "roll-in-down":  { from: { transform: "translateY(-100%)" }, to: { transform: "translateY(0)" } },
+        // Reduced-motion stand-in for rolls and slides.
+        "xfade-in":      { from: { opacity: "0" }, to: { opacity: "1" } },
+        // '+6' / '+1' rising off the score button.
+        "ghost-rise": {
+          "0%":   { opacity: "0", transform: "translateY(0)" },
+          "15%":  { opacity: "1", transform: "translateY(-4px)" },
+          "100%": { opacity: "0", transform: "translateY(-20px)" },
+        },
+        "ghost-fade": {
+          "0%":   { opacity: "0" },
+          "15%":  { opacity: "1" },
+          "100%": { opacity: "0" },
+        },
+        // OFF n → ✓ chip on a committed swap.
+        "chip-pop": {
+          "0%":   { opacity: "0", transform: "scale(0.6)" },
+          "65%":  { opacity: "1", transform: "scale(1.15)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "chip-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        // The next period's label rising into the clock pill.
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to:   { opacity: "1", transform: "translateY(0)" },
+        },
+        // The sub card folding away after a swap.
+        "collapse-y": {
+          from: { maxHeight: "640px", opacity: "1" },
+          to:   { maxHeight: "0px", opacity: "0" },
+        },
         slideUp: {
           from: { transform: "translateY(72px)", opacity: "0" },
           to:   { transform: "translateY(0)",    opacity: "1" },
@@ -280,6 +317,19 @@ const config: Config = {
         },
       },
       animation: {
+        // Re-skin motion — durations from the tap/move/confirm tokens,
+        // the out-quart (ease-snap) curve.
+        "roll-out-up":   "roll-out-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-in-up":    "roll-in-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-out-down": "roll-out-down 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "roll-in-down":  "roll-in-down 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "xfade-in":      "xfade-in 120ms ease-out both",
+        "ghost-rise":    "ghost-rise 600ms ease-out 100ms both",
+        "ghost-fade":    "ghost-fade 600ms ease-out 100ms both",
+        "chip-pop":      "chip-pop 120ms ease-out both",
+        "chip-out":      "chip-out 200ms ease-out 1200ms both",
+        "rise-in":       "rise-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "collapse-y":    "collapse-y 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         // Used by GameSummaryCard to announce itself at full time.
         "slide-up":   "slideUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both",
         // Used by PulseMark — the siren-red halo ripple.

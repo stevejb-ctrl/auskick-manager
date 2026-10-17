@@ -6,8 +6,9 @@
 // coach's tap meant for +T landed between it and +PG when they were
 // 36 px tall (Stagehand union game day, 16 Oct 2026).
 //
-// `active:bg-brand-200 active:text-brand-700` is the brief tap-down
-// flash that confirms the chip registered before the picker mounts.
+// Press (design session 17 Oct 2026): 80ms to scale .94 on the
+// hairline fill, springing back on the ease-snap curve — confirms the
+// chip registered before the picker mounts.
 //
 // Re-skin (design session 17 Oct 2026): ink 700 label on the well
 // fill — the chips are the scorebug's actions, so they read as
@@ -15,7 +16,7 @@
 export const SCORE_CHIP =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center " +
   "rounded-md bg-well px-3 py-2 font-mono text-sm font-bold text-ink " +
-  "transition-colors duration-fast ease-out-quart " +
+  "transition-[background-color,transform] duration-tap ease-out-quart " +
   "hover:bg-hairline " +
-  "active:bg-brand-200 active:text-brand-700 " +
+  "active:bg-hairline motion-safe:active:scale-[0.94] " +
   "disabled:pointer-events-none disabled:opacity-60";

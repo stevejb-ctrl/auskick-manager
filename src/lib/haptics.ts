@@ -115,3 +115,22 @@ export async function hapticSiren(): Promise<void> {
   }
   navigator.vibrate?.([200, 100, 200]);
 }
+
+/**
+ * Success haptic — a completed hand-over (a sub made). On iOS Taptic
+ * this maps to a `Success` notification (a quick rising double-tap);
+ * on Android/web a short double pulse.
+ */
+export async function hapticSuccess(): Promise<void> {
+  if (!isTouchDevice()) return;
+  const hap = await getHaptics();
+  if (hap) {
+    try {
+      await hap.Haptics.notification({ type: hap.NotificationType.Success });
+    } catch {
+      // see hapticTap
+    }
+    return;
+  }
+  navigator.vibrate?.([20, 60, 20]);
+}

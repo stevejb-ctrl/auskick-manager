@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
 import { ZONE_SHORT } from "@/components/live/Field";
@@ -168,8 +168,34 @@ function PlayerTileImpl({
   const parts = player.full_name.trim().split(/\s+/);
   const firstName = parts[0] ?? "";
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
 
   const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
+
+  // Swap commit (design session 17 Oct 2026): the field keys tiles by
+  // slot, so when an OFF-marked player is swapped out this same tile
+  // receives the incoming player and hands over — the OFF chip pops to
+  // a green ✓ (fading at +1.2s) and the old name slides out as the new
+  // one rises in. Only a tile that was marked OFF animates, so zone
+  // shuffles and lineup edits don't.
+  const prevRef = useRef({ id: player.id, name: displayName, wasOff: !!isOff });
+  const [handover, setHandover] = useState<{ from: string; key: number } | null>(null);
+  const handoverTimer = useRef<number | null>(null);
+  useEffect(() => {
+    const p = prevRef.current;
+    if (p.id !== player.id && p.wasOff) {
+      setHandover({ from: p.name, key: Date.now() });
+      if (handoverTimer.current !== null) window.clearTimeout(handoverTimer.current);
+      handoverTimer.current = window.setTimeout(() => setHandover(null), 1400);
+    }
+    prevRef.current = { id: player.id, name: displayName, wasOff: !!isOff };
+  }, [player.id, displayName, isOff]);
+  useEffect(
+    () => () => {
+      if (handoverTimer.current !== null) window.clearTimeout(handoverTimer.current);
+    },
+    [],
+  );
 
   return (
     // P1-7 in MICRO-INTERACTIONS-PLAN.md: when this tile is part of
@@ -194,7 +220,9 @@ function PlayerTileImpl({
       {...longPressHandlers}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left transition-all duration-fast ease-out-quart",
+        // Press stays crisp (120ms); the OFF ring and due tint fade
+        // over 240ms when a swap clears them.
+        "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
         baseBg,
         dimmed && !selected ? "opacity-40" : "",
         injured || loaned ? "grayscale" : "",
@@ -263,6 +291,15 @@ function PlayerTileImpl({
             </span>
           )}
           <span className="flex-1" />
+          {handover && !isOff && (
+            <span key={handover.key} aria-hidden className="motion-safe:animate-chip-out motion-reduce:animate-chip-out">
+              <span className="flex h-4 w-4 items-center justify-center rounded-xs bg-brand-600 motion-safe:animate-chip-pop motion-reduce:animate-xfade-in">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M5 12l5 5L20 7" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </span>
+          )}
           {isOff && (
             <span
               className={`${CHIP} bg-due tracking-[0.08em] text-white`}
@@ -311,10 +348,30 @@ function PlayerTileImpl({
           )}
         </span>
 
-        {/* Row 2 · the name. (Cohort chips retired with How we play, UX plan 5.8.) */}
-        <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
-          {lastInitial ? `${firstName} ${lastInitial}` : firstName}
-        </span>
+        {/* Row 2 · the name. (Cohort chips retired with How we play, UX plan 5.8.)
+            On a handover the outgoing name slides up and out as the
+            incoming one rises into the 20px window. */}
+        {handover ? (
+          <span key={handover.key} className="grid h-5 [clip-path:inset(0)]">
+            <span
+              aria-hidden
+              style={{ animationDelay: "80ms" }}
+              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+            >
+              {handover.from}
+            </span>
+            <span
+              style={{ animationDelay: "80ms" }}
+              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+            >
+              {displayName}
+            </span>
+          </span>
+        ) : (
+          <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
+            {displayName}
+          </span>
+        )}
 
         {/* Row 3 · zone-time bar, then the time. Solid stepped fills
             with 1px gaps so the zones read apart even in greyscale. */}

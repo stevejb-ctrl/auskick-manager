@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   clockElapsedMs,
   formatClock,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
-import { PulsingNumber } from "@/components/live/PulsingNumber";
+import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
 import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { hapticTap } from "@/lib/haptics";
+
+/** What the break after this period is called. */
+function breakName(quarter: number, periodCount: number): string {
+  if (quarter >= periodCount) return "Full time";
+  if (periodCount === 2) return "Half time";
+  if (periodCount === 4) {
+    if (quarter === 1) return "Quarter time";
+    if (quarter === 2) return "Half time";
+    return "Three-quarter time";
+  }
+  return "Break";
+}
 
 interface GameHeaderProps {
   teamName: string;
@@ -134,6 +147,20 @@ export function GameHeader({
   const live = !isPreGame && !isFinished && running;
   const pausedIcon = !isPreGame && !isFinished && !running ? "▶" : null;
 
+  // The hooter has gone and the clock holds at 0:00 until the coach
+  // taps through (existing behaviour): the pill speaks up — widens,
+  // fills amber, and names the break.
+  const atHooter = !isPreGame && !isFinished && !running && elapsed >= quarterMs;
+
+  // The next period's label rises in when the quarter changes (not on
+  // first paint).
+  const firstQuarterRef = useRef(quarter);
+  const quarterChanged = quarter !== firstQuarterRef.current;
+
+  const teamGhost = useScoreGhost(points(team));
+  const oppGhost = useScoreGhost(points(opp));
+  const tapDown = () => void hapticTap("light");
+
   // In-game re-skin (design session 17 Oct 2026): numbers up, chrome
   // down. Totals 44/700, clock 28/700, all tabular; team names and
   // G·B recede to ink-dim. align-items end puts one baseline across
@@ -159,19 +186,27 @@ export function GameHeader({
         <div className="min-w-0">
           <p className={NAME}>{teamName}</p>
           <p className="nums mt-1 flex items-baseline gap-2 font-mono tabular-nums text-ink">
-            {/* PulsingNumber: count-up + halo on the points total when
-                the team scores. P0-6 from MICRO-INTERACTIONS-PLAN.md. */}
-            <PulsingNumber value={points(team)} className={TOTAL} />
-            <span className={TALLY}>
-              {team.goals}·{team.behinds}
-            </span>
+            {/* The total rolls up one slot on a score; the tally trails
+                it by 40ms. */}
+            <RollingNumber value={points(team)} className={TOTAL} />
+            <RollingNumber value={`${team.goals}·${team.behinds}`} className={TALLY} delayMs={40} />
           </p>
         </div>
         {onTeam && trackScoring && (
-          <div className="flex gap-2">
+          <div className="relative flex gap-2">
+            {teamGhost && (
+              <span
+                key={teamGhost.key}
+                aria-hidden
+                className={`${SCORE_GHOST} left-3`}
+              >
+                {teamGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onTeam("goal")}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={CHIP}
               aria-label={`Add goal, ${teamName}`}
@@ -181,6 +216,7 @@ export function GameHeader({
             <button
               type="button"
               onClick={() => onTeam("behind")}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={CHIP}
               aria-label={`Add behind, ${teamName}`}
@@ -202,21 +238,42 @@ export function GameHeader({
             type="button"
             onClick={onClockTap}
             disabled={isPreGame || isFinished || !onClockTap}
-            className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-            aria-label={`Clock — ${quarterLabel}, ${running ? "running" : "paused"}`}
+            className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart disabled:opacity-80 ${
+              atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90"
+            }`}
+            aria-label={`Clock — ${quarterLabel}, ${atHooter ? breakName(quarter, periodCount) : running ? "running" : "paused"}`}
           >
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-              <span>{quarterLabel}</span>
-              {pausedIcon && <span>{pausedIcon}</span>}
-            </span>
-            <span
-              className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
-                overtime ? "text-warn" : "text-warm"
-              }`}
-            >
-              {formatClock(remaining)}
-            </span>
+            {atHooter ? (
+              // Label crossfades to the break: END Q2 / Half time.
+              <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
+                <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+                  End {quarterLabel}
+                </span>
+                <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
+                  {breakName(quarter, periodCount)}
+                </span>
+              </span>
+            ) : (
+              <span
+                key={`q-${quarter}`}
+                className={`flex flex-col items-center ${
+                  quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""
+                }`}
+              >
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+                  {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
+                  <span>{quarterLabel}</span>
+                  {pausedIcon && <span>{pausedIcon}</span>}
+                </span>
+                <span
+                  className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
+                    overtime ? "text-warn" : "text-warm"
+                  }`}
+                >
+                  {formatClock(remaining)}
+                </span>
+              </span>
+            )}
           </button>
         </SirenPulseHalo>
         {/* Quarter-by-quarter trigger: a 44pt text button under the
@@ -239,17 +296,25 @@ export function GameHeader({
         <div className="min-w-0 max-w-full">
           <p className={NAME}>{opponentName}</p>
           <p className="nums mt-1 flex items-baseline justify-end gap-2 font-mono tabular-nums text-ink">
-            <span className={TALLY}>
-              {opp.goals}·{opp.behinds}
-            </span>
-            <PulsingNumber value={points(opp)} className={TOTAL} />
+            <RollingNumber value={`${opp.goals}·${opp.behinds}`} className={TALLY} delayMs={40} />
+            <RollingNumber value={points(opp)} className={TOTAL} />
           </p>
         </div>
         {onOpponent && trackScoring && (
-          <div className="flex justify-end gap-2">
+          <div className="relative flex justify-end gap-2">
+            {oppGhost && (
+              <span
+                key={oppGhost.key}
+                aria-hidden
+                className={`${SCORE_GHOST} right-3`}
+              >
+                {oppGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onOpponent("goal")}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={CHIP}
               aria-label={`Add goal, ${opponentName}`}
@@ -259,6 +324,7 @@ export function GameHeader({
             <button
               type="button"
               onClick={() => onOpponent("behind")}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={CHIP}
               aria-label={`Add behind, ${opponentName}`}

@@ -301,11 +301,14 @@ export function Field({
                     />
                   );
                   return isOrphan ? (
-                    <div key={pid} className={orphanWrapClass}>
+                    // Keyed by slot, not player: on a swap the same tile
+                    // stays mounted and hands over (OFF n → ✓, the names
+                    // roll) instead of one tile vanishing for another.
+                    <div key={`slot-${slot}`} className={orphanWrapClass}>
                       {tile}
                     </div>
                   ) : (
-                    <Fragment key={pid}>{tile}</Fragment>
+                    <Fragment key={`slot-${slot}`}>{tile}</Fragment>
                   );
                 })}
               </div>

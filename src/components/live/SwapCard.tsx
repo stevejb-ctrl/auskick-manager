@@ -11,6 +11,7 @@ import {
 } from "@/lib/game-plan";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { hapticSuccess } from "@/lib/haptics";
 
 interface SwapCardProps {
   suggestions: SwapSuggestion[];
@@ -173,6 +174,11 @@ export function SwapCard({
   );
   const swapCount = useLiveGame((s) => s.swapCount);
   const prevSwapCountRef = useRef(swapCount);
+  // A made swap folds the open card away over 240ms (it used to snap
+  // shut) — the card easing back to its counting state.
+  const [closing, setClosing] = useState(false);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   useEffect(() => {
     if (forceOpen) setOpen(true);
@@ -181,10 +187,24 @@ export function SwapCard({
   useEffect(() => {
     if (swapCount !== prevSwapCountRef.current) {
       prevSwapCountRef.current = swapCount;
+      if (openRef.current) {
+        setClosing(true);
+        const t = window.setTimeout(() => setClosing(false), 240);
+        setOpen(false);
+        setEditing(null);
+        return () => window.clearTimeout(t);
+      }
       setOpen(false);
       setEditing(null);
     }
   }, [swapCount]);
+
+  // A committed swap: the success haptic (the tiles hand over on the
+  // field).
+  function applyAll() {
+    void hapticSuccess();
+    onApply();
+  }
 
   // Override one chip of pair `index` to `playerId`, then close the
   // picker. The full edited array goes to the live game, which pins it
@@ -346,8 +366,11 @@ export function SwapCard({
         </button>
       )}
 
-      {open && (
-        <>
+      {(open || closing) && (
+        <div
+          className={closing ? "overflow-hidden motion-safe:animate-collapse-y motion-reduce:hidden" : undefined}
+          aria-hidden={closing || undefined}
+        >
           {pastHooterCarry && (
             <p
               data-testid="swapcard-carry-hint"
@@ -476,6 +499,7 @@ export function SwapCard({
                         disabled={pending}
                         onClick={(e) => {
                           e.stopPropagation();
+                          void hapticSuccess();
                           onApplyOne(s);
                         }}
                         className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-[11px] font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"
@@ -536,7 +560,7 @@ export function SwapCard({
           <div className="border-t border-white/[0.08] p-2">
             <button
               type="button"
-              onClick={onApply}
+              onClick={applyAll}
               disabled={pending}
               data-testid="swapcard-apply-all"
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-sm bg-brand-600 text-[15px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
@@ -561,7 +585,7 @@ export function SwapCard({
                   : `Make all ${valid.length} swaps`}
             </button>
           </div>
-        </>
+        </div>
       )}
     </>
   );

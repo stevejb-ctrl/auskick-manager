@@ -17,7 +17,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState, use
 import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
-import { PulsingNumber } from "@/components/live/PulsingNumber";
+import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
 import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
@@ -2725,6 +2725,11 @@ function NetballScoreBug({
    */
   flat?: boolean;
 }) {
+  // Motion (design session 17 Oct 2026): totals roll one slot, a "+1"
+  // ghost rises off the side that scored, a light haptic on touch-down.
+  const teamGhost = useScoreGhost(team.goals);
+  const oppGhost = useScoreGhost(opponent.goals);
+  const tapDown = () => void hapticTap("light");
   return (
     <div
       className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3 ${
@@ -2743,11 +2748,10 @@ function NetballScoreBug({
             {/* Pre-Q1 the scoreboard renders "—" instead of zero so a
                 freshly-mounted game doesn't look like it's already
                 0-0 (visually identical to a finished 0-0 result).
-                Once Q1 starts (showScores=true), PulsingNumber takes
-                over and counts up + halos on each goal. P0-6 from
-                MICRO-INTERACTIONS-PLAN.md. */}
+                Once Q1 starts (showScores=true), RollingNumber takes
+                over and rolls one slot on each goal. */}
             {showScores ? (
-              <PulsingNumber
+              <RollingNumber
                 value={team.goals}
                 className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
               />
@@ -2762,10 +2766,16 @@ function NetballScoreBug({
             attribute the goal without first hunting for the GS/GA
             tile on the court. Steve 2026-05-16. */}
         {onTeamGoal && (
-          <div className="flex">
+          <div className="relative flex">
+            {teamGhost && (
+              <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
+                {teamGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={onTeamGoal}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={`${SCORE_CHIP} w-12`}
               aria-label={`Add goal, ${teamName}`}
@@ -2861,7 +2871,7 @@ function NetballScoreBug({
           </p>
           <p className="nums mt-1 font-mono tabular-nums text-ink">
             {showScores ? (
-              <PulsingNumber
+              <RollingNumber
                 value={opponent.goals}
                 className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
               />
@@ -2871,10 +2881,16 @@ function NetballScoreBug({
           </p>
         </div>
         {onOpponentGoal && (
-          <div className="flex justify-end">
+          <div className="relative flex justify-end">
+            {oppGhost && (
+              <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
+                {oppGhost.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={onOpponentGoal}
+              onPointerDown={tapDown}
               disabled={isPending}
               className={`${SCORE_CHIP} w-12`}
               aria-label={`Add goal, ${opponentName}`}
