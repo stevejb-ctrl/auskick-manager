@@ -1,7 +1,7 @@
 It's Saturday. You coach the Randwick Rams, Under 12 rugby union, playing
 the Coogee Crabs soon. It's 15 a side in two 25-minute halves, and your
 team plays named positions (numbered as on the jersey: props 1 and 3, the
-hooker 2, locks 4 and 5, flankers 6 and 7, number 8, halfback 9,
+hooker 2, 2nd row 4 and 5, flankers 6 and 7, number 8, halfback 9,
 five-eighth 10, wings 11 and 14, centres 12 and 13, fullback 15). Your
 halfback kicks for goal. 19 kids are here.
 

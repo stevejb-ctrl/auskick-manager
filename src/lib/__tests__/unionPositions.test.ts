@@ -17,10 +17,12 @@ const numbers = (size: number) =>
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 describe("union's position catalogue", () => {
-  it("plays the positions Hunter's by-laws list at each size from 10 to 15", () => {
+  it("plays the positions Hunter's by-laws list at each size from 10 to 15 (12: both wings, one centre)", () => {
     expect(numbers(10)).toEqual([1, 2, 3, 4, 5, 9, 10, 12, 13, 15]);
     expect(numbers(11)).toEqual([1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 15]);
-    expect(numbers(12)).toEqual([1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 15]);
+    // 12 a side (U10–U11) plays both wings and one centre (Steve, 17 Oct
+    // 2026), not Hunter's two centres and a left wing.
+    expect(numbers(12)).toEqual([1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 14, 15]);
     expect(numbers(13)).toEqual([1, 2, 3, 4, 5, 8, ...range(9, 15)]);
     expect(numbers(14)).toEqual([...range(1, 8), 9, 10, 11, 12, 13, 15]);
     expect(numbers(15)).toEqual(range(1, 15));
@@ -36,8 +38,9 @@ describe("union's position catalogue", () => {
   it("labels carry the jersey number, and union's keys are its own", () => {
     const full = unionCatalogue(15);
     const byNumber = Object.fromEntries(full.map((p) => [p.key, p]));
-    expect(byNumber["ru-4"]).toMatchObject({ label: "LK4", name: "Lock" });
-    expect(byNumber["ru-5"]).toMatchObject({ label: "LK5", name: "Lock" });
+    // Union's locks are the second row, and the app says so (Steve, 17 Oct 2026).
+    expect(byNumber["ru-4"]).toMatchObject({ label: "2R4", name: "2nd row" });
+    expect(byNumber["ru-5"]).toMatchObject({ label: "2R5", name: "2nd row" });
     expect(byNumber["ru-8"]).toMatchObject({ label: "N8", name: "Number 8" });
     expect(byNumber["ru-9"]).toMatchObject({ label: "HB9", name: "Halfback" });
     expect(byNumber["ru-10"]).toMatchObject({ label: "FE10", name: "Five-eighth" });
@@ -57,6 +60,27 @@ describe("union's position catalogue", () => {
         expect(p.y).toBeGreaterThan(0);
         expect(p.y).toBeLessThan(1);
       }
+    }
+  });
+});
+
+describe("union at 12 a side (U10–U11)", () => {
+  const at = (size: number, line: string) => unionCatalogue(size).filter((p) => p.line === line);
+
+  it("lists the forwards front row first, then the 2nd row and number 8", () => {
+    expect(at(12, "forwards").map((p) => p.label)).toEqual(["LHP1", "HK2", "THP3", "2R4", "2R5", "N8"]);
+  });
+
+  it("lists the backs as the lineup draws them: halfback, centre, five-eighth; left wing, fullback, right wing", () => {
+    expect(at(12, "backs").map((p) => p.label)).toEqual(["HB9", "C12", "FE10", "LW11", "FB15", "RW14"]);
+    expect(at(12, "backs").find((p) => p.key === "ru-12")).toMatchObject({ label: "C12", name: "Centre" });
+  });
+
+  it("keeps two centres, inside and outside, wherever both play", () => {
+    for (const size of [10, 11, 13, 14, 15]) {
+      const labels = unionCatalogue(size).map((p) => p.label);
+      expect(labels, String(size)).toContain("IC12");
+      expect(labels, String(size)).toContain("OC13");
     }
   });
 });
