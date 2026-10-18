@@ -22,6 +22,12 @@ import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
 import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
 import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
+import { BasketballLiveGame } from "@/components/basketball/BasketballLiveGame";
+import { BasketballLineupPicker } from "@/components/basketball/BasketballLineupPicker";
+import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
+import type { BasketballSeasonBalance } from "@/lib/sports/basketball/suggest";
+import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { basketballHowWePlay } from "@/lib/sports/basketball/playbook";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
@@ -33,7 +39,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -186,7 +192,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, period_count, track_fouls, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -417,6 +423,144 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          isAdmin={isAdmin}
+          exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+        />
+      </div>
+    );
+  }
+
+  // ─── Basketball branch ────────────────────────────────────
+  // Basketball's own family (.planning/BASKETBALL-PLAN.md): five on
+  // court, optional positions (How we play's rotation), rolling subs at
+  // a dead ball, halves or quarters, 1/2/3-point baskets, fouls. Before
+  // tip-off the lineup picker; after it the live game. None of the other
+  // sports' helpers below run for a basketball game.
+  if (isBasketball(sport)) {
+    const teamExtras = teamRow as { quarter_length_seconds?: number | null; period_count?: number | null; track_fouls?: boolean | null } | null;
+    const ageCfgB = basketballAgeGroupForTeam(teamRow?.age_group ?? null, teamExtras?.period_count ?? null);
+    const periodSecondsB = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: teamExtras?.quarter_length_seconds ?? null },
+      ageCfgB,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
+    const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
+      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
+    ]);
+    const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
+    const squad = [...((players ?? []) as Player[]), ...fillIns];
+    const events = (thisGameEvents ?? []) as GameEvent[];
+    // Here today: availability rows, fill-ins, and late arrivals.
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillIns.map((f) => f.id),
+      ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // How we play: the rotation, home lines and positions, ball
+    // handlers, and season balance (a game under way plays what it
+    // tipped off with).
+    const howWePlay = basketballHowWePlay(
+      await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null),
+      ageCfgB.id,
+      g.playbook_snapshot,
+    );
+    // Season time per line, or per position under the position
+    // strategies (this game left out), feeds the suggestions.
+    const seasonEvents = (await getSeasonEvents(params.teamId)).filter((e) => e.game_id !== params.gameId);
+    const seasonUnit = howWePlay.strategy === "position-by-position" || howWePlay.strategy === "set-positions" ? "position" : "line";
+    const season: BasketballSeasonBalance = {
+      time: seasonTimeByUnit(sport, seasonEvents as GameEvent[], seasonUnit, { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
+      periodMs: periodSecondsB * 1000,
+    };
+
+    if (!events.some((e) => e.type === "lineup_set")) {
+      const { data: draftRow } = await supabase
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", params.gameId)
+        .maybeSingle();
+      const initialDraft = draftRow
+        ? {
+            lineup: (draftRow as { lineup: unknown }).lineup as BasketballLineup,
+            updated_at: (draftRow as { updated_at: string }).updated_at,
+          }
+        : null;
+      // Kids lent before tip-off (the latest loan event per kid wins).
+      const lent = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of events) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = (ev.metadata as { loaned?: boolean } | null)?.loaned ?? true;
+        const cur = lent.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) lent.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+      const initialLoanedIds = Array.from(lent.entries())
+        .filter(([, v]) => v.loaned)
+        .map(([id]) => id);
+      const basketballAvailabilityPanel = (
+        <GameDayAvailabilityPanel
+          auth={{ kind: "team", teamId: params.teamId }}
+          teamId={params.teamId}
+          gameId={params.gameId}
+          squad={(players ?? []) as Player[]}
+          availableIds={availableIds}
+          fillInCount={fillIns.length}
+          canManageMatch
+          showJerseyNumber={getSportConfig(sport).jerseyNumbers}
+        />
+      );
+      return (
+        <div className="space-y-4">
+          <LiveTopBar exitHref={`/teams/${params.teamId}/games/${params.gameId}`} game={g} />
+          {availablePlayers.length === 0 ? (
+            <>
+              {basketballAvailabilityPanel}
+              <EmptyState title="Mark who's here to build the lineup." />
+            </>
+          ) : (
+            <BasketballLineupPicker
+              // Suggest again when who's here changes.
+              key={Array.from(availableIds).sort().join(",")}
+              auth={{ kind: "team", teamId: params.teamId }}
+              gameId={params.gameId}
+              players={availablePlayers}
+              ageGroup={ageCfgB}
+              onCourtSize={g.on_field_size}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
+              strategy={howWePlay.strategy}
+              prefs={howWePlay.prefs}
+              season={season}
+              initialDraft={initialDraft}
+              initialLoanedIds={initialLoanedIds}
+              availabilityPanel={basketballAvailabilityPanel}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <BasketballLiveGame
+          auth={{ kind: "team", teamId: params.teamId }}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgB}
+          periodSeconds={periodSecondsB}
+          subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
+          trackScoring={trackScoring}
+          trackFouls={trackFouls}
+          threePointers={ageCfgB.threePointers}
+          events={events}
+          strategy={howWePlay.strategy}
+          prefs={howWePlay.prefs}
+          season={season}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

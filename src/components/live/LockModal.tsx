@@ -103,6 +103,17 @@ interface LockModalProps {
    * just reserves the space. Omit to show no summary (pre-game pickers).
    */
   insight?: ReactNode;
+  /**
+   * More actions under Switch, each its own button (basketball's "Sit
+   * out 5 min" and "Fouled out"). Shown for a kid on the team (not hurt
+   * or lent).
+   */
+  extraActions?: { label: string; hint?: string; onClick: () => void; testId?: string }[];
+  /**
+   * A kid out for the game who can't come back (basketball's foul-out):
+   * replaces the injured words and hides "Back on".
+   */
+  outForGameNote?: string;
   onClose: () => void;
 }
 
@@ -143,6 +154,8 @@ export function LockModal({
   onEditRole,
   isOnField,
   insight,
+  extraActions,
+  outForGameNote,
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
@@ -164,7 +177,19 @@ export function LockModal({
 
         {insight}
 
-        {isInjured ? (
+        {isInjured && outForGameNote ? (
+          /* Out for the game, no way back (basketball's foul-out) */
+          <>
+            <p className="mb-5 text-center text-sm text-ink-dim">{outForGameNote}</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+            >
+              Close
+            </button>
+          </>
+        ) : isInjured ? (
           /* Currently injured — offer to mark recovered */
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
@@ -289,6 +314,18 @@ export function LockModal({
                   </span>
                 </button>
               )}
+              {extraActions?.map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  onClick={a.onClick}
+                  data-testid={a.testId}
+                  className="flex w-full flex-col items-center rounded-md bg-surface-alt px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt/80"
+                >
+                  <span className="text-sm font-bold">{a.label}</span>
+                  {a.hint && <span className="mt-0.5 text-xs text-ink-dim">{a.hint}</span>}
+                </button>
+              ))}
               {/* RL only — flip between Forwards and Backs without
                   benching. Coach uses this to reshape the field
                   ratio mid-game (e.g. an injury forces a back into

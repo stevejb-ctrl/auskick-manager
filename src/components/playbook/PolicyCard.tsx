@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Toggle } from "@/components/ui/Toggle";
 import type { AgePolicy, EffectivePolicy, PolicyOverrides } from "@/lib/playbook/types";
-import { isRugby, isSoccer } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer } from "@/lib/sports/registry";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
 import type { Sport } from "@/lib/types";
 
@@ -74,6 +74,9 @@ export function PolicyCard({
           : `${age.defaultOnFieldSize} a side with a keeper; everyone rotates through defence, midfield and attack`,
       source: age.notes.startsWith("MiniRoos") ? "Football Australia MiniRoos" : undefined,
     });
+  }
+  if (isBasketball(sport)) {
+    lines.push({ text: "Five on court; positions are optional, and you choose how kids rotate" });
   }
   lines.push({
     text: `Everyone plays at least ${policy.minGameTimePct}% of the game`,

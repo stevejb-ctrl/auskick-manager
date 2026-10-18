@@ -59,6 +59,18 @@ import {
   undoSoccerScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/soccer-actions";
 
+import {
+  startBasketballPeriod,
+  endBasketballPeriod,
+  recordBasketballLineupSet,
+  recordBasketballSwap,
+  recordBasketballMove,
+  recordBasketballScore,
+  undoBasketballScore,
+  recordBasketballFoul,
+  recordBasketballSitOut,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/basketball-actions";
+
 // setAvailability is invoked from AvailabilityRow's optimistic-flip
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
@@ -143,6 +155,20 @@ const actions = {
   recordSoccerGoal,
   recordSoccerOpponentGoal,
   undoSoccerScore,
+
+  // ── Basketball ──────────────────────────────────────────────
+  // Same contract again. Basketball shares the sideline actions above
+  // (late arrivals, injuries — a foul-out is an injury with reason
+  // "fouled_out" — loans) and the saved holds.
+  startBasketballPeriod,
+  endBasketballPeriod,
+  recordBasketballLineupSet,
+  recordBasketballSwap,
+  recordBasketballMove,
+  recordBasketballScore,
+  undoBasketballScore,
+  recordBasketballFoul,
+  recordBasketballSitOut,
 
   // ── Availability (pre-game RSVP) ────────────────────────────
   setAvailability,

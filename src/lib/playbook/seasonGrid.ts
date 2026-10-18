@@ -7,7 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -86,6 +86,30 @@ export function gridUnits(
         { key: "att", label: "Att" },
         { key: "mid", label: "Mid" },
         { key: "def", label: "Def" },
+      ],
+    };
+  }
+  if (isBasketball(sport)) {
+    // The position strategies even out 1 to 5; the line strategies
+    // guards and forwards. Equal minutes has no unit (balanceUnit null):
+    // the grid shows guards and forwards, which it never fills.
+    if (unit === "position") {
+      return {
+        unit: "position",
+        columns: [
+          { key: "pg", label: "PG" },
+          { key: "sg", label: "SG" },
+          { key: "sf", label: "SF" },
+          { key: "pf", label: "PF" },
+          { key: "c", label: "C" },
+        ],
+      };
+    }
+    return {
+      unit: "line",
+      columns: [
+        { key: "guard", label: "Guard" },
+        { key: "forward", label: "Fwd" },
       ],
     };
   }

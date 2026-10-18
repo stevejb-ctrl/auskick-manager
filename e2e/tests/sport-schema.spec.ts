@@ -6,11 +6,13 @@
 //   0064 vest_strategy       vests are a league rule
 //   0065 subs_per_quarter    gone
 //   0068 soccer              Football (soccer)'s teams, events and lines
+//   0069 basketball          basketball's teams, events and lines, and
+//                            teams.period_count / track_fouls
 // The live-game specs cover the other side of 0061: every event the
 // live screens write still lands. Soccer has no screen until phase 2
 // of the soccer plan, so 0068 is pinned here through the database.
 //
-// Covers: supabase/migrations/0061-0068, e2e/fixtures/factories.ts
+// Covers: supabase/migrations/0061-0069, e2e/fixtures/factories.ts
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,7 +21,7 @@ import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer";
+type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer" | "basketball";
 
 async function superAdminId(admin: SupabaseClient): Promise<string> {
   const { data } = await admin.auth.admin.listUsers();
@@ -56,6 +58,15 @@ const EVENT_TYPES: Record<Sport, string[]> = {
   // Soccer (0068): no type of its own. A sub, a move between lines or
   // into goal, the keeper's hold, and goals.
   soccer: [...SHARED, "swap", "field_zone_swap", "player_lock", "goal", "opponent_goal"],
+  // Basketball (0069): subs and moves between lines and positions,
+  // holds, 1/2/3-point baskets both sides, fouls and sit-outs.
+  basketball: [
+    ...SHARED,
+    "swap", "field_zone_swap", "player_lock",
+    "free_throw", "two_pointer", "three_pointer",
+    "opponent_free_throw", "opponent_two_pointer", "opponent_three_pointer",
+    "foul", "sit_out",
+  ],
 };
 
 test("0061: each sport's games take only that sport's events", async () => {
@@ -75,6 +86,7 @@ test("0061: each sport's games take only that sport's events", async () => {
     { sport: "rugby_league", ageGroup: "U10", own: "try", foreign: ["goal", "behind", "player_lock", "period_break_swap"] },
     { sport: "rugby_union", ageGroup: "U12", own: "field_goal", foreign: ["vest_assigned", "kickoff_taken", "goal", "period_break_swap"] },
     { sport: "soccer", ageGroup: "U9", own: "field_zone_swap", foreign: ["behind", "try", "roster_shrink", "period_break_swap", "league_position_change"] },
+    { sport: "basketball", ageGroup: "U12", own: "three_pointer", foreign: ["goal", "behind", "try", "field_goal", "period_break_swap"] },
   ];
   for (const c of cases) {
     const team = await makeTeam(admin, { ownerId, sport: c.sport, ageGroup: c.ageGroup });
@@ -138,6 +150,18 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
   expect((await soccerPref("fwd", "never")).error?.message).toMatch(/soccer teams have no "fwd" line/);
   expect((await soccerPref("backs", "never")).error?.message).toMatch(/soccer teams have no "backs" line/);
 
+  // Basketball prefs (0069): guards, forwards and the court, no other
+  // sport's line.
+  const basketball = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U14" });
+  const [hooper] = await makePlayers(admin, { teamId: basketball.id, ownerId, count: 3 });
+  const basketballPref = (line: string) =>
+    admin.from("player_position_prefs").insert({ team_id: basketball.id, player_id: hooper.id, line, kind: "home" });
+  for (const line of ["guard", "forward", "court"]) {
+    expect((await basketballPref(line)).error, `basketball ${line}`).toBeNull();
+  }
+  expect((await basketballPref("mid")).error?.message).toMatch(/basketball teams have no "mid" line/);
+  expect((await basketballPref("forwards")).error?.message).toMatch(/basketball teams have no "forwards" line/);
+
   // Netball: the role sheet saves a third, and an AFL line is refused.
   const netball = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "11u" });
   const [kid] = await makePlayers(admin, { teamId: netball.id, ownerId, count: 3 });
@@ -186,6 +210,7 @@ test("0063: a team and a game say their own sport and size", async () => {
     ["rugby_union", "U12", 15, 250],
     ["soccer", "U9", 7, 240],
     ["soccer", "U14", 11, 300],
+    ["basketball", "U12", 5, 240],
     ["afl", "U9", 9, 240],
   ] as const) {
     const t = await makeTeam(admin, { ownerId, sport, ageGroup });
@@ -248,4 +273,22 @@ test("0065: games no longer carry subs_per_quarter", async () => {
   const admin = createAdminClient();
   const { error } = await admin.from("games").select("id, subs_per_quarter").limit(1);
   expect(error?.message).toMatch(/subs_per_quarter does not exist/);
+});
+
+test("0069: a basketball team plays halves or quarters, and keeps its own foul tally setting", async () => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12" });
+
+  // Null by default: the age group's halves and foul tally.
+  const { data: fresh } = await admin.from("teams").select("period_count, track_fouls").eq("id", team.id).single();
+  expect(fresh).toEqual({ period_count: null, track_fouls: null });
+
+  expect((await admin.from("teams").update({ period_count: 4, track_fouls: false }).eq("id", team.id)).error).toBeNull();
+  const { data: set } = await admin.from("teams").select("period_count, track_fouls").eq("id", team.id).single();
+  expect(set).toEqual({ period_count: 4, track_fouls: false });
+
+  // Halves or quarters only.
+  const { error: three } = await admin.from("teams").update({ period_count: 3 }).eq("id", team.id);
+  expect(three?.message).toMatch(/period_count/);
 });

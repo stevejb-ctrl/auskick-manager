@@ -69,10 +69,10 @@ export async function createGame(
   // the historical comment that flagged this.
   const { data: team } = await supabase
     .from("teams")
-    .select("sport, age_group, on_field_size")
+    .select("sport, age_group, on_field_size, period_count")
     .eq("id", teamId)
     .single();
-  const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size);
+  const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size, team?.period_count);
   const gameId = crypto.randomUUID();
   const { error: insertError } = await supabase
     .from("games")

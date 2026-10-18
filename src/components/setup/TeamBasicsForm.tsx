@@ -43,6 +43,7 @@ const NAME_EXAMPLE: Record<Sport, string> = {
   rugby_league: "e.g. Kingsway Tigers",
   rugby_union: "e.g. Kingsway Rams",
   soccer: "e.g. Kingsway United",
+  basketball: "e.g. Kingsway Hawks",
 };
 
 // Default age group per sport: a "common entry" rather than the first
@@ -55,6 +56,7 @@ const DEFAULT_AGE: Record<Sport, string> = {
   rugby_league: "U10",
   rugby_union: "U10",
   soccer: "U10",
+  basketball: "U10",
 };
 
 export function TeamBasicsForm({
@@ -203,6 +205,15 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Football (soccer)"
               subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
+              badge="Beta"
+            />
+            {/* Open to every coach while it's in beta, as soccer was. */}
+            <SportPill
+              active={sport === "basketball"}
+              onClick={() => handleSportChange("basketball")}
+              disabled={isPending}
+              title="Junior Basketball"
+              subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
               badge="Beta"
             />
           </div>

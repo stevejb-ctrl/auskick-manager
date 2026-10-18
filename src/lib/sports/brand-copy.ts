@@ -107,6 +107,8 @@ const COPY: Record<SportId, BrandCopy> = {
   // Football (soccer) too: the main brand's copy. Its homepage section
   // reads its own copy (SOCCER_MARKETING_COPY, marketing-copy.ts).
   soccer: AFL_COPY,
+  // Basketball too: the main brand's copy.
+  basketball: AFL_COPY,
 };
 
 /**

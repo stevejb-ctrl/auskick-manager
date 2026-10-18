@@ -44,9 +44,10 @@ describe("sport registry", () => {
     expect(getSportConfig("soccer")).toBe(soccerSport);
   });
 
-  it("ALL_SPORT_IDS lists every sport, soccer included", () => {
-    expect(ALL_SPORT_IDS).toEqual(["afl", "netball", "rugby_league", "rugby_union", "soccer"]);
+  it("ALL_SPORT_IDS lists every sport, soccer and basketball included", () => {
+    expect(ALL_SPORT_IDS).toEqual(["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"]);
     expect(teamSport("soccer")).toBe("soccer");
+    expect(teamSport("basketball")).toBe("basketball");
   });
 
   it("resolves brand from host header", () => {

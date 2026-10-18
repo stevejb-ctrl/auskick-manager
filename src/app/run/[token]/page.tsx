@@ -14,6 +14,12 @@ import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
 import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
 import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
+import { BasketballLiveGame } from "@/components/basketball/BasketballLiveGame";
+import { BasketballLineupPicker } from "@/components/basketball/BasketballLineupPicker";
+import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
+import type { BasketballSeasonBalance } from "@/lib/sports/basketball/suggest";
+import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { basketballHowWePlay } from "@/lib/sports/basketball/playbook";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -24,7 +30,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -68,7 +74,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -254,6 +260,138 @@ export default async function RunPage({ params }: RunPageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          // A runner token can run the whole game, as in the other sports.
+          isAdmin
+          exitHref={`/run/${params.token}`}
+        />
+      </div>
+    );
+  }
+
+  // ─── Basketball branch ───────────────────────────────────────
+  // The runner-token flow mirrors the coach's: before tip-off the
+  // basketball lineup picker, after it the basketball live game.
+  if (isBasketball(sport)) {
+    const teamExtras = teamRow as { quarter_length_seconds?: number | null; period_count?: number | null; track_fouls?: boolean | null } | null;
+    const ageCfgB = basketballAgeGroupForTeam(teamRow?.age_group ?? null, teamExtras?.period_count ?? null);
+    const periodSecondsB = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: teamExtras?.quarter_length_seconds ?? null },
+      ageCfgB,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
+    const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
+      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("games").select("id").eq("team_id", g.team_id),
+      admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
+    ]);
+    const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, g.team_id));
+    const squad = [...((players ?? []) as Player[]), ...fillIns];
+    const events = (thisGameEvents ?? []) as GameEvent[];
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillIns.map((f) => f.id),
+      ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // Season events, read with the service client (no writer context here).
+    const otherGameIds = (teamGames ?? []).map((t) => t.id).filter((id) => id !== g.id);
+    const { data: seasonRaw } = otherGameIds.length
+      ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
+      : { data: [] as GameEvent[] };
+    // How we play, as on the coach's page (a game under way plays what it
+    // tipped off with).
+    const howWePlay = basketballHowWePlay(
+      await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      ageCfgB.id,
+      g.playbook_snapshot,
+    );
+    const seasonUnit = howWePlay.strategy === "position-by-position" || howWePlay.strategy === "set-positions" ? "position" : "line";
+    const season: BasketballSeasonBalance = {
+      time: seasonTimeByUnit(sport, (seasonRaw ?? []) as GameEvent[], seasonUnit, { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
+      periodMs: periodSecondsB * 1000,
+    };
+
+    if (!hasStarted) {
+      const { data: draftRow } = await admin
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", g.id)
+        .maybeSingle();
+      const lent = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of events) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = (ev.metadata as { loaned?: boolean } | null)?.loaned ?? true;
+        const cur = lent.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) lent.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+      return (
+        <div className="space-y-3 px-4 py-3">
+          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
+          {availablePlayers.length === 0 ? (
+            <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                Who&apos;s here today?
+              </h3>
+              <AvailabilityList
+                auth={auth}
+                teamId={g.team_id}
+                gameId={g.id}
+                canMarkAvailability
+                canManageMatch
+                showJerseyNumber={getSportConfig(sport).jerseyNumbers}
+                requiredAvailable={ageCfgB.defaultOnFieldSize}
+              />
+            </section>
+          ) : (
+            <BasketballLineupPicker
+              auth={auth}
+              gameId={g.id}
+              players={availablePlayers}
+              ageGroup={ageCfgB}
+              onCourtSize={g.on_field_size}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
+              strategy={howWePlay.strategy}
+              prefs={howWePlay.prefs}
+              season={season}
+              initialDraft={
+                draftRow
+                  ? {
+                      lineup: (draftRow as { lineup: unknown }).lineup as BasketballLineup,
+                      updated_at: (draftRow as { updated_at: string }).updated_at,
+                    }
+                  : null
+              }
+              initialLoanedIds={Array.from(lent.entries())
+                .filter(([, v]) => v.loaned)
+                .map(([id]) => id)}
+              availabilityHref={`/run/${params.token}`}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 px-4 py-3">
+        <BasketballLiveGame
+          auth={auth}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgB}
+          periodSeconds={periodSecondsB}
+          subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
+          trackScoring={trackScoring}
+          trackFouls={trackFouls}
+          threePointers={ageCfgB.threePointers}
+          events={events}
+          strategy={howWePlay.strategy}
+          prefs={howWePlay.prefs}
+          season={season}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}

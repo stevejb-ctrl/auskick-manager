@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
-import { aflBranch, getAgeGroupConfig, getSportConfig, isRugby, isSoccer } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
@@ -203,8 +203,8 @@ function buildDemoGamePayload({
     };
   }
 
-  if (isSoccer(sport)) {
-    // The team's own soccer age group (the demo plays MiniRoos U9).
+  if (isSoccer(sport) || isBasketball(sport)) {
+    // The team's own age group (the soccer demo plays MiniRoos U9).
     const ageCfg = getAgeGroupConfig(sport, teamAgeGroup);
     return {
       ...base,

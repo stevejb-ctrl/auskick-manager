@@ -36,12 +36,13 @@ async function getAuthedAdmin(teamId: string) {
  * are checked against the sport, and new games sized from the team.
  */
 async function teamSportRow(supabase: ReturnType<typeof createClient>, teamId: string) {
-  const { data: team } = await supabase.from("teams").select("sport, age_group, on_field_size").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, age_group, on_field_size, period_count").eq("id", teamId).single();
   if (!team) return null;
   return {
     sport: teamSport(team.sport),
     ageGroup: team.age_group as string | null,
     onFieldSize: team.on_field_size as number | null,
+    periodCount: (team as { period_count?: number | null }).period_count ?? null,
   };
 }
 
@@ -146,7 +147,7 @@ export async function importPlayhqFixtures(
   let updated = 0;
   let skipped = 0;
 
-  const defaults = newGameDefaults(team.sport, team.ageGroup, team.onFieldSize);
+  const defaults = newGameDefaults(team.sport, team.ageGroup, team.onFieldSize, team.periodCount);
 
   // activePlayers lookup moved into `seedDefaultAvailability` —
   // each freshly-inserted game below re-runs the query through the

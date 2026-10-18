@@ -7,9 +7,11 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, isRugby, isSoccer, periodLabels, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, isBasketball, isRugby, isSoccer, periodLabels, teamSport } from "@/lib/sports";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
+import { replayBasketballGame } from "@/lib/sports/basketball/replay";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -40,19 +42,42 @@ const SOCCER_LABELS: Record<string, string> = {
   field: "Field",
 };
 
+const BASKETBALL_LABELS: Record<string, string> = {
+  guard: "Guards",
+  forward: "Forwards",
+  court: "Court",
+};
+
 /** Whether the after-game report compares season balance, per sport. */
-const SEASON_IN_REPORT: Record<Sport, boolean> = { afl: true, netball: true, rugby_league: false, rugby_union: false, soccer: true };
+const SEASON_IN_REPORT: Record<Sport, boolean> = {
+  afl: true,
+  netball: true,
+  rugby_league: false,
+  rugby_union: false,
+  soccer: true,
+  basketball: true,
+};
 
 export async function buildGameReport(
   supabase: SupabaseClient<any, any, any>,
-  team: { id: string; sport: Sport | null; age_group: string | null; quarter_length_seconds: number | null },
+  team: {
+    id: string;
+    sport: Sport | null;
+    age_group: string | null;
+    quarter_length_seconds: number | null;
+    /** Basketball: halves or quarters (migration 0069). */
+    period_count?: number | null;
+  },
   game: Game,
   events: GameEvent[],
   playerNames: Record<string, string>,
 ): Promise<GameReport | null> {
   if (events.length === 0) return null;
   const sport = teamSport(team.sport);
-  const ageCfg = getAgeGroupConfig(sport, team.age_group);
+  // Basketball plays the team's halves or quarters.
+  const ageCfg = isBasketball(sport)
+    ? basketballAgeGroupForTeam(team.age_group, team.period_count)
+    : getAgeGroupConfig(sport, team.age_group);
   const periods = periodLabels(sport, ageCfg);
   const periodSeconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team.quarter_length_seconds },
@@ -103,6 +128,23 @@ export async function buildGameReport(
         }
       }
     }
+  } else if (isBasketball(sport)) {
+    // Time in each line, per period, from basketball's replay: guards
+    // and forwards, or the court under Equal minutes (no positions).
+    const r = replayBasketballGame(events);
+    const used = new Set<string>();
+    for (const [pid, periods] of Object.entries(r.msByPeriod)) {
+      for (const [p, units] of Object.entries(periods)) {
+        for (const [u, ms] of Object.entries(units)) {
+          if (!(ms && ms > 0)) continue;
+          used.add(u);
+          byPeriod[pid] ??= {};
+          byPeriod[pid][Number(p)] ??= {};
+          byPeriod[pid][Number(p)][u] = (byPeriod[pid][Number(p)][u] ?? 0) + ms;
+        }
+      }
+    }
+    lines = used.has("guard") || used.has("forward") ? ["guard", "forward"] : ["court"];
   } else {
     const unknown: never = sport;
     throw new Error(`No game report for sport "${String(unknown)}"`);
@@ -154,7 +196,7 @@ export async function buildGameReport(
     present,
     periodPlayedMs,
     lines,
-    lineLabel: (k) => (isSoccer(sport) ? SOCCER_LABELS[k] : LABELS[k]) ?? k,
+    lineLabel: (k) => (isSoccer(sport) ? SOCCER_LABELS[k] : isBasketball(sport) ? BASKETBALL_LABELS[k] : LABELS[k]) ?? k,
     lineWord: getSportPlaybook(sport).unitWord,
     periodLabel: (n) => (periods.label === "quarter" ? `Q${n}` : `${periods.label} ${n}`),
     periodCount: ageCfg.periodCount,

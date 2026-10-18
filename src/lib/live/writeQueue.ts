@@ -97,6 +97,16 @@ const GAME_LANE = new Set([
   "recordSoccerGoal",
   "recordSoccerOpponentGoal",
   "undoSoccerScore",
+  // Basketball
+  "startBasketballPeriod",
+  "endBasketballPeriod",
+  "recordBasketballLineupSet",
+  "recordBasketballSwap",
+  "recordBasketballMove",
+  "recordBasketballScore",
+  "undoBasketballScore",
+  "recordBasketballFoul",
+  "recordBasketballSitOut",
 ]);
 // The bulk availability write shares the per-row lane, so a row tap and
 // "Mark all in" land in the order the coach made them.

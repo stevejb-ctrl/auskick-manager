@@ -29,6 +29,8 @@ export const BASE_UNIT: Record<Sport, BalanceUnit> = {
   rugby_union: "line",
   // Lines and goal (gk).
   soccer: "line",
+  // Guards and forwards (or the court, under Equal minutes).
+  basketball: "line",
 };
 
 /**
@@ -43,6 +45,8 @@ const STORED_UNITS: Record<Sport, BalanceUnit[]> = {
   rugby_union: ["line", "position"],
   // Named positions come with soccer's How we play (phase 3).
   soccer: ["line"],
+  // Lines, and the five positions (1 to 5) the position strategies play.
+  basketball: ["line", "position"],
 };
 
 export function gameRollupRows(
