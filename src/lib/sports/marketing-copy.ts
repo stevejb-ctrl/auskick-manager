@@ -10,7 +10,7 @@
 // long-form marketing prose, no duplication.
 
 import type { MarketingSportId } from "@/lib/sports/marketing-sports";
-import { type BrandCopy, getBrandCopy, UNION_MARKETING_COPY } from "@/lib/sports/brand-copy";
+import { type BrandCopy, getBrandCopy, SOCCER_MARKETING_COPY, UNION_MARKETING_COPY } from "@/lib/sports/brand-copy";
 
 // Platform-wide social-proof numbers (1,200+ coaches, 38k games, …)
 // moved to content/marketing/home.json (CMS-editable via Pages CMS).
@@ -26,6 +26,8 @@ import { type BrandCopy, getBrandCopy, UNION_MARKETING_COPY } from "@/lib/sports
  *   - netball → netball
  *   - union   → union's own copy (content/marketing/brands/union.json).
  *               Union has no site of its own, so it isn't a brand.
+ *   - football → soccer's own copy (content/marketing/brands/soccer.json),
+ *               for the same reason.
  */
 export function getMarketingCopy(id: MarketingSportId): BrandCopy {
   switch (id) {
@@ -38,10 +40,7 @@ export function getMarketingCopy(id: MarketingSportId): BrandCopy {
     case "union":
       return UNION_MARKETING_COPY;
     case "football":
-      // Coming soon on the homepage (it can't be picked yet): the main
-      // brand's copy, which soccer's config points at, until it has
-      // its own.
-      return getBrandCopy("soccer");
+      return SOCCER_MARKETING_COPY;
   }
 }
 
