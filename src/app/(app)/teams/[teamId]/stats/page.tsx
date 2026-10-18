@@ -25,8 +25,11 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
 import { SoccerDashboardShell } from "@/components/dashboard/SoccerDashboardShell";
+import { BasketballDashboardShell } from "@/components/dashboard/BasketballDashboardShell";
+import { aggregateBasketballSeason } from "@/lib/dashboard/basketballAggregators";
+import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
 import type { GameEvent } from "@/lib/types";
@@ -48,7 +51,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // Verify team exists + user has access (layout already guards this, but be explicit)
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, sport, track_scoring, age_group, quarter_length_seconds")
+    .select("id, name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls")
     .eq("id", params.teamId)
     .single();
 
@@ -145,7 +148,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // finalised before it existed), in the unit the team's strategy
   // balances; "Since reset" when the coach has reset season balance.
   const { resolved: playbook } = await loadTeamPlaybook(supabase, params.teamId, sport, team.age_group);
-  const balanceAgeCfg = getAgeGroupConfig(sport, team.age_group);
+  // Basketball plays the team's halves or quarters.
+  const balanceAgeCfg = isBasketball(sport)
+    ? basketballAgeGroupForTeam(team.age_group, (team as { period_count?: number | null }).period_count ?? null)
+    : getAgeGroupConfig(sport, team.age_group);
   const seasonGameById = new Map(seasonGames.map((g) => [g.id, g]));
   const periodSecondsOf = (gameId: string) =>
     getEffectiveQuarterSeconds(
@@ -199,6 +205,26 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         totalGames={seasonGames.length}
         trackScoring={team.track_scoring ?? false}
         withKeeper={soccerAgeGroup(balanceAgeCfg.id).keeper !== "none"}
+        seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
+      />
+    );
+  }
+
+  // ─── Basketball branch ────────────────────────────────────
+  // Points, the result (when scoring is on), minutes, guard and forward
+  // time, and fouls, through basketball's own replay.
+  if (isBasketball(sport)) {
+    const ageB = basketballAgeGroupForTeam(team.age_group, (team as { period_count?: number | null }).period_count ?? null);
+    return (
+      <BasketballDashboardShell
+        seasons={seasons}
+        selectedYear={selectedYear}
+        playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
+        aggregate={aggregateBasketballSeason(seasonGames, eventsByGame)}
+        totalGames={seasonGames.length}
+        trackScoring={team.track_scoring ?? false}
+        trackFouls={(team as { track_fouls?: boolean | null }).track_fouls ?? ageB.tracksFoulsDefault}
+        withLines={playbook.strategy.id !== "minutes"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
     );
@@ -314,7 +340,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     // Nominal quarter length per game — clamps a runaway clock so a
     // quarter left running past the hooter can't inflate minutes /
     // AVG/G. Resolves game override → team default → age default.
-    if (isBasketball(sport)) return sportNotBuilt(sport, "Season stats");
     const aflAgeCfg = getAgeGroupConfig(aflBranch(sport), team.age_group);
     const gameById = new Map(seasonGames.map((g) => [g.id, g]));
     snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) => {
