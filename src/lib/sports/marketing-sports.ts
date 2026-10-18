@@ -117,9 +117,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     heroScreenshot: null,
     heroScreenshotAlt: "Rugby union live game view",
   },
-  // Football (soccer), in beta in the app (open to every coach, 17 Oct
-  // 2026) but not on the homepage yet: Coming soon until Steve launches
-  // it. Flip comingSoon off to show it and open its demo.
+  // Football (soccer), the newest (17 Oct 2026; in beta in the app).
   {
     id: "football",
     code: "FB",
@@ -132,9 +130,9 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accent: "#1F5FA8",
     accentSoft: "#DFE8F4",
     fieldTintOpacity: 0.10,
-    heroScreenshot: null,
-    heroScreenshotAlt: "Football (soccer) live game view",
-    comingSoon: true,
+    heroScreenshot: "/marketing/screenshots/soccer/live-game.png",
+    heroScreenshotAlt:
+      "Football (soccer) live game — Kingsway United U9 vs Coogee Crabs, half 1, with the keeper in goal",
   },
 ] as const;
 

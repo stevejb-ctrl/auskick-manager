@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Try Siren — pick a sport",
   description:
-    "Run a sped-up U10 demo game in AFL, Rugby League, or Netball. See Siren handle rotations, scoring, and quarter breaks in a couple of minutes.",
+    "Run a sped-up junior demo game in AFL, rugby league, rugby union, netball or football (soccer). See Siren handle rotations, scoring, and breaks in a couple of minutes.",
   alternates: { canonical: "/demo" },
 };
 
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
  *     component (DemoSportCard) so each card can use
  *     `useFormStatus` to show a Siren-pulse-mark loader during
  *     the action's ~1-2s round-trip.
- *   - Disabled (Rugby Union) card stays server-rendered — no form,
- *     no client JS needed.
+ *   - A disabled (coming-soon) card stays server-rendered — no form,
+ *     no client JS needed. Every sport is open today.
  *
  * Visual styling intentionally mirrors the homepage
  * MultiSportSection card grid (same field illustrations cropped
@@ -49,28 +49,34 @@ export default function DemoPage() {
           Pick a sport, run a demo.
         </h1>
         <p className="mt-6 text-lg text-ink-dim sm:text-xl">
-          We&apos;ll set up an Under 10s game with the clock sped up. See
+          We&apos;ll set up a junior game with the clock sped up. See
           Siren handle rotations, scoring, and breaks in a couple of
           minutes.
         </p>
       </div>
 
-      {/* Picker grid — 2 cols on phone, 4 on lg+. Active sports
-          render through DemoSportCard (form + useFormStatus loader);
-          coming-soon sports use the lightweight server-only
-          disabled variant. */}
-      <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {MARKETING_SPORTS.map((sport) =>
-          sport.comingSoon ? (
-            <DemoSportCardDisabled key={sport.id} sport={sport} />
-          ) : (
-            <DemoSportCard
-              key={sport.id}
-              sport={sport}
-              action={runDemoGame}
-            />
-          ),
-        )}
+      {/* Picker grid — 2 cols on phone (an odd last card spans both),
+          3 from sm, all five in a row on lg+. Active sports render
+          through DemoSportCard (form + useFormStatus loader);
+          coming-soon sports use the lightweight server-only disabled
+          variant. */}
+      <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+        {MARKETING_SPORTS.map((sport, index) => (
+          <div
+            key={sport.id}
+            className={
+              MARKETING_SPORTS.length % 2 === 1 && index === MARKETING_SPORTS.length - 1
+                ? "col-span-2 sm:col-span-1"
+                : undefined
+            }
+          >
+            {sport.comingSoon ? (
+              <DemoSportCardDisabled sport={sport} />
+            ) : (
+              <DemoSportCard sport={sport} action={runDemoGame} />
+            )}
+          </div>
+        ))}
       </div>
 
       <p className="mx-auto mt-10 max-w-xl text-center text-sm text-ink-mute">

@@ -17,6 +17,7 @@ import {
   LeagueRectField,
   NetballCourtField,
   RugbyUnionField,
+  SoccerPitchField,
 } from "@/components/marketing/sport-fields";
 
 /** Auto-advance interval — Claude Design pattern is "a few seconds
@@ -118,6 +119,14 @@ function SportFieldPlaceholder({
     case "netball":
       return (
         <NetballCourtField
+          accent={sport.accent}
+          tintOpacity={tintOpacity}
+          strokeTheme={strokeTheme}
+        />
+      );
+    case "football":
+      return (
+        <SoccerPitchField
           accent={sport.accent}
           tintOpacity={tintOpacity}
           strokeTheme={strokeTheme}
