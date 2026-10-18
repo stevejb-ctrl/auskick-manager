@@ -113,7 +113,7 @@ export default function RootLayout({
   const gaId = gaMeasurementId();
   return (
     <html
-      lang="en"
+      lang="en-AU"
       data-brand={brand.brand.id}
       className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
     >

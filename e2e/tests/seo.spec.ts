@@ -1,9 +1,11 @@
 // Crawler-facing basics: the sitemap lists every public page (it was
 // missing /why-siren and /support), every listed page opens for a
-// signed-out visitor rather than bouncing to /login, and robots.txt
-// keeps crawlers out of the app and token links.
+// signed-out visitor rather than bouncing to /login, robots.txt keeps
+// crawlers out of the app and token links, and pages say they're in
+// Australian English.
 //
-// Covers: src/app/sitemap.ts, src/app/robots.ts, src/lib/public-routes.ts.
+// Covers: src/app/sitemap.ts, src/app/robots.ts, src/lib/public-routes.ts
+// and <html lang> in src/app/layout.tsx.
 
 import { test, expect } from "@playwright/test";
 
@@ -34,4 +36,11 @@ test("robots.txt keeps crawlers out of the app and token links", async ({ reques
     expect(txt, prefix).toContain(`Disallow: ${prefix}`);
   }
   expect(txt).toMatch(/Sitemap: https:\/\/www\.siren[a-z]+\.com\.au\/sitemap\.xml/);
+});
+
+test("pages declare Australian English", async ({ page }) => {
+  for (const path of ["/", "/help", "/login"]) {
+    await page.goto(path);
+    await expect(page.locator("html"), path).toHaveAttribute("lang", "en-AU");
+  }
 });
