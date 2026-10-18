@@ -30,7 +30,18 @@ interface InjuryReplacementModalProps {
   onSkipReplacement: () => void;
   /** Don't mark injured at all. */
   onCancel: () => void;
+  /**
+   * Why the kid is coming off, for the words: an injury (the default),
+   * a foul-out or a sit-out (basketball). The flow is the same.
+   */
+  reason?: "injured" | "fouled_out" | "sitting_out";
 }
+
+const REASON_WORDS = {
+  injured: { eyebrow: (n: string) => `Marking ${n} injured`, skip: "Mark injured without replacement" },
+  fouled_out: { eyebrow: (n: string) => `${n} has fouled out`, skip: "Play one short" },
+  sitting_out: { eyebrow: (n: string) => `${n} sits out`, skip: "Play one short" },
+} as const;
 
 function formatMinSec(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -52,14 +63,16 @@ export function InjuryReplacementModal({
   onPickReplacement,
   onSkipReplacement,
   onCancel,
+  reason = "injured",
 }: InjuryReplacementModalProps) {
   const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
+  const words = REASON_WORDS[reason];
 
   return (
     <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
         <div className="px-5 pt-5">
           <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-danger">
-            Marking {firstName} injured
+            {words.eyebrow(firstName)}
           </p>
           <h2
             id="injury-replacement-title"
@@ -122,7 +135,7 @@ export function InjuryReplacementModal({
             onClick={onSkipReplacement}
             className="w-full rounded-md border border-hairline py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
           >
-            Mark injured without replacement
+            {words.skip}
           </button>
           <button
             type="button"
