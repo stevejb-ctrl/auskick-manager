@@ -11,7 +11,7 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isSoccer, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, teamSport } from "@/lib/sports";
 import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
@@ -149,7 +149,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // field size, season history and How we play, as the lineup uses.
   // Football (soccer)'s game plan comes with its How we play (phase 3
   // of .planning/SOCCER-PLAN.md); until then its game page has none.
-  const planInput = isUp && !isSoccer(sport)
+  // Basketball skips the game-plan preview too (its plan).
+  const planInput = isUp && !isSoccer(sport) && !isBasketball(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
           supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),

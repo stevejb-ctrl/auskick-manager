@@ -207,6 +207,15 @@ export function TeamBasicsForm({
               subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
               badge="Beta"
             />
+            {/* Open to every coach while it's in beta, as soccer was. */}
+            <SportPill
+              active={sport === "basketball"}
+              onClick={() => handleSportChange("basketball")}
+              disabled={isPending}
+              title="Junior Basketball"
+              subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
+              badge="Beta"
+            />
           </div>
         </div>
       )}
