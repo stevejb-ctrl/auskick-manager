@@ -7,27 +7,42 @@ decisions Steve needs to make. **Nothing here is decided yet.** Siren's
 suggested defaults are in bold and marked (recommended); the decisions
 are listed at the end.
 
-**Approach: basketball gets its own family and a thin engine. It lifts
+**Approach: basketball gets its own family and engine. It lifts
 soccer's sport-agnostic sub logic into `src/lib/live/` instead of
 forking it.**
-- **What the lineup is:** five on court and a bench. There's no keeper,
-  no lines and no formation, which is the same shape as soccer's 4v4
-  (one `field` line, no keeper).
+- **What the lineup is:** five on court and a bench, with no keeper.
+  **Positions are optional**, as in netball. How we play picks the
+  rotation:
+  - **no positions** (minutes only, like soccer's 4v4);
+  - **a guard/forward rotation** (two lines, like rugby's forwards and
+    backs);
+  - **a rotation through the five positions**, 1 to 5 (like netball's
+    bibs).
+
+  So the lineup is soccer's shape without the keeper: lines plus
+  optional named slots. See "Positions and rotations" below.
 - **Why not join the soccer family:** `isSoccer()` would answer yes for
-  basketball, and soccer's keeper, lines, formations and pitch would all
-  have to be switched off by config.
-- **What moves:** the rolling-sub pick and the window batch move out of
-  `soccer/suggest.ts` as plain functions, and both sports call them with
-  their own rules.
+  basketball. Soccer's keeper, formations and pitch would all have to be
+  switched off by config, and soccer's line words and strategies aren't
+  basketball's.
+- **What moves:** the rolling-sub pick, the window batch and the
+  per-line minutes in replay move out of soccer's engine as plain
+  functions. Both sports call them with their own rules.
 - That follows the union plan's rule ("shared code, never shared rules")
   and CLAUDE.md's "reuse before you fork".
 
-**Effort: smaller than soccer, at roughly 1½–2 weeks of sessions on the
+**Effort: about soccer's size, roughly 2 weeks of sessions on the
 soccer plan's yardstick.**
-- **Less than soccer:** no keeper, no lines, no formations.
-- **More than soccer:** fouls, a timed sit-out, saved clock pauses, a
-  "Set time left" clock action, a team halves/quarters setting, a
-  three-chip score bug and a PlayHQ tenant list.
+- **Less than soccer:** no keeper, no keeper handover, no formation
+  catalogue (basketball has two shapes).
+- **More than soccer:**
+  - fouls and a timed sit-out;
+  - saved clock pauses and a "Set time left" clock action;
+  - a team halves/quarters setting;
+  - a three-chip score bug;
+  - a PlayHQ tenant list.
+- **The same as soccer:** lines, optional named positions, and How we
+  play strategies.
 - **On that yardstick:** soccer's plan said two to three weeks, yet its
   phases 1–4 were built on `soccer-phase-2` by the evening of 17 Oct,
   the day the plan was written. So the estimate is probably high.
@@ -71,6 +86,8 @@ season.**
   None that we saw mentions Australian domestic by-laws: halves on a
   running clock, the no-subs last minute, or 5-minute sin bins.
 - **The gap:** none of them handles these well:
+  - optional position rotations (guard/forward or 1 to 5), balanced
+    over a season;
   - foul trouble in the sub suggestions;
   - foul-outs and sin bins taking a kid out mid-game;
   - season balance across games;
@@ -131,12 +148,16 @@ and U14 Junior Premier League play 4×8, fully timed.
 
 **Siren's age table (recommended):**
 
-| Age | On court | Squad | Periods | Scores | 3-pointers | Fouls tracked |
-|-----|----------|-------|---------|--------|------------|---------------|
-| U8 | 5 | **10** (max 12) | **2×12** | **Off** | No | **Off** |
-| U10 | 5 | **10** (max 12) | **2×20** | **On** | **No** | **Off** |
-| U12 | 5 | **10** (max 12) | **2×20** | **On** | **Yes** (team can turn off) | **On** |
-| U14–U18 | 5 | **10** (max 12) | **2×20** | **On** | Yes | **On** |
+| Age | On court | Squad | Periods | Scores | 3-pointers | Fouls tracked | Rotation ★ |
+|-----|----------|-------|---------|--------|------------|---------------|------------|
+| U8 | 5 | **10** (max 12) | **2×12** | **Off** | No | **Off** | **Equal minutes** |
+| U10 | 5 | **10** (max 12) | **2×20** | **On** | **No** | **Off** | **Equal minutes** |
+| U12 | 5 | **10** (max 12) | **2×20** | **On** | **Yes** (team can turn off) | **On** | **Guards and forwards** |
+| U14 | 5 | **10** (max 12) | **2×20** | **On** | Yes | **On** | **Guards and forwards** |
+| U16–U18 | 5 | **10** (max 12) | **2×20** | **On** | Yes | **On** | **Home line** |
+
+★ is How we play's suggested strategy. The coach can pick any of the
+five at any age (see "Positions and rotations").
 
 The team can override the number of periods (2 or 4), the period length
 and the players on court. Period length and on-court size can already be
@@ -228,17 +249,32 @@ yet; it needs `teams.period_count`** (see the engine).
      score shows only when it's tracked, because MyHoops already has
      the official one.
 
-8. **Positions are loose, and zone defence is banned up to U14.**
-   - Guards, forwards and centres exist, but juniors play man-to-man and
-     are taught to be positionless.
-   - Coaches care that each five is balanced, for example not all the
-     beginners on court at once.
+8. **Positions are loose, and coaches use them differently.**
+   - Basketball numbers its five positions:
+     - 1: point guard;
+     - 2: shooting guard;
+     - 3: small forward;
+     - 4: power forward;
+     - 5: centre.
 
-   → **Minutes only, no lines (recommended)**, like soccer's 4v4. There
-   is one optional tag, **"ball handler"**: the suggester keeps at
-   least one ball handler on court. It's stored in
-   `player_position_prefs`, as soccer's "keen keeper" is. The no-zone
-   rule is a How we play law note.
+     They group into guards (1–2) and forwards (3–5).
+   - Juniors play man-to-man (no zone to U14) and are taught to be
+     positionless, so plenty of coaches ignore positions.
+   - Others rotate kids between guard and forward. Older teams have
+     their guards and their bigs.
+   - Every coach cares that each five is balanced, for example not all
+     the beginners on court at once.
+
+   → **Positions are optional, as in netball.** How we play offers five
+   rotations:
+   - Equal minutes (no positions);
+   - Guards and forwards;
+   - Home line;
+   - All five positions;
+   - Set positions.
+
+   See "Positions and rotations" below. The no-zone rule is a How we
+   play law note.
 
 9. **Mercy rules and other local modifications.**
    - MCBA's U10–U14 mercy rule: the losing coach can invoke it at 20 or
@@ -378,6 +414,81 @@ credits segments.
 - **Team fouls and the bonus** (7 a half in WA, 4 a quarter under FIBA)
   are the table's job. Out of scope.
 
+## Positions and rotations
+
+Positions are optional. How we play's strategy decides how kids rotate,
+as netball's picks between thirds, bibs and set positions, and rugby's
+between both lines and a preferred line. No national rule forces any of
+them.
+
+| Strategy | What Siren does | Season balance | Fit (★ = suggested) |
+|----------|-----------------|----------------|---------------------|
+| **Equal minutes** (`minutes`) | Five on court, no positions. Kids just play, and Siren evens out their minutes. | Minutes only | ★ U8–U10 |
+| **Guards and forwards** (`both-lines`) | Every kid plays guard and forward across the game and the season. Which spot within a line is left to the kids. | Line | ★ U12–U14 |
+| **Home line** (`preferred-line`) | Each kid is a guard or a forward, with time on the other line too. Subs go guard for guard. | Line | ★ U16–U18 |
+| **All five positions** (`position-by-position`) | Every spot, 1 to 5, filled on its own, aiming for the most different positions per kid. | Position | Coaches who want every kid to play 1 to 5 |
+| **Set positions** (`set-positions`) | A home position plus backups. The bench rotates like-for-like. | Position (off by default) | Older teams that specialise |
+
+- **Lines:**
+  - `guard` and `forward`, labelled Guards and Forwards. The centre (5)
+    counts as a forward.
+  - **Shapes:** **2 guards and 3 forwards (recommended default)**, or 3
+    guards and 2 forwards. The coach picks in How we play, and the shape
+    carries from one period to the next.
+  - Equal minutes uses one line, `court`.
+- **Positions:**
+  - Seeded as 1 PG, 2 SG, 3 SF, 4 PF and 5 C (`kind: "custom"`,
+    `canRename: true`, `canAddRemove: false`). A coach can call them
+    "1–5", "PG–C" or "Point, Wing, Post", but there are always five,
+    each in its line.
+  - Stored in `team_positions`, as AFL's and rugby's are.
+  - With fewer than five on court (the team override), the position
+    strategies fall back to lines.
+- **Rolling subs under each strategy:**
+  - **Equal minutes:** the kid coming on takes the place of the kid
+    going off.
+  - **Guards and forwards, and All five positions:** the suggester picks
+    who comes on by minutes first. Then it puts them on the line (or
+    spot) that most evens out their season balance. "Mia on for Leo, at
+    guard."
+  - **Home line, and Set positions:** like-for-like: guard for guard, or
+    1 for 1. The `like-for-like` rule already exists.
+  - **Moving a kid on court:** at a dead ball, through `LockModal`
+    ("Move to {moveToLabel}" already flips rugby's forwards and backs;
+    "Switch player" swaps two kids' spots). It's saved as
+    `field_zone_swap`, as soccer moves kids between lines.
+- **Breaks re-plan the lines**, as soccer's half-time plan does. Under
+  Guards and forwards, a kid who played guard in the first half leans
+  to forward in the second.
+- **No position cycle.** Netball's cycle (each bib along, then the
+  bench) works because netball changes at the breaks. Basketball subs
+  roll, so a cycle can't hold.
+- **The ball-handler tag applies only to Equal minutes.** The suggester
+  keeps at least one kid tagged "ball handler" on court. Under the line
+  and position strategies the guards are the ball handlers. The tag is
+  stored in `player_position_prefs`, as soccer's "keen keeper" is.
+- **Rules** (`engineRuleKinds`):
+  - `every-line-per-game`: guard and forward in every game;
+  - `every-line-per-day`;
+  - `distinct-lines`: the most different positions;
+  - `stays-home`: Home line and Set positions;
+  - `like-for-like`;
+  - `keep-apart` and `keep-together`;
+  - `max-bench-in-row`, counted in stints, since basketball subs on the
+    run (`benchPeriodWord`).
+
+  `subs-at-breaks` isn't offered.
+- **Fairness:**
+  - Minutes per line and per position are tracked apart from total
+    minutes. They show in season balance (`balanceUnit: "line"` or
+    `"position"`), the season grid, stats and the game report.
+  - Total minutes stay the first goal under every strategy: a kid is
+    never kept off to even out a position.
+- **The role sheet:** Home line and Set positions use the shared role
+  sheet (`playbook/roles.ts`): a home line, or a home position plus
+  backups, as rugby and netball do.
+- **Fallback strategy** (a team with no saved choice): Equal minutes.
+
 ## The engine
 
 Basketball is a new family: `SportFamily` gains `"basketball"`, with an
@@ -391,12 +502,15 @@ rules").
 - **Soccer merges to `main` first.** Basketball builds on soccer's
   migration (`0068`), its sub-window cutoff in `subDistribution.ts`, and
   `SportFamily`'s soccer entry. Basketball's migration is then `0069`.
-- **The lift.** Soccer's `suggestSoccerRollingSub` and
-  `suggestSoccerWindowBatch` move into `src/lib/live/` as functions
-  over a plain "on / bench / minutes / holds" input, with soccer's
-  wrappers keeping their names. Soccer's 7 unit-test files guard it. If
-  the lift turns out bigger than a fork, fork instead and say why in a
-  comment.
+- **The lift.** These move into `src/lib/live/` as functions over a
+  plain "lines / bench / minutes / holds" input, with soccer's wrappers
+  keeping their names:
+  - `suggestSoccerRollingSub`;
+  - `suggestSoccerWindowBatch`;
+  - the per-line minutes in soccer's `replay.ts`.
+
+  Soccer's 7 unit-test files guard it. If the lift turns out bigger
+  than a fork, fork instead and say why in a comment.
 
 ### What basketball shares
 
@@ -406,9 +520,9 @@ CLAUDE.md lists the shared chrome. Basketball consumes it verbatim:
 - live actions and banners: `ScoreRecordingDock` (with the Foul
   action), `SubDueBanner`, `ManualEndQuarterConfirm`,
   `StartQuarterModal`, `ClockMenu` (with "Set time left");
-- sideline modals: `LockModal` (with "Sit out 5 min"),
-  `LateArrivalMenu`, `InjuryReplacementModal` (with the fouled-out
-  copy);
+- sideline modals: `LockModal` (with "Sit out 5 min", and its existing
+  "Move to {moveToLabel}" and "Switch player"), `LateArrivalMenu`,
+  `InjuryReplacementModal` (with the fouled-out copy);
 - the lineup picker's chrome: `LineupPickerBreadcrumb`,
   `LineupPickerFooter`;
 - hints and walkthroughs: `LongPressHint`, `WalkthroughModal`;
@@ -419,7 +533,8 @@ It also uses the sport-agnostic helpers:
   `subCadence`, `breakDraft`, `reconcileLineupToAvailability`,
   `presentPlayers`, `scoreUndo`, `locks`, and the lifted rolling-sub
   functions;
-- `src/lib/playbook/`: `rules`, `ruleCheck`, `seasonBalance`, `rollup`.
+- `src/lib/playbook/`: `rules`, `ruleCheck`, `seasonBalance`, `rollup`,
+  `roles`, `seasonGrid`.
 
 Where basketball does what AFL does, it matches AFL, the reference:
 - the bench is AFL's `grid-cols-4`;
@@ -431,13 +546,22 @@ Where basketball does what AFL does, it matches AFL, the reference:
 
 ### What basketball owns
 
-- **The lineup:** `{ court: string[]; bench: string[] }`, with five on
-  court by default (the team override allows fewer). Validator: the
-  right count on court, no kid twice, and nobody fouled out or sitting
-  out on court.
+- **The lineup:** soccer's shape without the keeper. Roughly
+  `{ lines: Record<BasketballLine, string[]>; bench: string[]; slots?: Record<string, string> }`.
+  - The lines are `guard` and `forward`. Equal minutes uses one line,
+    `court`.
+  - `slots` maps positions 1–5 to kids under the position strategies.
+  - Five on court by default (the team override allows fewer).
+  - **Validator:**
+    - the line sizes match the shape;
+    - every slot is filled once;
+    - no kid appears twice;
+    - nobody fouled out or sitting out is on court.
 - **The config** (`src/lib/sports/basketball/index.ts`):
   - the age table above, with `periodLabel` following the period
     count;
+  - the lines, the two shapes, the five seeded positions, and the
+    strategy per age (★);
   - score types: free throw 1, two 2, three 3, each with an opponent
     twin;
   - `threePointers` per age;
@@ -445,17 +569,23 @@ Where basketball does what AFL does, it matches AFL, the reference:
   - `tracksFoulsDefault` per age;
   - the sub mode (rolling plus cutoff) and the clock mode.
 - **The engine** (`src/lib/sports/basketball/`):
-  - **replay:** events to per-player minutes, points, fouls, foul-outs
-    and sit-outs;
-  - **suggesters:**
-    - the starting five;
+  - **replay:** events to per-player minutes (in total, per line and per
+    position), points, fouls, foul-outs and sit-outs;
+  - **suggesters**, each following the team's strategy:
+    - the starting five, with lines and spots;
     - the next rolling sub, through the lifted shared function, with
-      basketball's rules (foul trouble, a ball handler on court, the
-      cutoff);
-    - the half-time or quarter-break plan;
+      basketball's rules:
+      - foul trouble;
+      - the line or spot that evens out season balance;
+      - like-for-like under Home line and Set positions;
+      - a ball handler on court under Equal minutes;
+      - the cutoff;
+    - the half-time or quarter-break plan, which re-plans the lines;
   - **the lineup validator.**
 - **Events:** existing types are reused where the meaning matches:
   - `swap` for a sub;
+  - `field_zone_swap` for moving an on-court kid between lines or
+    spots;
   - `injury` with reason `fouled_out`;
   - the scorer-credited score pattern of `recordGoal`, for the three
     score types;
@@ -472,8 +602,13 @@ Where basketball does what AFL does, it matches AFL, the reference:
   Both need `sport_event_types` rows (`0061`).
 - **The live UI** goes in a new `src/components/basketball/`:
   - `BasketballLiveGame`;
-  - `BasketballCourt`, five tiles on a half court, in AFL's look as
-    soccer's `SoccerField` is;
+  - `BasketballCourt`: a half court in AFL's look, as soccer's
+    `SoccerField` is, drawn three ways:
+    - five unlabelled tiles (Equal minutes);
+    - a Guards band at the top of the key and a Forwards band at the
+      basket (the line strategies);
+    - five spots: 1 at the top of the key, 2 and 3 on the wings, 4 and
+      5 on the blocks (the position strategies);
   - `BasketballLineupPicker`;
   - `BasketballScoreBug`;
   - the summary card and full-time review, mirroring AFL's.
@@ -518,21 +653,28 @@ basketball until phase 2 is done.
 
 ### 1. The sport and its engine (no UI)
 
-- **The lift:** soccer's rolling-sub pick and window batch move to
-  `src/lib/live/`, with soccer's tests green.
+- **The lift:** soccer's rolling-sub pick, window batch and per-line
+  minutes move to `src/lib/live/`, with soccer's tests green.
 - **Ids:**
   - `basketball` in `SportId` / `Sport` (both copies) and
     `"basketball"` in `SportFamily`;
   - `isBasketball()` in the registry.
-- **`src/lib/sports/basketball/index.ts`:** the age table, score types,
-  foul and clock settings, `teamSong: false`, `jerseyNumbers: true`.
+- **`src/lib/sports/basketball/index.ts`:**
+  - the age table;
+  - lines, shapes, positions and the strategy per age;
+  - score types;
+  - foul and clock settings;
+  - `teamSong: false`, `jerseyNumbers: true`.
 - **Migration 0069** (`0068_soccer.sql` is the template):
   - widen `teams_sport_check`;
   - `sport_event_types` rows, including `foul` and `sit_out`;
+  - `sport_lines` rows: `guard`, `forward` and `court`;
   - `teams.period_count`.
-- **The engine:** the lineup type and validator, replay (minutes,
-  points, fouls, foul-outs, sit-outs) and the suggesters, all pure and
-  unit-tested.
+- **The engine:** all pure and unit-tested:
+  - the lineup type and validator;
+  - replay: minutes in total, per line and per position, plus points,
+    fouls, foul-outs and sit-outs;
+  - the suggesters under each of the five strategies.
 - **Saved clock pauses:** the regression test first, then the fix.
 
 Done when the engine's unit tests pass, the cross-sport guards
@@ -543,11 +685,16 @@ and `tsc` is clean.
 
 - **Setup:** the setup wizard's sport pill (behind Beta, as soccer) and
   the default age.
-- **Before tip-off:** `BasketballLineupPicker`, `BasketballCourt`, the
-  tiles and the bench.
+- **Before tip-off:**
+  - `BasketballLineupPicker`;
+  - `BasketballCourt` in all three layouts (no positions, guards and
+    forwards, 1 to 5);
+  - the tiles and the bench.
 - **During the game:**
   - `BasketballLiveGame`;
-  - rolling subs with "send to the table" and "On", and the cutoff;
+  - rolling subs with "send to the table" and "On", the line or spot
+    they go to, and the cutoff;
+  - moving kids between lines or spots (`LockModal`);
   - the Foul button, foul badges and foul trouble;
   - the fouled-out flow through `InjuryReplacementModal`;
   - the 5-minute sit-out from `LockModal`;
@@ -560,9 +707,11 @@ and `tsc` is clean.
 - **Plumbing:** `basketball-actions.ts`, the write queue, and the
   live-route and runner-route branches.
 
-Done when a U12 game at 2×20 plays end to end on a phone, with a
-foul-out and a sit-out, and so does a 4×10 quarters game. Their e2e
-playthroughs are green.
+Done when these play end to end on a phone, and their e2e playthroughs
+are green:
+- a U12 game at 2×20 under Guards and forwards, with a foul-out and a
+  sit-out;
+- a 4×10 quarters game under All five positions.
 
 ### 3. Every other surface
 
@@ -571,13 +720,18 @@ playthroughs are green.
   - team settings: halves or quarters, period length, foul tracking,
     3-pointers, sub cutoff.
 - **How we play:** basketball's playbook:
+  - the five strategies with ★ per age, the shape (2–3 or 3–2), the
+    positions step (rename 1–5), and the role sheet for Home line and
+    Set positions;
+  - the rules list (`engineRuleKinds` above);
   - the equal-time floor;
-  - the ball-handler rule;
+  - the ball-handler tag (Equal minutes);
   - foul trouble;
   - law notes: no zone to U14, the mercy rule, the U10 modifications,
     coaches on court, wristbands.
-- **Stats:** minutes, points and fouls in the stats dashboard, season
-  balance and the game report.
+- **Stats:** minutes (in total, per line and per position), points and
+  fouls in the stats dashboard, season balance, the season grid and the
+  game report.
 - **PlayHQ:** the tenant list, `parsePlayhqUrl`, and the import and
   nightly sync for basketball.
 - **Help:** about 10 hand-written pages, plus a walkthrough steps file.
@@ -594,7 +748,15 @@ playthroughs are green.
   - the age table, and the period-count override (halves and quarters,
     with labels);
   - the rolling sub: fewest minutes on, rest a kid at 4 fouls, keep a
-    ball handler on, no subs inside the cutoff;
+    ball handler on (Equal minutes), no subs inside the cutoff;
+  - each strategy:
+    - Guards and forwards sends the kid coming on to the line they're
+      short of this season;
+    - Home line and Set positions sub like-for-like;
+    - All five positions spreads kids across 1 to 5;
+    - total minutes win over position balance;
+  - both shapes (2–3 and 3–2), and the fallback to lines with fewer
+    than five on court;
   - a foul-out removes the kid for the rest of the game, with no "Back
     on";
   - a sit-out lasts 5 minutes of clock time, and a timeout inside it
@@ -605,10 +767,13 @@ playthroughs are green.
     regression test);
   - "Set time left" moves later `elapsed_ms`;
   - isolation: basketball reads nothing from soccer's or AFL's rules
-    (no keeper, no lines, no "behind"), and no other sport reads
-    basketball.
+    (no keeper, no soccer lines or formations, no "behind"), and no
+    other sport reads basketball.
 - **E2E**, copying soccer's and AFL's:
   - a 2×20 full-game playthrough with a foul-out and a sit-out;
+  - each strategy picked in How we play and seen on the live court
+    (positions off, guards and forwards, 1 to 5), including a mid-game
+    "Move to forwards";
   - a 4×10 quarters game, set from team settings: the schema rule,
     `period_count` end to end through the UI;
   - sideline combos (injure, lend, late arrival, foul out the last kid
@@ -634,9 +799,12 @@ playthroughs are green.
 
 If the schedule slips:
 - PlayHQ import moves to after the beta;
-- the ball-handler rule moves to v1.1.
+- the two position strategies (All five positions, Set positions) move
+  to v1.1;
+- the ball-handler tag moves to v1.1.
 
-Rolling subs, fouls and the running clock are the core.
+Rolling subs, fouls, the running clock, Equal minutes and the two line
+strategies are the core.
 
 ## To confirm before or during phase 1
 
@@ -674,6 +842,10 @@ Rolling subs, fouls and the running clock are the core.
   quarter): the engine handles quarters, so this is an age-table and
   rules job if overseas demand shows up.
 - **Table duty on the game-day roster.**
+- **A position cycle** (netball's): basketball subs roll, so it can't
+  hold.
+- **Plays and sets** (who runs which play): coaching content, not
+  rotation.
 - **Mercy rules, wristbands, retreat rules and zone checks:** law notes
   only.
 
@@ -681,9 +853,9 @@ Rolling subs, fouls and the running clock are the core.
 
 Siren's suggestion is first, in bold.
 
-1. **Engine:** **its own family and thin engine, lifting soccer's
-   rolling-sub logic into `src/lib/live/`**, or join the soccer family
-   (and rename it), or fork soccer's engine.
+1. **Engine:** **its own family and engine, lifting soccer's rolling-sub
+   logic and per-line minutes into `src/lib/live/`**, or join the
+   soccer family (and rename it), or fork soccer's engine.
 2. **Name and brand:** **"Basketball", code id `basketball`, on the main
    Siren brand**, or a site of its own.
 3. **Age defaults:** **2×20 halves from U10, U8 at 2×12, quarters
@@ -698,8 +870,23 @@ Siren's suggestion is first, in bold.
 6. **Sit-out:** **one shared timed sit-out, built now**, for soccer and
    rugby to use later.
 7. **Scores:** **off at U8, on from U10; the +3 chip from U12.**
-8. **Positions:** **minutes only, with an optional "ball handler" tag**,
-   or minutes only.
+8. **Positions: optional, as in netball.** How we play offers five
+   strategies:
+   - **Equal minutes** (★ U8–U10, and the fallback);
+   - **Guards and forwards** (★ U12–U14);
+   - **Home line** (★ U16–U18);
+   - **All five positions**;
+   - **Set positions.**
+
+   Also to settle:
+   - **the shape:** 2 guards and 3 forwards by default, 3–2 as the
+     option;
+   - **the positions:** seeded 1–5 (PG, SG, SF, PF, C), renamable, not
+     removable;
+   - **the ball-handler tag**, under Equal minutes only.
+
+   The alternatives: lines only (no 1–5 strategies), or different ★
+   ages.
 9. **Game time:** **equal time as the target, with a 50 % floor the
    coach can change.**
 10. **Timing:** **build after soccer merges, beta in Term 1 2027, launch
