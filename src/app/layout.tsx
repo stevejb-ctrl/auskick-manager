@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
-import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Script from "next/script";
+import { Suspense } from "react";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
 import { gaMeasurementId } from "@/lib/analytics/ga";
+import { GoogleAnalyticsGate } from "@/components/analytics/GoogleAnalyticsGate";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
@@ -118,7 +119,7 @@ export default function RootLayout({
     >
 
       {/* Analytics components must live INSIDE <body>. Rendering
-          <SpeedInsights /> (or <GoogleAnalytics />) as a sibling of
+          <SpeedInsights /> (or <GoogleAnalyticsGate />) as a sibling of
           <body> produces invalid HTML — the browser parser moves
           their nodes into <body> while React's client-side renderer
           still expects them as children of <html>. The mismatch
@@ -160,7 +161,14 @@ export default function RootLayout({
             No-op on web. */}
         <NativeSplashHide />
         {children}
-        {gaId && <GoogleAnalytics gaId={gaId} />}
+        {/* Google Analytics, public pages only: never the app or a
+            token link (/run/<token>, /join/<token>). The gate reads
+            the URL with useSearchParams, hence the Suspense. */}
+        {gaId && (
+          <Suspense fallback={null}>
+            <GoogleAnalyticsGate gaId={gaId} />
+          </Suspense>
+        )}
         <SpeedInsights />
       </body>
     </html>
