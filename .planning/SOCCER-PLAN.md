@@ -406,10 +406,10 @@ half-time keeper change, and its e2e playthrough is green.
 If the schedule slips, windows mode moves to after the beta: rolling
 subs cover MiniRoos and Queensland.
 
-## Build status (17 Oct 2026)
+## Build status (18 Oct 2026)
 
-Built on branch `soccer-phase-2` (phase 1's branch merged in), not
-pushed or merged to `main`:
+Phases 1–4 merged to `main` in PR #154 on 17 Oct 2026; migration 0068
+is in production:
 
 - **Phase 1:** the sport, migration 0068, the engine.
 - **Phase 2:** the live game for coaches and runner links (picker,
@@ -425,6 +425,15 @@ pushed or merged to `main`:
   pages, 4 and 11 a side) on Chromium and WebKit, and Stagehand
   missions (not yet run). The full suite passes apart from AFL specs
   this branch doesn't touch.
+- **Launch marketing** (branch `soccer-homepage`, 18 Oct 2026):
+  - soccer's own homepage copy (`content/marketing/brands/soccer.json`,
+    editable in Pages CMS);
+  - a hero screenshot (`scripts/capture-soccer-hero.mjs` makes it);
+  - the homepage and demo card open, five cards a row;
+  - the `why-siren` paragraph and the "five sports" subtitle.
+
+  The production demo needs its Demo Football team, which the daily
+  seed-demo cron makes.
 
 Not built yet:
 
@@ -435,8 +444,6 @@ Not built yet:
   page skips it.
 - **Mid-game game settings** (sub interval, players on the field) and
   a **walkthrough** for soccer.
-- **Launch marketing:** soccer's own homepage copy, the `why-siren`
-  rewrite, and flipping the homepage and demo card from "Coming soon".
 
 ## Still to confirm
 

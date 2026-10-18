@@ -21,6 +21,7 @@ import aflJson from "../../../content/marketing/brands/afl.json";
 import netballJson from "../../../content/marketing/brands/netball.json";
 import leagueJson from "../../../content/marketing/brands/league.json";
 import unionJson from "../../../content/marketing/brands/union.json";
+import soccerJson from "../../../content/marketing/brands/soccer.json";
 
 /**
  * A heading split into three parts so a single word can render in
@@ -104,7 +105,7 @@ const COPY: Record<SportId, BrandCopy> = {
   // homepage's union sport section reads marketing-copy.ts.
   rugby_union: AFL_COPY,
   // Football (soccer) too: the main brand's copy. Its homepage section
-  // is phase 3.
+  // reads its own copy (SOCCER_MARKETING_COPY, marketing-copy.ts).
   soccer: AFL_COPY,
   // Basketball too: the main brand's copy.
   basketball: AFL_COPY,
@@ -115,6 +116,13 @@ const COPY: Record<SportId, BrandCopy> = {
  * no site of its own, so no brand reads it): marketing-copy.ts.
  */
 export const UNION_MARKETING_COPY = unionJson as BrandCopy;
+
+/**
+ * Football (soccer)'s own long-form copy for the homepage sport picker
+ * (content/marketing/brands/soccer.json; soccer has no site of its own
+ * either): marketing-copy.ts.
+ */
+export const SOCCER_MARKETING_COPY = soccerJson as BrandCopy;
 
 export function getBrandCopy(id: SportId): BrandCopy {
   return COPY[id] ?? AFL_COPY;

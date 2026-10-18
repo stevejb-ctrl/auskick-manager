@@ -21,6 +21,18 @@ test.describe("unauthenticated entry", () => {
   // chromium project and never exercise the unauth branch.
   test.use({ storageState: { cookies: [], origins: [] } });
 
+  test("the homepage picker shows Siren in football (soccer) mode, with soccer's own features", async ({ page }) => {
+    await page.goto("/");
+    const card = page.getByTestId("sport-card-football");
+    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode");
+    await card.click();
+    await expect(card).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { name: /see siren in football mode/i })).toBeVisible();
+    // Soccer's own copy (content/marketing/brands/soccer.json), not AFL's.
+    await expect(page.getByText("Everyone gets a").first()).toBeAttached();
+    await expect(page.getByText("Not always stuck at the").first()).toBeAttached();
+  });
+
   test("unauthenticated GET / renders the marketing hero", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/$/);

@@ -146,11 +146,13 @@ export function MultiSportSection({
           </p>
         </div>
 
-        {/* Picker grid — 2 cols on phone, 4 cols on lg+. */}
-        <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-4 lg:grid-cols-4">
-          {MARKETING_SPORTS.map((sport) => {
+        {/* Picker grid — 2 cols on phone (an odd last card spans both),
+            3 from sm, all five in a row on lg+. */}
+        <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+          {MARKETING_SPORTS.map((sport, index) => {
             const isActive = sport.id === active.id && !sport.comingSoon;
             const isDisabled = Boolean(sport.comingSoon);
+            const phoneOrphan = MARKETING_SPORTS.length % 2 === 1 && index === MARKETING_SPORTS.length - 1;
             return (
               <button
                 key={sport.id}
@@ -184,6 +186,7 @@ export function MultiSportSection({
                   transition-colors duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E0F11]
                   sm:h-[130px]
+                  ${phoneOrphan ? "col-span-2 sm:col-span-1" : ""}
                   ${
                     isDisabled
                       ? "cursor-not-allowed opacity-55"
