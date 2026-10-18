@@ -264,6 +264,19 @@ collections:
         format: json
         fields: *brandCopyFields
 
+  - name: brand-soccer
+    label: Football (soccer) content
+    description: >
+      Deep junior football (soccer) marketing copy. Shows when
+      Football (soccer) is the active sport on the homepage picker
+      (soccer has no site of its own).
+    files:
+      - name: soccer
+        label: Football (soccer) content
+        file: content/marketing/brands/soccer.json
+        format: json
+        fields: *brandCopyFields
+
   - name: brand-netball
     label: Netball content
     description: >

@@ -146,14 +146,16 @@ export default function WhySirenPage() {
             </h2>
             <div className="mt-6 space-y-5 text-lg leading-relaxed text-ink-dim">
               <p>
-                Junior football and netball have their own rhythms. Quarters,
-                not halves. Position areas the kids actually recognise —
-                attack/centre/back for football, three thirds with seven bibs
-                for netball. The &ldquo;everyone gets a go&rdquo; ethos.
-                Fixtures via PlayHQ. Lending a kid to the opposition when
-                numbers are uneven. Mid-quarter subs when your league allows
-                them, period-break subs when it doesn&apos;t. Siren is shaped
-                around those things, not adapted from a soccer subs app.
+                Every junior code has its own rhythms. Quarters in AFL and
+                netball, halves in league, union and soccer. Position areas the
+                kids actually recognise — back, centre and forward in AFL, three
+                thirds with seven bibs in netball, forwards and backs in rugby,
+                a keeper and three lines in soccer. The &ldquo;everyone gets a
+                go&rdquo; ethos, right down to a fair turn in goal. Fixtures via
+                PlayHQ. Lending a kid to the opposition when numbers are uneven.
+                Mid-period subs when your league allows them, break subs when it
+                doesn&apos;t. Siren is shaped around each code&apos;s game, not
+                one generic subs timer with a new name on it.
               </p>
             </div>
           </RevealOnScroll>

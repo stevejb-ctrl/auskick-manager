@@ -1,0 +1,185 @@
+{
+  "banner": {
+    "prefix": "Free for the entire 2026 season.",
+    "linkText": "Sign up in under a minute →"
+  },
+  "trustBand": [
+    {
+      "stat": "300+",
+      "label": "Coaches"
+    },
+    {
+      "stat": "9k",
+      "label": "Games tracked"
+    },
+    {
+      "stat": "4.9★",
+      "label": "Parent rating"
+    },
+    {
+      "stat": "0",
+      "label": "Clipboards"
+    }
+  ],
+  "tagline": "Made for volunteer coaches.",
+  "finalCtaEyebrow": "Saturday morning is coming",
+  "heroEyebrow": "Built for junior football (soccer)",
+  "heroSubtitle": "Rolling subs, a fair turn in goal for every kid, and time across defence, midfield and attack. From MiniRoos 4 a side to 11 a side, Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+  "metaDescription": "Junior football (soccer) game manager. Fair rolling subs, keeper turns, time in every line, MiniRoos 4 a side to 11 a side, live goals and season stats.",
+  "centerpiece": {
+    "before": "Everything you need to make game day a ",
+    "italic": "breeze",
+    "after": "."
+  },
+  "productName": "Siren",
+  "finalCtaBody": "Free for the entire 2026 season. Works on the phone you already have. Optional app download, no credit card.",
+  "features": [
+    {
+      "id": "rotations",
+      "eyebrow": "Fair rotations",
+      "title": {
+        "before": "Every kid gets a ",
+        "italic": "fair",
+        "after": " run."
+      },
+      "body": "Kids roll on and off whenever you like, the way MiniRoos plays. Siren tracks every kid's minutes and suggests who comes on next, so playing time stays even without you counting.",
+      "bullets": [
+        "Total game time visible at a glance",
+        "A sub card that rotates the whole bench",
+        "Season totals carry across all games"
+      ],
+      "image": "/marketing/screenshots/rotations.png",
+      "imageAlt": "Rotation view showing each player's time on the field"
+    },
+    {
+      "id": "keeper",
+      "eyebrow": "The keeper",
+      "title": {
+        "before": "Everyone gets a ",
+        "italic": "turn",
+        "after": " in goal."
+      },
+      "body": "One keeper a half, and at half-time Siren hands the keeper top to the kid with the fewest keeper minutes this season, with last half's keeper out in the field. Mark your keen keepers and the kids who'd rather not, or name your keepers once kids specialise.",
+      "bullets": [
+        "Keeper turns shared fairly across the season",
+        "Keen keepers first, and nobody forced in goal",
+        "Named keepers for older teams"
+      ],
+      "image": "/marketing/screenshots/flexibility.png",
+      "imageAlt": "Half-time plan with the keeper top handed to the next kid"
+    },
+    {
+      "id": "lines",
+      "eyebrow": "Every line",
+      "title": {
+        "before": "Not always stuck at the ",
+        "italic": "back",
+        "after": "."
+      },
+      "body": "Over the season Siren moves kids through defence, midfield and attack, so every kid learns the whole game. Pick your shape (2-3-1, 3-3-2, 4-3-3 and more) and Siren fills it fairly.",
+      "bullets": [
+        "Time in each line on every player tile",
+        "Season balance across defence, midfield and attack",
+        "Shapes for 7, 9 and 11 a side"
+      ],
+      "image": "/marketing/screenshots/img_3855.png",
+      "imageAlt": "Player tiles showing time in defence, midfield and attack"
+    },
+    {
+      "id": "sizes",
+      "eyebrow": "Your competition",
+      "title": {
+        "before": "MiniRoos to eleven a side, ",
+        "italic": "your",
+        "after": " way."
+      },
+      "body": "Siren starts each age at Football Australia's MiniRoos formats: 4 a side with no keeper at Under 6 and 7, then 7 and 9 a side with a keeper. Your competition plays a different size or half length? Set it once for the team.",
+      "bullets": [
+        "MiniRoos defaults from Under 6 to Under 11",
+        "Your team's own players on the field and half length",
+        "Under 12 to Under 17 at 9 and 11 a side"
+      ],
+      "image": "/marketing/screenshots/availability.png",
+      "imageAlt": "Pre-game squad screen with the players on the field for the day"
+    },
+    {
+      "id": "scoring",
+      "eyebrow": "Score tracking",
+      "title": {
+        "before": "Goals, and who ",
+        "italic": "scored",
+        "after": " them."
+      },
+      "body": "Tap a player and + Goal, or log the other team's goal from the scorebug. MiniRoos keeps no scores or ladders, so the scoreboard starts off for the youngest ages and is one switch away.",
+      "bullets": [
+        "Goals for both teams from the sideline",
+        "Scorers in the post-game summary",
+        "Undo the last goal in one tap"
+      ],
+      "image": "/marketing/screenshots/scoring.png",
+      "imageAlt": "Score view with goals for both teams"
+    },
+    {
+      "id": "flexibility",
+      "eyebrow": "Full control",
+      "title": {
+        "before": "Handle anything the game ",
+        "italic": "throws",
+        "after": " at you."
+      },
+      "body": "Long-press any player to swap the keeper, flag an injury, or lend them to the opposition. A hurt keeper? A bench kid goes straight in goal. Siren adapts mid-game without losing track of anyone's time.",
+      "bullets": [
+        "Replace the keeper in two taps",
+        "Injured players skip the rotation",
+        "Lend a player to the opposition and track their time separately"
+      ],
+      "image": "/marketing/screenshots/rl-long-press.png",
+      "imageAlt": "Player actions sheet with keeper, injury and lend options"
+    },
+    {
+      "id": "share",
+      "eyebrow": "Share with parents",
+      "title": {
+        "before": "Hand the sideline to any parent in ",
+        "italic": "one",
+        "after": " tap."
+      },
+      "body": "Send the run-link to a parent on the sideline and they run the subs and the score for the day. No app download, no account, no setup. A magic link gets them straight in.",
+      "bullets": [
+        "Full game access via a single shareable link",
+        "No app download or account needed",
+        "Coach stays focused on the field"
+      ],
+      "image": "/marketing/screenshots/share.png",
+      "imageAlt": "Public run-link view for parents"
+    },
+    {
+      "id": "stats",
+      "eyebrow": "Season stats",
+      "title": {
+        "before": "See how the ",
+        "italic": "season",
+        "after": " is going."
+      },
+      "body": "After every game, minutes, goals and time in goal update automatically. Spot who hasn't had a turn in goal, or who's spent the season in defence, and even it out next week.",
+      "bullets": [
+        "Minutes and time in goal for every kid",
+        "Season balance across the lines",
+        "Goal-scorers across the season"
+      ],
+      "image": "/marketing/screenshots/stats.png",
+      "imageAlt": "Season stats with minutes, goals and time in goal"
+    }
+  ],
+  "finalCtaTitle": {
+    "before": "Set up your team in about ",
+    "italic": "five",
+    "after": " minutes."
+  },
+  "heroTitle": {
+    "before": "Run the half. Keep your head up.",
+    "italic": "",
+    "after": ""
+  },
+  "heroTrust": "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL"
+}
