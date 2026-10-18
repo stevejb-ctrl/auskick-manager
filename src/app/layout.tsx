@@ -7,19 +7,11 @@ import Script from "next/script";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { siteUrl } from "@/lib/seo";
+import { gaMeasurementId } from "@/lib/analytics/ga";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
 import "./globals.css";
-
-// GA4 Measurement ID. Not a secret — the same ID is in the HTML of
-// every page anyway — so hardcoding it is fine and avoids the
-// NEXT_PUBLIC_* inline-at-build-time foot-gun. Gated on VERCEL_ENV
-// so analytics only fires on the production deploy, never from
-// local dev (`next dev` leaves VERCEL_ENV undefined) or preview
-// deploys.
-const GA_ID = "G-ZBTGMZPTD0";
-const IS_PROD_DEPLOY = process.env.VERCEL_ENV === "production";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -117,6 +109,7 @@ export default function RootLayout({
   // header by the time we render here, so getBrand() is the source
   // of truth.
   const brand = getBrand();
+  const gaId = gaMeasurementId();
   return (
     <html
       lang="en"
@@ -167,7 +160,7 @@ export default function RootLayout({
             No-op on web. */}
         <NativeSplashHide />
         {children}
-        {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
+        {gaId && <GoogleAnalytics gaId={gaId} />}
         <SpeedInsights />
       </body>
     </html>
