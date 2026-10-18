@@ -22,7 +22,10 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isBasketball, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { basketballAgeGroup, basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
+import { TrackFoulsToggle } from "@/components/team/TrackFoulsToggle";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
 import type { Sport, TeamRole } from "@/lib/types";
 
@@ -40,7 +43,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, period_count, track_fouls, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -123,7 +126,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     invites = (rawInvites ?? []) as PendingInvite[];
   }
 
-  const ageGroupCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+  // Basketball plays the team's halves or quarters (migration 0069).
+  const teamPeriodCount = (team as { period_count?: number | null }).period_count ?? null;
+  const ageGroupCfg = isBasketball(sport)
+    ? basketballAgeGroupForTeam((team as { age_group?: string | null }).age_group ?? null, teamPeriodCount)
+    : getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
   const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
     supabase
       .from("team_playbooks")
@@ -242,8 +249,17 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
           isAdmin={isAdmin}
         />
+        {isBasketball(sport) && (
+          <PeriodFormatSettings
+            teamId={params.teamId}
+            initialCount={teamPeriodCount}
+            halfMinutes={basketballAgeGroup(ageGroupCfg.id).periodSeconds / 60}
+            isAdmin={isAdmin}
+          />
+        )}
         <QuarterLengthInput
-          key={ageGroupCfg.id}
+          // Fresh after an age or a halves/quarters change: its default moves.
+          key={`${ageGroupCfg.id}:${ageGroupCfg.periodCount}`}
           teamId={params.teamId}
           ageGroupDefaultSeconds={ageGroupCfg.periodSeconds}
           initialOverrideSeconds={
@@ -261,6 +277,15 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           isAdmin={isAdmin}
           sportId={sport}
         />
+        {isBasketball(sport) && (
+          <TrackFoulsToggle
+            teamId={params.teamId}
+            initialEnabled={
+              (team as { track_fouls?: boolean | null }).track_fouls ?? basketballAgeGroup(ageGroupCfg.id).tracksFoulsDefault
+            }
+            isAdmin={isAdmin}
+          />
+        )}
         {getSportConfig(sport).teamSong && (
           <TeamSongSettings
             teamId={params.teamId}

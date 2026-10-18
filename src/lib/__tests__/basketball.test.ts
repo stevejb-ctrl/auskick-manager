@@ -215,3 +215,12 @@ describe("basketball isolation", () => {
     }
   });
 });
+
+describe("basketball's new games", () => {
+  it("take a quarter's sub interval when the team plays quarters", () => {
+    expect(newGameDefaults("basketball", "U12", null, 4)).toEqual({ on_field_size: 5, sub_interval_seconds: 300 });
+    expect(newGameDefaults("basketball", "U12", null, null)).toEqual({ on_field_size: 5, sub_interval_seconds: 240 });
+    // Another sport ignores the period count.
+    expect(newGameDefaults("soccer", "U9", null, 4)).toEqual(newGameDefaults("soccer", "U9", null));
+  });
+});

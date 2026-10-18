@@ -17,6 +17,7 @@
 // took the DB default of 180s.
 
 import { getAgeGroupConfig } from "@/lib/sports";
+import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 export interface NewGameDefaults {
@@ -65,8 +66,11 @@ export function newGameDefaults(
   sport: string | null | undefined,
   ageGroup: string | null | undefined,
   teamSize?: number | null,
+  /** Basketball: the team's halves or quarters (teams.period_count). */
+  periodCount?: number | null,
 ): NewGameDefaults {
-  const cfg = getAgeGroupConfig(sport, ageGroup);
+  // A basketball team's quarters take a quarter's sub interval.
+  const cfg = sport === "basketball" ? basketballAgeGroupForTeam(ageGroup, periodCount) : getAgeGroupConfig(sport, ageGroup);
   return {
     on_field_size: teamOnFieldSize(cfg, teamSize),
     sub_interval_seconds: cfg.subIntervalSeconds,

@@ -371,3 +371,52 @@ export async function deleteTeam(teamId: string, confirmName: string): Promise<A
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+/**
+ * Team › Season › Halves or quarters (basketball): the competition plays
+ * 2 × 20 or 4 × 10 (migration 0069's teams.period_count). Null = the age
+ * group's halves. Only a basketball team takes it. The period-length
+ * override is cleared with it: a half's length isn't a quarter's.
+ */
+export async function setTeamPeriodCount(teamId: string, count: 2 | 4 | null): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+  if (count !== null && count !== 2 && count !== 4) return { success: false, error: "Halves or quarters only." };
+
+  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  if (teamSport((team as { sport?: Sport | null }).sport) !== "basketball") {
+    return { success: false, error: "Only basketball teams choose halves or quarters." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ period_count: count === 2 ? null : count, quarter_length_seconds: null })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  revalidatePath(`/teams/${teamId}/games`);
+  return { success: true };
+}
+
+/**
+ * Team › Game-day extras › Track fouls (basketball): the coach's foul
+ * tally on the live screen (migration 0069's teams.track_fouls).
+ */
+export async function setTeamTrackFouls(teamId: string, enabled: boolean): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  if (teamSport((team as { sport?: Sport | null }).sport) !== "basketball") {
+    return { success: false, error: "Only basketball teams track fouls." };
+  }
+
+  const { error: updateError } = await supabase.from("teams").update({ track_fouls: enabled }).eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
