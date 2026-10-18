@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball, league, union and football (soccer): badges, position colours, keeping players on, the keeper, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league, union, football (soccer) and basketball: badges, position colours, keeping players on, the keeper, fouls, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -208,6 +208,61 @@ export default function RotationsPage() {
           On the Squad tab, set a kid&apos;s home to Keeper to mark a keen
           keeper (or one of your named keepers), or mark Keeper as somewhere
           they&apos;d rather not play.
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in basketball</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Five play from a squad of eight to ten, so up to half the team sits
+          at any moment. Subs go at a dead ball, through the table: when the
+          sub interval runs out, the swap card names who goes to the table,
+          and you tap them on when the whistle goes. Siren lines up the kids
+          with the least time this game, and there&apos;s no sub prompt in the
+          last minute of a half or quarter.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Positions are optional</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Choose how kids rotate in <strong className="text-ink">How we play</strong>:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            <strong className="text-ink">Equal minutes</strong> (Under 8 and
+            Under 10): no positions; Siren just evens out minutes. Set a
+            kid&apos;s home to Guards on the Squad tab to mark a ball handler,
+            and Siren keeps one on court.
+          </li>
+          <li>
+            <strong className="text-ink">Guards and forwards</strong> (Under 12
+            and Under 14): every kid plays both, evened out over the season.
+          </li>
+          <li>
+            <strong className="text-ink">Home line</strong> (Under 16 and up):
+            each kid is a guard or a forward, with time on the other line too;
+            subs go guard for guard.
+          </li>
+          <li>
+            <strong className="text-ink">All five positions</strong>: 1 to 5,
+            the most different positions per kid.
+          </li>
+          <li>
+            <strong className="text-ink">Set positions</strong>: a home position
+            plus backups; the bench rotates like-for-like.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 font-semibold text-ink">Fouls, foul-outs and sit-outs</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          With <strong className="text-ink">Track fouls</strong> on (from Under
+          12, or in Settings), tap a kid on court and tap{" "}
+          <strong className="text-ink">+ Foul</strong>. Each tile shows its
+          count; Siren takes a kid one foul short of fouling out off first, and
+          the fifth foul takes them out for the game. You pick who comes on. For
+          a technical or unsportsmanlike foul, long-press the kid and tap{" "}
+          <strong className="text-ink">Sit out 5 min</strong>: they can&apos;t
+          come back on until five minutes of playing time have run (timeouts
+          don&apos;t count).
         </p>
       </section>
 

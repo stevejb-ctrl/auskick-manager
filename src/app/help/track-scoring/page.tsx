@@ -7,7 +7,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
   title: "Track Scoring · Help · Siren",
-  description: "The scoring switch for AFL, netball, league, union and football (soccer), and what it unlocks.",
+  description: "The scoring switch for AFL, netball, league, union, football (soccer) and basketball, and what it unlocks.",
   alternates: { canonical: "/help/track-scoring" },
 };
 
@@ -27,13 +27,15 @@ export default function TrackScoringPage() {
         from Under 13, where the international laws apply; rugby union games
         record tries (5 points) and conversions (2), plus penalty goals (3) and
         drop goals (3) from Under 10; football (soccer) games record goals for
-        each side. The switch behaves the same way in every sport — turn it on
+        each side; basketball games record free throws (1), baskets (2) and
+        threes (3, from Under 12) for each side. The switch behaves the same way in every sport — turn it on
         for your team, and the live screen shows the right scoring controls for
         your sport. It starts off for the youngest age groups (AFL Under 8 to
         Under 10, netball Set, league Under 6 and Under 7, which are tag games
         with no scoreboard, union Under 6 to Under 11, where the national
         pathway keeps no score, and football&apos;s MiniRoos ages, Under 6 to
-        Under 11, which keep no scores or ladders) and on for the rest.
+        Under 11, which keep no scores or ladders, and basketball&apos;s Under 8
+        skills games) and on for the rest.
       </p>
 
       <section className="mt-8">
@@ -49,7 +51,7 @@ export default function TrackScoringPage() {
             <strong className="text-ink">Track goals &amp; behinds</strong>{" "}
             (AFL), <strong className="text-ink">Track goals</strong> (netball
             and football) or <strong className="text-ink">Track points</strong>{" "}
-            (league and union).
+            (league, union and basketball).
           </li>
           <li>
             The setting is saved immediately and applies to all of the
