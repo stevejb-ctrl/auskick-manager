@@ -24,7 +24,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, sportNotBuilt, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -679,6 +679,8 @@ export default async function RunPage({ params }: RunPageProps) {
       </div>
     );
   }
+
+  if (isBasketball(sport)) return sportNotBuilt(sport, "The runner's live game");
 
   // ─── AFL branch (existing behaviour) ────────────────────────
   const ageCfgSport = getAgeGroupConfig(aflBranch(sport), teamRow?.age_group ?? null);

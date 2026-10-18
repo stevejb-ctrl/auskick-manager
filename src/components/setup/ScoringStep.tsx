@@ -6,7 +6,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { isSoccer, noSportBranch, periodLabels } from "@/lib/sports";
+import { isBasketball, isSoccer, noSportBranch, periodLabels } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -95,6 +95,20 @@ export function ScoringStep({
         <>
           MiniRoos keeps no scores or ladders, so {ageGroup.label} starts with no scoreboard. Flip
           this on if your competition keeps one —{" "}
+          <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      )
+    ) : isBasketball(sportId) ? (
+      ageGroup.tracksScoreDefault ? (
+        <>
+          Junior basketball keeps score from about Under 10, so {ageGroup.label} starts with the
+          scoreboard on: baskets for both sides, and who scored. Flip this off if yours doesn&apos;t —{" "}
+          <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      ) : (
+        <>
+          {ageGroup.label} plays a skills session and a short game with no score kept, so it starts
+          with no scoreboard. Flip this on if your competition keeps one —{" "}
           <strong className="text-ink">you can change it later on the Team tab</strong>.
         </>
       )

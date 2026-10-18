@@ -40,6 +40,9 @@ export const SEASON_BALANCE_WEIGHT: Record<SportId, Record<BalanceStrength, numb
   rugby_league: { light: 150, balanced: 300, strong: 600 },
   rugby_union: { light: 150, balanced: 300, strong: 600 },
   soccer: { light: 0.2, balanced: 0.4, strong: 0.8 },
+  // Basketball's suggesters score as soccer's: a period already played
+  // in a line (or position) counts −1, season debt is in periods.
+  basketball: { light: 0.2, balanced: 0.4, strong: 0.8 },
 };
 
 export const OWED_CAP_PERIODS = 2;

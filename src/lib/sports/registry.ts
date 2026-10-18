@@ -10,6 +10,7 @@ import { netballSport } from "@/lib/sports/netball";
 import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import { rugbyUnionSport } from "@/lib/sports/rugby_union";
 import { soccerSport } from "@/lib/sports/soccer";
+import { basketballSport } from "@/lib/sports/basketball";
 
 const REGISTRY: Record<SportId, SportConfig> = {
   afl: aflSport,
@@ -17,16 +18,17 @@ const REGISTRY: Record<SportId, SportConfig> = {
   rugby_league: rugbyLeagueSport,
   rugby_union: rugbyUnionSport,
   soccer: soccerSport,
+  basketball: basketballSport,
 };
 
-export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport, soccerSport];
+export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport, soccerSport, basketballSport];
 
-export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union", "soccer"];
+export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"];
 
 /**
- * The sports with a site (brand) of their own. Rugby union and Football
- * (soccer) live under the main Siren brand, so no host or brand id
- * resolves to them.
+ * The sports with a site (brand) of their own. Rugby union, Football
+ * (soccer) and basketball live under the main Siren brand, so no host or
+ * brand id resolves to them.
  */
 const SITE_SPORTS: SportConfig[] = ALL_SPORTS.filter((cfg) => cfg.brand.id === cfg.id);
 
@@ -109,6 +111,22 @@ export type SoccerSport = (typeof SOCCER_SPORT_IDS)[number];
  */
 export function isSoccer(sport: SportId): sport is SoccerSport {
   return getSportConfig(sport).family === "soccer";
+}
+
+/**
+ * The sports that run on the basketball engine (only basketball today).
+ * Typed so `isBasketball` narrows; a test checks it matches the
+ * configs' `family`.
+ */
+export const BASKETBALL_SPORT_IDS = ["basketball"] as const satisfies readonly SportId[];
+export type BasketballSport = (typeof BASKETBALL_SPORT_IDS)[number];
+
+/**
+ * The one way to ask "is this basketball?", beside isRugby and
+ * isSoccer: the sport's own config says so.
+ */
+export function isBasketball(sport: SportId): sport is BasketballSport {
+  return getSportConfig(sport).family === "basketball";
 }
 
 /**

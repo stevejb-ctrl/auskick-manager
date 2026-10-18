@@ -82,7 +82,7 @@ export type AgeGroup =
 export type PositionModel = "zones3" | "positions5";
 
 /** Sport identifier stored on Team. Drives SportConfig lookup. */
-export type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer";
+export type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer" | "basketball";
 
 export interface Team {
   id: string;
@@ -111,6 +111,11 @@ export interface Team {
    * (migration 0067). New games start from it (newGameDefaults).
    */
   on_field_size: number | null;
+  /**
+   * Periods a game plays: 2 (halves) or 4 (quarters); NULL = the age
+   * group's (migration 0069). Basketball reads it (2 × 20 or 4 × 10).
+   */
+  period_count?: number | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   /** Optional human labels for the three player chip slots. Coach
@@ -329,7 +334,25 @@ export type GameEventType =
   // { to_zone: "forward" | "back" }. The replayer moves the player
   // between the lineup.forwards and lineup.backs buckets without
   // changing field membership. Single-player (no paired swap).
-  | "league_position_change";
+  | "league_position_change"
+  // Basketball baskets (free throw 1, two 2, three 3), both sides.
+  // player_id = the scorer on ours (nullable).
+  | "free_throw"
+  | "two_pointer"
+  | "three_pointer"
+  | "opponent_free_throw"
+  | "opponent_two_pointer"
+  | "opponent_three_pointer"
+  // Basketball: a personal (or technical / unsportsmanlike) foul on
+  // one of ours. Metadata: { kind, quarter, elapsed_ms }. The coach's
+  // copy of the table's count; replay counts them per kid. The 5th
+  // personal foul is followed by an `injury` { reason: "fouled_out" }.
+  | "foul"
+  // A timed sit-out (basketball's 5-minute sin bin). Metadata:
+  // { duration_ms, reason?, quarter, elapsed_ms }. The kid leaves the
+  // court and can't come back on until `duration_ms` of clock time
+  // has run (pauses, so timeouts, don't count).
+  | "sit_out";
 
 export interface Lineup {
   back: string[];

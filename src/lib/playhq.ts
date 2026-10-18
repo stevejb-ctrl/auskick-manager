@@ -82,12 +82,34 @@ export const PLAYHQ_TENANT: Record<Sport, string | null> = {
   rugby_union: null,
   // Junior soccer's team sheets live in Dribl and Squadi, not PlayHQ.
   soccer: null,
+  // Basketball has a tenant per state (below); Victoria's is the example.
+  basketball: "basketball-victoria",
 };
+
+/**
+ * Sports whose fixtures span several tenants: basketball has one per
+ * state body (playhq.com/basketball-victoria/…, seen 18 Oct 2026), so
+ * any tenant starting "basketball-" is basketball's.
+ */
+const TENANT_PREFIX: Partial<Record<Sport, string>> = {
+  basketball: "basketball-",
+};
+
+/** Whether a team page's tenant is the sport's own. */
+export function playhqTenantIsSports(sport: Sport, tenant: string | null): boolean {
+  if (!tenant) return false;
+  if (tenant === PLAYHQ_TENANT[sport]) return true;
+  const prefix = TENANT_PREFIX[sport];
+  return prefix !== undefined && tenant.startsWith(prefix) && tenant.length > prefix.length;
+}
 
 const TENANT_SPORT: Record<string, string> = {
   afl: "an AFL",
   "netball-australia": "a netball",
 };
+
+const tenantSportWord = (tenant: string): string =>
+  TENANT_SPORT[tenant] ?? (tenant.startsWith("basketball-") ? "a basketball" : "another sport's");
 
 // Team URLs look like:
 //   https://www.playhq.com/afl/org/<club-slug>/<orgId>/<comp-slug>/teams/<team-slug>/<teamId>
@@ -122,8 +144,8 @@ export function parsePlayhqUrl(raw: string, sport: Sport): ParsedPlayhqUrl {
   }
   const orgIdx = parts.indexOf("org");
   const tenant = orgIdx > 0 ? parts[orgIdx - 1].toLowerCase() : null;
-  if (tenant !== expected) {
-    const whose = tenant ? (TENANT_SPORT[tenant] ?? "another sport's") : "another sport's";
+  if (!tenant || !playhqTenantIsSports(sport, tenant)) {
+    const whose = tenant ? tenantSportWord(tenant) : "another sport's";
     return {
       ok: false,
       reason: `That's ${whose} team page. Paste your ${getSportConfig(sport).shortName} team's page (playhq.com/${expected}/…).`,

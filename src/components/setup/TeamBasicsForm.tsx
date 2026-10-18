@@ -43,6 +43,7 @@ const NAME_EXAMPLE: Record<Sport, string> = {
   rugby_league: "e.g. Kingsway Tigers",
   rugby_union: "e.g. Kingsway Rams",
   soccer: "e.g. Kingsway United",
+  basketball: "e.g. Kingsway Hawks",
 };
 
 // Default age group per sport: a "common entry" rather than the first
@@ -55,6 +56,7 @@ const DEFAULT_AGE: Record<Sport, string> = {
   rugby_league: "U10",
   rugby_union: "U10",
   soccer: "U10",
+  basketball: "U10",
 };
 
 export function TeamBasicsForm({

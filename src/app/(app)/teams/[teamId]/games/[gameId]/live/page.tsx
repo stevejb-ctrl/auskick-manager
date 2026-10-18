@@ -33,7 +33,7 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isRugby, isSoccer, netballSport, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
@@ -961,6 +961,8 @@ export default async function LivePage({ params }: LivePageProps) {
       </div>
     );
   }
+
+  if (isBasketball(sport)) return sportNotBuilt(sport, "The live game");
 
   // ─── AFL branch (existing behaviour) ──────────────────────
   // (`trackScoring` is hoisted above the netball branch so both

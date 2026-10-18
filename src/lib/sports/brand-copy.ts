@@ -106,6 +106,8 @@ const COPY: Record<SportId, BrandCopy> = {
   // Football (soccer) too: the main brand's copy. Its homepage section
   // is phase 3.
   soccer: AFL_COPY,
+  // Basketball too: the main brand's copy.
+  basketball: AFL_COPY,
 };
 
 /**

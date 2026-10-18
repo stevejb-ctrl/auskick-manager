@@ -25,7 +25,7 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
 import { SoccerDashboardShell } from "@/components/dashboard/SoccerDashboardShell";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
@@ -314,6 +314,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     // Nominal quarter length per game — clamps a runaway clock so a
     // quarter left running past the hooter can't inflate minutes /
     // AVG/G. Resolves game override → team default → age default.
+    if (isBasketball(sport)) return sportNotBuilt(sport, "Season stats");
     const aflAgeCfg = getAgeGroupConfig(aflBranch(sport), team.age_group);
     const gameById = new Map(seasonGames.map((g) => [g.id, g]));
     snapshots = Array.from(eventsByGame.entries()).map(([gid, evs]) => {

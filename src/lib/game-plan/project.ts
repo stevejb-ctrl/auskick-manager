@@ -28,7 +28,7 @@ import {
   type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
-import { getSportConfig, isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { getSportConfig, isBasketball, isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 import type { AgeGroupConfig, SportConfig } from "@/lib/sports/types";
 import type { Lineup, Player, PlayerChip, Zone, PositionModel } from "@/lib/types";
 import type {
@@ -505,5 +505,7 @@ export function projectGamePlan(input: ProjectGamePlanInput): GamePlan {
   if (sport === "afl") return projectAflGamePlan(input);
   // Football (soccer)'s game plan comes with its live game (phase 2).
   if (isSoccer(sport)) return sportNotBuilt(sport, "projectGamePlan");
+  // Basketball skips the game-plan preview, as soccer does.
+  if (isBasketball(sport)) return sportNotBuilt(sport, "projectGamePlan");
   return noSportBranch(sport, "projectGamePlan");
 }

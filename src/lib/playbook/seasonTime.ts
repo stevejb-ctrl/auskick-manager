@@ -19,7 +19,8 @@ import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fai
 import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
-import { isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
+import { replayBasketballGame } from "@/lib/sports/basketball/replay";
+import { isBasketball, isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -117,6 +118,19 @@ export function gameTimeByUnit(
     if (unit !== "line") return out;
     for (const [pid, units] of Object.entries(replaySoccerGame(events).ms)) {
       for (const [key, ms] of Object.entries(units)) add(out, pid, key, ms ?? 0);
+    }
+    return out;
+  }
+
+  if (isBasketball(sport)) {
+    // Basketball: each line (guards, forwards, or the court under Equal
+    // minutes), and each of the five positions under the position
+    // strategies.
+    if (unit !== "line" && unit !== "position") return out;
+    const game = replayBasketballGame(events);
+    const byKey: Record<string, Partial<Record<string, number>>> = unit === "line" ? game.ms : game.posMs;
+    for (const [pid, keys] of Object.entries(byKey)) {
+      for (const [key, ms] of Object.entries(keys)) add(out, pid, key, ms ?? 0);
     }
     return out;
   }
