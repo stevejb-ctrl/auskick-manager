@@ -22,6 +22,8 @@
 --   4. teams.period_count: halves (2, the default) or quarters (4).
 --      Null plays the age group's periods. Only basketball reads it
 --      today; the column says nothing sport-specific.
+--   5. teams.track_fouls: the coach's foul tally, null = the age's
+--      default.
 -- ============================================================
 
 alter table public.teams drop constraint if exists teams_sport_check;
@@ -67,3 +69,11 @@ alter table public.teams
 
 comment on column public.teams.period_count is
   'Periods a game plays: 2 (halves) or 4 (quarters). Null = the age group''s. Basketball reads it (2 × 20 or 4 × 10).';
+
+-- The coach's foul tally (basketball): null = the age group's default
+-- (off at U8–U10, on from U12).
+alter table public.teams
+  add column if not exists track_fouls boolean;
+
+comment on column public.teams.track_fouls is
+  'Basketball: the coach''s foul tally on the live screen. Null = the age group''s default.';

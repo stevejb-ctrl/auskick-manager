@@ -116,6 +116,11 @@ export interface Team {
    * group's (migration 0069). Basketball reads it (2 × 20 or 4 × 10).
    */
   period_count?: number | null;
+  /**
+   * Basketball: the coach's foul tally; NULL = the age group's default
+   * (migration 0069).
+   */
+  track_fouls?: boolean | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   /** Optional human labels for the three player chip slots. Coach
