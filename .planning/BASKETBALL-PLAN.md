@@ -3,9 +3,13 @@
 On 18 Oct 2026 the sport research ranked basketball first among the
 junior sports Siren doesn't cover. This plan covers how we'd build it,
 what junior basketball does that our other sports don't, and the
-decisions Steve needs to make. **Nothing here is decided yet.** Siren's
-suggested defaults are in bold and marked (recommended); the decisions
-are listed at the end.
+decisions Steve needs to make. Siren's suggested defaults are in bold
+and marked (recommended); the decisions are listed at the end.
+
+**Built on 18 Oct 2026** with the recommended defaults (Steve: "let's
+build basketball"), on branch `basketball`: see "Build status" at the
+end for what's done, what isn't, and where the build differs from this
+plan.
 
 **Approach: basketball gets its own family and engine. It lifts
 soccer's sport-agnostic sub logic into `src/lib/live/` instead of
@@ -929,3 +933,65 @@ Research done 18 Oct 2026.
   - B-Ball Subs: https://apps.apple.com/app/id6759851869
   - PlayBall: https://apps.apple.com/ph/app/id6744836650
   - Who's On – Basketball: https://apps.apple.com/app/id842425065
+
+## Build status (18 Oct 2026)
+
+Built on branch `basketball` (cut from `origin/main` after soccer's
+merge, PR #154), not pushed or merged. The plan's recommended defaults
+were taken as the decisions. Migration `0069` is applied to the local
+Supabase only.
+
+**Built:**
+- **Phase 1:** the sport, config and age table, migration `0069`
+  (sport check, event types, lines, `teams.period_count`, and
+  `teams.track_fouls`), the engine (lineup, replay, suggesters under
+  the five rotations), How we play (`basketball/playbook.ts`), and every
+  shared dispatcher (scores, scorers, season time, the season grid,
+  rollups, the game report, PlayHQ). 1,690+ unit tests green.
+- **Saved pauses:** `lib/live/periodPauseStorage.ts`
+  (`usePeriodPause`), with its regression test. Basketball uses it.
+- **Phase 2:** the server actions, write queue, lineup picker and live
+  game (court, bench, tiles, score bug with +1/+2/+3, foul tally and
+  foul trouble, foul-out, the 5-minute sit-out, the break plan, full
+  time and the share summary), for coaches and runner links. Shared
+  chrome was extended rather than forked: `LockModal` (`extraActions`,
+  `outForGameNote`) and `InjuryReplacementModal` (`reason`).
+- **Phase 3, part:** the setup pill (Beta), season stats, team settings
+  (halves or quarters, track fouls), new games following the format,
+  How we play's policy line, and Help (rotations, scoring, live game).
+- **Phase 4, part:** `basketball-full-game-playthrough` (U12 under
+  Guards and forwards with a foul-out and a sit-out; quarters under All
+  five positions) and `basketball-team-pages` (wizard, every page,
+  settings), green on Chromium and WebKit; `sport-schema` covers `0069`.
+
+**Different from the plan:**
+- **The lift became a fork.** Basketball's suggesters live in
+  `basketball/suggest.ts` (the plan allowed this): the pick is a short
+  loop over each sport's own replay state, and foul trouble,
+  like-for-like and the ball handler change it more than they share it.
+  They seat kids by the best total assignment (every way of seating
+  five), since a greedy seat stranded the last kid in the position they
+  had just played.
+- **The five positions are fixed** (PG, SG, SF, PF, C), as netball's
+  bibs are, not renamable.
+- **The foul tally has a team setting** (`teams.track_fouls`, in
+  `0069`), as the plan asked, so the migration carries one more column.
+- **Sub batches, not single subs.** At each interval the card lines up
+  everyone whose sub evens time ("send them to the table").
+- **The clock waits at 0:00.** It doesn't end the period itself: the
+  coach ends it at the real hooter (tapping the amber pill).
+- **The rules list is empty.** As soccer's, basketball's engine acts on
+  no catalogue rule yet; the strategies carry like-for-like and home
+  lines.
+
+**Not built yet:**
+- **"Set time left"** in `ClockMenu`.
+- **Stop clock (segments) mode** (v1.1, as planned).
+- **The other sports' pauses:** they still keep a pause in React state;
+  swapping in `usePeriodPause` is a one-line change each.
+- **Launch marketing:** the homepage card, `marketing-sports.ts`, a
+  `sport-fields/BasketballCourtField`, CMS config. Left alone while PR
+  #155 (soccer's homepage) is open on the same files.
+- **The demo:** a basketball seed and the demo picker card.
+- **A walkthrough** and Stagehand missions.
+- **A per-team 3-pointer switch:** the +3 chip follows the age group.
