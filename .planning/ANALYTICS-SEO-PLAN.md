@@ -1,6 +1,6 @@
 # Analytics, heatmaps and SEO — plan
 
-_Drafted 18 Oct 2026. Phase 0's code (items 1–3) is built on branch `feat/analytics-phase-0`. Items 4–5 are still to do._
+_Drafted 18 Oct 2026. Phase 0's code (items 1–3) is in PR #158. Item 4's Google half was done on 19 Oct; Bing and item 5 are still to do._
 
 ## Goal
 
@@ -24,8 +24,8 @@ Don't trade away the trust that clubs and parents give us to get there. Squads a
 | Heatmaps / replay | None | — |
 | Error tracking | None (no Sentry etc.) | We find crashes when a coach tells us. |
 | SEO technical | `robots.ts` and `sitemap.ts` per brand host, per-page `canonical`, metadata on marketing and help pages | Sitemap is hand-kept: it's missing `/why-siren` and `/support`, and `lastModified` is stuck at 22 Apr. No OG images. No structured data. `lang="en"` rather than `en-AU`. |
-| SEO multi-domain | sirenfooty, sirennetball and sirenleague each serve the same `/help`, `/privacy` and `/terms`, and each page self-canonicalises | Three copies of the same pages compete with each other. Soccer and basketball have no domain or landing page. |
-| Search Console | Unknown, still to confirm | Need all three domains verified and their sitemaps submitted. |
+| SEO multi-domain | The code has brand hosts for sirenfooty, sirennetball and sirenleague, but only **sirenfooty.com.au is registered**. The other two don't resolve in DNS (checked 19 Oct). | No duplicate-content problem today. It starts the day a second brand domain goes live, unless shared pages canonicalise to one host (4a). Soccer and basketball have no domain or landing page. |
+| Search Console | **Done 19 Oct:** `sirenfooty.com.au` is a Domain property in hello@sirenfooty's account, verified by a DNS TXT record at VentraIP. The sitemap is submitted, and Google had already read it on 13 Oct (17 pages). GA4 is linked. | Bing Webmaster Tools isn't set up yet. |
 
 ### Found while looking: run-tokens are being sent to Google
 
@@ -91,11 +91,15 @@ Hard rules, enforced in code and covered by tests:
    - Build it from one list, `src/lib/public-routes.ts`, which `robots.ts` and the GA gate also read, so the three can't drift apart. A unit test walks `src/app` and fails when a page is in none of the lists.
    - Set `lastModified` from a per-page date rather than one global date.
 3. **`lang="en-AU"`** on `<html>`.
-4. **Search Console and Bing setup.** These are your steps, in your Google and Microsoft accounts:
-   - Add each of `sirenfooty.com.au`, `sirennetball.com.au` and `sirenleague.com.au` as a **Domain property** (verified with a DNS TXT record).
-   - Submit each domain's `/sitemap.xml`.
-   - Link Search Console to GA4.
-   - Import into Bing Webmaster Tools from Search Console.
+4. **Search Console and Bing setup.** Google's half was done on 19 Oct, in hello@sirenfooty's account:
+   - ✅ `sirenfooty.com.au` added as a **Domain property**. It covers www, the bare domain and http/https. It's verified by the TXT record `google-site-verification=vGwGXSJgA05Q1jbEtgcmouEtG7wSMB19ZBhQNKnS5Fc` in VentraIP's DNS for the domain. **Don't delete that record**, or the property loses verification.
+   - ✅ `https://www.sirenfooty.com.au/sitemap.xml` submitted.
+   - ✅ Search Console linked to GA4 (property 534093249, stream "Siren Footy Site").
+   - ✅ GA4 event-data retention raised from 2 to 14 months.
+   - ✅ GA4 redaction of URL query parameters turned on for `next`, `code`, `token`, `access_token`, `refresh_token`, `token_hash` and `email`. Until PR #158 is live, this backstops GA tokens in query strings. It can't redact path segments, so `/run/<token>` needs the code fix.
+   - Checked and left as is: Google signals is off, which matches the privacy policy.
+   - ⬜ **Bing Webmaster Tools (you):** sign in at bing.com/webmasters with hello@sirenfooty's Google account and choose "Import from Google Search Console". It takes about two minutes. I can't do this one, because signing in there creates a new account.
+   - When a second brand domain (sirennetball / sirenleague) is registered, add it as another Domain property the same way.
 5. **Write down our five numbers** (see "What we'll measure"), so Phase 2 is built to answer them.
 
 ---
