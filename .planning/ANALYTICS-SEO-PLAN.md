@@ -1,6 +1,6 @@
 # Analytics, heatmaps and SEO — plan
 
-_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) was built on 19 Oct on branch `feat/seo-phase-4a`._
+_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) shipped in PR #159 on 19 Oct. Phase 1 (PostHog) was built on 19 Oct on branch `feat/posthog-phase-1` and stays off until the project key is set._
 
 ## Goal
 
@@ -105,6 +105,52 @@ Hard rules, enforced in code and covered by tests:
 ---
 
 ## Phase 1: Analytics foundation (PostHog)
+
+**Built 19 Oct 2026 on branch `feat/posthog-phase-1`, by hand.** We skipped the PostHog wizard: its defaults capture on-screen text and full URLs.
+
+**What's live in the code:**
+- `src/lib/analytics/posthog-config.ts` pins the privacy settings, and `posthogConfig.test.ts` fails if one changes:
+  - masked autocapture (`mask_all_text`, `mask_all_element_attributes`);
+  - `person_profiles: "identified_only"`;
+  - Do Not Track honoured;
+  - replay, heatmaps, surveys and exception capture off;
+  - **feature flags off.** The flags request sends `$initial_current_url` (the raw first URL, tokens included) and skips `before_send`. The e2e spec caught this.
+- `sanitize.ts` is the `before_send` scrubber:
+  - token paths become `:token`;
+  - only campaign query params are kept;
+  - fragments are dropped;
+  - page titles are kept on public pages only.
+- **Proxy:** `/ingest` rewrites to the EU cloud.
+  - This needs `skipTrailingSlashRedirect`, so `src/middleware.ts` does the `/page/` → `/page` redirect itself, and skips `/ingest`.
+- **Super properties:** `platform` (`web` / `pwa` / `ios` / `android`), `brand_host` and `app_version`.
+- **Identity:** the `(app)` layout identifies the coach by Supabase id, and both sign-out buttons reset.
+- **Opt-out:** "Share usage data" on My account, per device, applied before the first page view.
+- **Privacy policy:** updated (19 Oct).
+- **Off switch:** `posthog-server.ts` keeps PostHog off outside production, and off in production until `POSTHOG_KEY` is set. An e2e cookie runs debug mode.
+
+**Tests:**
+- `e2e/tests/posthog-analytics.spec.ts` catches every `/ingest` request and checks:
+  - no runner or invite token, player name or email is ever sent;
+  - taps are captured (masked);
+  - coaches are identified by id;
+  - the opt-out works.
+- Unit tests cover the scrubber, the config and the platform property.
+
+**Moved to Phase 2:**
+- `events.ts` / `track()` with the typed catalogue, which lands with the first instrumented events;
+- `server.ts` (posthog-node) for lifecycle events;
+- `sport` / `team_role` super properties;
+- exception capture, once error messages can be scrubbed;
+- deleting a coach's PostHog person when they delete their account.
+
+**Still to do before it's switched on:**
+1. Set `POSTHOG_KEY` (`phc_…`).
+2. Confirm the EU region.
+3. In PostHog, turn session replay off and turn on "Discard client IP data".
+4. Update the App Store privacy label (Usage Data → Product Interaction, linked to the user, not used for tracking).
+5. Confirm PostHog's retention period for our plan; privacy policy §7 refers to it.
+
+*The original Phase 1 plan follows, for reference.*
 
 **Setup (you):**
 - Create the PostHog project (EU or US region; see Decisions).
