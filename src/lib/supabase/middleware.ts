@@ -156,6 +156,15 @@ export async function updateSession(request: NextRequest) {
     // they can't require a Siren session because the visitor isn't
     // signed into Siren — they're signing into GitHub.
     pathname.startsWith("/api/decap/") ||
+    // Vercel crons (vercel.json). Vercel calls them with only
+    // `Authorization: Bearer <CRON_SECRET>` and no session, so the
+    // /login redirect below meant neither ever ran. Each handler
+    // checks CRON_SECRET itself and 401s without it. Exact paths
+    // only: the rest of /api/admin stays behind sign-in. A new cron
+    // needs its path here too (e2e/tests/cron-routes.spec.ts reads
+    // vercel.json and fails until it is).
+    pathname === "/api/cron/sync-playhq" ||
+    pathname === "/api/admin/seed-demo" ||
     // /dev/* — local-only auth bypass shortcuts. The route handlers
     // themselves 404 in production (NODE_ENV check + host check),
     // but the middleware needs to LET them run for the auth
