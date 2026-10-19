@@ -6,7 +6,7 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
-import { siteUrl } from "@/lib/seo";
+import { baseOpenGraph, siteUrl } from "@/lib/seo";
 import { gaMeasurementId } from "@/lib/analytics/ga";
 import { GoogleAnalyticsGate } from "@/components/analytics/GoogleAnalyticsGate";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
@@ -77,6 +77,12 @@ export function generateMetadata(): Metadata {
       title: copy.productName,
       statusBarStyle: "default",
     },
+    // Link previews (WhatsApp, Facebook, Slack, X). The image itself is
+    // src/app/opengraph-image.tsx, which Next adds as og:image for every
+    // page. Scrapers fall back to <title> and the meta description, so
+    // pages needn't repeat them here.
+    openGraph: baseOpenGraph(),
+    twitter: { card: "summary_large_image" },
   };
 }
 

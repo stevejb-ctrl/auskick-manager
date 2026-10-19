@@ -4,6 +4,15 @@ import { redirect } from "next/navigation";
 import { HeroCarousel } from "@/components/marketing/HeroCarousel";
 import { MultiSportHomeContent } from "@/components/marketing/MultiSportHomeContent";
 import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBounce";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { getBrand } from "@/lib/brand";
+import { siteUrl } from "@/lib/seo";
+import { getBrandCopy } from "@/lib/sports/brand-copy";
+import {
+  organizationJsonLd,
+  softwareApplicationJsonLd,
+  websiteJsonLd,
+} from "@/lib/structured-data";
 import { getUser } from "@/lib/supabase/server";
 
 // Explicit canonical so Search Console doesn't flag the apex
@@ -33,8 +42,15 @@ export default async function Home() {
     redirect(lastTeam ? `/teams/${lastTeam}` : "/dashboard");
   }
 
+  const site = siteUrl();
+  const copy = getBrandCopy(getBrand().id);
+
   return (
     <main>
+      {/* Structured data: who makes Siren, the site, and the app. */}
+      <JsonLd data={organizationJsonLd(site)} />
+      <JsonLd data={websiteJsonLd(site, copy.productName)} />
+      <JsonLd data={softwareApplicationJsonLd(site, copy)} />
       {/* Belt-and-braces redirect off marketing for native Capacitor
           users. The canonical fix is in capacitor.config.ts +
           middleware.ts, but TestFlight Build 1 was archived before

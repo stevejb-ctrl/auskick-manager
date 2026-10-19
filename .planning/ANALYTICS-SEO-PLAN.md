@@ -1,6 +1,6 @@
 # Analytics, heatmaps and SEO — plan
 
-_Drafted 18 Oct 2026. Phase 0's code (items 1–3) is in PR #158. Item 4 (Search Console, GA4, Bing) was done on 19 Oct. Item 5 is still to do._
+_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) was built on 19 Oct on branch `feat/seo-phase-4a`._
 
 ## Goal
 
@@ -208,9 +208,18 @@ Per CLAUDE.md, put `track()` calls in the shared chrome: `ScoreRecordingDock`, `
 
 ### 4a. Technical (code, ~1 PR)
 
-- **OG and share images per brand:** `opengraph-image.tsx` using `next/og`, one per brand and per key page. Club committees share links in WhatsApp and Facebook groups. That's our main word-of-mouth channel, and right now those links show no image.
-- **Structured data (JSON-LD):** `Organization`, `SoftwareApplication` / `MobileApplication` (with App Store and Play links and real offer info, no made-up ratings), and `BreadcrumbList` for `/help/*`. Skip `FAQPage`: Google stopped showing FAQ rich results for most sites in 2023.
-- **Duplicate pages across brand domains:**
+- ✅ **Share images per brand** (built 19 Oct, branch `feat/seo-phase-4a`).
+  - `src/app/opengraph-image.tsx` draws a 1200×630 card per brand: field green with the orange dot for footy, court blue for netball. The words come from the CMS brand copy.
+  - One card serves every page. Per-page cards can come later if a page needs its own pitch.
+  - Club committees share links in WhatsApp and Facebook groups, our main word-of-mouth channel, and those links used to show no image.
+  - A page that sets its own `openGraph` must spread `baseOpenGraph()` (src/lib/seo.ts) in, or it loses the image.
+- ✅ **Structured data (JSON-LD)**, built the same day:
+  - **Home page:** `Organization`, `WebSite` and `SoftwareApplication`, with the App Store link and a $0 AUD offer while the 2026 season is free. **Update the offer when pricing changes.**
+  - **Help pages:** `BreadcrumbList` on `/help/*`.
+  - No ratings: the homepage trust band's "4.9★ parent rating" isn't from a review source, so it stays out of structured data.
+  - Skip `FAQPage`: Google stopped showing FAQ rich results for most sites in 2023.
+  - Add a Play link to `src/lib/app-links.ts` when the Android listing ships.
+- **Duplicate pages across brand domains:** only sirenfooty.com.au exists today, so there's nothing to do until a second domain is registered. Then:
   - Short term: point `/privacy`, `/terms` and the generic `/help/*` canonicals at sirenfooty.
   - Longer term: make help sport-aware per brand, so sirennetball.com.au/help talks about netball and earns its own rankings.
 - **Core Web Vitals:** keep watching Speed Insights. The marketing page already redirects signed-in users server-side, which is good.

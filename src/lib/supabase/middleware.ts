@@ -115,6 +115,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/" ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
+    // Link-preview image (src/app/opengraph-image.tsx). WhatsApp,
+    // Facebook and Slack fetch it with no session.
+    pathname === "/opengraph-image" ||
     isAuthRoute ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset") ||
