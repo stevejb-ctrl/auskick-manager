@@ -175,7 +175,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>PostHog</strong>: usage analytics for the app, stored in
-              PostHog&rsquo;s EU cloud. PostHog receives the masked usage events
+              PostHog&rsquo;s US cloud. PostHog receives the masked usage events
               described in section 2, never player names, scores or notes, and
               processes them on our behalf under its own privacy policy.
             </li>
@@ -194,7 +194,7 @@ export default function PrivacyPage() {
             When you sign in with Google, your authentication request is handled
             by Google&rsquo;s global infrastructure, which may process data
             outside Australia. Usage analytics (section 2) are stored by PostHog
-            in the European Union.
+            in the United States.
           </p>
         </Section>
 
@@ -216,7 +216,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Usage analytics</strong>: kept by PostHog for the retention
-              period of our plan, then deleted.
+              period of our plan (currently up to seven years), then deleted.
             </li>
           </ul>
         </Section>
