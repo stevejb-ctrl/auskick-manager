@@ -1,6 +1,6 @@
 # Analytics, heatmaps and SEO — plan
 
-_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) was built on 19 Oct on branch `feat/seo-phase-4a`._
+_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) shipped in PR #159 on 19 Oct. Phase 1 (PostHog) was built on 19 Oct on branch `feat/posthog-phase-1` and stays off until the project key is set._
 
 ## Goal
 
@@ -105,6 +105,61 @@ Hard rules, enforced in code and covered by tests:
 ---
 
 ## Phase 1: Analytics foundation (PostHog)
+
+**Built 19 Oct 2026 on branch `feat/posthog-phase-1`, by hand.** We skipped the PostHog wizard: its defaults capture on-screen text and full URLs.
+
+**What's live in the code:**
+- `src/lib/analytics/posthog-config.ts` pins the privacy settings, and `posthogConfig.test.ts` fails if one changes:
+  - masked autocapture (`mask_all_text`, `mask_all_element_attributes`);
+  - `person_profiles: "identified_only"`;
+  - Do Not Track honoured;
+  - replay, heatmaps, surveys and exception capture off;
+  - **feature flags off.** The flags request sends `$initial_current_url` (the raw first URL, tokens included) and skips `before_send`. The e2e spec caught this.
+- `sanitize.ts` is the `before_send` scrubber:
+  - token paths become `:token`;
+  - only campaign query params are kept;
+  - fragments are dropped;
+  - page titles are kept on public pages only.
+- **Proxy:** `/ingest` rewrites to the US cloud (Steve chose US on 19 Oct).
+  - This needs `skipTrailingSlashRedirect`, so `src/middleware.ts` does the `/page/` → `/page` redirect itself, and skips `/ingest`.
+- **Super properties:** `platform` (`web` / `pwa` / `ios` / `android`), `brand_host` and `app_version`.
+- **Identity:** the `(app)` layout identifies the coach by Supabase id, and both sign-out buttons reset.
+- **Opt-out:** "Share usage data" on My account, per device, applied before the first page view.
+- **Privacy policy:** updated (19 Oct).
+- **Off switch:** `posthog-server.ts` keeps PostHog off outside production, and off in production until `POSTHOG_KEY` is set. An e2e cookie runs debug mode.
+
+**Tests:**
+- `e2e/tests/posthog-analytics.spec.ts` catches every `/ingest` request and checks:
+  - no runner or invite token, player name or email is ever sent;
+  - taps are captured (masked);
+  - coaches are identified by id;
+  - the opt-out works.
+- Unit tests cover the scrubber, the config and the platform property.
+
+**Moved to Phase 2:**
+- `events.ts` / `track()` with the typed catalogue, which lands with the first instrumented events;
+- `server.ts` (posthog-node) for lifecycle events;
+- `sport` / `team_role` super properties;
+- exception capture, once error messages can be scrubbed;
+- deleting a coach's PostHog person when they delete their account.
+
+**Switch-on checklist (19 Oct):**
+1. ✅ `POSTHOG_KEY` is set: project 673083, US Cloud ("Default project").
+2. ✅ The region is US. The rewrites, ui_host and privacy policy (§5, §6) say so.
+3. ✅ In PostHog, "Record user sessions" is off and "Discard client IP data" is on.
+   - "Capture console logs" wouldn't switch off, but logs are only captured inside recordings, which are off in the project and in code.
+4. ✅ App Store privacy label, published 20 Oct. Product Interaction, User ID and Device ID are now "used for App Functionality and Analytics, linked to the user, not used for tracking".
+   - Gotcha: adding a purpose left the pre-selected "linked" answer unrecorded for the new purpose, so all three also showed under "Data Not Linked to You". Fixed by re-editing each one and toggling the linked and tracking answers before publishing.
+6. ✅ PostHog's GeoIP transformation is paused (20 Oct). It added country and city from the IP before the IP was discarded, which contradicted the privacy policy's "we don't collect location data" and would have needed a Location entry on the label.
+
+**Noticed, not changed:**
+- App Store Connect says the updated Apple Developer Program License Agreement must be accepted by the Account Holder before app updates can be submitted.
+- GA4 still loads on `/login` inside the iOS app, because it's a sitemap page, and GA estimates country from IP. Neither the label nor the policy's location line covers it. Option: skip GA inside the native shell (`isNative()` in the GA gate).
+5. ✅ Retention: Pay-as-you-go keeps data up to 7 years (the free plan keeps 1 year). Privacy policy §7 says "currently up to seven years".
+
+**Billing:** the PostHog org is on Pay-as-you-go with a card on file and **no billing limits**. The free allowance (1M events a month) costs nothing. To make overruns impossible, set a $0 billing limit per product, or downgrade to the free plan, which also cuts retention to 1 year.
+
+*The original Phase 1 plan follows, for reference.*
 
 **Setup (you):**
 - Create the PostHog project (EU or US region; see Decisions).
@@ -272,7 +327,7 @@ Phases 0 and 4a can run alongside 1–3; they touch different files.
 
 ## Decisions for you
 
-1. **PostHog region: EU or US?** Neither is in Australia. *Recommend EU*, for the stricter default handling, which is a good story for parents. Latency doesn't matter because events are sent asynchronously.
+1. ~~**PostHog region: EU or US?**~~ **Decided 19 Oct: US.** Neither is in Australia; the privacy policy discloses US storage.
 2. **GA4: keep on public pages only, drop entirely, or keep everywhere?** *Recommend public pages only*: it keeps the history and the Search Console link, and the app stays clean.
 3. **One home domain or one domain per sport?** Every new sport domain starts at zero authority, and three or more tiny sites compete with each other. Before soccer and basketball launch publicly, decide whether they live under an existing domain, under a new umbrella domain with `/footy`, `/netball` and so on, or under their own domains. This is a brand call more than a code call. It doesn't block Phases 0–3.
 4. **Did "Search" also mean in-app search?** For example, search across games, players or help. This plan assumes search engines plus the help search in Phase 5.

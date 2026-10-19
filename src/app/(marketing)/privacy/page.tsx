@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 // Last updated shown at the top of the policy. Bump this whenever the
 // substance of the policy changes (not for typo fixes).
-const LAST_UPDATED = "22 April 2026";
+const LAST_UPDATED = "19 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -49,24 +49,37 @@ export default function PrivacyPage() {
           <p>We collect only what we need to run the app:</p>
           <ul>
             <li>
-              <strong>Account information</strong>:your email address and
+              <strong>Account information</strong>: your email address and
               display name. If you sign in with Google, we also receive the
               Google profile fields you approve (name, email, profile photo URL)
               but no access to Gmail, Drive, Contacts, or Calendar.
             </li>
             <li>
-              <strong>Team and game data you create</strong>:team names, season
+              <strong>Team and game data you create</strong>: team names, season
               settings, player names and jersey numbers you add to the squad,
               game fixtures, availability marks, rotations, scores, and game
               events.
             </li>
             <li>
-              <strong>Device and usage data</strong>:basic request logs
+              <strong>Device and usage data</strong>: basic request logs
               (timestamps, IP address, user-agent) retained by our hosting
-              providers for security and debugging. We also use Google Analytics
-              4 to measure aggregate traffic (pageviews, referrers, approximate
+              providers for security and debugging. On our public website pages
+              (the home page, help and sign-in) we also use Google Analytics 4 to
+              measure aggregate traffic (pageviews, referrers, approximate
               country). Google Analytics truncates IP addresses by default and
               we don&rsquo;t use advertising features or cross-site tracking.
+            </li>
+            <li>
+              <strong>Usage analytics in the app</strong>: which screens are opened
+              and which buttons are tapped, the type of device, and whether you use
+              the website, the home-screen app or the iOS app. We measure this with
+              PostHog to see which parts of Siren work and where coaches get stuck.
+              On-screen text is masked on your device before anything is sent, so
+              player names, scores and notes are never included, and links that
+              carry access codes (runner and invite links) are stripped first. When
+              you&rsquo;re signed in, these events are linked to your account by an
+              internal ID, never your name or email. You can switch this off at any
+              time: My account &rarr; Preferences &rarr; Share usage data.
             </li>
           </ul>
           <p>
@@ -93,6 +106,10 @@ export default function PrivacyPage() {
               for any purpose other than running the app for that team.
             </li>
             <li>
+              Player names never leave the app in usage analytics: on-screen
+              text is masked on your device before any usage data is sent.
+            </li>
+            <li>
               Siren accounts are for adults. Children do not sign up themselves;
               their coach or team manager enters their name and jersey number as
               part of the squad.
@@ -117,6 +134,10 @@ export default function PrivacyPage() {
               prevent fraud.
             </li>
             <li>
+              Improve the app: see which features are used and where coaches
+              get stuck, through usage analytics you can switch off.
+            </li>
+            <li>
               Contact you about your account when necessary, e.g. security
               alerts or material changes to this policy.
             </li>
@@ -131,26 +152,32 @@ export default function PrivacyPage() {
           </p>
           <ul>
             <li>
-              <strong>Supabase</strong>:authentication, database, and file
+              <strong>Supabase</strong>: authentication, database, and file
               storage (region: Sydney). Supabase processes data on our behalf
               under its own privacy policy.
             </li>
             <li>
-              <strong>Vercel</strong>:web hosting and content delivery. Vercel
+              <strong>Vercel</strong>: web hosting and content delivery. Vercel
               may log request metadata (IP, user-agent) for security and
               performance.
             </li>
             <li>
-              <strong>Google (sign-in)</strong>:only when you choose to sign in
+              <strong>Google (sign-in)</strong>: only when you choose to sign in
               with Google. Google authenticates you and returns your profile
               info to Siren. Siren does not read anything else from your Google
               account.
             </li>
             <li>
-              <strong>Google Analytics 4</strong>:aggregate website analytics
-              (pageviews, referrers, approximate country). IP addresses are
-              truncated by Google before storage. We don&rsquo;t enable
-              advertising features or Google Signals.
+              <strong>Google Analytics 4</strong>: aggregate analytics for our
+              public website pages only (pageviews, referrers, approximate
+              country). IP addresses are truncated by Google before storage. We
+              don&rsquo;t enable advertising features or Google Signals.
+            </li>
+            <li>
+              <strong>PostHog</strong>: usage analytics for the app, stored in
+              PostHog&rsquo;s US cloud. PostHog receives the masked usage events
+              described in section 2, never player names, scores or notes, and
+              processes them on our behalf under its own privacy policy.
             </li>
           </ul>
           <p>
@@ -166,25 +193,30 @@ export default function PrivacyPage() {
             Your data is stored in Supabase&rsquo;s Sydney region (Australia).
             When you sign in with Google, your authentication request is handled
             by Google&rsquo;s global infrastructure, which may process data
-            outside Australia.
+            outside Australia. Usage analytics (section 2) are stored by PostHog
+            in the United States.
           </p>
         </Section>
 
         <Section title="7. How long we keep data">
           <ul>
             <li>
-              <strong>Account data</strong>:kept for as long as your account is
+              <strong>Account data</strong>: kept for as long as your account is
               active. If you delete your account, we delete your profile and any
               teams where you are the only admin.
             </li>
             <li>
-              <strong>Team and game data</strong>:kept while the team exists.
+              <strong>Team and game data</strong>: kept while the team exists.
               When a team is deleted, its squad, games, rotations, and events
               are deleted with it.
             </li>
             <li>
-              <strong>Server logs</strong>:retained for up to 30 days by our
+              <strong>Server logs</strong>: retained for up to 30 days by our
               hosting providers, then discarded.
+            </li>
+            <li>
+              <strong>Usage analytics</strong>: kept by PostHog for the retention
+              period of our plan (currently up to seven years), then deleted.
             </li>
           </ul>
         </Section>
@@ -199,6 +231,10 @@ export default function PrivacyPage() {
               Ask us to correct information that is inaccurate or out of date.
             </li>
             <li>Ask us to delete your account and associated data.</li>
+            <li>
+              Switch off usage analytics on any device, at any time: My account
+              &rarr; Preferences &rarr; Share usage data.
+            </li>
             <li>
               Make a complaint to the{" "}
               <a
@@ -226,7 +262,14 @@ export default function PrivacyPage() {
           <p>
             Siren uses cookies and browser local storage for authentication and
             to remember your preferences (for example, which team you last
-            viewed). Google Analytics sets its own cookies (typically
+            viewed). PostHog stores an identifier in a first-party cookie and in
+            local storage (named
+            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+              ph_*_posthog
+            </code>
+            ) to tell visits from the same device apart; switching off Share
+            usage data stops it collecting. On our public website pages, Google
+            Analytics sets its own cookies (typically
             <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
               _ga
             </code>

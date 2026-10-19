@@ -4,6 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { UsageDataSettings } from "@/components/preferences/UsageDataSettings";
 import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -154,6 +155,7 @@ export default async function AccountPage() {
       <section className="space-y-2">
         <Eyebrow>Preferences</Eyebrow>
         <MotionPreferenceSettings />
+        <UsageDataSettings />
       </section>
 
       <DeleteAccountSection

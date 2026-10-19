@@ -53,6 +53,16 @@ test("robots.txt keeps crawlers out of the app and token links", async ({ reques
   expect(txt).toMatch(/Sitemap: https:\/\/www\.siren[a-z]+\.com\.au\/sitemap\.xml/);
 });
 
+test("a trailing slash redirects to the page's one URL", async ({ request }) => {
+  // next.config turns Next's own redirect off for PostHog's /ingest
+  // proxy; the middleware keeps it for pages.
+  for (const path of ["/help/", "/why-siren/", "/help/faq/"]) {
+    const res = await request.get(path, { maxRedirects: 0 });
+    expect(res.status(), path).toBe(308);
+    expect(new URL(res.headers()["location"], "http://x").pathname, path).toBe(path.replace(/\/$/, ""));
+  }
+});
+
 test("pages declare Australian English", async ({ page }) => {
   for (const path of ["/", "/help", "/login"]) {
     await page.goto(path);

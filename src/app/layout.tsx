@@ -8,7 +8,9 @@ import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import { baseOpenGraph, siteUrl } from "@/lib/seo";
 import { gaMeasurementId } from "@/lib/analytics/ga";
+import { posthogSettings } from "@/lib/analytics/posthog-server";
 import { GoogleAnalyticsGate } from "@/components/analytics/GoogleAnalyticsGate";
+import { PostHogAnalytics } from "@/components/analytics/PostHogAnalytics";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
@@ -117,6 +119,7 @@ export default function RootLayout({
   // of truth.
   const brand = getBrand();
   const gaId = gaMeasurementId();
+  const posthog = posthogSettings();
   return (
     <html
       lang="en-AU"
@@ -174,6 +177,16 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <GoogleAnalyticsGate gaId={gaId} />
           </Suspense>
+        )}
+        {/* PostHog product analytics, everywhere, with on-screen text
+            masked and tokens scrubbed (src/lib/analytics). Off unless
+            this is production with a project key, or e2e debug mode. */}
+        {posthog && (
+          <PostHogAnalytics
+            apiKey={posthog.apiKey}
+            debug={posthog.debug}
+            appVersion={process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null}
+          />
         )}
         <SpeedInsights />
       </body>

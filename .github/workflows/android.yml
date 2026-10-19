@@ -74,10 +74,18 @@ jobs:
           java-version: "21"
 
       - name: Set up Android SDK
-        # android-actions/setup-android@v3 installs platform-tools
-        # plus the platforms/build-tools matched to compileSdkVersion
-        # in mobile/android/variables.gradle (currently 36).
+        # android-actions/setup-android@v3 accepts the SDK licences and
+        # installs platform-tools; Gradle then fetches the platform and
+        # build-tools matched to compileSdkVersion in
+        # mobile/android/variables.gradle (currently 36).
+        #
+        # `packages` is explicit because the default ("tools
+        # platform-tools") fails on runners whose command-line tools are
+        # 16.0+: the legacy `tools` package no longer exists ("Failed to
+        # find package 'tools'"). Every run failed this way from 16 Oct 2026.
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Cache Gradle
         # The Gradle daemon caches dependency resolution across runs.
