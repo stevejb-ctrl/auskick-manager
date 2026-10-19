@@ -148,7 +148,13 @@ Hard rules, enforced in code and covered by tests:
 2. ✅ The region is US. The rewrites, ui_host and privacy policy (§5, §6) say so.
 3. ✅ In PostHog, "Record user sessions" is off and "Discard client IP data" is on.
    - "Capture console logs" wouldn't switch off, but logs are only captured inside recordings, which are off in the project and in code.
-4. App Store privacy label: Usage Data → Product Interaction, used for Analytics, linked to the user, not used for tracking.
+4. ✅ App Store privacy label, published 20 Oct. Product Interaction, User ID and Device ID are now "used for App Functionality and Analytics, linked to the user, not used for tracking".
+   - Gotcha: adding a purpose left the pre-selected "linked" answer unrecorded for the new purpose, so all three also showed under "Data Not Linked to You". Fixed by re-editing each one and toggling the linked and tracking answers before publishing.
+6. ✅ PostHog's GeoIP transformation is paused (20 Oct). It added country and city from the IP before the IP was discarded, which contradicted the privacy policy's "we don't collect location data" and would have needed a Location entry on the label.
+
+**Noticed, not changed:**
+- App Store Connect says the updated Apple Developer Program License Agreement must be accepted by the Account Holder before app updates can be submitted.
+- GA4 still loads on `/login` inside the iOS app, because it's a sitemap page, and GA estimates country from IP. Neither the label nor the policy's location line covers it. Option: skip GA inside the native shell (`isNative()` in the GA gate).
 5. ✅ Retention: Pay-as-you-go keeps data up to 7 years (the free plan keeps 1 year). Privacy policy §7 says "currently up to seven years".
 
 **Billing:** the PostHog org is on Pay-as-you-go with a card on file and **no billing limits**. The free allowance (1M events a month) costs nothing. To make overruns impossible, set a $0 billing limit per product, or downgrade to the free plan, which also cuts retention to 1 year.
