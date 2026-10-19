@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { identifyUser, startAnalytics } from "@/lib/analytics/client";
+import { identifyUser, setTeamContext, startAnalytics } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
+import type { TeamRole } from "@/lib/types";
 
 /**
  * Starts PostHog product analytics. The root layout renders this only
@@ -21,6 +23,19 @@ export function PostHogAnalytics({
   useEffect(() => {
     startAnalytics({ apiKey, debug, appVersion });
   }, [apiKey, debug, appVersion]);
+  return null;
+}
+
+/**
+ * Tags every event with the team's sport and the coach's role in it
+ * (super properties), while the team's pages are open. Rendered by the
+ * team layout; leaving the team clears both.
+ */
+export function AnalyticsTeamContext({ sport, teamRole }: { sport: AnalyticsSport; teamRole: TeamRole | null }) {
+  useEffect(() => {
+    setTeamContext({ sport, teamRole });
+    return () => setTeamContext(null);
+  }, [sport, teamRole]);
   return null;
 }
 

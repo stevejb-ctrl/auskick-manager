@@ -1,8 +1,9 @@
 import posthog from "posthog-js";
-import { cleanProps, type EventName, type EventProps } from "@/lib/analytics/events";
+import { cleanProps, type AnalyticsSport, type EventName, type EventProps } from "@/lib/analytics/events";
 import { currentAnalyticsPlatform } from "@/lib/analytics/platform";
 import { posthogOptions } from "@/lib/analytics/posthog-config";
 import { readShareUsageData, syncShareUsageDataCookie } from "@/lib/analytics/usage-data";
+import type { TeamRole } from "@/lib/types";
 
 // ─── The one place the app talks to PostHog ──────────────────
 // Every call is a no-op until startAnalytics has run, which only
@@ -52,9 +53,9 @@ export function track<E extends EventName>(event: E, props: EventProps<E>): void
 }
 
 export interface TeamContext {
-  sport: string;
+  sport: AnalyticsSport;
   /** The coach's role in this team (team_memberships.role). */
-  teamRole: string | null;
+  teamRole: TeamRole | null;
 }
 
 /**
