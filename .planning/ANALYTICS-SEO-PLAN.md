@@ -120,7 +120,7 @@ Hard rules, enforced in code and covered by tests:
   - only campaign query params are kept;
   - fragments are dropped;
   - page titles are kept on public pages only.
-- **Proxy:** `/ingest` rewrites to the EU cloud.
+- **Proxy:** `/ingest` rewrites to the US cloud (Steve chose US on 19 Oct).
   - This needs `skipTrailingSlashRedirect`, so `src/middleware.ts` does the `/page/` → `/page` redirect itself, and skips `/ingest`.
 - **Super properties:** `platform` (`web` / `pwa` / `ios` / `android`), `brand_host` and `app_version`.
 - **Identity:** the `(app)` layout identifies the coach by Supabase id, and both sign-out buttons reset.
@@ -143,12 +143,15 @@ Hard rules, enforced in code and covered by tests:
 - exception capture, once error messages can be scrubbed;
 - deleting a coach's PostHog person when they delete their account.
 
-**Still to do before it's switched on:**
-1. Set `POSTHOG_KEY` (`phc_…`).
-2. Confirm the EU region.
-3. In PostHog, turn session replay off and turn on "Discard client IP data".
-4. Update the App Store privacy label (Usage Data → Product Interaction, linked to the user, not used for tracking).
-5. Confirm PostHog's retention period for our plan; privacy policy §7 refers to it.
+**Switch-on checklist (19 Oct):**
+1. ✅ `POSTHOG_KEY` is set: project 673083, US Cloud ("Default project").
+2. ✅ The region is US. The rewrites, ui_host and privacy policy (§5, §6) say so.
+3. ✅ In PostHog, "Record user sessions" is off and "Discard client IP data" is on.
+   - "Capture console logs" wouldn't switch off, but logs are only captured inside recordings, which are off in the project and in code.
+4. App Store privacy label: Usage Data → Product Interaction, used for Analytics, linked to the user, not used for tracking.
+5. ✅ Retention: Pay-as-you-go keeps data up to 7 years (the free plan keeps 1 year). Privacy policy §7 says "currently up to seven years".
+
+**Billing:** the PostHog org is on Pay-as-you-go with a card on file and **no billing limits**. The free allowance (1M events a month) costs nothing. To make overruns impossible, set a $0 billing limit per product, or downgrade to the free plan, which also cuts retention to 1 year.
 
 *The original Phase 1 plan follows, for reference.*
 
@@ -318,7 +321,7 @@ Phases 0 and 4a can run alongside 1–3; they touch different files.
 
 ## Decisions for you
 
-1. **PostHog region: EU or US?** Neither is in Australia. *Recommend EU*, for the stricter default handling, which is a good story for parents. Latency doesn't matter because events are sent asynchronously.
+1. ~~**PostHog region: EU or US?**~~ **Decided 19 Oct: US.** Neither is in Australia; the privacy policy discloses US storage.
 2. **GA4: keep on public pages only, drop entirely, or keep everywhere?** *Recommend public pages only*: it keeps the history and the Search Console link, and the app stays clean.
 3. **One home domain or one domain per sport?** Every new sport domain starts at zero authority, and three or more tiny sites compete with each other. Before soccer and basketball launch publicly, decide whether they live under an existing domain, under a new umbrella domain with `/footy`, `/netball` and so on, or under their own domains. This is a brand call more than a code call. It doesn't block Phases 0–3.
 4. **Did "Search" also mean in-app search?** For example, search across games, players or help. This plan assumes search engines plus the help search in Phase 5.
