@@ -1,6 +1,6 @@
 # Analytics, heatmaps and SEO — plan
 
-_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) shipped in PR #159 on 19 Oct. Phase 1 (PostHog) was built on 19 Oct on branch `feat/posthog-phase-1` and stays off until the project key is set._
+_Drafted 18 Oct 2026. Phase 0's code shipped in PR #158 on 19 Oct, and item 4 (Search Console, GA4, Bing) was done the same day. Item 5 is still to do. Phase 4a (share images, structured data) shipped in PR #159 on 19 Oct. Phase 1 (PostHog) went live in PR #160 on 20 Oct. Phase 2 (events and dashboards) was built on 20 Oct on branch `claude/analytics-phase-2`._
 
 ## Goal
 
@@ -199,6 +199,108 @@ Hard rules, enforced in code and covered by tests:
 
 ## Phase 2: Events and dashboards
 
+**Built 20 Oct 2026 on branch `claude/analytics-phase-2`.** Off outside production, like the rest of PostHog.
+
+**What's in the code:**
+- `src/lib/analytics/events.ts` is the typed catalogue. `track()` (browser) and `trackServer()` (server) only take its event names, with its props.
+  - Privacy, enforced: a prop is an enum, a count or number, a boolean, a uuid, an age-group id or the host. Never free text.
+  - `cleanProps()` drops anything else at runtime, and in e2e debug mode logs an `[analytics]` console error.
+  - `src/lib/__tests__/analyticsEvents.test.ts` pins the rules, including type-level checks.
+- **Game-day events come from the shared live components**, with `sport` passed in as a prop:
+  - `SubDueBanner`: `sub_due_prompt` dismissed ("Got it").
+  - `SwapCard` (AFL) and `NextSubCard` (league, union, soccer, basketball): `sub_made` from the sub card. It's `due_prompt` while "Sub due" shows (which also sends `sub_due_prompt` accepted), and `suggestion` otherwise.
+  - `LockModal`, and netball's fork of it, `NetballPlayerActions`: `lock_action`.
+  - `LateArrivalMenu`, `InjuryReplacementModal`, `WalkthroughModal` and `UndoStrip` each send their own event.
+  - The write queue sends `offline_queue_flushed` when a backlog drains on reconnect.
+- **Sent from each sport's live screen, because no shared component owns them:**
+  - `score_recorded`: the dock and the score-bug chips are passed in by each sport.
+  - Manual `sub_made`: tap-tap, Switch, or filling an empty spot.
+  - `quarter_break_suggestion`, from the AFL and netball breaks. League, soccer and basketball edit their break inline and send none.
+- **Lifecycle events from the server action that writes the row** (`src/lib/analytics/server.ts`, posthog-node, flushed under `waitUntil`):
+  - `signup_completed`, `team_created`, `squad_built`;
+  - `game_created` (form or PlayHQ), `game_started`, `game_completed`;
+  - `invite_sent`, `invite_accepted`.
+  - Demo teams send nothing. A share-link runner's events join no person.
+  - The "Share usage data" switch is mirrored into a cookie, so it stops these too, per device, as does DNT.
+- **Super properties:**
+  - Inside a team, every event also carries `sport` and `team_role` (`admin` / `game_manager` / `parent`).
+  - On `/run/<token>`, every event carries `run_link`: `demo` for a `/demo` visitor, `runner` for a parent with a share link. Their game-day events are anonymous. Demo teams' server events are skipped altogether.
+- **Deleting an account deletes the coach's PostHog person** and their events, at the request rather than after the 30-day grace period. While the deletion is pending, the app stops identifying them on that device. Privacy policy §2 and §7 updated.
+- **e2e:** in debug mode the server keeps its events in memory, and `/api/e2e/analytics` returns them. It 404s in production and without the e2e cookie. `e2e/tests/posthog-analytics.spec.ts` checks:
+  - a game started, scored, undone and an injury replaced;
+  - a squad built and a game added;
+  - a new coach's team;
+  - account deletion;
+  - the opt-out reaching server events;
+  - that no name ever leaves.
+
+**Steve to do:**
+1. **Create a PostHog personal API key**: PostHog → Settings → Personal API keys.
+   - Scope it to project 673083, with `person:read` and `person:write` only.
+   - Add it to Vercel (Production) as `POSTHOG_PERSONAL_API_KEY`.
+   - Until it's set, account deletion logs a warning and skips the PostHog part.
+2. **Build the four dashboards** below.
+
+**Not built yet (follow-ups):**
+- Catalogue events with nowhere to send from yet:
+  - `cta_clicked`, `demo_started`, `signup_started`;
+  - `run_link_shared`, `parent_viewed_game`;
+  - `help_article_viewed`, `feedback_submitted`.
+- Values the plan listed that the UI doesn't have:
+  - `quarter_break_suggestion.fairness_score`: no screen computes one since the QuarterBreak rework;
+  - `sub_due_prompt` "snoozed": there's no snooze.
+- The `/admin` link to the dashboards.
+- Exception capture, still waiting on a scrubber for error messages.
+
+**Known gaps:**
+- A coach who keeps using Siren during the deletion grace period can still send server events, which recreates a bare PostHog person keyed by their (soon deleted) id.
+- `offline_seconds` is how long the oldest queued write waited. Nothing records when the device actually went offline.
+- `subs_count` counts in-play subs: swaps, plus netball's mid-quarter subs. It doesn't count a netball break's position changes.
+
+### Dashboards to build in PostHog
+
+Build each as an SQL insight (or the insight type named), all filtered to production. Every game-day and lifecycle event carries `sport`, so each one can be broken down by it. Add the filter `run_link` ≠ `demo` to every game-day tile, so `/demo` visitors don't count as coaches.
+
+1. **Weekly active teams by sport (north star).** SQL, as a stacked bar:
+   ```sql
+   select toStartOfWeek(timestamp, 1) as week, properties.sport as sport,
+          count(distinct properties.team_id) as teams
+   from events
+   where event = 'game_completed' and timestamp > now() - interval 26 week
+   group by week, sport order by week
+   ```
+2. **Activation funnel.** A Funnel insight, aggregated by person (the coach):
+   - steps: `signup_completed` → `team_created` → `squad_built` → `game_started` → `game_completed`;
+   - conversion window: 21 days;
+   - breakdown: `sport` (attributed to the `team_created` step), plus a second copy broken down by `method` on step 1.
+3. **Season retention.** SQL: each team's first and last game week. A team counts as still playing at week 6 (or 10) if its last game is at least that far past its first. Only teams whose first game was that long ago count.
+   ```sql
+   with spans as (
+     select properties.team_id as team, any(properties.sport) as sport,
+            min(toStartOfWeek(timestamp, 1)) as first_week, max(toStartOfWeek(timestamp, 1)) as last_week
+     from events where event = 'game_completed' group by team)
+   select sport,
+          countIf(first_week <= now() - interval 6 week) as teams_6wk,
+          countIf(first_week <= now() - interval 6 week and last_week >= first_week + interval 6 week) / teams_6wk as still_playing_wk6,
+          countIf(first_week <= now() - interval 10 week) as teams_10wk,
+          countIf(first_week <= now() - interval 10 week and last_week >= first_week + interval 10 week) / teams_10wk as still_playing_wk10
+   from spans group by sport
+   ```
+   Seasons differ by sport, so read it per sport. A Retention insight on `game_completed` gives the same picture per coach rather than per team.
+4. **Game-day friction.** One dashboard, every tile broken down by `sport`, weekly:
+   - **Sub-card acceptance:** `sub_made` with `source` in (suggestion, due_prompt), divided by all `sub_made`. Use a Trends formula `A / B`, summing `count` for swaps rather than taps.
+   - **Sub-due response:** `sub_due_prompt` broken down by `action`.
+   - **Undo rate:** `undo_used` ÷ `score_recorded`.
+   - **Score entry path:** `score_recorded` broken down by `via` and `side`.
+   - **Break suggestion:** `quarter_break_suggestion` broken down by `action` (applied / edited / ignored).
+   - **Rage clicks on the live screen:** `$rageclick` where `$pathname` matches `/teams/.*/games/.*/live` or `/run/:token`.
+   - **Offline:** `offline_queue_flushed`, with the average `queued_count` and p90 `offline_seconds`.
+   - **Walkthrough:** `walkthrough` broken down by `action`, and the median `step` for skips.
+
+The `/admin` page stays the DB source of truth for raw counts. Acquisition (visit → sign-up by source) waits on `cta_clicked` / `signup_started`.
+
+*The original Phase 2 plan follows, for reference.*
+
 ### Rule: instrument shared components, not sport components
 
 Per CLAUDE.md, put `track()` calls in the shared chrome: `ScoreRecordingDock`, `SubDueModal` / `SubDueBanner`, `LockModal`, `LateArrivalMenu`, `InjuryReplacementModal`, `WalkthroughModal`, `QuarterBreak`, `LineupPicker`. Pass `sport` as a property. Every sport, soccer and basketball included, gets analytics for free, and the numbers compare like for like.
@@ -242,7 +344,7 @@ Per CLAUDE.md, put `track()` calls in the shared chrome: `ScoreRecordingDock`, `
 4. **Visit → sign-up conversion** by source (organic, direct, club referral, app store) and by brand domain.
 5. **Game-day friction:** sub-suggestion acceptance rate, rage clicks on the live screen, undo rate, and errors per game.
 
-**Dashboards to build in PostHog:** Acquisition, Activation funnel, Weekly active teams by sport, Game-day health. The `/admin` page stays the DB source of truth for raw counts. Add a link from `/admin` to the PostHog dashboards.
+**Dashboards to build in PostHog:** Acquisition, Activation funnel, Weekly active teams by sport, Game-day health. The `/admin` page stays the DB source of truth for raw counts. Add a link from `/admin` to the PostHog dashboards. (Built as specified in "Dashboards to build in PostHog" at the top of this phase.)
 
 ---
 
