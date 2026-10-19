@@ -32,9 +32,9 @@ describe("posthogOptions", () => {
     expect(live.respect_dnt).toBe(true);
   });
 
-  it("sends through our own /ingest proxy, to the EU", () => {
+  it("sends through our own /ingest proxy, to the US cloud", () => {
     expect(live.api_host).toBe("/ingest");
-    expect(live.ui_host).toBe("https://eu.posthog.com");
+    expect(live.ui_host).toBe("https://us.posthog.com");
   });
 
   it("counts page changes in the app router", () => {

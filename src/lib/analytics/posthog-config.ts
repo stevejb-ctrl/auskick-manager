@@ -6,14 +6,14 @@ import { sanitizeEvent } from "@/lib/analytics/sanitize";
 // PostHog's defaults. src/lib/__tests__/posthogConfig.test.ts pins
 // each one; change it there first, on purpose.
 
-/** PostHog's EU cloud, through the /ingest rewrite in next.config.mjs. */
+/** PostHog's US cloud, through the /ingest rewrite in next.config.mjs. */
 export const POSTHOG_PROXY_PATH = "/ingest";
-export const POSTHOG_UI_HOST = "https://eu.posthog.com";
+export const POSTHOG_UI_HOST = "https://us.posthog.com";
 
 export function posthogOptions({ debug }: { debug: boolean }): Partial<PostHogConfig> {
   return {
     // Our own domain, so ad blockers don't drop events, and the
-    // dashboard links point at the EU app.
+    // dashboard links point at the US app.
     api_host: POSTHOG_PROXY_PATH,
     ui_host: POSTHOG_UI_HOST,
 

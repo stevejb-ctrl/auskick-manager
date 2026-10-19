@@ -115,11 +115,11 @@ const nextConfig = {
 
   // PostHog through our own domain (src/lib/analytics/posthog-config.ts):
   // ad blockers drop events sent to posthog.com, and this way the
-  // browser only ever talks to sirenfooty.com.au. EU cloud.
+  // browser only ever talks to sirenfooty.com.au. US cloud.
   async rewrites() {
     return [
-      { source: "/ingest/static/:path*", destination: "https://eu-assets.i.posthog.com/static/:path*" },
-      { source: "/ingest/:path*", destination: "https://eu.i.posthog.com/:path*" },
+      { source: "/ingest/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
+      { source: "/ingest/:path*", destination: "https://us.i.posthog.com/:path*" },
     ];
   },
 };

@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 
 /**
- * The PostHog project key (phc_…), from the "Siren (prod)" project in
- * PostHog's EU cloud. Not a secret: it ships in every page, like the
- * GA ID. While it's empty, PostHog stays off in production.
+ * The PostHog project key (phc_…): project 673083 in PostHog's US
+ * cloud. Not a secret: it ships in every page, like the GA ID. Set it
+ * to "" to switch PostHog off in production.
  */
-export const POSTHOG_KEY = "";
+export const POSTHOG_KEY = "phc_vQB8QVJn5PfFHNv7tLLsoR8yoxrHXftjMKJefLzn62K2";
 
 // e2e only. Outside production, a request carrying this cookie runs
 // PostHog in debug mode with a dummy key. e2e/tests/posthog-analytics.spec.ts
