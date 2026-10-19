@@ -10,6 +10,7 @@ import {
   sendTelegramNotification,
 } from "@/lib/notifications/telegram";
 import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+import { trackServer } from "@/lib/analytics/server";
 
 /**
  * What the coach set on the Basics step: their competition's players on
@@ -144,6 +145,8 @@ export async function createTeam(
     .from("team_playbooks")
     .insert({ team_id: teamId, strategy: suggested });
   if (playbookError) console.error("[createTeam] playbook insert failed", playbookError);
+
+  trackServer(user.id, "team_created", { team_id: teamId, sport, age_group: ageGroup });
 
   console.log("[createTeam] insert succeeded, redirecting", {
     teamId,

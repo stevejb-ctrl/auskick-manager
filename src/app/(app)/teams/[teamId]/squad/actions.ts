@@ -6,6 +6,7 @@ import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { ParsedPlayer } from "@/lib/squadPaste";
 import type { ActionResult, Sport } from "@/lib/types";
 import { teamSportById } from "@/lib/sports/teamSportById";
+import { trackSquadBuilt } from "@/lib/analytics/lifecycle";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -94,6 +95,7 @@ export async function addPlayers(
     }
     return { success: false, error: insertError.message };
   }
+  trackSquadBuilt(user.id, teamId, players.length);
 
   revalidatePath(`/teams/${teamId}/squad`);
   revalidatePath(`/teams/${teamId}/setup`);
@@ -138,6 +140,7 @@ export async function addPlayer(
     }
     return { success: false, error: insertError.message };
   }
+  trackSquadBuilt(user.id, teamId, 1);
 
   revalidatePath(`/teams/${teamId}/squad`);
   return { success: true };

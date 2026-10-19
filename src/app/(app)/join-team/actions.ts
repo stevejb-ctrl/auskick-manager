@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { ActionResult } from "@/lib/types";
+import { trackServer } from "@/lib/analytics/server";
 
 /**
  * Normalise whatever the parent typed into the canonical "XXXX-XXXX"
@@ -105,6 +106,7 @@ export async function joinTeamByCode(
   if (insertError && insertError.code !== "23505") {
     return { success: false, error: insertError.message };
   }
+  if (!insertError) trackServer(user.id, "invite_accepted", { role: "parent", via: "team_code" });
 
   // Best-effort push to the team admins so the manager sees someone
   // landed via the code (no email — the admin gave the code out

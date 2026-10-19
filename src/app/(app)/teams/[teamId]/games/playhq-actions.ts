@@ -12,6 +12,7 @@ import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import { teamSport } from "@/lib/sports";
 import type { ActionResult } from "@/lib/types";
+import { trackGameCreated } from "@/lib/analytics/lifecycle";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -204,6 +205,7 @@ export async function importPlayhqFixtures(
         teamId,
         createdBy: user.id,
       });
+      trackGameCreated(user.id, { teamId, sport: team.sport, scheduledAt: f.scheduledAt, source: "playhq" });
       imported++;
     }
   }

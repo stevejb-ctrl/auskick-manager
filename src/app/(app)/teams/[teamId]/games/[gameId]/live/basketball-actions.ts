@@ -45,6 +45,7 @@ import { BASKETBALL_LINES, type BasketballAgeGroupConfig, type BasketballLine } 
 import type { BasketballFoulKind } from "@/lib/sports/basketball/replay";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import { trackGameCompleted, trackGameStarted } from "@/lib/analytics/lifecycle";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 interface Writer {
@@ -201,7 +202,11 @@ export async function startBasketballGame(
   await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
 
   // Tip-off retires the pre-game draft, as for every sport.
-  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+  const { count: draftCount } = await w.supabase
+    .from("game_lineup_drafts")
+    .delete({ count: "exact" })
+    .eq("game_id", gameId);
+  trackGameStarted({ userId: w.userId, teamId: w.teamId, gameId, hasLineupDraft: (draftCount ?? 0) > 0 });
   invalidateSeasonEvents(w.teamId);
 
   if (auth.kind === "team") {
@@ -303,6 +308,7 @@ export async function finaliseBasketballGame(
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);
+  trackGameCompleted({ userId: w.userId, teamId: w.teamId, gameId });
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);

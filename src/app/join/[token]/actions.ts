@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { ActionResult, TeamRole } from "@/lib/types";
+import { trackServer } from "@/lib/analytics/server";
 
 // Accept an invite. Runs entirely on the server — we validate the
 // token via the admin client (so the invitee can read an invite they
@@ -53,6 +54,7 @@ export async function acceptInvite(
   if (insertError && insertError.code !== "23505") {
     return { success: false, error: insertError.message };
   }
+  if (isFirstAccept) trackServer(user.id, "invite_accepted", { role: invite.role as TeamRole, via: "invite" });
 
   // Mark accepted (idempotent if they re-open the link).
   await admin

@@ -49,6 +49,7 @@ import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import { trackGameCompleted, trackGameStarted } from "@/lib/analytics/lifecycle";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
@@ -397,7 +398,11 @@ export async function startLeagueGame(
 
   // Kickoff invalidates any pre-game draft — same contract as
   // AFL `startGame` / netball `startNetballGame`.
-  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+  const { count: draftCount } = await w.supabase
+    .from("game_lineup_drafts")
+    .delete({ count: "exact" })
+    .eq("game_id", gameId);
+  trackGameStarted({ userId: w.userId, teamId: w.teamId, gameId, hasLineupDraft: (draftCount ?? 0) > 0 });
 
   invalidateSeasonEvents(w.teamId);
 
@@ -523,6 +528,7 @@ export async function finaliseLeagueGame(
 
   // Season time rollup for stats and season balance (UX plan 4.5).
   await writeGameRollup(w.supabase, gameId);
+  trackGameCompleted({ userId: w.userId, teamId: w.teamId, gameId });
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);

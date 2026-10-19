@@ -46,6 +46,7 @@ import type { SoccerAgeGroupConfig, SoccerUnit } from "@/lib/sports/soccer/types
 import { SOCCER_UNITS } from "@/lib/sports/soccer/types";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import { trackGameCompleted, trackGameStarted } from "@/lib/analytics/lifecycle";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 interface Writer {
@@ -209,7 +210,11 @@ export async function startSoccerGame(
   await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
 
   // Kick-off retires the pre-game draft, as for every sport.
-  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+  const { count: draftCount } = await w.supabase
+    .from("game_lineup_drafts")
+    .delete({ count: "exact" })
+    .eq("game_id", gameId);
+  trackGameStarted({ userId: w.userId, teamId: w.teamId, gameId, hasLineupDraft: (draftCount ?? 0) > 0 });
   invalidateSeasonEvents(w.teamId);
 
   if (auth.kind === "team") {
@@ -313,6 +318,7 @@ export async function finaliseSoccerGame(
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);
+  trackGameCompleted({ userId: w.userId, teamId: w.teamId, gameId });
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
