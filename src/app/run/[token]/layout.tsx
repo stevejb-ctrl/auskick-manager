@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AnalyticsRunContext } from "@/components/analytics/PostHogAnalytics";
 
 // Back-target resolution. /run/{token} is reached by two distinct
 // audiences:
@@ -45,6 +46,9 @@ export default async function RunLayout({
 
   return (
     <div>
+      {/* Analytics: a demo visitor or a share-link runner, so game-day
+          numbers can leave the demo out. A no-op where PostHog is off. */}
+      <AnalyticsRunContext demo={backHref === "/demo"} />
       {/* Non-sticky — scrolls with the page so it doesn't stack
           with LiveTopBar (also sticky-top) once the runner reaches
           the live game. The chevron+wordmark is still visible on

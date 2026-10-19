@@ -14,7 +14,12 @@ import type { TeamRole } from "@/lib/types";
 let started = false;
 let debugMode = false;
 let pendingUserId: string | null = null;
-let pendingTeam: TeamContext | null = null;
+// Super properties. `baseProps` describe the device (set at start);
+// `contextProps` the page's team or runner link, changed as the coach
+// moves around. posthog.reset() drops both, so they're kept here to put
+// back.
+let baseProps: Record<string, string> = {};
+let contextProps: Record<string, string> = {};
 
 export function startAnalytics(opts: { apiKey: string; debug: boolean; appVersion: string | null }): void {
   if (started || typeof window === "undefined") return;
@@ -29,13 +34,13 @@ export function startAnalytics(opts: { apiKey: string; debug: boolean; appVersio
     // first page view.
     opt_out_capturing_by_default: !share,
   });
-  posthog.register({
+  baseProps = {
     platform: currentAnalyticsPlatform(),
     brand_host: window.location.host,
     ...(opts.appVersion ? { app_version: opts.appVersion } : {}),
-  });
+  };
+  posthog.register({ ...baseProps, ...contextProps });
   if (pendingUserId) identifyUser(pendingUserId);
-  if (pendingTeam) setTeamContext(pendingTeam);
 }
 
 /**
@@ -52,6 +57,26 @@ export function track<E extends EventName>(event: E, props: EventProps<E>): void
   posthog.capture(event, clean);
 }
 
+/** Set (a string) or clear (null) page-context super properties. */
+function setContextProps(props: Record<string, string | null>): void {
+  for (const [key, value] of Object.entries(props)) {
+    if (value === null) {
+      delete contextProps[key];
+      if (started) posthog.unregister(key);
+    } else {
+      contextProps[key] = value;
+      if (started) posthog.register({ [key]: value });
+    }
+  }
+}
+
+/** posthog.reset(), keeping the device's and the page's super properties. */
+function resetIdentity(keepContext: boolean): void {
+  posthog.reset();
+  if (!keepContext) contextProps = {};
+  posthog.register({ ...baseProps, ...contextProps });
+}
+
 export interface TeamContext {
   sport: AnalyticsSport;
   /** The coach's role in this team (team_memberships.role). */
@@ -63,19 +88,16 @@ export interface TeamContext {
  * while a team's pages are open. Pass null on leaving the team.
  */
 export function setTeamContext(team: TeamContext | null): void {
-  if (!started) {
-    pendingTeam = team;
-    return;
-  }
-  pendingTeam = null;
-  if (!team) {
-    posthog.unregister("sport");
-    posthog.unregister("team_role");
-    return;
-  }
-  posthog.register({ sport: team.sport });
-  if (team.teamRole) posthog.register({ team_role: team.teamRole });
-  else posthog.unregister("team_role");
+  setContextProps({ sport: team?.sport ?? null, team_role: team?.teamRole ?? null });
+}
+
+/**
+ * On a /run/<token> page: tag events as a /demo visitor's or a
+ * share-link runner's, so game-day numbers can leave the demo out.
+ * Pass null on leaving.
+ */
+export function setRunContext(kind: "demo" | "runner" | null): void {
+  setContextProps({ run_link: kind });
 }
 
 /** Link this device's events to a signed-in coach, by Supabase id only. */
@@ -89,7 +111,7 @@ export function identifyUser(userId: string): void {
   // A different coach was signed in on this device: start this one a
   // fresh identity rather than merging the two. PostHog keeps
   // $user_state across reloads.
-  if (posthog.get_property("$user_state") === "identified") posthog.reset();
+  if (posthog.get_property("$user_state") === "identified") resetIdentity(true);
   posthog.identify(userId);
 }
 
@@ -99,13 +121,13 @@ export function identifyUser(userId: string): void {
  */
 export function forgetUser(): void {
   pendingUserId = null;
-  if (started && posthog.get_property("$user_state") === "identified") posthog.reset();
+  if (started && posthog.get_property("$user_state") === "identified") resetIdentity(true);
 }
 
 /** Forget the signed-in coach. Call on sign-out. */
 export function resetAnalytics(): void {
   pendingUserId = null;
-  if (started) posthog.reset();
+  if (started) resetIdentity(false);
 }
 
 /** Apply the "Share usage data" switch on My account. */

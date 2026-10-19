@@ -144,6 +144,11 @@ test.describe("signed out", () => {
     await page.goto(`/run/${game.share_token}`);
     await expectPageview(capture, "/run/:token");
     expect(capture.raw.join("\n")).not.toContain(game.share_token);
+    // A share-link runner, not a /demo visitor: game-day numbers keep
+    // these and leave the demo's out.
+    await expect
+      .poll(() => named(capture, "$pageview").map((e) => e.properties?.run_link), { timeout: 10_000 })
+      .toContain("runner");
   });
 
   test("an invite in ?next= is scrubbed", async ({ page, context, baseURL }) => {

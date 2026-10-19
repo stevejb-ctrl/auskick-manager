@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { forgetUser, identifyUser, setTeamContext, startAnalytics } from "@/lib/analytics/client";
+import { forgetUser, identifyUser, setRunContext, setTeamContext, startAnalytics } from "@/lib/analytics/client";
 import type { AnalyticsSport } from "@/lib/analytics/events";
 import type { TeamRole } from "@/lib/types";
 
@@ -36,6 +36,19 @@ export function AnalyticsTeamContext({ sport, teamRole }: { sport: AnalyticsSpor
     setTeamContext({ sport, teamRole });
     return () => setTeamContext(null);
   }, [sport, teamRole]);
+  return null;
+}
+
+/**
+ * Tags events on a /run/<token> page as a /demo visitor's or a
+ * share-link runner's (the `run_link` super property), so game-day
+ * numbers can leave the demo out. Rendered by the runner layout.
+ */
+export function AnalyticsRunContext({ demo }: { demo: boolean }) {
+  useEffect(() => {
+    setRunContext(demo ? "demo" : "runner");
+    return () => setRunContext(null);
+  }, [demo]);
   return null;
 }
 
