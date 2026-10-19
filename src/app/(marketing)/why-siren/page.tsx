@@ -2,20 +2,26 @@ import type { Metadata } from "next";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { getBrand } from "@/lib/brand";
+import { baseOpenGraph } from "@/lib/seo";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
-export const metadata: Metadata = {
-  title: "Why Siren · Built for junior coaches",
-  description:
-    "Siren tracks where every kid has played, not just how long they've been on. Built for junior football and netball coaches who care about giving every player a crack at every part of the game.",
-  alternates: { canonical: "/why-siren" },
-  openGraph: {
-    title: "Why Siren. Every kid. Every position. Every quarter.",
+// A function rather than a const: baseOpenGraph() reads the brand,
+// and this page's openGraph would otherwise drop the shared site name
+// and locale.
+export function generateMetadata(): Metadata {
+  return {
+    title: "Why Siren · Built for junior coaches",
     description:
-      "The sideline tool built for junior football and netball. Fair rotations across every position, without the clipboard.",
-    type: "website",
-  },
-};
+      "Siren tracks where every kid has played, not just how long they've been on. Built for junior football and netball coaches who care about giving every player a crack at every part of the game.",
+    alternates: { canonical: "/why-siren" },
+    openGraph: {
+      ...baseOpenGraph(),
+      title: "Why Siren. Every kid. Every position. Every quarter.",
+      description:
+        "The sideline tool built for junior football and netball. Fair rotations across every position, without the clipboard.",
+    },
+  };
+}
 
 export default function WhySirenPage() {
   // Resolve copy server-side from the host-based brand. FinalCTA is
