@@ -8,7 +8,8 @@
 // caught here, so nothing reaches PostHog.
 //
 // Covers: src/components/analytics/PostHogAnalytics.tsx,
-// src/lib/analytics/{sanitize,posthog-config}.ts.
+// src/lib/analytics/{sanitize,posthog-config}.ts, the /account opt-out
+// (src/components/preferences/UsageDataSettings.tsx).
 
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -175,5 +176,26 @@ test.describe("signed in", () => {
       })
       .toBe(true);
     expect(capture.raw.join("\n")).not.toContain(process.env.TEST_SUPER_ADMIN_EMAIL!);
+  });
+
+  test("switching off usage data on My account stops capture", async ({ page, context, baseURL }) => {
+    const capture = await capturePostHog(context, baseURL);
+    await page.goto("/account");
+    await expectPageview(capture, "/account");
+
+    const toggle = page.getByRole("switch", { name: "Share usage data" });
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    capture.events.length = 0;
+    capture.raw.length = 0;
+    await page.goto("/help");
+    await page.getByRole("link", { name: /faq/i }).first().click();
+    await page.waitForURL(/\/help\/faq$/);
+    // Debug mode sends each event at once, so a short settle is enough
+    // to be sure nothing is on its way.
+    await page.waitForTimeout(1500);
+    expect(capture.events).toEqual([]);
   });
 });
