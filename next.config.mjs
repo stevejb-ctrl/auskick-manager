@@ -107,6 +107,21 @@ const withPWA = withPWAInit({
 });
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  // PostHog's API paths end in "/" (/e/, /flags/), so Next mustn't
+  // redirect them to the slash-less URL. src/middleware.ts still strips
+  // trailing slashes from every page, so each page keeps one URL.
+  skipTrailingSlashRedirect: true,
+
+  // PostHog through our own domain (src/lib/analytics/posthog-config.ts):
+  // ad blockers drop events sent to posthog.com, and this way the
+  // browser only ever talks to sirenfooty.com.au. EU cloud.
+  async rewrites() {
+    return [
+      { source: "/ingest/static/:path*", destination: "https://eu-assets.i.posthog.com/static/:path*" },
+      { source: "/ingest/:path*", destination: "https://eu.i.posthog.com/:path*" },
+    ];
+  },
+};
 
 export default withPWA(nextConfig);

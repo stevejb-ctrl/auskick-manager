@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { resetAnalytics } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 
@@ -10,6 +11,7 @@ export function SignOutButton() {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    resetAnalytics();
     router.push("/login");
     router.refresh();
   }
