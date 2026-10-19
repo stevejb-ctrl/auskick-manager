@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { HelpBreadcrumbJsonLd } from "@/components/help/HelpBreadcrumbJsonLd";
 import { HelpNav } from "@/components/help/HelpNav";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
+import { siteUrl } from "@/lib/seo";
 import { getUser } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -19,6 +21,7 @@ export default async function HelpLayout({ children }: { children: React.ReactNo
     : { href: "/login", label: "Sign in" };
   return (
     <div className="min-h-screen bg-warm">
+      <HelpBreadcrumbJsonLd siteUrl={siteUrl()} />
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href={user ? "/dashboard" : "/"} aria-label="Siren home">

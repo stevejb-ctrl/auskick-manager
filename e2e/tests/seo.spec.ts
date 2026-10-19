@@ -2,15 +2,29 @@
 // missing /why-siren and /support), every listed page opens for a
 // signed-out visitor rather than bouncing to /login, robots.txt keeps
 // crawlers out of the app and token links, and pages say they're in
-// Australian English. Shared links get a preview image.
+// Australian English. Shared links get a preview image, and search
+// engines get structured data: who makes Siren, that it's an app, and
+// where each help page sits.
 //
 // Covers: src/app/sitemap.ts, src/app/robots.ts, src/lib/public-routes.ts,
 // <html lang> and the Open Graph / Twitter metadata in src/app/layout.tsx,
-// and src/app/opengraph-image.tsx.
+// src/app/opengraph-image.tsx and src/lib/structured-data.ts.
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 test.use({ storageState: { cookies: [], origins: [] } });
+
+type JsonLd = Record<string, unknown>;
+
+/** Every JSON-LD block on the page, parsed. */
+async function jsonLd(page: Page): Promise<JsonLd[]> {
+  const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+  return blocks.map((b) => JSON.parse(b) as JsonLd);
+}
+
+function ofType(blocks: JsonLd[], type: string): JsonLd | undefined {
+  return blocks.find((b) => b["@type"] === type);
+}
 
 test("the sitemap lists every public page, and each opens signed out", async ({ request }) => {
   const res = await request.get("/sitemap.xml");
@@ -75,4 +89,41 @@ test("the preview image is a 1200×630 PNG a signed-out crawler can fetch", asyn
   const png = await res.body();
   // A PNG's IHDR chunk holds the width then the height, from byte 16.
   expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual({ width: 1200, height: 630 });
+});
+
+test("the home page tells search engines who makes Siren and that it's an app", async ({ page, request }) => {
+  // Server-rendered, so crawlers that don't run JavaScript see it too.
+  expect(await (await request.get("/")).text()).toContain('"@type":"SoftwareApplication"');
+
+  await page.goto("/");
+  const blocks = await jsonLd(page);
+  expect(ofType(blocks, "Organization")).toMatchObject({
+    name: "Siren",
+    url: expect.stringMatching(/^https:\/\/www\.siren[a-z]+\.com\.au\/$/),
+    logo: expect.stringMatching(/\.png$/),
+  });
+  expect(ofType(blocks, "WebSite")).toMatchObject({ name: expect.stringMatching(/^Siren /) });
+
+  const app = ofType(blocks, "SoftwareApplication");
+  expect(app).toMatchObject({
+    applicationCategory: "SportsApplication",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
+    installUrl: expect.stringContaining("apps.apple.com"),
+  });
+  // No ratings until they're real ones from a review source.
+  expect(app).not.toHaveProperty("aggregateRating");
+});
+
+test("help pages carry breadcrumbs", async ({ page, request }) => {
+  expect(await (await request.get("/help/squads")).text()).toContain('"@type":"BreadcrumbList"');
+
+  await page.goto("/help/squads");
+  expect(ofType(await jsonLd(page), "BreadcrumbList")?.itemListElement).toEqual([
+    { "@type": "ListItem", position: 1, name: "Home", item: expect.stringMatching(/\.com\.au\/$/) },
+    { "@type": "ListItem", position: 2, name: "Help", item: expect.stringMatching(/\.com\.au\/help$/) },
+    { "@type": "ListItem", position: 3, name: "Squads", item: expect.stringMatching(/\/help\/squads$/) },
+  ]);
+
+  await page.goto("/help");
+  expect(ofType(await jsonLd(page), "BreadcrumbList")?.itemListElement).toHaveLength(2);
 });
