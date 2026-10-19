@@ -2,6 +2,8 @@
 
 import type { Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 export interface InjuryReplacementCandidate {
   player: Player;
@@ -10,6 +12,8 @@ export interface InjuryReplacementCandidate {
 }
 
 interface InjuryReplacementModalProps {
+  /** For analytics (injury_replacement): which sport's game this is. */
+  sport: AnalyticsSport;
   /** The player about to be marked injured (currently on field). */
   injuredPlayer: Player;
   /**
@@ -57,6 +61,7 @@ function formatMinSec(ms: number): string {
  * the suggested pick (the kid who's owed the most field time).
  */
 export function InjuryReplacementModal({
+  sport,
   injuredPlayer,
   spotLabel,
   candidates,
@@ -67,6 +72,17 @@ export function InjuryReplacementModal({
 }: InjuryReplacementModalProps) {
   const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
   const words = REASON_WORDS[reason];
+
+  // injury_replacement: replaced or played short, and whether the
+  // suggested (least-played) kid was the pick. Never who.
+  function handlePick(replacementId: string, pickedSuggested: boolean) {
+    track("injury_replacement", { sport, action: "replaced", reason, picked_suggested: pickedSuggested });
+    onPickReplacement(replacementId);
+  }
+  function handleSkip() {
+    track("injury_replacement", { sport, action: "skipped", reason, picked_suggested: false });
+    onSkipReplacement();
+  }
 
   return (
     <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
@@ -95,7 +111,7 @@ export function InjuryReplacementModal({
                 <li key={c.player.id}>
                   <button
                     type="button"
-                    onClick={() => onPickReplacement(c.player.id)}
+                    onClick={() => handlePick(c.player.id, isSuggested)}
                     className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left transition-colors duration-fast ease-out-quart ${
                       isSuggested
                         ? "border-brand-600 bg-brand-50 hover:bg-brand-100"
@@ -132,7 +148,7 @@ export function InjuryReplacementModal({
         <div className="flex flex-col gap-1 border-t border-hairline px-5 py-3">
           <button
             type="button"
-            onClick={onSkipReplacement}
+            onClick={handleSkip}
             className="w-full rounded-md border border-hairline py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
           >
             {words.skip}

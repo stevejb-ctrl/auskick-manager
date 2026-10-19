@@ -36,6 +36,8 @@ import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { track } from "@/lib/analytics/client";
+import { trackManualSub } from "@/lib/analytics/game-day";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import {
   InjuryReplacementModal,
@@ -396,6 +398,12 @@ export function SoccerLiveGame({
       { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() },
     ]);
   }
+  // A sub the coach picked (tap-tap, an empty spot, the keeper), for
+  // analytics. The sub card's own subs are counted by NextSubCard.
+  function manualSub(offId: string | null, onId: string, line?: SoccerUnit) {
+    trackManualSub("soccer");
+    return sub(offId, onId, line);
+  }
   function move(a: string, b: string | null, zoneB: SoccerUnit) {
     const zoneA = state.lineup ? soccerUnitOf(state.lineup, a) : null;
     if (!zoneA) return Promise.resolve();
@@ -456,7 +464,7 @@ export function SoccerLiveGame({
       if (selectedId) {
         const from = unitOf(selectedId);
         if (from) void move(selectedId, null, unit);
-        else void sub(null, selectedId, unit);
+        else void manualSub(null, selectedId, unit);
         setSelectedId(null);
       } else {
         setFillUnit(unit);
@@ -475,19 +483,23 @@ export function SoccerLiveGame({
     const bUnit = unitOf(pid);
     setSelectedId(null);
     if (aUnit && bUnit) void move(selectedId, pid, bUnit);
-    else if (aUnit && !bUnit) void sub(selectedId, pid);
-    else if (!aUnit && bUnit) void sub(pid, selectedId);
+    else if (aUnit && !bUnit) void manualSub(selectedId, pid);
+    else if (!aUnit && bUnit) void manualSub(pid, selectedId);
     else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
   // ── Score ───────────────────────────────────────────────────
   const canScore = isPeriodActive || isAtBreak || isAtFinal;
-  function teamGoal(scorerId: string | null) {
+  function teamGoal(scorerId: string | null, via: "dock" | "chip" = "chip") {
     if (!trackScoring) return;
+    track("score_recorded", { sport: "soccer", kind: "goal", via, side: "own" });
     setSelectedId(null);
     void run("recordSoccerGoal", [auth, game.id, scorerId, base.currentPeriod, elapsedMs]);
   }
-  const opponentGoal = () => void run("recordSoccerOpponentGoal", [auth, game.id, base.currentPeriod, elapsedMs]);
+  const opponentGoal = () => {
+    track("score_recorded", { sport: "soccer", kind: "goal", via: "chip", side: "opponent" });
+    void run("recordSoccerOpponentGoal", [auth, game.id, base.currentPeriod, elapsedMs]);
+  };
   const undoGoal = () => void run("undoSoccerScore", [auth, game.id]);
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
@@ -607,7 +619,7 @@ export function SoccerLiveGame({
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
-        banner={subDueShowing ? <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
+        banner={subDueShowing ? <SubDueBanner sport="soccer" onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -623,6 +635,7 @@ export function SoccerLiveGame({
 
       {isPeriodActive && nextSubs.length > 0 && (
         <NextSubCard
+          sport="soccer"
           pairs={nextSubs.map((s) => ({
             offId: s.off_player_id,
             onId: s.on_player_id,
@@ -789,6 +802,7 @@ export function SoccerLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        sport="soccer"
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}
@@ -820,7 +834,7 @@ export function SoccerLiveGame({
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => teamGoal(selectedPlayer.id)}
+                  onClick={() => teamGoal(selectedPlayer.id, "dock")}
                   disabled={pending}
                   className="w-full rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                 >
@@ -871,7 +885,7 @@ export function SoccerLiveGame({
           }
           undoStrip={
             (state.teamScore.goals > 0 || state.opponentScore.goals > 0) && !base.finalised ? (
-              <UndoStrip flashing={false} message="" onUndo={undoGoal} disabled={pending} />
+              <UndoStrip sport="soccer" flashing={false} message="" onUndo={undoGoal} disabled={pending} />
             ) : undefined
           }
         />
@@ -948,6 +962,7 @@ export function SoccerLiveGame({
 
       {actionPlayer && (
         <LockModal
+          sport="soccer"
           player={actionPlayer}
           currentLock={actionIsKeeper ? null : actionHeld}
           currentZone={null}
@@ -1013,7 +1028,7 @@ export function SoccerLiveGame({
             const lu = state.lineup!;
             if (!lu.keeper) return;
             if (soccerUnitOf(lu, pid)) void move(lu.keeper, pid, soccerUnitOf(lu, pid)!);
-            else void sub(lu.keeper, pid, "gk");
+            else void manualSub(lu.keeper, pid, "gk");
           }}
           onCancel={() => setKeeperPickerOpen(false)}
         />
@@ -1032,7 +1047,7 @@ export function SoccerLiveGame({
             const unit = fillUnit;
             setFillUnit(null);
             if (isAtBreak) setBreakDraft(placeInSoccerLineup(lineup, pid, unit));
-            else void sub(null, pid, unit);
+            else void manualSub(null, pid, unit);
           }}
           onCancel={() => setFillUnit(null)}
         />
@@ -1049,6 +1064,7 @@ export function SoccerLiveGame({
             .sort((a, b) => a.totalMs - b.totalMs);
           return (
             <InjuryReplacementModal
+              sport="soccer"
               injuredPlayer={injured}
               spotLabel={SOCCER_UNIT_LABEL[injury.unit]}
               candidates={candidates}

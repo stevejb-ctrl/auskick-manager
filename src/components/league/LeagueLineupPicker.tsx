@@ -1465,6 +1465,7 @@ export function LeagueLineupPicker({
       {/* ── Long-press action sheet ──────────────────────────── */}
       {actionPlayer && (
         <LockModal
+          sport={sport}
           player={actionPlayer}
           currentLock={null}
           currentZone={null}

@@ -23,6 +23,8 @@ import { useState } from "react";
 import type { Player } from "@/lib/types";
 import { netballSport } from "@/lib/sports/netball";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics/client";
+import type { EventProps } from "@/lib/analytics/events";
 
 interface Props {
   player: Player;
@@ -89,6 +91,15 @@ export function NetballPlayerActions({
     ? netballSport.allPositions.find((p) => p.id === positionId)
     : null;
   const positionLabel = pos?.shortLabel ?? "Bench";
+
+  // lock_action, as LockModal sends it in the other sports: which
+  // action was picked, never who for.
+  function traced(action: EventProps<"lock_action">["action"], fn: () => void) {
+    return () => {
+      track("lock_action", { sport: "netball", action });
+      fn();
+    };
+  }
 
   // Two-step picker state for "Move to empty position". The first
   // tap on the action button flips the modal into a sub-mode that
@@ -162,7 +173,7 @@ export function NetballPlayerActions({
               player's already injured or loaned because those flows
               already triggered a replacement picker. */}
           {onSwitch && positionId && !isInjured && !isLoaned && (
-            <ActionButton variant="primary" onClick={onSwitch}>
+            <ActionButton variant="primary" onClick={traced("switch", onSwitch)}>
               🔄 Switch player
             </ActionButton>
           )}
@@ -188,11 +199,11 @@ export function NetballPlayerActions({
               since they're not in a position to lock yet. */}
           {positionId && (
             isLockedForNextBreak ? (
-              <ActionButton variant="ghost" onClick={onUnlock}>
+              <ActionButton variant="ghost" onClick={traced("unlock", onUnlock)}>
                 🔓 Let rotate next break
               </ActionButton>
             ) : (
-              <ActionButton variant="ghost" onClick={onLockForNextBreak}>
+              <ActionButton variant="ghost" onClick={traced("lock", onLockForNextBreak)}>
                 🔒 Keep in {positionLabel} next break
               </ActionButton>
             )
@@ -201,11 +212,11 @@ export function NetballPlayerActions({
           {/* Injury — single tap toggles. The parent decides whether to
               auto-prompt a replacement when toggling on. */}
           {isInjured ? (
-            <ActionButton variant="ghost" onClick={onUnInjury}>
+            <ActionButton variant="ghost" onClick={traced("recover", onUnInjury)}>
               🩹 Back on
             </ActionButton>
           ) : (
-            <ActionButton variant="warn" onClick={onMarkInjured}>
+            <ActionButton variant="warn" onClick={traced("injure", onMarkInjured)}>
               🏥 Mark injured
             </ActionButton>
           )}
@@ -213,11 +224,11 @@ export function NetballPlayerActions({
           {/* Loan — applies in junior netball ("share player" with
               the opposition when their numbers are short). */}
           {isLoaned ? (
-            <ActionButton variant="ghost" onClick={onUnLoan}>
+            <ActionButton variant="ghost" onClick={traced("unlend", onUnLoan)}>
               ↩️ Bring back
             </ActionButton>
           ) : (
-            <ActionButton variant="warn" onClick={onMarkLoaned}>
+            <ActionButton variant="warn" onClick={traced("lend", onMarkLoaned)}>
               🤝 Lend to opposition
             </ActionButton>
           )}

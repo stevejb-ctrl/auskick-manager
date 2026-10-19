@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { SFButton } from "@/components/sf";
 import { buildWalkthroughSteps, type WalkthroughStep } from "@/components/live/WalkthroughModal";
 import { buildLeagueWalkthroughSteps } from "@/components/league/leagueWalkthroughSteps";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 const WalkthroughModal = dynamic(
   () => import("@/components/live/WalkthroughModal").then((m) => m.WalkthroughModal),
@@ -23,11 +24,13 @@ const WalkthroughModal = dynamic(
 // already done the tour (or dismissed it) never sees the card again.
 
 interface WalkthroughOfferProps {
+  /** For analytics (walkthrough): which sport's game this is. */
+  sport: AnalyticsSport;
   storageKey: string;
   steps: WalkthroughStep[];
 }
 
-export function WalkthroughOffer({ storageKey, steps }: WalkthroughOfferProps) {
+export function WalkthroughOffer({ sport, storageKey, steps }: WalkthroughOfferProps) {
   // Starts hidden and checks storage after mount, so server and client
   // render the same markup and a returning coach never sees a flash.
   const [visible, setVisible] = useState(false);
@@ -74,6 +77,7 @@ export function WalkthroughOffer({ storageKey, steps }: WalkthroughOfferProps) {
       )}
       {open && (
         <WalkthroughModal
+          sport={sport}
           steps={steps}
           onClose={() => {
             setOpen(false);
@@ -88,7 +92,7 @@ export function WalkthroughOffer({ storageKey, steps }: WalkthroughOfferProps) {
 /** AFL offer — builds the AFL steps client-side for server pages. */
 export function AflWalkthroughOffer({ trackScoring }: { trackScoring: boolean }) {
   const steps = useMemo(() => buildWalkthroughSteps(trackScoring), [trackScoring]);
-  return <WalkthroughOffer storageKey="gm-walkthrough-seen" steps={steps} />;
+  return <WalkthroughOffer sport="afl" storageKey="gm-walkthrough-seen" steps={steps} />;
 }
 
 /** Rugby league offer — builds the league steps client-side for server pages. */
@@ -98,5 +102,5 @@ export function LeagueWalkthroughOffer(
   const key = JSON.stringify(opts);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const steps = useMemo(() => buildLeagueWalkthroughSteps(opts), [key]);
-  return <WalkthroughOffer storageKey="league-walkthrough-seen" steps={steps} />;
+  return <WalkthroughOffer sport={opts.sport} storageKey="league-walkthrough-seen" steps={steps} />;
 }

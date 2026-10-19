@@ -39,6 +39,8 @@ import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { track } from "@/lib/analytics/client";
+import { trackManualSub } from "@/lib/analytics/game-day";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import {
   InjuryReplacementModal,
@@ -103,6 +105,8 @@ import {
 } from "./BasketballPlayerTile";
 
 type Points = 1 | 2 | 3;
+/** A basket's points, as analytics names them (score_recorded.kind). */
+const POINTS_KIND = { 1: "one_point", 2: "two_points", 3: "three_points" } as const;
 
 /** A sit-out's length: the 5-minute sin bin. */
 export const SIT_OUT_MS = 5 * 60_000;
@@ -407,6 +411,12 @@ export function BasketballLiveGame({
       { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() },
     ]);
   }
+  // A sub the coach picked (tap-tap, an empty spot), for analytics. The
+  // sub card's own subs are counted by NextSubCard.
+  function manualSub(offId: string | null, onId: string, line?: BasketballLine) {
+    trackManualSub("basketball");
+    return sub(offId, onId, line);
+  }
   function move(a: string, b: string | null, zoneB: BasketballLine) {
     const zoneA = state.lineup ? basketballLineOf(state.lineup, a) : null;
     if (!zoneA) return Promise.resolve();
@@ -468,7 +478,7 @@ export function BasketballLiveGame({
       if (selectedId) {
         const from = lineOf(selectedId);
         if (from) void move(selectedId, null, line);
-        else if (canComeOn(selectedId)) void sub(null, selectedId, line);
+        else if (canComeOn(selectedId)) void manualSub(null, selectedId, line);
         setSelectedId(null);
       } else {
         setFillLine(line);
@@ -487,15 +497,16 @@ export function BasketballLiveGame({
     const bLine = lineOf(pid);
     setSelectedId(null);
     if (aLine && bLine) void move(selectedId, pid, bLine);
-    else if (aLine && !bLine && canComeOn(pid)) void sub(selectedId, pid);
-    else if (!aLine && bLine && canComeOn(selectedId)) void sub(pid, selectedId);
+    else if (aLine && !bLine && canComeOn(pid)) void manualSub(selectedId, pid);
+    else if (!aLine && bLine && canComeOn(selectedId)) void manualSub(pid, selectedId);
     else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
   // ── Score ───────────────────────────────────────────────────
   const canScore = isPeriodActive || isAtBreak || isAtFinal;
-  function teamScore(points: Points, scorerId: string | null) {
+  function teamScore(points: Points, scorerId: string | null, via: "dock" | "chip" = "chip") {
     if (!trackScoring) return;
+    track("score_recorded", { sport: "basketball", kind: POINTS_KIND[points], via, side: "own" });
     setSelectedId(null);
     void run("recordBasketballScore", [
       auth,
@@ -503,12 +514,14 @@ export function BasketballLiveGame({
       { side: "ours", points, player_id: scorerId, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
     ]);
   }
-  const opponentScore = (points: Points) =>
+  const opponentScore = (points: Points) => {
+    track("score_recorded", { sport: "basketball", kind: POINTS_KIND[points], via: "chip", side: "opponent" });
     void run("recordBasketballScore", [
       auth,
       game.id,
       { side: "theirs", points, player_id: null, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
     ]);
+  };
   const undoScore = () => void run("undoBasketballScore", [auth, game.id]);
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
@@ -662,7 +675,7 @@ export function BasketballLiveGame({
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
-        banner={subDueShowing ? <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
+        banner={subDueShowing ? <SubDueBanner sport="basketball" onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -678,6 +691,7 @@ export function BasketballLiveGame({
 
       {isPeriodActive && nextSubs.length > 0 && (
         <NextSubCard
+          sport="basketball"
           pairs={nextSubs.map((s) => {
             const pos = state.lineup?.slots?.[s.off_player_id];
             return {
@@ -839,6 +853,7 @@ export function BasketballLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        sport="basketball"
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}
@@ -875,7 +890,7 @@ export function BasketballLiveGame({
                       <button
                         key={n}
                         type="button"
-                        onClick={() => teamScore(n, selectedPlayer.id)}
+                        onClick={() => teamScore(n, selectedPlayer.id, "dock")}
                         disabled={pending}
                         className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                       >
@@ -941,7 +956,7 @@ export function BasketballLiveGame({
           }
           undoStrip={
             (state.teamScore.points > 0 || state.opponentScore.points > 0) && !base.finalised ? (
-              <UndoStrip flashing={false} message="" onUndo={undoScore} disabled={pending} />
+              <UndoStrip sport="basketball" flashing={false} message="" onUndo={undoScore} disabled={pending} />
             ) : undefined
           }
         />
@@ -1020,6 +1035,7 @@ export function BasketballLiveGame({
 
       {actionPlayer && (
         <LockModal
+          sport="basketball"
           player={actionPlayer}
           currentLock={actionHeld}
           currentZone={null}
@@ -1143,7 +1159,7 @@ export function BasketballLiveGame({
             const line = fillLine;
             setFillLine(null);
             if (isAtBreak) setBreakDraft(placeInBasketballLineup(lineup, pid, line));
-            else void sub(null, pid, line);
+            else void manualSub(null, pid, line);
           }}
           onCancel={() => setFillLine(null)}
         />
@@ -1161,6 +1177,7 @@ export function BasketballLiveGame({
           const pos = state.lineup?.slots?.[leaving.playerId];
           return (
             <InjuryReplacementModal
+              sport="basketball"
               injuredPlayer={who}
               reason={leaving.reason}
               spotLabel={pos ? POSITION_LABEL[pos] : leaving.line === "court" ? "their spot" : BASKETBALL_LINE_LABEL[leaving.line].replace(/s$/, "")}

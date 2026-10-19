@@ -16,6 +16,8 @@
 
 import { useEffect, useState } from "react";
 import type { Player } from "@/lib/types";
+import { trackSuggestedSub } from "@/lib/analytics/game-day";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 export interface NextSubPair {
   offId: string;
@@ -27,6 +29,8 @@ export interface NextSubPair {
 }
 
 interface NextSubCardProps {
+  /** For analytics (sub_made): which sport's game this is. */
+  sport: AnalyticsSport;
   pairs: NextSubPair[];
   /** ms until the next sub is due. Null when the timer isn't running. */
   msUntilDue: number | null;
@@ -115,6 +119,7 @@ function TimerRing({
 }
 
 export function NextSubCard({
+  sport,
   pairs,
   msUntilDue,
   subIntervalMs,
@@ -250,6 +255,7 @@ export function NextSubCard({
                     disabled={pending}
                     onClick={(e) => {
                       e.stopPropagation();
+                      trackSuggestedSub(sport, due, 1);
                       onApplyOne(index);
                       // Collapse after a single-pair commit — mirrors
                       // AFL's SwapCard which closes on any commit so
@@ -268,6 +274,7 @@ export function NextSubCard({
             <button
               type="button"
               onClick={() => {
+                trackSuggestedSub(sport, due, valid.length);
                 onApplyAll();
                 // Collapse the card so the coach sees the field
                 // update straight away — mirrors AFL's SwapCard.

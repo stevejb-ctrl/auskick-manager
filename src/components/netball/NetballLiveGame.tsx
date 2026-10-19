@@ -106,6 +106,8 @@ import {
   type GamePlan,
 } from "@/lib/game-plan";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { track } from "@/lib/analytics/client";
+import { trackManualSub } from "@/lib/analytics/game-day";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
@@ -1288,6 +1290,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleConfirmGoal = () => {
     if (!pendingGoal) return;
     const { playerId } = pendingGoal;
+    track("score_recorded", { sport: "netball", kind: "goal", via: "dock", side: "own" });
     const player = squadById.get(playerId);
     const playerName =
       player?.full_name.trim().split(/\s+/)[0] ?? null;
@@ -1325,6 +1328,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // 2026-05-17 audit fix). Reset via the score-prop refresh
     // useEffect.
     setLocalScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
+    track("score_recorded", { sport: "netball", kind: "goal", via: "chip", side: "opponent" });
     const { flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
@@ -1507,6 +1511,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // needed here.
     // The vacate is already logged; this fills the position.
     const { positionId } = replacingTarget;
+    trackManualSub("netball");
     setMidQuarterSubs((prev) => [
       ...prev,
       {
@@ -1685,7 +1690,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     />
   );
   const walkthroughOverlay = walkthroughOpen ? (
-    <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
+    <WalkthroughModal sport="netball" steps={walkthroughSteps} onClose={handleWalkthroughClose} />
   ) : null;
 
   // ─── Initial lineup (before game starts) ────────────────────
@@ -1737,7 +1742,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           availabilityPanel={availabilityPanel}
           gamePlan={gamePlan}
           walkthroughOffer={
-            <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
+            <WalkthroughOffer sport="netball" storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
           }
           currentOnFieldSize={game.on_field_size}
           onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
@@ -2341,6 +2346,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           already pre-filtered by netball's state machine, so we
           just pass it through. */}
       <LiveAdminUtilityRow
+        sport="netball"
         candidates={lateArrivalCandidates}
         onLateArrival={handleLateArrival}
         lateArrivalPending={isPending}
@@ -2509,6 +2515,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             candidates={candidates}
             onPick={(playerId) => {
               setPickScorerOpen(false);
+              track("score_recorded", { sport: "netball", kind: "goal", via: "chip", side: "own" });
               const player = squadById.get(playerId);
               const playerName = player?.full_name.trim().split(/\s+/)[0] ?? null;
               // Optimistic delta — same as the court-tap path.
@@ -2603,6 +2610,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         undoStrip={
           trackScoring && lastScore ? (
             <UndoStrip
+              sport="netball"
               flashing={undoToastVisible}
               message={`${lastScore.kind === "team" ? teamName : game.opponent} goal${
                 lastScore.playerName ? ` — ${lastScore.playerName}` : ""
