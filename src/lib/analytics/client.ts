@@ -93,6 +93,15 @@ export function identifyUser(userId: string): void {
   posthog.identify(userId);
 }
 
+/**
+ * Stop linking this device's events to a coach who has asked to delete
+ * their account. Their PostHog person is deleted on the server.
+ */
+export function forgetUser(): void {
+  pendingUserId = null;
+  if (started && posthog.get_property("$user_state") === "identified") posthog.reset();
+}
+
 /** Forget the signed-in coach. Call on sign-out. */
 export function resetAnalytics(): void {
   pendingUserId = null;

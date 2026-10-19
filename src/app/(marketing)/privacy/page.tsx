@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 // Last updated shown at the top of the policy. Bump this whenever the
 // substance of the policy changes (not for typo fixes).
-const LAST_UPDATED = "19 October 2026";
+const LAST_UPDATED = "20 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -74,6 +74,10 @@ export default function PrivacyPage() {
               and which buttons are tapped, the type of device, and whether you use
               the website, the home-screen app or the iOS app. We measure this with
               PostHog to see which parts of Siren work and where coaches get stuck.
+              We also count steps like creating a team or finishing a game, and
+              how game day goes (a sub made, a score recorded, a suggestion taken
+              or changed). These carry only counts, the sport and which option was
+              picked, never who it was about.
               On-screen text is masked on your device before anything is sent, so
               player names, scores and notes are never included, and links that
               carry access codes (runner and invite links) are stripped first. When
@@ -217,6 +221,9 @@ export default function PrivacyPage() {
             <li>
               <strong>Usage analytics</strong>: kept by PostHog for the retention
               period of our plan (currently up to seven years), then deleted.
+              If you delete your account, we ask PostHog to delete the usage
+              analytics linked to it straight away, without waiting for the
+              account&rsquo;s 30-day grace period.
             </li>
           </ul>
         </Section>

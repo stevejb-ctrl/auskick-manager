@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { identifyUser, setTeamContext, startAnalytics } from "@/lib/analytics/client";
+import { forgetUser, identifyUser, setTeamContext, startAnalytics } from "@/lib/analytics/client";
 import type { AnalyticsSport } from "@/lib/analytics/events";
 import type { TeamRole } from "@/lib/types";
 
@@ -43,10 +43,15 @@ export function AnalyticsTeamContext({ sport, teamRole }: { sport: AnalyticsSpor
  * Links events to the signed-in coach by Supabase id: never a name or
  * an email. Rendered by the (app) layout, which already has the user.
  * Safe before PostHog starts (it waits) or when it's off (no-op).
+ *
+ * `forget`: the coach has asked to delete their account. Their PostHog
+ * person is already gone (requestDeleteAccount), so during the grace
+ * period this device sends anonymous events instead.
  */
-export function AnalyticsIdentify({ userId }: { userId: string }) {
+export function AnalyticsIdentify({ userId, forget = false }: { userId: string; forget?: boolean }) {
   useEffect(() => {
-    identifyUser(userId);
-  }, [userId]);
+    if (forget) forgetUser();
+    else identifyUser(userId);
+  }, [userId, forget]);
   return null;
 }

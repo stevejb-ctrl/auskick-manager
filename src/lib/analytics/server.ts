@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { waitUntil } from "@vercel/functions";
 import { PostHog } from "posthog-node";
 import { cleanProps, type EventName, type EventProps } from "@/lib/analytics/events";
-import { posthogSettings } from "@/lib/analytics/posthog-server";
+import { POSTHOG_PROJECT_ID, posthogSettings } from "@/lib/analytics/posthog-server";
 import { USAGE_DATA_COOKIE } from "@/lib/analytics/usage-data";
 
 // ─── Lifecycle events, sent from the server ──────────────────
@@ -35,6 +35,58 @@ const sinkHolder = globalThis as typeof globalThis & { __sirenServerEvents?: Ser
 /** e2e debug mode: the events "sent" so far, newest last. */
 export function debugServerEvents(): ServerEvent[] {
   return (sinkHolder.__sirenServerEvents ??= []);
+}
+
+const forgottenHolder = globalThis as typeof globalThis & { __sirenForgottenPeople?: string[] };
+
+/** e2e debug mode: the coaches whose PostHog person would have been deleted. */
+export function debugForgottenPeople(): string[] {
+  return (forgottenHolder.__sirenForgottenPeople ??= []);
+}
+
+/** PostHog's private API (persons), as opposed to the ingestion host. */
+const POSTHOG_PRIVATE_HOST = "https://us.posthog.com";
+
+/**
+ * Delete a coach's PostHog person and every event they sent: they've
+ * asked to delete their account. Uses PostHog's API with the personal
+ * API key in POSTHOG_PERSONAL_API_KEY (scopes person:read and
+ * person:write). Runs whatever "Share usage data" says, since it only
+ * ever removes data. Never throws into the caller.
+ */
+export function forgetAnalyticsPerson(userId: string): void {
+  let settings: ReturnType<typeof posthogSettings>;
+  try {
+    settings = posthogSettings();
+  } catch (err) {
+    console.warn("[analytics] person deletion skipped", err);
+    return;
+  }
+  if (!settings) return;
+  if (settings.debug) {
+    debugForgottenPeople().push(userId);
+    return;
+  }
+  const apiKey = process.env.POSTHOG_PERSONAL_API_KEY;
+  if (!apiKey) {
+    console.warn("[analytics] POSTHOG_PERSONAL_API_KEY isn't set: PostHog person not deleted");
+    return;
+  }
+  const base = `${POSTHOG_PRIVATE_HOST}/api/projects/${POSTHOG_PROJECT_ID}/persons`;
+  const auth = { Authorization: `Bearer ${apiKey}` };
+  const work = async () => {
+    const found = await fetch(`${base}/?distinct_id=${encodeURIComponent(userId)}`, { headers: auth, cache: "no-store" });
+    if (!found.ok) throw new Error(`person lookup: ${found.status}`);
+    const { results } = (await found.json()) as { results?: { id: string }[] };
+    for (const person of results ?? []) {
+      const res = await fetch(`${base}/${encodeURIComponent(person.id)}/?delete_events=true`, {
+        method: "DELETE",
+        headers: auth,
+      });
+      if (!res.ok) throw new Error(`person delete: ${res.status}`);
+    }
+  };
+  waitUntil(work().catch((err: unknown) => console.error("[analytics] PostHog person not deleted", err)));
 }
 
 let client: PostHog | null = null;
