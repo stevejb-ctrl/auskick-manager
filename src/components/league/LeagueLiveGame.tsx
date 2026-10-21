@@ -1882,12 +1882,6 @@ export function LeagueLiveGame({
   // Any selected player gets the dock (Player actions, swap hint);
   // the + Try row only when scoring an on-field player.
   const playerDockVisible = isPeriodActive && Boolean(selectedPlayer);
-  const stickyPb
-    = playerDockVisible
-      ? "pb-[calc(13rem+env(safe-area-inset-bottom))]"
-      : hasStickyBottom
-        ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
-        : "";
 
   // Action-sheet target lookup
   const actionSheetPlayer = useMemo(
@@ -1908,7 +1902,11 @@ export function LeagueLiveGame({
     = actionSheetPlayerId != null && loanedSet.has(actionSheetPlayerId);
 
   return (
-    <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
+    // No bottom padding: LiveStickyScoreBar reserves its own height with
+    // a measured in-flow spacer, and the player dock floats over the
+    // page as AFL's does (Steve 2026-10-21: "Some blank space when
+    // scrolling").
+    <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
         exitHref={exitHref}
         game={game}
