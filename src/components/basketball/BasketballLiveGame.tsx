@@ -31,6 +31,7 @@ import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
+import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -95,6 +96,7 @@ import {
 import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BasketballScoreBug } from "./BasketballScoreBug";
+import { BreakScoreRow } from "./BreakScoreRow";
 import { BasketballFullTimeReview, BasketballGameSummaryCard } from "./BasketballFullTime";
 import {
   BASKETBALL_LINE_LABEL,
@@ -208,6 +210,7 @@ export function BasketballLiveGame({
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [scorerPoints, setScorerPoints] = useState<Points | null>(null);
+  const [showBreakScore, setShowBreakScore] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<BasketballLine | null>(null);
   const [leaving, setLeaving] = useState<{
@@ -679,7 +682,8 @@ export function BasketballLiveGame({
           : "Half time";
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && selectedOnCourt && (trackScoring || trackFouls);
-  const hasStickyBottom = !isPreTipoff;
+  // The break has the shared Start bar instead of the scorebug.
+  const hasStickyBottom = !isPreTipoff && !isAtBreak;
 
   const actionPlayer = actionPlayerId ? playerById.get(actionPlayerId) ?? null : null;
   const actionLine = actionPlayerId && state.lineup ? basketballLineOf(state.lineup, actionPlayerId) : null;
@@ -693,7 +697,11 @@ export function BasketballLiveGame({
     // a measured in-flow spacer, and the player dock floats over the
     // page as AFL's does (Steve 2026-10-21: "Some blank space when
     // scrolling").
-    <div ref={liveRootRef} className="space-y-3">
+    <div
+      ref={liveRootRef}
+      // The break's Start bar is fixed on phones and reserves no space of its own.
+      className={`space-y-3${isAtBreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}
+    >
       <LiveTopBar
         exitHref={exitHref}
         game={game}
@@ -764,27 +772,47 @@ export function BasketballLiveGame({
         </div>
       )}
 
+      {/* The break, as AFL's and netball's (Steve 2026-10-21: "The half
+          time breaks in basketball look different to the other sports"):
+          the orientation strip, the Score row (the per-period breakdown,
+          and late baskets), the swap hint, the court and bench with where
+          each kid is heading, and the shared Start bar. */}
       {isAtBreak && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-1 text-sm font-medium text-ink">
-            {periodLetter}
-            {base.currentPeriod} done.
-            {trackScoring && (
-              <>
-                {" "}
-                Score: <strong>{state.teamScore.points}</strong> – <strong>{state.opponentScore.points}</strong>.
-              </>
-            )}
+        <>
+          <div className="px-1">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{breakName}</p>
+            <p className="mt-0.5 text-lg font-bold text-ink">
+              Lineup for {periodLetter}
+              {base.currentPeriod + 1}
+            </p>
+          </div>
+
+          {trackScoring && (
+            <BreakScoreRow
+              open={showBreakScore}
+              onToggle={() => setShowBreakScore((v) => !v)}
+              teamName={teamName}
+              opponentName={opponentName}
+              teamPoints={teamPoints}
+              opponentPoints={opponentPoints}
+              scoreByPeriod={state.scoreByPeriod}
+              periodCount={ageGroup.periodCount}
+              currentPeriod={base.currentPeriod}
+              periodLetter={periodLetter}
+              periodWord={periodWord}
+              chips={scoreChips}
+              onTeamScore={(n) => setScorerPoints(n)}
+              onOpponentScore={opponentScore}
+              onUndo={undoScore}
+              undoDisabled={pending}
+            />
+          )}
+
+          <p className="px-1 text-xs text-ink-dim">
+            Who starts the next {periodWord}
+            {usesBasketballLines(strategy) ? " and where" : ""}. Tap any two players to swap them.
           </p>
-          <p className="mb-3 text-xs text-ink-dim">
-            Here&apos;s the plan for the next {periodWord}: who starts{usesBasketballLines(strategy) ? " and where" : ""}. Tap two
-            players to swap them.
-          </p>
-          <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending || !breakDraft} variant="accent" size="lg" full>
-            Start {periodLetter}
-            {base.currentPeriod + 1}
-          </SFButton>
-        </section>
+        </>
       )}
 
       {!isFinished && lineup && (
@@ -978,6 +1006,14 @@ export function BasketballLiveGame({
               <UndoStrip flashing={false} message="" onUndo={undoScore} disabled={pending} />
             ) : undefined
           }
+        />
+      )}
+
+      {isAtBreak && (
+        <QuarterKickoffBar
+          onConfirm={() => setStartConfirmOpen(true)}
+          confirmLabel={`Start ${periodLetter}${base.currentPeriod + 1}`}
+          disabled={pending || !breakDraft}
         />
       )}
 
