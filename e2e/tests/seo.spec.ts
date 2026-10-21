@@ -70,6 +70,15 @@ test("the homepage H1 paints before JavaScript runs", async ({ request }) => {
   expect(hero).not.toContain("opacity:0");
 });
 
+test("help screenshots are served resized, and load", async ({ page }) => {
+  // next/image, not the 780px PNGs straight from /public.
+  await page.goto("/help/getting-started");
+  const shot = page.locator("figure.help-figure img").first();
+  await expect(shot).toHaveAttribute("src", /^\/_next\/image\?url=%2Fhelp-screenshots%2F/);
+  await shot.scrollIntoViewIfNeeded();
+  await expect.poll(() => shot.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+});
+
 test("sign-in and help have titles and descriptions of their own", async ({ page }) => {
   await page.goto("/login");
   await expect(page).toHaveTitle("Sign in · Siren");
