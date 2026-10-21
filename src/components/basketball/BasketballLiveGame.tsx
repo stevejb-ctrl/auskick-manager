@@ -354,14 +354,21 @@ export function BasketballLiveGame({
     anchorMs,
     elapsedMs,
   });
-  const nextSubs = useMemo(
-    () =>
-      isPeriodActive
-        ? suggestBasketballSubs({ state, nowMs: absNowMs, strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 })
-        : [],
+  const msUntilDue = subDue.msUntilDue;
+  const nextSubs = useMemo(() => {
+    if (!isPeriodActive) return [];
+    const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 };
+    const now = suggestBasketballSubs({ state, nowMs: absNowMs, ...opts });
+    if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
+    // Nothing evens time yet, so show the subs due at the next sub time
+    // (Steve 2026-10-21: "I did one sub and now no more upcoming subs
+    // show"). Kids who just came on need time before anyone on the bench
+    // is owed theirs, and a kid who plays one line only waits for it.
+    const aheadMs = Math.min(periodMs, elapsedMs + msUntilDue);
+    const ahead = replayBasketballGame(events, { nowMs: aheadMs });
+    return suggestBasketballSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPeriodActive, state, strategy, prefs, season, trackFouls, ageGroup.foulOutAt],
-  );
+  }, [isPeriodActive, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
