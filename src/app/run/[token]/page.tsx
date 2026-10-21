@@ -30,7 +30,7 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, netballSport, sportNotBuilt, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
@@ -99,6 +99,9 @@ export default async function RunPage({ params }: RunPageProps) {
   // Netball has no jersey numbers — hide the # input on AddFillInForm
   // (and feed the right live-game component below).
   const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
+  // Touch and Oztag's live game comes with their engine (four-sports plan,
+  // track B): until then it fails here rather than running as AFL.
+  if (isTouch(sport)) sportNotBuilt(sport, "Live game");
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 

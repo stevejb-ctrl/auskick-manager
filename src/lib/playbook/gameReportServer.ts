@@ -7,7 +7,17 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, isBasketball, isRugby, isSoccer, periodLabels, teamSport } from "@/lib/sports";
+import {
+  getAgeGroupConfig,
+  getEffectiveQuarterSeconds,
+  isBasketball,
+  isRugby,
+  isSoccer,
+  isTouch,
+  periodLabels,
+  sportNotBuilt,
+  teamSport,
+} from "@/lib/sports";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
@@ -56,6 +66,10 @@ const SEASON_IN_REPORT: Record<Sport, boolean> = {
   rugby_union: false,
   soccer: true,
   basketball: true,
+  futsal: true,
+  hockey: true,
+  touch: true,
+  oztag: true,
 };
 
 export async function buildGameReport(
@@ -145,6 +159,9 @@ export async function buildGameReport(
       }
     }
     lines = used.has("guard") || used.has("forward") ? ["guard", "forward"] : ["court"];
+  } else if (isTouch(sport)) {
+    // Touch and Oztag's replay comes with their engine (four-sports plan, track B).
+    return sportNotBuilt(sport, "buildGameReport");
   } else {
     const unknown: never = sport;
     throw new Error(`No game report for sport "${String(unknown)}"`);

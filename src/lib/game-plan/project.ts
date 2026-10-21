@@ -28,7 +28,7 @@ import {
   type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
-import { getSportConfig, isBasketball, isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { getSportConfig, isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 import type { AgeGroupConfig, SportConfig } from "@/lib/sports/types";
 import type { Lineup, Player, PlayerChip, Zone, PositionModel } from "@/lib/types";
 import type {
@@ -507,5 +507,7 @@ export function projectGamePlan(input: ProjectGamePlanInput): GamePlan {
   if (isSoccer(sport)) return sportNotBuilt(sport, "projectGamePlan");
   // Basketball skips the game-plan preview, as soccer does.
   if (isBasketball(sport)) return sportNotBuilt(sport, "projectGamePlan");
+  // Touch and Oztag skip it too.
+  if (isTouch(sport)) return sportNotBuilt(sport, "projectGamePlan");
   return noSportBranch(sport, "projectGamePlan");
 }

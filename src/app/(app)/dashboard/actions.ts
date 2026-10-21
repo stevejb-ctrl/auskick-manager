@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { defaultTrackScoring, getSportConfig, isRugby, isSportId } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, isRugby, isSportId, isSportOpen } from "@/lib/sports";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
@@ -44,6 +44,11 @@ export async function createTeam(
   if (!isSportId(sport)) {
     console.error("[createTeam] unknown sport", { sport });
     return { success: false, error: "Pick a sport for the team." };
+  }
+  // Nor one whose live game isn't built yet (four-sports plan, phase 0).
+  if (!isSportOpen(sport)) {
+    console.error("[createTeam] sport not open yet", { sport });
+    return { success: false, error: `${getSportConfig(sport).name} isn't open yet.` };
   }
   // Validate age_group belongs to the chosen sport. The DB has no
   // per-sport CHECK (intentional — sport configs own the set), so

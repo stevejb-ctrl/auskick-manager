@@ -6,6 +6,10 @@ import { describe, expect, it } from "vitest";
 import { ALL_SPORTS, getSportConfig, periodLabels } from "@/lib/sports";
 import { getSportPlaybook } from "@/lib/playbook";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
+import type { SportId } from "@/lib/sports/types";
+
+/** Sports whose How we play isn't built yet (.planning/FOUR-SPORTS-PLAN.md). */
+const NOT_BUILT: SportId[] = ["futsal", "hockey", "touch", "oztag"];
 
 describe("every sport", () => {
   for (const sport of ALL_SPORTS) {
@@ -29,6 +33,12 @@ describe("every sport", () => {
       it("has its own playbook, with rules its engine acts on", () => {
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
+        // The four-sports plan's sports get theirs in tracks A and B;
+        // until then every question fails by name (sportBranches.test).
+        if (NOT_BUILT.includes(sport.id)) {
+          expect(() => playbook.agePolicy(sport.ageGroups[0].id)).toThrow(/isn't built yet/);
+          return;
+        }
         // Football (soccer)'s and basketball's engines act on no catalogue
         // rule yet, so their Rules editors offer none rather than rules
         // that do nothing.
@@ -48,6 +58,9 @@ describe("every sport", () => {
     expect(getSportConfig("rugby_union")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("soccer")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("basketball")).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    for (const id of ["futsal", "hockey", "touch", "oztag"] as const) {
+      expect(getSportConfig(id), id).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    }
     expect(PLAYHQ_TENANT).toEqual({
       afl: "afl",
       netball: "netball-australia",
@@ -55,6 +68,11 @@ describe("every sport", () => {
       rugby_union: null,
       soccer: null,
       basketball: "basketball-victoria",
+      // None of the four-sports plan's sports is on PlayHQ.
+      futsal: null,
+      hockey: null,
+      touch: null,
+      oztag: null,
     });
   });
 });

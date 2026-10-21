@@ -8,7 +8,7 @@ import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugb
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
 import type { GameEvent, Sport } from "@/lib/types";
-import { isBasketball, isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 
 export interface GameScore {
   us: number;
@@ -48,6 +48,8 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
     const r = replayBasketballGame(events);
     return { us: r.teamScore.points, them: r.opponentScore.points };
   }
+  // Touch and Oztag's replay comes with their engine (four-sports plan, track B).
+  if (isTouch(sport)) return sportNotBuilt(sport, "scoreFromEvents");
   return noSportBranch(sport, "scoreFromEvents");
 }
 
@@ -104,6 +106,8 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
     for (const [playerId, points] of Object.entries(replayBasketballGame(events).playerPoints)) {
       if (points > 0) rows.push({ playerId, detail: `${points} ${points === 1 ? "pt" : "pts"}`, points, showPoints: false });
     }
+  } else if (isTouch(sport)) {
+    return sportNotBuilt(sport, "scorersFromEvents");
   } else {
     return noSportBranch(sport, "scorersFromEvents");
   }

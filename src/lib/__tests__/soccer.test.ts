@@ -283,9 +283,12 @@ describe("Football (soccer) isolation", () => {
   });
 
   it("is read by no other sport", () => {
+    // Futsal and hockey join soccer's family (four-sports plan): their
+    // configs name the family and nothing else of soccer's.
     for (const cfg of ALL_SPORTS.filter((c) => c.id !== "soccer")) {
-      const { brand: _brand, ...other } = cfg;
+      const { brand: _brand, family, ...other } = cfg;
       expect(JSON.stringify(other), cfg.id).not.toMatch(/soccer/i);
+      if (family === "soccer") expect(["futsal", "hockey"], cfg.id).toContain(cfg.id);
     }
     for (const sport of ["afl", "netball", "rugby", "rugby_league", "rugby_union"]) {
       for (const path of sources(join(SPORTS_DIR, sport))) {

@@ -44,6 +44,10 @@ const SCORER_WORDS: Record<Sport, { eyebrow: string; heading: string }> = {
   rugby_union: { eyebrow: "Scorers", heading: "Who put points on the board" },
   soccer: { eyebrow: "Goal scorers", heading: "Who found the net" },
   basketball: { eyebrow: "Scorers", heading: "Who put points on the board" },
+  futsal: { eyebrow: "Goal scorers", heading: "Who found the net" },
+  hockey: { eyebrow: "Goal scorers", heading: "Who found the net" },
+  touch: { eyebrow: "Try scorers", heading: "Who got it down" },
+  oztag: { eyebrow: "Try scorers", heading: "Who got it down" },
 };
 
 export default async function GameDetailPage({ params }: GameDetailPageProps) {

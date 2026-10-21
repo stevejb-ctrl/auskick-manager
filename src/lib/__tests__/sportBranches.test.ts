@@ -3,10 +3,13 @@
 // "everything else is AFL" (scores, the game plan, the season grid) or
 // "everything else is league" (season time), so a sport without its own
 // branch would have run under another sport's rules without a word.
-// Touch football stands in for a sport Siren doesn't know.
+// "Quidditch" stands in for a sport Siren doesn't know (touch football
+// did, until the four-sports plan made it one Siren knows).
 //
-// Football (soccer) is known but its screens aren't built yet (soccer
-// plan, phases 2–3): each of those branches fails for it by name.
+// Football (soccer) was known before its screens were built (soccer
+// plan, phases 2–3): each of those branches failed for it by name.
+// Touch football and Oztag are known now and their engine isn't built
+// yet (four-sports plan, track B), so theirs fail the same way.
 
 import { describe, expect, it } from "vitest";
 import { aflBranch, noSportBranch, sportNotBuilt } from "@/lib/sports";
@@ -17,7 +20,7 @@ import { gridUnits } from "@/lib/playbook/seasonGrid";
 import { gameTimeByUnit } from "@/lib/playbook/seasonTime";
 import type { GameEvent } from "@/lib/types";
 
-const UNKNOWN = "touch_football" as never;
+const UNKNOWN = "quidditch" as never;
 
 const event = {
   id: "e1",
@@ -32,24 +35,24 @@ const event = {
 describe("sport dispatchers", () => {
   it("only take AFL into an AFL branch", () => {
     expect(aflBranch("afl")).toBe("afl");
-    expect(() => aflBranch(UNKNOWN)).toThrow(/touch_football/);
-    expect(() => noSportBranch(UNKNOWN, "the test")).toThrow(/the test.*touch_football/);
+    expect(() => aflBranch(UNKNOWN)).toThrow(/quidditch/);
+    expect(() => noSportBranch(UNKNOWN, "the test")).toThrow(/the test.*quidditch/);
   });
 
   it("never score an unknown sport as AFL", () => {
-    expect(() => scoreFromEvents(UNKNOWN, [])).toThrow(/touch_football/);
+    expect(() => scoreFromEvents(UNKNOWN, [])).toThrow(/quidditch/);
   });
 
   it("never plan an unknown sport as AFL", () => {
-    expect(() => projectGamePlan({ sport: UNKNOWN } as never)).toThrow(/touch_football/);
+    expect(() => projectGamePlan({ sport: UNKNOWN } as never)).toThrow(/quidditch/);
   });
 
   it("never grid an unknown sport as AFL", () => {
-    expect(() => gridUnits(UNKNOWN, null)).toThrow(/touch_football/);
+    expect(() => gridUnits(UNKNOWN, null)).toThrow(/quidditch/);
   });
 
   it("never time an unknown sport as league", () => {
-    expect(() => gameTimeByUnit(UNKNOWN, [event], "line", 600)).toThrow(/touch_football/);
+    expect(() => gameTimeByUnit(UNKNOWN, [event], "line", 600)).toThrow(/quidditch/);
   });
 });
 
@@ -82,5 +85,29 @@ describe("Football (soccer)'s unbuilt surfaces", () => {
     const u14 = effectivePolicy("soccer", "U14", {});
     expect(playbook.recommendedStrategy(u14)).toBe("keepers");
     expect(playbook.lawRules(u14, playbook.agePolicy("U14"))).toEqual([]);
+  });
+});
+
+describe("touch and Oztag's unbuilt surfaces", () => {
+  const unbuilt = (sport: string, where: string) => `${where}: ${sport} isn't built yet`;
+
+  it("never scores, plans, grids or times them under another sport's rules", () => {
+    expect(() => scoreFromEvents("touch", [])).toThrow(unbuilt("Touch football", "scoreFromEvents"));
+    expect(() => projectGamePlan({ sport: "oztag" } as never)).toThrow(unbuilt("Oztag", "projectGamePlan"));
+    expect(() => gridUnits("touch", "line")).toThrow(unbuilt("Touch football", "gridUnits"));
+    expect(() => gameTimeByUnit("oztag", [event], "line", 900)).toThrow(unbuilt("Oztag", "gameTimeByUnit"));
+  });
+
+  it("has no How we play until its own is built", () => {
+    for (const [sport, name] of [
+      ["futsal", "Futsal"],
+      ["hockey", "Hockey"],
+      ["touch", "Touch football"],
+      ["oztag", "Oztag"],
+    ] as const) {
+      const playbook = getSportPlaybook(sport);
+      expect(playbook.sport).toBe(sport);
+      expect(() => playbook.agePolicy("U10")).toThrow(unbuilt(name, "How we play"));
+    }
   });
 });

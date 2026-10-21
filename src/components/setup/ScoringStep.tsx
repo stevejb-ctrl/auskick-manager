@@ -6,7 +6,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { isBasketball, isSoccer, noSportBranch, periodLabels } from "@/lib/sports";
+import { isBasketball, isSoccer, isTouch, noSportBranch, periodLabels, sportNotBuilt } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
@@ -121,6 +121,9 @@ export function ScoringStep({
         </strong>
         .
       </>
+    ) : isTouch(sportId) ? (
+      // Touch and Oztag's setup comes with their live game (four-sports plan, track B).
+      sportNotBuilt(sportId, "ScoringStep")
     ) : (
       noSportBranch(sportId, "ScoringStep")
     );

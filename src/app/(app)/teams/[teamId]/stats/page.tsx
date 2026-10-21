@@ -25,7 +25,7 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, isTouch, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
 import { SoccerDashboardShell } from "@/components/dashboard/SoccerDashboardShell";
 import { BasketballDashboardShell } from "@/components/dashboard/BasketballDashboardShell";
 import { aggregateBasketballSeason } from "@/lib/dashboard/basketballAggregators";
@@ -57,6 +57,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   if (!team) notFound();
   const sport: Sport = teamSport((team as { sport?: Sport } | null)?.sport);
+  // Touch and Oztag's stats page comes with their engine (four-sports plan,
+  // track B): until then it fails here rather than running as AFL.
+  if (isTouch(sport)) sportNotBuilt(sport, "Stats page");
 
   // Fetch players, all games, availability in parallel
   const [{ data: playersRaw }, { data: gamesRaw }, { data: availabilityRaw }] =

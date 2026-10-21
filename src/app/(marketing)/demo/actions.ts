@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
-import { aflBranch, getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer } from "@/lib/sports/registry";
+import { aflBranch, getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, sportNotBuilt } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 
 // Marketing-side sport IDs (the homepage picker uses these — afl,
@@ -212,6 +212,9 @@ function buildDemoGamePayload({
       sub_interval_seconds: ageCfg.subIntervalSeconds,
     };
   }
+
+  // Touch and Oztag have no demo yet (four-sports plan).
+  if (isTouch(sport)) return sportNotBuilt(sport, "The demo");
 
   // AFL — the demo always plays U10.
   const cfg = getAgeGroupConfig(aflBranch(sport), "U10");
