@@ -43,6 +43,7 @@ export function useRoleSheet(
         return res;
       }}
       onClose={() => setPlayerId(null)}
+      teamId={teamId}
     />
   ) : null;
   return { open: setPlayerId, sheet, roles };

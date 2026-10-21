@@ -205,6 +205,7 @@ export function PlayerRow({
           initial={role ?? EMPTY_ROLE}
           onSave={(next) => savePlayerRole(teamId, player.id, next)}
           onClose={() => setRoleOpen(false)}
+          teamId={teamId}
         />
       )}
 
