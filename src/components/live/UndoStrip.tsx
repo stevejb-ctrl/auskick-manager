@@ -1,6 +1,11 @@
 "use client";
 
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
+
 interface UndoStripProps {
+  /** For analytics (undo_used): which sport's game this is. */
+  sport: AnalyticsSport;
   /** Just scored: the strip flashes dark with what was recorded. */
   flashing: boolean;
   /** What was recorded, shown while flashing ("Roos goal — Mia"). */
@@ -14,7 +19,12 @@ interface UndoStripProps {
  * undo toast for every sport). Flashes for a few seconds after a score
  * with what was recorded, then settles to a quiet "Undo last score".
  */
-export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoStripProps) {
+export function UndoStrip({ sport, flashing, message, onUndo, disabled = false }: UndoStripProps) {
+  function handleUndo() {
+    track("undo_used", { sport, what: "score" });
+    onUndo();
+  }
+
   return (
     <div
       className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
@@ -28,7 +38,7 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoS
       </span>
       <button
         type="button"
-        onClick={onUndo}
+        onClick={handleUndo}
         disabled={disabled}
         className={`-my-3 px-2 py-3 font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 motion-safe:active:scale-[0.97] ${
           flashing ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { identifyUser, startAnalytics } from "@/lib/analytics/client";
+import { forgetUser, identifyUser, setRunContext, setTeamContext, startAnalytics } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
+import type { TeamRole } from "@/lib/types";
 
 /**
  * Starts PostHog product analytics. The root layout renders this only
@@ -25,13 +27,44 @@ export function PostHogAnalytics({
 }
 
 /**
+ * Tags every event with the team's sport and the coach's role in it
+ * (super properties), while the team's pages are open. Rendered by the
+ * team layout; leaving the team clears both.
+ */
+export function AnalyticsTeamContext({ sport, teamRole }: { sport: AnalyticsSport; teamRole: TeamRole | null }) {
+  useEffect(() => {
+    setTeamContext({ sport, teamRole });
+    return () => setTeamContext(null);
+  }, [sport, teamRole]);
+  return null;
+}
+
+/**
+ * Tags events on a /run/<token> page as a /demo visitor's or a
+ * share-link runner's (the `run_link` super property), so game-day
+ * numbers can leave the demo out. Rendered by the runner layout.
+ */
+export function AnalyticsRunContext({ demo }: { demo: boolean }) {
+  useEffect(() => {
+    setRunContext(demo ? "demo" : "runner");
+    return () => setRunContext(null);
+  }, [demo]);
+  return null;
+}
+
+/**
  * Links events to the signed-in coach by Supabase id: never a name or
  * an email. Rendered by the (app) layout, which already has the user.
  * Safe before PostHog starts (it waits) or when it's off (no-op).
+ *
+ * `forget`: the coach has asked to delete their account. Their PostHog
+ * person is already gone (requestDeleteAccount), so during the grace
+ * period this device sends anonymous events instead.
  */
-export function AnalyticsIdentify({ userId }: { userId: string }) {
+export function AnalyticsIdentify({ userId, forget = false }: { userId: string; forget?: boolean }) {
   useEffect(() => {
-    identifyUser(userId);
-  }, [userId]);
+    if (forget) forgetUser();
+    else identifyUser(userId);
+  }, [userId, forget]);
   return null;
 }

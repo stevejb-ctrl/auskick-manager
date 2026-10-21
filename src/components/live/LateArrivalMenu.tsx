@@ -4,8 +4,12 @@ import { useState } from "react";
 import { SFButton } from "@/components/sf";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { Player } from "@/lib/types";
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 interface LateArrivalMenuProps {
+  /** For analytics (late_arrival_added): which sport's game this is. */
+  sport: AnalyticsSport;
   candidates: Player[]; // squad players not currently in the game
   onAdd: (playerId: string) => void;
   pending: boolean;
@@ -20,7 +24,7 @@ interface LateArrivalMenuProps {
  * the row layout when opened. The picker mirrors the scorer + swap
  * pickers used elsewhere for consistency.
  */
-export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuProps) {
+export function LateArrivalMenu({ sport, candidates, onAdd, pending }: LateArrivalMenuProps) {
   const [open, setOpen] = useState(false);
 
   if (candidates.length === 0) return null;
@@ -54,6 +58,7 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
             jerseyNumber: p.jersey_number,
           }))}
           onPick={(playerId) => {
+            track("late_arrival_added", { sport });
             onAdd(playerId);
             setOpen(false);
           }}

@@ -12,8 +12,12 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { hapticSuccess } from "@/lib/haptics";
+import { trackSuggestedSub } from "@/lib/analytics/game-day";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 interface SwapCardProps {
+  /** For analytics (sub_made): which sport's game this is. */
+  sport: AnalyticsSport;
   suggestions: SwapSuggestion[];
   /**
    * The engine's auto pick for this sub-due moment, ignoring any pin.
@@ -150,6 +154,7 @@ const PAIR_CHIP = "inline-flex flex-shrink-0 items-center justify-center rounded
  * big tap target; open, the header carries a 44pt Collapse button.
  */
 export function SwapCard({
+  sport,
   suggestions,
   autoSuggestions,
   playersById,
@@ -203,6 +208,7 @@ export function SwapCard({
   // field).
   function applyAll() {
     void hapticSuccess();
+    trackSuggestedSub(sport, subState === "due", valid.length);
     onApply();
   }
 
@@ -500,6 +506,7 @@ export function SwapCard({
                         onClick={(e) => {
                           e.stopPropagation();
                           void hapticSuccess();
+                          trackSuggestedSub(sport, subState === "due", 1);
                           onApplyOne(s);
                         }}
                         className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-[11px] font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"

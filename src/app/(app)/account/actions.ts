@@ -7,6 +7,7 @@ import {
   GRACE_DAYS,
 } from "@/lib/account/constants";
 import type { ActionResult } from "@/lib/types";
+import { forgetAnalyticsPerson } from "@/lib/analytics/server";
 
 /**
  * Schedule the current user's account for deletion in GRACE_DAYS.
@@ -58,6 +59,11 @@ export async function requestDeleteAccount(
     .eq("id", user.id);
 
   if (error) return { success: false, error: error.message };
+
+  // Their usage analytics go now, not at the purge: PostHog keeps no
+  // grace period, and the (app) layout stops identifying them meanwhile
+  // (AnalyticsIdentify), so new events join no person.
+  forgetAnalyticsPerson(user.id);
 
   // Banner is rendered from the (app) layout via a profile read; bust
   // every authed route so the schedule shows up on the very next render.

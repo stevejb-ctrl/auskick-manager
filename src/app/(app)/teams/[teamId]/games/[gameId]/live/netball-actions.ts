@@ -20,6 +20,7 @@ import type { GenericLineup } from "@/lib/sports/netball/fairness";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import { trackGameCompleted, trackGameStarted } from "@/lib/analytics/lifecycle";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 
 // Same clamp as live/actions.ts — duplicated rather than imported to
@@ -215,7 +216,11 @@ export async function startNetballGame(
 
   // Mirror the AFL startGame: kickoff invalidates any pre-game
   // lineup draft. Same table for both sports.
-  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+  const { count: draftCount } = await w.supabase
+    .from("game_lineup_drafts")
+    .delete({ count: "exact" })
+    .eq("game_id", gameId);
+  trackGameStarted({ userId: w.userId, teamId: w.teamId, gameId, hasLineupDraft: (draftCount ?? 0) > 0 });
 
   // Direct insert above bypasses insertEvent — invalidate the
   // season-events cache explicitly.
@@ -484,6 +489,7 @@ export async function finaliseNetballGame(
 
   // Season time rollup for stats and season balance (UX plan 4.5).
   await writeGameRollup(w.supabase, gameId);
+  trackGameCompleted({ userId: w.userId, teamId: w.teamId, gameId });
 
   if (auth.kind === "team") {
     // Perf phase 6: was `, "layout"` which dragged in

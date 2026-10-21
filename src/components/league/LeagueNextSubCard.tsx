@@ -6,6 +6,7 @@
 
 import type { Player } from "@/lib/types";
 import { NextSubCard } from "@/components/live/NextSubCard";
+import type { RugbySport } from "@/lib/sports";
 
 interface LeagueSwap {
   off: { playerId: string; msOnField: number };
@@ -14,6 +15,8 @@ interface LeagueSwap {
 }
 
 interface LeagueNextSubCardProps {
+  /** League or union, for analytics. */
+  sport: RugbySport;
   /** Ordered list of suggested swaps — longest-on-bench first. */
   suggestions: LeagueSwap[];
   /** ms remaining until the next sub-due moment. Null when timer not running. */
@@ -42,6 +45,7 @@ const ZONE_COLOR: Record<"forward" | "back", string> = {
 };
 
 export function LeagueNextSubCard({
+  sport,
   suggestions,
   msUntilDue,
   subIntervalMs,
@@ -53,6 +57,7 @@ export function LeagueNextSubCard({
 }: LeagueNextSubCardProps) {
   return (
     <NextSubCard
+      sport={sport}
       pairs={suggestions.map((s) => ({
         offId: s.off.playerId,
         onId: s.on.playerId,

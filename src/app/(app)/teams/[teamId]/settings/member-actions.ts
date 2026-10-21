@@ -14,6 +14,7 @@ import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
 import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
 import type { ActionResult, TeamRole } from "@/lib/types";
+import { trackServer } from "@/lib/analytics/server";
 
 /**
  * The team's own sport's brand for its emails ("Siren Netball"). A team
@@ -109,6 +110,7 @@ export async function createInvite(
     });
 
   if (insertError) return { success: false, error: insertError.message };
+  trackServer(user.id, "invite_sent", { role });
 
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true, token, inviteId };

@@ -452,6 +452,7 @@ export function SoccerLineupPicker({
 
       {actionPlayer && (
         <LockModal
+          sport="soccer"
           player={actionPlayer}
           currentLock={null}
           currentZone={null}

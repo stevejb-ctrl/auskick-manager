@@ -3,6 +3,8 @@ import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TeamNav } from "@/components/team/TeamNav";
 import { TeamBottomBar } from "@/components/team/TeamBottomBar";
+import { AnalyticsTeamContext } from "@/components/analytics/PostHogAnalytics";
+import { isSportId } from "@/lib/sports/registry";
 
 interface TeamLayoutProps {
   children: React.ReactNode;
@@ -31,7 +33,7 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
   const [{ data: team }, { data: membership }] = await Promise.all([
     adminClient
       .from("teams")
-      .select("name")
+      .select("name, sport")
       .eq("id", params.teamId)
       .maybeSingle(),
     adminClient
@@ -48,6 +50,9 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
 
   return (
     <div className="space-y-6">
+      {/* Analytics: the team's sport and the coach's role on every
+          event while they're in this team. A no-op where PostHog is off. */}
+      {isSportId(team.sport) && <AnalyticsTeamContext sport={team.sport} teamRole={membership.role} />}
       <TeamNav teamId={params.teamId} teamName={team.name} role={membership.role} />
       {children}
       <TeamBottomBar teamId={params.teamId} role={membership.role} />

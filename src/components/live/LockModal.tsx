@@ -4,8 +4,12 @@ import type { ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport, EventProps } from "@/lib/analytics/events";
 
 interface LockModalProps {
+  /** For analytics (lock_action): which sport's game this is. */
+  sport: AnalyticsSport;
   player: Player;
   /** Current lock state for this player. Null when locking isn't supported (e.g. RL). */
   currentLock: "field" | "zone" | null;
@@ -128,6 +132,7 @@ function lockModalIntro(can: { lock: boolean; injure: boolean; lend: boolean }):
 }
 
 export function LockModal({
+  sport,
   player,
   currentLock,
   currentZone,
@@ -162,6 +167,16 @@ export function LockModal({
   const zoneLabel = currentZone ? ZONE_SHORT_LABELS[currentZone] : null;
   const loanedLabel = Math.round(seasonLoanMins);
   const squadLabel = Math.round(squadLoanMins);
+
+  // lock_action: which action the coach picked, in every sport. Never
+  // who it was for.
+  function traced(action: EventProps<"lock_action">["action"], fn: (() => void) | undefined) {
+    if (!fn) return undefined;
+    return () => {
+      track("lock_action", { sport, action });
+      fn();
+    };
+  }
 
   return (
     <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
@@ -199,7 +214,7 @@ export function LockModal({
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={onToggleInjury}
+                onClick={traced("recover", onToggleInjury)}
                 className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
               >
                 <span className="text-sm font-bold">Back on</span>
@@ -226,7 +241,7 @@ export function LockModal({
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={onToggleLoan}
+                onClick={traced("unlend", onToggleLoan)}
                 className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
               >
                 <span className="text-sm font-bold">Bring {firstName} back</span>
@@ -254,7 +269,7 @@ export function LockModal({
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={onUnlock}
+                onClick={traced("unlock", onUnlock)}
                 className="w-full rounded-md border border-hairline py-2.5 text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
               >
                 Let them rotate again
@@ -285,7 +300,7 @@ export function LockModal({
                   field player tapped; sub-on/off if bench player tapped). */}
               <button
                 type="button"
-                onClick={onSwitch}
+                onClick={traced("switch", onSwitch)}
                 className="flex w-full flex-col items-center rounded-md bg-brand-600 px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
               >
                 <span className="text-sm font-bold">Switch player</span>
@@ -416,7 +431,7 @@ export function LockModal({
               {onLockField && (
                 <button
                   type="button"
-                  onClick={onLockField}
+                  onClick={traced("lock", onLockField)}
                   className="flex w-full flex-col items-center rounded-md bg-ink px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/90"
                 >
                   <span className="text-sm font-bold">Keep on field</span>
@@ -426,7 +441,7 @@ export function LockModal({
               {onLockZone && currentZone && (
                 <button
                   type="button"
-                  onClick={onLockZone}
+                  onClick={traced("lock", onLockZone)}
                   className="flex w-full flex-col items-center rounded-md bg-warn px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-warn/90"
                 >
                   <span className="text-sm font-bold">Keep in {zoneLabel}</span>
@@ -438,7 +453,7 @@ export function LockModal({
               {onToggleInjury && (
                 <button
                   type="button"
-                  onClick={onToggleInjury}
+                  onClick={traced("injure", onToggleInjury)}
                   className="flex w-full flex-col items-center rounded-md bg-danger px-4 py-3 text-warm transition-colors duration-fast ease-out-quart hover:bg-danger/90"
                 >
                   <span className="text-sm font-bold">Mark injured</span>
@@ -450,7 +465,7 @@ export function LockModal({
               {onToggleLoan && (
                 <button
                   type="button"
-                  onClick={onToggleLoan}
+                  onClick={traced("lend", onToggleLoan)}
                   className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
                 >
                   <span className="text-sm font-bold">Lend to opposition</span>

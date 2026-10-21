@@ -68,6 +68,7 @@ import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
 import { netballRuleCheck } from "@/lib/sports/netball/engine";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { trackBreakSuggestion } from "@/lib/analytics/game-day";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 // Slot identifiers used to bucket the lineup display. "bench" is a
 // pseudo-third for the strip below the three on-court bands.
@@ -951,6 +952,7 @@ export function NetballQuarterBreak({
     if (pendingStartQuarter === null) return;
     const quarter = pendingStartQuarter;
     setError(null);
+    trackBreakSuggestion("netball", lineupMode, draft, suggestedLineup);
     // Step 1: commit the lineup snapshot.
     enqueueLiveAction("periodBreakSwap", [
       auth,
@@ -1662,6 +1664,7 @@ export function NetballQuarterBreak({
           if (!outPlayer) return null;
           return (
             <InjuryReplacementModal
+              sport="netball"
               injuredPlayer={outPlayer}
               spotLabel={
                 netballSport.allPositions.find((p) => p.id === outReplacement.positionId)?.shortLabel ??

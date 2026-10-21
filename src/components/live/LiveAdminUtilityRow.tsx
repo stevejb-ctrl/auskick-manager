@@ -31,8 +31,11 @@ import type { ReactNode } from "react";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
 import type { LiveAuth, Player } from "@/lib/types";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 interface LiveAdminUtilityRowProps {
+  /** For analytics: which sport's game this is. */
+  sport: AnalyticsSport;
   /** Squad players eligible to add late (already filtered by caller — neither in field nor bench). */
   candidates: Player[];
   /** Called when the coach picks a late-arrival from the menu. */
@@ -66,6 +69,7 @@ interface LiveAdminUtilityRowProps {
 }
 
 export function LiveAdminUtilityRow({
+  sport,
   candidates,
   onLateArrival,
   lateArrivalPending = false,
@@ -87,6 +91,7 @@ export function LiveAdminUtilityRow({
     <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
       {showLate && (
         <LateArrivalMenu
+          sport={sport}
           candidates={candidates}
           onAdd={onLateArrival}
           pending={lateArrivalPending}

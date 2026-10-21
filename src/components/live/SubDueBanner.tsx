@@ -2,6 +2,8 @@
 
 import { PulseMark } from "@/components/brand/PulseMark";
 import { SFButton } from "@/components/sf";
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 // ─── SubDueBanner ─────────────────────────────────────────────
 // "Sub due" in every sport: a strip inside the sticky LiveTopBar (its
@@ -15,10 +17,17 @@ import { SFButton } from "@/components/sf";
 // opens when the sub falls due.
 
 interface SubDueBannerProps {
+  /** For analytics (sub_due_prompt): which sport's game this is. */
+  sport: AnalyticsSport;
   onAcknowledge: () => void;
 }
 
-export function SubDueBanner({ onAcknowledge }: SubDueBannerProps) {
+export function SubDueBanner({ sport, onAcknowledge }: SubDueBannerProps) {
+  function handleGotIt() {
+    track("sub_due_prompt", { sport, action: "dismissed" });
+    onAcknowledge();
+  }
+
   return (
     <div
       role="alert"
@@ -32,7 +41,7 @@ export function SubDueBanner({ onAcknowledge }: SubDueBannerProps) {
         <strong className="font-semibold text-ink">Sub due</strong>
         {" — "}rotate a player off
       </p>
-      <SFButton size="md" variant="ghost" onClick={onAcknowledge} className="shrink-0">
+      <SFButton size="md" variant="ghost" onClick={handleGotIt} className="shrink-0">
         Got it
       </SFButton>
     </div>

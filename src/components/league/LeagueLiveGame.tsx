@@ -102,6 +102,8 @@ import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { track } from "@/lib/analytics/client";
+import { trackManualSub } from "@/lib/analytics/game-day";
 import { periodLabels } from "@/lib/sports";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
 interface LeagueLiveGameProps {
@@ -1118,7 +1120,7 @@ export function LeagueLiveGame({
     router.refresh();
   }
 
-  async function recordTryForPlayer(playerId: string) {
+  async function recordTryForPlayer(playerId: string, via: "dock" | "chip" = "chip") {
     // Defensive gate — even if a stale dock / cached client action
     // fires a try while track_scoring is off (U6/U7 tag rugby),
     // short-circuit before the server write. The UI shouldn't
@@ -1130,6 +1132,7 @@ export function LeagueLiveGame({
       );
       return;
     }
+    track("score_recorded", { sport, kind: "try", via, side: "own" });
     setPending(true);
     const { flushed } = enqueueLiveAction("recordTry", [
       auth,
@@ -1153,10 +1156,11 @@ export function LeagueLiveGame({
       setError("Tap a player first.");
       return;
     }
-    void recordTryForPlayer(selectedPlayer.id);
+    void recordTryForPlayer(selectedPlayer.id, "dock");
   }
 
   async function handleRecordOpponentTry() {
+    track("score_recorded", { sport, kind: "try", via: "chip", side: "opponent" });
     setPending(true);
     const { flushed } = enqueueLiveAction("recordOpponentTry", [
       auth,
@@ -1176,6 +1180,7 @@ export function LeagueLiveGame({
   }
 
   async function handleRecordOpponentConversion() {
+    track("score_recorded", { sport, kind: "conversion", via: "chip", side: "opponent" });
     setPending(true);
     const { flushed } = enqueueLiveAction("recordOpponentConversion", [
       auth,
@@ -1193,7 +1198,15 @@ export function LeagueLiveGame({
   async function recordLeagueGoalKind(
     kind: "penalty_goal" | "field_goal" | "opponent_penalty_goal" | "opponent_field_goal",
     kickerId: string | null,
+    via: "dock" | "chip" = "chip",
   ) {
+    const opponent = kind.startsWith("opponent_");
+    track("score_recorded", {
+      sport,
+      kind: kind.endsWith("penalty_goal") ? "penalty_goal" : "field_goal",
+      via,
+      side: opponent ? "opponent" : "own",
+    });
     setPending(true);
     const { flushed } = enqueueLiveAction("recordLeagueGoal", [
       auth,
@@ -1382,6 +1395,7 @@ export function LeagueLiveGame({
       // Never bring a hurt or lent kid on, e.g. one selected before they
       // were lent (Stagehand round 4): this tap starts a new selection.
       if (injuredSet.has(on) || loanedSet.has(on)) return false;
+      trackManualSub(sport);
       await applySwap(off, on);
       return true;
     }
@@ -1428,6 +1442,7 @@ export function LeagueLiveGame({
   // preference.
   async function fillVacantSpot(playerId: string, slotZone: "forward" | "back") {
     if (!lineup) return;
+    trackManualSub(sport);
     setPending(true);
     const nextForwards
       = slotZone === "forward"
@@ -1919,12 +1934,12 @@ export function LeagueLiveGame({
         // tappable.
         banner={
           subDueShowing ? (
-            <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
+            <SubDueBanner sport={sport} onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }
       />
       {walkthroughOpen && (
-        <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
+        <WalkthroughModal sport={sport} steps={walkthroughSteps} onClose={handleWalkthroughClose} />
       )}
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -1953,6 +1968,7 @@ export function LeagueLiveGame({
           "Do all N swaps" so the whole bench cycles in one tap. */}
       {isPeriodActive && nextSubSuggestions.length > 0 && (
         <LeagueNextSubCard
+          sport={sport}
           suggestions={nextSubSuggestions}
           msUntilDue={msUntilDue}
           subIntervalMs={subIntervalMs}
@@ -2340,6 +2356,7 @@ export function LeagueLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        sport={sport}
         candidates={lateArrivalCandidates}
         onLateArrival={handleAddLateArrival}
         lateArrivalPending={pending}
@@ -2426,7 +2443,7 @@ export function LeagueLiveGame({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => void recordLeagueGoalKind("penalty_goal", selectedPlayer.id)}
+                    onClick={() => void recordLeagueGoalKind("penalty_goal", selectedPlayer.id, "dock")}
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
@@ -2434,7 +2451,7 @@ export function LeagueLiveGame({
                   </button>
                   <button
                     type="button"
-                    onClick={() => void recordLeagueGoalKind("field_goal", selectedPlayer.id)}
+                    onClick={() => void recordLeagueGoalKind("field_goal", selectedPlayer.id, "dock")}
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
@@ -2518,7 +2535,7 @@ export function LeagueLiveGame({
               && !state.finalised
               ? (
                 // Same strip as AFL and netball (UX plan Phase 6).
-                <UndoStrip flashing={false} message="" onUndo={handleUndoScore} disabled={pending} />
+                <UndoStrip sport={sport} flashing={false} message="" onUndo={handleUndoScore} disabled={pending} />
               )
               : undefined
           }
@@ -2700,6 +2717,7 @@ export function LeagueLiveGame({
 
       {conversionDialogOpen && lineup && (
         <RecordConversionDialog
+          sport={sport}
           auth={auth}
           gameId={game.id}
           squad={squad}
@@ -2797,6 +2815,7 @@ export function LeagueLiveGame({
           vestReplaceLabel prop. */}
       {actionSheetPlayer && (
         <LockModal
+          sport={sport}
           player={actionSheetPlayer}
           currentLock={null}
           currentZone={null}
@@ -2920,6 +2939,7 @@ export function LeagueLiveGame({
         if (!outPlayer) return null;
         return (
           <InjuryReplacementModal
+            sport={sport}
             injuredPlayer={outPlayer}
             spotLabel={LEAGUE_SPOT_LABEL[markOutReplacement.zone]}
             candidates={markOutReplacementCandidates}
@@ -2959,6 +2979,7 @@ export function LeagueLiveGame({
           .sort((a, b) => a.totalMs - b.totalMs);
         return (
           <InjuryReplacementModal
+            sport={sport}
             injuredPlayer={injPlayer}
             spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}

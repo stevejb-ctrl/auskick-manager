@@ -63,6 +63,7 @@ import type { TileCaption } from "@/components/live/PlayerTile";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { trackBreakSuggestion } from "@/lib/analytics/game-day";
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
@@ -1131,6 +1132,12 @@ export function QuarterBreak({
       { ...emptyLineup(), ...draft },
       sidelinedSet,
     );
+    trackBreakSuggestion(
+      "afl",
+      lineupMode,
+      full,
+      benchSidelinedInLineup({ ...emptyLineup(), ...suggestedLineup }, sidelinedSet),
+    );
     startTransition(async () => {
       if (!lineupsEqual(lineup, full)) {
         const r = await recordLineupSet(auth, gameId, full);
@@ -1559,6 +1566,7 @@ export function QuarterBreak({
           if (!outPlayer) return null;
           return (
             <InjuryReplacementModal
+              sport="afl"
               injuredPlayer={outPlayer}
               spotLabel={ZONE_SHORT_LABELS[outReplacement.zone]}
               candidates={outReplacementCandidates}

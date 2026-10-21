@@ -14,6 +14,7 @@ import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
+import { trackGameCompleted, trackGameStarted } from "@/lib/analytics/lifecycle";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
 
 // Clamp a coach-supplied on-field size to the legal range for the
@@ -216,7 +217,11 @@ export async function startGame(
   // The lineup_set event is now the source of truth; any pre-game
   // draft is stale. Clean it up so the game card stops showing the
   // "Plan saved" indicator.
-  await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
+  const { count: draftCount } = await w.supabase
+    .from("game_lineup_drafts")
+    .delete({ count: "exact" })
+    .eq("game_id", gameId);
+  trackGameStarted({ userId: w.userId, teamId: w.teamId, gameId, hasLineupDraft: (draftCount ?? 0) > 0 });
 
   // Direct event inserts above bypass insertEvent — invalidate
   // the season-events cache explicitly so the next render sees
@@ -598,6 +603,7 @@ export async function finaliseGame(
 
   // Season time rollup for stats and season balance (UX plan 4.5).
   await writeGameRollup(w.supabase, gameId);
+  trackGameCompleted({ userId: w.userId, teamId: w.teamId, gameId });
 
   if (auth.kind === "team") {
     // Perf phase 6: finalising affects the game detail page (status

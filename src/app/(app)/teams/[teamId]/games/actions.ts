@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import type { ActionResult } from "@/lib/types";
+import { trackGameCreated } from "@/lib/analytics/lifecycle";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -103,6 +104,7 @@ export async function createGame(
     teamId,
     createdBy: user.id,
   });
+  trackGameCreated(user.id, { teamId, sport: team?.sport, scheduledAt: input.scheduled_at, source: "manual" });
 
   revalidatePath(`/teams/${teamId}/games`);
   if (afterCreate === "stay") {

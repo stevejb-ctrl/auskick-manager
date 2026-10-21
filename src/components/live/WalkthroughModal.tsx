@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics/client";
+import type { AnalyticsSport } from "@/lib/analytics/events";
 
 export interface WalkthroughStep {
   emoji: string;
@@ -71,6 +73,8 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
 }
 
 interface WalkthroughModalProps {
+  /** For analytics (walkthrough): which sport's game this is. */
+  sport: AnalyticsSport;
   steps: WalkthroughStep[];
   onClose: () => void;
 }
@@ -79,8 +83,15 @@ interface WalkthroughModalProps {
 // interstitial is gone: the tour is offered on the lineup screen before
 // kickoff (WalkthroughOffer) or opened from the "?" button, and both of
 // those already ask the question (UX plan H1).
-export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
+export function WalkthroughModal({ sport, steps, onClose }: WalkthroughModalProps) {
   const [idx, setIdx] = useState(0);
+
+  // walkthrough: finished on "Let's go", or skipped (the Skip link, the
+  // backdrop, Escape) and at which step.
+  function close(action: "completed" | "skipped") {
+    track("walkthrough", { sport, action, step: idx + 1, steps: steps.length });
+    onClose();
+  }
 
   // Direction tracking for step-content slide animations. The
   // prevIdxRef holds the LAST committed idx; comparing to the
@@ -101,7 +112,7 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
   const isLast = idx === steps.length - 1;
 
   return (
-    <Modal placement="sheet" labelledBy="wt-step-title" onClose={onClose} padding="p-6">
+    <Modal placement="sheet" labelledBy="wt-step-title" onClose={() => close("skipped")} padding="p-6">
         {/* Progress dots */}
         <div className="mb-5 flex justify-center gap-1.5">
           {steps.map((_, i) => (
@@ -149,7 +160,7 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
           )}
           <button
             type="button"
-            onClick={() => (isLast ? onClose() : setIdx(idx + 1))}
+            onClick={() => (isLast ? close("completed") : setIdx(idx + 1))}
             className="flex-1 rounded-md bg-brand-600 py-2.5 text-sm font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
           >
             {isLast ? "Let's go! 🎉" : "Next"}
@@ -159,7 +170,7 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
         {!isLast && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => close("skipped")}
             className="mt-3 w-full text-center text-xs text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink-dim"
           >
             Skip walkthrough

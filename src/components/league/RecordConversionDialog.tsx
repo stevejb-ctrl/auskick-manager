@@ -27,8 +27,12 @@ import {
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics/client";
+import type { RugbySport } from "@/lib/sports";
 
 interface RecordConversionDialogProps {
+  /** League or union, for analytics (score_recorded). */
+  sport: RugbySport;
   auth: LiveAuth;
   gameId: string;
   /** All squad players — used to look up names for the rows. */
@@ -61,6 +65,7 @@ interface RecordConversionDialogProps {
 }
 
 export function RecordConversionDialog({
+  sport,
   auth,
   gameId,
   squad,
@@ -137,6 +142,9 @@ export function RecordConversionDialog({
       return;
     }
     setPendingKickerId(null);
+    // The prompt a try opened counts as the dock; the score bug's
+    // conversion chip as the chip.
+    if (made) track("score_recorded", { sport, kind: "conversion", via: afterTry ? "dock" : "chip", side: "own" });
     router.refresh();
     onClose();
   }

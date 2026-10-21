@@ -1145,6 +1145,7 @@ export function LineupPicker({
           const close = () => setHoldPlayerId(null);
           return (
             <LockModal
+              sport="afl"
               player={playerById.get(pid)!}
               currentLock={hold?.kind === "field" ? "field" : hold?.kind === "zone" ? "zone" : null}
               currentZone={hold?.kind === "zone" ? (hold.zone as Zone) : zone}

@@ -118,6 +118,8 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { track } from "@/lib/analytics/client";
+import { trackManualSub } from "@/lib/analytics/game-day";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -770,7 +772,8 @@ export function LiveGame({
   //     in SlotFillSheet → fires this directly with the picked id.
   // Optimistic store updates + undo-toast wiring live here so both
   // paths get them for free.
-  function recordPlayerScore(playerId: string, kind: "goal" | "behind") {
+  function recordPlayerScore(playerId: string, kind: "goal" | "behind", via: "dock" | "chip" = "chip") {
+    track("score_recorded", { sport: "afl", kind, via, side: "own" });
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     const p = playersById.get(playerId);
@@ -806,6 +809,7 @@ export function LiveGame({
   // Steve 2026-07-08 (UX review #5): the old "every goal has a scorer"
   // assumption cost the whole goal when the coach hit Cancel.
   function recordUnattributedGoal() {
+    track("score_recorded", { sport: "afl", kind: "goal", via: "chip", side: "own" });
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam("goals");
@@ -829,6 +833,7 @@ export function LiveGame({
   // self-rushed). Counts +1 for our team but has no scorer, so it
   // skips the per-player tally and never plays the goal song.
   function recordRushedBehind() {
+    track("score_recorded", { sport: "afl", kind: "behind", via: "chip", side: "own" });
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam("behinds");
@@ -850,7 +855,7 @@ export function LiveGame({
     if (!selected || selected.kind !== "field") return;
     const playerId = selected.playerId;
     clearSelection();
-    recordPlayerScore(playerId, kind);
+    recordPlayerScore(playerId, kind, "dock");
   }
 
   function handleInjuryToggle(playerId: string, injured: boolean) {
@@ -945,6 +950,7 @@ export function LiveGame({
   }
 
   function handleOpponent(kind: "goal" | "behind") {
+    track("score_recorded", { sport: "afl", kind, via: "chip", side: "opponent" });
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
@@ -1336,7 +1342,7 @@ export function LiveGame({
   // Walkthrough modal — same instance for all branches so the ?
   // button in the top bar works at QB too. Mounted-when-open.
   const walkthroughOverlay = walkthroughOpen ? (
-    <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
+    <WalkthroughModal sport="afl" steps={walkthroughSteps} onClose={handleWalkthroughClose} />
   ) : null;
 
   if (isBetweenQuarters) {
@@ -1532,7 +1538,7 @@ export function LiveGame({
           onHelp={handleOpenWalkthrough}
           banner={
             subDueOpen && suggestions.length === 0 ? (
-              <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
+              <SubDueBanner sport="afl" onAcknowledge={handleSubDueAcknowledge} />
             ) : null
           }
         />
@@ -1654,6 +1660,7 @@ export function LiveGame({
           <>
             {!isPreGame && !isFinished && (
               <SwapCard
+                sport="afl"
                 suggestions={suggestions}
                 autoSuggestions={rawSuggestions}
                 playersById={playersById}
@@ -1821,6 +1828,7 @@ export function LiveGame({
           : [];
         return (
           <LiveAdminUtilityRow
+            sport="afl"
             candidates={lateCandidates}
             onLateArrival={handleLateArrival}
             lateArrivalPending={isPending}
@@ -1953,6 +1961,7 @@ export function LiveGame({
             setFillZone(null);
             // A deliberate pick, off the sub cadence (as a tap-tap sub).
             persistSwap("", pid, zone, false);
+            trackManualSub("afl");
             showSwapToast(`${shortName(pid)} on`);
           }}
           onCancel={() => setFillZone(null)}
@@ -1970,6 +1979,7 @@ export function LiveGame({
             // countdown (issue 5 — keep running toward the next planned
             // rotation).
             persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone, false);
+            trackManualSub("afl");
             if (pendingSwap.off) {
               showSwapToast(
                 `${shortName(pendingSwap.off)} → ${shortName(pendingSwap.on)}`
@@ -2288,6 +2298,7 @@ export function LiveGame({
         );
         return (
           <LockModal
+            sport="afl"
             player={p}
             currentLock={currentLock}
             currentZone={lockModal.zone}
@@ -2380,6 +2391,7 @@ export function LiveGame({
           .sort((a, b) => a.totalMs - b.totalMs);
         return (
           <InjuryReplacementModal
+            sport="afl"
             injuredPlayer={inj}
             spotLabel={ZONE_SHORT_LABELS[injuryReplacementModal.zone]}
             candidates={candidates}
@@ -2703,6 +2715,7 @@ export function LiveGame({
           undoStrip={
             lastScore && !isPreGame && !isFinished ? (
               <UndoStrip
+                sport="afl"
                 flashing={undoToastVisible}
                 message={`${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`}
                 onUndo={handleUndo}

@@ -76,8 +76,9 @@ export default async function AppLayout({
           in .planning/MICRO-INTERACTIONS-PLAN.md. */}
       <MotionPreferenceBridge />
       {/* Links analytics to this coach by Supabase id (never name or
-          email). A no-op wherever PostHog is off. */}
-      <AnalyticsIdentify userId={user.id} />
+          email), unless they've asked to delete their account. A no-op
+          wherever PostHog is off. */}
+      <AnalyticsIdentify userId={user.id} forget={Boolean(profile?.deletion_scheduled_for)} />
       {/* Always-visible feedback FAB. Visible on every authenticated
           route EXCEPT /live — Steve 2026-05-25 reported the floating
           position overlapping the opposition +G/+B scoring chip

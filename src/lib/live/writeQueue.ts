@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
+import { track } from "@/lib/analytics/client";
 
 // ─── Durable write queue for live-game server actions ─────────
 //
@@ -480,10 +481,24 @@ async function initNetworkListener(): Promise<void> {
   networkListenerInitialised = true;
 
   const onOnline = () => {
+    // What the device saved up while offline, for analytics
+    // (offline_queue_flushed): how many writes and how long the oldest
+    // waited. Counts only, never what the writes were.
+    const backlog = useWriteQueue.getState().queue;
+    const oldestQueuedAt = backlog.reduce((min, op) => Math.min(min, op.queuedAt), Date.now());
     // Clear any previously-paused kinds so the next drain pass
     // retries them. resume() is a no-op if nothing is paused.
     useWriteQueue.getState().resume();
-    void useWriteQueue.getState().drain();
+    void useWriteQueue
+      .getState()
+      .drain()
+      .then(() => {
+        if (backlog.length === 0 || useWriteQueue.getState().queue.length > 0) return;
+        track("offline_queue_flushed", {
+          queued_count: backlog.length,
+          offline_seconds: Math.max(0, Math.round((Date.now() - oldestQueuedAt) / 1000)),
+        });
+      });
   };
 
   if (isNative()) {

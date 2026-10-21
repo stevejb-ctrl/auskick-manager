@@ -7,6 +7,9 @@ import { cookies } from "next/headers";
  */
 export const POSTHOG_KEY = "phc_vQB8QVJn5PfFHNv7tLLsoR8yoxrHXftjMKJefLzn62K2";
 
+/** The same project's id, for PostHog's private API (deleting a person). */
+export const POSTHOG_PROJECT_ID = 673083;
+
 // e2e only. Outside production, a request carrying this cookie runs
 // PostHog in debug mode with a dummy key. e2e/tests/posthog-analytics.spec.ts
 // catches every /ingest request, so nothing reaches PostHog. Production
