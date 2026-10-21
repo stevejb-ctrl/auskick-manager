@@ -3,11 +3,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
 import { NATIVE_COOKIE_NAME } from "@/lib/platform";
 import { SIREN_USER_ID_HEADER } from "@/lib/auth/userIdHeader";
-import { INDEXABLE_ROUTES } from "@/lib/public-routes";
+import { INDEXABLE_ROUTES, PUBLIC_FILE_PATHS } from "@/lib/public-routes";
 
 // Every page in the sitemap is public by definition — a page we ask
-// search engines to index must open without a session.
+// search engines to index must open without a session. So are the
+// crawler files (sitemap, robots, llms.txt, the preview image).
 const SITEMAP_PATHS: ReadonlySet<string> = new Set(INDEXABLE_ROUTES.map((r) => r.path));
+const PUBLIC_FILES: ReadonlySet<string> = new Set(PUBLIC_FILE_PATHS);
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -110,7 +112,7 @@ export async function updateSession(request: NextRequest) {
 
   // Routes that don't require a session. Marketing landing, auth
   // flows, the public run-token, and the OAuth / magic-link callback.
-  // Also the static-ish SEO files (sitemap, robots), the public
+  // Also the static-ish SEO files (sitemap, robots, llms.txt), the public
   // marketing content pages (contact, privacy, terms), and the invite
   // landing page (/join/<token> — it renders a Sign in / Create account
   // CTA itself for anonymous viewers, and bouncing them to /login here
@@ -121,12 +123,8 @@ export async function updateSession(request: NextRequest) {
   // behind sign-in until it came from that list.
   const isPublicRoute =
     SITEMAP_PATHS.has(pathname) ||
+    PUBLIC_FILES.has(pathname) ||
     pathname === "/" ||
-    pathname === "/sitemap.xml" ||
-    pathname === "/robots.txt" ||
-    // Link-preview image (src/app/opengraph-image.tsx). WhatsApp,
-    // Facebook and Slack fetch it with no session.
-    pathname === "/opengraph-image" ||
     isAuthRoute ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset") ||

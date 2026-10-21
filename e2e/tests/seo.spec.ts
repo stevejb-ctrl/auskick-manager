@@ -82,6 +82,17 @@ test("robots.txt keeps crawlers out of the app and token links", async ({ reques
   expect(txt).toMatch(/Sitemap: https:\/\/www\.siren[a-z]+\.com\.au\/sitemap\.xml/);
 });
 
+test("llms.txt is public plain text: what Siren is, its sports and its pages", async ({ request }) => {
+  // It used to 307 to /login, like any path the middleware didn't know.
+  const res = await request.get("/llms.txt", { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("text/plain");
+  const txt = await res.text();
+  expect(txt).toMatch(/^# Siren\n\n> Siren is a game-day app for junior sport coaches/);
+  expect(txt).toContain("- Basketball (beta)");
+  expect(txt).toMatch(/\]\(https:\/\/www\.siren[a-z]+\.com\.au\/help\/faq\)/);
+});
+
 test("a trailing slash redirects to the page's one URL", async ({ request }) => {
   // next.config turns Next's own redirect off for PostHog's /ingest
   // proxy; the middleware keeps it for pages.

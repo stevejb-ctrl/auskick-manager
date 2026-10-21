@@ -66,6 +66,21 @@ export const UNLISTED_PUBLIC_PATHS: readonly string[] = [
  * does — a plain prefix.
  */
 /**
+ * Public files for crawlers and link previews: no session needed, and
+ * not pages, so not in the sitemap. The middleware lets them through;
+ * anything not public in this file goes to /login.
+ */
+export const PUBLIC_FILE_PATHS: readonly string[] = [
+  "/sitemap.xml",
+  "/robots.txt",
+  // A plain-text map of Siren for AI tools (src/app/llms.txt/route.ts).
+  "/llms.txt",
+  // Link-preview image (src/app/opengraph-image.tsx). WhatsApp,
+  // Facebook and Slack fetch it with no session.
+  "/opengraph-image",
+];
+
+/**
  * Unlisted pages Google Analytics still measures, beside the sitemap's
  * (src/lib/analytics/ga-routes.ts). Sign-in is where a marketing visit
  * ends, so the funnel needs it.
