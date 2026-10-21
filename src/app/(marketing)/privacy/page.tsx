@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { sportsSentence } from "@/lib/siren-facts";
 
 export const metadata: Metadata = {
   title: "Privacy Policy · Siren",
@@ -23,7 +24,7 @@ export default function PrivacyPage() {
         <section>
           <p className="text-base leading-relaxed">
             Siren (&ldquo;Siren&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is a
-            team and game management app for junior football and netball. This
+            team and game management app for junior sport: {sportsSentence()}. This
             policy explains what information we collect when you use the app —
             at sirenfooty.com.au or sirennetball.com.au — how we use it, and the
             choices you have. We follow the Australian Privacy Principles set

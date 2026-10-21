@@ -37,12 +37,28 @@ function stringsIn(value: unknown): string[] {
   return [];
 }
 
+const rel = (file: string) => file.slice(ROOT.length).replace(/\\/g, "/");
+
 const MARKETING_STRINGS = filesUnder(join(ROOT, "content/marketing"), ".json").flatMap((file) =>
-  stringsIn(JSON.parse(readFileSync(file, "utf8"))).map((text) => ({
-    file: file.slice(ROOT.length).replace(/\\/g, "/"),
-    text,
+  stringsIn(JSON.parse(readFileSync(file, "utf8"))).map((text) => ({ file: rel(file), text })),
+);
+
+// The public pages' own copy, comments stripped.
+const PAGE_SOURCE = [
+  "src/app/(marketing)",
+  "src/app/help",
+  "src/components/marketing",
+  "src/components/help",
+].flatMap((dir) =>
+  filesUnder(join(ROOT, dir), ".tsx").map((file) => ({
+    file: rel(file),
+    text: readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, ""),
   })),
 );
+
+const ALL_COPY = [...MARKETING_STRINGS, ...PAGE_SOURCE];
 
 // How copy names each sport.
 const MENTIONS: Record<string, RegExp> = {
@@ -87,8 +103,10 @@ describe("Siren facts", () => {
 });
 
 describe("marketing copy agrees with the facts", () => {
-  it("found the marketing JSON", () => {
+  it("found the marketing JSON and the public pages", () => {
     expect(MARKETING_STRINGS.length).toBeGreaterThan(50);
+    expect(PAGE_SOURCE.map((p) => p.file)).toContain("src/app/(marketing)/why-siren/page.tsx");
+    expect(PAGE_SOURCE.map((p) => p.file)).toContain("src/app/help/faq/page.tsx");
   });
 
   it("opens the homepage hero with the facts' sports", () => {
@@ -96,7 +114,7 @@ describe("marketing copy agrees with the facts", () => {
   });
 
   it("counts the sports right", () => {
-    const wrong = MARKETING_STRINGS.flatMap(({ file, text }) =>
+    const wrong = ALL_COPY.flatMap(({ file, text }) =>
       Array.from(text.matchAll(SPORT_COUNT))
         .filter(([, n]) => {
           const count = /^\d+$/.test(n) ? Number(n) : COUNT_WORDS.indexOf(n.toLowerCase()) + 1;
@@ -119,8 +137,13 @@ describe("marketing copy agrees with the facts", () => {
     expect(partial).toEqual([]);
   });
 
+  it("never says Siren is for football and netball alone", () => {
+    const old = ALL_COPY.filter(({ text }) => /football and netball|AFL, netball or rugby league/i.test(text));
+    expect(old.map((c) => c.file)).toEqual([]);
+  });
+
   it("quotes the price's season", () => {
-    const stale = MARKETING_STRINGS.flatMap(({ file, text }) =>
+    const stale = ALL_COPY.flatMap(({ file, text }) =>
       Array.from(text.matchAll(/\bfree\b[^.·]*?\b(20\d\d)\b/gi))
         .filter(([, year]) => Number(year) !== PRICE.season)
         .map(([match]) => `${file}: "${match}"`),
