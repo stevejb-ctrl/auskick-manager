@@ -1133,6 +1133,20 @@ export function BasketballLiveGame({
                           },
                         },
                       ]),
+                  ...(trackFouls && !fouledOutSet.has(actionPlayer.id)
+                    ? [
+                        {
+                          label: "Add a foul",
+                          hint: `${state.fouls[actionPlayer.id] ?? 0} of ${ageGroup.foulOutAt} so far`,
+                          testId: "basketball-add-foul",
+                          onClick: () => {
+                            const pid = actionPlayer.id;
+                            setActionPlayerId(null);
+                            void foul(pid);
+                          },
+                        },
+                      ]
+                    : []),
                   ...(trackFouls && (state.fouls[actionPlayer.id] ?? 0) > 0
                     ? [
                         {
