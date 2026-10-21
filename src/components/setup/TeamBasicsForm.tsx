@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { getSportConfig, periodLabels } from "@/lib/sports";
 import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { isBetaSport } from "@/lib/siren-facts";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -205,7 +206,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Football (soccer)"
               subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("soccer") ? "Beta" : undefined}
             />
             {/* Open to every coach while it's in beta, as soccer was. */}
             <SportPill
@@ -214,7 +215,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Basketball"
               subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("basketball") ? "Beta" : undefined}
             />
           </div>
         </div>

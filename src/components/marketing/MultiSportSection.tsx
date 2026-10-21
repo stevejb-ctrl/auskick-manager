@@ -6,6 +6,7 @@ import {
   type MarketingSportConfig,
   type MarketingSportId,
 } from "@/lib/sports/marketing-sports";
+import { isBetaSport } from "@/lib/siren-facts";
 import {
   AflOvalField,
   LeagueRectField,
@@ -153,6 +154,7 @@ export function MultiSportSection({
             const isActive = sport.id === active.id && !sport.comingSoon;
             const isDisabled = Boolean(sport.comingSoon);
             const phoneOrphan = MARKETING_SPORTS.length % 2 === 1 && index === MARKETING_SPORTS.length - 1;
+            const beta = isBetaSport(sport.sport);
             return (
               <button
                 key={sport.id}
@@ -164,7 +166,7 @@ export function MultiSportSection({
                 aria-label={
                   isDisabled
                     ? `${sport.label} — coming soon`
-                    : `Show Siren in ${sport.label} mode`
+                    : `Show Siren in ${sport.label} mode${beta ? " (beta)" : ""}`
                 }
                 data-testid={`sport-card-${sport.id}`}
                 onClick={
@@ -252,6 +254,7 @@ export function MultiSportSection({
                     }}
                   >
                     {sport.code}
+                    {beta && " · Beta"}
                   </p>
                   <div>
                     <p

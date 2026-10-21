@@ -23,8 +23,13 @@ test.describe("unauthenticated entry", () => {
 
   test("the homepage picker shows Siren in football (soccer) mode, with soccer's own features", async ({ page }) => {
     await page.goto("/");
+    // The picker opens on AFL, spelt as an acronym.
+    await expect(page.getByRole("heading", { name: "See Siren in AFL mode." })).toBeVisible();
     const card = page.getByTestId("sport-card-football");
-    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode");
+    // Soccer is in beta (src/lib/siren-facts.ts), and says so.
+    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode (beta)");
+    await expect(card).toContainText(/beta/i);
+    await expect(page.getByTestId("sport-card-afl")).not.toContainText(/beta/i);
     await card.click();
     await expect(card).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("heading", { name: /see siren in football mode/i })).toBeVisible();
