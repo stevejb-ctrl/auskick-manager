@@ -179,6 +179,18 @@ describe("basketball's How we play", () => {
     expect(prefs.alsoPositions).toEqual({ c: ["pf"] });
     expect(prefs.ballHandlers).toEqual(["a"]);
   });
+
+  it("reads the lines and positions a kid doesn't play, and who plays every minute", () => {
+    const prefs = basketballPrefs([
+      { player_id: "a", position_key: null, line: "forward", kind: "never", rank: null },
+      { player_id: "b", position_key: "pg", line: null, kind: "never", rank: null },
+      { player_id: "b", position_key: "sg", line: null, kind: "never", rank: null },
+      { player_id: "c", position_key: null, line: null, kind: "keep_on", rank: null },
+    ]);
+    expect(prefs.neverLine).toEqual({ a: ["forward"] });
+    expect(prefs.neverPosition).toEqual({ b: ["pg", "sg"] });
+    expect(prefs.keepOn).toEqual(["c"]);
+  });
 });
 
 describe("basketball isolation", () => {

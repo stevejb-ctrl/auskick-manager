@@ -257,3 +257,84 @@ describe("suggestBasketballBreakPlan", () => {
     for (const [pid, pos] of Object.entries(POSITIONS.slots!)) expect(plan.lineup.slots?.[pid]).not.toBe(pos);
   });
 });
+
+// Positive roles (21 Oct 2026): "Plays as" is stored as `never` rows for
+// the other lines or positions, and "Plays every minute" as keep_on. The
+// basketball suggesters ignored both; now they honour them as the other
+// sports do.
+describe("plays as and plays every minute", () => {
+  it("never seats a kid on a line they don't play (Guards and forwards)", () => {
+    const season: BasketballSeasonBalance = {
+      time: { a: { guard: 60 * MIN }, b: { guard: 60 * MIN }, c: { forward: 60 * MIN }, d: { forward: 60 * MIN }, e: { forward: 60 * MIN } },
+      weight: 1,
+      periodMs: HALF,
+    };
+    // c is owed guard time, but only plays forward.
+    const { lineup } = suggestBasketballLineup({
+      onCourtSize: 5,
+      strategy: "both-lines",
+      players: ["a", "b", "c", "d", "e"],
+      season,
+      prefs: { neverLine: { c: ["guard"] } },
+    });
+    expect(lineup.lines.forward).toContain("c");
+  });
+
+  it("never seats a kid in a position they don't play (All five positions)", () => {
+    const { lineup } = suggestBasketballLineup({
+      onCourtSize: 5,
+      strategy: "position-by-position",
+      players: ["a", "b", "c", "d", "e"],
+      prefs: { neverPosition: { a: ["pg", "sg", "sf", "pf"] } },
+    });
+    expect(lineup.slots?.a).toBe("c");
+  });
+
+  it("brings a kid on only for a line they play", () => {
+    const g = game();
+    g.lineup({ ...LINES, bench: ["f"] });
+    g.start(1);
+    const s = replayBasketballGame(g.events, { nowMs: 5 * MIN });
+    const subs = suggestBasketballSubs({
+      state: s,
+      nowMs: 5 * MIN,
+      strategy: "both-lines",
+      foulOutAt: 5,
+      prefs: { neverLine: { f: ["guard"] } },
+    });
+    expect(subs).toHaveLength(1);
+    expect(subs[0].line).toBe("forward");
+  });
+
+  it("starts a kid who plays every minute, whatever their season minutes", () => {
+    const season: BasketballSeasonBalance = { time: { a: { court: 90 * MIN } }, weight: 1, periodMs: HALF };
+    const { lineup } = suggestBasketballLineup({
+      onCourtSize: 5,
+      strategy: "minutes",
+      players: SQUAD,
+      season,
+      prefs: { keepOn: ["a"] },
+    });
+    expect(lineup.lines.court).toContain("a");
+  });
+
+  it("leaves a kid who plays every minute on court through a sub", () => {
+    const g = game();
+    g.lineup(COURT);
+    g.start(1);
+    const s = replayBasketballGame(g.events, { nowMs: 5 * MIN });
+    const subs = suggestBasketballSubs({ state: s, nowMs: 5 * MIN, strategy: "minutes", foulOutAt: 5, prefs: { keepOn: ["a"] } });
+    expect(subs.map((x) => x.off_player_id)).not.toContain("a");
+    expect(subs).toHaveLength(4);
+  });
+
+  it("plays a kid who plays every minute in the next period", () => {
+    const g = game();
+    g.lineup(LINES);
+    g.start(1);
+    g.end(1, 20);
+    const s = replayBasketballGame(g.events);
+    const plan = suggestBasketballBreakPlan({ state: s, onCourtSize: 5, strategy: "both-lines", prefs: { keepOn: ["a"] } });
+    expect([...plan!.lineup.lines.guard, ...plan!.lineup.lines.forward]).toContain("a");
+  });
+});
