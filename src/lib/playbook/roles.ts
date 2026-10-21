@@ -51,6 +51,12 @@ export interface PlayerRole {
   also: string[];
   never: string[];
   keepOn: boolean;
+  /**
+   * Every spot, when the coach ticked them all as "Plays as". Nothing is
+   * left out, so there are no never rows; these rows tell the sheet it
+   * was every spot rather than nothing picked. The engines ignore them.
+   */
+  plays?: string[];
 }
 
 export const EMPTY_ROLE: PlayerRole = { home: null, also: [], never: [], keepOn: false };
@@ -97,6 +103,10 @@ export function viewFromRole(role: PlayerRole, model: RoleModel): RoleView {
   if (never.length > 0) {
     return { plays: keys.filter((k) => !never.includes(k)), main, keepOn: role.keepOn, restrictNote: false };
   }
+  // Every spot ticked, including any added since: nothing is left out.
+  if (role.plays?.some((k) => keys.includes(k))) {
+    return { plays: keys, main, keepOn: role.keepOn, restrictNote: false };
+  }
   const also = model.home ? role.also.filter((k) => keys.includes(k)) : [];
   if (also.length > 0) {
     const plays = keys.filter((k) => k === main || also.includes(k));
@@ -114,6 +124,7 @@ export function roleFromView(view: Omit<RoleView, "restrictNote">, model: RoleMo
   const keys = model.options.map((o) => o.key);
   const plays = keys.filter((k) => view.plays.includes(k));
   const restricted = plays.length > 0 && plays.length < keys.length;
+  const everySpot = keys.length > 0 && plays.length === keys.length;
   const main =
     model.home && view.main && keys.includes(view.main) && (!restricted || plays.includes(view.main))
       ? view.main
@@ -123,6 +134,7 @@ export function roleFromView(view: Omit<RoleView, "restrictNote">, model: RoleMo
     also: model.home && restricted ? plays.filter((k) => k !== main) : [],
     never: restricted ? keys.filter((k) => !plays.includes(k)) : [],
     keepOn: view.keepOn,
+    ...(everySpot ? { plays } : {}),
   };
 }
 
@@ -136,6 +148,11 @@ export function rolesFromPrefs(prefs: PrefLike[], unit: RoleUnit): Record<string
     const role = (out[p.player_id] ??= { home: null, also: [], never: [], keepOn: false });
     if (p.kind === "keep_on") {
       role.keepOn = true;
+      continue;
+    }
+    if (p.kind === "plays") {
+      const at = unit === "position" ? p.position_key : p.position_key ? null : p.line;
+      if (at) (role.plays ??= []).push(at);
       continue;
     }
     // Line roles ignore position rows and vice versa.
@@ -156,7 +173,9 @@ export function normaliseRole(role: PlayerRole, validKeys: string[]): PlayerRole
   const never = Array.from(new Set(role.never)).filter(
     (k) => valid.has(k) && k !== home && !also.includes(k),
   );
-  return { home, also, never, keepOn: role.keepOn };
+  // Every spot ticked means nothing is left out.
+  const plays = never.length === 0 ? Array.from(new Set(role.plays ?? [])).filter((k) => valid.has(k)) : [];
+  return { home, also, never, keepOn: role.keepOn, ...(plays.length > 0 ? { plays } : {}) };
 }
 
 /** The rows that store a role (replace the player's rows for this unit). */
@@ -169,6 +188,7 @@ export function prefsFromRole(
   if (role.home) rows.push({ kind: "home", ...at(role.home), rank: 0 });
   role.also.forEach((k, i) => rows.push({ kind: "also", ...at(k), rank: i + 1 }));
   role.never.forEach((k) => rows.push({ kind: "never", ...at(k), rank: null }));
+  role.plays?.forEach((k) => rows.push({ kind: "plays", ...at(k), rank: null }));
   if (role.keepOn) rows.push({ kind: "keep_on", position_key: null, line: null, rank: null });
   return rows;
 }

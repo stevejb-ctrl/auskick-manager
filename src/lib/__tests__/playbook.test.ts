@@ -446,7 +446,7 @@ describe("plays as", () => {
     expect(viewFromRole(rolesFromPrefs(rows, model.unit).p1, model).plays).toEqual(["mid", "back"]);
   });
 
-  it("stores no restriction when nothing, or everything, is ticked", () => {
+  it("stores no restriction when nothing, or everything, is ticked (everything is remembered as plays rows)", () => {
     const model = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
     expect(roleFromView({ plays: [], main: "fwd", keepOn: false }, model)).toEqual({
       home: "fwd",
@@ -459,6 +459,7 @@ describe("plays as", () => {
       also: [],
       never: [],
       keepOn: false,
+      plays: ["fwd", "mid", "back"],
     });
   });
 
@@ -504,6 +505,37 @@ describe("plays as", () => {
     expect(model.options.map((o) => o.key)).toEqual(["gk"]);
     expect(describeRole({ home: null, also: [], never: ["gk"], keepOn: false }, model)).toBe("No turns in goal");
     expect(describeRole({ home: "gk", also: [], never: [], keepOn: false }, model)).toBe("Keen keeper");
+  });
+
+  // Steve, 21 Oct 2026: "Selecting a player as both a guard and a forward
+  // does not save either." Every spot ticked stored nothing (no
+  // restriction), so the sheet reopened with nothing ticked.
+  it("ticking every spot saves, and reopens with every spot ticked (basketball Guards + Forwards)", () => {
+    const model = roleModelFor(resolve("basketball", "U12", null))!;
+    const role = roleFromView({ plays: ["guard", "forward"], main: null, keepOn: false }, model);
+    const rows = prefsFromRole(role, model.unit).map((r) => ({ ...r, player_id: "p1" }));
+    expect(rows.map((r) => [r.kind, r.line])).toEqual([
+      ["plays", "guard"],
+      ["plays", "forward"],
+    ]);
+    const back = rolesFromPrefs(rows, model.unit).p1;
+    expect(viewFromRole(back, model).plays).toEqual(["guard", "forward"]);
+    expect(describeRole(back, model)).toBe("Plays Guards, Forwards");
+    // The engines see no restriction and no preference.
+    expect(back).toMatchObject({ home: null, also: [], never: [] });
+  });
+
+  it("ticking every AFL line reopens with every line ticked, and the main line kept", () => {
+    const model = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    const role = roleFromView({ plays: ["fwd", "mid", "back"], main: "mid", keepOn: false }, model);
+    expect(role).toMatchObject({ home: "mid", also: [], never: [] });
+    const rows = prefsFromRole(role, model.unit).map((r) => ({ ...r, player_id: "p1" }));
+    expect(viewFromRole(rolesFromPrefs(rows, model.unit).p1, model)).toEqual({
+      plays: ["fwd", "mid", "back"],
+      main: "mid",
+      keepOn: false,
+      restrictNote: false,
+    });
   });
 
   it("offers to add a position only where the team names its own", () => {

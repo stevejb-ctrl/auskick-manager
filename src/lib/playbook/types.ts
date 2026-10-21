@@ -218,7 +218,8 @@ export interface TeamPositionRow {
   created_at: string;
 }
 
-export type PositionPrefKind = "home" | "also" | "never" | "keep_on";
+/** `plays`: every spot ticked as "Plays as" (engines don't read it). */
+export type PositionPrefKind = "home" | "also" | "never" | "keep_on" | "plays";
 
 export interface PlayerPositionPrefRow {
   id: string;

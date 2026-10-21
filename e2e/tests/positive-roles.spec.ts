@@ -57,6 +57,33 @@ test("basketball: a kid's lines are picked as Plays as Guards / Forwards", async
   await expect.poll(() => prefsOf(admin, kid.id)).toEqual([{ kind: "never", line: "forward", position_key: null }]);
 });
 
+test("basketball: a kid picked as both Guards and Forwards saves, and reopens with both ticked", async ({ page }) => {
+  // Steve, 21 Oct 2026: "Selecting a player as both a guard and a
+  // forward does not save either." Every spot ticked stored nothing, so
+  // the sheet reopened blank and the squad list said nothing.
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12" });
+  const [kid] = await makePlayers(admin, { teamId: team.id, ownerId, count: 6 });
+
+  let sheet = await openRole(page, team.id, kid.full_name);
+  await sheet.getByRole("group", { name: "Plays as" }).getByRole("checkbox", { name: "Guards" }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(page.getByTestId(`player-role-${kid.id}`)).toHaveText("Plays Guards");
+
+  sheet = await openRole(page, team.id, kid.full_name);
+  let playsAs = sheet.getByRole("group", { name: "Plays as" });
+  await expect(playsAs.getByRole("checkbox", { name: "Guards" })).toHaveAttribute("aria-checked", "true");
+  await playsAs.getByRole("checkbox", { name: "Forwards" }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(page.getByTestId(`player-role-${kid.id}`)).toHaveText("Plays Guards, Forwards");
+
+  sheet = await openRole(page, team.id, kid.full_name);
+  playsAs = sheet.getByRole("group", { name: "Plays as" });
+  await expect(playsAs.getByRole("checkbox", { name: "Guards" })).toHaveAttribute("aria-checked", "true");
+  await expect(playsAs.getByRole("checkbox", { name: "Forwards" })).toHaveAttribute("aria-checked", "true");
+});
+
 test("AFL U11: a stored never: Forward shows as Plays as Centre, Back, and saves back unchanged", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
