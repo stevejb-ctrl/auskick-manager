@@ -643,11 +643,6 @@ export function BasketballLiveGame({
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && selectedOnCourt && (trackScoring || trackFouls);
   const hasStickyBottom = !isPreTipoff;
-  const stickyPb = playerDockVisible
-    ? "pb-[calc(13rem+env(safe-area-inset-bottom))]"
-    : hasStickyBottom
-      ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
-      : "";
 
   const actionPlayer = actionPlayerId ? playerById.get(actionPlayerId) ?? null : null;
   const actionLine = actionPlayerId && state.lineup ? basketballLineOf(state.lineup, actionPlayerId) : null;
@@ -657,7 +652,11 @@ export function BasketballLiveGame({
   const otherLine: Record<BasketballLine, BasketballLine | null> = { guard: "forward", forward: "guard", court: null };
 
   return (
-    <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
+    // No bottom padding: LiveStickyScoreBar reserves its own height with
+    // a measured in-flow spacer, and the player dock floats over the
+    // page as AFL's does (Steve 2026-10-21: "Some blank space when
+    // scrolling").
+    <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
         exitHref={exitHref}
         game={game}

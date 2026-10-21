@@ -69,7 +69,9 @@ async function deadSpaceBelowContent(page: import("@playwright/test").Page): Pro
       el = last;
     }
     const bottom = el.getBoundingClientRect().bottom + window.scrollY;
-    return Math.round(document.documentElement.scrollHeight - bottom);
+    // A page shorter than the screen can't scroll into blank space: only
+    // overflow past both the content and the viewport counts.
+    return Math.round(document.documentElement.scrollHeight - Math.max(bottom, window.innerHeight));
   });
 }
 
@@ -128,5 +130,54 @@ test("netball pre-start: the picker ends at its sticky footer, no ghost scroll",
   // picker — so no reservation below it is needed at all. Pre-fix
   // this gap was ~260px (picker pb-[6rem] + page pb-[6rem] + the
   // layout footer).
+  expect(await deadSpaceBelowContent(page)).toBeLessThanOrEqual(48);
+});
+
+// Steve 2026-10-21 (basketball): "Some blank space when scrolling" —
+// blank under Restart game. Basketball and league never got the
+// 16 Oct fix: each still padded the live view with pb-[7rem] on top of
+// LiveStickyScoreBar's measured spacer.
+async function ownerOf(admin: ReturnType<typeof createAdminClient>) {
+  const { data } = await admin.auth.admin.listUsers();
+  return data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+}
+
+test("basketball live play: the page doesn't scroll far past the content", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "basketball" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 7 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  const lineup = { lines: { guard: ids.slice(0, 2), forward: ids.slice(2, 5), court: [] }, bench: ids.slice(5) };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup, sport: "basketball" }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1, sport: "basketball" }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^clock — h1/i })).toBeVisible({ timeout: 15_000 });
+  expect(await deadSpaceBelowContent(page)).toBeLessThanOrEqual(48);
+});
+
+test("rugby league live play: the page doesn't scroll far past the content", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 13, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ on_field_size: 11, status: "in_progress" }).eq("id", game.id);
+  const ids = players.map((p) => p.id);
+  const lineup = { forwards: ids.slice(0, 5), backs: ids.slice(5, 11), bench: ids.slice(11) };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup, sport: "rugby_league" }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_by: ownerId },
+  ]);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /exit live game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1/i })).toBeVisible({ timeout: 15_000 });
   expect(await deadSpaceBelowContent(page)).toBeLessThanOrEqual(48);
 });
