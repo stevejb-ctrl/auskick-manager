@@ -19,13 +19,13 @@ export interface IndexableRoute {
 
 /** Public pages we want found. Each is a sitemap entry. */
 export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
-  { path: "/", priority: 1.0, changeFrequency: "monthly", lastModified: "2026-10-18" },
-  { path: "/demo", priority: 0.9, changeFrequency: "monthly", lastModified: "2026-10-18" },
-  { path: "/why-siren", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-18" },
+  { path: "/", priority: 1.0, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  { path: "/demo", priority: 0.9, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  { path: "/why-siren", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-21" },
 
   // Help hub
-  { path: "/help", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/getting-started", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-14" },
+  { path: "/help", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  { path: "/help/getting-started", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-21" },
   { path: "/help/teams", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
   { path: "/help/squads", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
   { path: "/help/games", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
@@ -33,16 +33,16 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
   { path: "/help/live-game", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-18" },
   { path: "/help/track-scoring", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-18" },
   { path: "/help/stats", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/faq", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/troubleshooting", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
+  { path: "/help/faq", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  { path: "/help/troubleshooting", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-21" },
 
   // Transactional landing pages — useful for brand search.
   { path: "/contact", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-05-16" },
   { path: "/support", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-05-16" },
 
   // Legal
-  { path: "/privacy", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-05-12" },
-  { path: "/terms", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-05-12" },
+  { path: "/privacy", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-10-19" },
+  { path: "/terms", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-04-22" },
 ];
 
 /**
