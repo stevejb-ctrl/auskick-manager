@@ -6,7 +6,8 @@ import { PLATFORMS } from "@/lib/siren-facts";
 
 export const metadata = {
   title: "FAQ · Help · Siren",
-  description: "Quick answers to the most common questions about Siren.",
+  description:
+    "Answers to common Siren questions: does it work offline, which phones it runs on, undoing a score, sub alerts, late arrivals, fair playing time and inviting another coach.",
   alternates: { canonical: "/help/faq" },
 };
 

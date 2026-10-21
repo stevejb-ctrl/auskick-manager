@@ -33,13 +33,42 @@ test("the sitemap lists every public page, and each opens signed out", async ({ 
   const paths = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), (m) => new URL(m[1]).pathname);
 
   expect(paths).toEqual(
-    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq", "/login"]),
+    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq"]),
   );
+  // A sign-in form has little to index (it stays crawlable).
+  expect(paths).not.toContain("/login");
   expect(new Set(paths).size).toBe(paths.length);
 
   for (const path of paths) {
     const page = await request.get(path, { maxRedirects: 0 });
     expect(page.status(), path).toBe(200);
+  }
+});
+
+test("the homepage names every sport, in its title, description and server HTML", async ({ page, request }) => {
+  // AI crawlers don't run JavaScript, so the sports must be in the HTML
+  // the server sends, not just behind the sport picker.
+  const html = await (await request.get("/")).text();
+  expect(html).toContain(
+    "One app, six sports: junior AFL, netball, rugby league and rugby union, plus football (soccer) and basketball in beta.",
+  );
+
+  await page.goto("/");
+  await expect(page).toHaveTitle("Siren: fair rotations and subs for junior footy, netball, league and more");
+  const description = await page.locator('meta[name="description"]').getAttribute("content");
+  for (const sport of ["AFL", "netball", "rugby league", "rugby union", "football (soccer)", "basketball in beta"]) {
+    expect(description, sport).toContain(sport);
+  }
+});
+
+test("sign-in and help have titles and descriptions of their own", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page).toHaveTitle("Sign in · Siren");
+
+  for (const path of ["/help", "/help/faq"]) {
+    await page.goto(path);
+    const description = await page.locator('meta[name="description"]').getAttribute("content");
+    expect(description?.length, path).toBeGreaterThan(100);
   }
 });
 

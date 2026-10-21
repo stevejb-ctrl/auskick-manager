@@ -37,7 +37,6 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
   { path: "/help/troubleshooting", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
 
   // Transactional landing pages — useful for brand search.
-  { path: "/login", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-04-28" },
   { path: "/contact", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-05-16" },
   { path: "/support", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-05-16" },
 
@@ -48,10 +47,12 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
 
 /**
  * Public pages left out of the sitemap: crawlable, not worth
- * indexing. /signup redirects to /login under the unified
- * email-first flow, so listing both is two URLs for one page.
+ * indexing. /login is a form with little to read. /signup redirects to
+ * /login under the unified email-first flow, so listing both is two
+ * URLs for one page.
  */
 export const UNLISTED_PUBLIC_PATHS: readonly string[] = [
+  "/login",
   "/signup",
   "/forgot-password",
   "/offline",
@@ -64,6 +65,13 @@ export const UNLISTED_PUBLIC_PATHS: readonly string[] = [
  * disallows each one, and matching works the same way robots.txt
  * does — a plain prefix.
  */
+/**
+ * Unlisted pages Google Analytics still measures, beside the sitemap's
+ * (src/lib/analytics/ga-routes.ts). Sign-in is where a marketing visit
+ * ends, so the funnel needs it.
+ */
+export const UNLISTED_ANALYTICS_PATHS: readonly string[] = ["/login"];
+
 export const PRIVATE_PATH_PREFIXES: readonly string[] = [
   "/api/",
   "/auth/",

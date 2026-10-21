@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   INDEXABLE_ROUTES,
+  UNLISTED_ANALYTICS_PATHS,
   UNLISTED_PUBLIC_PATHS,
   isPrivatePath,
 } from "@/lib/public-routes";
@@ -49,6 +50,13 @@ describe("public routes", () => {
   it("lists only real pages in the sitemap, once each", () => {
     expect(indexable.filter((p) => !pages.includes(p))).toEqual([]);
     expect(new Set(indexable).size).toBe(indexable.length);
+  });
+
+  it("measures only unlisted pages that really are unlisted and public", () => {
+    for (const p of UNLISTED_ANALYTICS_PATHS) {
+      expect(UNLISTED_PUBLIC_PATHS, p).toContain(p);
+      expect(indexable, p).not.toContain(p);
+    }
   });
 
   it("never lists a private page", () => {

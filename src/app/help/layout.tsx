@@ -7,7 +7,7 @@ import { getUser } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Help · Siren",
-  description: "Documentation and guides for Siren.",
+  description: "How to use Siren, the game-day app for junior sport coaches.",
 };
 
 // Help opens from inside the app (the avatar menu), so a signed-in

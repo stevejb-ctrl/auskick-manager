@@ -8,7 +8,8 @@ import { sportsSentence } from "@/lib/siren-facts";
 
 export const metadata = {
   title: "Help · Siren",
-  description: "Guides and documentation for Siren.",
+  description:
+    "How to use Siren, the game-day app for junior sport coaches: set up a team and squad, run a live game with fair rotations and subs, keep score and read season stats. Plus the FAQ and troubleshooting.",
   alternates: { canonical: "/help" },
 };
 
