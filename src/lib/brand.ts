@@ -1,9 +1,11 @@
 // ─── Brand resolver (RSC + middleware) ───────────────────────
 // The active brand is decided by (in priority order):
 //   1. `x-brand` request header set by middleware from the host name.
-//   2. `NEXT_PUBLIC_DEFAULT_BRAND` env var (dev only).
-//   3. `?brand=netball` query param (dev only).
-//   4. Fallback: AFL.
+//   2. `?brand=netball` query param (off production only).
+//   3. `NEXT_PUBLIC_DEFAULT_BRAND` env var (dev only).
+//   4. The sticky `siren_brand` cookie (off production only).
+//   5. Fallback: AFL.
+// Middleware ignores 2 and 4 when VERCEL_ENV is "production".
 //
 // Brand affects marketing copy + default sport on sign-up. It does
 // NOT affect which teams a user can see once signed in — a coach who
@@ -22,7 +24,7 @@ const BRAND_COOKIE = "siren_brand";
 
 /** Header name used internally to propagate brand from middleware to RSC. */
 export const BRAND_HEADER_NAME = BRAND_HEADER;
-/** Cookie name used for sticky brand override (dev only). */
+/** Cookie name used for sticky brand override (off production only). */
 export const BRAND_COOKIE_NAME = BRAND_COOKIE;
 
 /**

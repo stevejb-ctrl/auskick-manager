@@ -18,13 +18,22 @@ export async function updateSession(request: NextRequest) {
   request.headers.delete(SIREN_USER_ID_HEADER);
 
   // ─── Brand routing ─────────────────────────────────────────
-  // Read the host and pick a brand. In dev, `?brand=netball` or
-  // NEXT_PUBLIC_DEFAULT_BRAND override. Result is stashed on the
-  // request headers so downstream RSC can read it via `headers()`.
+  // Read the host and pick a brand. Off production, `?brand=netball`,
+  // NEXT_PUBLIC_DEFAULT_BRAND or the sticky cookie override it. Result
+  // is stashed on the request headers so downstream RSC can read it
+  // via `headers()`.
+  //
+  // Production ignores the query and the cookie: they used to turn
+  // www.sirenfooty.com.au/?brand=netball into "Siren Netball" with a
+  // canonical on sirennetball.com.au, which doesn't exist. Gate on
+  // VERCEL_ENV, not NODE_ENV — e2e runs `next start` (NODE_ENV is
+  // production there) and still switches brands.
+  // src/lib/__tests__/brandOverride.test.ts guards it.
+  const allowVisitorOverride = process.env.VERCEL_ENV !== "production";
   const override =
-    request.nextUrl.searchParams.get("brand") ??
+    (allowVisitorOverride ? request.nextUrl.searchParams.get("brand") : null) ??
     process.env.NEXT_PUBLIC_DEFAULT_BRAND ??
-    request.cookies.get(BRAND_COOKIE_NAME)?.value ??
+    (allowVisitorOverride ? request.cookies.get(BRAND_COOKIE_NAME)?.value : null) ??
     null;
   const brand = resolveBrandFromHost(request.headers.get("host"), override);
   request.headers.set(BRAND_HEADER_NAME, brand.brand.id);
