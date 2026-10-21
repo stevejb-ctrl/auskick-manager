@@ -61,6 +61,15 @@ test("the homepage names every sport, in its title, description and server HTML"
   }
 });
 
+test("the homepage H1 paints before JavaScript runs", async ({ request }) => {
+  // RevealOnScroll renders opacity:0 on the server and fades in after
+  // hydration. Around the H1, the largest paint, that delayed LCP.
+  const html = await (await request.get("/")).text();
+  const beforeH1 = html.slice(0, html.indexOf("<h1"));
+  const hero = beforeH1.slice(beforeH1.lastIndexOf("<section"));
+  expect(hero).not.toContain("opacity:0");
+});
+
 test("sign-in and help have titles and descriptions of their own", async ({ page }) => {
   await page.goto("/login");
   await expect(page).toHaveTitle("Sign in · Siren");
