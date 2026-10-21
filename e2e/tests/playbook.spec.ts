@@ -411,7 +411,7 @@ test("a home position follows the position when the coach renames it", async ({ 
     .not.toBe("ff");
 
   await gotoStable(page, `/teams/${team.id}/squad`);
-  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home TALL");
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Main TALL");
 });
 
 test("set positions: game day puts kids in their home line, labelled", async ({ page }) => {
@@ -890,7 +890,7 @@ test("league named positions: a home position shows on the tile", async ({ page 
 
   // The squad's role sheet offers the catalogue positions.
   await page.goto(`/teams/${team.id}/squad`);
-  await expect(page.getByTestId(`player-role-${hooker.id}`)).toHaveText("Home HK", { timeout: 15_000 });
+  await expect(page.getByTestId(`player-role-${hooker.id}`)).toHaveText("Main HK", { timeout: 15_000 });
 
   await page.addInitScript(() => {
     try {
