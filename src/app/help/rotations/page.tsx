@@ -61,12 +61,12 @@ export default function RotationsPage() {
             kept on the field never leave, and players kept in a line stay in
             it; netball players kept in a position stay there at the next
             break; league never suggests taking off the FR or DH vest wearer,
-            or a player with the Keep on role
+            or a player who plays every minute
           </li>
           <li>
             <strong className="text-ink">How we play</strong>: your rotation
-            style, season balance, each player&apos;s role (home, also plays,
-            never plays, keep on) and your rules (keep apart, keep together,
+            style, season balance, each player&apos;s role (where they play,
+            their main spot, plays every minute) and your rules (keep apart, keep together,
             nobody sits out twice in a row…). See the{" "}
             <Link href="/help/squads" className="font-medium underline">
               Squads

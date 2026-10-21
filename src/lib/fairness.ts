@@ -732,7 +732,8 @@ export function suggestStartingLineup(
       ...sortedPlayers.slice(capacity),
     ];
   }
-  // "Never plays" is a hard filter; a player with no allowed zone open
+  // A kid's "Plays as" (stored as never rows for the other lines) is a
+  // hard filter; a player with no allowed zone open
   // waits, and only fills a gap nobody else can.
   const deferred: string[] = [];
   const isNever = (pid: string, z: Zone) => {

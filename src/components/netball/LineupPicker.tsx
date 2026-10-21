@@ -161,8 +161,8 @@ interface LineupPickerProps {
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
-   * Player roles (How we play): long-press a player to set their home,
-   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   * Player roles (How we play): long-press a player to set where they
+   * play, their main spot and plays every minute (UX plan 3.5). Coaches only.
    */
   roleSheet?: RoleSheetConfig;
   /**
