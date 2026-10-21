@@ -11,15 +11,13 @@ import {
 } from "@/lib/structured-data";
 import { APP_STORE_URL } from "@/lib/app-links";
 import { HELP_PAGES } from "@/lib/help/pages";
+import { FEATURES, PRICE, sirenOneLiner } from "@/lib/siren-facts";
 
 const SITE = "https://www.sirenfooty.com.au";
-const COPY = {
-  productName: "Siren Footy",
-  metaDescription: "Junior AFL game manager.",
-};
+const COPY = { productName: "Siren Footy" };
 
 describe("organizationJsonLd", () => {
-  it("names Siren, with a logo and a support contact", () => {
+  it("names Siren, who makes it and where, with a logo and a support contact", () => {
     expect(organizationJsonLd(SITE)).toEqual({
       "@context": "https://schema.org",
       "@type": "Organization",
@@ -27,6 +25,10 @@ describe("organizationJsonLd", () => {
       name: "Siren",
       url: `${SITE}/`,
       logo: `${SITE}/favicon-512.png`,
+      description: sirenOneLiner(),
+      sameAs: [APP_STORE_URL],
+      founder: { "@type": "Person", name: "Steve Bull", description: "A parent-coach in Australia" },
+      areaServed: { "@type": "Country", name: "Australia" },
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "customer support",
@@ -52,21 +54,35 @@ describe("websiteJsonLd", () => {
 });
 
 describe("softwareApplicationJsonLd", () => {
-  const app = softwareApplicationJsonLd(SITE, COPY);
+  const app = softwareApplicationJsonLd(SITE, COPY.productName);
 
   it("describes a free sports app on iOS and the web", () => {
     expect(app).toMatchObject({
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       name: "Siren Footy",
-      description: "Junior AFL game manager.",
+      description: sirenOneLiner(),
       url: `${SITE}/`,
       applicationCategory: "SportsApplication",
       operatingSystem: "iOS, Web",
       installUrl: APP_STORE_URL,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "AUD",
+        priceValidUntil: PRICE.validUntil,
+        description: PRICE.line,
+      },
       publisher: { "@id": `${SITE}/#organization` },
     });
+  });
+
+  it("names every sport, not just the brand's, and lists the features", () => {
+    expect(app.description).toContain("plus football (soccer) and basketball in beta");
+    expect(app.featureList).toEqual([
+      "Sports: AFL, netball, rugby league and rugby union, plus football (soccer) and basketball in beta",
+      ...FEATURES,
+    ]);
   });
 
   it("claims no ratings or reviews", () => {

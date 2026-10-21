@@ -140,6 +140,9 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     name: "Siren",
     url: expect.stringMatching(/^https:\/\/www\.siren[a-z]+\.com\.au\/$/),
     logo: expect.stringMatching(/\.png$/),
+    sameAs: [expect.stringContaining("apps.apple.com")],
+    founder: { "@type": "Person", name: "Steve Bull" },
+    areaServed: { "@type": "Country", name: "Australia" },
   });
   expect(ofType(blocks, "WebSite")).toMatchObject({ name: expect.stringMatching(/^Siren /) });
 
@@ -148,7 +151,9 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     applicationCategory: "SportsApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
     installUrl: expect.stringContaining("apps.apple.com"),
+    description: expect.stringContaining("plus football (soccer) and basketball in beta"),
   });
+  expect((app?.featureList as string[]).length).toBeGreaterThan(3);
   // No ratings until they're real ones from a review source.
   expect(app).not.toHaveProperty("aggregateRating");
 });

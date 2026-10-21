@@ -57,7 +57,7 @@ export default async function Home() {
       {/* Structured data: who makes Siren, the site, and the app. */}
       <JsonLd data={organizationJsonLd(site)} />
       <JsonLd data={websiteJsonLd(site, copy.productName)} />
-      <JsonLd data={softwareApplicationJsonLd(site, copy)} />
+      <JsonLd data={softwareApplicationJsonLd(site, copy.productName)} />
       {/* Belt-and-braces redirect off marketing for native Capacitor
           users. The canonical fix is in capacitor.config.ts +
           middleware.ts, but TestFlight Build 1 was archived before

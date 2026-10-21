@@ -1,5 +1,13 @@
 import { APP_STORE_URL } from "@/lib/app-links";
 import { HELP_PAGES } from "@/lib/help/pages";
+import {
+  FEATURES,
+  MAKER,
+  PLATFORMS,
+  PRICE,
+  sirenOneLiner,
+  sportsSentence,
+} from "@/lib/siren-facts";
 
 // ─── Structured data (JSON-LD) for search engines ────────────
 // Plain builders: each takes the brand's canonical host (siteUrl())
@@ -8,7 +16,9 @@ import { HELP_PAGES } from "@/lib/help/pages";
 //
 // Only state what's true. No aggregateRating or review until there
 // are real ones from a review source: Google treats invented ratings
-// as spam, and Australian consumer law covers them too.
+// as spam, and Australian consumer law covers them too. The facts
+// (sports, price, platforms, who makes Siren) come from
+// src/lib/siren-facts.ts, as the pages' copy does.
 
 const CONTEXT = "https://schema.org";
 const SUPPORT_EMAIL = "hello@sirenfooty.com.au";
@@ -28,6 +38,15 @@ export function organizationJsonLd(siteUrl: string): JsonLdObject {
     name: "Siren",
     url: `${siteUrl}/`,
     logo: `${siteUrl}/favicon-512.png`,
+    description: sirenOneLiner(),
+    // Profiles elsewhere that are Siren. Add social pages as they open.
+    sameAs: [APP_STORE_URL],
+    founder: {
+      "@type": "Person",
+      name: MAKER.name,
+      description: `A ${MAKER.role} in ${MAKER.country}`,
+    },
+    areaServed: { "@type": "Country", name: MAKER.country },
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer support",
@@ -51,24 +70,29 @@ export function websiteJsonLd(siteUrl: string, productName: string): JsonLdObjec
 }
 
 /**
- * Siren as an app. Free for the 2026 season (the marketing banner says
- * so), hence the $0 offer. Change it when pricing changes. iOS has a
- * store listing; Android runs it on the web until a Play listing ships.
+ * Siren as an app: every sport, its features, and the price from
+ * siren-facts (free for the 2026 season, so a $0 offer valid to the
+ * season's end). iOS has a store listing; Android runs it on the web
+ * until a Play listing ships.
  */
-export function softwareApplicationJsonLd(
-  siteUrl: string,
-  copy: { productName: string; metaDescription: string },
-): JsonLdObject {
+export function softwareApplicationJsonLd(siteUrl: string, productName: string): JsonLdObject {
   return {
     "@context": CONTEXT,
     "@type": "SoftwareApplication",
-    name: copy.productName,
-    description: copy.metaDescription,
+    name: productName,
+    description: sirenOneLiner(),
     url: `${siteUrl}/`,
     applicationCategory: "SportsApplication",
-    operatingSystem: "iOS, Web",
+    operatingSystem: PLATFORMS.operatingSystem,
     installUrl: APP_STORE_URL,
-    offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
+    featureList: [`Sports: ${sportsSentence()}`, ...FEATURES],
+    offers: {
+      "@type": "Offer",
+      price: String(PRICE.amountAud),
+      priceCurrency: "AUD",
+      priceValidUntil: PRICE.validUntil,
+      description: PRICE.line,
+    },
     publisher: { "@id": organizationId(siteUrl) },
   };
 }
