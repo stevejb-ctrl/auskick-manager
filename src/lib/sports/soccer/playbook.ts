@@ -9,7 +9,8 @@
 //     the season (season balance).
 //   - A kid's role is about goal: home "Keeper" marks a keen keeper
 //     (or, under "Keepers", one of the named keepers, in rank order);
-//     "Not here: Keeper" marks a kid who'd rather not go in goal.
+//     "Takes a turn in goal" switched off (stored as a never row on
+//     Keeper) marks a kid who'd rather not go in goal.
 //     Soccer's lines offer no home: the engine rotates every kid
 //     through them, so a home line would do nothing.
 //   - The laws shown are MiniRoos' (Football Australia): no scores or
@@ -89,8 +90,9 @@ type PrefLike = Pick<PlayerPositionPrefRow, "player_id" | "position_key" | "line
 
 /**
  * The keeper prefs from How we play's roles: home "Keeper" is a keen
- * keeper and, under "Keepers", a named keeper (in rank order); "Not
- * here: Keeper" is a kid who'd rather not go in goal.
+ * keeper and, under "Keepers", a named keeper (in rank order); a never
+ * row on Keeper ("Takes a turn in goal" off) is a kid who'd rather not
+ * go in goal.
  */
 export function soccerKeeperPrefs(prefs: readonly PrefLike[]): SoccerKeeperPrefs {
   const goal = [...prefs]

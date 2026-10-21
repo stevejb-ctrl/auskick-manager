@@ -143,8 +143,8 @@ interface LeagueLineupPickerProps {
   /** How we play for the league suggester (UX plan 5.6). */
   leaguePlaybook?: import("@/lib/sports/rugby_league/engine").LeaguePlaybookInput;
   /**
-   * Player roles (How we play): long-press a player to set their home,
-   * also plays, never plays and keep on (UX plan 3.5). Coaches only.
+   * Player roles (How we play): long-press a player to set where they
+   * play, their main spot and plays every minute (UX plan 3.5). Coaches only.
    */
   roleSheet?: RoleSheetConfig;
   /**

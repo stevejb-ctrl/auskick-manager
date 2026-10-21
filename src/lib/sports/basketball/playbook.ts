@@ -71,6 +71,7 @@ const MINUTES: StrategyDef = {
   fit: "Under 8 and Under 10",
   usesPositions: false,
   roleHome: "line",
+  rolePlaysAs: false,
   balanceUnit: null,
   balanceByDefault: false,
 };
@@ -102,6 +103,7 @@ const ALL_FIVE: StrategyDef = {
   blurb: "Every spot, 1 to 5, filled on its own, aiming for the most different positions per kid.",
   fit: "Coaches who want every kid to play 1 to 5",
   usesPositions: false,
+  rolePositions: true,
   balanceUnit: "position",
   balanceByDefault: true,
 };
@@ -131,25 +133,36 @@ const POSITION_KEYS = new Set<string>(BASKETBALL_POSITION_DEFS.map((p) => p.key)
 /**
  * The suggesters' roles from How we play's role sheet: a home line
  * (Home line; under Equal minutes, home Guards marks a ball handler), a
- * home position and backups (Set positions).
+ * home position and backups (Set positions), the lines and positions a
+ * kid's "Plays as" leaves out, and who plays every minute.
  */
 export function basketballPrefs(prefs: readonly PrefLike[]): BasketballPrefs {
   const homeLine: Record<string, "guard" | "forward"> = {};
   const homePosition: Record<string, BasketballPosition> = {};
   const alsoPositions: Record<string, BasketballPosition[]> = {};
+  const neverLine: Record<string, ("guard" | "forward")[]> = {};
+  const neverPosition: Record<string, BasketballPosition[]> = {};
+  const keepOn: string[] = [];
   for (const p of [...prefs].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))) {
+    if (p.kind === "keep_on") {
+      keepOn.push(p.player_id);
+      continue;
+    }
     if (p.position_key && POSITION_KEYS.has(p.position_key)) {
       const pos = p.position_key as BasketballPosition;
       if (p.kind === "home") homePosition[p.player_id] = pos;
       else if (p.kind === "also") (alsoPositions[p.player_id] ??= []).push(pos);
+      else if (p.kind === "never") (neverPosition[p.player_id] ??= []).push(pos);
       continue;
     }
-    if (p.kind === "home" && (p.line === "guard" || p.line === "forward")) homeLine[p.player_id] = p.line;
+    if (p.line !== "guard" && p.line !== "forward") continue;
+    if (p.kind === "home") homeLine[p.player_id] = p.line;
+    else if (p.kind === "never") (neverLine[p.player_id] ??= []).push(p.line);
   }
   const ballHandlers = Object.entries(homeLine)
     .filter(([, line]) => line === "guard")
     .map(([pid]) => pid);
-  return { homeLine, homePosition, alsoPositions, ballHandlers };
+  return { homeLine, homePosition, alsoPositions, ballHandlers, neverLine, neverPosition, keepOn };
 }
 
 /** How we play, as the basketball suggesters read it. */

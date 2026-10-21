@@ -55,7 +55,7 @@ interface PlayerTileProps {
   caption?: TileCaption | null;
   /** Set positions: the named position shown instead of the zone ("CHB"). */
   positionLabel?: string | null;
-  /** Season role "Keep on, every game" (lineup screens). */
+  /** Season role "Plays every minute" (lineup screens). */
   keepOn?: boolean;
   /**
    * The sub card is in its SUB DUE state: an outgoing tile turns from

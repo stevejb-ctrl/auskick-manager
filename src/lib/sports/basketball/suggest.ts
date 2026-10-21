@@ -69,7 +69,24 @@ export interface BasketballPrefs {
   alsoPositions?: Record<string, BasketballPosition[]>;
   /** Kids tagged "ball handler" (Equal minutes). */
   ballHandlers?: readonly string[];
+  /** Lines a kid doesn't play (their "Plays as" leaves them out). */
+  neverLine?: Record<string, readonly BasketballLine[]>;
+  /** Positions a kid doesn't play. */
+  neverPosition?: Record<string, readonly BasketballPosition[]>;
+  /** Kids who play every minute the rules allow. */
+  keepOn?: readonly string[];
 }
+
+/** A spot a kid doesn't play: outweighs every other term, so it's used only when nobody else can fill it. */
+const NOT_PLAYED = -1000;
+
+function playsSpot(prefs: BasketballPrefs | undefined, pid: string, line: BasketballLine, pos: BasketballPosition | null): boolean {
+  if (line === "court") return true;
+  if (prefs?.neverLine?.[pid]?.includes(line)) return false;
+  return !(pos && prefs?.neverPosition?.[pid]?.includes(pos));
+}
+
+const keptOn = (prefs: BasketballPrefs | undefined, pid: string) => (prefs?.keepOn?.includes(pid) ? 0 : 1);
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface BasketballSub {
@@ -164,7 +181,7 @@ function spotScore(
   const posDebt = seasonTerm(season, POSITION_KEYS);
   return (pid: string, spot: Spot): number => {
     if (spot.line === "court") return 0;
-    let s = 0;
+    let s = playsSpot(prefs, pid, spot.line, spot.pos) ? 0 : NOT_PLAYED;
     if (strategy === "preferred-line") {
       const home = prefs?.homeLine?.[pid];
       if (home) s += home === spot.line ? 4 : 0;
@@ -296,7 +313,7 @@ export function suggestBasketballLineup(input: SuggestBasketballLineupInput): Ba
   const { players, prefs, season, strategy } = input;
   const onCount = Math.min(input.onCourtSize, players.length);
   const shape = basketballShapeFor(strategy, onCount, input.shapeId);
-  let starters = sortBy(players, (p) => seasonTotal(season, p)).slice(0, onCount);
+  let starters = sortBy(players, (p) => [keptOn(prefs, p), seasonTotal(season, p)]).slice(0, onCount);
   if (strategy === "minutes") starters = withBallHandler(starters, players, prefs);
   const playing = new Set(starters);
   const ordered = players.filter((p) => playing.has(p));
@@ -358,10 +375,11 @@ export function suggestBasketballSubs(input: SuggestBasketballSubsInput): Basket
   const rested = fit.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else can come on;
   // kids in foul trouble come on last.
-  const bench = sortBy(rested.length > 0 ? rested : fit, (p) => [trouble(p), game(p)]);
+  const bench = sortBy(rested.length > 0 ? rested : fit, (p) => [trouble(p), keptOn(prefs, p), game(p)]);
   // Kids in foul trouble go off first; kids who just came on go off last.
+  // Kids who play every minute stay on unless they're in foul trouble.
   const court = sortBy(
-    basketballOnCourt(lu).filter((p) => !held.has(p)),
+    basketballOnCourt(lu).filter((p) => !held.has(p) && (keptOn(prefs, p) === 1 || trouble(p) === 1)),
     (p) => [-trouble(p), justOn(p) ? 1 : 0, -game(p)],
   );
 
@@ -387,7 +405,11 @@ export function suggestBasketballSubs(input: SuggestBasketballSubsInput): Basket
   for (const on of bench) {
     if (input.maxSubs !== undefined && pairs.length >= input.maxSubs) break;
     const only = lineHold(on) ?? (likeForLike ? homeLineOf(on) : null);
-    const off = court.find((p) => !used.has(p) && (!only || basketballLineOf(lu, p) === only) && keepsHandler(p, on));
+    const plays = (p: string) => {
+      const line = basketballLineOf(lu, p) as BasketballLine;
+      return playsSpot(prefs, on, line, lu.slots?.[p] ?? null);
+    };
+    const off = court.find((p) => !used.has(p) && (!only || basketballLineOf(lu, p) === only) && plays(p) && keepsHandler(p, on));
     if (!off) continue;
     // Foul trouble comes off even when it doesn't even time; otherwise
     // only a sub that evens time.
@@ -450,7 +472,7 @@ export function suggestBasketballBreakPlan(input: SuggestBasketballBreakInput): 
   const out = squad.filter((p) => !here.includes(p));
   const onCount = Math.min(input.onCourtSize, here.length);
   const shape = basketballShapeFor(strategy, onCount, input.shapeId);
-  let starters = sortBy(here, (p) => [basketballGameMs(state, p), seasonTotal(season, p)]).slice(0, onCount);
+  let starters = sortBy(here, (p) => [keptOn(prefs, p), basketballGameMs(state, p), seasonTotal(season, p)]).slice(0, onCount);
   if (strategy === "minutes") starters = withBallHandler(starters, here, prefs);
   const playing = new Set(starters);
   const periodMs = season?.periodMs ?? (state.periodElapsedMs || 600_000);

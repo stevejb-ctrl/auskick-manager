@@ -339,18 +339,24 @@ test("a coach sets a player's role from the squad", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/squad`);
   await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
-  await page.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Forward" }).click();
-  await page.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: "Back" }).click();
-  await page.getByRole("switch", { name: "Keep on" }).click();
+  const playsAs = page.getByRole("group", { name: "Plays as" });
+  await playsAs.getByRole("checkbox", { name: "Forward" }).click();
+  await playsAs.getByRole("checkbox", { name: "Centre" }).click();
+  await page.getByRole("radiogroup", { name: "Main line" }).getByRole("radio", { name: "Forward" }).click();
+  await page.getByRole("switch", { name: "Plays every minute" }).click();
   await page.getByRole("button", { name: "Save role" }).click();
 
-  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Prefers Forward · not Back · keep on");
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText(
+    "Plays Forward, Centre · main Forward · every minute",
+  );
+  // "Plays as" is stored as before: Back, the line left out, is a never row.
   const { data: prefs } = await admin
     .from("player_position_prefs")
     .select("kind, line, position_key")
     .eq("player_id", player.id)
     .order("kind");
   expect(prefs).toEqual([
+    { kind: "also", line: "mid", position_key: null },
     { kind: "home", line: "fwd", position_key: null },
     { kind: "keep_on", line: null, position_key: null },
     { kind: "never", line: "back", position_key: null },
@@ -367,11 +373,11 @@ test("a home position follows the position when the coach renames it", async ({ 
   await page.goto(`/teams/${team.id}/squad`);
   await page.getByRole("button", { name: `Role for ${player.full_name}` }).click();
   await page
-    .getByRole("radiogroup", { name: "Home position" })
+    .getByRole("radiogroup", { name: "Main position" })
     .getByRole("radio", { name: "Full forward (FF)" })
     .click();
   await page.getByRole("button", { name: "Save role" }).click();
-  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Home FF");
+  await expect(page.getByTestId(`player-role-${player.id}`)).toHaveText("Main FF");
 
   // Rename FF on the Team tab; the first save turns defaults into rows.
   await page.goto(`/teams/${team.id}/settings`);
@@ -897,11 +903,12 @@ test("league named positions: a home position shows on the tile", async ({ page 
 });
 
 test("a season keep-on role shows on the lineup in every sport", async ({ page }) => {
-  // Stagehand rounds 1 and 2: a coach set "Keep on, every game" and
-  // nothing on the lineup showed it. One shared marker, all three sports.
+  // Stagehand rounds 1 and 2: a coach set the keep-on role (now "Plays
+  // every minute") and nothing on the lineup showed it. One shared
+  // marker, all three sports.
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
-  const MARK = "Keep on, every game";
+  const MARK = "Plays every minute";
   await page.addInitScript(() => {
     try {
       for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
@@ -996,8 +1003,8 @@ test("a coach sets a role from the game-day lineup with a long-press", async ({ 
   const sheet = page.getByRole("dialog", { name: `Role for ${players[0].full_name}` });
   await expect(sheet).toBeVisible();
   // The season role says it's all season, not this game.
-  await expect(sheet.getByRole("switch", { name: "Keep on, every game" })).toBeVisible();
-  await sheet.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Back" }).click();
+  await expect(sheet.getByRole("switch", { name: "Plays every minute" })).toBeVisible();
+  await sheet.getByRole("radiogroup", { name: "Main line" }).getByRole("radio", { name: "Back" }).click();
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
   await expect
@@ -1047,7 +1054,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await chip.click({ delay: 600 });
   const nbSheet = page.getByRole("dialog", { name: `Role for ${benchName}` });
   await expect(nbSheet).toBeVisible();
-  await nbSheet.getByRole("radiogroup", { name: "Home position" }).getByRole("radio", { name: /\(GK\)/ }).click();
+  await nbSheet.getByRole("radiogroup", { name: "Main position" }).getByRole("radio", { name: /\(GK\)/ }).click();
   await nbSheet.getByRole("button", { name: "Save role" }).click();
   await expect(nbSheet).toHaveCount(0);
   await expect.poll(async () => (await homeOf(benchId))?.position_key).toBe("gk");
@@ -1076,7 +1083,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await page.getByRole("button", { name: /Player role/ }).click();
   const lgSheet = page.getByRole("dialog", { name: `Role for ${target.full_name}` });
   await expect(lgSheet).toBeVisible();
-  await lgSheet.getByRole("radiogroup", { name: "Preferred line" }).getByRole("radio", { name: "Backs" }).click();
+  await lgSheet.getByRole("radiogroup", { name: "Main line" }).getByRole("radio", { name: "Backs" }).click();
   await lgSheet.getByRole("button", { name: "Save role" }).click();
   await expect(lgSheet).toHaveCount(0);
   await expect.poll(async () => (await homeOf(target.id))?.line).toBe("backs");
@@ -1229,11 +1236,13 @@ test("the wizard's squad step sets players' positions too", async ({ page }) => 
   await page.goto(`/teams/${team.id}/setup?step=squad`);
   await page.getByRole("button", { name: `Role for ${player.full_name}` }).click({ timeout: 15_000 });
   const sheet = page.getByRole("dialog", { name: `Role for ${player.full_name}` });
-  await sheet.getByRole("radiogroup", { name: "Home position" }).getByRole("radio", { name: /\(FF\)/ }).click();
+  const playsAs = sheet.getByRole("group", { name: "Plays as" });
+  await playsAs.getByRole("checkbox", { name: /\(FF\)/ }).click();
+  await playsAs.getByRole("checkbox", { name: /\(CHF\)/ }).click();
   // Chips are abbreviations; the sheet spells out what was picked.
-  await expect(sheet.getByTestId("role-picked-home")).toHaveText("Full forward");
-  await sheet.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: /\(LBP\)/ }).click();
-  await expect(sheet.getByTestId("role-picked-never")).toHaveText("Left back pocket");
+  await expect(sheet.getByTestId("role-picked-plays")).toHaveText("Full forward, Centre half-forward");
+  await sheet.getByRole("radiogroup", { name: "Main position" }).getByRole("radio", { name: /\(FF\)/ }).click();
+  await expect(sheet.getByTestId("role-picked-main")).toHaveText("Full forward");
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
   await expect(page.getByTestId(`player-role-${player.id}`)).toContainText("FF");

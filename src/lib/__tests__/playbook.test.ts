@@ -8,8 +8,10 @@ import {
   describeRole,
   normaliseRole,
   prefsFromRole,
+  roleFromView,
   roleModelFor,
   rolesFromPrefs,
+  viewFromRole,
 } from "@/lib/playbook/roles";
 
 describe("AFL age policy (Steve, 12 Oct: zones end at U10, 50 % floor)", () => {
@@ -402,14 +404,111 @@ describe("player roles", () => {
     expect(rolesFromPrefs(rows, "line").p1).toEqual({ home: null, also: [], never: [], keepOn: true });
   });
 
-  it("describes a role in one line", () => {
+  it("describes a role in one line, in positive terms", () => {
     const model = roleModelFor(resolve("afl", "U14", "set-positions"))!;
-    expect(describeRole({ home: "ff", also: ["chf"], never: ["r"], keepOn: false }, model)).toBe(
-      "Home FF · also CHF · not R",
-    );
+    const keys = model.options.map((o) => o.key);
+    const role = roleFromView({ plays: ["ff", "chf"], main: "ff", keepOn: false }, model);
+    expect(role.never).toHaveLength(keys.length - 2);
+    expect(describeRole(role, model)).toBe("Plays FF, CHF · main FF");
     const lines = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
     expect(describeRole({ home: "fwd", also: [], never: [], keepOn: true }, lines)).toBe(
-      "Prefers Forward · keep on",
+      "Main Forward · every minute",
     );
+    const free = roleModelFor(resolve("afl", "U12", "free"))!;
+    expect(describeRole({ home: null, also: [], never: ["fwd"], keepOn: false }, free)).toBe("Plays Centre, Back");
+  });
+});
+
+// Positive roles (Steve, 21 Oct 2026: "make sure this negative state does
+// not exist"). The sheet says where a kid plays; the rows underneath stay
+// the same — "Plays as" is stored as `never` rows for everything else —
+// so old records read back positively and the engines are unchanged.
+describe("plays as", () => {
+  const resolve = (sport: "afl" | "basketball" | "soccer", ageGroup: string, strategy: string | null) =>
+    resolveTeamPlaybook({
+      sport,
+      ageGroup,
+      onFieldSize: sport === "afl" ? 15 : sport === "basketball" ? 5 : 9,
+      row: { strategy, policy_overrides: {}, season_balance: null, season_balance_since: null },
+    });
+
+  it("reads a stored never: Forward as Plays as Centre, Back (AFL U11)", () => {
+    const model = roleModelFor(resolve("afl", "U11", null))!;
+    const view = viewFromRole({ home: null, also: [], never: ["fwd"], keepOn: false }, model);
+    expect(view).toEqual({ plays: ["mid", "back"], main: null, keepOn: false, restrictNote: false });
+  });
+
+  it("writes Plays as back as never rows for the other spots, and the same rows round-trip", () => {
+    const model = roleModelFor(resolve("afl", "U11", null))!;
+    const role = roleFromView({ plays: ["mid", "back"], main: null, keepOn: true }, model);
+    expect(role).toEqual({ home: null, also: [], never: ["fwd"], keepOn: true });
+    const rows = prefsFromRole(role, model.unit).map((r) => ({ ...r, player_id: "p1" }));
+    expect(viewFromRole(rolesFromPrefs(rows, model.unit).p1, model).plays).toEqual(["mid", "back"]);
+  });
+
+  it("stores no restriction when nothing, or everything, is ticked", () => {
+    const model = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    expect(roleFromView({ plays: [], main: "fwd", keepOn: false }, model)).toEqual({
+      home: "fwd",
+      also: [],
+      never: [],
+      keepOn: false,
+    });
+    expect(roleFromView({ plays: ["fwd", "mid", "back"], main: "fwd", keepOn: false }, model)).toEqual({
+      home: "fwd",
+      also: [],
+      never: [],
+      keepOn: false,
+    });
+  });
+
+  it("keeps the main spot first, then the other ticks, under strategies with a home", () => {
+    const model = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    expect(roleFromView({ plays: ["fwd", "mid"], main: "mid", keepOn: false }, model)).toEqual({
+      home: "mid",
+      also: ["fwd"],
+      never: ["back"],
+      keepOn: false,
+    });
+  });
+
+  it("shows an old 'also plays' with no never as ticked, with a note that saving restricts", () => {
+    const model = roleModelFor(resolve("afl", "U12", "preferred-lines"))!;
+    const view = viewFromRole({ home: "fwd", also: ["mid"], never: [], keepOn: false }, model);
+    expect(view).toEqual({ plays: ["fwd", "mid"], main: "fwd", keepOn: false, restrictNote: true });
+    // A home on its own still means anywhere.
+    expect(viewFromRole({ home: "fwd", also: [], never: [], keepOn: false }, model)).toEqual({
+      plays: [],
+      main: "fwd",
+      keepOn: false,
+      restrictNote: false,
+    });
+  });
+
+  it("offers positions 1–5, with no home, under basketball's All five positions", () => {
+    const model = roleModelFor(resolve("basketball", "U14", "position-by-position"))!;
+    expect(model).toMatchObject({ unit: "position", home: false, playsAs: true });
+    expect(model.options.map((o) => o.key)).toEqual(["pg", "sg", "sf", "pf", "c"]);
+  });
+
+  it("offers Guards and Forwards under Guards and forwards, and no Plays as under Equal minutes", () => {
+    const lines = roleModelFor(resolve("basketball", "U12", null))!;
+    expect(lines).toMatchObject({ unit: "line", home: false, playsAs: true });
+    expect(lines.options.map((o) => o.label)).toEqual(["Guards", "Forwards"]);
+    expect(roleModelFor(resolve("basketball", "U10", null))).toMatchObject({ home: true, playsAs: false });
+  });
+
+  it("asks soccer only whether a kid takes a turn in goal", () => {
+    const model = roleModelFor(resolve("soccer", "U9", null))!;
+    expect(model).toMatchObject({ keeper: true });
+    expect(model.options.map((o) => o.key)).toEqual(["gk"]);
+    expect(describeRole({ home: null, also: [], never: ["gk"], keepOn: false }, model)).toBe("No turns in goal");
+    expect(describeRole({ home: "gk", also: [], never: [], keepOn: false }, model)).toBe("Keen keeper");
+  });
+
+  it("offers to add a position only where the team names its own", () => {
+    expect(roleModelFor(resolve("afl", "U14", "set-positions"))!.addPositions).toBe(true);
+    expect(roleModelFor(resolve("afl", "U12", "preferred-lines"))!.addPositions).toBe(false);
+    expect(roleModelFor(resolve("basketball", "U14", "set-positions"))!.addPositions).toBe(false);
   });
 });

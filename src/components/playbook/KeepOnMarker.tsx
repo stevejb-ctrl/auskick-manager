@@ -1,4 +1,4 @@
-// A kid with a season "Keep on, every game" role (UX plan 3.5). Shown on
+// A kid with a season "Plays every minute" role (UX plan 3.5). Shown on
 // lineup tiles in all three sports so the role is visible where it acts
 // (Stagehand: a coach set it from the long-press and nothing showed).
 // Same badge vocabulary as INJ / LENT. `corner` floats it top-right on a
@@ -10,8 +10,8 @@ export function KeepOnMarker({ corner = true }: { corner?: boolean }) {
       className={`${
         corner ? "absolute -right-1 -top-1.5 z-10 shadow-card" : "ml-1 align-middle"
       } inline-flex items-center rounded-xs bg-brand-700 px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white`}
-      aria-label="Keep on, every game"
-      title="Keep on, every game"
+      aria-label="Plays every minute"
+      title="Plays every minute"
     >
       Keep
     </span>

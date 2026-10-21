@@ -174,7 +174,9 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
   await page.goto(`/teams/${netball.id}/squad`);
   await page.getByRole("button", { name: `Role for ${kid.full_name}` }).click({ timeout: 15_000 });
   const sheet = page.getByRole("dialog", { name: `Role for ${kid.full_name}` });
-  await sheet.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: "Attack" }).click();
+  // Plays as Centre and Defence: Attack, the third left out, is stored as never.
+  await sheet.getByRole("group", { name: "Plays as" }).getByRole("checkbox", { name: "Centre" }).click();
+  await sheet.getByRole("group", { name: "Plays as" }).getByRole("checkbox", { name: "Defence" }).click();
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
   await expect

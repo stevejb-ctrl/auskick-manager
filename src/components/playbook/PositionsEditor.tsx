@@ -117,7 +117,7 @@ export function PositionsEditor({
   }
 
   return (
-    <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
+    <div id="positions" className="scroll-mt-4 rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">Positions</p>
