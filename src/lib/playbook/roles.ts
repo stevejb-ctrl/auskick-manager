@@ -1,5 +1,9 @@
-// Player roles (UX plan §7.8 W3): home / also plays / not here / keep
-// on, stored as player_position_prefs. What a role is made of depends
+// Player roles (UX plan §7.8 W3), stored as player_position_prefs rows:
+// home / also / never / keep_on. The role sheet speaks only in positive
+// terms (Steve, 21 Oct 2026): "Plays as" these spots, a main spot, and
+// "Plays every minute". "Plays as" is stored as `never` rows for the
+// spots left out, so old records read back positively and every engine
+// reads the rows as before. What a role is made of depends
 // on how the team plays — positions for set positions and partners,
 // lines otherwise — so the sheet is driven by a RoleModel derived from
 // the resolved playbook rather than per-sport UI.
@@ -18,8 +22,28 @@ export interface RoleOption {
 export interface RoleModel {
   unit: RoleUnit;
   options: RoleOption[];
-  /** Offer a home spot (and "also plays") — strategies with a home. */
+  /** Offer a main spot — strategies with a home. */
   home: boolean;
+  /** Offer "Plays as" (false where the strategy has nothing to place kids in). */
+  playsAs: boolean;
+  /** Soccer: the one option is Keeper, asked as "Takes a turn in goal". */
+  keeper: boolean;
+  /** The team names its own positions, so the sheet links to the editor. */
+  addPositions: boolean;
+}
+
+/** The role sheet's positive view of a role. */
+export interface RoleView {
+  /** The spots a kid plays; empty means anywhere. */
+  plays: string[];
+  /** Their main spot, under strategies with a home. */
+  main: string | null;
+  keepOn: boolean;
+  /**
+   * An old "also plays" with nothing left out, shown ticked: saving
+   * turns it into a restriction, so the sheet says so.
+   */
+  restrictNote: boolean;
 }
 
 export interface PlayerRole {
@@ -39,19 +63,66 @@ export const EMPTY_ROLE: PlayerRole = { home: null, also: [], never: [], keepOn:
 export function roleModelFor(resolved: ResolvedPlaybook): RoleModel | null {
   if (resolved.sport === "afl" && resolved.policy.zonesEnforced) return null;
   const { strategy, positionModel } = resolved;
-  const byPosition =
-    (strategy.usesPositions || strategy.roleHome === "position") && resolved.positions.length > 0;
-  if (byPosition) {
+  const withHome = strategy.usesPositions || strategy.roleHome === "position";
+  const playsAs = strategy.rolePlaysAs !== false;
+  const keeper = resolved.sport === "soccer";
+  if ((withHome || strategy.rolePositions) && resolved.positions.length > 0) {
     return {
       unit: "position",
-      home: true,
+      home: withHome,
+      playsAs,
+      keeper,
+      addPositions: positionModel.canAddRemove && strategy.usesPositions,
       options: resolved.positions.map((p) => ({ key: p.key, label: p.label, name: p.name })),
     };
   }
   return {
     unit: "line",
     home: strategy.roleHome === "line",
+    playsAs,
+    keeper,
+    addPositions: false,
     options: positionModel.lines.map((l) => ({ key: l.id, label: l.label, name: l.label })),
+  };
+}
+
+/**
+ * A stored role as the sheet shows it. `never` rows read back as the
+ * spots left: never Forward is Plays as Centre, Back.
+ */
+export function viewFromRole(role: PlayerRole, model: RoleModel): RoleView {
+  const keys = model.options.map((o) => o.key);
+  const never = role.never.filter((k) => keys.includes(k));
+  const main = model.home && role.home && keys.includes(role.home) ? role.home : null;
+  if (never.length > 0) {
+    return { plays: keys.filter((k) => !never.includes(k)), main, keepOn: role.keepOn, restrictNote: false };
+  }
+  const also = model.home ? role.also.filter((k) => keys.includes(k)) : [];
+  if (also.length > 0) {
+    const plays = keys.filter((k) => k === main || also.includes(k));
+    return { plays, main, keepOn: role.keepOn, restrictNote: plays.length < keys.length };
+  }
+  return { plays: [], main, keepOn: role.keepOn, restrictNote: false };
+}
+
+/**
+ * The rows a view saves: the spots not ticked as `never`, the main spot
+ * as home and the other ticks as `also`. Nothing or everything ticked
+ * is no restriction, so a position added later is open to every kid.
+ */
+export function roleFromView(view: Omit<RoleView, "restrictNote">, model: RoleModel): PlayerRole {
+  const keys = model.options.map((o) => o.key);
+  const plays = keys.filter((k) => view.plays.includes(k));
+  const restricted = plays.length > 0 && plays.length < keys.length;
+  const main =
+    model.home && view.main && keys.includes(view.main) && (!restricted || plays.includes(view.main))
+      ? view.main
+      : null;
+  return {
+    home: main,
+    also: model.home && restricted ? plays.filter((k) => k !== main) : [],
+    never: restricted ? keys.filter((k) => !plays.includes(k)) : [],
+    keepOn: view.keepOn,
   };
 }
 
@@ -77,7 +148,7 @@ export function rolesFromPrefs(prefs: PrefLike[], unit: RoleUnit): Record<string
   return out;
 }
 
-/** A role with overlaps removed: home wins, then "also", then "not here". */
+/** A role with overlaps removed: home wins, then "also", then "never". */
 export function normaliseRole(role: PlayerRole, validKeys: string[]): PlayerRole {
   const valid = new Set(validKeys);
   const home = role.home && valid.has(role.home) ? role.home : null;
@@ -102,15 +173,20 @@ export function prefsFromRole(
   return rows;
 }
 
-/** One line for the squad list: "Home FF · also CHF, HFF · not R · keep on". */
+/** One line for the squad list: "Plays FF, CHF · main FF · every minute". */
 export function describeRole(role: PlayerRole | undefined, model: RoleModel): string {
   if (!role) return "";
   const label = (k: string) => model.options.find((o) => o.key === k)?.label ?? k;
   const parts: string[] = [];
-  if (role.home) parts.push(`${model.unit === "line" ? "Prefers" : "Home"} ${label(role.home)}`);
-  if (role.also.length) parts.push(`also ${role.also.map(label).join(", ")}`);
-  if (role.never.length) parts.push(`not ${role.never.map(label).join(", ")}`);
-  if (role.keepOn) parts.push("keep on");
+  if (model.keeper) {
+    if (role.home) parts.push("Keen keeper");
+    else if (role.never.length > 0) parts.push("No turns in goal");
+  } else {
+    const view = viewFromRole(role, model);
+    if (view.plays.length > 0) parts.push(`Plays ${view.plays.map(label).join(", ")}`);
+    if (view.main) parts.push(`main ${label(view.main)}`);
+  }
+  if (role.keepOn) parts.push("every minute");
   const text = parts.join(" · ");
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }

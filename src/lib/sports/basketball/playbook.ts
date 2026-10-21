@@ -71,6 +71,7 @@ const MINUTES: StrategyDef = {
   fit: "Under 8 and Under 10",
   usesPositions: false,
   roleHome: "line",
+  rolePlaysAs: false,
   balanceUnit: null,
   balanceByDefault: false,
 };
@@ -102,6 +103,7 @@ const ALL_FIVE: StrategyDef = {
   blurb: "Every spot, 1 to 5, filled on its own, aiming for the most different positions per kid.",
   fit: "Coaches who want every kid to play 1 to 5",
   usesPositions: false,
+  rolePositions: true,
   balanceUnit: "position",
   balanceByDefault: true,
 };
