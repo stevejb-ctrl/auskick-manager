@@ -25,7 +25,14 @@
 //   - Shapes for the short sizes (5, 6, 8 and 10 with a keeper): the
 //     plan lists 7, 9 and 11 only.
 
-import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/sports/types";
+import type {
+  BreakZoneColor,
+  PositionDef,
+  ScoreTypeDef,
+  SportBreakSpec,
+  SportConfig,
+  ZoneDef,
+} from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
@@ -33,6 +40,7 @@ import type {
   SoccerAgeGroupConfig,
   SoccerFormation,
   SoccerKeeperStrategy,
+  SoccerLine,
   SoccerSubMode,
 } from "@/lib/sports/soccer/types";
 
@@ -163,6 +171,28 @@ export function soccerFormations(ageGroup: SoccerAgeGroupConfig, onFieldSize: nu
   return ageGroup.formations[size];
 }
 
+// Break screen: attack at the top, then midfield, defence and the keeper
+// (the `gk` unit soccer counts keeper minutes under). 4 a side has no
+// lines: one Field zone. Slots are the staged lineup's lines, else the
+// age group's default shape at this game's size.
+const SOCCER_BREAK_ZONES: { key: SoccerLine | "gk"; label: string; short: string; color: BreakZoneColor }[] = [
+  { key: "att", label: "ATTACK", short: "Attack", color: "zone1" },
+  { key: "mid", label: "MIDFIELD", short: "Mid", color: "zone2" },
+  { key: "def", label: "DEFENCE", short: "Defence", color: "zone3" },
+  { key: "gk", label: "KEEPER", short: "Keeper", color: "zone4" },
+  { key: "field", label: "FIELD", short: "Field", color: "zone2" },
+];
+
+const soccerPeriodBreak: SportBreakSpec = {
+  zones: ({ ageGroup, onFieldSize, shape }) => {
+    const formation = soccerFormations(soccerAgeGroup(ageGroup.id), onFieldSize)[0];
+    const defaults: Record<string, number> = { ...formation.lines, gk: formation.keeper ? 1 : 0 };
+    return SOCCER_BREAK_ZONES.map((z) => ({ ...z, slots: shape?.[z.key] ?? defaults[z.key] })).filter((z) => z.slots > 0);
+  },
+  scoreDetail: "goals",
+  lowTimeMs: 4 * 60_000,
+};
+
 // Soccer lives under the main Siren brand, as union: the main site's
 // host (so no host resolves to soccer; see getBrandForHost) and the
 // "Siren" name on what it sends, such as invites.
@@ -189,5 +219,6 @@ export const soccerSport: SportConfig = {
   jerseyNumbers: true,
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
+  periodBreak: soccerPeriodBreak,
   validateLineup: validateSoccerLineup,
 };

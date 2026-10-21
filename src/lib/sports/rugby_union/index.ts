@@ -35,6 +35,7 @@ import type {
 } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
+import { rugbyBreakZones } from "@/lib/sports/rugby/lines";
 import { aflSport } from "@/lib/sports/afl";
 
 // One field region and one synthetic position, as league: who plays
@@ -167,5 +168,6 @@ export const rugbyUnionSport: SportConfig = {
   jerseyNumbers: true,
   // Like league, union's live screen plays no team song.
   teamSong: false,
+  periodBreak: { zones: rugbyBreakZones, scoreDetail: "points", lowTimeMs: 4 * 60_000 },
   validateLineup: validateRugbyLineup,
 };

@@ -42,6 +42,7 @@ import type {
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 // Lineup validation is shared with rugby union.
 import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
+import { rugbyBreakZones } from "@/lib/sports/rugby/lines";
 
 // ─── Field zones ─────────────────────────────────────────────
 // Junior RL is positionless and the field is treated as a single
@@ -476,5 +477,6 @@ export const rugbyLeagueSport: SportConfig = {
   fairnessModel: "unbroken-period",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: { zones: rugbyBreakZones, scoreDetail: "points", lowTimeMs: 4 * 60_000 },
   validateLineup: validateRugbyLineup,
 };
