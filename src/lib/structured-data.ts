@@ -1,5 +1,6 @@
 import { APP_STORE_URL } from "@/lib/app-links";
 import { HELP_PAGES } from "@/lib/help/pages";
+import { helpPageUpdated } from "@/lib/help/updated";
 import {
   FEATURES,
   MAKER,
@@ -123,6 +124,32 @@ export function helpBreadcrumbJsonLd(
       name: crumb.name,
       item: `${siteUrl}${crumb.path}`,
     })),
+  };
+}
+
+/**
+ * A help page as a dated, authored article. The date is the sitemap's
+ * lastModified (helpPageUpdated), the same one the page shows. Null
+ * for any path that isn't a help page.
+ */
+export function helpArticleJsonLd(siteUrl: string, pathname: string): JsonLdObject | null {
+  const page = HELP_PAGES.find((p) => p.href === pathname);
+  const updated = helpPageUpdated(pathname);
+  if (!page || !updated) return null;
+  return {
+    "@context": CONTEXT,
+    "@type": "TechArticle",
+    headline: page.href === "/help" ? "Siren Help" : page.title,
+    description: page.description,
+    url: `${siteUrl}${page.href}`,
+    dateModified: updated.iso,
+    inLanguage: "en-AU",
+    author: {
+      "@type": "Person",
+      name: MAKER.name,
+      description: `A ${MAKER.role} in ${MAKER.country}`,
+    },
+    publisher: { "@id": organizationId(siteUrl) },
   };
 }
 

@@ -182,3 +182,27 @@ test("help pages carry breadcrumbs", async ({ page, request }) => {
   await page.goto("/help");
   expect(ofType(await jsonLd(page), "BreadcrumbList")?.itemListElement).toHaveLength(2);
 });
+
+test("help pages say when they were updated and who wrote them, as the sitemap does", async ({ page, request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  const lastmod = sitemap.match(/\/help\/faq<\/loc>\s*<lastmod>(\d{4}-\d{2}-\d{2})/)?.[1];
+  expect(lastmod).toBeTruthy();
+
+  // In the server HTML, for crawlers that don't run JavaScript.
+  const html = await (await request.get("/help/faq")).text();
+  expect(html).toContain('"@type":"TechArticle"');
+
+  await page.goto("/help/faq");
+  const updated = page.getByTestId("help-updated");
+  await expect(updated).toContainText(/^Updated \d{1,2} [A-Z][a-z]{2} \d{4} · Steve Bull, parent-coach$/);
+  await expect(updated.locator("time")).toHaveAttribute("datetime", lastmod!);
+  expect(ofType(await jsonLd(page), "TechArticle")).toMatchObject({
+    headline: "FAQ",
+    dateModified: lastmod,
+    author: { "@type": "Person", name: "Steve Bull" },
+  });
+
+  // Visitors from search get a way to what Siren is and a demo.
+  await expect(page.locator('footer a[href="/why-siren"]')).toBeVisible();
+  await expect(page.locator('footer a[href="/demo"]')).toBeVisible();
+});
