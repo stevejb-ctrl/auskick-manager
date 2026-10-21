@@ -11,7 +11,7 @@ import {
   MARKETING_SPORTS,
   type MarketingSportConfig,
 } from "@/lib/sports/marketing-sports";
-import { HOME_CONTENT, getHeroEyebrow } from "@/lib/marketing/homeContent";
+import { HOME_CONTENT, getHeroEyebrow, heroSportsSentence } from "@/lib/marketing/homeContent";
 import {
   AflOvalField,
   LeagueRectField,
@@ -264,7 +264,7 @@ export function HeroCarousel() {
               {HOME_CONTENT.hero.headline}
             </h1>
             <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
-              {HOME_CONTENT.hero.subtitle}
+              {heroSportsSentence()} {HOME_CONTENT.hero.subtitle}
             </p>
 
             {/* Binary CTA row: iOS app OR web app. AppStoreBadge

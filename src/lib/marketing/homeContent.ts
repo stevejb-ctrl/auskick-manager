@@ -22,13 +22,15 @@
 // `resolveJsonModule: true` so the import is type-safe.
 
 import type { MarketingSportId } from "@/lib/sports/marketing-sports";
+import { SPORT_COUNT_WORD, sportsSentence } from "@/lib/siren-facts";
 import rawContent from "../../../content/marketing/home.json";
 
 export interface HomeContent {
   hero: {
     /** Big sport-agnostic h1 at the top of the homepage. */
     headline: string;
-    /** Sentence under the headline. */
+    /** Sentence under the headline, after the sports sentence
+     *  (heroSportsSentence), so it never lists the sports itself. */
     subtitle: string;
     /** Tiny uppercase trust line under the CTAs. */
     trustLine: string;
@@ -44,6 +46,15 @@ export interface HomeContent {
 // but the `Record<MarketingSportId, string>` part needs the cast
 // because JSON keys infer as `string`, not the union literal.
 export const HOME_CONTENT = rawContent as HomeContent;
+
+/**
+ * "One app, six sports: junior AFL, netball, …", from the sport list
+ * in src/lib/siren-facts.ts. The hero puts it before the CMS subtitle,
+ * so the sports it names can't fall behind the app.
+ */
+export function heroSportsSentence(): string {
+  return `One app, ${SPORT_COUNT_WORD} sports: junior ${sportsSentence()}.`;
+}
 
 /** Convenience getter for sport eyebrows that defaults to AFL if a
  *  sport-id ever falls outside the editable set (e.g. a future sport
