@@ -6,8 +6,9 @@
 // the one break screen every sport shares (quarter-break/PeriodBreak):
 // Forwards / Guards (or one Court zone under Equal minutes) / Bench,
 // "2nd half" or "Q3" words. The plan is staged in the shared break
-// draft and Start commits it as one lineup_set before the period. The
-// layout lives in PeriodBreak.
+// draft (with each kid's position, under the position strategies) and
+// Start commits it as one lineup_set before the period. The layout
+// lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -23,7 +24,12 @@ import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { checkRules } from "@/lib/playbook/ruleCheck";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
-import { basketballLineOf, basketballOnCourt, type BasketballLineup } from "@/lib/sports/basketball/lineup";
+import {
+  basketballLineOf,
+  basketballOnCourt,
+  normalizeBasketballLineup,
+  type BasketballLineup,
+} from "@/lib/sports/basketball/lineup";
 import { basketballCanPlay, basketballGameMs, type BasketballGameState } from "@/lib/sports/basketball/replay";
 import {
   basketballShapeFor,
@@ -39,11 +45,19 @@ const GROUPS = ["forward", "guard", "court"] as const;
 const LINE_LABEL: Record<string, string> = { guard: "Guards", forward: "Forwards", court: "Court" };
 const POSITION_TAG = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
-function stagedOf(l: BasketballLineup): StagedLineup {
-  return { groups: { forward: l.lines.forward, guard: l.lines.guard, court: l.lines.court }, bench: l.bench };
+/** The shared staged lineup, with each kid's position (the position strategies) beside it. */
+type Staged = StagedLineup & { slots?: Record<string, string> };
+
+function stagedOf(l: BasketballLineup): Staged {
+  return {
+    groups: { forward: l.lines.forward, guard: l.lines.guard, court: l.lines.court },
+    bench: l.bench,
+    ...(l.slots ? { slots: l.slots } : {}),
+  };
 }
-function lineupOf(s: StagedLineup): BasketballLineup {
-  return { lines: { guard: s.groups.guard ?? [], forward: s.groups.forward ?? [], court: s.groups.court ?? [] }, bench: s.bench };
+function lineupOf(s: Staged): BasketballLineup {
+  // Normalised: a restored draft comes back from storage.
+  return normalizeBasketballLineup({ lines: s.groups, bench: s.bench, slots: s.slots });
 }
 
 /** Basketball's own swap (positions travel with the kids); one into an empty spot. */
