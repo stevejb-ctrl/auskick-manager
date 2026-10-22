@@ -80,6 +80,13 @@ const config: Config = {
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
         "zone-c":       "#047857",   // centre — emerald-700
         "zone-b":       "#1D4ED8",   // back — royal blue
+        // Break screen (design session 22 Oct 2026): a fourth zone for
+        // a keeper slot (soccer) and the bench grey. Zones 1–3 are
+        // zone-f / zone-c / zone-b above. *-text are the AA text shades.
+        "zone-k":       "#7C3AED",
+        "zone-k-text":  "#6D28D9",
+        "zone-bench":   "#8A857C",
+        "zone-bench-text": "#4A463F",
 
         // ── In-game re-skin (design session, 17 Oct 2026) ──────────
         // Zone-time BAR fills only (labels keep zone-f/c/b). Stepped

@@ -18,6 +18,7 @@
 //
 // Steve 2026-05-15: Phase 4b of the netball-parity shell refactor.
 
+import type { ReactNode } from "react";
 import { SFButton } from "@/components/sf";
 
 interface QuarterKickoffBarProps {
@@ -29,6 +30,10 @@ interface QuarterKickoffBarProps {
   disabled?: boolean;
   /** Loading state — shows the SFButton spinner. */
   loading?: boolean;
+  /** A line above the button (the break screen's "Swap Ava with… Cancel"). */
+  prompt?: ReactNode;
+  /** A pill inside the button after the label (the break's "1 rule"). */
+  badge?: ReactNode;
 }
 
 export function QuarterKickoffBar({
@@ -36,10 +41,13 @@ export function QuarterKickoffBar({
   confirmLabel,
   disabled = false,
   loading = false,
+  prompt,
+  badge,
 }: QuarterKickoffBarProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 md:sticky md:inset-x-auto">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-2">
+        {prompt}
         <SFButton
           onClick={onConfirm}
           disabled={disabled}
@@ -49,6 +57,7 @@ export function QuarterKickoffBar({
           full
         >
           {confirmLabel}
+          {badge}
         </SFButton>
       </div>
     </div>
