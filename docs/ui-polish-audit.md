@@ -295,3 +295,128 @@ bar demotion passes through.
 Each as its own commit on `feat/in-game-ui-polish`, verified at
 375/390/768/1024/1440. Phase 1 mockups first for §1, §2/§9, §8 — the
 three where "see it" beats "read it".
+
+---
+
+# Round 2 — cross-sport consistency (Phase 0, 23 Oct 2026)
+
+Steve approved restarting the polish audit with the two leftovers from
+the basketball session as the starting scope, plus a light sweep for
+other places a shared concept renders differently across sports.
+
+Walked on a local production build of `main` at `46ab64a3` (the commit
+production runs), 375 px, seeded sub-due and half-time states for AFL,
+rugby league, basketball and soccer. Nothing is changed by this
+section; it stops for Steve's direction.
+
+**What moved since this was queued.** The break redesign (#163,
+22 Oct, another session) replaced every sport's break with one shared
+`quarter-break/PeriodBreak.tsx` (`LeagueBreak`, `BasketballBreak`,
+`SoccerBreak` and `TouchBreak` adapt onto it). So the first item has
+changed shape; see R1.
+
+## R1. Rugby's break: the "Vests" block (`league/LeagueBreak.tsx`)
+
+**Today.** The "Half 1 done" card is gone. Rugby's break is the shared
+one: "2nd half lineup" header, score and availability chips, Suggested /
+Rotate / Repeat / Manual, the rule check, zone sections, bench, Start
+bar. One thing is still rugby's own: under the bench, a large sage
+"VESTS" card that lists every player twice (First Receiver, then Dummy
+Half), 11 rows each, in an older chip style with jersey glyphs.
+
+**The issue that matters.** It's the only part of any break that isn't
+in the shared design language, and it doubles the screen's height
+(the vest lists run about 800 px past the bench at 375 px). The names
+truncate ("Camille Du…", "Brendan C…") where every other break tile
+shows them whole. A coach scrolls past 22 near-identical buttons to
+reach nothing; the lineup above is what they came for.
+
+**Why it diverged.** Vests are league-only (U6–U11 FR/DH rotation, 
+NRL Junior League Laws), so #163 kept the existing vest picker rather
+than fold it into the shared break config. It wasn't redesigned, just
+carried across.
+
+**Proposed refinement.** Make the vest a status chip in the break's
+top row, beside score and availability, the same pattern #163 used for
+game settings: "FR Kira · DH Maya ›". Tapping opens a bottom sheet with
+the two pickers, in the shared `BreakPlayerTile` style, full names.
+The plan's suggested vest wearers stay pre-filled, so most breaks need
+no tap. **Priority: P1.**
+
+## R2. Sub due outside AFL: two voices (`live/NextSubCard.tsx` + `SubDueBanner`)
+
+**Today.** In AFL the swap card *is* the sub-due alert (17 Oct,
+`9f7732ef`, "one event, one voice"): it turns amber with "Sub due —
+Rotate a player off", carries `role="alert"`, and the top-bar banner
+only shows when a sub is due with nothing to suggest. Basketball,
+rugby (league and union), soccer and touch use `NextSubCard`, a fork of
+AFL's card, and show **both**: the "Sub due — rotate a player off ·
+Got it" banner under the top bar *and* the card's own "SUB DUE — N
+SWAPS". Two announcements of one event, the banner pushing the court
+down by a row.
+
+**The issue that matters.** The doubled alert, plus the two can
+disagree: "Got it" on the banner silences the beep but leaves the card
+shouting, and the card isn't the screen-reader alert, so assistive
+tech hears the banner but not the swaps.
+
+**Why it diverged.** `NextSubCard` was extracted from league's card on
+16 Oct for soccer ("reuse before you fork"), *before* the re-skin
+rebuilt `SwapCard` as the alert. The re-skin changed AFL's card and
+AFL's `LiveGame` only; the fork never got the change, and every sport
+added since (touch, basketball, futsal, hockey) inherited the fork.
+
+**Proposed refinement.** Bring `NextSubCard` to `SwapCard`'s due
+behaviour: the card is the alert (amber ring, "Sub due — N swaps",
+"Rotate a player off", `role="alert"`, the beep), and each sport shows
+the banner only when a sub is due with no pairs to suggest, exactly as
+AFL. Longer term, extract the due state into one shared piece so the
+two cards can't drift again (CLAUDE.md: extract when the seam can be
+re-violated; this one has been). Covers basketball, league, union,
+soccer, futsal, hockey and touch in one change. **Priority: P0**
+(it's the most visible inconsistency on the live screen, in 7 sports).
+
+## R3. Sweep: other cross-sport differences (for the follow-up queue)
+
+Noted, not investigated deeply:
+
+| Concept | Where it differs | Note |
+|---|---|---|
+| Player tile on the field | Rugby (league, union) | Pill tokens on the pitch ("Alicia B · #1 · 1:44", no zone bar) where AFL, basketball, soccer and touch use the 68 px card tile. Biggest visual gap left on a live screen. |
+| Scorebug chrome | Rugby (`LeagueScoreBug`) | Its own clock pill ("HALF 1 · OVER", "OF 2 HALVES" under it), tries/conversions inline beside the total, and the old one-line truncating team name (the 21 Oct wrap fix is in AFL, netball, basketball, soccer, touch, not rugby). |
+| Sub card line labels | Basketball | The pair rows label the line "G" / "F" where the other sports show DEF / MID / ATT, FWD, etc.; reads as a missing word on a 375 px card. |
+| Sub-due helper text | Basketball | "Send them to the table now, and tap them on when the whistle goes." sits below the card as loose text; no other sport has it. Fold into the card's due sub-line. |
+| Score chips | Rugby | +T / +C sit under each total in two columns; AFL, basketball and soccer moved to one row. Check at 375 with union's four chips. |
+| Break tile notes | Basketball | Fouls show as a text note ("3F") on the break tile, not the coloured foul chip the live tile uses. |
+
+## R4. Two queued cleanup items: status
+
+Both were reported on 21 Oct. Both fixes shipped in `c3f6392a` and
+survived the #163 rewrite of `BasketballLiveGame`. Checked on the
+production commit (`46ab64a3`) with their regression specs, 7 of 7
+passing; I can't sign in to production itself, so this is the
+production build run locally, not a hand test on prod.
+
+- **Basketball scroll gap: fixed.** The cause was a stale `pb-[7rem]`
+  under the live view, on top of the score bar's own spacer (128 px of
+  dead scroll). Removed in basketball and rugby;
+  `e2e/tests/live-scroll-gap.spec.ts` pins both. It wasn't the hint
+  overlap (that was the score-chip bug, fixed separately on 22 Oct).
+- **Basketball suggester "dying" after one sub: fixed.** It wasn't the
+  "Home line drops the second ticked line" item from the roles audit.
+  Steve's bench kids played Guards only, and the guards who had just
+  come on had played less than them, so no sub evened time and the card
+  went blank for about 80 seconds. The card now shows the subs due at
+  the next sub time; `e2e/tests/basketball-live-fixes.spec.ts` replays
+  his game. (The "Home line" item was resolved by the positive-roles
+  storage: ticking both lines now stores no restriction.)
+
+## Round 2: suggested order (on approval)
+
+1. R2: one sub-due voice in every sport (P0, one shared change).
+2. R1: rugby's vests as a break chip and sheet (P1).
+3. From the sweep: rugby's field tiles and scorebug onto the shared
+   pieces (the largest remaining gap), then the small basketball items.
+
+Mockups first for R1 (the sheet) and the rugby tile change; R2 matches
+an existing design (AFL's card) and needs none.
