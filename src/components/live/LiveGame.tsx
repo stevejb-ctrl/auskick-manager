@@ -1195,8 +1195,12 @@ export function LiveGame({
     quarterMs,
     effectiveSubIntervalMs: subIntervalMs,
   });
+  // No sub is due once the siren's gone: the quarter-end modal waits on
+  // the coach with quarterEnded still false, and a "Sub due" card sat
+  // behind it through quarter time and full time (AFL audit, 23 Oct 2026).
+  const periodClockDone = quarterEnded || showQuarterEndModal || (quarterMs > 0 && nowMs >= quarterMs);
   const msUntilDue =
-    subBaseMs !== null && !isPreGame && !isFinished
+    subBaseMs !== null && !isPreGame && !isFinished && !periodClockDone
       ? subBaseMs + subIntervalMs - nowMs
       : null;
   // Steve's real-game scenario: lent a player to the opposition,
