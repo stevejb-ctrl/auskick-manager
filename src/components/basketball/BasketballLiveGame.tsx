@@ -868,16 +868,34 @@ export function BasketballLiveGame({
                     ))}
                   </div>
                 )}
+                {/* Fouls step both ways (Steve 2026-10-22: "Need to be able to
+                    undo fouls in basketball"): − takes the last one back. */}
                 {trackFouls && (
-                  <button
-                    type="button"
-                    data-testid="basketball-foul"
-                    onClick={() => void foul(selectedPlayer.id)}
-                    disabled={pending}
-                    className="w-full rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
-                  >
-                    + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      data-testid="basketball-unfoul"
+                      onClick={() => {
+                        const pid = selectedPlayer.id;
+                        setSelectedId(null);
+                        undoFoul(pid);
+                      }}
+                      disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) === 0}
+                      aria-label={`Take back a foul from ${selectedPlayer.full_name}`}
+                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface font-mono text-base font-bold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="basketball-foul"
+                      onClick={() => void foul(selectedPlayer.id)}
+                      disabled={pending}
+                      className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
+                    >
+                      + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
+                    </button>
+                  </div>
                 )}
                 <p className="text-center text-[11px] text-ink-mute">
                   Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
@@ -1088,6 +1106,25 @@ export function BasketballLiveGame({
                             const pid = actionPlayer.id;
                             setActionPlayerId(null);
                             void foul(pid);
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(trackFouls && (state.fouls[actionPlayer.id] ?? 0) >= 2
+                    ? [
+                        {
+                          label: "Clear fouls",
+                          hint: `Takes back all ${state.fouls[actionPlayer.id]}`,
+                          testId: "basketball-clear-fouls",
+                          onClick: () => {
+                            const pid = actionPlayer.id;
+                            const n = state.fouls[pid] ?? 0;
+                            setActionPlayerId(null);
+                            void (async () => {
+                              for (let i = 0; i < n; i++) {
+                                await run("recordBasketballFoul", [auth, game.id, { player_id: pid, undo: true, ...at() }]);
+                              }
+                            })();
                           },
                         },
                       ]
