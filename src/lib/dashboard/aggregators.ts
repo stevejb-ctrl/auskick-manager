@@ -384,9 +384,15 @@ export function computeQuarterScoring(
   >();
 
   for (const snap of snapshots) {
+    const scored = Object.keys(snap.teamScoreByQtr).length > 0 || Object.keys(snap.oppScoreByQtr).length > 0;
+    // A game with no score recorded (scoring off) says nothing about quarters.
+    if (!scored) continue;
+    // Every quarter played counts, scoreless ones too (a 0–0 quarter is
+    // level, not missing from the average).
     const allQuarters = new Set([
       ...Object.keys(snap.teamScoreByQtr),
       ...Object.keys(snap.oppScoreByQtr),
+      ...snap.quartersPlayed.map(String),
     ]);
 
     for (const qStr of Array.from(allQuarters)) {
@@ -410,15 +416,24 @@ export function computeQuarterScoring(
     }
   }
 
+  const avg = (n: number, games: number) => (games > 0 ? n / games : 0);
   return Array.from(accumMap.entries())
-    .map(([quarter, data]) => ({
-      quarter,
-      avgGoalsFor: data.gameCount > 0 ? data.teamGoals / data.gameCount : 0,
-      avgBehindsFor: data.gameCount > 0 ? data.teamBehinds / data.gameCount : 0,
-      avgGoalsAgainst: data.gameCount > 0 ? data.oppGoals / data.gameCount : 0,
-      avgBehindsAgainst: data.gameCount > 0 ? data.oppBehinds / data.gameCount : 0,
-      gamesCount: data.gameCount,
-    }))
+    .map(([quarter, data]): QuarterScoringRow => {
+      // A quarter is won on points: 1.1 (7) beats 1.0 (6).
+      const avgPointsFor = avg(data.teamGoals * 6 + data.teamBehinds, data.gameCount);
+      const avgPointsAgainst = avg(data.oppGoals * 6 + data.oppBehinds, data.gameCount);
+      return {
+        quarter,
+        avgGoalsFor: avg(data.teamGoals, data.gameCount),
+        avgBehindsFor: avg(data.teamBehinds, data.gameCount),
+        avgGoalsAgainst: avg(data.oppGoals, data.gameCount),
+        avgBehindsAgainst: avg(data.oppBehinds, data.gameCount),
+        avgPointsFor,
+        avgPointsAgainst,
+        result: Math.abs(avgPointsFor - avgPointsAgainst) < 1e-9 ? "level" : avgPointsFor > avgPointsAgainst ? "ahead" : "behind",
+        gamesCount: data.gameCount,
+      };
+    })
     .sort((a, b) => a.quarter - b.quarter);
 }
 
