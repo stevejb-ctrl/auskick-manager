@@ -15,7 +15,7 @@
 // moving soccer's and basketball's onto it is a follow-up, as with
 // lib/live/rollingSubs.ts.
 
-import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
@@ -71,7 +71,8 @@ export interface LinePlayerTileProps {
   /**
    * Why swapping this kid in now would break a rule ("Would put 4 boys
    * on: the mixed rule allows 3"): the tile dims and says so to screen
-   * readers. It can still be tapped; the sport asks before the swap.
+   * readers (its description). It can still be tapped; the sport asks
+   * before the swap.
    */
   ruleNote?: string | null;
 }
@@ -107,6 +108,7 @@ function LinePlayerTileImpl({
   ruleNote = null,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
+  const ruleNoteId = useId();
 
   function handleClick() {
     if (consumedLongPress()) return;
@@ -177,7 +179,7 @@ function LinePlayerTileImpl({
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
-        aria-description={ruleNote ?? undefined}
+        aria-describedby={ruleNote ? ruleNoteId : undefined}
         className={[
           "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
           baseBg,
@@ -312,6 +314,12 @@ function LinePlayerTileImpl({
             </span>
           )}
         </div>
+        {/* The description only (hidden from the name; aria-describedby still reads it). */}
+        {ruleNote && (
+          <span id={ruleNoteId} aria-hidden className="sr-only">
+            {ruleNote}
+          </span>
+        )}
       </button>
     </SirenPulseHalo>
   );

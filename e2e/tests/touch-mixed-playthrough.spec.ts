@@ -204,8 +204,8 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   const swapsBeforeHand = await count("swap");
   await field.getByTestId(`player-tile-${girlOff}`).click({ timeout: 10_000 });
   // Bench boys who'd break the cap are dimmed and say why; the girl isn't.
-  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveAttribute("aria-description", /mixed rule/i);
-  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).not.toHaveAttribute("aria-description", /mixed rule/i);
+  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveAccessibleDescription(/mixed rule allows 3/i);
+  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).not.toHaveAccessibleDescription(/mixed rule/i);
   await bench.getByTestId(`player-tile-${boyOn}`).click();
   const confirm = page.getByRole("dialog");
   await expect(confirm).toContainText("That puts 4 boys on: the mixed rule allows 3");
