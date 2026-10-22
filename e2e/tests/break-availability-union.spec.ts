@@ -20,6 +20,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { replayRugbyGame, rugbyPoints } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test("rugby union at 15 a side: at the break a kid arrives, a forward goes out, a swap, and H2 starts with all of it", async ({
   page,
@@ -78,20 +79,19 @@ test("rugby union at 15 a side: at the break a kid arrives, a forward goes out, 
   };
   const landed = (what: (evs: GameEvent[]) => boolean) =>
     expect.poll(async () => what(await events()), { timeout: 15_000 }).toBe(true);
-  const field = page.getByRole("region", { name: "On field" });
+  const field = page.getByRole("group", { name: /^(Forwards|Backs)$/ });
   const bench = page.getByRole("group", { name: "Bench", exact: true });
-  const tile = (id: string) => page.getByTestId(`league-player-tile-${id}`);
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
 
-  // The break pops the start modal; step back to the field.
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
-  await backToLineup.click({ timeout: 15_000 });
-  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
-  await expect(page.getByRole("button", { name: /^start h2$/i }).first()).toBeVisible({ timeout: 15_000 });
-  await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(15);
+  // The shared break screen (no start modal on arrival any more).
+  await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible({ timeout: 15_000 });
+  await pickBreakStrategy(page, "Repeat");
+  await expect(field.locator("[data-testid^='player-tile-']")).toHaveCount(15);
   // Union wears no vests.
   await expect(page.getByText(/First Receiver|Dummy Half/)).toHaveCount(0);
 
   // ─── 1. A kid arrives ───────────────────────────────────────────
+  await openGameSettings(page);
   await page.getByRole("button", { name: /add arrived player/i }).click();
   const addArrived = page.getByRole("dialog", { name: /add arrived/i });
   await expect(addArrived).toBeVisible({ timeout: 5_000 });
@@ -117,32 +117,27 @@ test("rugby union at 15 a side: at the break a kid arrives, a forward goes out, 
   const whoComesOn = page.getByRole("dialog", { name: /who comes on at/i });
   await expect(whoComesOn).toBeVisible({ timeout: 5_000 });
   await whoComesOn.getByRole("button", { name: new RegExp(replacement.full_name, "i") }).click();
-  await landed(
-    (evs) =>
-      evs.some(
-        (e) =>
-          e.type === "injury" &&
-          e.player_id === outPlayer.id &&
-          (e.metadata as { reason?: string }).reason === "out",
-      ) &&
-      evs.some(
-        (e) =>
-          e.type === "swap" &&
-          (e.metadata as { off_player_id?: string }).off_player_id === outPlayer.id &&
-          (e.metadata as { on_player_id?: string }).on_player_id === replacement.id,
-      ),
+  // The out is recorded now; the replacement takes the spot in the staged
+  // lineup, committed with it at Start.
+  await landed((evs) =>
+    evs.some(
+      (e) =>
+        e.type === "injury" &&
+        e.player_id === outPlayer.id &&
+        (e.metadata as { reason?: string }).reason === "out",
+    ),
   );
-  await expect(field.getByTestId(`league-player-tile-${replacement.id}`)).toBeVisible({ timeout: 10_000 });
+  await expect(field.getByTestId(`player-tile-${replacement.id}`)).toBeVisible({ timeout: 10_000 });
 
   // ─── 3. A swap at the break ─────────────────────────────────────
+  await closeGameSettings(page);
   await tile(swapOn.id).click();
   await tile(swapOff.id).click();
-  await expect(field.getByTestId(`league-player-tile-${swapOn.id}`)).toBeVisible({ timeout: 10_000 });
-  await expect(bench.getByTestId(`league-player-tile-${swapOff.id}`)).toBeVisible();
+  await expect(field.getByTestId(`player-tile-${swapOn.id}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`player-tile-${swapOff.id}`)).toBeVisible();
 
   // ─── 4. Start H2 ────────────────────────────────────────────────
-  await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start 2nd half/i);
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   const evs = await events();

@@ -14,6 +14,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -32,12 +33,9 @@ async function viaTeamPage(page: Page, teamId: string): Promise<void> {
   await page.getByRole("link", { name: /back to live game/i }).click();
 }
 
-async function dismissStartModal(page: Page): Promise<void> {
-  // The break pops the start modal on arrival; "Back to lineup" closes it.
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
-  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
-  await backToLineup.click();
-  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
+async function reachBreak(page: Page): Promise<void> {
+  // The shared break screen: no start modal on arrival any more.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
 }
 
 test("rugby league: a swap made at the break is still there after the team page and back, and starts H2", async ({
@@ -104,9 +102,9 @@ test("rugby league: a swap made at the break is still there after the team page 
 
   const comingOn = lineup.bench[0];
   const goingOff = lineup.forwards[0];
-  const field = page.getByRole("region", { name: "On field" });
+  const field = page.getByRole("group", { name: /^(Forwards|Backs)$/ });
   const bench = page.getByRole("group", { name: "Bench", exact: true });
-  const tile = (id: string) => page.getByTestId(`league-player-tile-${id}`);
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
   const eventsOf = async () => {
     const { data } = await admin
       .from("game_events")
@@ -117,35 +115,28 @@ test("rugby league: a swap made at the break is still there after the team page 
   };
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await dismissStartModal(page);
-  await expect(page.getByRole("button", { name: /^start h2$/i })).toBeVisible({ timeout: 15_000 });
+  await reachBreak(page);
 
-  // Swap a bench kid on for a forward.
+  // Keep last half's field, then swap a bench kid on for a forward. The
+  // swap is staged (the break's draft), not saved as an event.
+  await pickBreakStrategy(page, "Repeat");
   await tile(comingOn).click();
   await tile(goingOff).click();
-  await expect
-    .poll(
-      async () =>
-        (await eventsOf()).some(
-          (e) => e.type === "swap" && (e.metadata as { on_player_id?: string }).on_player_id === comingOn,
-        ),
-      { timeout: 15_000 },
-    )
-    .toBe(true);
-  await expect(field.getByTestId(`league-player-tile-${comingOn}`)).toBeVisible({ timeout: 10_000 });
-  await expect(bench.getByTestId(`league-player-tile-${goingOff}`)).toBeVisible();
+  await expect(field.getByTestId(`player-tile-${comingOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`player-tile-${goingOff}`)).toBeVisible();
+  expect((await eventsOf()).some((e) => e.type === "swap")).toBe(false);
 
   // Off to the team page, then back to the live game.
   await viaTeamPage(page, team.id);
-  await dismissStartModal(page);
+  await reachBreak(page);
 
   // The swap is still in place.
-  await expect(field.getByTestId(`league-player-tile-${comingOn}`)).toBeVisible({ timeout: 10_000 });
-  await expect(bench.getByTestId(`league-player-tile-${goingOff}`)).toBeVisible();
+  await expect(field.getByTestId(`player-tile-${comingOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`player-tile-${goingOff}`)).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Repeat" })).toBeChecked();
 
   // Start H2: the second half begins with the swap.
-  await page.getByRole("button", { name: /^start h2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start 2nd half/i);
   let events: GameEvent[] = [];
   await expect
     .poll(

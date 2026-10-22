@@ -24,6 +24,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -245,14 +246,10 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*1$/i })
     .click();
-  // Ending H1 fires LeagueLiveGame's qbreak auto-open effect, which
-  // pops StartQuarterModal ("Start H2" → confirm with "Start clock")
-  // on top of the inline "Start H2" break card. That modal
-  // (z-50) covers the inline button, so we drive H2 straight from the
-  // modal's "Start clock" CTA. Wait for it so Phase 5 doesn't race the
-  // auto-open.
+  // Ending H1 lands on the shared period break screen ("2nd half
+  // lineup"); no start modal pops up on its own any more.
   await expect(
-    page.getByRole("button", { name: /^start [qh]\d+ now$/i }),
+    page.getByRole("heading", { name: /^2nd half lineup$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
@@ -268,9 +265,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   ).toBeHidden();
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
-  await page
-    .getByRole("button", { name: /^start [qh]\d+ now$/i })
-    .click();
+  await startFromBreak(page, /^start 2nd half/i);
   // H2 now active. Same clock-menu flow as Phase 4. An inline
   // KickoffPicker may render for H2, but it's a non-blocking
   // <section> (not an overlay), so it never covers the clock pill.
