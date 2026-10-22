@@ -109,14 +109,10 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // Time-in-zone colour key (Steve 2026-06-29): the per-player bars
-  // encode zone by colour alone, so a shared legend must render once
-  // on the break with the Fwd/Centre/Back labels in field order.
-  const breakLegend = page.getByRole("group", { name: /^Colour key:/ });
-  await expect(breakLegend).toBeVisible();
-  await expect(breakLegend).toContainText("Fwd");
-  await expect(breakLegend).toContainText("Centre");
-  await expect(breakLegend).toContainText("Back");
+  // No colour key on the break any more (period break redesign, 22 Oct
+  // 2026): each zone section is headed by its colour and name, and a
+  // tile's dot says where the kid came from.
+  await expect(page.getByRole("group", { name: /^Colour key:/ })).toHaveCount(0);
 
   // Read the rendered FWD slot's player tiles. The slot heading
   // is "Fwd" (per QuarterBreak.tsx slotLabel + ZONE_SHORT_LABELS),
@@ -178,10 +174,10 @@ test("AFL: lineup confirmed in QuarterBreak after a Q1 zone swap survives Start 
     page.getByRole("button", { name: /^clock — q2, running$/i }),
   ).toBeVisible({ timeout: 5_000 });
 
-  // No colour key on the LIVE screen (UI polish audit §13): zone
+  // No colour key on the LIVE screen either (UI polish audit §13): zone
   // identity is already told in place there — each tile's zone label
   // sits in the zone colour above its bar, and the field rails name
-  // the lines. The key belongs to the break (asserted above).
+  // the lines.
   await expect(
     page.getByRole("group", { name: /^Colour key:/ }),
   ).toHaveCount(0);
@@ -339,10 +335,8 @@ test("AFL: 'Rotate lines' shifts each line up the ground at the break", async ({
   await page.getByRole("button", { name: /select team for q2/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 5_000 });
 
-  // The rotation toggle lives inside the collapsed "Game settings" card.
-  await page.getByRole("button", { name: /game settings/i }).click();
-  // Switch to the rotate mode.
-  await page.getByRole("radio", { name: /rotate lines/i }).click();
+  // Switch to Rotate (the break's strategy picker).
+  await page.getByRole("radio", { name: "Rotate" }).click();
 
   // Read the BACK zone's player tiles — after the rotation, last
   // quarter's FORWARD line should be there (Fwd → Back).

@@ -240,6 +240,8 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  // The score review is a sheet over the break; close it to start Q2.
+  await page.getByRole("dialog", { name: "Score" }).getByRole("button", { name: "Done" }).click();
 
   // Each Q→Q+1 transition is a TWO-tap kickoff with DISTINCT labels:
   //   1. Q-break "Ready for Q{n}" — commits the lineup snapshot
@@ -252,12 +254,13 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // coach. The body text "Tap Start clock when the siren goes" gates the second
   // tap so we don't double-click before the modal mounts.
   async function startNextQuarter(n: number): Promise<void> {
+    // The break's Start (it carries a "N rules" pill if a rule's broken).
     await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .getByRole("button", { name: new RegExp(`^start q${n}`, "i") })
       .click();
     await page.getByText(/tap when the siren goes/i).waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: /^start [qh]\d+ now$/i })
+      .getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i })
       .click();
   }
 
@@ -284,7 +287,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     // is fully rendered" from "previous Q-break still mounted".
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^start q${next}$`, "i"),
+        name: new RegExp(`^start q${next}`, "i"),
       }),
     ).toBeVisible({ timeout: 10_000 });
     await startNextQuarter(next);
