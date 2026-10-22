@@ -10,18 +10,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
 import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { hapticTap } from "@/lib/haptics";
-
-/** What the break after this period is called. */
-function breakName(quarter: number, periodCount: number): string {
-  if (quarter >= periodCount) return "Full time";
-  if (periodCount === 2) return "Half time";
-  if (periodCount === 4) {
-    if (quarter === 1) return "Quarter time";
-    if (quarter === 2) return "Half time";
-    return "Three-quarter time";
-  }
-  return "Break";
-}
+import { periodBreakName as breakName } from "@/lib/live/periodBreakName";
 
 interface GameHeaderProps {
   teamName: string;

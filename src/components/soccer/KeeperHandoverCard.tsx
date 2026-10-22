@@ -1,12 +1,13 @@
 "use client";
 
 // ─── KeeperHandoverCard ──────────────────────────────────────
-// Who goes in goal for the coming half, on the shared RoleHandoverCard
-// (league's vest card draws on the same one). At half-time it reads as
-// the keeper top changing hands, "Keeper top: Sam → Mia"; before
-// kick-off it names the first keeper. Replace opens a picker of the kids
-// who can go in, the suggestion marked. The pick edits the plan on
-// screen; the half's Start commits it (no event is written here).
+// Who goes in goal for the coming period, on the shared
+// RoleHandoverCard (league's vest card draws on the same one). At the
+// break it reads as the keeper's gear changing hands, "Keeper top: Sam
+// → Mia" (hockey's "Keeper kit"); before kick-off it names the first
+// keeper. Replace opens a picker of the kids who can go in, the
+// suggestion marked. The pick edits the plan on screen; the period's
+// Start commits it (no event is written here).
 
 import { useState } from "react";
 import type { Player } from "@/lib/types";
@@ -16,7 +17,9 @@ interface KeeperHandoverCardProps {
   /** The period word and number the keeper is for ("half", 2). */
   periodWord: string;
   period: number;
-  /** Last half's keeper (null before kick-off). */
+  /** What changes hands, in the sport's words ("Keeper top", "Keeper kit"). */
+  gear: string;
+  /** Last period's keeper (null before kick-off). */
   from: Player | null;
   /** The planned keeper. */
   to: Player | null;
@@ -46,6 +49,7 @@ function KeeperBadge() {
 export function KeeperHandoverCard({
   periodWord,
   period,
+  gear,
   from,
   to,
   candidates,
@@ -59,7 +63,7 @@ export function KeeperHandoverCard({
     from && to
       ? from.id === to.id
         ? `${firstName(to)} stays in goal.`
-        : `Keeper top: ${firstName(from)} → ${firstName(to)}`
+        : `${gear}: ${firstName(from)} → ${firstName(to)}`
       : to
         ? `${firstName(to)} starts in goal.`
         : "Nobody is in goal yet.";

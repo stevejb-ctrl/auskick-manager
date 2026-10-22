@@ -6,6 +6,8 @@ import { netballPlaybook } from "@/lib/sports/netball/playbook";
 import { leaguePlaybook } from "@/lib/sports/rugby_league/playbook";
 import { unionPlaybook } from "@/lib/sports/rugby_union/playbook";
 import { soccerPlaybook } from "@/lib/sports/soccer/playbook";
+import { futsalPlaybook } from "@/lib/sports/futsal/playbook";
+import { hockeyPlaybook } from "@/lib/sports/hockey/playbook";
 import { basketballPlaybook } from "@/lib/sports/basketball/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
 import { sportNotBuilt } from "@/lib/sports/registry";
@@ -52,8 +54,8 @@ const PLAYBOOKS: Record<Sport, SportPlaybook> = {
   rugby_union: unionPlaybook,
   soccer: soccerPlaybook,
   basketball: basketballPlaybook,
-  futsal: notBuiltPlaybook("futsal"),
-  hockey: notBuiltPlaybook("hockey"),
+  futsal: futsalPlaybook,
+  hockey: hockeyPlaybook,
   touch: notBuiltPlaybook("touch"),
   oztag: notBuiltPlaybook("oztag"),
 };

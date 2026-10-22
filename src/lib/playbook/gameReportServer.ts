@@ -20,7 +20,8 @@ import {
 } from "@/lib/sports";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
+import type { SoccerUnit } from "@/lib/sports/soccer/types";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -43,15 +44,6 @@ const LABELS: Record<string, string> = {
   "centre-third": "Centre",
   "defence-third": "Defence",
 };
-/** Soccer's own words: its "mid" is midfield, never AFL's centre. */
-const SOCCER_LABELS: Record<string, string> = {
-  gk: "Keeper",
-  def: "Defence",
-  mid: "Midfield",
-  att: "Attack",
-  field: "Field",
-};
-
 const BASKETBALL_LABELS: Record<string, string> = {
   guard: "Guards",
   forward: "Forwards",
@@ -79,7 +71,7 @@ export async function buildGameReport(
     sport: Sport | null;
     age_group: string | null;
     quarter_length_seconds: number | null;
-    /** Basketball: halves or quarters (migration 0069). */
+    /** Basketball and hockey: halves or quarters (migration 0069). */
     period_count?: number | null;
   },
   game: Game,
@@ -88,10 +80,13 @@ export async function buildGameReport(
 ): Promise<GameReport | null> {
   if (events.length === 0) return null;
   const sport = teamSport(team.sport);
-  // Basketball plays the team's halves or quarters.
+  // Basketball plays the team's halves or quarters, as does hockey; a
+  // soccer-family team's age group is its own sport's.
   const ageCfg = isBasketball(sport)
     ? basketballAgeGroupForTeam(team.age_group, team.period_count)
-    : getAgeGroupConfig(sport, team.age_group);
+    : isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(sport, team.age_group, team.period_count)
+      : getAgeGroupConfig(sport, team.age_group);
   const periods = periodLabels(sport, ageCfg);
   const periodSeconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team.quarter_length_seconds },
@@ -129,9 +124,9 @@ export async function buildGameReport(
     lines = ["field"];
     Object.assign(byPeriod, leagueByPeriod(events));
   } else if (isSoccer(sport)) {
-    // Time in each line and in goal, per half, from soccer's replay. 4 a
-    // side plays one line ("field") and no keeper.
-    lines = soccerAgeGroup(ageCfg.id).keeper === "none" ? ["field"] : ["gk", "def", "mid", "att"];
+    // Time in each line and in goal, per period, from the family's
+    // replay. An age with no keeper plays one line ("field").
+    lines = soccerFamilyAgeGroupForTeam(sport, team.age_group, team.period_count).keeper === "none" ? ["field"] : ["gk", "def", "mid", "att"];
     for (const [pid, periods] of Object.entries(replaySoccerGame(events).msByPeriod)) {
       for (const [p, units] of Object.entries(periods)) {
         for (const [u, ms] of Object.entries(units)) {
@@ -213,7 +208,14 @@ export async function buildGameReport(
     present,
     periodPlayedMs,
     lines,
-    lineLabel: (k) => (isSoccer(sport) ? SOCCER_LABELS[k] : isBasketball(sport) ? BASKETBALL_LABELS[k] : LABELS[k]) ?? k,
+    // A soccer-family sport's own words: soccer's "mid" is midfield, never
+    // AFL's centre; futsal's is the wings.
+    lineLabel: (k) =>
+      (isSoccer(sport)
+        ? soccerFamilyRules(sport).lineLabels[k as SoccerUnit]?.label
+        : isBasketball(sport)
+          ? BASKETBALL_LABELS[k]
+          : LABELS[k]) ?? k,
     lineWord: getSportPlaybook(sport).unitWord,
     periodLabel: (n) => (periods.label === "quarter" ? `Q${n}` : `${periods.label} ${n}`),
     periodCount: ageCfg.periodCount,

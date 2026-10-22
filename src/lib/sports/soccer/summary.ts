@@ -1,6 +1,7 @@
-// ─── Football (soccer) game summary ──────────────────────────
+// ─── The soccer family's game summary ────────────────────────
 // The share text at full time ("Copy for group chat"), from the
-// replayed game: the result (only when scoring is on: MiniRoos records
+// replayed game, under the sport's own emoji (⚽, or hockey's 🏑): the
+// result (only when scoring is on: MiniRoos records
 // none), the goal scorers, then each kid's game time with their time in
 // goal, and the kids who were here but didn't get on.
 
@@ -16,6 +17,8 @@ function fmtMs(ms: number): string {
 }
 
 export interface SoccerSummaryInput {
+  /** The sport's emoji (SoccerFamilyRules.emoji). */
+  emoji: string;
   teamName: string;
   opponentName: string;
   trackScoring: boolean;
@@ -26,11 +29,11 @@ export interface SoccerSummaryInput {
 }
 
 export function buildSoccerSummary(input: SoccerSummaryInput): string {
-  const { teamName, opponentName, trackScoring, state, squad, presentIds } = input;
+  const { emoji, teamName, opponentName, trackScoring, state, squad, presentIds } = input;
   const byId = new Map(squad.map((p) => [p.id, p]));
   const first = (p: Player | undefined) => (p ? p.full_name.trim().split(/\s+/)[0] : "Unknown");
   const jersey = (p: Player | undefined) => (p?.jersey_number != null ? `#${p.jersey_number} ` : "");
-  const lines: string[] = [`⚽ Full time — ${teamName} v ${opponentName}`];
+  const lines: string[] = [`${emoji} Full time — ${teamName} v ${opponentName}`];
 
   if (trackScoring) {
     const us = state.teamScore.goals;
@@ -46,7 +49,7 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ×${n}` : ""}`;
       });
-    if (scorers.length > 0) lines.push(`\n⚽ Goals: ${scorers.join(", ")}`);
+    if (scorers.length > 0) lines.push(`\n${emoji} Goals: ${scorers.join(", ")}`);
   }
 
   const played = Object.keys(state.ms)

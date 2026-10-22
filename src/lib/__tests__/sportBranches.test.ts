@@ -100,8 +100,6 @@ describe("touch and Oztag's unbuilt surfaces", () => {
 
   it("has no How we play until its own is built", () => {
     for (const [sport, name] of [
-      ["futsal", "Futsal"],
-      ["hockey", "Hockey"],
       ["touch", "Touch football"],
       ["oztag", "Oztag"],
     ] as const) {
