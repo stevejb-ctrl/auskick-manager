@@ -42,11 +42,6 @@ export interface LineTileSwap {
   totalPairs?: number;
 }
 
-export interface LineTileCaption {
-  text: string;
-  tone: "move" | "stay";
-}
-
 export interface LinePlayerTileProps {
   player: Player;
   /** Where the kid is now (a key of `styles`); null on the bench. */
@@ -69,7 +64,6 @@ export interface LinePlayerTileProps {
   lockMode?: "field" | "zone" | null;
   /** The scoring chip ("2T"), with its spoken label; omitted for none. */
   score?: { text: string; label: string } | null;
-  caption?: LineTileCaption | null;
   /** The sub card is in its SUB DUE state (AFL's due ring and tint). */
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
@@ -102,7 +96,6 @@ function LinePlayerTileImpl({
   loaned,
   lockMode,
   score,
-  caption,
   swapDue = false,
   extraChip,
 }: LinePlayerTileProps) {
@@ -196,18 +189,6 @@ function LinePlayerTileImpl({
           >
             {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
             <span>→ {swapLabel}</span>
-          </div>
-        )}
-
-        {caption && !isOff && !isOn && (
-          <div
-            className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-              caption.tone === "move"
-                ? "border-brand-700 bg-brand-600 text-white"
-                : "border-hairline bg-surface-alt text-ink-dim"
-            }`}
-          >
-            {caption.text}
           </div>
         )}
 
@@ -348,9 +329,7 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.lockMode !== b.lockMode ||
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
-    a.extraChip !== b.extraChip ||
-    a.caption?.text !== b.caption?.text ||
-    a.caption?.tone !== b.caption?.tone
+    a.extraChip !== b.extraChip
   ) {
     return false;
   }

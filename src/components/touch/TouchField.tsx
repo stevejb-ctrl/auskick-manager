@@ -14,7 +14,7 @@ import type { Player } from "@/lib/types";
 import type { TouchLineup } from "@/lib/sports/touch/lineup";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
 import { TOUCH_LANES, type TouchLine } from "@/lib/sports/touch/types";
-import { LinePlayerTile, type LineTileCaption } from "@/components/live/LinePlayerTile";
+import { LinePlayerTile } from "@/components/live/LinePlayerTile";
 import {
   TOUCH_BAR_ORDER,
   TOUCH_LINE_LABEL,
@@ -44,7 +44,6 @@ interface TouchFieldProps {
   lockModes?: Record<string, "field" | "zone">;
   /** Tries each kid has scored; omitted when scoring is off. */
   triesByPlayer?: Record<string, number>;
-  captions?: Record<string, LineTileCaption>;
 }
 
 const ORPHAN_WRAP = "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
@@ -65,7 +64,6 @@ export function TouchField({
   injuredIds,
   lockModes,
   triesByPlayer,
-  captions,
 }: TouchFieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const anySelected = selectedPlayerId !== null;
@@ -105,7 +103,6 @@ export function TouchField({
         injured={injuredSet.has(pid)}
         lockMode={lockModes?.[pid] ?? null}
         score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
-        caption={captions?.[pid]}
         swapDue={swapDue}
       />
     );
