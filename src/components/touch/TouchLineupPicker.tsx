@@ -15,6 +15,12 @@
 //   - the side keeps the rule, each group's places to that group's kids;
 //   - short of girls, "You can field 4: 3 boys and 1 girl";
 //   - "Boys and girls are evened separately under the mixed rule."
+//
+// Above the field, the shared RuleCheckBar (as AFL's and netball's
+// pickers) checks the side as it's built, with the break's rules: the
+// lanes and places, and the mixed rule ("Too many boys on the field (4);
+// the mixed rule allows 3."), so a coach sees a broken rule before
+// Start, not after.
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -55,6 +61,8 @@ import { benchInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib
 import { MIXED_FAIRNESS_NOTE, mixedFieldMessage, mixedRuleSummary } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
+import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
@@ -160,6 +168,8 @@ export function TouchLineupPicker({
   function resuggest(n: number, s: string | null, m: TouchMixed | undefined = mixed) {
     setLineup(suggest(n, s, playing, m).lineup);
     setSelectedId(null);
+    // A new side: an error about the old one no longer applies.
+    setError(null);
   }
 
   async function answerGroup(pid: string, group: MixedGroup) {
@@ -259,6 +269,9 @@ export function TouchLineupPicker({
       }
     });
   }
+
+  // The side's rules as it's built (the break's check): lanes and places, the mixed rule.
+  const ruleItems = useMemo(() => touchLineupRuleItems({ lineup, ageGroup, size, mixed }), [lineup, ageGroup, size, mixed]);
 
   const sizeOptions = Array.from({ length: ageGroup.maxOnFieldSize - ageGroup.minOnFieldSize + 1 }, (_, i) => ageGroup.minOnFieldSize + i);
   const lentPlayers = players.filter((p) => loanedIds.has(p.id));
@@ -431,6 +444,9 @@ export function TouchLineupPicker({
           </div>
         )}
       </div>
+
+      {/* Rule check, as AFL's lineup: the side against the rules before Start. */}
+      <RuleCheckBar items={ruleItems} />
 
       <TouchField
         lineup={lineup}

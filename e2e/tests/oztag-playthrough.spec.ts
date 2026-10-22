@@ -162,6 +162,10 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: /under 10 starting side/i })).toBeVisible({ timeout: 15_000 });
+  // The pre-game rule check: four boys is Oztag's cap, kept.
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
+  await page.getByTestId("rule-check-summary").click();
+  await expect(page.getByTestId("rule-check")).toContainText("Mixed rule kept: 4 of 4 boys, 4 girls");
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });

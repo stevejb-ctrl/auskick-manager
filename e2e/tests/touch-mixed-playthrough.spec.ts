@@ -16,7 +16,7 @@
 //      1 in touch, whoever scores); full time; every event carries the
 //      team's sport; the game page reports by group.
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -40,6 +40,12 @@ async function openActions(page: Page, playerId: string) {
   await page.getByTestId(`player-tile-${playerId}`).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /player actions/i }).click({ timeout: 5_000 });
 }
+
+/** The player ids of the tiles in a region, in the order drawn. */
+const tileIds = (where: Locator) =>
+  where
+    .locator("[data-testid^='player-tile-']")
+    .evaluateAll((els) => els.map((e) => (e.getAttribute("data-testid") ?? "").slice("player-tile-".length)));
 
 const onField = (lu: TouchLineupMeta) => [...lu.lines.middle, ...lu.lines.link, ...lu.lines.wing, ...lu.lines.field];
 
@@ -132,8 +138,27 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   for (const lane of ["Middles", "Links", "Wings"]) {
     await expect(field.getByRole("group", { name: lane }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   }
-  await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(6);
+  const bench = page.getByRole("group", { name: "Bench" });
+  await expect(bench.locator("[data-testid^='player-tile-']")).toHaveCount(6);
   await expect(page.getByText("Boys and girls are evened separately under the mixed rule.").first()).toBeVisible();
+
+  // The rule check, as AFL's lineup has (audit 23 Oct, P1): all kept; a
+  // swap that puts a fourth boy on shows at once, and Start refuses it;
+  // Suggest again clears the stale error with the side.
+  const ruleCheck = page.getByTestId("rule-check-summary");
+  await expect(ruleCheck).toHaveText("All rules kept");
+  const girlOnField = (await tileIds(field)).find((id) => groupOf.get(id) === "girl")!;
+  const boyOnBench = (await tileIds(bench)).find((id) => groupOf.get(id) === "boy")!;
+  await page.getByTestId(`player-tile-${girlOnField}`).click();
+  await page.getByTestId(`player-tile-${boyOnBench}`).click();
+  await expect(ruleCheck).toHaveText("Too many boys on the field (4); the mixed rule allows 3.");
+  await page.getByRole("button", { name: /^start h1$/i }).click();
+  const startError = page.getByRole("alert").filter({ hasText: /too many boys/i });
+  await expect(startError).toBeVisible();
+  await page.getByRole("button", { name: /game settings/i }).click();
+  await page.getByRole("button", { name: "Suggest again" }).click();
+  await expect(startError).toHaveCount(0);
+  await expect(ruleCheck).toHaveText("All rules kept");
 
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
