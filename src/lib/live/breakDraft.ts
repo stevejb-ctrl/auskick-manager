@@ -7,9 +7,10 @@
 // The draft is now kept in the live store's persisted `breakDraft`
 // slice, keyed by game and break, and restored by `useStagedBreakDraft`.
 //
-// Sport-neutral, like the plan-ahead pin: `groups` are AFL zones or
-// netball positions. League has no staged break draft (each swap at its
-// break is saved as it's made), so it doesn't use this.
+// Sport-neutral, like the plan-ahead pin: `groups` are AFL zones,
+// netball positions, or a sport's lines. A sport whose kids also hold a
+// named position inside their line (basketball's PG to C) keeps it in
+// `slots`, so a restored draft doesn't lose it.
 
 export interface StagedBreakDraft {
   gameId: string;
@@ -18,6 +19,8 @@ export interface StagedBreakDraft {
   /** groupId -> player ids, as staged. */
   groups: Record<string, string[]>;
   bench: string[];
+  /** Named positions, player id -> position, for sports that have them. */
+  slots?: Record<string, string>;
   /** The break's lineup mode when it was staged ("keep", "manual", …). */
   mode: string;
 }
@@ -25,6 +28,8 @@ export interface StagedBreakDraft {
 export interface RestoredBreakDraft {
   groups: Record<string, string[]>;
   bench: string[];
+  /** Positions of the kids restored to a group; absent when none were staged. */
+  slots?: Record<string, string>;
   mode: string;
 }
 
@@ -46,6 +51,7 @@ export interface RestoreBreakDraftInput {
  * off the field (onto the bench when `benchOnlyIds` lists them), a kid
  * no longer in the game is dropped, and anyone who can play but isn't
  * placed (arrived, or back since) joins the bench, so nobody is lost.
+ * Kids back on the field keep their staged position (`slots`).
  */
 export function restoreBreakDraft(
   draft: StagedBreakDraft | null | undefined,
@@ -67,6 +73,13 @@ export function restoreBreakDraft(
       placed.add(id);
     }
   }
+  // A position stays with a kid still on the field; one benched since
+  // gives theirs up.
+  let slots: Record<string, string> | undefined;
+  if (draft.slots) {
+    slots = {};
+    for (const [id, slot] of Object.entries(draft.slots)) if (placed.has(id)) slots[id] = slot;
+  }
 
   const bench: string[] = [];
   const toBench = (id: string) => {
@@ -83,5 +96,5 @@ export function restoreBreakDraft(
   for (const id of input.availableIds) toBench(id);
   for (const id of input.benchOnlyIds ?? []) toBench(id);
 
-  return { groups, bench, mode: draft.mode };
+  return { groups, bench, ...(slots ? { slots } : {}), mode: draft.mode };
 }
