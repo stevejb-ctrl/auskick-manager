@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Toggle } from "@/components/ui/Toggle";
 import type { AgePolicy, EffectivePolicy, PolicyOverrides } from "@/lib/playbook/types";
-import { isBasketball, isRugby, isSoccer } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch } from "@/lib/sports/registry";
+import { touchAgeGroup } from "@/lib/sports/touch/family";
 import { soccerAgeGroup } from "@/lib/sports/soccer";
 import type { Sport } from "@/lib/types";
 
@@ -77,6 +78,14 @@ export function PolicyCard({
   }
   if (isBasketball(sport)) {
     lines.push({ text: "Five on court; positions are optional, and you choose how kids rotate" });
+  }
+  if (isTouch(sport)) {
+    const age = touchAgeGroup(sport, policy.ageGroup);
+    lines.push({ text: `${age.defaultOnFieldSize} a side, rolling subs; lanes (middle, link, wing) are optional, and you choose how kids rotate` });
+    // The NSW Junior State Championships' fair-play line is Siren's engine.
+    if (sport === "oztag") {
+      lines.push({ text: "Equal game time: 50 %, give or take 10 %", source: "NSW Junior State Championships" });
+    }
   }
   lines.push({
     text: `Everyone plays at least ${policy.minGameTimePct}% of the game`,
