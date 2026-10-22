@@ -27,7 +27,7 @@ interface Props {
   /** Whether the current user can edit (admins only typically). */
   isAdmin?: boolean;
   /** "Half" for sports that play halves (rugby league U10+). */
-  periodWord?: "Quarter" | "Half";
+  periodWord?: "Quarter" | "Half" | "Period";
 }
 
 export function QuarterLengthInput({

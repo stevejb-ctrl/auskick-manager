@@ -31,6 +31,12 @@ export const BASE_UNIT: Record<Sport, BalanceUnit> = {
   soccer: "line",
   // Guards and forwards (or the court, under Equal minutes).
   basketball: "line",
+  // Lines and goal, as soccer.
+  futsal: "line",
+  hockey: "line",
+  // Middles, links and wings (or the field, under Minutes only).
+  touch: "line",
+  oztag: "line",
 };
 
 /**
@@ -47,6 +53,10 @@ const STORED_UNITS: Record<Sport, BalanceUnit[]> = {
   soccer: ["line"],
   // Lines, and the five positions (1 to 5) the position strategies play.
   basketball: ["line", "position"],
+  futsal: ["line"],
+  hockey: ["line"],
+  touch: ["line"],
+  oztag: ["line"],
 };
 
 export function gameRollupRows(

@@ -1,13 +1,17 @@
 "use client";
 
-// ─── Football (soccer) half-time ─────────────────────────────
-// Soccer's half-time plan (suggestSoccerHalfTime: who takes the keeper
-// top, who plays and where), its writers and its keeper rules, adapted
-// onto the one break screen every sport shares (quarter-break/
-// PeriodBreak): Attack / Midfield / Defence / Keeper / Bench, "2nd half"
-// words. The plan is staged in the shared break draft (so it survives a
-// reload or the app being backgrounded) and Start commits it as one
-// lineup_set before the half starts. The layout lives in PeriodBreak.
+// ─── The soccer family's break ────────────────────────────────
+// Soccer's, futsal's and hockey's break plan (suggestSoccerHalfTime: who
+// goes in goal, who plays and where), their writers and keeper rules,
+// adapted onto the one break screen every sport shares (quarter-break/
+// PeriodBreak), in the sport's own line words (Attack / Midfield /
+// Defence / Keeper, futsal's Front / Wings / Back, hockey's Strikers /
+// Midfield / Defenders) and its age group's halves or quarters. Where
+// keeper kit takes minutes (hockey), the kid told to kit up before the
+// break starts in goal. The plan is staged in the shared break draft (so
+// it survives a reload or the app being backgrounded) and Start commits
+// it as one lineup_set before the period starts. The layout lives in
+// PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -20,6 +24,8 @@ import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
+import { periodLabels, type SoccerSport } from "@/lib/sports";
+import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
@@ -37,6 +43,7 @@ import {
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
+import { kitUpKey, readKitUp, withAnnouncedKeeper, writeKitUp } from "./keeperKitUp";
 
 const GROUPS = ["att", "mid", "def", "field", "gk"] as const;
 
@@ -66,6 +73,8 @@ function swapSlots(l: SoccerLineup, a: BoardSlot, b: BoardSlot): SoccerLineup {
 
 interface Props {
   auth: LiveAuth;
+  /** The team's sport: its line words and keeper rules. */
+  sport: SoccerSport;
   game: Game;
   exitHref?: string;
   squad: Player[];
@@ -83,6 +92,7 @@ interface Props {
 
 export function SoccerBreak({
   auth,
+  sport,
   game,
   exitHref,
   squad,
@@ -98,6 +108,8 @@ export function SoccerBreak({
   const router = useRouter();
   const period = state.currentPeriod; // the half just ended
   const nextPeriod = period + 1;
+  const rules = soccerFamilyRules(sport);
+  const periodLetter = periodLabels(sport, ageGroup).label.charAt(0).toUpperCase();
   const strategyForKeeper = keeperStrategy ?? ageGroup.keeper;
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
@@ -134,7 +146,16 @@ export function SoccerBreak({
       },
     [state, ageGroup, game.on_field_size, formation, season, keeperStrategy, keeperPrefs],
   );
-  const suggested = plan.lineup;
+  // The kid the kit-up heads-up named (hockey) starts in goal. Read once
+  // the break is on screen (session storage isn't there to render with).
+  const [announcedKeeper, setAnnouncedKeeper] = useState<string | null>(null);
+  useEffect(() => {
+    setAnnouncedKeeper(readKitUp(kitUpKey(game.id, period)));
+  }, [game.id, period]);
+  const suggested = useMemo(
+    () => withAnnouncedKeeper(plan.lineup, announcedKeeper, sidelinedSet) ?? plan.lineup,
+    [plan.lineup, announcedKeeper, sidelinedSet],
+  );
   const repeat = useMemo(
     () => (previousLineup ? benchOutInSoccerLineup(previousLineup, sidelinedSet) : suggested),
     [previousLineup, sidelinedSet, suggested],
@@ -147,7 +168,7 @@ export function SoccerBreak({
   // up a line (defence → midfield → attack → defence), the shape kept,
   // least-played on.
   const rotated = useMemo<SoccerLineup>(() => {
-    const keeper = plan.formation.keeper ? plan.lineup.keeper : null;
+    const keeper = plan.formation.keeper ? suggested.keeper : null;
     const shape = plan.formation.lines;
     const out = rotateGroups({
       players: healthy.filter((id) => id !== keeper),
@@ -164,7 +185,7 @@ export function SoccerBreak({
       sidelinedIds: sidelinedInGame,
     });
     return lineupOf({ groups: { ...out.groups, gk: keeper ? [keeper] : [] }, bench: out.bench });
-  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  }, [plan, suggested, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
 
   // ── The staged plan ─────────────────────────────────────────
   const persistedRotationMode = useLiveGame((s) => s.rotationMode);
@@ -184,6 +205,16 @@ export function SoccerBreak({
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
+  // The kit-up keeper is read after the first render: put them in goal
+  // then, once, unless the coach has already shaped the plan or a staged
+  // one was restored.
+  const shaped = useRef(false);
+  useEffect(() => {
+    if (!announcedKeeper || shaped.current || lastApplied.current !== "suggested") return;
+    shaped.current = true;
+    setDraft(suggested);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [announcedKeeper]);
 
   const staged = useMemo(() => stagedOf(draft), [draft]);
   const stagedBreakDraft = useStagedBreakDraft({
@@ -196,6 +227,7 @@ export function SoccerBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      shaped.current = true;
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -249,6 +281,8 @@ export function SoccerBreak({
         .flushed;
       await enqueueLiveAction("startSoccerHalf", [auth, game.id, nextPeriod]).flushed;
       stagedBreakDraft.clear();
+      // The kit-up heads-up's job is done once the period starts.
+      writeKitUp(kitUpKey(game.id, period), "");
       void hapticTap("medium");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't save. Try again.");
@@ -268,8 +302,8 @@ export function SoccerBreak({
   }, [plan.formation, draft]);
   const config = useMemo(
     () =>
-      breakConfigFor("soccer", ageGroup, { onFieldSize: game.on_field_size, shape }),
-    [ageGroup, game.on_field_size, shape],
+      breakConfigFor(sport, ageGroup, { onFieldSize: game.on_field_size, shape }),
+    [sport, ageGroup, game.on_field_size, shape],
   );
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
@@ -296,6 +330,7 @@ export function SoccerBreak({
             lineup: { ...out, bench: out.bench.filter((id) => !sidelinedSet.has(id)) },
             state,
             ageGroup,
+            rules,
             onFieldSize: game.on_field_size,
             period: nextPeriod,
             periodMs,
@@ -311,7 +346,7 @@ export function SoccerBreak({
         emptySpots: false,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, sidelinedSet, state, ageGroup, game.on_field_size, nextPeriod, periodMs, names, strategyForKeeper, keeperPrefs, config.zones],
+    [draft, sidelinedSet, state, ageGroup, rules, game.on_field_size, nextPeriod, periodMs, names, strategyForKeeper, keeperPrefs, config.zones],
   );
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
@@ -337,9 +372,13 @@ export function SoccerBreak({
       gameMs={gameMs}
       scores={scores}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        shaped.current = true;
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
+        shaped.current = true;
         setStrategy(next);
         if (next !== "repeat") setPersistedRotationMode(next === "rotate" ? "rotate" : next === "manual" ? "manual" : "suggested");
       }}
@@ -361,7 +400,7 @@ export function SoccerBreak({
                     currentQuarter={period}
                     quarterEnded={true}
                     sport="netball"
-                    periodLetter="H"
+                    periodLetter={periodLetter}
                     teamName="Us"
                     opponentName={game.opponent || "Them"}
                   />

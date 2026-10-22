@@ -12,6 +12,8 @@ export {
   getBrandForHost,
   getSportByBrand,
   isSportId,
+  isSportOpen,
+  SPORTS_NOT_OPEN,
   teamSport,
   noSportBranch,
   aflBranch,
@@ -22,8 +24,10 @@ export {
   SOCCER_SPORT_IDS,
   isBasketball,
   BASKETBALL_SPORT_IDS,
+  isTouch,
+  TOUCH_SPORT_IDS,
 } from "@/lib/sports/registry";
-export type { RugbySport, SoccerSport, BasketballSport } from "@/lib/sports/registry";
+export type { RugbySport, SoccerSport, BasketballSport, TouchSport } from "@/lib/sports/registry";
 export { aflSport, aflPositionModel } from "@/lib/sports/afl";
 export {
   netballSport,
@@ -35,6 +39,10 @@ export { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 export { rugbyUnionSport } from "@/lib/sports/rugby_union";
 export { soccerSport } from "@/lib/sports/soccer";
 export { basketballSport } from "@/lib/sports/basketball";
+export { futsalSport } from "@/lib/sports/futsal";
+export { hockeySport } from "@/lib/sports/hockey";
+export { touchSport } from "@/lib/sports/touch";
+export { oztagSport } from "@/lib/sports/oztag";
 
 /**
  * Resolve the effective quarter duration (in seconds) for a game.

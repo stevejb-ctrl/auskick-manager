@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Toggle } from "@/components/ui/Toggle";
 import type { AgePolicy, EffectivePolicy, PolicyOverrides } from "@/lib/playbook/types";
-import { isBasketball, isRugby, isSoccer } from "@/lib/sports/registry";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { isBasketball, isRugby, isSoccer, isTouch } from "@/lib/sports/registry";
+import { soccerFamilyAgeGroup, soccerFamilyRules } from "@/lib/sports/soccer/family";
+import { touchAgeGroup } from "@/lib/sports/touch/family";
 import type { Sport } from "@/lib/types";
 
 interface PolicyCardProps {
@@ -66,17 +67,27 @@ export function PolicyCard({
     lines.push({ text: "Positions follow the rules of play; you choose how kids rotate" });
   }
   if (isSoccer(sport)) {
-    const age = soccerAgeGroup(policy.ageGroup);
+    // The sport's own format, line words and the body that sets them.
+    const age = soccerFamilyAgeGroup(sport, policy.ageGroup);
+    const { lineLabels: words, ruleSource } = soccerFamilyRules(sport);
     lines.push({
       text:
         age.keeper === "none"
           ? `${age.defaultOnFieldSize} a side with no keeper and no lines: kids just play`
-          : `${age.defaultOnFieldSize} a side with a keeper; everyone rotates through defence, midfield and attack`,
-      source: age.notes.startsWith("MiniRoos") ? "Football Australia MiniRoos" : undefined,
+          : `${age.defaultOnFieldSize} a side with a keeper; everyone rotates through ${words.def.phrase}, ${words.mid.phrase} and ${words.att.phrase}`,
+      source: ruleSource.format?.ages.includes(age.id) ? ruleSource.format.source : undefined,
     });
   }
   if (isBasketball(sport)) {
     lines.push({ text: "Five on court; positions are optional, and you choose how kids rotate" });
+  }
+  if (isTouch(sport)) {
+    const age = touchAgeGroup(sport, policy.ageGroup);
+    lines.push({ text: `${age.defaultOnFieldSize} a side, rolling subs; lanes (middle, link, wing) are optional, and you choose how kids rotate` });
+    // The NSW Junior State Championships' fair-play line is Siren's engine.
+    if (sport === "oztag") {
+      lines.push({ text: "Equal game time: 50 %, give or take 10 %", source: "NSW Junior State Championships" });
+    }
   }
   lines.push({
     text: `Everyone plays at least ${policy.minGameTimePct}% of the game`,

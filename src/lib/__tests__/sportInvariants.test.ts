@@ -29,10 +29,11 @@ describe("every sport", () => {
       it("has its own playbook, with rules its engine acts on", () => {
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
-        // Football (soccer)'s and basketball's engines act on no catalogue
+        // The soccer family's (soccer, futsal, hockey), basketball's and
+        // the touch family's (touch, Oztag) engines act on no catalogue
         // rule yet, so their Rules editors offer none rather than rules
         // that do nothing.
-        if (sport.id === "soccer" || sport.id === "basketball") {
+        if (sport.family === "soccer" || sport.family === "touch" || sport.id === "basketball") {
           expect(playbook.engineRuleKinds).toEqual([]);
           return;
         }
@@ -48,6 +49,9 @@ describe("every sport", () => {
     expect(getSportConfig("rugby_union")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("soccer")).toMatchObject({ jerseyNumbers: true, teamSong: false });
     expect(getSportConfig("basketball")).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    for (const id of ["futsal", "hockey", "touch", "oztag"] as const) {
+      expect(getSportConfig(id), id).toMatchObject({ jerseyNumbers: true, teamSong: false });
+    }
     expect(PLAYHQ_TENANT).toEqual({
       afl: "afl",
       netball: "netball-australia",
@@ -55,6 +59,11 @@ describe("every sport", () => {
       rugby_union: null,
       soccer: null,
       basketball: "basketball-victoria",
+      // None of the four-sports plan's sports is on PlayHQ.
+      futsal: null,
+      hockey: null,
+      touch: null,
+      oztag: null,
     });
   });
 });

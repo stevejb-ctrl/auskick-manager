@@ -1,28 +1,30 @@
 "use client";
 
 // ─── SoccerField ─────────────────────────────────────────────
-// The Football (soccer) pitch for the live game, the lineup picker and
-// half-time. Mirrors AFL's Field (the reference): the same green, inset
-// edge and paint-like markings, lines as rows of a two-column grid with
-// an odd tile centred, a hairline between lines, and dashed "Empty"
-// placeholders. Attacking up the page: attack, midfield, defence, then
-// the keeper alone in the goal mouth. 4 a side has no lines and no
-// keeper: one group of kids.
+// The soccer family's playing surface for the live game, the lineup
+// picker and the break: soccer's pitch, futsal's court or a hockey
+// pitch (SoccerFamilyRules.surface). Mirrors AFL's Field (the
+// reference): the same inset edge and paint-like markings, lines as rows
+// of a two-column grid with an odd tile centred, a hairline between
+// lines, and dashed "Empty" placeholders. Attacking up the page: the
+// front line, the middle, the back, then the keeper alone in the goal
+// mouth. An age with no keeper has no lines: one group of kids.
 
 import { Fragment } from "react";
 import type { Player } from "@/lib/types";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
-import type { SoccerLine, SoccerUnit } from "@/lib/sports/soccer/types";
-import {
-  SoccerPlayerTile,
-  SOCCER_UNIT_LABEL,
-} from "@/components/soccer/SoccerPlayerTile";
+import type { SoccerLine, SoccerSurface, SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
+import { SoccerPlayerTile } from "@/components/soccer/SoccerPlayerTile";
 
 /** Rows drawn top to bottom when the shape has lines. */
 const LINE_ROWS: SoccerLine[] = ["att", "mid", "def"];
 
 interface SoccerFieldProps {
+  /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
+  words: Record<SoccerUnit, SoccerUnitWords>;
+  /** What the game is drawn on (SoccerFamilyRules.surface). */
+  surface: SoccerSurface;
   lineup: SoccerLineup;
   /** Places in each line (the formation), so short lines show empties. */
   lineCaps: Record<SoccerLine, number>;
@@ -56,6 +58,8 @@ interface SoccerFieldProps {
 const ORPHAN_WRAP = "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
 
 export function SoccerField({
+  words,
+  surface,
   lineup,
   lineCaps,
   hasKeeper,
@@ -87,7 +91,7 @@ export function SoccerField({
         key={key}
         type="button"
         onClick={() => onTap("", unit)}
-        aria-label={`Empty ${SOCCER_UNIT_LABEL[unit].toLowerCase()} spot`}
+        aria-label={`Empty ${words[unit].label.toLowerCase()} spot`}
         className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
           primed
             ? "border-warn bg-warn/20 text-white"
@@ -106,6 +110,7 @@ export function SoccerField({
     return (
       <SoccerPlayerTile
         player={player}
+        words={words}
         unit={unit}
         positionLabel={positionLabels?.[pid]}
         keepOn={keepOnIds?.has(pid)}
@@ -130,7 +135,7 @@ export function SoccerField({
     if (slotCount === 0) return null;
     const orphanIdx = slotCount % 2 === 1 ? slotCount - 1 : -1;
     return (
-      <div role="group" aria-label={SOCCER_UNIT_LABEL[unit]} className="grid grid-cols-2 gap-2">
+      <div role="group" aria-label={words[unit].label} className="grid grid-cols-2 gap-2">
         {Array.from({ length: slotCount }).map((_, slot) => {
           const pid = ids[slot];
           const content = pid ? tile(pid, unit) : emptyButton(unit, `empty-${slot}`);
@@ -152,7 +157,12 @@ export function SoccerField({
     : [];
 
   return (
-    <div role="region" aria-label="On field" className="relative rounded-[18px] bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+    <div
+      role="region"
+      aria-label={surface === "court" ? "On court" : "On field"}
+      data-surface={surface}
+      className={`relative rounded-[18px] ${surface === "court" ? "bg-court" : "bg-field"} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
+    >
       {wakeUpKey !== null && (
         <span
           key={wakeUpKey}
@@ -162,7 +172,9 @@ export function SoccerField({
         />
       )}
       <div className="relative overflow-hidden rounded-[18px]">
-        <PitchMarkings />
+        {surface === "pitch" && <PitchMarkings />}
+        {surface === "court" && <FutsalCourtMarkings />}
+        {surface === "hockey" && <HockeyPitchMarkings />}
         <div className="relative space-y-2 px-5 pb-6 pt-8">
           {hasKeeper ? (
             <>
@@ -173,7 +185,7 @@ export function SoccerField({
                 </Fragment>
               ))}
               {/* The keeper, alone in the goal mouth. */}
-              <div role="group" aria-label={SOCCER_UNIT_LABEL.gk} className="grid grid-cols-2 gap-2 pt-3">
+              <div role="group" aria-label={words.gk.label} className="grid grid-cols-2 gap-2 pt-3">
                 <div className={ORPHAN_WRAP}>
                   {lineup.keeper ? tile(lineup.keeper, "gk") : emptyButton("gk", "empty-gk")}
                 </div>
@@ -184,6 +196,61 @@ export function SoccerField({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Futsal's court, on the shared court token basketball draws on: the
+ * lines, halfway and the centre circle, and at each end the 6 m penalty
+ * area (quarter circles from the posts, joined by a short straight), the
+ * 10 m second penalty mark and the 3 m goal. Attack at the top.
+ * Decoration only.
+ */
+function FutsalCourtMarkings() {
+  const line = "border-court-line";
+  return (
+    <div aria-hidden data-testid="futsal-court-markings" className="pointer-events-none absolute inset-0">
+      <div className={`absolute inset-2 rounded-[10px] border-2 ${line}`} />
+      <div className={`absolute inset-x-2 top-1/2 h-0 border-t-2 ${line}`} />
+      <div className={`absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${line}`} />
+      {/* The penalty areas: rounded corners as deep as the area. */}
+      <div className={`absolute left-1/2 top-2 h-[15%] w-[76%] -translate-x-1/2 rounded-b-full border-2 border-t-0 ${line} bg-white/[0.06]`} />
+      <div className={`absolute bottom-2 left-1/2 h-[15%] w-[76%] -translate-x-1/2 rounded-t-full border-2 border-b-0 ${line} bg-white/[0.06]`} />
+      {/* The second penalty marks (10 m) and the goals. */}
+      <div className="absolute left-1/2 top-[26%] h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-court-line" />
+      <div className="absolute bottom-[26%] left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-court-line" />
+      <div className={`absolute left-1/2 top-0.5 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-t-2 ${line}`} />
+      <div className={`absolute bottom-0.5 left-1/2 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-b-2 ${line}`} />
+    </div>
+  );
+}
+
+/**
+ * A hockey pitch, in the pitch's paint: the sidelines, the centre line
+ * and the 23 m lines, and at each end the shooting circle (quarter
+ * circles from the posts, joined by a short straight), its dashed outer
+ * circle, the penalty spot and the goal. Half-field games use the same
+ * drawing. Attack at the top. Decoration only.
+ */
+function HockeyPitchMarkings() {
+  const line = "border-white/[0.22]";
+  return (
+    <div aria-hidden data-testid="hockey-pitch-markings" className="pointer-events-none absolute inset-0">
+      <div className={`absolute inset-x-2.5 inset-y-2.5 rounded-[10px] border-[1.5px] ${line}`} />
+      <div className="absolute inset-x-2.5 top-1/2 h-0 border-t-[1.5px] border-white/[0.18]" />
+      {/* The 23 m lines, a quarter of the way in from each end. */}
+      <div className="absolute inset-x-2.5 top-[25%] h-0 border-t-[1.5px] border-white/[0.16]" />
+      <div className="absolute inset-x-2.5 bottom-[25%] h-0 border-t-[1.5px] border-white/[0.16]" />
+      {/* The shooting circles, their dashed 5 m circles, the spots and goals. */}
+      <div className={`absolute left-1/2 top-2.5 h-[16%] w-[60%] -translate-x-1/2 rounded-b-full border-[1.5px] border-t-0 ${line}`} />
+      <div className="absolute left-1/2 top-2.5 h-[21%] w-[72%] -translate-x-1/2 rounded-b-full border-[1.5px] border-dashed border-t-0 border-white/[0.14]" />
+      <div className={`absolute bottom-2.5 left-1/2 h-[16%] w-[60%] -translate-x-1/2 rounded-t-full border-[1.5px] border-b-0 ${line}`} />
+      <div className="absolute bottom-2.5 left-1/2 h-[21%] w-[72%] -translate-x-1/2 rounded-t-full border-[1.5px] border-dashed border-b-0 border-white/[0.14]" />
+      <div className="absolute left-1/2 top-[9%] h-1 w-1 -translate-x-1/2 rounded-full bg-white/[0.3]" />
+      <div className="absolute bottom-[9%] left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/[0.3]" />
+      <div className={`absolute left-1/2 top-1 h-1.5 w-[10%] -translate-x-1/2 border-x-[1.5px] border-t-[1.5px] ${line}`} />
+      <div className={`absolute bottom-1 left-1/2 h-1.5 w-[10%] -translate-x-1/2 border-x-[1.5px] border-b-[1.5px] ${line}`} />
     </div>
   );
 }

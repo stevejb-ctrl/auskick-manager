@@ -6,7 +6,11 @@ import { netballPlaybook } from "@/lib/sports/netball/playbook";
 import { leaguePlaybook } from "@/lib/sports/rugby_league/playbook";
 import { unionPlaybook } from "@/lib/sports/rugby_union/playbook";
 import { soccerPlaybook } from "@/lib/sports/soccer/playbook";
+import { futsalPlaybook } from "@/lib/sports/futsal/playbook";
+import { hockeyPlaybook } from "@/lib/sports/hockey/playbook";
 import { basketballPlaybook } from "@/lib/sports/basketball/playbook";
+import { touchPlaybook } from "@/lib/sports/touch/playbook";
+import { oztagPlaybook } from "@/lib/sports/oztag/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
 import type { Sport } from "@/lib/types";
 import type {
@@ -28,6 +32,10 @@ const PLAYBOOKS: Record<Sport, SportPlaybook> = {
   rugby_union: unionPlaybook,
   soccer: soccerPlaybook,
   basketball: basketballPlaybook,
+  futsal: futsalPlaybook,
+  hockey: hockeyPlaybook,
+  touch: touchPlaybook,
+  oztag: oztagPlaybook,
 };
 
 export function getSportPlaybook(sport: Sport): SportPlaybook {

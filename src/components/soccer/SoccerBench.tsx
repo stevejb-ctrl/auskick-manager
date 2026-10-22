@@ -7,10 +7,12 @@
 
 import type { Player } from "@/lib/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
-import type { SoccerUnit } from "@/lib/sports/soccer/types";
+import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
 import { SoccerPlayerTile } from "@/components/soccer/SoccerPlayerTile";
 
 interface SoccerBenchProps {
+  /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
+  words: Record<SoccerUnit, SoccerUnitWords>;
   bench: string[];
   playersById: Map<string, Player>;
   onTap: (playerId: string) => void;
@@ -31,6 +33,7 @@ interface SoccerBenchProps {
 }
 
 export function SoccerBench({
+  words,
   bench,
   playersById,
   onTap,
@@ -70,6 +73,7 @@ export function SoccerBench({
               <SoccerPlayerTile
                 key={pid}
                 player={p}
+                words={words}
                 unit={null}
                 onClick={out ? (onLongPress ? () => onLongPress(pid) : undefined) : () => onTap(pid)}
                 onLongPress={onLongPress ? () => onLongPress(pid) : undefined}

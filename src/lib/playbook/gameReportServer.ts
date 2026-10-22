@@ -7,11 +7,24 @@ import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
 import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, isBasketball, isRugby, isSoccer, periodLabels, teamSport } from "@/lib/sports";
+import {
+  getAgeGroupConfig,
+  getEffectiveQuarterSeconds,
+  isBasketball,
+  isRugby,
+  isSoccer,
+  isTouch,
+  periodLabels,
+  teamSport,
+} from "@/lib/sports";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
+import type { SoccerUnit } from "@/lib/sports/soccer/types";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { replayTouchGame } from "@/lib/sports/touch/replay";
+import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
+import { teamMixedRule, type MixedRuleColumns } from "@/lib/sports/touch/mixed";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -21,7 +34,7 @@ import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { gameReport, type GameReport } from "@/lib/playbook/gameReport";
 import { rulesForSport, type RuleInstance } from "@/lib/playbook/rules";
 import type { ThirdLookup } from "@/lib/sports/netball/fairness";
-import type { Game, GameEvent, Sport } from "@/lib/types";
+import type { Game, GameEvent, MixedGroup, Sport } from "@/lib/types";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 
 const AFL_LINE: Record<string, string> = { back: "back", hback: "back", mid: "mid", hfwd: "fwd", fwd: "fwd" };
@@ -33,19 +46,18 @@ const LABELS: Record<string, string> = {
   "centre-third": "Centre",
   "defence-third": "Defence",
 };
-/** Soccer's own words: its "mid" is midfield, never AFL's centre. */
-const SOCCER_LABELS: Record<string, string> = {
-  gk: "Keeper",
-  def: "Defence",
-  mid: "Midfield",
-  att: "Attack",
-  field: "Field",
-};
-
 const BASKETBALL_LABELS: Record<string, string> = {
   guard: "Guards",
   forward: "Forwards",
   court: "Court",
+};
+
+/** Touch and Oztag's lanes. */
+const TOUCH_LABELS: Record<string, string> = {
+  middle: "Middles",
+  link: "Links",
+  wing: "Wings",
+  field: "Field",
 };
 
 /** Whether the after-game report compares season balance, per sport. */
@@ -56,6 +68,10 @@ const SEASON_IN_REPORT: Record<Sport, boolean> = {
   rugby_union: false,
   soccer: true,
   basketball: true,
+  futsal: true,
+  hockey: true,
+  touch: true,
+  oztag: true,
 };
 
 export async function buildGameReport(
@@ -65,19 +81,30 @@ export async function buildGameReport(
     sport: Sport | null;
     age_group: string | null;
     quarter_length_seconds: number | null;
-    /** Basketball: halves or quarters (migration 0069). */
+    /**
+     * Basketball and hockey: halves or quarters (migration 0069); touch
+     * and Oztag: halves or one period (0071).
+     */
     period_count?: number | null;
-  },
+  } & MixedRuleColumns,
   game: Game,
   events: GameEvent[],
   playerNames: Record<string, string>,
+  /** Touch and Oztag mixed teams: who each kid (and fill-in) counts as. */
+  mixedGroups?: Record<string, MixedGroup | null | undefined>,
 ): Promise<GameReport | null> {
   if (events.length === 0) return null;
   const sport = teamSport(team.sport);
-  // Basketball plays the team's halves or quarters.
+  // Basketball plays the team's halves or quarters, as does hockey; a
+  // soccer-family team's age group is its own sport's; touch and Oztag
+  // play halves or one period.
   const ageCfg = isBasketball(sport)
     ? basketballAgeGroupForTeam(team.age_group, team.period_count)
-    : getAgeGroupConfig(sport, team.age_group);
+    : isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(sport, team.age_group, team.period_count)
+      : isTouch(sport)
+        ? touchAgeGroupForTeam(sport, team.age_group, team.period_count)
+      : getAgeGroupConfig(sport, team.age_group);
   const periods = periodLabels(sport, ageCfg);
   const periodSeconds = getEffectiveQuarterSeconds(
     { quarter_length_seconds: team.quarter_length_seconds },
@@ -115,9 +142,9 @@ export async function buildGameReport(
     lines = ["field"];
     Object.assign(byPeriod, leagueByPeriod(events));
   } else if (isSoccer(sport)) {
-    // Time in each line and in goal, per half, from soccer's replay. 4 a
-    // side plays one line ("field") and no keeper.
-    lines = soccerAgeGroup(ageCfg.id).keeper === "none" ? ["field"] : ["gk", "def", "mid", "att"];
+    // Time in each line and in goal, per period, from the family's
+    // replay. An age with no keeper plays one line ("field").
+    lines = soccerFamilyAgeGroupForTeam(sport, team.age_group, team.period_count).keeper === "none" ? ["field"] : ["gk", "def", "mid", "att"];
     for (const [pid, periods] of Object.entries(replaySoccerGame(events).msByPeriod)) {
       for (const [p, units] of Object.entries(periods)) {
         for (const [u, ms] of Object.entries(units)) {
@@ -145,6 +172,22 @@ export async function buildGameReport(
       }
     }
     lines = used.has("guard") || used.has("forward") ? ["guard", "forward"] : ["court"];
+  } else if (isTouch(sport)) {
+    // Time in each lane, per period, from the touch family's replay: the
+    // lanes, or the field under Minutes only.
+    const used = new Set<string>();
+    for (const [pid, periods] of Object.entries(replayTouchGame(events).msByPeriod)) {
+      for (const [p, units] of Object.entries(periods)) {
+        for (const [u, ms] of Object.entries(units)) {
+          if (!(ms && ms > 0)) continue;
+          used.add(u);
+          byPeriod[pid] ??= {};
+          byPeriod[pid][Number(p)] ??= {};
+          byPeriod[pid][Number(p)][u] = (byPeriod[pid][Number(p)][u] ?? 0) + ms;
+        }
+      }
+    }
+    lines = ["middle", "link", "wing"].some((l) => used.has(l)) ? ["middle", "link", "wing"] : ["field"];
   } else {
     const unknown: never = sport;
     throw new Error(`No game report for sport "${String(unknown)}"`);
@@ -196,12 +239,23 @@ export async function buildGameReport(
     present,
     periodPlayedMs,
     lines,
-    lineLabel: (k) => (isSoccer(sport) ? SOCCER_LABELS[k] : isBasketball(sport) ? BASKETBALL_LABELS[k] : LABELS[k]) ?? k,
+    // A soccer-family sport's own words: soccer's "mid" is midfield, never
+    // AFL's centre; futsal's is the wings.
+    lineLabel: (k) =>
+      (isSoccer(sport)
+        ? soccerFamilyRules(sport).lineLabels[k as SoccerUnit]?.label
+        : isBasketball(sport)
+          ? BASKETBALL_LABELS[k]
+          : isTouch(sport)
+            ? TOUCH_LABELS[k]
+            : LABELS[k]) ?? k,
     lineWord: getSportPlaybook(sport).unitWord,
     periodLabel: (n) => (periods.label === "quarter" ? `Q${n}` : `${periods.label} ${n}`),
     periodCount: ageCfg.periodCount,
     periodMs: periodSeconds * 1000,
     minGameTimePct: snapshot?.policy.minGameTimePct ?? resolved.policy.minGameTimePct,
+    // A mixed team evens time within each group, so its floor is per group.
+    ...(isTouch(sport) && teamMixedRule(team) ? { mixedGroupOf: (pid: string) => mixedGroups?.[pid] ?? null } : {}),
     rules,
     name: (pid) => playerNames[pid] ?? "A fill-in",
     homeLine,

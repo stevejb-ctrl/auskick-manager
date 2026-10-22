@@ -15,6 +15,8 @@ import { PlayerRoleSheet } from "@/components/playbook/PlayerRoleSheet";
 import { savePlayerRole } from "@/app/(app)/teams/[teamId]/settings/howWePlayActions";
 import { describeRole, EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib/playbook/roles";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
+import type { MixedGroup } from "@/lib/types";
 
 interface PlayerRowProps {
   player: Player;
@@ -31,6 +33,8 @@ interface PlayerRowProps {
   /** How we play role sheet for this team; null where roles don't apply. */
   roleModel?: RoleModel | null;
   role?: PlayerRole;
+  /** A touch or Oztag mixed team: the coach marks who the kid counts as. */
+  mixed?: boolean;
 }
 
 export function PlayerRow({
@@ -41,7 +45,9 @@ export function PlayerRow({
   showJersey = true,
   roleModel = null,
   role,
+  mixed = false,
 }: PlayerRowProps) {
+  const [group, setGroup] = useState<MixedGroup | null>(player.mixed_group ?? null);
   const [editing, setEditing] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const roleText = roleModel ? describeRole(role, roleModel) : "";
@@ -94,6 +100,19 @@ export function PlayerRow({
         setServerError(result.error);
       } else {
         setEditing(false);
+      }
+    });
+  }
+
+  function handleGroup(next: MixedGroup) {
+    const before = group;
+    setServerError(null);
+    setGroup(next);
+    startTransition(async () => {
+      const result = await updatePlayer(teamId, player.id, { mixed_group: next });
+      if (!result.success) {
+        setGroup(before);
+        setServerError(result.error);
       }
     });
   }
@@ -207,6 +226,13 @@ export function PlayerRow({
           onClose={() => setRoleOpen(false)}
           teamId={teamId}
         />
+      )}
+
+      {/* Only on a mixed team, and only to the coach. */}
+      {canEdit && mixed && player.is_active && !editing && (
+        <span className="basis-full sm:basis-auto" data-testid={`player-mixed-${player.id}`}>
+          <MixedGroupPicker value={group} onChange={handleGroup} disabled={isPending} playerName={player.full_name} />
+        </span>
       )}
 
       {canEdit && (

@@ -35,9 +35,9 @@ import {
 
 /** Season balance, as How we play sets it. */
 export interface SoccerSeasonBalance {
-  /** Season time per kid per unit: seasonTimeByUnit("soccer", …, "line"). */
+  /** Season time per kid per unit: seasonTimeByUnit(sport, …, "line"). */
   time: UnitTime;
-  /** seasonBalanceWeight("soccer", strength); 0 = off. */
+  /** seasonBalanceWeight(sport, strength); 0 = off. */
   weight: number;
   /** A half's length in ms (season debt is counted in halves). */
   periodMs: number;
@@ -250,17 +250,17 @@ export function suggestSoccerRollingSub(input: SuggestSoccerSubInput): SoccerSub
 }
 
 /**
- * When a half's sub windows fall, in ms from the start of the half:
+ * When a period's sub windows fall, in ms from the start of the period:
  * the shared even spread (lib/live/subDistribution) with the mode's
  * final-minutes cutoff. Rolling subs have no windows. `periodMs` is the
- * half's effective length (clock multiplier applied); the mode's cutoff,
+ * period's effective length (clock multiplier applied); the mode's cutoff,
  * in real seconds, is scaled by the same `clockMultiplier`.
  */
 export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockMultiplier = 1): number[] {
   if (mode.kind !== "windows") return [];
   return subDueBoundariesMs({
     quarterMs: periodMs,
-    subsPerQuarter: mode.perHalf,
+    subsPerQuarter: mode.perPeriod,
     cutoffMs: (mode.cutoffSeconds * 1000) / clockMultiplier,
   });
 }

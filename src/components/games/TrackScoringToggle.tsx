@@ -23,6 +23,10 @@ const SCORING_HEADING: Record<Sport, string> = {
   rugby_union: "Track points",
   soccer: "Track goals",
   basketball: "Track points",
+  futsal: "Track goals",
+  hockey: "Track goals",
+  touch: "Track tries",
+  oztag: "Track tries",
 };
 
 export function TrackScoringToggle({

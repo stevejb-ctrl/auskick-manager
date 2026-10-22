@@ -1,6 +1,7 @@
-// ─── Football (soccer): the half-time rule check ─────────────
+// ─── The soccer family: the break's rule check ───────────────
 // What the period break screen shows as broken rules and warnings for a
-// half-time plan. Soccer states its own rules (sports are independent):
+// soccer, futsal or hockey break, in the sport's own words (its
+// SoccerFamilyRules) and its age group's halves or quarters:
 //
 //   - The lineup fits the age group: a keeper where the age plays with
 //     one, nobody in two places, not too many on (validateSoccerLineup's
@@ -14,15 +15,15 @@ import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { soccerUnitOf, validateSoccerLineup, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerGameState } from "@/lib/sports/soccer/replay";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
-import type { SoccerAgeGroupConfig, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
-
-const LINE_LABEL: Record<string, string> = { att: "Attack", mid: "Midfield", def: "Defence", gk: "Keeper", field: "Field" };
+import type { SoccerAgeGroupConfig, SoccerFamilyRules, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
 
 export interface SoccerBreakCheckInput {
   lineup: SoccerLineup;
   /** The game at the break (last half's lineup, keeper, time per line). */
   state: SoccerGameState;
   ageGroup: SoccerAgeGroupConfig;
+  /** The sport's line words and line rules. */
+  rules: Pick<SoccerFamilyRules, "lineLabels" | "minLines">;
   onFieldSize: number;
   /** The half about to start (1-based). */
   period: number;
@@ -36,8 +37,9 @@ export interface SoccerBreakCheckInput {
 export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
   const name = (pid: string) => c.names[pid] ?? "A player";
   const items: RuleCheckItem[] = [];
+  const periodWord = c.ageGroup.periodLabel ?? "half";
 
-  const valid = validateSoccerLineup(c.lineup, c.ageGroup, c.onFieldSize);
+  const valid = validateSoccerLineup(c.lineup, c.ageGroup, c.onFieldSize, c.rules);
   valid.issues.forEach((issue, i) => {
     if (issue.kind === "error") {
       items.push({
@@ -68,14 +70,14 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
       onField,
       bench: c.lineup.bench,
       lines: ["att", "mid", "def"],
-      lineLabel: (k) => LINE_LABEL[k] ?? k,
+      lineLabel: (k) => c.rules.lineLabels[k as keyof SoccerFamilyRules["lineLabels"]]?.label ?? k,
       name,
       playedThisGame,
       benchedLastPeriod: lastLineup ? lastLineup.bench : [],
       period: c.period,
       periodCount: c.ageGroup.periodCount,
       periodMs: c.periodMs,
-      periodWord: "half",
+      periodWord,
       lineWord: "line",
       minGameTimePct: c.minGameTimePct ?? 50,
       rules: [],
@@ -89,8 +91,8 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
       items.push({
         id: "keeper-turns",
         status: "fail",
-        text: `${name(keeper)} kept goal last half`,
-        rule: "Everyone has a turn: one half in goal each",
+        text: `${name(keeper)} kept goal last ${periodWord}`,
+        rule: `Everyone has a turn: one ${periodWord} in goal each`,
         playerIds: [keeper],
       });
     }

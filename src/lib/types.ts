@@ -82,7 +82,17 @@ export type AgeGroup =
 export type PositionModel = "zones3" | "positions5";
 
 /** Sport identifier stored on Team. Drives SportConfig lookup. */
-export type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer" | "basketball";
+export type Sport =
+  | "afl"
+  | "netball"
+  | "rugby_league"
+  | "rugby_union"
+  | "soccer"
+  | "basketball"
+  | "futsal"
+  | "hockey"
+  | "touch"
+  | "oztag";
 
 export interface Team {
   id: string;
@@ -121,6 +131,19 @@ export interface Team {
    * (migration 0069).
    */
   track_fouls?: boolean | null;
+  /**
+   * A mixed team's rule (touch, Oztag; migration 0071): at most
+   * `mixed_max_boys` boys on the field, at least `mixed_min_girls` girls
+   * and `mixed_min_boys` boys. All three NULL = not a mixed team.
+   */
+  mixed_max_boys?: number | null;
+  mixed_min_girls?: number | null;
+  mixed_min_boys?: number | null;
+  /**
+   * Oztag mixed: a girl's try counts 2 (ITF rule 4.3). NULL = the
+   * sport's default (migration 0071).
+   */
+  girls_try_double?: boolean | null;
   /** Marks the shared demo team — page at /demo uses this flag to find it. */
   is_demo: boolean;
   /** Optional human labels for the three player chip slots. Coach
@@ -185,6 +208,12 @@ export interface TeamInvite {
  */
 export type PlayerChip = "a" | "b" | "c";
 
+/**
+ * Who a kid counts as under a mixed team's on-field rule (touch:
+ * at most 3 boys; Oztag: at most 4). Nothing else reads it.
+ */
+export type MixedGroup = "girl" | "boy";
+
 export interface Player {
   id: string;
   team_id: string;
@@ -198,6 +227,11 @@ export interface Player {
    * DB column returns null when unset; treat undefined identically.
    */
   chip?: PlayerChip | null;
+  /**
+   * Who a kid counts as under a mixed team's rule (migration 0071).
+   * Asked only on mixed teams and shown nowhere else.
+   */
+  mixed_group?: MixedGroup | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -211,6 +245,8 @@ export interface FillIn {
   game_id: string;
   full_name: string;
   jersey_number: number | null;
+  /** As Player.mixed_group: asked when a fill-in joins a mixed team. */
+  mixed_group?: MixedGroup | null;
   created_by: string | null;
   created_at: string;
 }
@@ -357,7 +393,11 @@ export type GameEventType =
   // { duration_ms, reason?, quarter, elapsed_ms }. The kid leaves the
   // court and can't come back on until `duration_ms` of clock time
   // has run (pauses, so timeouts, don't count).
-  | "sit_out";
+  | "sit_out"
+  // Oztag mixed: a try scored by a girl, worth 2 (ITF rule 4.3), both
+  // sides. player_id = the scorer on ours.
+  | "girls_try"
+  | "opponent_girls_try";
 
 export interface Lineup {
   back: string[];
