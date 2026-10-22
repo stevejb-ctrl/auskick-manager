@@ -119,8 +119,7 @@ export function LeagueBreak({
       state.lineup
         ? plannedLeagueLineup({ pin, periodIndex: state.currentQuarter, lineup: state.lineup, squad, injured, loaned })
         : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.lineup, state.currentQuarter, squad, injured, loaned],
+    [state.lineup, state.currentQuarter, pin, squad, injured, loaned],
   );
   const repeat = useMemo(() => benchSidelinedInLeagueLineup(previousLineup, sidelinedSet), [previousLineup, sidelinedSet]);
   // Suggested: the next period of the planner's own projection (the
@@ -190,6 +189,16 @@ export function LeagueBreak({
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
+  // The live store hydrates after the first render (its storage is
+  // async), so the pin usually lands once the break is open: seed the
+  // draft from it then, once, unless the coach has already shaped the
+  // draft or a staged one was restored.
+  const shaped = useRef(false);
+  useEffect(() => {
+    if (!seeded || shaped.current) return;
+    shaped.current = true;
+    setDraft(seeded);
+  }, [seeded]);
 
   const staged = useMemo(() => stagedOf(draft), [draft]);
   const stagedBreakDraft = useStagedBreakDraft({
@@ -202,6 +211,7 @@ export function LeagueBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      shaped.current = true;
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -378,9 +388,13 @@ export function LeagueBreak({
       scores={scores}
       tags={tags}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        shaped.current = true;
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
+        shaped.current = true;
         setStrategy(next);
         if (next !== "repeat") setPersistedRotationMode(next === "rotate" ? "rotate" : next === "manual" ? "manual" : "suggested");
       }}
