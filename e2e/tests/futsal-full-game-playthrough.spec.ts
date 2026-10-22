@@ -110,6 +110,8 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
   await page.getByRole("button", { name: /^\+\s*goal$/i }).click({ timeout: 5_000 });
   await expect.poll(() => count("goal")).toBe(1);
   await page.getByRole("button", { name: "Add goal, Belconnen Bolts" }).click({ timeout: 5_000 });
+  // The undo strip says what was recorded, as AFL's does.
+  await expect(page.getByTestId("undo-strip")).toContainText("Belconnen Bolts goal");
   await expect.poll(() => count("opponent_goal")).toBe(1);
 
   // ─── 4. A mid-half keeper swap: a bench kid goes in goal ──────
@@ -150,6 +152,13 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();
+  // Full time: no live chips or undo strip; the review's buttons name
+  // their team and are thumb-sized.
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  const addTheirs = page.getByRole("button", { name: "Add goal, Belconnen Bolts" });
+  await expect(addTheirs).toHaveCount(1);
+  expect((await addTheirs.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect

@@ -8,14 +8,19 @@
 //      forwards, and three on the bench.
 //   2. Start H1 (two-step: the picker, then the start modal).
 //   3. A 2 for us from the player's dock, a 3 for them from the
-//      scorebug.
+//      scorebug (the undo strip says what each was). The live chrome,
+//      as AFL's: the scorer sheet asks "Who scored?" and survives a
+//      stray tap, a tap-tap sub asks first and toasts, the long-press
+//      sheet knows a kid's on court, and Game settings sits in the row.
 //   4. Five fouls on one kid: the fifth fouls them out, and the coach
 //      picks who comes on (an injury with reason "fouled_out", and the
 //      sub, the fouled-out kid on the bench for good).
 //   5. A sit-out from the player's actions: off for 5 minutes, someone on.
 //   6. End H1. The break plans H2; the fouled-out kid stays on the bench.
-//   7. Start H2, end it, finish: game_finalised, the game completed, and
-//      the share text marks the foul-out.
+//   7. Start H2, end it: at full time the scorebug's chips and the undo
+//      strip go (the review's labelled 44 px buttons fix a miscount).
+//      Finish: game_finalised, the game completed, the share text marks
+//      the foul-out, and no late arrival is offered.
 //   8. Every event basketball's actions write carries the team's sport.
 
 import { test, expect, type Page } from "@playwright/test";
@@ -59,12 +64,17 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   // createTeam stores the age's scoring default (on at U12); the factory
   // leaves the column's, so say it here.
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
-  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 8 });
+  // Eight here; a ninth in the squad who could turn up late.
+  const squad = await makePlayers(admin, { teamId: team.id, ownerId, count: 9 });
+  const players = squad.slice(0, 8);
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Dandenong Rangers" });
   expect(game.on_field_size).toBe(5);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
+  const nameOf = (id: string) => squad.find((p) => p.id === id)!.full_name;
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  const teamName = teamRow!.name as string;
 
   const lineup = async (): Promise<BasketballLineupMeta> => {
     const { data } = await admin
@@ -104,11 +114,44 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   const scorer = h1.lines.forward[0];
   await page.getByTestId(`player-tile-${scorer}`).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^\+2$/ }).first().click({ timeout: 5_000 });
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`${teamName} 2 points — ${nameOf(scorer)}`);
   await expect.poll(() => count("two_pointer")).toBe(1);
   const { data: two } = await admin.from("game_events").select("player_id").eq("game_id", game.id).eq("type", "two_pointer").single();
   expect(two?.player_id).toBe(scorer);
   await page.getByRole("button", { name: "Add 3 points, Dandenong Rangers" }).click({ timeout: 5_000 });
+  await expect(strip).toContainText("Dandenong Rangers 3 points");
   await expect.poll(() => count("opponent_three_pointer")).toBe(1);
+
+  // The scorer sheet asks who, says what for, and a stray tap keeps it.
+  await page.getByRole("button", { name: `Add 2 points, ${teamName}` }).click({ timeout: 5_000 });
+  const scorerSheet = page.getByRole("dialog", { name: "Who scored?" });
+  await expect(scorerSheet).toContainText(/2 points/i);
+  await expect(scorerSheet).not.toContainText(/slot/i);
+  await page.mouse.click(8, 8);
+  await expect(scorerSheet).toBeVisible();
+  await scorerSheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(scorerSheet).toHaveCount(0);
+
+  // A tap-tap sub asks first, then toasts, as AFL's does.
+  const [benchKid] = h1.bench;
+  const offKid = h1.lines.forward[2];
+  await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
+  await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
+  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
+  await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
+  await expect.poll(() => count("swap")).toBe(1);
+
+  // A kid on court: Switch swaps with a teammate or a bench player.
+  await openActions(page, h1.lines.guard[1]);
+  const actions = page.getByRole("dialog");
+  await expect(actions.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
+  await actions.getByRole("button", { name: "Cancel" }).click();
+  await expect(actions).toHaveCount(0);
+  // Game settings (the sub interval) sits in the row; the kid who isn't
+  // here yet can be added late.
+  await expect(page.getByRole("button", { name: "Game settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
 
   // ─── 4. Five fouls: the fifth fouls the kid out ────────────────
   const fouler = h1.lines.guard[0];
@@ -121,7 +164,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   const outModal = page.getByRole("dialog");
   await expect(outModal).toContainText(/has fouled out/i, { timeout: 10_000 });
   await outModal.getByRole("button").filter({ hasText: /suggested/i }).click();
-  await expect.poll(() => count("swap")).toBe(1);
+  await expect.poll(() => count("swap")).toBe(2);
   const { data: foulOut } = await admin
     .from("game_events")
     .select("player_id, metadata")
@@ -134,8 +177,9 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await expect(court.locator("[data-testid^='player-tile-']")).toHaveCount(5);
 
   // ─── 5. A sit-out: off for 5 minutes, someone on ───────────────
-  const { data: swapRow } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").single();
-  const cameOn = (swapRow?.metadata as { on_player_id: string }).on_player_id;
+  const { data: swapRows } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
+  const foulOutSwap = (swapRows ?? []).find((r) => (r.metadata as { off_player_id: string }).off_player_id === fouler)!;
+  const cameOn = (foulOutSwap.metadata as { on_player_id: string }).on_player_id;
   const sitter = h1.lines.forward[1];
   await openActions(page, sitter);
   await page.getByTestId("basketball-sit-out").click({ timeout: 5_000 });
@@ -143,7 +187,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await expect(sitModal).toContainText(/sits out/i, { timeout: 10_000 });
   await sitModal.getByRole("button").filter({ hasText: /suggested/i }).click();
   await expect.poll(() => count("sit_out")).toBe(1);
-  await expect.poll(() => count("swap")).toBe(2);
+  await expect.poll(() => count("swap")).toBe(3);
   const { data: sitOut } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "sit_out").single();
   expect(sitOut?.player_id).toBe(sitter);
   expect((sitOut?.metadata as { duration_ms: number }).duration_ms).toBe(5 * 60_000);
@@ -168,6 +212,15 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();
+  // Full time: no live chips or undo strip; the review's buttons name
+  // their team and are thumb-sized.
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  for (const name of [`Add 1 point, ${teamName}`, "Add 3 points, Dandenong Rangers"]) {
+    const add = page.getByRole("button", { name });
+    await expect(add).toHaveCount(1);
+    expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect
@@ -176,6 +229,8 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   const summary = page.locator("#basketball-game-summary-text");
   await expect(summary).toContainText("Dandenong Rangers", { timeout: 15_000 });
   await expect(summary).toContainText(/fouled out/);
+  // The game's over: no one can arrive late now.
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
 
   // ─── 8. Basketball's events carry the team's sport ─────────────
   const { data: events } = await admin
