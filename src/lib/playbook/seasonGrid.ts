@@ -7,7 +7,7 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch } from "@/lib/sports/registry";
 
 export interface SeasonGridCell {
   unit: string;
@@ -113,8 +113,18 @@ export function gridUnits(
       ],
     };
   }
-  // Touch and Oztag's lanes come with their engine (four-sports plan, track B).
-  if (isTouch(sport)) return sportNotBuilt(sport, "gridUnits");
+  if (isTouch(sport)) {
+    // The lanes season balance evens out, centre out. Minutes only has
+    // no unit (balanceUnit null): the grid shows the lanes, never filled.
+    return {
+      unit: "line",
+      columns: [
+        { key: "middle", label: "Mid" },
+        { key: "link", label: "Link" },
+        { key: "wing", label: "Wing" },
+      ],
+    };
+  }
   return noSportBranch(sport, "gridUnits");
 }
 

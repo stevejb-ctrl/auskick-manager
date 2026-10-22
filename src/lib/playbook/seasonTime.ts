@@ -20,7 +20,8 @@ import { primaryThirdFor } from "@/lib/sports/netball";
 import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
-import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { replayTouchGame } from "@/lib/sports/touch/replay";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch } from "@/lib/sports/registry";
 
 /** ms per player per unit key. */
 export type UnitTime = Record<string, Record<string, number>>;
@@ -135,8 +136,15 @@ export function gameTimeByUnit(
     return out;
   }
 
-  // Touch and Oztag's lanes come with their engine (four-sports plan, track B).
-  if (isTouch(sport)) return sportNotBuilt(sport, "gameTimeByUnit");
+  if (isTouch(sport)) {
+    // Touch and Oztag: each lane (middles, links, wings), or the field
+    // under Minutes only.
+    if (unit !== "line") return out;
+    for (const [pid, lanes] of Object.entries(replayTouchGame(events).ms)) {
+      for (const [key, ms] of Object.entries(lanes)) add(out, pid, key, ms ?? 0);
+    }
+    return out;
+  }
   if (!isRugby(sport)) return noSportBranch(sport, "gameTimeByUnit");
   // Rugby: forwards / backs, with vest wearers' periods in
   // "centre" (the duty, not a line). Named positions come from the

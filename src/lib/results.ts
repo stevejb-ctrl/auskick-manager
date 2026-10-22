@@ -7,8 +7,9 @@ import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
+import { replayTouchGame } from "@/lib/sports/touch/replay";
 import type { GameEvent, Sport } from "@/lib/types";
-import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch } from "@/lib/sports/registry";
 
 export interface GameScore {
   us: number;
@@ -48,8 +49,11 @@ export function scoreFromEvents(sport: Sport, events: GameEvent[]): GameScore {
     const r = replayBasketballGame(events);
     return { us: r.teamScore.points, them: r.opponentScore.points };
   }
-  // Touch and Oztag's replay comes with their engine (four-sports plan, track B).
-  if (isTouch(sport)) return sportNotBuilt(sport, "scoreFromEvents");
+  if (isTouch(sport)) {
+    // A girl's try (Oztag mixed) is its own event, worth 2.
+    const r = replayTouchGame(events);
+    return { us: r.teamScore.points, them: r.opponentScore.points };
+  }
   return noSportBranch(sport, "scoreFromEvents");
 }
 
@@ -107,7 +111,12 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
       if (points > 0) rows.push({ playerId, detail: `${points} ${points === 1 ? "pt" : "pts"}`, points, showPoints: false });
     }
   } else if (isTouch(sport)) {
-    return sportNotBuilt(sport, "scorersFromEvents");
+    // Tries, not points: a girl's try counts 2 in the score but is one try,
+    // and the tally doesn't say who counts as a girl.
+    const r = replayTouchGame(events);
+    for (const [playerId, tries] of Object.entries(r.playerTries)) {
+      if (tries > 0) rows.push({ playerId, detail: `${tries} ${tries === 1 ? "try" : "tries"}`, points: r.playerPoints[playerId] ?? tries, showPoints: false });
+    }
   } else {
     return noSportBranch(sport, "scorersFromEvents");
   }
