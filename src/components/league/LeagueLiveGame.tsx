@@ -80,6 +80,7 @@ import {
   playerZoneMsOnField,
   rugbyScoreWords,
   suggestLeagueSubs,
+  type LeagueSubLaws,
 } from "@/lib/sports/rugby_league/fairness";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -685,6 +686,19 @@ export function LeagueLiveGame({
     () => new Map(squad.map((p) => [p.id, null])),
     [squad],
   );
+  // The rules a rolling sub keeps: §6 where the grade plays it, the How
+  // we play floor (Siren's 50% by default, as the break checks it), and a
+  // sub interval's gap before a swap crosses lines (UX audit, 23 Oct 2026).
+  const subLaws = useMemo<LeagueSubLaws>(
+    () => ({
+      periodCount: ageGroup.periodCount,
+      periodMs: periodSeconds * 1000,
+      requiredUnbroken: enforceUnbrokenPeriods && ageGroup.unbrokenPeriods ? (ageGroup.minUnbrokenPeriods ?? 0) : 0,
+      minGameTimePct: leaguePlaybook?.minGameTimePct ?? 50,
+      crossLineGapMs: subIntervalMs ?? undefined,
+    }),
+    [ageGroup, periodSeconds, enforceUnbrokenPeriods, leaguePlaybook, subIntervalMs],
+  );
   const nextSubSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
       return [];
@@ -702,6 +716,7 @@ export function LeagueLiveGame({
       elapsedMs,
       chipByPlayerId,
       leaguePlaybook,
+      subLaws,
     );
   }, [
     thisGameEvents,
@@ -714,6 +729,7 @@ export function LeagueLiveGame({
     elapsedMs,
     chipByPlayerId,
     leaguePlaybook,
+    subLaws,
   ]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────

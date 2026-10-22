@@ -2363,6 +2363,60 @@ export interface LeagueSubSuggestion {
   zone: LeagueZone;
 }
 
+/**
+ * The game's rules a rolling sub must keep (UX audit, 23 Oct 2026: the
+ * card suggested taking off a kid who'd sat out H1, breaking §6 and the
+ * 50% floor, both Musts on How we play).
+ */
+export interface LeagueSubLaws {
+  periodCount: number;
+  periodMs: number;
+  /** §6: unbroken periods each kid needs this game (0 = no such law). */
+  requiredUnbroken: number;
+  /** The game-time floor, % of the game (0 or absent = none). */
+  minGameTimePct?: number;
+  /**
+   * Cross to the other line when its longest-on kid has been on this
+   * much longer than the best same-line choice (the sub interval).
+   */
+  crossLineGapMs?: number;
+}
+
+/**
+ * Kids who must stay on this period: their unbroken period (§6) or their
+ * share of the game can only still be reached in it. A kid on track for
+ * an unbroken period who'd be short without this one stays; so does a
+ * kid whose floor needs more time than the periods after this hold.
+ */
+export function mustStayOn(
+  events: GameEvent[],
+  currentQuarter: number,
+  onFieldIds: readonly string[],
+  elapsedMs: number,
+  laws: LeagueSubLaws,
+): Set<string> {
+  const out = new Set<string>();
+  const remainingAfter = Math.max(0, laws.periodCount - currentQuarter);
+  if (laws.requiredUnbroken > 0) {
+    const status = unbrokenPeriodLiveStatus(events, laws.requiredUnbroken, elapsedMs);
+    for (const pid of onFieldIds) {
+      const s = status[pid];
+      if (!s || !s.inProgressPeriods.includes(currentQuarter)) continue;
+      const done = s.unbrokenPeriods.length;
+      if (done < laws.requiredUnbroken && done + remainingAfter < laws.requiredUnbroken) out.add(pid);
+    }
+  }
+  const pct = laws.minGameTimePct ?? 0;
+  if (pct > 0) {
+    const target = (pct / 100) * laws.periodCount * laws.periodMs;
+    const played = playerMsOnField(events, currentQuarter, elapsedMs);
+    for (const pid of onFieldIds) {
+      if (target - (played[pid] ?? 0) > remainingAfter * laws.periodMs) out.add(pid);
+    }
+  }
+  return out;
+}
+
 export function suggestLeagueSubs(
   events: GameEvent[],
   currentQuarter: number,
@@ -2372,6 +2426,8 @@ export function suggestLeagueSubs(
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
   /** How we play: home line, never-plays and keep-on instead of chips. */
   playbook?: LeaguePlaybookInput,
+  /** §6, the game-time floor and when to cross lines. */
+  laws?: LeagueSubLaws,
 ): LeagueSubSuggestion[] {
   const onFieldIds = leagueOnField(currentLineup);
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
@@ -2381,6 +2437,8 @@ export function suggestLeagueSubs(
   // catalogue rule league offers).
   if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const excludeSet = new Set(excludeOffPlayers);
+  // Kids whose unbroken period or floor needs this period stay on.
+  if (laws) mustStayOn(events, currentQuarter, onFieldIds, elapsedMs, laws).forEach((pid) => excludeSet.add(pid));
   type Stint = { startedAt: number; location: "field" | "bench" };
   const stint = new Map<string, Stint>();
   // SUB-01/B4: track stints on an ABSOLUTE game-elapsed timeline that
@@ -2486,6 +2544,8 @@ export function suggestLeagueSubs(
   const swaps: LeagueSubSuggestion[] = [];
   const usedOff = new Set<string>();
   const usedOn = new Set<string>();
+  // The longest-on kid still free in a line, without taking them.
+  const nextUnused = (z: LeagueZone) => fieldByZone[z].slice(cursor[z]).find((id) => !usedOff.has(id));
 
   for (const benchId of benchSorted) {
     if (usedOn.has(benchId)) continue;
@@ -2511,11 +2571,16 @@ export function suggestLeagueSubs(
     // No preference between two open lines: rule 2 above — whoever has
     // been on longest, either line. Defaulting to forwards-first meant the
     // backs never came off and a just-subbed forward was pulled straight
-    // back (round 5, league-u8-vests).
-    if (noPreference && zoneOrder.length === 2) {
-      const fwd = fieldByZone.forward[cursor.forward];
-      const back = fieldByZone.back[cursor.back];
-      if (back && (!fwd || msAt(back) > msAt(fwd))) zoneOrder = ["back", "forward"];
+    // back (round 5, league-u8-vests). With a preference, the other line
+    // still wins when its longest-on kid has been on a sub interval
+    // longer (audit, 23 Oct 2026: a kid two minutes on was pulled while
+    // the backs had played twenty).
+    if (zoneOrder.length === 2) {
+      const [mine, other] = zoneOrder;
+      const a = nextUnused(mine);
+      const b = nextUnused(other);
+      const gap = noPreference ? 0 : laws?.crossLineGapMs;
+      if (b && gap !== undefined && (!a || msAt(b) - msAt(a) > gap)) zoneOrder = [other, mine];
     }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
